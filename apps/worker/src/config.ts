@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { GIT_EXECUTABLE } from "./git-executable.ts";
 import { assertAbsolutePath } from "./storage.ts";
 import { WORKER_SPOOL_MIN_BYTES, WORKER_SPOOL_MIN_RECORDS } from "./types.ts";
 import {
@@ -481,7 +482,7 @@ export function workerRunExecutables(
     "/usr/bin/ldd",
     "/usr/bin/kill",
     ...(harnessExecutable
-      ? ["/usr/bin/setsid", "/usr/bin/git", harnessExecutable]
+      ? ["/usr/bin/setsid", GIT_EXECUTABLE, harnessExecutable]
       : []),
   ];
 }
@@ -498,7 +499,7 @@ export function workerRuntimeReadPaths(
     // gnutrue on Debian/Ubuntu runners.
     "/usr/bin/dash",
     "/usr/bin/gnutrue",
-    "/usr/bin/git",
+    GIT_EXECUTABLE,
     "/usr/bin/bwrap",
     "/usr/bin/node",
     "/usr/bin/true",
