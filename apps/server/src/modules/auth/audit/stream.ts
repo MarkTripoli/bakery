@@ -16,8 +16,12 @@ import type { PgTransactionClient } from "../../../platform/database.ts";
 export const DEFAULT_STREAM_BATCH_ROWS = 500;
 /** Most events one stream batch returns. */
 export const MAX_STREAM_BATCH_ROWS = 1_000;
-/** Most JSON Lines bytes one stream batch returns before it is cut. */
-export const MAX_STREAM_BATCH_BYTES = 1024 * 1024;
+/**
+ * Most JSON Lines bytes one stream batch returns before it is cut. Matches the
+ * transport bound on `content` (65536 characters; a UTF-16 code unit never
+ * needs fewer UTF-8 bytes, so a byte cap also caps characters).
+ */
+export const MAX_STREAM_BATCH_BYTES = 65_536;
 /**
  * Events younger than this are held back for a later batch. A transaction that
  * commits after a later row was read could otherwise land behind the cursor
@@ -39,8 +43,11 @@ export type AuditStreamInput = Readonly<{
  * Oldest-first, resumable read of one organization's audit trail for an
  * external collector. Each line is the same redacted `AuditEvent` the in-app
  * list returns (shared column list and mapper). The cursor is signed and bound
- * to the caller, the organization and the filter set; a batch always returns a
- * cursor to resume from, so polling with it delivers each settled event once.
+ * to the caller, the organization and the filter set. Once any event has been
+ * delivered every batch returns a cursor, so polling with it delivers each
+ * settled event once. An event that alone exceeds the batch byte cap is still
+ * delivered, with its `details` replaced by an omission marker, so one large
+ * row can never stall the stream; the full row stays readable in the list.
  */
 export async function streamAuditEvents(
   transaction: Pick<PgTransactionClient, "query">,
@@ -88,17 +95,29 @@ export async function streamAuditEvents(
   const lines: string[] = [];
   let last: AuditRow | undefined;
   let bytes = 0;
+  let detailsOmitted = 0;
   let more = result.rows.length > limit;
   const encoder = new TextEncoder();
+  const sizeOf = (line: string) => encoder.encode(line).byteLength + 1;
   for (const row of result.rows.slice(0, limit)) {
-    const line = JSON.stringify(toAuditEvent(row));
-    const size = encoder.encode(line).byteLength + 1;
-    if (lines.length > 0 && bytes + size > MAX_STREAM_BATCH_BYTES) {
+    const event = toAuditEvent(row);
+    let line = JSON.stringify(event);
+    let size = sizeOf(line);
+    const oversized = size > MAX_STREAM_BATCH_BYTES;
+    if (oversized) {
+      line = JSON.stringify({
+        ...event,
+        details: { streamOmitted: "details", detailsBytes: size },
+      });
+      size = sizeOf(line);
+    }
+    if (bytes + size > MAX_STREAM_BATCH_BYTES) {
       more = true;
       break;
     }
     bytes += size;
     lines.push(line);
+    if (oversized) detailsOmitted += 1;
     last = row;
   }
   const nextCursor = last
@@ -113,6 +132,7 @@ export async function streamAuditEvents(
     content: lines.length > 0 ? `${lines.join("\n")}\n` : "",
     nextCursor,
     caughtUp: !more,
+    detailsOmitted,
     settledBefore: settledBefore.toISOString(),
   };
 }

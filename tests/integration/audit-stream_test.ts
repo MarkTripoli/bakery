@@ -16,6 +16,7 @@ type StreamBatch = {
   content: string;
   nextCursor: string | null;
   caughtUp: boolean;
+  detailsOmitted: number;
   settledBefore: string;
 };
 
@@ -214,6 +215,68 @@ Deno.test("non-admin: the stream refuses a developer", async () => {
       "select 1 from bakery.audit_events where operation = 'auditEvents.stream'",
     );
     assertEquals(written.rows.length, 0);
+  } finally {
+    await cleanup(f);
+    await f.finish();
+  }
+});
+
+Deno.test("stream: default limit over more than 64 KiB cuts by bytes, and an oversized event cannot stall it", async () => {
+  const f = await openInstallationFixture(true);
+  try {
+    // 1000 ordinary settled events (~300 bytes per line, ~300 KB in total).
+    await f.pgDatabase.query(
+      `insert into bakery.audit_events (organization_id, operation, resource_type,
+         resource_id, outcome, request_id, trace_id, created_at)
+       select $1, 'stream.vol', 'stream_test', 'r' || n, 'succeeded', 'r', 't',
+         now() - interval '1 hour' + n * interval '1 millisecond'
+       from generate_series(1, 1000) as n`,
+      [f.organizationId],
+    );
+    // One event far larger than a batch, after the ordinary ones.
+    await f.pgDatabase.query(
+      `insert into bakery.audit_events (organization_id, operation, resource_type,
+         resource_id, outcome, request_id, trace_id, details, created_at)
+       values ($1, 'stream.vol', 'stream_test', 'huge', 'succeeded', 'r', 't',
+         jsonb_build_object('pad', repeat('x', 200000)), now() - interval '10 minutes')`,
+      [f.organizationId],
+    );
+
+    const ids = new Set<string>();
+    let cursor: string | null = null;
+    let reads = 0;
+    let omitted = 0;
+    let cutByBytes = false;
+    for (;;) {
+      const params: Record<string, string> = { operation: "stream.vol" };
+      if (cursor) params.cursor = cursor;
+      const body = await batch(f, params);
+      reads += 1;
+      const bytes = new TextEncoder().encode(body.content).byteLength;
+      assert(bytes <= 65_536, `batch of ${bytes} bytes`);
+      if (!body.caughtUp && body.lineCount < 500) cutByBytes = true;
+      omitted += body.detailsOmitted;
+      for (const line of body.content.split("\n").filter(Boolean)) {
+        const event = JSON.parse(line) as {
+          id: string;
+          resourceId: string;
+          details: Record<string, unknown>;
+        };
+        assertEquals(ids.has(event.id), false, "duplicate delivery");
+        ids.add(event.id);
+        if (event.resourceId === "huge") {
+          assertEquals(event.details.streamOmitted, "details");
+          assert(Number(event.details.detailsBytes) > 65_536);
+        }
+      }
+      cursor = body.nextCursor;
+      if (body.caughtUp) break;
+      assert(reads < 100, "stream never caught up");
+    }
+    assertEquals(ids.size, 1001);
+    assertEquals(omitted, 1);
+    assert(cutByBytes, "no batch was cut by the byte budget");
+    assert(reads > 1);
   } finally {
     await cleanup(f);
     await f.finish();

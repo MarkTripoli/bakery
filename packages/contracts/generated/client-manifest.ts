@@ -54446,14 +54446,14 @@ export const clientManifest = {
         "content": {
           "type": "string",
           "maxLength": 65536,
-          "description": "The JSON Lines batch: one AuditEvent JSON object per line, empty when no new event has settled."
+          "description": "The JSON Lines batch, at most 65536 bytes: one AuditEvent JSON object per line, empty when no new event has settled."
         },
         "nextCursor": {
           "anyOf": [
             {
               "type": "string",
               "maxLength": 65536,
-              "description": "Cursor to pass on the next read; it repeats the request cursor when the batch is empty, and is null only when the stream has not yet delivered any event."
+              "description": "Cursor to pass on the next read. When the batch is empty it is the request cursor again, and it is null only before the stream has delivered any event."
             },
             {
               "type": "null",
@@ -54465,6 +54465,12 @@ export const clientManifest = {
         "caughtUp": {
           "type": "boolean",
           "description": "True when no further settled event is waiting; the collector should wait before polling again. False means read again at once."
+        },
+        "detailsOmitted": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Number of events in this batch whose details were too large for one batch and were replaced by an omission marker; read those events in full from the audit list."
         },
         "settledBefore": {
           "type": "string",
@@ -54479,6 +54485,7 @@ export const clientManifest = {
         "content",
         "nextCursor",
         "caughtUp",
+        "detailsOmitted",
         "settledBefore"
       ],
       "additionalProperties": false,
