@@ -2046,14 +2046,15 @@ jobs:
       - name: Stop web dev server
         if: always()
         run: kill "$(cat "$RUNNER_TEMP/web-dev.pid")" || true
-      - name: Record git history state before the provenance gate
-        # The Paper provenance gate refuses a shallow repository ("Incomplete
-        # shallow provenance history", run 43023722608 on hetzner-4, an hour
-        # after a checkout that unshallowed). This read-only line says whether
-        # history is still complete here, so a repeat names where it was lost.
-        run: |
-          printf 'host=%s shallow=%s commits=%s head=%s\n' "$(hostname)" "$(git rev-parse --is-shallow-repository)" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
-          ls -l "$(git rev-parse --git-dir)/shallow" 2>&1 || true
+      - name: Complete git history before the provenance gate
+        # A persistent runner can carry a leftover .git/shallow entry from the
+        # repository's pre-recreation history (bakery-hetzner-4, runs
+        # 43023722608 and 43056515091): no ref reaches it and the server does
+        # not have it, so `git fetch --unshallow` cannot clear it and the Paper
+        # provenance gate refuses the repository as shallow. This drops only
+        # entries no ref contains, logs each one, and still fails on a real
+        # boundary (learnings/stale-shallow-entry-survives-unshallow.xml).
+        run: deno run --allow-run=git --allow-read --allow-write=.git --allow-env=RUNNER_NAME scripts/ci/heal-stale-shallow.ts
       - name: Compare owned Paper references
         # On a pull request the base SHA lets compare-paper.mjs skip
         # re-rendering references that no changed path produces or pins (the
@@ -2176,6 +2177,15 @@ jobs:
       - name: Stop web dev server
         if: always()
         run: kill "$(cat "$RUNNER_TEMP/web-dev.pid")" || true
+      - name: Complete git history before the provenance gate
+        # A persistent runner can carry a leftover .git/shallow entry from the
+        # repository's pre-recreation history (bakery-hetzner-4, runs
+        # 43023722608 and 43056515091): no ref reaches it and the server does
+        # not have it, so `git fetch --unshallow` cannot clear it and the Paper
+        # provenance gate refuses the repository as shallow. This drops only
+        # entries no ref contains, logs each one, and still fails on a real
+        # boundary (learnings/stale-shallow-entry-survives-unshallow.xml).
+        run: deno run --allow-run=git --allow-read --allow-write=.git --allow-env=RUNNER_NAME scripts/ci/heal-stale-shallow.ts
       - name: Compare owned Paper references
         # On a pull request the base SHA lets compare-paper.mjs skip
         # re-rendering references that no changed path produces or pins (the
@@ -2312,6 +2322,15 @@ jobs:
       - name: Stop web dev server
         if: always()
         run: kill "$(cat "$RUNNER_TEMP/web-dev.pid")" || true
+      - name: Complete git history before the provenance gate
+        # A persistent runner can carry a leftover .git/shallow entry from the
+        # repository's pre-recreation history (bakery-hetzner-4, runs
+        # 43023722608 and 43056515091): no ref reaches it and the server does
+        # not have it, so `git fetch --unshallow` cannot clear it and the Paper
+        # provenance gate refuses the repository as shallow. This drops only
+        # entries no ref contains, logs each one, and still fails on a real
+        # boundary (learnings/stale-shallow-entry-survives-unshallow.xml).
+        run: deno run --allow-run=git --allow-read --allow-write=.git --allow-env=RUNNER_NAME scripts/ci/heal-stale-shallow.ts
       - name: Compare owned Paper references
         # On a pull request the base SHA lets compare-paper.mjs skip
         # re-rendering references that no changed path produces or pins (the

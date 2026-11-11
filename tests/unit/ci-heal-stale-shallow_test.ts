@@ -1,0 +1,287 @@
+import { assert, assertEquals, assertRejects } from "@std/assert";
+import { join } from "node:path";
+import {
+  type GitRunner,
+  healStaleShallow,
+  runGit,
+} from "../../scripts/ci/heal-stale-shallow.ts";
+
+// Real throwaway repositories: the failure was a property of git's own state
+// (a leftover .git/shallow entry), so a mock of git would prove nothing.
+
+const GIT_ENV = {
+  GIT_AUTHOR_NAME: "test",
+  GIT_AUTHOR_EMAIL: "test@example.test",
+  GIT_COMMITTER_NAME: "test",
+  GIT_COMMITTER_EMAIL: "test@example.test",
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_CONFIG_NOSYSTEM: "1",
+  LC_ALL: "C",
+};
+
+async function git(cwd: string, ...args: string[]): Promise<string> {
+  const out = await new Deno.Command("git", {
+    args,
+    cwd,
+    env: GIT_ENV,
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+  if (!out.success) {
+    throw new Error(
+      `git ${args.join(" ")} failed: ${new TextDecoder().decode(out.stderr)}`,
+    );
+  }
+  return new TextDecoder().decode(out.stdout).trim();
+}
+
+async function withDir(run: (dir: string) => Promise<void>): Promise<void> {
+  const dir = await Deno.makeTempDir({ prefix: "bakery-shallow-" });
+  try {
+    await run(dir);
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+}
+
+/** A repository on `main` with three commits. */
+async function makeRepo(dir: string): Promise<string> {
+  const repo = join(dir, "repo");
+  await Deno.mkdir(repo);
+  await git(repo, "init", "-q", "-b", "main");
+  for (const n of ["1", "2", "3"]) {
+    await Deno.writeTextFile(join(repo, "f"), n);
+    await git(repo, "add", "f");
+    await git(repo, "commit", "-q", "-m", `c${n}`);
+  }
+  return repo;
+}
+
+/** A commit no ref reaches, like the leftover from a recreated repository. */
+async function danglingCommit(repo: string, message: string): Promise<string> {
+  const tree = await git(repo, "rev-parse", "HEAD^{tree}");
+  return await git(repo, "commit-tree", tree, "-m", message);
+}
+
+const shallowFile = (repo: string) => join(repo, ".git", "shallow");
+
+async function readShallow(repo: string): Promise<string | null> {
+  return await Deno.readTextFile(shallowFile(repo)).catch(() => null);
+}
+
+const isShallow = async (repo: string) =>
+  await git(repo, "rev-parse", "--is-shallow-repository") === "true";
+
+Deno.test("a complete repository is left alone", async () => {
+  await withDir(async (dir) => {
+    const repo = await makeRepo(dir);
+    const result = await healStaleShallow(repo);
+    assertEquals(result.shallowBefore, false);
+    assertEquals(result.shallowAfter, false);
+    assertEquals(result.dropped, []);
+    assertEquals(await readShallow(repo), null);
+  });
+});
+
+Deno.test("a stale entry whose commit no ref reaches is dropped and the repository becomes complete", async () => {
+  await withDir(async (dir) => {
+    const repo = await makeRepo(dir);
+    const stale = await danglingCommit(repo, "docs: from the old repository");
+    await Deno.writeTextFile(shallowFile(repo), `${stale}\n`);
+    assert(await isShallow(repo), "precondition: the entry makes it shallow");
+
+    const result = await healStaleShallow(repo);
+
+    assertEquals(result.shallowBefore, true);
+    assertEquals(result.shallowAfter, false);
+    assertEquals(result.dropped.map((d) => d.sha), [stale]);
+    assertEquals(result.dropped[0].reason, "no-ref-contains-it");
+    assertEquals(result.dropped[0].subject, "docs: from the old repository");
+    assertEquals(await readShallow(repo), null);
+    assertEquals(await isShallow(repo), false);
+    assertEquals(await git(repo, "rev-list", "--count", "HEAD"), "3");
+  });
+});
+
+Deno.test("a stale entry whose commit is not in the repository at all is dropped", async () => {
+  await withDir(async (dir) => {
+    const repo = await makeRepo(dir);
+    const absent = "38f398e8c80cd54ffe9a19f6b3807e076c8d2724";
+    await Deno.writeTextFile(shallowFile(repo), `${absent}\n`);
+    const result = await healStaleShallow(repo);
+    assertEquals(result.dropped.map((d) => [d.sha, d.reason]), [
+      [absent, "object-absent"],
+    ]);
+    assertEquals(result.dropped[0].subject, null);
+    assertEquals(result.shallowAfter, false);
+  });
+});
+
+Deno.test("a real boundary of a shallow clone is kept byte for byte and the repository stays shallow", async () => {
+  await withDir(async (dir) => {
+    const origin = await makeRepo(dir);
+    const clone = join(dir, "clone");
+    await git(dir, "clone", "-q", "--depth", "1", `file://${origin}`, clone);
+    const before = await readShallow(clone);
+    assert(before !== null && before.trim().length === 40);
+
+    const result = await healStaleShallow(clone);
+
+    assertEquals(result.dropped, []);
+    assertEquals(result.kept, [before.trim()]);
+    assertEquals(result.shallowAfter, true);
+    assertEquals(await readShallow(clone), before);
+  });
+});
+
+Deno.test("only the stale entry goes when a real boundary sits beside it", async () => {
+  await withDir(async (dir) => {
+    const origin = await makeRepo(dir);
+    const clone = join(dir, "clone");
+    await git(dir, "clone", "-q", "--depth", "1", `file://${origin}`, clone);
+    const real = (await readShallow(clone))!.trim();
+    const stale = await danglingCommit(clone, "leftover");
+    await Deno.writeTextFile(shallowFile(clone), `${real}\n${stale}\n`);
+
+    const result = await healStaleShallow(clone);
+
+    assertEquals(result.dropped.map((d) => d.sha), [stale]);
+    assertEquals(result.kept, [real]);
+    assertEquals(result.shallowAfter, true);
+    assertEquals(await readShallow(clone), `${real}\n`);
+    assertEquals(await git(clone, "rev-list", "--count", "HEAD"), "1");
+  });
+});
+
+Deno.test("a boundary that is an ancestor of a ref, not its tip, is real and kept", async () => {
+  await withDir(async (dir) => {
+    const repo = await makeRepo(dir);
+    const middle = await git(repo, "rev-parse", "HEAD~1");
+    await Deno.writeTextFile(shallowFile(repo), `${middle}\n`);
+    const result = await healStaleShallow(repo);
+    assertEquals(result.dropped, []);
+    assertEquals(result.kept, [middle]);
+    assertEquals(await readShallow(repo), `${middle}\n`);
+  });
+});
+
+Deno.test("an entry reached only through a tag or a remote-tracking ref is kept", async () => {
+  await withDir(async (dir) => {
+    const repo = await makeRepo(dir);
+    const side = await danglingCommit(repo, "only a tag reaches this");
+    await git(repo, "tag", "keep-me", side);
+    const remote = await danglingCommit(repo, "only a remote ref reaches this");
+    await git(repo, "update-ref", "refs/remotes/origin/feature", remote);
+    await Deno.writeTextFile(shallowFile(repo), `${side}\n${remote}\n`);
+    const result = await healStaleShallow(repo);
+    assertEquals(result.dropped, []);
+    assertEquals([...result.kept].sort(), [side, remote].sort());
+  });
+});
+
+Deno.test("a shallow file with nothing to drop is not rewritten at all", async () => {
+  await withDir(async (dir) => {
+    const repo = await makeRepo(dir);
+    const middle = await git(repo, "rev-parse", "HEAD~1");
+    // No trailing newline: git accepts it, and a rewrite would add one.
+    await Deno.writeTextFile(shallowFile(repo), middle);
+    const result = await healStaleShallow(repo);
+    assertEquals(result.dropped, []);
+    assertEquals(await readShallow(repo), middle);
+  });
+});
+
+Deno.test("healing twice changes nothing the second time", async () => {
+  await withDir(async (dir) => {
+    const repo = await makeRepo(dir);
+    await Deno.writeTextFile(
+      shallowFile(repo),
+      `${await danglingCommit(repo, "leftover")}\n`,
+    );
+    assertEquals((await healStaleShallow(repo)).dropped.length, 1);
+    const again = await healStaleShallow(repo);
+    assertEquals(again.shallowBefore, false);
+    assertEquals(again.dropped, []);
+  });
+});
+
+Deno.test("a shallow file git itself rejects is refused and left untouched", async () => {
+  await withDir(async (dir) => {
+    const repo = await makeRepo(dir);
+    const garbage = "not-a-sha\n";
+    await Deno.writeTextFile(shallowFile(repo), garbage);
+    await assertRejects(
+      () => healStaleShallow(repo),
+      Error,
+      "GIT_COMMAND_FAILED",
+    );
+    assertEquals(await readShallow(repo), garbage);
+  });
+});
+
+Deno.test("an entry git accepts but this parser does not fully understand is refused, not rewritten", async () => {
+  await withDir(async (dir) => {
+    const repo = await makeRepo(dir);
+    // git reads hex case-insensitively; this tool only rewrites what it can
+    // account for exactly.
+    const upper = `${await git(repo, "rev-parse", "HEAD~1")}\n`.toUpperCase();
+    await Deno.writeTextFile(shallowFile(repo), upper);
+    assert(await isShallow(repo), "precondition: git accepts the entry");
+    await assertRejects(
+      () => healStaleShallow(repo),
+      Error,
+      "SHALLOW_FILE_MALFORMED",
+    );
+    assertEquals(await readShallow(repo), upper);
+  });
+});
+
+Deno.test("a directory that is not a repository is an error, never a repair", async () => {
+  await withDir(async (dir) => {
+    const empty = join(dir, "empty");
+    await Deno.mkdir(empty);
+    await assertRejects(
+      () => healStaleShallow(empty),
+      Error,
+      "GIT_COMMAND_FAILED",
+    );
+    assertEquals([...Deno.readDirSync(empty)], []);
+  });
+});
+
+Deno.test("when git cannot answer the reachability question nothing is dropped", async () => {
+  await withDir(async (dir) => {
+    const repo = await makeRepo(dir);
+    const stale = await danglingCommit(repo, "leftover");
+    await Deno.writeTextFile(shallowFile(repo), `${stale}\n`);
+    const before = await readShallow(repo);
+    // `for-each-ref` fails (exit 129) instead of answering "no ref has it":
+    // an unknown answer is not a "no", so the file must not be rewritten.
+    const failing: GitRunner = async (cwd, args) =>
+      args[0] === "for-each-ref"
+        ? { code: 129, stdout: "", stderr: "boom" }
+        : await runGit(cwd, args);
+    await assertRejects(
+      () => healStaleShallow(repo, { git: failing }),
+      Error,
+      "GIT_COMMAND_FAILED",
+    );
+    assertEquals(await readShallow(repo), before);
+    assertEquals(await isShallow(repo), true);
+  });
+});
+
+Deno.test("the error text never carries a path or a git message", async () => {
+  await withDir(async (dir) => {
+    const empty = join(dir, "SECRET-DIR-NAME");
+    await Deno.mkdir(empty);
+    try {
+      await healStaleShallow(empty);
+    } catch (error) {
+      assert(error instanceof Error);
+      assert(!error.message.includes("SECRET-DIR-NAME"), error.message);
+      return;
+    }
+    throw new Error("expected a refusal");
+  });
+});

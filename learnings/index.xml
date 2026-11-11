@@ -99,4 +99,5 @@
   <entry file="navigating-click-reads-storage-from-context.xml" scope="project" />
   <entry file="heavy-lane-label-is-pool-not-cpu.xml" scope="project" />
   <entry file="nested-steps-bind-through-compiler-action-sites.xml" scope="project" />
+  <entry file="stale-shallow-entry-survives-unshallow.xml" scope="project" />
 </learnings>
