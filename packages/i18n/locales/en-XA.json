@@ -1942,8 +1942,6 @@
   "shell.navigation.customRoles": "⟦Çûšŧôɱ ŕôļëš ŧë⟧",
   "settings.sso.sessionRequired": "⟦À ƀŕôŵšëŕ šëššïôñ ïš ŕëǫûïŕëð ŧô ɱàñàĝë šïñĝļë šïĝñ-ôñ. Šïĝñ ïñ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "settings.sso.status.enabled": "⟦Ëñàƀļëð…⟧",
-  "settings.sso.status.disabled": "⟦Ðïšàƀļëð…⟧",
-  "settings.sso.dialog.edit.title": "⟦Ëðïŧ þŕôṽïðëŕ ŧë⟧",
   "settings.sso.provider.updated": "⟦Þŕôṽïðëŕ ûþðàŧëð. ŧëš⟧",
   "settings.sso.verify.short": "⟦Àðð ŧĥïš ŦẊŦ ŕëçôŕð ŧô þŕôṽë ÿôû çôñŧŕôļ {domain}. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "settings.sso.verify.heading": "⟦Ṽëŕïƒÿ ÿôûŕ ðôɱàïñ ŧëšŧ⟧",
@@ -2532,5 +2530,12 @@
   "settings.scim.revoke": "⟦Ŕëṽôķë ŧôķëñ ŧë⟧",
   "settings.scim.revoke.title": "⟦Ŕëṽôķë ŧĥë ŠÇÏṀ ŧôķëñ? ŧëšŧŧ⟧",
   "settings.scim.revoke.body": "⟦Šÿñçïñĝ šŧôþš ŕïĝĥŧ àŵàÿ. Ṁëɱƀëŕš àñð ŧĥëïŕ ŕôļëš šŧàÿ àš ŧĥëÿ àŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
-  "settings.scim.revoke.confirm": "⟦Ŕëṽôķë ŧôķëñ ŧë⟧"
+  "settings.scim.revoke.confirm": "⟦Ŕëṽôķë ŧôķëñ ŧë⟧",
+  "settings.sso.provider.edit": "⟦Ëðïŧ⟧",
+  "settings.sso.provider.editLabel": "⟦Ëðïŧ {name} ŧ⟧",
+  "settings.sso.verify.checkLabel": "⟦Çĥëçķ ðôɱàïñ ƒôŕ {name} ŧëšŧ ç⟧",
+  "settings.sso.provider.delete.title": "⟦Ŕëɱôṽë {name}? ŧë⟧",
+  "settings.sso.provider.delete.body": "⟦Þëôþļë àŧ {domain} çàñ ñô ļôñĝëŕ šïĝñ ïñ ŧĥŕôûĝĥ ŧĥïš þŕôṽïðëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "settings.sso.provider.delete.confirm": "⟦Ŕëɱôṽë þŕôṽïðëŕ ŧëš⟧",
+  "settings.sso.dialog.edit.title": "⟦Ëðïŧ {name} ŧ⟧"
 }

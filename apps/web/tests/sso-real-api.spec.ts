@@ -226,8 +226,22 @@ test.describe("single sign-on settings against the real API", () => {
     await page.getByRole("button", { name: "Save provider" }).click();
     await expect(page.getByRole("button", { name: `${PROVIDER} · OIDC` }))
       .toBeVisible();
-    await expect(page.getByText("Disabled")).toBeVisible();
+    await expect(page.getByText("Not verified", { exact: true })).toBeVisible();
+    await expect(page.getByText("Disabled")).toHaveCount(0);
     await expect(page.getByTestId(`txt-${PROVIDER}`)).toBeVisible();
+    // The list finishes the job: a visible Edit and a Check domain per provider.
+    await expect(page.getByRole("button", { name: `Edit ${PROVIDER}` }))
+      .toBeVisible();
+    await expect(
+      page.getByRole("button", { name: `Check domain for ${PROVIDER}` }),
+    ).toBeVisible();
+    // Nothing is verified yet, so there is nothing to require.
+    await expect(page.getByLabel(REQUIRE_SSO)).toBeDisabled();
+    await expect(
+      page.getByText("verify its domain before requiring SSO", {
+        exact: false,
+      }),
+    ).toBeVisible();
     await expect(page.getByText(server.issuer.clientSecret)).toHaveCount(0);
     await shot(page, "sso-provider-awaiting-domain");
 
@@ -251,12 +265,18 @@ test.describe("single sign-on settings against the real API", () => {
 
   test("verifies the domain through a real DNS lookup, refusing until the record exists", async ({ page, baseURL }) => {
     await openAsAdmin(page, baseURL);
-    const record = page.getByTestId(`txt-${PROVIDER}`);
+    // The record itself, apart from the sentence and the button around it.
+    const record = page.getByTestId(`txt-${PROVIDER}`).locator(
+      '[data-ui-component="setupKey"]',
+    );
     await expect(record).toContainText(`${TXT_NAME} TXT `);
     const token = (await record.textContent())!.split(" TXT ").at(-1)!.trim();
     expect(token).not.toBe("");
 
-    await page.getByRole("button", { name: `${PROVIDER} · OIDC` }).click();
+    await page.getByRole("button", { name: `Edit ${PROVIDER}` }).click();
+    await expect(page.getByRole("heading", { name: `Edit ${PROVIDER}` }))
+      .toBeVisible();
+    await shot(page, "sso-edit-unverified");
     const check = page.getByRole("button", { name: "Check domain" });
     const verifyAnswer = () =>
       page.waitForResponse((response) =>
@@ -359,8 +379,16 @@ test.describe("single sign-on settings against the real API", () => {
 
   test("removes the provider and the backend no longer holds it", async ({ page, baseURL }) => {
     await openAsAdmin(page, baseURL);
-    await page.getByRole("button", { name: `${PROVIDER} · OIDC` }).click();
-    await page.getByRole("button", { name: "Remove" }).click();
+    await page.getByRole("button", { name: `Edit ${PROVIDER}` }).click();
+    await page.getByRole("button", { name: "Remove", exact: true }).click();
+    const confirmation = page.getByRole("alertdialog", {
+      name: `Remove ${PROVIDER}?`,
+    });
+    await expect(confirmation).toBeVisible();
+    // Nothing is removed until it is confirmed.
+    expect((await control<State>("/state")).stored).toHaveLength(1);
+    await shot(page, "sso-remove-confirm");
+    await confirmation.getByRole("button", { name: "Remove provider" }).click();
     await expect(page.getByText("Provider removed.")).toBeVisible();
     const state = await control<State>("/state");
     expect(state.stored).toEqual([]);

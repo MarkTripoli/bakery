@@ -185,6 +185,34 @@ for (
       await expect(trail.getByText("Settings", { exact: true })).toHaveCount(0);
     });
 
+    test("the lifetime select and Create connection have a gap between them", async ({ page }) => {
+      await scimFixture(page, { initial: "none" });
+      await page.goto("/settings/scim");
+      // The create form's own select; the rotate dialog holds another one.
+      const select = page.getByRole("combobox", { name: "Credential lifetime" })
+        .first();
+      const create = page.getByRole("button", { name: "Create connection" });
+      await expect(create).toBeVisible();
+      const selectBox = (await select.boundingBox())!;
+      const createBox = (await create.boundingBox())!;
+      const gap = createBox.y - (selectBox.y + selectBox.height);
+      // The standard field gap, not touching.
+      expect(gap).toBeGreaterThanOrEqual(8);
+    });
+
+    test("a refused read is an information notice, not an error alert", async ({ page }) => {
+      await scimFixture(page, { initial: "none", forbidden: true });
+      await page.goto("/settings/scim");
+      const refusal =
+        "Only organization administrators can manage SCIM provisioning.";
+      await expect(page.getByText(refusal)).toBeVisible();
+      await expect(
+        page.getByRole("status").filter({ hasText: refusal }),
+      ).toHaveCount(1);
+      await expect(page.getByRole("alert").filter({ hasText: refusal }))
+        .toHaveCount(0);
+    });
+
     test("a member whose read the server answers with 404 sees the forbidden notice", async ({ page }) => {
       await scimFixture(page, { initial: "none", hidden: true });
       await page.goto("/settings/scim");

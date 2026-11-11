@@ -1942,8 +1942,6 @@
   "shell.navigation.customRoles": "⟪Custom roles⟫",
   "settings.sso.sessionRequired": "⟪A browser session is required to manage single sign-on. Sign in again.⟫",
   "settings.sso.status.enabled": "⟪Enabled⟫",
-  "settings.sso.status.disabled": "⟪Disabled⟫",
-  "settings.sso.dialog.edit.title": "⟪Edit provider⟫",
   "settings.sso.provider.updated": "⟪Provider updated.⟫",
   "settings.sso.verify.short": "⟪Add this TXT record to prove you control {domain}.⟫",
   "settings.sso.verify.heading": "⟪Verify your domain⟫",
@@ -2532,5 +2530,12 @@
   "settings.scim.revoke": "⟪Revoke token⟫",
   "settings.scim.revoke.title": "⟪Revoke the SCIM token?⟫",
   "settings.scim.revoke.body": "⟪Syncing stops right away. Members and their roles stay as they are.⟫",
-  "settings.scim.revoke.confirm": "⟪Revoke token⟫"
+  "settings.scim.revoke.confirm": "⟪Revoke token⟫",
+  "settings.sso.provider.edit": "⟪Edit⟫",
+  "settings.sso.provider.editLabel": "⟪Edit {name}⟫",
+  "settings.sso.verify.checkLabel": "⟪Check domain for {name}⟫",
+  "settings.sso.provider.delete.title": "⟪Remove {name}?⟫",
+  "settings.sso.provider.delete.body": "⟪People at {domain} can no longer sign in through this provider.⟫",
+  "settings.sso.provider.delete.confirm": "⟪Remove provider⟫",
+  "settings.sso.dialog.edit.title": "⟪Edit {name}⟫"
 }

@@ -158,7 +158,8 @@ export function ScimConnectionPage() {
         {notice
           ? (
             <UI.AlertBanner
-              tone={connection.isPending || connection.isSuccess && !failure
+              tone={forbidden || connection.isPending ||
+                  connection.isSuccess && !failure
                 ? "information"
                 : "error"}
             >
@@ -235,10 +236,12 @@ export function ScimConnectionPage() {
                       void create();
                     }}
                   >
-                    {lifetimeField}
-                    <UI.Button type="submit" loading={creating}>
-                      {translate("settings.scim.create")}
-                    </UI.Button>
+                    <UI.Stack>
+                      {lifetimeField}
+                      <UI.Button type="submit" loading={creating}>
+                        {translate("settings.scim.create")}
+                      </UI.Button>
+                    </UI.Stack>
                   </form>,
                 )
                 : null}

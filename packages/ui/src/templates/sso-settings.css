@@ -70,6 +70,26 @@
   padding-block: var(--space-3);
   border-block-start: var(--border-default) solid var(--color-border);
 }
+.ui-sso-settings__provider-end {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+}
+@media (max-width: 743px) {
+  /* The badge and the action drop under the name instead of squeezing it. */
+  .ui-sso-settings__provider {
+    flex-wrap: wrap;
+  }
+}
+@media (min-width: 744px) {
+  /* The destructive action sits at the start of the row, apart from Save. */
+  .ui-sso-settings__form .ui-inline--actions > .ui-button--destructive-outline {
+    margin-inline-end: auto;
+  }
+}
 .ui-sso-settings__provider-copy {
   display: flex;
   flex: 1;
