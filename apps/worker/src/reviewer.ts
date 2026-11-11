@@ -1,5 +1,10 @@
 import { join, resolve } from "node:path";
 import { GIT_EXECUTABLE } from "./git-executable.ts";
+import {
+  type GitKillLimits,
+  startGitProcess,
+  stopChild,
+} from "./git-process.ts";
 import { CHECK_REVISION_PATTERN } from "../../../packages/contracts/src/check-evidence.ts";
 import { registeredWorkerActionInputSchema } from "../../../packages/contracts/src/contracts.ts";
 import { RepositoryExecutionContextSchema } from "../../../packages/contracts/src/repository-inspection.ts";
@@ -240,66 +245,107 @@ type BoundedText = {
  * once the cap is reached, so a huge candidate cannot exhaust worker memory.
  * `code` is null when the cap or the deadline stopped it.
  */
-async function boundedGit(
+export async function boundedGit(
   cwd: string,
   args: readonly string[],
   maxBytes: number,
   timeoutMs: number,
   signal: AbortSignal,
+  // Test seam: a stand-in program, the limits of stopping it, and a starter
+  // that can hand back a child no real process can imitate (one that never
+  // closes its pipe and never exits).
+  options: {
+    readonly executable?: string;
+    readonly limits?: GitKillLimits;
+    readonly start?: typeof startGitProcess;
+  } = {},
 ): Promise<BoundedText | "aborted"> {
-  const stop = new AbortController();
-  const link = AbortSignal.any([
-    signal,
-    stop.signal,
-    AbortSignal.timeout(timeoutMs),
-  ]);
-  const child = new Deno.Command(GIT_EXECUTABLE, {
-    args: [...args],
-    cwd,
-    stdin: "null",
-    stdout: "piped",
-    stderr: "null",
-    signal: link,
-  }).spawn();
+  const { child, stop: control } = await (options.start ?? startGitProcess)(
+    options.executable ?? GIT_EXECUTABLE,
+    { args: [...args], cwd },
+    "null",
+  );
+  let exitedFlag = false;
+  const exited = child.status.then(
+    () => undefined,
+    () => undefined,
+  ).then(() => {
+    exitedFlag = true;
+  });
+  let stopped = false;
+  let wake!: () => void;
+  const stopRequested = new Promise<"stop">((resolve) => {
+    wake = () => resolve("stop");
+  });
+  // The cap, the deadline and an abort all end in the same stop.
+  const requestStop = () => {
+    if (stopped) return;
+    stopped = true;
+    wake();
+  };
+  const deadline = setTimeout(requestStop, timeoutMs);
+  if (signal.aborted) requestStop();
+  else signal.addEventListener("abort", requestStop, { once: true });
+  const timers: Array<{ cancel: () => void }> = [];
+  const reader = child.stdout.getReader();
+  // Once a stop is requested the child and its group are stopped, and the
+  // reader is cancelled so a read still waiting on a pipe that never closes
+  // (a grandchild may hold it) ends too.
+  const stopping = stopRequested.then(async () => {
+    await stopChild(control, exited, options.limits ?? {}, timers);
+    await reader.cancel().catch(() => undefined);
+  });
   const chunks: Uint8Array[] = [];
   let total = 0;
   let truncated = false;
-  const reader = child.stdout.getReader();
   try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-      total += value.byteLength;
-      if (total >= maxBytes) {
-        truncated = true;
-        stop.abort();
-        break;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        total += value.byteLength;
+        if (total >= maxBytes) {
+          truncated = true;
+          requestStop();
+          break;
+        }
+      }
+    } catch {
+      // Stopped by the cap, the deadline or an abort: `stopped` says so.
+    } finally {
+      try {
+        reader.releaseLock();
+      } catch {
+        // Already released by the stop.
       }
     }
-  } catch {
-    // Stopped by the cap, the deadline or an abort: the status below says which.
+    // Stdout closed on its own; the exit is next, and a deadline or an abort
+    // can still arrive first.
+    if (!stopped) await Promise.race([exited, stopRequested]);
+    if (stopped) await stopping;
+    const status = exitedFlag
+      ? await child.status.catch(() => undefined)
+      : undefined;
+    if (signal.aborted) return "aborted";
+    const merged = new Uint8Array(Math.min(total, maxBytes));
+    let offset = 0;
+    for (const chunk of chunks) {
+      const room = merged.byteLength - offset;
+      if (room <= 0) break;
+      merged.set(chunk.subarray(0, room), offset);
+      offset += Math.min(chunk.byteLength, room);
+    }
+    return {
+      text: new TextDecoder().decode(merged),
+      truncated,
+      code: stopped || status === undefined ? null : status.code,
+    };
   } finally {
-    reader.releaseLock();
+    clearTimeout(deadline);
+    signal.removeEventListener("abort", requestStop);
+    for (const timer of timers) timer.cancel();
   }
-  const status = await child.status.catch(() => undefined);
-  if (signal.aborted) return "aborted";
-  const merged = new Uint8Array(Math.min(total, maxBytes));
-  let offset = 0;
-  for (const chunk of chunks) {
-    const room = merged.byteLength - offset;
-    if (room <= 0) break;
-    merged.set(chunk.subarray(0, room), offset);
-    offset += Math.min(chunk.byteLength, room);
-  }
-  const text = new TextDecoder().decode(merged);
-  return {
-    text,
-    truncated,
-    code: truncated || status === undefined || link.aborted
-      ? null
-      : status.code,
-  };
 }
 
 /**
