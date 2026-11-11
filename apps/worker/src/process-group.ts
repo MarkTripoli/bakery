@@ -1,9 +1,9 @@
 /**
  * Starting a child in its own process group and signalling that group.
  *
- * Moved unchanged out of harness-common.ts so that the git runner can use it
- * without importing the harness module (which would be a cycle). harness-common
- * re-exports everything here, so no importer changes.
+ * Lives apart from harness-common.ts so that the git runner can use it without
+ * importing the harness module (a cycle). harness-common re-exports the harness
+ * names, so no importer changes.
  */
 
 /** Absolute helper used to signal a process group under restricted run grants. */
@@ -15,25 +15,47 @@ export type HarnessGroupTeardown = {
   readonly reason?: string;
 };
 
+/** Signals a child sends to its group; the two a stop needs. */
+export type GroupSignal = "SIGTERM" | "SIGKILL";
+
 /**
- * SIGKILL the child process group and await the result. Deno.kill needs a
- * broad run grant; under restricted grants the awaited kill helper signals the
- * group. Failure to signal the group is reported, never silently downgraded.
+ * Sends `signal` to the process group `pid` leads and awaits the result.
+ * Deno.kill needs a broad run grant; under restricted grants the awaited kill
+ * helper signals the group. Failure to signal the group is reported, never
+ * silently downgraded. An empty group (ESRCH) means every member already
+ * exited, which is confirmed.
+ */
+export async function signalProcessGroup(
+  pid: number,
+  signal: GroupSignal,
+  killExecutable: string = HARNESS_GROUP_KILL_EXECUTABLE,
+  // Test seam: the unit lane's grants never allow Deno.kill, so the branch that
+  // uses it is only reachable by injecting it.
+  kill: (pid: number, signal: GroupSignal) => void = Deno.kill,
+): Promise<HarnessGroupTeardown> {
+  try {
+    kill(-pid, signal);
+    return { status: "confirmed", via: "deno-kill" };
+  } catch (error) {
+    return error instanceof Deno.errors.NotFound
+      ? { status: "confirmed", via: "deno-kill" }
+      : await killGroupWithHelper(pid, killExecutable, signal);
+  }
+}
+
+/**
+ * SIGKILL the child process group and await the result. See
+ * {@link signalProcessGroup} for the grants and the failure reporting.
  */
 export async function killHarnessProcessGroup(
   child: Deno.ChildProcess,
   killExecutable: string = HARNESS_GROUP_KILL_EXECUTABLE,
 ): Promise<HarnessGroupTeardown> {
-  let teardown: HarnessGroupTeardown;
-  try {
-    Deno.kill(-child.pid, "SIGKILL");
-    teardown = { status: "confirmed", via: "deno-kill" };
-  } catch (error) {
-    // An empty group (ESRCH) means every member already exited: confirmed.
-    teardown = error instanceof Deno.errors.NotFound
-      ? { status: "confirmed", via: "deno-kill" }
-      : await killGroupWithHelper(child.pid, killExecutable);
-  }
+  const teardown = await signalProcessGroup(
+    child.pid,
+    "SIGKILL",
+    killExecutable,
+  );
   try {
     child.kill("SIGKILL");
   } catch {
@@ -45,10 +67,11 @@ export async function killHarnessProcessGroup(
 async function killGroupWithHelper(
   pid: number,
   killExecutable: string,
+  signal: GroupSignal = "SIGKILL",
 ): Promise<HarnessGroupTeardown> {
   try {
     const result = await new Deno.Command(killExecutable, {
-      args: ["-s", "KILL", "--", `-${pid}`],
+      args: ["-s", signal === "SIGTERM" ? "TERM" : "KILL", "--", `-${pid}`],
       clearEnv: true,
       stdin: "null",
       stdout: "null",
@@ -74,17 +97,24 @@ async function killGroupWithHelper(
   }
 }
 
+/**
+ * The command that starts `executable` as the leader of its own process group,
+ * through `/usr/bin/setsid` (which execs it, so the pid is unchanged). Without
+ * setsid the child is started directly and `grouped` is false: signalling its
+ * group would then reach the worker's own.
+ */
 export async function spawnInOwnProcessGroup(
   executable: string,
   args: readonly string[],
-): Promise<{ command: string; args: string[] }> {
+): Promise<{ command: string; args: string[]; grouped: boolean }> {
   try {
     await Deno.stat("/usr/bin/setsid");
     return {
       command: "/usr/bin/setsid",
       args: [executable, ...args],
+      grouped: true,
     };
   } catch {
-    return { command: executable, args: [...args] };
+    return { command: executable, args: [...args], grouped: false };
   }
 }

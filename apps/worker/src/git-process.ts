@@ -1,13 +1,24 @@
 /**
- * Running git as a child process with a deadline, an abort signal and an
- * escalating stop.
+ * Running git as a child process with a deadline, an abort signal and a stop
+ * that cannot be ignored.
  *
- * Moved unchanged out of attempt-worktree.ts so that the harness and reviewer
- * git runners can use it without importing the worktree module (a cycle). The
- * only edit is that the two kill defaults, which used to be read from
- * ATTEMPT_WORKTREE_LIMITS, are defined here and ATTEMPT_WORKTREE_LIMITS points
- * at them. attempt-worktree.ts re-exports everything here.
+ * Three places start git: the worktree helper, the harness and the reviewer.
+ * They share this module so that none of them can hang on a child that traps
+ * SIGTERM, and none leaves git's own children behind. It lives apart from
+ * attempt-worktree.ts and harness-common.ts, which re-export from it, because
+ * each of them needs it and they import each other's neighbours.
+ *
+ * A stop is: SIGTERM, a short grace period, SIGKILL, and a bounded wait for the
+ * exit. The signals go to the child's whole process group, because git's hooks,
+ * credential helpers and remote transports are not the child and would
+ * otherwise outlive it. The child is started through setsid so that it leads a
+ * group of its own; without setsid it is signalled alone.
  */
+import {
+  type GroupSignal,
+  signalProcessGroup,
+  spawnInOwnProcessGroup,
+} from "./process-group.ts";
 
 /** Code-owned limits of stopping a git child. */
 export const GIT_KILL_LIMITS = Object.freeze({
@@ -29,9 +40,22 @@ export type GitKillLimits = {
   readonly exitWaitMs?: number;
 };
 
-/** The two things done to a git child; Deno's child process provides both. */
-export type GitChild = {
-  kill(signal: "SIGTERM" | "SIGKILL"): void;
+/** What a stop does to a git child. */
+export type StoppableGitChild = {
+  /**
+   * Sends the signal to the child and, when it leads a process group, to the
+   * whole group. May return a promise, which is awaited.
+   */
+  kill(signal: GroupSignal): void | Promise<void>;
+  /**
+   * Kills whatever is left of the child's process group once the child has
+   * exited. Absent for a child that leads no group of its own.
+   */
+  sweep?(): void | Promise<void>;
+};
+
+/** The things done to a git child; Deno's child process provides the first. */
+export type GitChild = StoppableGitChild & {
   output(): Promise<{ code: number; stdout: Uint8Array; stderr: Uint8Array }>;
 };
 
@@ -39,21 +63,60 @@ export type GitChild = {
 export type GitSpawn = (
   executable: string,
   options: { args: string[]; cwd: string },
-) => GitChild;
+) => GitChild | Promise<GitChild>;
 
-export const defaultGitSpawn: GitSpawn = (executable, { args, cwd }) => {
-  const child = new Deno.Command(executable, {
-    args,
+/** A started process and the part of it a stop acts on. */
+export type GitProcess = {
+  readonly child: Deno.ChildProcess;
+  readonly stop: StoppableGitChild;
+};
+
+/**
+ * Starts `executable` as the leader of its own process group, with stdin
+ * closed, stdout piped and stderr piped or discarded. `executable` is git, or a
+ * stand-in under test. A failure to start is thrown.
+ */
+export async function startGitProcess(
+  executable: string,
+  { args, cwd }: { args: string[]; cwd: string },
+  stderr: "piped" | "null" = "piped",
+): Promise<GitProcess> {
+  const launch = await spawnInOwnProcessGroup(executable, args);
+  const child = new Deno.Command(launch.command, {
+    args: launch.args,
     cwd,
     stdin: "null",
     stdout: "piped",
-    stderr: "piped",
+    stderr,
   }).spawn();
-  return { kill: (signal) => child.kill(signal), output: () => child.output() };
+  return {
+    child,
+    stop: {
+      kill: async (signal) => {
+        if (launch.grouped) await signalProcessGroup(child.pid, signal);
+        // The child itself, in case setsid forked and it is not the leader.
+        try {
+          child.kill(signal);
+        } catch {
+          // Already gone: the signal has nothing left to do.
+        }
+      },
+      sweep: launch.grouped
+        ? async () => {
+          await signalProcessGroup(child.pid, "SIGKILL");
+        }
+        : undefined,
+    },
+  };
+}
+
+export const defaultGitSpawn: GitSpawn = async (executable, options) => {
+  const { child, stop } = await startGitProcess(executable, options);
+  return { ...stop, output: () => child.output() };
 };
 
 /** A timer that can be cancelled, so no path leaves one running. */
-function after(ms: number) {
+export function after(ms: number) {
   let id: ReturnType<typeof setTimeout> | undefined;
   const promise = new Promise<"elapsed">((resolve) => {
     id = setTimeout(() => resolve("elapsed"), ms);
@@ -61,24 +124,75 @@ function after(ms: number) {
   return { promise, cancel: () => clearTimeout(id) };
 }
 
-function signalChild(child: GitChild, signal: "SIGTERM" | "SIGKILL"): void {
+async function signalChild(
+  child: StoppableGitChild,
+  signal: GroupSignal,
+): Promise<void> {
   try {
-    child.kill(signal);
+    await child.kill(signal);
   } catch {
     // Already gone: the signal has nothing left to do.
   }
 }
 
-const decoder = new TextDecoder();
+async function sweepChild(child: StoppableGitChild): Promise<void> {
+  try {
+    await child.sweep?.();
+  } catch {
+    // Nothing left to sweep.
+  }
+}
 
 /**
- * Runs git with a deadline. Returns `"aborted"` when `signal` fired and a
- * `code: -1` result when only the deadline did. A stop sends SIGTERM, waits
- * `killGraceMs`, then sends SIGKILL, and waits at most `exitWaitMs` for the
- * exit: a child that traps SIGTERM, or one that cannot be reaped, ends the call
- * on schedule instead of holding the attempt for as long as it likes.
+ * Stops a child: SIGTERM, then SIGKILL if it has not exited within
+ * `killGraceMs`, then waits at most `exitWaitMs` for it to go. A child that
+ * exits on SIGTERM may still have left members of its group, so those are
+ * killed too; a SIGKILL already went to the whole group. `exited` must settle
+ * when the child has exited and never reject. Timers started here are pushed to
+ * `timers` so the caller can cancel them on every path.
  */
-export async function runGit(
+export async function stopChild(
+  child: StoppableGitChild,
+  exited: Promise<unknown>,
+  limits: GitKillLimits,
+  timers: Array<{ cancel: () => void }>,
+): Promise<void> {
+  const killGraceMs = limits.killGraceMs ?? GIT_KILL_LIMITS.killGraceMs;
+  const exitWaitMs = limits.exitWaitMs ?? GIT_KILL_LIMITS.exitWaitMs;
+  await signalChild(child, "SIGTERM");
+  const grace = after(killGraceMs);
+  timers.push(grace);
+  if ((await Promise.race([exited, grace.promise])) === "elapsed") {
+    await signalChild(child, "SIGKILL");
+    const exit = after(exitWaitMs);
+    timers.push(exit);
+    await Promise.race([exited, exit.promise]);
+    return;
+  }
+  await sweepChild(child);
+}
+
+const decoder = new TextDecoder();
+
+/** How a git call ended; a call that finished carries its raw output. */
+export type RawGitOutcome =
+  | {
+    readonly kind: "done";
+    readonly code: number;
+    readonly stdout: Uint8Array;
+    readonly stderr: Uint8Array;
+  }
+  | { readonly kind: "deadline" }
+  | { readonly kind: "aborted" };
+
+/**
+ * Runs git with a deadline and returns its output as bytes. `aborted` when
+ * `signal` fired and `deadline` when only the deadline did. A stop is
+ * {@link stopChild}: a child that traps SIGTERM, or one that cannot be reaped,
+ * ends the call on schedule instead of holding the caller for as long as it
+ * likes. A failure to start is thrown.
+ */
+export async function runGitRaw(
   spawn: GitSpawn,
   executable: string,
   cwd: string,
@@ -86,10 +200,8 @@ export async function runGit(
   timeoutMs: number,
   signal?: AbortSignal,
   limits: GitKillLimits = {},
-): Promise<GitResult | "aborted"> {
-  const killGraceMs = limits.killGraceMs ?? GIT_KILL_LIMITS.killGraceMs;
-  const exitWaitMs = limits.exitWaitMs ?? GIT_KILL_LIMITS.exitWaitMs;
-  const child = spawn(executable, { args: [...args], cwd });
+): Promise<RawGitOutcome> {
+  const child = await spawn(executable, { args: [...args], cwd });
   const settled = child.output().then(
     (output) => ({ output }) as const,
     (error: unknown) => ({ error }) as const,
@@ -114,26 +226,50 @@ export async function runGit(
     if (first !== "stop") {
       if ("error" in first) throw first.error;
       return {
+        kind: "done",
         code: first.output.code,
-        stdout: decoder.decode(first.output.stdout),
-        stderr: decoder.decode(first.output.stderr),
+        stdout: first.output.stdout,
+        stderr: first.output.stderr,
       };
     }
-    signalChild(child, "SIGTERM");
-    const grace = after(killGraceMs);
-    timers.push(grace);
-    if ((await Promise.race([settled, grace.promise])) === "elapsed") {
-      signalChild(child, "SIGKILL");
-      const exit = after(exitWaitMs);
-      timers.push(exit);
-      await Promise.race([settled, exit.promise]);
-    }
-    return reason === "signal"
-      ? "aborted"
-      : { code: -1, stdout: "", stderr: "git deadline" };
+    await stopChild(child, settled, limits, timers);
+    return { kind: reason === "signal" ? "aborted" : "deadline" };
   } finally {
     clearTimeout(deadline);
     signal?.removeEventListener("abort", onAbort);
     for (const timer of timers) timer.cancel();
   }
+}
+
+/**
+ * Runs git with a deadline and returns its output as text. Returns `"aborted"`
+ * when `signal` fired and a `code: -1` result when only the deadline did.
+ */
+export async function runGit(
+  spawn: GitSpawn,
+  executable: string,
+  cwd: string,
+  args: readonly string[],
+  timeoutMs: number,
+  signal?: AbortSignal,
+  limits: GitKillLimits = {},
+): Promise<GitResult | "aborted"> {
+  const outcome = await runGitRaw(
+    spawn,
+    executable,
+    cwd,
+    args,
+    timeoutMs,
+    signal,
+    limits,
+  );
+  if (outcome.kind === "aborted") return "aborted";
+  if (outcome.kind === "deadline") {
+    return { code: -1, stdout: "", stderr: "git deadline" };
+  }
+  return {
+    code: outcome.code,
+    stdout: decoder.decode(outcome.stdout),
+    stderr: decoder.decode(outcome.stderr),
+  };
 }

@@ -1,6 +1,11 @@
 import type { ArtifactRef } from "./client.ts";
 import { GIT_EXECUTABLE } from "./git-executable.ts";
 import {
+  defaultGitSpawn,
+  type GitKillLimits,
+  runGitRaw,
+} from "./git-process.ts";
+import {
   HARNESS_GROUP_KILL_EXECUTABLE,
   type HarnessGroupTeardown,
   killHarnessProcessGroup,
@@ -519,18 +524,49 @@ export class HarnessGitError extends Error {
   }
 }
 
+/**
+ * Longest a single harness git call may run. It was unbounded, so a git that
+ * hung held the whole run. The bound is generous on purpose: it covers `add -A`
+ * and a diff of a large candidate, and exists only so a wedged git ends.
+ */
+export const HARNESS_GIT_TIMEOUT_MS = 5 * 60 * 1000;
+
+/**
+ * Runs one git command in `cwd` and returns its bytes. A call that passes its
+ * deadline is stopped (SIGTERM, then SIGKILL, for git and its group) and
+ * reported as `code: -1` with `git deadline` on stderr, which every caller
+ * already treats as a failure. `options` is a test seam.
+ */
 export async function runHarnessGit(
   cwd: string,
   args: readonly string[],
+  options: {
+    readonly executable?: string;
+    readonly timeoutMs?: number;
+    readonly limits?: GitKillLimits;
+  } = {},
 ): Promise<{ code: number; stdout: Uint8Array; stderr: Uint8Array }> {
-  const output = await new Deno.Command(GIT_EXECUTABLE, {
-    args: [...args],
+  const outcome = await runGitRaw(
+    defaultGitSpawn,
+    options.executable ?? GIT_EXECUTABLE,
     cwd,
-    stdin: "null",
-    stdout: "piped",
-    stderr: "piped",
-  }).output();
-  return { code: output.code, stdout: output.stdout, stderr: output.stderr };
+    args,
+    options.timeoutMs ?? HARNESS_GIT_TIMEOUT_MS,
+    undefined,
+    options.limits,
+  );
+  if (outcome.kind !== "done") {
+    return {
+      code: -1,
+      stdout: new Uint8Array(),
+      stderr: new TextEncoder().encode("git deadline"),
+    };
+  }
+  return {
+    code: outcome.code,
+    stdout: outcome.stdout,
+    stderr: outcome.stderr,
+  };
 }
 
 async function requireHarnessGit(
