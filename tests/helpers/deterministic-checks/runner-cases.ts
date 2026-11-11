@@ -1289,6 +1289,12 @@ export function registerRunnerCases(): void {
             }),
           ],
           cwd: root,
+          // The deployed worker grants `/usr/bin/git` by absolute path, and
+          // Deno matches the path a bare `git` resolves to. A host whose PATH
+          // lists `/bin` first (merged-usr Arch) resolves `/bin/git` and the
+          // grant misses, so the case would fail for the host and not the
+          // code. Pin the child's PATH the way a deployed worker has it.
+          env: { PATH: "/usr/bin:/bin" },
           stdin: "null",
           stdout: "piped",
           stderr: "piped",

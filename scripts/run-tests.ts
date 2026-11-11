@@ -59,7 +59,7 @@ const permissions = lane === "native" ? ["--allow-all"] : [
   ...(lane === "unit"
     ? [
       "--allow-write",
-      "--allow-run=zip,unzip,node,/usr/bin/git,/usr/bin/stat,/usr/bin/prlimit,/usr/bin/setsid,/usr/bin/kill",
+      "--allow-run=zip,unzip,node,git,/usr/bin/git,/usr/bin/stat,/usr/bin/prlimit,/usr/bin/setsid,/usr/bin/kill",
     ]
     : []),
   // Provider conformance runs fixtures only: no bare --allow-run and no
