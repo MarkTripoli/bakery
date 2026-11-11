@@ -117,6 +117,17 @@ test.describe("single sign-on settings", () => {
     await expect(page.getByRole("button", { name: "Add SAML" })).toBeEnabled();
   });
 
+  test("sits under the Organization breadcrumb, as the Paper frames draw it", async ({ page, isMobile }) => {
+    test.skip(isMobile, "a phone shows the section title, not the trail");
+    await ssoFixture(page);
+    await page.goto("/settings/organization/sso");
+    const trail = page.getByRole("navigation", { name: "Breadcrumb" });
+    await expect(trail.getByText("Single sign-on")).toBeVisible();
+    await expect(trail.getByText("Organization", { exact: true }))
+      .toBeVisible();
+    await expect(trail.getByText("Settings", { exact: true })).toHaveCount(0);
+  });
+
   test("is reachable from the production settings navigation", async ({ page }) => {
     await ssoFixture(page);
     await page.goto("/settings/appearance");

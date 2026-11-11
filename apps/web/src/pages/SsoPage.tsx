@@ -14,7 +14,8 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 import * as organizationSelection from "../app/organization-selection.ts";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
-import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
+import { OrganizationSectionBreadcrumbs } from "../shell/SettingsShellSlots.tsx";
+import { ShellActiveNavigation } from "../shell/shell-slots.tsx";
 
 type View =
   | { readonly kind: "list" }
@@ -166,14 +167,7 @@ export function SsoPage() {
   return (
     <>
       <ShellActiveNavigation id="settings" />
-      <ShellSlot name="breadcrumbs">
-        <UI.Breadcrumbs
-          aria-label={translate("shell.navigation.breadcrumb")}
-          items={[{ label: translate("shell.navigation.organization") }, {
-            label: translate("settings.sso.section"),
-          }]}
-        />
-      </ShellSlot>
+      <OrganizationSectionBreadcrumbs section="settings.sso.section" />
       <div data-testid="organization-sso">
         {view.kind !== "list"
           ? (

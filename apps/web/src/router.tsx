@@ -42,6 +42,7 @@ import { JoinPage } from "./pages/JoinPage.tsx";
 import { RegisterPage } from "./pages/RegisterPage.tsx";
 import { InvitationPage } from "./pages/InvitationPage.tsx";
 import {
+  InOrganization,
   InSettings,
   InstallationBreadcrumbs,
 } from "./shell/SettingsShellSlots.tsx";
@@ -1176,9 +1177,9 @@ const settingsScimRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => (
-    <InSettings section="shell.navigation.scim">
+    <InOrganization section="shell.navigation.scim">
       <ScimConnectionPage />
-    </InSettings>
+    </InOrganization>
   ),
   errorComponent: ProtectedRouteError,
 });

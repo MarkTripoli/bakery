@@ -170,6 +170,17 @@ for (
         .toHaveCount(0);
     });
 
+    test("sits under the Organization breadcrumb, as the Paper frames draw it", async ({ page }) => {
+      test.skip(viewport.name === "phone", "a phone shows the section title");
+      await scimFixture(page, { initial: "none" });
+      await page.goto("/settings/scim");
+      const trail = page.getByRole("navigation", { name: "Breadcrumb" });
+      await expect(trail.getByText("SCIM provisioning")).toBeVisible();
+      await expect(trail.getByText("Organization", { exact: true }))
+        .toBeVisible();
+      await expect(trail.getByText("Settings", { exact: true })).toHaveCount(0);
+    });
+
     test("a member whose read the server answers with 404 sees the forbidden notice", async ({ page }) => {
       await scimFixture(page, { initial: "none", hidden: true });
       await page.goto("/settings/scim");
