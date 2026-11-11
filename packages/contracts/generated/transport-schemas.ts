@@ -8842,7 +8842,7 @@ const transportSchemas = {
       ],
       "pagination": "pagination",
       "rules": [
-        "Keyset cursor only, oldest first. A batch is cut at the row limit or 65536 bytes of JSON Lines, whichever comes first. An event whose line alone exceeds 65536 bytes is delivered with details replaced by {\"streamOmitted\":\"details\",\"detailsBytes\":n}, where n is the UTF-8 size of the serialized details; if the line is still too large, every string field longer than 1024 characters is cut to 1024 and listed in the marker as truncatedFields. Such events are counted in detailsOmitted; the full event stays readable in the audit list. Events younger than 30 seconds are held back for a later batch so late commits are not skipped. Starting a stream without a cursor is audited; resumed batches are not."
+        "Keyset cursor only, oldest first. A batch is cut at the row limit or 65536 bytes of JSON Lines, whichever comes first. An event whose line alone exceeds 65536 bytes is delivered with details replaced by {\"streamOmitted\":\"details\",\"detailsBytes\":n}, where n is the UTF-8 size of the serialized details; if the line is still too large, every string field longer than 1024 UTF-16 units is cut to at most 1024, never splitting a surrogate pair, and listed in the marker as truncatedFields. Such events are counted in detailsOmitted; the full event stays readable in the audit list. Events younger than 30 seconds are held back for a later batch so late commits are not skipped. Starting a stream without a cursor is audited; resumed batches are not."
       ],
       "description": "Selects one resumable batch of an organization audit stream for an external collector: an optional resume cursor, batch size and the same filters as the export."
     },
@@ -23515,7 +23515,7 @@ const transportSchemas = {
         "content": "The JSON Lines batch, at most 65536 bytes: one AuditEvent JSON object per line, empty when no new event has settled.",
         "nextCursor": "Cursor to pass on the next read. When the batch is empty it is the request cursor again, and it is null only before the stream has delivered any event.",
         "caughtUp": "True when no further settled event is waiting; the collector should wait before polling again. False means read again at once.",
-        "detailsOmitted": "Number of events in this batch that were too large for one batch: their details were replaced by an omission marker and any string field over 1024 characters was cut. Read those events in full from the audit list.",
+        "detailsOmitted": "Number of events in this batch that were too large for one batch: their details were replaced by an omission marker and any string field over 1024 UTF-16 units was cut to at most 1024 without splitting a surrogate pair. Read those events in full from the audit list.",
         "settledBefore": "Instant up to which events were eligible for this batch; newer events arrive in a later batch."
       }
     },
