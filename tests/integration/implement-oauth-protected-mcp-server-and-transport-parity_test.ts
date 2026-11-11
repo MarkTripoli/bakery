@@ -783,6 +783,9 @@ Deno.test("catalog tools run the REST operation: same state, replay, preconditio
         { idempotencyKey: "   " },
         { ifMatch: 123 },
         { ifMatch: "\t " },
+        { idempotencyKey: "k\ud800" },
+        { idempotencyKey: "k€" },
+        { ifMatch: '"v1"\r\nx-evil: 1' },
       ]
     ) {
       const refused = await tool(
