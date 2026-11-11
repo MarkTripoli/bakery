@@ -52,6 +52,9 @@ type RemovalReason = "left" | "closed" | "expired" | "revoked";
 
 export const COLLABORATION_PROTOCOL_VERSION = 1;
 
+/** Longest time a peer's positive access check is reused for relays. */
+const ACCESS_VERDICT_MS = 1_000;
+
 /** Binary frame kinds; see the CollaborationFrame contract description. */
 export const BinaryFrameKind = Object.freeze(
   {
@@ -813,6 +816,13 @@ export function createCollaborationSocketHandler(
    * Peers are checked in parallel. Lost access evicts the peer; a transient
    * failure tells only that peer to resynchronize, without changing membership.
    */
+  /**
+   * A positive access verdict per participant, reused for at most
+   * ACCESS_VERDICT_MS so a burst of updates costs one recheck per peer, not
+   * one per update. A failed check is never cached.
+   */
+  const accessVerdicts = new WeakMap<Participant, number>();
+
   async function relayCommitted(
     peers: readonly Participant[],
     room: Room,
@@ -823,9 +833,14 @@ export function createCollaborationSocketHandler(
     await Promise.all(peers.map(async (peer) => {
       if (peer.connection.closed) return;
       try {
-        await assertSession(peer.connection.token);
-        await assertRoomAccess(peer.connection, room);
+        const verified = accessVerdicts.get(peer);
+        if (verified === undefined || now().getTime() >= verified) {
+          await assertSession(peer.connection.token);
+          await assertRoomAccess(peer.connection, room);
+          accessVerdicts.set(peer, now().getTime() + ACCESS_VERDICT_MS);
+        }
       } catch (error) {
+        accessVerdicts.delete(peer);
         if (accessLost(error)) {
           removeParticipant(peer, "revoked");
           problem(peer.connection, null, error);
