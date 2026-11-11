@@ -103,7 +103,7 @@ async function ssoFixture(
 test.describe("single sign-on settings", () => {
   test("lists providers and shows the empty state", async ({ page }) => {
     await ssoFixture(page);
-    await page.goto("/__fixtures__/organization/sso");
+    await page.goto("/settings/organization/sso");
     await expect(
       page.getByRole("heading", { name: "Single sign-on" }).first(),
     ).toBeVisible();
@@ -113,9 +113,33 @@ test.describe("single sign-on settings", () => {
     await expect(page.getByRole("button", { name: "Add SAML" })).toBeEnabled();
   });
 
+  test("is reachable from the production settings navigation", async ({ page }) => {
+    await ssoFixture(page);
+    await page.goto("/settings/appearance");
+    await page.locator("main#bakery-main").waitFor();
+    // SectionNavigation draws a sidebar and, for a phone, a separate
+    // `<details>` menu; only the presentation this viewport shows is
+    // reachable by role.
+    const menu = page.locator(".bakery-section-navigation__summary");
+    if (await menu.isVisible()) await menu.click();
+    await page
+      .getByRole("navigation", { name: "Settings sections" })
+      .getByRole("link", { name: "Single sign-on" })
+      .click();
+    await expect(page).toHaveURL(/\/settings\/organization\/sso$/);
+    await expect(
+      page.getByRole("heading", { name: "Single sign-on" }).first(),
+    ).toBeVisible();
+    await expect(
+      page.locator(
+        '.bakery-section-navigation a[aria-current="page"][href="/settings/organization/sso"]',
+      ),
+    ).toHaveCount(1);
+  });
+
   test("adds an OIDC provider without ever showing the secret again", async ({ page }) => {
     const state = await ssoFixture(page);
-    await page.goto("/__fixtures__/organization/sso");
+    await page.goto("/settings/organization/sso");
     await page.getByRole("button", { name: "Add OIDC" }).click();
     await expect(page.getByRole("heading", { name: "Add OIDC provider" }))
       .toBeVisible();
@@ -139,7 +163,7 @@ test.describe("single sign-on settings", () => {
 
   test("adds a SAML provider that always requires signed assertions", async ({ page }) => {
     const state = await ssoFixture(page);
-    await page.goto("/__fixtures__/organization/sso");
+    await page.goto("/settings/organization/sso");
     await page.getByRole("button", { name: "Add SAML" }).click();
     await page.getByLabel("Display name").fill("entra");
     await page.getByLabel("Identity provider metadata").fill(
@@ -165,7 +189,7 @@ test.describe("single sign-on settings", () => {
         protocol: "oidc",
       }],
     });
-    await page.goto("/__fixtures__/organization/sso");
+    await page.goto("/settings/organization/sso");
     await expect(page.getByTestId("txt-okta")).toContainText(
       "_bakery-verify-okta.acme.example TXT txt-token-123",
     );
@@ -190,7 +214,7 @@ test.describe("single sign-on settings", () => {
         protocol: "oidc",
       }],
     });
-    await page.goto("/__fixtures__/organization/sso");
+    await page.goto("/settings/organization/sso");
     await expect(
       page.getByText("organization administrators who still hold a password", {
         exact: false,
@@ -216,7 +240,7 @@ test.describe("single sign-on settings", () => {
 
   test("a refusal clears the page to the forbidden notice", async ({ page }) => {
     await ssoFixture(page, { forbidden: true });
-    await page.goto("/__fixtures__/organization/sso");
+    await page.goto("/settings/organization/sso");
     await expect(
       page.getByText(
         "Only organization administrators can manage single sign-on.",
@@ -231,7 +255,7 @@ test.describe("single sign-on settings", () => {
       "**/api/auth/bakery-sso/providers**",
       (route) => route.fulfill(json({ code: "SESSION_REQUIRED" }, 403)),
     );
-    await page.goto("/__fixtures__/organization/sso");
+    await page.goto("/settings/organization/sso");
     await expect(
       page.getByText("A browser session is required to manage single sign-on."),
     ).toBeVisible();

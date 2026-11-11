@@ -209,6 +209,8 @@ async function expectSelectedParent(page: Page, path: string) {
       ? "/settings/organization/roles"
       : path.startsWith("/settings/organization/integrations")
       ? "/settings/organization/integrations"
+      : path.startsWith("/settings/organization/sso")
+      ? "/settings/organization/sso"
       : path.startsWith("/settings/audit")
       ? "/settings/audit"
       : path.startsWith("/settings/scim")

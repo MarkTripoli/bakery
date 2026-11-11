@@ -421,6 +421,12 @@ export const routeCoverage = [
     states: ["loading", "default", "empty", "error", "forbidden"],
   },
   {
+    id: "settings-organization-sso",
+    path: "/settings/organization/sso",
+    classification: "production",
+    states: ["loading", "default", "empty", "busy", "error", "forbidden"],
+  },
+  {
     id: "settings-scim",
     path: "/settings/scim",
     classification: "production",
@@ -1099,6 +1105,15 @@ const organizationAccessRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const organizationSsoRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/organization/sso",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: SsoPage,
+  errorComponent: ProtectedRouteError,
+});
+
 const organizationRolesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings/organization/roles",
@@ -1665,6 +1680,7 @@ const routeTree = rootRoute.addChildren([
   organizationAccessRoute,
   organizationIntegrationsRoute,
   organizationRolesRoute,
+  organizationSsoRoute,
   settingsAuditRoute,
   settingsScimRoute,
   projectsOnboardingRoute,

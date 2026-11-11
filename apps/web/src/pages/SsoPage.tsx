@@ -29,7 +29,7 @@ function txtRecord(
 }
 
 /**
- * `/organization/sso`: the organization's single sign-on providers (OIDC and
+ * `/settings/organization/sso`: the organization's single sign-on providers (OIDC and
  * SAML), domain verification and the "require SSO" switch. Every call is a
  * browser-session call the server authorizes (tenant, administrator). A
  * refusal clears the page to the forbidden notice and a bearer-style refusal
