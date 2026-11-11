@@ -1000,3 +1000,45 @@ Deno.test("a peer revoked between sweeps receives no draft bytes (AC1)", async (
     await closeHarness(harness);
   }
 });
+
+Deno.test("frames queued behind a slow join are bounded and the connection is closed (AC3)", async () => {
+  // The rate limit is set out of reach so only the pending-frame cap applies.
+  const harness = await openHarness({
+    inboundFramesPerSecond: 10_000,
+    maxPendingFrames: 4,
+  });
+  try {
+    const a = await open(harness, harness.owner);
+    // One join waits on the database while a burst queues behind it.
+    await a.sendMany([
+      JSON.stringify({
+        type: "join",
+        requestId: crypto.randomUUID(),
+        room: room(harness),
+      }),
+      ...Array.from(
+        { length: 40 },
+        () => JSON.stringify({ type: "ping", requestId: crypto.randomUUID() }),
+      ),
+    ]);
+    const result = await drain(a, 3_000);
+    // The refusal arrives before the queue drains; the close frame itself
+    // can be lost to a TCP reset after a burst, so assert on what the client
+    // can always observe: the problem, no handled backlog, then silence.
+    const problems = result.frames.filter((f) => f.type === "problem");
+    assertEquals(problems.length, 1);
+    assertEquals(
+      (problems[0]!.problem as { code: string }).code,
+      "RATE_LIMITED",
+    );
+    assertEquals(result.frames.filter((f) => f.type === "ping").length, 0);
+    if (result.closed) assertEquals(result.closed.code, 1008);
+    const after = await a.next(500).catch(() => undefined);
+    assert(
+      after === undefined || (typeof after === "object" && "code" in after),
+      `frame after refusal: ${JSON.stringify(after)}`,
+    );
+  } finally {
+    await closeHarness(harness);
+  }
+});

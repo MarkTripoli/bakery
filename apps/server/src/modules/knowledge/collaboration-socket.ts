@@ -150,6 +150,8 @@ export type CollaborationSocketLimits = Readonly<{
   presenceUpdatesPerSecond: number;
   /** Inbound frames per connection per second before RATE_LIMITED and close. */
   inboundFramesPerSecond: number;
+  /** Frames waiting for the serial handler before RATE_LIMITED and close. */
+  maxPendingFrames: number;
   heartbeatSeconds: number;
   presenceTtlSeconds: number;
   /** How often expiry runs and every joined room's access is checked anew. */
@@ -169,6 +171,7 @@ export const COLLABORATION_SOCKET_LIMITS: CollaborationSocketLimits = Object
     maxParticipantsPerRoom: 64,
     presenceUpdatesPerSecond: 5,
     inboundFramesPerSecond: 50,
+    maxPendingFrames: 64,
     heartbeatSeconds: 10,
     presenceTtlSeconds: 30,
     sweepMilliseconds: 5_000,
@@ -230,6 +233,8 @@ type Connection = {
   overBudgetSince?: number;
   closed: boolean;
   queue: Promise<void>;
+  /** Frames admitted but not yet handled. */
+  pendingFrames: number;
   close(code: number, reason: string): void;
 };
 
@@ -522,18 +527,32 @@ export function createCollaborationSocketHandler(
     }, wait);
   }
 
-  async function onFrame(connection: Connection, data: unknown) {
+  /**
+   * Admission of one inbound frame, run synchronously on arrival before the
+   * frame is queued: the per-second rate and the count of frames still
+   * waiting for the serial handler are both bounded, so a slow handler (a
+   * join waiting on the database) cannot let the queue grow without limit.
+   */
+  function admitInbound(connection: Connection): boolean {
     const at = now().getTime();
     if (at - connection.inboundWindowStart >= 1000) {
       connection.inboundWindowStart = at;
       connection.inboundCount = 0;
     }
     connection.inboundCount += 1;
-    if (connection.inboundCount > limits.inboundFramesPerSecond) {
+    if (
+      connection.inboundCount > limits.inboundFramesPerSecond ||
+      connection.pendingFrames >= limits.maxPendingFrames
+    ) {
       problem(connection, null, new StandardError({ code: "RATE_LIMITED" }));
       connection.close(1008, "RATE_LIMITED");
-      return;
+      return false;
     }
+    connection.pendingFrames += 1;
+    return true;
+  }
+
+  async function onFrame(connection: Connection, data: unknown) {
     if (data instanceof ArrayBuffer) {
       return await onBinary(connection, new Uint8Array(data));
     }
@@ -1119,6 +1138,7 @@ export function createCollaborationSocketHandler(
       inboundCount: 0,
       closed: false,
       queue: Promise.resolve(),
+      pendingFrames: 0,
       close(code, reason) {
         if (connection.closed) return;
         teardown();
@@ -1151,9 +1171,12 @@ export function createCollaborationSocketHandler(
     };
     // Frames are handled one at a time, in order, per connection.
     connection.socket.onmessage = (event) => {
+      if (connection.closed || !admitInbound(connection)) return;
       connection.queue = connection.queue.then(() =>
         connection.closed ? undefined : onFrame(connection, event.data)
-      ).catch(() => connection.close(1011, "internal error"));
+      ).catch(() => connection.close(1011, "internal error")).finally(() => {
+        connection.pendingFrames -= 1;
+      });
     };
     connection.socket.onerror = () => connection.close(1011, "socket error");
     connection.socket.onclose = () => teardown();
