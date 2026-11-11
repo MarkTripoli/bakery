@@ -197,17 +197,37 @@ export function createMcpCatalogTools(options: {
     tools,
     get: (name) => byName.get(name),
     async run(tool, grant, args) {
-      const principal = await options.loadSubject(grant.providerUserId);
       const { idempotencyKey, ifMatch, ...fields } = args;
-      let path = tool.path;
+      const invalid = (): McpToolOutcome => ({
+        ok: false,
+        problem: { code: "MALFORMED_REQUEST", status: 400 },
+      });
+      // Header arguments must be strings when given; never dropped silently.
+      if (
+        (idempotencyKey !== undefined &&
+          (typeof idempotencyKey !== "string" || idempotencyKey === "")) ||
+        (ifMatch !== undefined &&
+          (typeof ifMatch !== "string" || ifMatch === ""))
+      ) return invalid();
+      // A route identifier is one opaque path segment. Empty, "." and ".."
+      // would be collapsed by URL normalization and could reach another route.
+      const segments: string[] = [];
       for (const name of tool.pathNames) {
         const value = fields[name];
-        path = path.replace(
-          `:${name}`,
-          encodeURIComponent(String(value ?? "")),
-        );
+        if (
+          typeof value !== "string" || value === "" || value === "." ||
+          value === ".." || value.includes("/") || value.includes("\\")
+        ) return invalid();
+        segments.push(encodeURIComponent(value));
       }
+      let path = tool.path;
+      tool.pathNames.forEach((name, index) => {
+        path = path.replace(`:${name}`, segments[index]!);
+      });
       const url = new URL(`${origin}${path}`);
+      // The request must reach exactly the route this tool's scope was checked for.
+      if (url.pathname !== path) return invalid();
+      const principal = await options.loadSubject(grant.providerUserId);
       const headers = new Headers({
         [ORGANIZATION_HEADER]: grant.organizationId,
       });

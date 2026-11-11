@@ -761,6 +761,51 @@ Deno.test("catalog tools run the REST operation: same state, replay, preconditio
       notFound.structuredContent?.problem?.code,
       ((await restNotFound.json()) as { code: string }).code,
     );
+    // A route identifier that URL normalization would collapse ("." / "..")
+    // or that carries a path separator is refused before any dispatch, so a
+    // tool can never reach a route other than the one its scope was checked for.
+    for (const value of [".", "..", "", "a/b", "%2e", "x\\y"]) {
+      const refused = await tool(fixture, accessToken, "bakery_runs_list", {
+        id: value,
+      });
+      assertEquals(refused.isError, true, `id ${JSON.stringify(value)}`);
+      assertEquals(
+        refused.structuredContent?.problem?.code,
+        "MALFORMED_REQUEST",
+        `id ${JSON.stringify(value)}`,
+      );
+    }
+    // Header arguments of the wrong type are a validation fault, not dropped.
+    for (
+      const header of [
+        { idempotencyKey: 12345 },
+        { idempotencyKey: "" },
+        { ifMatch: 123 },
+      ]
+    ) {
+      const refused = await tool(
+        fixture,
+        accessToken,
+        "bakery_applications_create",
+        {
+          slug: "mcp-typed",
+          name: "Typed",
+          description: "",
+          ...header,
+        },
+      );
+      assertEquals(refused.isError, true, JSON.stringify(header));
+      assertEquals(
+        refused.structuredContent?.problem?.code,
+        "MALFORMED_REQUEST",
+        JSON.stringify(header),
+      );
+    }
+    const typedRows = await fixture.pgDatabase.query(
+      "select 1 from bakery.applications where slug = 'mcp-typed'",
+    );
+    assertEquals(typedRows.rows.length, 0);
+
     // Invalid input is a tool error carrying the REST validation code.
     const invalid = await tool(
       fixture,
