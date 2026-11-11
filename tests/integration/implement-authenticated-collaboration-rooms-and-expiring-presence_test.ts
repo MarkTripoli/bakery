@@ -922,3 +922,30 @@ Deno.test("concurrent updates from two clients serialize, converge and match the
     await closeHarness(harness);
   }
 });
+
+Deno.test("concurrent upgrades from one principal cannot exceed the connection cap", async () => {
+  const harness = await openHarness({ maxConnectionsPerPrincipal: 4 });
+  try {
+    const attempts = await Promise.all(
+      Array.from({ length: 12 }, () => connect(harness, harness.owner)),
+    );
+    const upgraded = attempts.filter((value) => "send" in value);
+    const refused = attempts.filter((value) => !("send" in value));
+    assertEquals(upgraded.length, 4);
+    for (const failure of refused) {
+      assertEquals((failure as { status: number }).status, 429);
+    }
+    // Closing one frees exactly one slot.
+    const first = upgraded[0] as WsClient;
+    await first.close();
+    harness.clients.delete(first);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const again = await connect(harness, harness.owner);
+    assert("send" in again, JSON.stringify(again));
+    const over = await connect(harness, harness.owner);
+    assert(!("send" in over));
+    assertEquals(over.status, 429);
+  } finally {
+    await closeHarness(harness);
+  }
+});
