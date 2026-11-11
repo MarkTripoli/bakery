@@ -1,4 +1,5 @@
 import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
+import { GIT_EXECUTABLE } from "./git-executable.ts";
 import type {
   JobAssignment,
   JsonValue,
@@ -344,7 +345,7 @@ const NATIVE_SANDBOX_EXECUTABLE = "/usr/bin/bwrap";
 const NATIVE_RUNTIME_DEPENDENCY_TOOL = "/usr/bin/ldd";
 const NATIVE_RUNTIME_TOOL_EXECUTABLES = [
   "/bin/sh",
-  "/usr/bin/git",
+  GIT_EXECUTABLE,
   "/usr/bin/node",
   "/usr/bin/true",
 ] as const;
@@ -1787,7 +1788,7 @@ export function createNativeExecutor(
           "--no-remote",
           "--no-npm",
           `--allow-read=${sourceMount.path}`,
-          `--allow-run=/usr/bin/git,/usr/bin/node,${currentRuntime.denoExecutable}`,
+          `--allow-run=${GIT_EXECUTABLE},/usr/bin/node,${currentRuntime.denoExecutable}`,
           `data:application/typescript,${
             encodeURIComponent(REPOSITORY_INSPECTION_CHILD)
           }`,

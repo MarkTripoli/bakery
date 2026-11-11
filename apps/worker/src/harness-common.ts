@@ -1,4 +1,5 @@
 import type { ArtifactRef } from "./client.ts";
+import { GIT_EXECUTABLE } from "./git-executable.ts";
 import { boundedNativeDiagnostic, type ExecutionOutcome } from "./executor.ts";
 import {
   type NativeOutputChannel,
@@ -593,7 +594,7 @@ export async function runHarnessGit(
   cwd: string,
   args: readonly string[],
 ): Promise<{ code: number; stdout: Uint8Array; stderr: Uint8Array }> {
-  const output = await new Deno.Command("git", {
+  const output = await new Deno.Command(GIT_EXECUTABLE, {
     args: [...args],
     cwd,
     stdin: "null",

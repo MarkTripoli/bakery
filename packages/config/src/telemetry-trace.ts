@@ -27,6 +27,13 @@ export type RandomBytes = (length: number) => Uint8Array;
 /** Links kept on one span, so a step retried for weeks cannot grow its record. */
 export const MAX_TRACE_LINKS = 8;
 
+/**
+ * Entries of a history that are looked at, counted from the newest. A history
+ * that claims millions of entries, or is mostly invalid, costs this much and no
+ * more; older valid links behind that many invalid ones are not read.
+ */
+export const MAX_TRACE_LINK_SCAN = 1024;
+
 /** Longest header read at all; a longer value is never a valid traceparent. */
 const MAX_TRACEPARENT_LENGTH = 512;
 
@@ -131,12 +138,13 @@ export function traceLinkOf(context: TraceContext | TraceLink): TraceLink {
  * link, and only the two ids are kept. Never throws.
  */
 export function parseTraceLink(value: unknown): TraceLink | undefined {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return undefined;
-  }
   let traceId: unknown;
   let spanId: unknown;
   try {
+    // Inside the try: `Array.isArray` itself throws on a revoked proxy.
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      return undefined;
+    }
     ({ traceId, spanId } = value as Record<string, unknown>);
   } catch {
     return undefined;
@@ -151,6 +159,17 @@ export function parseTraceLink(value: unknown): TraceLink | undefined {
   return { traceId, spanId };
 }
 
+/** The sampling decision of a resumed span, or recorded when it cannot be read. */
+function sampledOf(resumed: unknown): boolean {
+  try {
+    if (typeof resumed !== "object" || resumed === null) return true;
+    const { sampled } = resumed as { sampled?: unknown };
+    return typeof sampled === "boolean" ? sampled : true;
+  } catch {
+    return true;
+  }
+}
+
 /**
  * Work that resumes after a durable wait or a retry. The earlier span ended at
  * a real operation boundary; the wake begins a new trace and links back, so no
@@ -160,6 +179,13 @@ export function parseTraceLink(value: unknown): TraceLink | undefined {
  * is not well formed is dropped, never repeated. The link being resumed comes
  * first when it is valid, then the newest valid history, up to
  * {@link MAX_TRACE_LINKS}.
+ *
+ * It never throws into the code that is being traced. Both arguments may come
+ * from a durable row or anywhere else: an object whose traps throw, a revoked
+ * proxy, an array-like that is not an array or one that claims an absurd length
+ * costs the links that could not be read, and nothing else. At most
+ * {@link MAX_TRACE_LINK_SCAN} history entries are examined. Only `random`, a
+ * seam the caller owns, can throw.
  */
 export function linkedContinuation(
   resumed: TraceContext | TraceLink,
@@ -168,24 +194,34 @@ export function linkedContinuation(
 ): { readonly context: TraceContext; readonly links: readonly TraceLink[] } {
   const resumedLink = parseTraceLink(resumed);
   const room = MAX_TRACE_LINKS - (resumedLink ? 1 : 0);
-  // From the newest end, so a very long history costs no more than `room` reads.
+  // From the newest end, so a very long history costs no more than the scan
+  // bound, whatever it holds.
   const history: TraceLink[] = [];
-  if (Array.isArray(earlier)) {
-    for (
-      let index = earlier.length - 1;
-      index >= 0 && history.length < room;
-      index -= 1
-    ) {
-      const link = parseTraceLink(earlier[index]);
-      if (link) history.unshift(link);
+  try {
+    if (Array.isArray(earlier)) {
+      const newest = earlier.length - 1;
+      const oldest = Math.max(0, newest - MAX_TRACE_LINK_SCAN + 1);
+      for (
+        let index = newest;
+        index >= oldest && history.length < room;
+        index -= 1
+      ) {
+        let entry: unknown;
+        try {
+          entry = earlier[index];
+        } catch {
+          continue;
+        }
+        const link = parseTraceLink(entry);
+        if (link) history.unshift(link);
+      }
     }
+  } catch {
+    // A history that cannot be read at all (a revoked proxy, a length that
+    // throws) contributes the links read before it failed, which is none.
   }
-  const sampled = typeof resumed === "object" && resumed !== null &&
-      "sampled" in resumed && typeof resumed.sampled === "boolean"
-    ? resumed.sampled
-    : true;
   return {
-    context: { ...newTraceContext(random), sampled },
+    context: { ...newTraceContext(random), sampled: sampledOf(resumed) },
     links: resumedLink ? [resumedLink, ...history] : history,
   };
 }
