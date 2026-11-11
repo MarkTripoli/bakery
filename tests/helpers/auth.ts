@@ -94,6 +94,7 @@ export async function openAuthFixture(options: {
   installationPolicy?: InstallationSettingsUpdate;
   log?: (code: string) => void;
   eventsSocket?: Parameters<typeof createApp>[0]["eventsSocket"];
+  collaborationSocket?: Parameters<typeof createApp>[0]["collaborationSocket"];
   draftIsolation?: Parameters<typeof createApp>[0]["draftIsolation"];
   skillFileRoot?: string;
   skillFileStore?: SkillFileStoreOperations;
@@ -193,6 +194,7 @@ export async function openAuthFixture(options: {
       auth,
       authPersistence: persistence,
       eventsSocket: options.eventsSocket,
+      collaborationSocket: options.collaborationSocket,
       secretsFetch: options.secretsFetch,
       githubAppClient: options.githubAppClient,
       installationTokenBroker: options.installationTokenBroker,

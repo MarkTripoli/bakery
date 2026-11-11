@@ -5816,6 +5816,32 @@
       ]
     },
     {
+      "group": "Sync",
+      "method": "GET",
+      "path": "/v1/collaboration",
+      "action": "collaboration.connect",
+      "access": "Developer",
+      "permission": "draft:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "CollaborationUpgrade",
+      "output": "CollaborationFrames",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "BODY_TOO_LARGE",
+        "RATE_LIMITED"
+      ]
+    },
+    {
       "group": "Integrations intake",
       "method": "POST",
       "path": "/v1/webhooks/github",
