@@ -2531,5 +2531,6 @@
   "tasks.preset.fixedCodingReviewed.title": "⟪Coding with independent review⟫",
   "tasks.preset.fixedCodingReviewed.description": "⟪Write the task brief and run the coding harness, then check and independently review the result, repairing it a bounded number of times.⟫",
   "tasks.composer.setup.review_agent_unavailable": "⟪The repository profile has no usable agent for the independent review step. Bind an enabled, billed and priced agent that may run model and reviewer work.⟫",
-  "tasks.composer.setup.repair_agent_unavailable": "⟪The repository profile has no usable agent for the repair step. Bind an enabled, billed and priced agent that may run the repair step.⟫"
+  "tasks.composer.setup.repair_agent_unavailable": "⟪The repository profile has no usable agent for the repair step. Bind an enabled, billed and priced agent that may run the repair step.⟫",
+  "settings.sso.dialog.metadataInvalid": "⟪That is not SAML metadata. Paste the identity provider's metadata XML, which names its single sign-on endpoint.⟫"
 }

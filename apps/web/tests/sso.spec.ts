@@ -19,6 +19,10 @@ type Fixture = {
   updated: Record<string, unknown>[];
 };
 
+/** IdP metadata naming a POST and a redirect endpoint: the redirect one wins. */
+const SAML_METADATA =
+  `<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="https://idp.acme.example"><IDPSSODescriptor protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol"><SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://idp.acme.example/post"/><SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://idp.acme.example/redirect"/></IDPSSODescriptor></EntityDescriptor>`;
+
 const json = (body: unknown, status = 200) => ({
   status,
   contentType: "application/json",
@@ -166,17 +170,36 @@ test.describe("single sign-on settings", () => {
     await page.goto("/settings/organization/sso");
     await page.getByRole("button", { name: "Add SAML" }).click();
     await page.getByLabel("Display name").fill("entra");
+    await page.getByLabel("Identity provider metadata").fill(SAML_METADATA);
+    await page.getByLabel("Email domain").fill("acme.example");
+    await page.getByRole("button", { name: "Save provider" }).click();
+    await expect(page.getByRole("button", { name: "entra · SAML" }))
+      .toBeVisible();
+    const samlConfig = state.registered[0].samlConfig as {
+      wantAssertionsSigned: boolean;
+      entryPoint: string;
+      idpMetadata: { metadata: string };
+    };
+    expect(samlConfig.wantAssertionsSigned).toBe(true);
+    // The server requires the sign-on URL beside the metadata; the page
+    // reads it from the pasted document, preferring the redirect binding.
+    expect(samlConfig.entryPoint).toBe("https://idp.acme.example/redirect");
+    expect(samlConfig.idpMetadata.metadata).toBe(SAML_METADATA);
+  });
+
+  test("refuses SAML metadata that names no sign-on endpoint without calling the server", async ({ page }) => {
+    const state = await ssoFixture(page);
+    await page.goto("/settings/organization/sso");
+    await page.getByRole("button", { name: "Add SAML" }).click();
+    await page.getByLabel("Display name").fill("entra");
     await page.getByLabel("Identity provider metadata").fill(
       "<EntityDescriptor/>",
     );
     await page.getByLabel("Email domain").fill("acme.example");
     await page.getByRole("button", { name: "Save provider" }).click();
-    await expect(page.getByRole("button", { name: "entra · SAML" }))
+    await expect(page.getByText("That is not SAML metadata.", { exact: false }))
       .toBeVisible();
-    expect(
-      (state.registered[0].samlConfig as { wantAssertionsSigned: boolean })
-        .wantAssertionsSigned,
-    ).toBe(true);
+    expect(state.registered).toEqual([]);
   });
 
   test("shows the TXT record, reports an unverified domain, then verifies", async ({ page }) => {

@@ -1979,6 +1979,7 @@
   "settings.sso.dialog.cancel": "Cancel",
   "settings.sso.dialog.save": "Save provider",
   "settings.sso.dialog.error": "The provider could not be saved. Check the values and try again.",
+  "settings.sso.dialog.metadataInvalid": "That is not SAML metadata. Paste the identity provider's metadata XML, which names its single sign-on endpoint.",
   "settings.sso.verify.title": "Domain verification",
   "settings.sso.verify.instructions": "Add this TXT record to {domain}, then check it. SSO cannot be required until the domain is verified.",
   "settings.sso.verify.show": "Show TXT record",

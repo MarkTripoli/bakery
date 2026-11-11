@@ -55,7 +55,7 @@ const problem = (status: number, code: string) => ({
 
 async function scimFixture(
   page: Page,
-  options: { initial: Status; forbidden?: boolean },
+  options: { initial: Status; forbidden?: boolean; hidden?: boolean },
 ) {
   await mockAuthenticatedSession(page);
   const state = { current: options.initial, calls: [] as string[] };
@@ -64,6 +64,10 @@ async function scimFixture(
     const path = new URL(request.url()).pathname;
     state.calls.push(`${request.method()} ${path}`);
     if (options.forbidden) return route.fulfill(problem(403, "AUTH_FORBIDDEN"));
+    // The real server answers a plain member's read with 404.
+    if (options.hidden) {
+      return route.fulfill(problem(404, "RESOURCE_NOT_FOUND"));
+    }
     if (request.method() === "GET") {
       return route.fulfill(json(200, connection(state.current)));
     }
@@ -162,6 +166,20 @@ for (
             ),
           ).toBeVisible({ timeout }),
       );
+      await expect(page.getByRole("button", { name: "Create connection" }))
+        .toHaveCount(0);
+    });
+
+    test("a member whose read the server answers with 404 sees the forbidden notice", async ({ page }) => {
+      await scimFixture(page, { initial: "none", hidden: true });
+      await page.goto("/settings/scim");
+      await expect(
+        page.getByText(
+          "Only organization administrators can manage SCIM provisioning.",
+        ),
+      ).toBeVisible();
+      await expect(page.getByText("could not be loaded", { exact: false }))
+        .toHaveCount(0);
       await expect(page.getByRole("button", { name: "Create connection" }))
         .toHaveCount(0);
     });

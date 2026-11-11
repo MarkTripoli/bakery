@@ -22,6 +22,9 @@ import { expect, type Page, type Route, test } from "@playwright/test";
 const enabled = process.env.BAKERY_REAL_API === "1" &&
   process.env.BAKERY_REAL_API_SSO === "1";
 const SSO_PAGE = "/settings/organization/sso";
+const SCIM_PAGE = "/settings/scim";
+const SAML_PROVIDER = "saml-acme";
+const SAML_DOMAIN = "saml.example.test";
 const PROVIDER = "oidc-acme";
 const DOMAIN = "example.test";
 const TXT_NAME = `_bakery-verify-${PROVIDER}.${DOMAIN}`;
@@ -35,6 +38,7 @@ type Server = {
   developerCookie: string;
   organizationId: string;
   developerEmail: string;
+  samlMetadata: string;
   issuer: { issuer: string; clientId: string; clientSecret: string };
 };
 
@@ -46,7 +50,10 @@ type State = {
     issuer: string;
     domainVerified: boolean;
   }[];
-  overview: { enforce: boolean; providers: { providerId: string }[] };
+  overview: {
+    enforce: boolean;
+    providers: { providerId: string; protocol: string }[];
+  };
 };
 
 type PasswordSignIn = { status: number; code: string | null; sessions: number };
@@ -284,5 +291,129 @@ test.describe("single sign-on settings against the real API", () => {
     const state = await control<State>("/state");
     expect(state.stored).toEqual([]);
     expect(state.overview.providers).toEqual([]);
+  });
+
+  test("registers a SAML provider from pasted identity provider metadata and shows its TXT record", async ({ page, baseURL }) => {
+    await openAsAdmin(page, baseURL);
+    await page.getByRole("button", { name: "Add SAML" }).click();
+    await page.getByLabel("Display name").fill(SAML_PROVIDER);
+    await page.getByLabel("Identity provider metadata").fill(
+      server.samlMetadata,
+    );
+    await page.getByLabel("Email domain").fill(SAML_DOMAIN);
+    const registered = page.waitForResponse((response) =>
+      response.url().endsWith("/api/auth/sso/register")
+    );
+    await page.getByRole("button", { name: "Save provider" }).click();
+    const response = await registered;
+    expect(response.status(), await response.text()).toBe(200);
+    await expect(page.getByRole("button", { name: `${SAML_PROVIDER} · SAML` }))
+      .toBeVisible();
+
+    const state = await control<State>("/state");
+    expect(state.stored).toMatchObject([{
+      providerId: SAML_PROVIDER,
+      organizationId: server.organizationId,
+      domain: SAML_DOMAIN,
+      domainVerified: false,
+    }]);
+    expect(state.overview.providers).toMatchObject([
+      { providerId: SAML_PROVIDER, protocol: "saml" },
+    ]);
+    await expect(page.getByTestId(`txt-${SAML_PROVIDER}`)).toContainText(
+      `_bakery-verify-${SAML_PROVIDER}.${SAML_DOMAIN} TXT `,
+    );
+    await page.reload();
+    await expect(page.getByRole("button", { name: `${SAML_PROVIDER} · SAML` }))
+      .toBeVisible();
+  });
+
+  /** The HTTP status of a SCIM client calling the provisioning API with `token`. */
+  const scimStatus = async (token: string) =>
+    (await control<{ status: number }>("/scim", {
+      token,
+      method: "GET",
+      path: "/Users",
+    })).status;
+  /**
+   * The credential the page shows once, read from the token element alone:
+   * its section also holds the Copy button, whose label is not part of it.
+   */
+  const shownToken = async (page: Page) =>
+    (await page.getByTestId("scim-token-once")
+      .getByText(/^bsc_[A-Za-z0-9_-]+$/).textContent() ?? "").trim();
+  let scimToken = "";
+
+  test("creates the SCIM connection; the token shown once is a real credential", async ({ page, baseURL }) => {
+    await connect(page, baseURL!, server.adminCookie);
+    await page.goto(SCIM_PAGE);
+    await expect(
+      page.getByRole("heading", { name: "SCIM provisioning" }).first(),
+    ).toBeVisible();
+    // No connection yet: provisioning refuses everyone.
+    expect(await scimStatus("")).toBe(401);
+
+    await page.getByRole("button", { name: "Create connection" }).click();
+    await expect(page.getByTestId("scim-token-once")).toContainText(
+      "shown once",
+    );
+    scimToken = await shownToken(page);
+    expect(scimToken).not.toBe("");
+    expect(await scimStatus(scimToken)).toBe(200);
+    expect(await scimStatus("bsc_wrong")).toBe(401);
+
+    await page.getByRole("button", { name: "I have stored the token" })
+      .click();
+    await expect(page.getByTestId("scim-token-once")).toHaveCount(0);
+    await page.reload();
+    // The secret is never read back; the connection and its base URL are.
+    await expect(page.getByText(scimToken)).toHaveCount(0);
+    await expect(page.getByText(`${server.publicOrigin}/api/auth/scim/v2`))
+      .toBeVisible();
+  });
+
+  test("rotating replaces the SCIM credential and revoking ends provisioning access", async ({ page, baseURL }) => {
+    await connect(page, baseURL!, server.adminCookie);
+    await page.goto(SCIM_PAGE);
+    await page.getByRole("button", { name: "Rotate credential" }).click();
+    const rotate = page.getByRole("alertdialog", {
+      name: "Rotate the SCIM credential?",
+    });
+    await rotate.getByRole("button", { name: "Cancel" }).click();
+    // Cancelling changed nothing: the first token still works.
+    expect(await scimStatus(scimToken)).toBe(200);
+
+    await page.getByRole("button", { name: "Rotate credential" }).click();
+    await rotate.getByRole("button", { name: "Rotate", exact: true }).click();
+    await expect(page.getByTestId("scim-token-once")).toContainText(
+      "shown once",
+    );
+    const rotated = await shownToken(page);
+    expect(rotated).not.toBe("");
+    expect(rotated).not.toBe(scimToken);
+    expect(await scimStatus(scimToken)).toBe(401);
+    expect(await scimStatus(rotated)).toBe(200);
+    await page.getByRole("button", { name: "I have stored the token" })
+      .click();
+
+    await page.getByRole("button", { name: "Revoke connection" }).click();
+    await page.getByRole("alertdialog", { name: "Revoke the SCIM connection?" })
+      .getByRole("button", { name: "Revoke", exact: true }).click();
+    await expect(page.getByText("Revoked").first()).toBeVisible();
+    expect(await scimStatus(rotated)).toBe(401);
+    await page.reload();
+    await expect(page.getByText("Revoked").first()).toBeVisible();
+  });
+
+  test("a member who is not an administrator cannot manage SCIM", async ({ page, baseURL }) => {
+    await connect(page, baseURL!, server.developerCookie);
+    await page.goto(SCIM_PAGE);
+    await expect(
+      page.getByText(
+        "Only organization administrators can manage SCIM provisioning.",
+      ),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Create connection" }))
+      .toHaveCount(0);
   });
 });

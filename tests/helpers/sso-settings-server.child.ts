@@ -11,13 +11,16 @@
  * The API keeps the test public origin (`authTestOrigin`); the caller sends
  * that Origin. Prints one JSON line: the API URL, the control URL, the public
  * origin, the seeded Admin's and Developer's session cookies, the organization
- * id and the OpenID Provider the spec registers. The control server plays what
+ * id, the OpenID Provider the spec registers and the SAML identity provider's
+ * metadata document an administrator would paste. The control server plays what
  * a person or an identity provider does outside the page:
  *
  * - POST /dns {name, value}: publish a TXT record the domain check will find.
  * - POST /password-sign-in {who}: password sign-in as the seeded "admin" or
  *   "developer"; answers the status, problem code and session cookies issued.
  * - POST /sso-sign-in {providerId}: the Developer signs in through the issuer.
+ * - POST /scim {token, method, path}: a SCIM client calls the provisioning API
+ *   with that bearer token ("" for none); answers the HTTP status.
  * - GET /state: the stored provider rows and the overview the page reads.
  *
  * Runs until stdin closes or SIGTERM, then removes what it seeded.
@@ -25,6 +28,7 @@
 import { authTestOrigin } from "./auth.ts";
 import { startTxtDns } from "./dns-txt.ts";
 import { reservePort, startOidcIssuer } from "./sso/oidc-issuer.ts";
+import { startSamlIdp } from "./sso/saml-idp.ts";
 import {
   authGet,
   openSsoFixture,
@@ -36,6 +40,27 @@ import {
 const issuer = await startOidcIssuer(reservePort());
 const f = await openSsoFixture([issuer.issuer]);
 const dns = await startTxtDns();
+const saml = await startSamlIdp(reservePort());
+
+/**
+ * The metadata document of the SAML identity provider, as an administrator
+ * pastes it into the page: its entity, signing certificate and redirect
+ * endpoint.
+ */
+function samlMetadata(): string {
+  const certificate = saml.certificatePem.replace(
+    /-----(?:BEGIN|END) CERTIFICATE-----|\s+/g,
+    "",
+  );
+  return `<?xml version="1.0"?>` +
+    `<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" entityID="${saml.entityID}">` +
+    `<IDPSSODescriptor WantAuthnRequestsSigned="false" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">` +
+    `<KeyDescriptor use="signing"><KeyInfo xmlns="http://www.w3.org/2000/09/xmldsig#"><X509Data>` +
+    `<X509Certificate>${certificate}</X509Certificate></X509Data></KeyInfo></KeyDescriptor>` +
+    `<NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</NameIDFormat>` +
+    `<SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="${saml.ssoUrl}"/>` +
+    `</IDPSSODescriptor></EntityDescriptor>`;
+}
 
 async function problemCode(response: Response): Promise<string | null> {
   const body = await response.clone().json().catch(() => ({})) as {
@@ -105,6 +130,18 @@ async function control(request: Request): Promise<Response> {
       ),
     });
   }
+  if (path === "/scim") {
+    const headers = new Headers({ accept: "application/scim+json" });
+    if (body.token) headers.set("authorization", `Bearer ${body.token}`);
+    const response = await f.app.fetch(
+      new Request(`${authTestOrigin}/api/auth/scim/v2${body.path}`, {
+        method: body.method,
+        headers,
+      }),
+    );
+    await response.body?.cancel();
+    return Response.json({ status: response.status });
+  }
   return Response.json({ error: "not found" }, { status: 404 });
 }
 
@@ -124,6 +161,7 @@ console.log(JSON.stringify({
   developerCookie: f.developerCookie,
   organizationId: f.organizationId,
   developerEmail: f.developerEmail,
+  samlMetadata: samlMetadata(),
   issuer: {
     issuer: issuer.issuer,
     clientId: issuer.clientId,
@@ -148,6 +186,10 @@ try {
   await controller.shutdown();
   try {
     await f.pgDatabase.query(`delete from public."ssoProvider"`);
+    await f.pgDatabase.query(
+      "delete from bakery.scim_connections where organization_id = $1",
+      [f.organizationId],
+    );
   } finally {
     dns.close();
     await issuer.close();

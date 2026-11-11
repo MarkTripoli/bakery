@@ -2,7 +2,13 @@ import { useId, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MessageKey } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
-import { ssoApi, type SsoOverview, type SsoProvider } from "../api/sso.ts";
+import { readSamlEntryPoint } from "../api/saml-metadata.ts";
+import {
+  SAML_METADATA_INVALID,
+  ssoApi,
+  type SsoOverview,
+  type SsoProvider,
+} from "../api/sso.ts";
 import { protectedQueryKey } from "../app/query-scope.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import * as organizationSelection from "../app/organization-selection.ts";
@@ -86,6 +92,8 @@ export function SsoPage() {
     tone: "error",
     key: result.code === "SESSION_REQUIRED"
       ? "settings.sso.sessionRequired"
+      : result.code === SAML_METADATA_INVALID
+      ? "settings.sso.dialog.metadataInvalid"
       : fallback,
   });
 
@@ -383,6 +391,17 @@ function ProviderForm({
     setProblem(null);
     try {
       if (editing) {
+        // New SAML metadata also carries the provider's sign-on URL.
+        const samlEntryPoint = kind === "saml" && metadata.trim()
+          ? readSamlEntryPoint(metadata.trim())
+          : undefined;
+        if (samlEntryPoint === null) {
+          setProblem({
+            tone: "error",
+            key: "settings.sso.dialog.metadataInvalid",
+          });
+          return;
+        }
         const result = await ssoApi.updateProvider(editing.providerId, {
           ...(domain.trim() !== editing.domain
             ? { domain: domain.trim() }
@@ -398,8 +417,13 @@ function ProviderForm({
               },
             }
             : {}),
-          ...(kind === "saml" && metadata.trim()
-            ? { samlConfig: { idpMetadata: { metadata: metadata.trim() } } }
+          ...(samlEntryPoint
+            ? {
+              samlConfig: {
+                entryPoint: samlEntryPoint,
+                idpMetadata: { metadata: metadata.trim() },
+              },
+            }
             : {}),
         });
         if (!result.ok) {

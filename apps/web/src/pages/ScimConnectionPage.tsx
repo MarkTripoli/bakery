@@ -18,6 +18,15 @@ type Pending = "rotate" | "revoke" | null;
 const LIFETIMES = [30, 90, 365, 730] as const;
 const OVERLAPS = [0, 30, 1440] as const;
 
+/**
+ * A person who cannot manage SCIM is refused: a change answers 403, and the
+ * real server answers a plain member's read with 404 (observed against the
+ * real API in sso-real-api.spec.ts), so a refused read is either.
+ */
+function isRefusedRead(error: unknown): boolean {
+  return isForbiddenFailure(error) || failureStatus(error) === 404;
+}
+
 function failureKind(error: unknown): Failure {
   if (isForbiddenFailure(error)) return "forbidden";
   return failureStatus(error) === 409 ? "conflict" : "error";
@@ -50,7 +59,7 @@ export function ScimConnectionPage() {
   const organizationId = scope.organizationId;
   const data = connection.data;
   const forbidden = failure === "forbidden" ||
-    (connection.isError && isForbiddenFailure(connection.error));
+    (connection.isError && isRefusedRead(connection.error));
   const date = (value: string | null) =>
     value
       ? new Intl.DateTimeFormat(locale, {
