@@ -84,10 +84,6 @@
     "path": "/installation/settings"
   },
   {
-    "id": "installation-license",
-    "path": "/installation/license"
-  },
-  {
     "id": "installation-audit",
     "path": "/installation/audit"
   },
