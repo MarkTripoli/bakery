@@ -184,3 +184,37 @@ test("a test-mode build declares nothing and reports nothing", async () => {
   assert.equal(resolved.build.sourcemap, false);
   assert.ok(!plugins(resolved).includes("sentry-vite-plugin"));
 });
+
+test("a declared upload that cannot complete fails the build instead of shipping unresolvable frames", async () => {
+  const resolved = await resolve({
+    ...reporting,
+    ...uploadTarget,
+    SENTRY_UPLOAD_SOURCEMAPS: "true",
+  });
+  const plugin = resolved.plugins.flat(Infinity).filter(Boolean).find(
+    (candidate) => candidate.name === "sentry-vite-plugin",
+  );
+  assert.ok(
+    plugin,
+    "an instrumented build that declares upload adds the plugin",
+  );
+  const writeBundle = typeof plugin.writeBundle === "function"
+    ? plugin.writeBundle
+    : plugin.writeBundle.handler;
+
+  // Without an error handler the plugin only logs a failed upload, the build
+  // exits 0, and the maps are deleted afterwards: the release ships with frames
+  // that can never resolve and nothing says so. Port 1 is closed, so the
+  // upload fails here and nothing leaves the host.
+  const saved = process.env.SENTRY_URL;
+  process.env.SENTRY_URL = "http://127.0.0.1:1";
+  try {
+    await assert.rejects(
+      writeBundle.call({}, { dir: "/nonexistent-output-dir" }, {}),
+      /sentry-cli|Could not connect|API request failed/i,
+    );
+  } finally {
+    if (saved === undefined) delete process.env.SENTRY_URL;
+    else process.env.SENTRY_URL = saved;
+  }
+});

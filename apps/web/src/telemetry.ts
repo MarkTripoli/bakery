@@ -1,8 +1,31 @@
-import { readSentryConfig } from "@bakery/config/sentry";
+import { readSentryConfig, type SentryConfig } from "@bakery/config/sentry";
 import { sentryPrivacyOptions } from "@bakery/config/sentry-privacy";
 import * as Sentry from "@sentry/react";
 import type { RootOptions } from "react-dom/client";
 import type { router } from "./router.tsx";
+
+/**
+ * Everything `Sentry.init` is given except what needs the router: the privacy
+ * filter that decides what a failure becomes on the wire, and the integrations
+ * that capture and deduplicate errors. Exported so tests send a failure
+ * through this exact option set instead of a copy of it.
+ */
+export function browserReportingOptions(
+  config: Extract<SentryConfig, { enabled: true }>,
+  safeNames: ReadonlySet<string>,
+) {
+  return {
+    ...config,
+    ...sentryPrivacyOptions("web", config, safeNames),
+    defaultIntegrations: false as const,
+    integrations: [
+      Sentry.globalHandlersIntegration(),
+      Sentry.browserApiErrorsIntegration(),
+      Sentry.dedupeIntegration(),
+    ],
+    strictTraceContinuation: true,
+  };
+}
 
 export function initializeBrowserMonitoring(
   applicationRouter: typeof router,
@@ -18,18 +41,14 @@ export function initializeBrowserMonitoring(
         : "development"),
   );
   if (!config.enabled) return {};
+  const reporting = browserReportingOptions(
+    config,
+    new Set(Object.keys(applicationRouter.routesByPath)),
+  );
   Sentry.init({
-    ...config,
-    ...sentryPrivacyOptions(
-      "web",
-      config,
-      new Set(Object.keys(applicationRouter.routesByPath)),
-    ),
-    defaultIntegrations: false,
+    ...reporting,
     integrations: [
-      Sentry.globalHandlersIntegration(),
-      Sentry.browserApiErrorsIntegration(),
-      Sentry.dedupeIntegration(),
+      ...reporting.integrations,
       Sentry.tanstackRouterBrowserTracingIntegration(applicationRouter, {
         shouldCreateSpanForRequest: (url) => {
           const target = new URL(url, location.origin);
@@ -46,7 +65,6 @@ export function initializeBrowserMonitoring(
         }/(?:v1|api)(?:/|$)`,
       ),
     ],
-    strictTraceContinuation: true,
   });
   return {
     onUncaughtError: Sentry.reactErrorHandler(),
