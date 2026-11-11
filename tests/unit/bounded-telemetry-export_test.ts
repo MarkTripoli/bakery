@@ -818,3 +818,81 @@ Deno.test("close delivers any report still pending before it returns", async () 
   assertEquals(reported, exporter.stats().offered);
   assertEquals(reported, 6);
 });
+
+// ---- review round 2 ---------------------------------------------------------
+// `onLoss` is typed to return nothing, which an async function satisfies. Its
+// rejection is nobody's to handle but ours: unhandled, it ends a Node 24
+// process, and the exporter exists so that telemetry can never do that to the
+// code it observes.
+
+/** Runs `work` and returns every rejection nobody handled while it ran. */
+async function unhandledDuring(work: () => Promise<void>): Promise<unknown[]> {
+  const seen: unknown[] = [];
+  const onUnhandled = (event: PromiseRejectionEvent) => {
+    seen.push(event.reason);
+    event.preventDefault();
+  };
+  globalThis.addEventListener("unhandledrejection", onUnhandled);
+  try {
+    await work();
+    // Unhandled rejections are reported after the microtask queue drains.
+    await pause(50);
+  } finally {
+    globalThis.removeEventListener("unhandledrejection", onUnhandled);
+  }
+  return seen;
+}
+
+const reporters: Array<[string, () => unknown]> = [
+  [
+    "an async reporter that throws",
+    () => Promise.reject(new Error("async boom")),
+  ],
+  [
+    "an async reporter that rejects with nothing",
+    () => Promise.reject(undefined),
+  ],
+  ["a thenable that rejects", () => ({
+    then: (_: unknown, reject: (reason: unknown) => void) =>
+      reject(new Error("thenable boom")),
+  })],
+  ["a thenable whose then throws", () => ({
+    then: () => {
+      throw new Error("then boom");
+    },
+  })],
+  ["a thenable whose then getter throws", () => ({
+    get then(): never {
+      throw new Error("getter boom");
+    },
+  })],
+  ["a reporter that returns a revoked proxy", () => {
+    const revoked = Proxy.revocable({}, {});
+    revoked.revoke();
+    return revoked.proxy;
+  }],
+  ["a reporter that returns a promise that resolves", () => Promise.resolve()],
+];
+
+for (const [name, report] of reporters) {
+  Deno.test(`a loss reporter that is ${name} neither throws nor leaves an unhandled rejection`, async () => {
+    let reports = 0;
+    const unhandled = await unhandledDuring(async () => {
+      const exporter = make<number>(() => Promise.reject(new Error("down")), {
+        capacity: 1,
+        batchSize: 1,
+        maxAttempts: 1,
+        onLoss: () => {
+          reports += 1;
+          return report() as void;
+        },
+      });
+      for (let item = 0; item < 4; item += 1) exporter.offer(item);
+      await until(() => exporter.stats().failedBatches >= 1, "a failed batch");
+      await exporter.close(100);
+      conserved(exporter.stats());
+    });
+    assert(reports >= 1, "the reporter was never called");
+    assertEquals(unhandled, []);
+  });
+}

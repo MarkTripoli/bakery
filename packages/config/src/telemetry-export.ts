@@ -56,7 +56,16 @@ export const MAX_TIMER_MS = 2 ** 31 - 1;
 /** Longest pause between two attempts at one batch. */
 const MAX_RETRY_DELAY_MS = 60_000;
 
-/** Delivers one batch. `signal` aborts when the exporter gives up on the send. */
+/**
+ * Delivers one batch. `signal` aborts when the exporter gives up on the send.
+ *
+ * What a sink does is contained: it may throw, reject, never settle or edit the
+ * array it is handed, and the exporter carries on. One thing is not contained.
+ * An abort listener the sink registers on `signal` runs inside the runtime's
+ * own `abort()`, so if that listener throws the runtime reports an uncaught
+ * error (an `error` event in Deno, `uncaughtException` in Node) that nothing in
+ * the exporter can intercept. Keep abort listeners from throwing.
+ */
 export type ExportSink<T> = (
   batch: readonly T[],
   signal: AbortSignal,
@@ -86,10 +95,12 @@ export type BoundedExporterOptions<T> = {
   readonly intervalMs: number;
   /**
    * Told of losses: one call per reason with the count since the last, a tick
-   * after the first of them. May throw; that changes nothing. An item offered
-   * from inside it is refused and counted as `dropped.reentrant`.
+   * after the first of them. May throw, or be async and reject; neither changes
+   * anything, and what it returns is never waited for, so a slow async reporter
+   * can overlap the next report. An item offered from inside it is refused and
+   * counted as `dropped.reentrant`.
    */
-  readonly onLoss?: (loss: ExportLoss) => void;
+  readonly onLoss?: (loss: ExportLoss) => void | PromiseLike<unknown>;
 };
 
 export type ExportStats = {
@@ -166,6 +177,26 @@ function after(ms: number) {
     id = setTimeout(() => resolve("elapsed"), ms);
   });
   return { promise, cancel: () => clearTimeout(id) };
+}
+
+/**
+ * Makes sure a value the caller's code returned cannot reject unhandled. A
+ * reporter typed to return nothing may still be an async function, and an
+ * unhandled rejection ends a Node 24 process; this is the one place the
+ * exporter calls caller code without a promise chain of its own to catch it.
+ */
+function swallowRejection(value: unknown): void {
+  try {
+    if (
+      (typeof value === "object" || typeof value === "function") &&
+      value !== null &&
+      typeof (value as PromiseLike<unknown>).then === "function"
+    ) {
+      (value as PromiseLike<unknown>).then(undefined, () => {});
+    }
+  } catch {
+    // A thenable whose `then` throws, or a revoked proxy: nothing to wait for.
+  }
 }
 
 /** Lets the process exit with the timer pending, where the runtime allows it. */
@@ -250,7 +281,7 @@ export function createBoundedExporter<T>(
       pendingLoss[reason] = 0;
       reporting = true;
       try {
-        options.onLoss?.({ reason, count });
+        swallowRejection(options.onLoss?.({ reason, count }));
       } catch {
         // A broken reporter must not reach the code being observed.
       } finally {
