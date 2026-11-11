@@ -32,6 +32,16 @@ export const STREAM_SETTLE_SECONDS = 30;
 /** Longest string field kept when an oversized event must be cut further. */
 export const STREAM_FIELD_CHARS = 1_024;
 
+/**
+ * First STREAM_FIELD_CHARS UTF-16 units of `value`, one fewer when the cut
+ * would split a surrogate pair, so no lone surrogate reaches the NDJSON line.
+ */
+export function cutField(value: string): string {
+  const cut = value.slice(0, STREAM_FIELD_CHARS);
+  const last = cut.charCodeAt(cut.length - 1);
+  return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut;
+}
+
 type StreamEvent = ReturnType<typeof toAuditEvent>;
 
 /**
@@ -56,7 +66,7 @@ function omitOversized(event: StreamEvent): Record<string, unknown> {
   const truncatedFields: string[] = [];
   for (const [key, value] of Object.entries(marked)) {
     if (typeof value === "string" && value.length > STREAM_FIELD_CHARS) {
-      marked[key] = value.slice(0, STREAM_FIELD_CHARS);
+      marked[key] = cutField(value);
       truncatedFields.push(key);
     }
   }
