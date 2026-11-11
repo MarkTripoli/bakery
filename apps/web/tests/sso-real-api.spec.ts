@@ -1,7 +1,14 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { createInterface } from "node:readline";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, type Page, type Route, test } from "@playwright/test";
+import {
+  expect,
+  type Locator,
+  type Page,
+  type Route,
+  test,
+} from "@playwright/test";
 
 /**
  * Browser proof of the single sign-on settings page against the real API: a
@@ -17,7 +24,8 @@ import { expect, type Page, type Route, test } from "@playwright/test";
  * `BAKERY_ENV=test`) and `deno`. It seeds its own Admin, so it runs alone in
  * the `desktop-real-sso` project when the operator sets both
  * `BAKERY_REAL_API=1` and `BAKERY_REAL_API_SSO=1`; it is never CI-selected.
- * `BAKERY_EVIDENCE_VIDEO=1` records video.
+ * `BAKERY_EVIDENCE_VIDEO=1` records video; `BAKERY_EVIDENCE_DIR=<dir>` saves a
+ * desktop (1440x900) and a phone (390x844) screenshot of each key state there.
  */
 const enabled = process.env.BAKERY_REAL_API === "1" &&
   process.env.BAKERY_REAL_API_SSO === "1";
@@ -59,6 +67,36 @@ type State = {
 type PasswordSignIn = { status: number; code: string | null; sessions: number };
 
 test.use({ video: process.env.BAKERY_EVIDENCE_VIDEO === "1" ? "on" : "off" });
+
+const evidenceDirectory = process.env.BAKERY_EVIDENCE_DIR;
+const EVIDENCE_VIEWPORTS = [
+  { name: "desktop", width: 1440, height: 900 },
+  { name: "mobile", width: 390, height: 844 },
+] as const;
+
+/**
+ * Saves `<name>--desktop.png` and `<name>--mobile.png` of the page as it is,
+ * when `BAKERY_EVIDENCE_DIR` is set; otherwise does nothing. `mask` hides
+ * what must not be published, such as the one-time SCIM credential.
+ */
+async function shot(page: Page, name: string, mask: Locator[] = []) {
+  if (!evidenceDirectory) return;
+  const original = page.viewportSize();
+  for (const { name: viewport, ...size } of EVIDENCE_VIEWPORTS) {
+    await page.setViewportSize(size);
+    // One frame, so the responsive layout has settled at the new size.
+    await page.evaluate(() =>
+      new Promise((resolve) => requestAnimationFrame(resolve))
+    );
+    await page.screenshot({
+      path: join(evidenceDirectory, `${name}--${viewport}.png`),
+      fullPage: true,
+      mask,
+      maskColor: "#9ca3af",
+    });
+  }
+  if (original) await page.setViewportSize(original);
+}
 
 test.describe("single sign-on settings against the real API", () => {
   test.describe.configure({ mode: "serial" });
@@ -160,6 +198,7 @@ test.describe("single sign-on settings against the real API", () => {
     const state = await control<State>("/state");
     expect(state.stored).toEqual([]);
     expect(state.overview).toEqual({ enforce: false, providers: [] });
+    await shot(page, "sso-empty");
   });
 
   test("registers an OIDC provider the backend stores and the page keeps after a reload", async ({ page, baseURL }) => {
@@ -172,11 +211,14 @@ test.describe("single sign-on settings against the real API", () => {
       server.issuer.clientSecret,
     );
     await page.getByLabel("Email domain").fill(DOMAIN);
+    await shot(page, "sso-add-oidc");
     await page.getByRole("button", { name: "Save provider" }).click();
     await expect(page.getByRole("button", { name: `${PROVIDER} · OIDC` }))
       .toBeVisible();
     await expect(page.getByText("Disabled")).toBeVisible();
+    await expect(page.getByTestId(`txt-${PROVIDER}`)).toBeVisible();
     await expect(page.getByText(server.issuer.clientSecret)).toHaveCount(0);
+    await shot(page, "sso-provider-awaiting-domain");
 
     const state = await control<State>("/state");
     expect(state.stored).toEqual([{
@@ -220,6 +262,7 @@ test.describe("single sign-on settings against the real API", () => {
     expect((await control<State>("/state")).stored[0].domainVerified).toBe(
       true,
     );
+    await shot(page, "sso-domain-verified");
   });
 
   test("enforcement refuses a member's password, keeps break-glass and SSO working, and lifts again", async ({ page, baseURL }) => {
@@ -237,6 +280,7 @@ test.describe("single sign-on settings against the real API", () => {
       .toBe(true);
     await page.reload();
     await expect(page.getByLabel(REQUIRE_SSO)).toBeChecked();
+    await shot(page, "sso-enforcement-on");
 
     // The member is refused on password sign-in and gets no session.
     expect(await passwordSignIn("developer")).toEqual({
@@ -281,6 +325,7 @@ test.describe("single sign-on settings against the real API", () => {
     ).toBeVisible();
     await expect(page.getByRole("button", { name: `${PROVIDER} · OIDC` }))
       .toHaveCount(0);
+    await shot(page, "sso-forbidden");
   });
 
   test("removes the provider and the backend no longer holds it", async ({ page, baseURL }) => {
@@ -323,6 +368,7 @@ test.describe("single sign-on settings against the real API", () => {
     await expect(page.getByTestId(`txt-${SAML_PROVIDER}`)).toContainText(
       `_bakery-verify-${SAML_PROVIDER}.${SAML_DOMAIN} TXT `,
     );
+    await shot(page, "sso-saml-registered");
     await page.reload();
     await expect(page.getByRole("button", { name: `${SAML_PROVIDER} · SAML` }))
       .toBeVisible();
@@ -361,6 +407,10 @@ test.describe("single sign-on settings against the real API", () => {
     expect(scimToken).not.toBe("");
     expect(await scimStatus(scimToken)).toBe(200);
     expect(await scimStatus("bsc_wrong")).toBe(401);
+    // The credential is hidden: it is shown once and must not be published.
+    await shot(page, "scim-token-shown-once", [
+      page.getByTestId("scim-token-once").getByText(/^bsc_[A-Za-z0-9_-]+$/),
+    ]);
 
     await page.getByRole("button", { name: "I have stored the token" })
       .click();
@@ -403,6 +453,7 @@ test.describe("single sign-on settings against the real API", () => {
     expect(await scimStatus(rotated)).toBe(401);
     await page.reload();
     await expect(page.getByText("Revoked").first()).toBeVisible();
+    await shot(page, "scim-revoked");
   });
 
   test("a member who is not an administrator cannot manage SCIM", async ({ page, baseURL }) => {
@@ -415,5 +466,6 @@ test.describe("single sign-on settings against the real API", () => {
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "Create connection" }))
       .toHaveCount(0);
+    await shot(page, "scim-forbidden");
   });
 });
