@@ -38,6 +38,9 @@ function problemShape(body: Record<string, unknown>) {
 
 type Effective = {
   repositoryId: string;
+  repositoryVersion: number;
+  checkers: { state: string; unavailableRuleKeys: string[] };
+  providerProtection: { state: string; reason: string | null };
   profileId: string | null;
   profileRevision: number | null;
   organizationRevision: number;
@@ -164,7 +167,23 @@ Deno.test("repository rule overrides publish, resolve and follow organization re
         entries: [],
         supersededOverrides: [],
         digest: (await resolveRepositoryRules(null, { entries: [] })).digest,
+        repositoryVersion: await repositoryVersion(),
+        // No rule needs a checker; the fixture repository has no enabled
+        // provider connection, so protection is unknown, never "not configured".
+        checkers: { state: "not_required", unavailableRuleKeys: [] },
+        providerProtection: {
+          state: "unknown",
+          reason: "provider_not_connected",
+        },
       });
+      // The read carries the repository version as the activation validator.
+      const read = await send(
+        "GET",
+        f.effectivePath(repo.repositoryId),
+        adminA,
+      );
+      assertEquals(read.headers.get("etag"), `"v${await repositoryVersion()}"`);
+      await read.body?.cancel();
       await publishRules(0, [commitsEntry(false), titleEntry(72)]);
       const inherited = await effective();
       assertEquals(inherited.profileId, null);

@@ -17509,7 +17509,10 @@ const transportSchemas = {
         "organizationRevision",
         "entries",
         "supersededOverrides",
-        "digest"
+        "digest",
+        "repositoryVersion",
+        "checkers",
+        "providerProtection"
       ],
       "fieldTypes": {
         "repositoryId": "uuid",
@@ -17518,7 +17521,10 @@ const transportSchemas = {
         "organizationRevision": "integer",
         "entries": "json",
         "supersededOverrides": "json",
-        "digest": "sha256"
+        "digest": "sha256",
+        "repositoryVersion": "positiveInteger",
+        "checkers": "RepositoryRuleCheckers",
+        "providerProtection": "RepositoryProviderProtection"
       },
       "nullableFields": [
         "profileId",
@@ -17532,7 +17538,43 @@ const transportSchemas = {
         "organizationRevision": "Organization rules revision resolved against; 0 means no organization revision is published yet.",
         "entries": "Effective rule entries in canonical rule-key order, each with its provenance and source organization revision; a locked entry is the organization entry with provenance locked_by_organization.",
         "supersededOverrides": "Saved repository overrides that are inactive because the organization currently locks the rule; they stay in the profile and take effect again if the lock is dropped.",
-        "digest": "Lowercase SHA-256 of the canonical effective entries and organization revision; superseded overrides are excluded."
+        "digest": "Lowercase SHA-256 of the canonical effective entries and organization revision; superseded overrides are excluded.",
+        "repositoryVersion": "Current repository version; the response ETag is \"v<version>\", the If-Match value profile activation requires.",
+        "checkers": "Bakery checker availability for the effective rules.",
+        "providerProtection": "Git provider branch protection state, separate from Bakery enforcement."
+      }
+    },
+    "RepositoryRuleCheckers": {
+      "fields": [
+        "state",
+        "unavailableRuleKeys"
+      ],
+      "fieldTypes": {
+        "state": "enum(configured|unavailable|not_required)",
+        "unavailableRuleKeys": "string[]"
+      },
+      "description": "Whether the rules that need a Bakery checker have one: every enabled warn or require rule with a check binding must name a command of the active profile fixed policy.",
+      "fieldDescriptions": {
+        "state": "configured when every checker-backed rule names an active fixed-policy command, unavailable when at least one does not (a require rule then blocks delivery), not_required when no enabled rule needs a checker.",
+        "unavailableRuleKeys": "Rule keys whose checker is missing or unbound, in canonical order; empty unless state is unavailable."
+      }
+    },
+    "RepositoryProviderProtection": {
+      "fields": [
+        "state",
+        "reason"
+      ],
+      "fieldTypes": {
+        "state": "enum(verified|not_configured|unknown)",
+        "reason": "enum(provider_not_connected|not_checked)|null"
+      },
+      "nullableFields": [
+        "reason"
+      ],
+      "description": "Git provider branch protection for the repository, reported independently of Bakery rule status. Bakery does not yet read provider protection, so it is unknown rather than assumed absent.",
+      "fieldDescriptions": {
+        "state": "verified or not_configured once read from the provider; unknown when it has not been read.",
+        "reason": "Why the state is unknown: the repository has no enabled provider connection, or Bakery has not checked protection; null when the state is known."
       }
     },
     "OrganizationRepositoryRulesRead": {

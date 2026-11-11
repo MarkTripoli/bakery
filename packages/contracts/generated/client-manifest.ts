@@ -39115,6 +39115,78 @@ export const clientManifest = {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
           "description": "Lowercase SHA-256 of the canonical effective entries and organization revision; superseded overrides are excluded."
+        },
+        "repositoryVersion": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Current repository version; the response ETag is \"v<version>\", the If-Match value profile activation requires."
+        },
+        "checkers": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "configured",
+                "unavailable",
+                "not_required"
+              ],
+              "description": "configured when every checker-backed rule names an active fixed-policy command, unavailable when at least one does not (a require rule then blocks delivery), not_required when no enabled rule needs a checker."
+            },
+            "unavailableRuleKeys": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Rule keys whose checker is missing or unbound, in canonical order; empty unless state is unavailable. Each array item follows this format."
+              },
+              "description": "Rule keys whose checker is missing or unbound, in canonical order; empty unless state is unavailable."
+            }
+          },
+          "required": [
+            "state",
+            "unavailableRuleKeys"
+          ],
+          "additionalProperties": false,
+          "description": "Bakery checker availability for the effective rules."
+        },
+        "providerProtection": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "verified",
+                "not_configured",
+                "unknown"
+              ],
+              "description": "verified or not_configured once read from the provider; unknown when it has not been read."
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "provider_not_connected",
+                    "not_checked"
+                  ],
+                  "description": "Why the state is unknown: the repository has no enabled provider connection, or Bakery has not checked protection; null when the state is known."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "RepositoryProviderProtection.reason may be null in this transport value."
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "additionalProperties": false,
+          "description": "Git provider branch protection state, separate from Bakery enforcement."
         }
       },
       "required": [
@@ -39124,7 +39196,10 @@ export const clientManifest = {
         "organizationRevision",
         "entries",
         "supersededOverrides",
-        "digest"
+        "digest",
+        "repositoryVersion",
+        "checkers",
+        "providerProtection"
       ],
       "additionalProperties": false,
       "description": "The rules in force for one repository: the organization's latest published baseline layered with the overrides of the repository's active profile, one entry per applicable rule with its provenance, plus overrides inactive under an organization lock. Resolved in one snapshot, so every entry's organization revision equals the response's organizationRevision. A repository with no active profile resolves with no overrides."
