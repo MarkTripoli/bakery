@@ -17,6 +17,12 @@
  * nothing.
  */
 
+import { execFile } from "node:child_process";
+import { readFile, rename, rm, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import process from "node:process";
+import { fileURLToPath } from "node:url";
+
 export type GitResult = Readonly<{
   code: number;
   stdout: string;
@@ -28,21 +34,24 @@ export type GitRunner = (
   args: readonly string[],
 ) => Promise<GitResult>;
 
-export const runGit: GitRunner = async (cwd, args) => {
-  const out = await new Deno.Command("git", {
-    args: [...args],
-    cwd,
-    env: { LC_ALL: "C" },
-    stdout: "piped",
-    stderr: "piped",
-  }).output();
-  const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
-  return {
-    code: out.code,
-    stdout: decode(out.stdout),
-    stderr: decode(out.stderr),
-  };
-};
+export const runGit: GitRunner = (cwd, args) =>
+  new Promise((resolve) => {
+    // A non-zero exit is an answer (`cat-file -e` exits 1 for "absent"), so it
+    // resolves with its code; only a failure to start git has no code.
+    execFile(
+      "git",
+      [...args],
+      { cwd, env: { LC_ALL: "C" }, maxBuffer: 16 * 1024 * 1024 },
+      (error, stdout, stderr) => {
+        const code = error === null
+          ? 0
+          : typeof (error as { code?: unknown }).code === "number"
+          ? (error as { code: number }).code
+          : 127;
+        resolve({ code, stdout: String(stdout), stderr: String(stderr) });
+      },
+    );
+  });
 
 export type DroppedEntry = Readonly<{
   sha: string;
@@ -93,9 +102,9 @@ export async function healStaleShallow(
   const file = `${gitDir}/shallow`;
   let text: string;
   try {
-    text = await Deno.readTextFile(file);
+    text = await readFile(file, "utf8");
   } catch (error) {
-    if (error instanceof Deno.errors.NotFound) {
+    if ((error as { code?: unknown }).code === "ENOENT") {
       return { shallowBefore: true, shallowAfter: true, dropped: [], kept: [] };
     }
     throw refusal("GIT_COMMAND_FAILED");
@@ -144,11 +153,11 @@ export async function healStaleShallow(
 
   if (dropped.length > 0) {
     if (kept.length === 0) {
-      await Deno.remove(file);
+      await rm(file);
     } else {
-      const staged = `${file}.heal-${crypto.randomUUID()}`;
-      await Deno.writeTextFile(staged, kept.join("\n") + "\n");
-      await Deno.rename(staged, file);
+      const staged = `${file}.heal-${randomUUID()}`;
+      await writeFile(staged, kept.join("\n") + "\n");
+      await rename(staged, file);
     }
   }
   const after = await mustSucceed("rev-parse", "--is-shallow-repository");
@@ -161,8 +170,8 @@ export async function healStaleShallow(
 }
 
 async function main(): Promise<number> {
-  const repo = Deno.cwd();
-  const runner = Deno.env.get("RUNNER_NAME") ?? "unknown-runner";
+  const repo = process.cwd();
+  const runner = process.env.RUNNER_NAME ?? "unknown-runner";
   const version = (await runGit(repo, ["--version"])).stdout.trim();
   let result: HealResult;
   try {
@@ -200,4 +209,8 @@ async function main(): Promise<number> {
   return 0;
 }
 
-if (import.meta.main) Deno.exit(await main());
+// Run only as the entry point, not when a test imports it. `import.meta.main`
+// is not portable to every Node.js 24 line, so compare the entry path.
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  process.exit(await main());
+}

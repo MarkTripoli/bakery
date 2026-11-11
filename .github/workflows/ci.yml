@@ -2054,7 +2054,8 @@ jobs:
         # provenance gate refuses the repository as shallow. This drops only
         # entries no ref contains, logs each one, and still fails on a real
         # boundary (learnings/stale-shallow-entry-survives-unshallow.xml).
-        run: deno run --allow-run=git --allow-read --allow-write=.git --allow-env=RUNNER_NAME scripts/ci/heal-stale-shallow.ts
+        # NODE_V8_COVERAGE: Deno's node:child_process reads it on every spawn.
+        run: deno run --allow-run=git --allow-read --allow-write=.git --allow-env=RUNNER_NAME,NODE_V8_COVERAGE scripts/ci/heal-stale-shallow.ts
       - name: Compare owned Paper references
         # On a pull request the base SHA lets compare-paper.mjs skip
         # re-rendering references that no changed path produces or pins (the
@@ -2185,7 +2186,8 @@ jobs:
         # provenance gate refuses the repository as shallow. This drops only
         # entries no ref contains, logs each one, and still fails on a real
         # boundary (learnings/stale-shallow-entry-survives-unshallow.xml).
-        run: deno run --allow-run=git --allow-read --allow-write=.git --allow-env=RUNNER_NAME scripts/ci/heal-stale-shallow.ts
+        # NODE_V8_COVERAGE: Deno's node:child_process reads it on every spawn.
+        run: deno run --allow-run=git --allow-read --allow-write=.git --allow-env=RUNNER_NAME,NODE_V8_COVERAGE scripts/ci/heal-stale-shallow.ts
       - name: Compare owned Paper references
         # On a pull request the base SHA lets compare-paper.mjs skip
         # re-rendering references that no changed path produces or pins (the
@@ -2330,7 +2332,8 @@ jobs:
         # provenance gate refuses the repository as shallow. This drops only
         # entries no ref contains, logs each one, and still fails on a real
         # boundary (learnings/stale-shallow-entry-survives-unshallow.xml).
-        run: deno run --allow-run=git --allow-read --allow-write=.git --allow-env=RUNNER_NAME scripts/ci/heal-stale-shallow.ts
+        # NODE_V8_COVERAGE: Deno's node:child_process reads it on every spawn.
+        run: deno run --allow-run=git --allow-read --allow-write=.git --allow-env=RUNNER_NAME,NODE_V8_COVERAGE scripts/ci/heal-stale-shallow.ts
       - name: Compare owned Paper references
         # On a pull request the base SHA lets compare-paper.mjs skip
         # re-rendering references that no changed path produces or pins (the
