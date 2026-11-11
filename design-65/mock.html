@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>#65 UX design mock: repository rules</title>
+<style>
+/* Values copied from packages/ui/src/foundations/tokens.css and theme.css (light). */
+:root{
+  --color-border:#E3E6EB;--color-border-strong:#CBD0D8;--color-canvas:#F5F6F8;--color-control-border:#8A939F;
+  --color-destructive:#BE3341;--color-destructive-surface:#FCEEEF;--color-fg:#141A24;--color-fg-muted:#5D6675;
+  --color-fg-disabled:#9AA3B1;--color-focus:#0B63C6;--color-primary:#141A24;--color-primary-foreground:#FFFFFF;
+  --color-selection:#0B63C6;--color-selection-surface:#ECF1F8;--color-status-neutral:#374151;
+  --color-status-neutral-surface:#E5E7EB;--color-status-success:#17784B;--color-status-success-surface:#E8F5EE;
+  --color-status-warning:#8F5A0B;--color-status-warning-surface:#FBF3E4;--color-surface:#FFFFFF;
+  --color-surface-subtle:#EEF0F4;
+  --font-sans:Geist,system-ui,sans-serif;--font-mono:"Geist Mono",ui-monospace,monospace;
+  --radius-control:4px;--radius-surface:6px;--radius-overlay:8px;--radius-pill:999px;
+  --size-control:36px;--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--space-8:32px;--space-10:40px;
+  --type-body:400 14px/20px var(--font-sans);--type-caption:400 12px/18px var(--font-sans);
+  --type-control:500 14px/20px var(--font-sans);--type-data:400 13px/20px var(--font-mono);
+  --type-heading-page:600 24px/32px var(--font-sans);--type-field:400 16px/24px var(--font-sans);
+  --shadow-overlay:0 8px 24px rgba(20,26,36,.16);
+}
+*{box-sizing:border-box}
+body{margin:0;background:#D9DCE2;font:var(--type-body);color:var(--color-fg);padding:24px;display:flex;flex-direction:column;gap:32px;align-items:flex-start}
+.frame{background:var(--color-surface);position:relative;overflow:hidden}
+.frame.desktop{width:1040px}
+.frame.phone{width:390px}
+.label{font:600 12px/18px var(--font-sans);letter-spacing:.06em;text-transform:uppercase;color:#3b4350;margin:0 0 8px}
+.crumbs{height:56px;display:flex;align-items:center;gap:10px;padding:0 var(--space-10);border-bottom:1px solid var(--color-border);color:var(--color-fg-muted)}
+.crumbs b{font-weight:400;color:var(--color-fg)}
+.phone .crumbs{padding:0 var(--space-4);font:600 18px/24px var(--font-sans);color:var(--color-fg)}
+.content{padding:var(--space-10);display:flex;flex-direction:column;gap:var(--space-6);max-width:960px}
+.phone .content{padding:var(--space-6) var(--space-4)}
+h1{font:var(--type-heading-page);letter-spacing:-.02em;margin:0}
+h2{font:600 16px/24px var(--font-sans);letter-spacing:-.015em;margin:0}
+.muted{color:var(--color-fg-muted)}
+.cap{font:var(--type-caption);color:var(--color-fg-muted)}
+.head{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-4)}
+.head p{margin:4px 0 0}
+.btn{font:var(--type-control);height:var(--size-control);padding:0 14px;border-radius:var(--radius-control);border:1px solid var(--color-border-strong);background:var(--color-surface);color:var(--color-fg);display:inline-flex;align-items:center;white-space:nowrap}
+.btn.primary{background:var(--color-primary);border-color:var(--color-primary);color:var(--color-primary-foreground)}
+.btn.link{border-color:transparent;color:var(--color-selection);padding:0 8px}
+.btn.danger{color:var(--color-destructive)}
+.btn[disabled]{color:var(--color-fg-disabled);background:var(--color-surface-subtle);border-color:var(--color-border)}
+.phone .btn{height:44px}
+.banner{border:1px solid;border-radius:var(--radius-surface);padding:var(--space-3) var(--space-4);display:flex;gap:var(--space-3);align-items:flex-start}
+.banner.info{background:var(--color-selection-surface);border-color:#B9CDE8}
+.banner.warn{background:var(--color-status-warning-surface);border-color:#E7CF9E;color:#5d3a05}
+.banner.error{background:var(--color-destructive-surface);border-color:#EBB6BC}
+.banner .grow{flex:1}
+.banner strong{display:block;font-weight:600}
+table{width:100%;border-collapse:collapse}
+th{font:var(--type-caption);color:var(--color-fg-muted);text-align:left;font-weight:400;padding:8px 12px 8px 0;border-bottom:1px solid var(--color-border)}
+td{padding:14px 12px 14px 0;border-bottom:1px solid var(--color-border);vertical-align:middle}
+td:last-child,th:last-child{padding-right:0;text-align:right}
+.rule b{font-weight:500;display:block}
+.badge{font:500 12px/18px var(--font-sans);padding:1px 8px;border-radius:var(--radius-pill);display:inline-block;white-space:nowrap}
+.badge.neutral{background:var(--color-status-neutral-surface);color:var(--color-status-neutral)}
+.badge.info{background:var(--color-selection-surface);color:var(--color-selection)}
+.badge.warn{background:var(--color-status-warning-surface);color:var(--color-status-warning)}
+.badge.ok{background:var(--color-status-success-surface);color:var(--color-status-success)}
+.badge.bad{background:var(--color-destructive-surface);color:var(--color-destructive)}
+.draftbar{position:sticky;bottom:0;border-top:1px solid var(--color-border-strong);background:var(--color-surface);padding:var(--space-3) var(--space-10);display:flex;align-items:center;gap:var(--space-3);box-shadow:0 -2px 8px rgba(20,26,36,.06)}
+.draftbar .grow{flex:1}
+.phone .draftbar{padding:var(--space-3) var(--space-4);flex-wrap:wrap}
+.phone .draftbar .grow{flex-basis:100%}
+.phone .draftbar .btn{flex:1;justify-content:center}
+.mono{font:var(--type-data)}
+.row{display:flex;gap:var(--space-4);align-items:center}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font:500 14px/20px var(--font-sans)}
+.input{font:var(--type-field);border:1px solid var(--color-control-border);border-radius:var(--radius-control);padding:5px 12px;min-height:var(--size-control);background:var(--color-surface)}
+.input.area{font:var(--type-data);white-space:pre;min-height:176px;padding:12px}
+.seg{display:inline-flex;border:1px solid var(--color-control-border);border-radius:var(--radius-control);overflow:hidden}
+.seg span{padding:7px 14px;font:var(--type-control);border-right:1px solid var(--color-border-strong)}
+.seg span:last-child{border-right:0}
+.seg .on{background:var(--color-primary);color:#fff}
+.switch{width:32px;height:18px;border-radius:9px;background:var(--color-selection);position:relative;flex:none}
+.switch::after{content:"";position:absolute;right:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff}
+.switch.off{background:#8A939F}.switch.off::after{right:auto;left:2px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-8)}
+.card{border:1px solid var(--color-border);border-radius:var(--radius-surface);padding:var(--space-4)}
+.scrim{background:rgba(20,26,36,.36);padding:48px 0;display:flex;justify-content:center}
+.dialog{background:var(--color-surface);border-radius:var(--radius-overlay);box-shadow:var(--shadow-overlay);width:600px;padding:var(--space-6);display:flex;flex-direction:column;gap:var(--space-4)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-3)}
+.stat{border:1px solid var(--color-border);border-radius:var(--radius-surface);padding:var(--space-3)}
+.stat b{font:600 20px/28px var(--font-sans);display:block}
+.actions{display:flex;justify-content:flex-end;gap:var(--space-2)}
+dl{margin:0;display:grid;grid-template-columns:200px 1fr;row-gap:0}
+dt,dd{margin:0;padding:12px 0;border-bottom:1px solid var(--color-border)}
+dt{color:var(--color-fg-muted)}
+.li{padding:14px 0;border-bottom:1px solid var(--color-border);display:flex;flex-direction:column;gap:4px}
+.li .top{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.li b{font-weight:500}
+.foot{display:flex;flex-direction:column;gap:6px;padding-top:var(--space-2)}
+.kv{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+
+<div>
+<p class="label">A · Organization rules with unpublished edits (PR2) · /settings/organization/repository-rules</p>
+<div class="frame desktop" id="a">
+  <div class="crumbs">Organization <span>/</span> <b>Repository rules</b></div>
+  <div class="content">
+    <div class="head">
+      <div><h1>Repository rules</h1><p class="muted">A shared starting point for every repository in this organization.</p></div>
+      <span class="btn">Add rule</span>
+    </div>
+    <div class="cap">Published revision 3 · Nov 9, 2026, 2:14 PM</div>
+    <table>
+      <tr><th>Rule</th><th>Enforcement</th><th>Repository access</th><th></th></tr>
+      <tr><td class="rule"><b>Semantic commits</b><span class="muted">Conventional Commits · all introduced commits</span></td><td>Require</td><td>Locked</td><td><span class="btn">Edit</span></td></tr>
+      <tr><td class="rule"><b>PR / MR titles</b><span class="muted">type(scope): summary · 72-character subject</span></td><td>Require</td><td>Locked</td><td><span class="btn">Edit</span></td></tr>
+      <tr><td class="rule"><b>Merge descriptions <span class="badge info">Edited</span></b><span class="muted">Summary, Changes, Validation · Markdown template</span></td><td>Require</td><td>Can override</td><td><span class="btn">Edit</span></td></tr>
+      <tr><td class="rule"><b>Magic numbers <span class="badge info">Edited</span></b><span class="muted">Named constants · allow 0, 1</span></td><td>Require <span class="cap">was Warn</span></td><td>Locked <span class="cap">was Can override</span></td><td><span class="btn">Edit</span></td></tr>
+      <tr><td class="rule"><b>Magic strings</b><span class="muted">Domain statuses and repeated tokens · 4 allowed literals</span></td><td>Off</td><td>Can override</td><td><span class="btn">Edit</span></td></tr>
+    </table>
+    <h2>History</h2>
+    <table>
+      <tr><th>Revision</th><th>Published</th><th>Rules</th><th>Digest</th></tr>
+      <tr><td>3</td><td>Nov 9, 2026, 2:14 PM</td><td>5</td><td class="mono">9f2c41ab</td></tr>
+      <tr><td>2</td><td>Nov 2, 2026, 10:02 AM</td><td>4</td><td class="mono">5be07d13</td></tr>
+    </table>
+  </div>
+  <div class="draftbar">
+    <div class="grow"><b style="font-weight:500">2 unpublished changes</b> <span class="muted">· based on revision 3 · nothing applies until you publish</span></div>
+    <span class="btn">Discard</span><span class="btn primary">Review and publish</span>
+  </div>
+</div>
+</div>
+
+<div>
+<p class="label">B · Review and publish dialog with impact (PR2)</p>
+<div class="frame desktop" id="b">
+  <div class="scrim"><div class="dialog">
+    <h2>Publish revision 4?</h2>
+    <div class="muted">Applies to 12 repositories now and to every repository added later. Runs already in progress keep the rules they started with.</div>
+    <div class="stats">
+      <div class="stat"><b>9</b><span class="cap">Inherit as is</span></div>
+      <div class="stat"><b>2</b><span class="cap">Keep an override</span></div>
+      <div class="stat"><b>1</b><span class="cap">Override newly locked</span></div>
+      <div class="stat"><b>1</b><span class="cap">No working check</span></div>
+    </div>
+    <div class="banner warn"><div class="grow"><strong>1 repository has no working check for a required rule.</strong>Delivery there is blocked until a check is configured or the rule is relaxed.</div></div>
+    <table>
+      <tr><th>Repository</th><th>What changes</th></tr>
+      <tr><td>acme / payments-api</td><td style="text-align:left"><span class="badge warn">Override newly locked</span> Magic numbers</td></tr>
+      <tr><td>acme / ios-app</td><td style="text-align:left"><span class="badge bad">No working check</span> Magic numbers</td></tr>
+    </table>
+    <span class="btn link" style="align-self:flex-start;padding:0">Load more repositories</span>
+    <div class="actions"><span class="btn">Back to editing</span><span class="btn primary">Publish rules</span></div>
+  </div></div>
+</div>
+</div>
+
+<div>
+<p class="label">C · Stale draft: someone else published first (PR2, HTTP 412)</p>
+<div class="frame desktop" id="c">
+  <div class="crumbs">Organization <span>/</span> <b>Repository rules</b></div>
+  <div class="content">
+    <div class="head"><div><h1>Repository rules</h1><p class="muted">A shared starting point for every repository in this organization.</p></div></div>
+    <div class="banner warn"><div class="grow"><strong>Revision 4 was published while you were editing.</strong>Your changes are kept. Choose what to do with the 1 rule that changed in both, then review again.</div></div>
+    <table>
+      <tr><th>Rule</th><th>Enforcement</th><th>Repository access</th><th></th></tr>
+      <tr><td class="rule"><b>Merge descriptions <span class="badge info">Edited</span></b><span class="muted">Summary, Changes, Validation · Markdown template</span></td><td>Require</td><td>Can override</td><td><span class="btn">Edit</span></td></tr>
+      <tr><td class="rule"><b>Magic numbers <span class="badge warn">Changed in revision 4</span></b><span class="muted">Yours: Require, locked · Revision 4: Warn, can override, allow 0, 1, 2</span></td><td>Require</td><td>Locked</td><td><span class="row" style="justify-content:flex-end;gap:8px"><span class="btn">Use revision 4</span><span class="btn">Keep mine</span></span></td></tr>
+    </table>
+  </div>
+  <div class="draftbar">
+    <div class="grow"><b style="font-weight:500">2 unpublished changes</b> <span class="muted">· now based on revision 4 · 1 needs a decision</span></div>
+    <span class="btn">Discard</span><span class="btn" disabled>Review and publish</span>
+  </div>
+</div>
+</div>
+
+<div>
+<p class="label">D · Rule editor, shared by organization and repository (PR2, PR4) · …/repository-rules/changeRequest.description</p>
+<div class="frame desktop" id="d">
+  <div class="crumbs">Organization <span>/</span> Repository rules <span>/</span> <b>Merge descriptions</b></div>
+  <div class="content">
+    <div><h1>Merge descriptions</h1><p class="muted" style="margin:4px 0 0">Set the structure and writing guidance for pull and merge requests.</p></div>
+    <div class="row" style="gap:32px;flex-wrap:wrap;padding:16px 0;border-top:1px solid var(--color-border);border-bottom:1px solid var(--color-border)">
+      <div class="row" style="gap:8px"><span class="switch"></span>Rule enabled</div>
+      <div class="row" style="gap:8px">Enforcement <span class="seg"><span>Guide</span><span>Warn</span><span class="on">Require</span></span></div>
+      <div class="row" style="gap:8px"><span class="switch"></span>Repositories can override</div>
+    </div>
+    <div class="cap" style="margin-top:-12px">Require: the check must pass or delivery is blocked. Warn: findings are kept but do not block. Guide: instructions only, nothing is checked.</div>
+    <div class="cols">
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="field"><label>Markdown template</label><div class="input area">## Summary
+Describe the problem and outcome.
+
+## Changes
+List the changes worth reviewing.
+
+## Validation
+Record the checks actually run.</div></div>
+        <div class="field"><label>Required sections</label><div class="input">Summary, Changes, Validation</div><span class="cap">Separate with commas. Each needs real content; template prompts and empty headings do not count.</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div class="row" style="justify-content:space-between"><h2>Try an example</h2><span class="btn">Check example</span></div>
+        <div class="input area" style="min-height:120px">## Summary
+Repositories inherit organization rules.
+
+## Changes
+Adds rule settings.
+
+## Validation</div>
+        <div class="banner error"><div class="grow"><strong>Example fails: Validation needs content.</strong>Bakery would block this description until the section is filled in.</div></div>
+        <span class="cap">The example is checked on the server and is not saved.</span>
+      </div>
+    </div>
+    <div class="row" style="justify-content:space-between;border-top:1px solid var(--color-border);padding-top:16px">
+      <span class="muted">Applying adds this to your unpublished changes. Nothing changes until you publish.</span>
+      <span class="row" style="gap:8px"><span class="btn">Cancel</span><span class="btn primary">Apply to draft</span></span>
+    </div>
+  </div>
+</div>
+</div>
+
+<div>
+<p class="label">E · Repository effective rules (PR3 read-only, PR4 overrides) · /projects/repositories/$repositoryId/rules</p>
+<div class="frame desktop" id="e">
+  <div class="crumbs">Projects <span>/</span> acme / payments-api <span>/</span> <b>Rules</b></div>
+  <div class="content">
+    <div class="head"><div><h1>Rules</h1><p class="muted">The rules Bakery applies to work in acme / payments-api.</p></div><span class="btn">View organization rules</span></div>
+    <div class="banner info"><div class="grow"><strong>Inherits organization revision 3 · repository profile 8</strong>2 locked · 2 inherited · 1 repository override</div><span class="mono" title="full digest">digest 9f2c41ab</span></div>
+    <table>
+      <tr><th>Rule</th><th>Enforcement</th><th>Source</th><th></th></tr>
+      <tr><td class="rule"><b>Semantic commits</b><span class="muted">Conventional Commits · all introduced commits</span></td><td>Require</td><td><span class="badge neutral">Locked by organization</span></td><td><span class="btn">View</span></td></tr>
+      <tr><td class="rule"><b>PR / MR titles</b><span class="muted">type(scope): summary · 72-character subject</span></td><td>Require</td><td><span class="badge neutral">Locked by organization</span></td><td><span class="btn">View</span></td></tr>
+      <tr><td class="rule"><b>Merge descriptions</b><span class="muted">Summary, Changes, Validation · Markdown template</span></td><td>Require</td><td><span class="badge neutral">Inherited</span></td><td><span class="btn">Customize</span></td></tr>
+      <tr><td class="rule"><b>Magic numbers</b><span class="muted">Named constants · allow 0, 1</span></td><td>Require<br><span class="badge bad">Check unavailable · blocks delivery</span></td><td><span class="badge neutral">Inherited</span></td><td><span class="btn">Customize</span></td></tr>
+      <tr><td class="rule"><b>Magic strings</b><span class="muted">Stricter here: Require instead of Warn</span></td><td>Require</td><td><span class="badge info">Repository override</span></td><td><span class="row" style="justify-content:flex-end;gap:8px"><span class="btn link">Restore organization rule</span><span class="btn">Edit</span></span></td></tr>
+    </table>
+    <div class="foot">
+      <div class="kv"><span class="muted">Bakery checks</span><span class="badge warn">1 rule has no working check</span></div>
+      <div class="kv"><span class="muted">Provider branch protection</span><span class="badge neutral">Unknown</span><span class="cap">Bakery cannot read branch protection for this repository yet. Check it in your Git provider.</span></div>
+      <div class="cap">Locked rules can only change in Organization → Repository rules.</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div>
+<p class="label">F · Rules on a run (PR5) · section in /tasks/$taskId</p>
+<div class="frame desktop" id="f">
+  <div class="content">
+    <div class="banner warn"><div class="grow"><strong>Rules changed since this run started.</strong>Delivery is paused. Revalidate to check the work against the current rules; this run's record stays as it is.</div><span class="btn">Revalidate</span></div>
+    <h2>Rules for this run</h2>
+    <dl>
+      <dt>Effective rules digest</dt><dd><span class="mono">9f2c41ab7d3e…</span> <span class="btn link" style="height:20px">Copy</span></dd>
+      <dt>Organization rules</dt><dd>Revision 3</dd>
+      <dt>Repository profile</dt><dd>Profile 8 <span class="mono muted">· 51c0e9aa</span></dd>
+      <dt>Checks</dt><dd>4 rules checked · 1 guide only <span class="mono muted">· conventional-commits 2.1.0, lint 9.4.0</span></dd>
+    </dl>
+    <span class="btn" style="align-self:flex-start">View the 5 pinned rules</span>
+  </div>
+</div>
+</div>
+
+<div style="display:flex;gap:24px;align-items:flex-start">
+<div>
+<p class="label">G · Phone 390: organization draft</p>
+<div class="frame phone" id="g">
+  <div class="crumbs">Repository rules</div>
+  <div class="content" style="gap:16px">
+    <div><h1>Repository rules</h1><p class="muted" style="margin:4px 0 0">A shared starting point for every repository in this organization.</p></div>
+    <span class="btn" style="justify-content:center">Add rule</span>
+    <div class="cap">Published revision 3 · Nov 9, 2026</div>
+    <div>
+      <div class="li"><div class="top"><b>Semantic commits</b><span class="cap">Require · Locked</span></div><span class="muted">Conventional Commits · all introduced commits</span></div>
+      <div class="li"><div class="top"><b>Merge descriptions</b><span class="badge info">Edited</span></div><span class="muted">Summary, Changes, Validation · Markdown template</span><span class="cap">Require · Can override</span></div>
+      <div class="li"><div class="top"><b>Magic numbers</b><span class="badge info">Edited</span></div><span class="muted">Named constants · allow 0, 1</span><span class="cap">Require · Locked (was Warn · Can override)</span></div>
+    </div>
+  </div>
+  <div class="draftbar"><div class="grow"><b style="font-weight:500">2 unpublished changes</b> <span class="muted">· based on revision 3</span></div><span class="btn">Discard</span><span class="btn primary">Review and publish</span></div>
+</div>
+</div>
+<div>
+<p class="label">H · Phone 390: repository rules</p>
+<div class="frame phone" id="h">
+  <div class="crumbs">Rules</div>
+  <div class="content" style="gap:16px">
+    <div><h1>Rules</h1><p class="muted" style="margin:4px 0 0">The rules Bakery applies to work in acme / payments-api.</p></div>
+    <div class="banner info"><div class="grow"><strong>Organization revision 3 · profile 8</strong>2 locked · 2 inherited · 1 override</div></div>
+    <div>
+      <div class="li"><div class="top"><b>Semantic commits</b><span class="badge neutral">Locked by organization</span></div><span class="muted">Conventional Commits · all introduced commits</span><span class="cap">Require</span></div>
+      <div class="li"><div class="top"><b>Magic numbers</b><span class="badge neutral">Inherited</span></div><span class="muted">Named constants · allow 0, 1</span><span><span class="badge bad">Check unavailable · blocks delivery</span></span></div>
+      <div class="li"><div class="top"><b>Magic strings</b><span class="badge info">Repository override</span></div><span class="muted">Stricter here: Require instead of Warn</span><span class="cap">Require</span></div>
+    </div>
+    <div class="foot">
+      <div class="kv"><span class="muted">Provider branch protection</span><span class="badge neutral">Unknown</span></div>
+      <div class="cap">Bakery cannot read branch protection for this repository yet. Check it in your Git provider.</div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+</body>
+</html>
