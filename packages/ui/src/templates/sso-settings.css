@@ -72,7 +72,11 @@
 }
 .ui-sso-settings__provider-end {
   display: flex;
-  flex: none;
+  /* Never wider than the row, so the badge and the action wrap inside it
+     instead of pushing the row past its container (zoom 200%). */
+  flex: 0 1 auto;
+  max-inline-size: 100%;
+  min-inline-size: 0;
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
