@@ -23,6 +23,7 @@ import {
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
+  assertCompilerPinTogether,
   compilerPinOf,
   jsonPointerToSegments,
   MAX_WORKFLOW_DEFINITION_BYTES,
@@ -731,6 +732,13 @@ export async function publishWorkflowVersion(
   // The compile of exactly this definition, stored with the row. Published
   // rows are immutable, so this is what a later reader executes.
   const pin = compilerPinOf(report);
+  const pinValues = [
+    pin?.compilerVersion ?? null,
+    pin?.semanticDigest ?? null,
+  ] as const;
+  // The database cannot hold this (no CHECK constraints here), so refuse a
+  // half pin on the values the insert binds.
+  assertCompilerPinTogether(pinValues[0], pinValues[1]);
   const inserted = await boundedMutation(() =>
     transaction.query<WorkflowVersionRow>(
       `insert into bakery.workflow_versions (
@@ -752,8 +760,8 @@ export async function publishWorkflowVersion(
         // created_by is the draft author; the publisher is recorded in the
         // workflowVersions.publish audit row below.
         draft.created_by,
-        pin?.compilerVersion ?? null,
-        pin?.semanticDigest ?? null,
+        pinValues[0],
+        pinValues[1],
       ],
     )
   );

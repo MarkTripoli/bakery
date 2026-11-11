@@ -74,6 +74,23 @@ export function compilerPinOf(
   });
 }
 
+/**
+ * Refuses a write that would store only half of a compiler pin. The columns are
+ * set together or not at all, and the database cannot say so: the PostgreSQL
+ * responsibility boundary forbids a CHECK constraint, and the application role
+ * may insert into the table. So the single write path runs this on the exact
+ * values it binds. A half pin would be our bug, not the caller's, hence an
+ * internal refusal; it carries no value, so a digest never reaches a response.
+ */
+export function assertCompilerPinTogether(
+  compilerVersion: string | null,
+  semanticDigest: string | null,
+): void {
+  if ((compilerVersion === null) !== (semanticDigest === null)) {
+    throw new StandardError({ code: "INTERNAL" });
+  }
+}
+
 export const MAX_WORKFLOW_DEFINITION_BYTES = 100_000;
 const MAX_ISSUES = 100;
 const MAX_STEPS = 100;
