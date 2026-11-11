@@ -238,9 +238,12 @@ export function ScimConnectionPage() {
                   >
                     <UI.Stack>
                       {lifetimeField}
-                      <UI.Button type="submit" loading={creating}>
-                        {translate("settings.scim.create")}
-                      </UI.Button>
+                      {/* In an Inline, so the button keeps its own width. */}
+                      <UI.Inline>
+                        <UI.Button type="submit" loading={creating}>
+                          {translate("settings.scim.create")}
+                        </UI.Button>
+                      </UI.Inline>
                     </UI.Stack>
                   </form>,
                 )
