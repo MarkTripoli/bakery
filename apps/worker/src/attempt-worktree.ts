@@ -1,5 +1,6 @@
 import { dirname, join } from "node:path";
 import { NativeExecutorError } from "./executor.ts";
+import { GIT_EXECUTABLE } from "./git-executable.ts";
 import { prepareHarnessHome } from "./harness-common.ts";
 
 /**
@@ -190,7 +191,15 @@ export function git(
   signal?: AbortSignal,
   limits?: GitKillLimits,
 ): Promise<GitResult | "aborted"> {
-  return runGit(defaultGitSpawn, "git", cwd, args, timeoutMs, signal, limits);
+  return runGit(
+    defaultGitSpawn,
+    GIT_EXECUTABLE,
+    cwd,
+    args,
+    timeoutMs,
+    signal,
+    limits,
+  );
 }
 
 function assertOutsideCredentials(
