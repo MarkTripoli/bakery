@@ -126,23 +126,66 @@ export function traceLinkOf(context: TraceContext | TraceLink): TraceLink {
 }
 
 /**
+ * Reads a stored link back, for instance from a durable row. Both ids must be
+ * lowercase hex of the right length and non-zero, so nothing else can ride in a
+ * link, and only the two ids are kept. Never throws.
+ */
+export function parseTraceLink(value: unknown): TraceLink | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+  let traceId: unknown;
+  let spanId: unknown;
+  try {
+    ({ traceId, spanId } = value as Record<string, unknown>);
+  } catch {
+    return undefined;
+  }
+  if (typeof traceId !== "string" || typeof spanId !== "string") {
+    return undefined;
+  }
+  if (traceId === ZERO_TRACE_ID || spanId === ZERO_SPAN_ID) return undefined;
+  if (!/^[0-9a-f]{32}$/.test(traceId) || !/^[0-9a-f]{16}$/.test(spanId)) {
+    return undefined;
+  }
+  return { traceId, spanId };
+}
+
+/**
  * Work that resumes after a durable wait or a retry. The earlier span ended at
  * a real operation boundary; the wake begins a new trace and links back, so no
  * span stays open for days and the run, step and attempt ids (not the trace)
  * carry the correlation. `earlier` are links the resumed span already held,
- * oldest first; the link being resumed always survives, then the newest
- * history, up to {@link MAX_TRACE_LINKS}.
+ * oldest first. Every link is checked with {@link parseTraceLink} and one that
+ * is not well formed is dropped, never repeated. The link being resumed comes
+ * first when it is valid, then the newest valid history, up to
+ * {@link MAX_TRACE_LINKS}.
  */
 export function linkedContinuation(
   resumed: TraceContext | TraceLink,
   earlier: readonly TraceLink[] = [],
   random: RandomBytes = cryptoBytes,
 ): { readonly context: TraceContext; readonly links: readonly TraceLink[] } {
-  const keep = Math.max(0, MAX_TRACE_LINKS - 1);
-  const history = keep === 0 ? [] : earlier.slice(-keep);
-  const sampled = "sampled" in resumed ? resumed.sampled : true;
+  const resumedLink = parseTraceLink(resumed);
+  const room = MAX_TRACE_LINKS - (resumedLink ? 1 : 0);
+  // From the newest end, so a very long history costs no more than `room` reads.
+  const history: TraceLink[] = [];
+  if (Array.isArray(earlier)) {
+    for (
+      let index = earlier.length - 1;
+      index >= 0 && history.length < room;
+      index -= 1
+    ) {
+      const link = parseTraceLink(earlier[index]);
+      if (link) history.unshift(link);
+    }
+  }
+  const sampled = typeof resumed === "object" && resumed !== null &&
+      "sampled" in resumed && typeof resumed.sampled === "boolean"
+    ? resumed.sampled
+    : true;
   return {
     context: { ...newTraceContext(random), sampled },
-    links: [traceLinkOf(resumed), ...history.map(traceLinkOf)],
+    links: resumedLink ? [resumedLink, ...history] : history,
   };
 }
