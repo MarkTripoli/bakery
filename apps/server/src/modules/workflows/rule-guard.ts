@@ -18,6 +18,7 @@ import { readLatestRuleVersionRow } from "../repository-rules/postgres.ts";
 import {
   extractFixedWorkflowSteps,
   type FixedWorkflowStep,
+  WorkflowNotExecutableError,
   WorkflowNotFixedError,
 } from "../work/run-steps.ts";
 
@@ -130,6 +131,8 @@ export async function assertWorkflowSatisfiesRepositoryRules(
       params: {
         reason: cause instanceof WorkflowNotFixedError
           ? "workflow_not_fixed"
+          : cause instanceof WorkflowNotExecutableError
+          ? "workflow_not_executable"
           : "workflow_version_invalid",
       },
       cause,
