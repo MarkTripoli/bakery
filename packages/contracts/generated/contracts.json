@@ -187953,7 +187953,7 @@
               "type": "integer",
               "minimum": -9007199254740991,
               "maximum": 9007199254740991,
-              "description": "Number of events in this batch whose details were too large for one batch and were replaced by an omission marker; read those events in full from the audit list."
+              "description": "Number of events in this batch that were too large for one batch: their details were replaced by an omission marker and any string field over 1024 characters was cut. Read those events in full from the audit list."
             },
             "settledBefore": {
               "type": "string",
@@ -192972,7 +192972,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:071eecf2a278fa319fffe4c9357963dfbf2918ebc9af3c8ab5f21330181b642c",
+  "compatibilityDigest": "sha256:3b235c62a878ab3b87215277a89348321388513bcc776df68aa4fb4036357d43",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -350380,7 +350380,7 @@
           "type": "integer",
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
-          "description": "Number of events in this batch whose details were too large for one batch and were replaced by an omission marker; read those events in full from the audit list."
+          "description": "Number of events in this batch that were too large for one batch: their details were replaced by an omission marker and any string field over 1024 characters was cut. Read those events in full from the audit list."
         },
         "settledBefore": {
           "type": "string",
