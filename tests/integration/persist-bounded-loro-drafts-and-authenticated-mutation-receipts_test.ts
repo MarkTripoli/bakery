@@ -427,3 +427,65 @@ Deno.test("concurrent, duplicated and reordered edits from one checkpoint conver
     await cleanup(fixture);
   }
 });
+
+Deno.test("a duplicate whose original commits during its last stale attempt replays the exact receipt", async () => {
+  // The duplicate is made stale on every attempt. On its last attempt, after
+  // its final preparation, the original request commits. Only the commit-time
+  // receipt lookup can then answer, because the stale budget is exhausted.
+  const real = createDraftIsolation();
+  let duplicateEdits = 0;
+  let nested = false;
+  let original: (() => Promise<Response>) | undefined;
+  let originalResponse: Response | undefined;
+  const isolation: DraftIsolation = {
+    initialize: real.initialize,
+    slice: real.slice,
+    async edit(current, source, input, signal) {
+      const candidate = await real.edit(current, source, input, signal);
+      if (nested || !original) return candidate;
+      duplicateEdits += 1;
+      if (duplicateEdits < 3) {
+        await fixture.pgDatabase.query(
+          `update bakery.artifact_drafts
+              set server_sequence=server_sequence+1
+            where id=(select draft_id from bakery.artifact_draft_checkpoints
+                       where state=$1 limit 1)`,
+          [current],
+        );
+      } else {
+        nested = true;
+        try {
+          originalResponse = await original();
+        } finally {
+          nested = false;
+        }
+      }
+      return candidate;
+    },
+  };
+  const fixture = await openDraftFixture("alpha target omega", {
+    draftIsolation: isolation,
+  });
+  try {
+    const draft = await openDraft(fixture);
+    const selected = await slice(fixture, draft);
+    const mutationId = crypto.randomUUID();
+    original = () => edit(fixture, draft, selected, mutationId);
+    const duplicate = await edit(fixture, draft, selected, mutationId);
+
+    assertEquals(duplicateEdits, 3);
+    assertExists(originalResponse);
+    assertEquals(originalResponse.status, 201);
+    const receipt = await responseJson(originalResponse) as Receipt;
+    assertEquals(duplicate.status, 201, await duplicate.clone().text());
+    assertEquals(await responseJson(duplicate), receipt);
+    const receipts = await fixture.pgDatabase.query<{ count: number }>(
+      `select count(*)::int as count from bakery.artifact_draft_receipts
+        where draft_id=$1`,
+      [draft.id],
+    );
+    assertEquals(receipts.rows[0]?.count, 1);
+  } finally {
+    await cleanup(fixture);
+  }
+});
