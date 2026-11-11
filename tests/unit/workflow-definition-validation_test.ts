@@ -627,16 +627,27 @@ Deno.test("a definition the compiler rejects is invalid and its diagnostics are 
   assertFalse(JSON.stringify(report).includes("TOPSECRETVALUE"));
 });
 
-Deno.test("an unresolved action schema blocks a compiler-grammar document", async () => {
+Deno.test("a catalog diagnostic on an action's input blocks a compiler-grammar document", async () => {
+  // delivery.merge needs repositoryId and candidate; an empty `with` is refused
+  // by the action's input schema, and that verdict stands as an error.
   const report = await validateWorkflowDefinitionStatic(
-    compilerGrammar([{ id: "land", uses: "delivery.merge", with: {} }]),
+    compilerGrammar([{
+      id: "land",
+      uses: "delivery.merge",
+      with: {},
+      effectKey: ["merge", "$input.target"],
+    }]),
   );
   assertFalse(report.valid);
-  assert(
-    report.errors.some((e) =>
-      e.path === "/steps/0/uses" && e.code === "action_schema_unresolved"
-    ),
-  );
+  for (const field of ["repositoryId", "candidate"]) {
+    assert(
+      report.errors.some((e) =>
+        e.path === `/steps/0/with/${field}` && e.code === "input_field_missing"
+      ),
+      field,
+    );
+  }
+  assertEquals(report.semanticDigest, null);
 });
 
 Deno.test("a nested step the compiler rejects blocks validation at its authored path", async () => {

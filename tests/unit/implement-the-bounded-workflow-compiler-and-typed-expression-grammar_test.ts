@@ -2434,16 +2434,21 @@ Deno.test("the live default catalog resolves the implemented actions", async () 
     { catalog },
   );
   assert(result.ok, result.ok ? "" : JSON.stringify(result.diagnostics));
-  assertEquals(
-    await diagnoseWith(
-      workflow([{
-        id: "study",
-        uses: "rpi.research",
-        with: { taskId: "$input.repositoryId" },
-      }]),
-      catalog,
-    ),
-    [{ path: "/steps/0/uses", code: "action_schema_unresolved" }],
+  // rpi.research resolved when #30 slice A1 registered its schemas.
+  const researched = await compileWorkflowDocument(
+    plain(workflow([{
+      id: "study",
+      uses: "rpi.research",
+      with: {
+        taskId: "$input.repositoryId",
+        repositoryId: "$input.repositoryId",
+      },
+    }])),
+    { catalog },
+  );
+  assert(
+    researched.ok,
+    researched.ok ? "" : JSON.stringify(researched.diagnostics),
   );
   assertEquals(
     await diagnoseWith(
@@ -2482,15 +2487,15 @@ Deno.test("the live catalog reports the schemas missing from the contracts", () 
   // workflow action discovery and step bindings for it; review.independent
   // left it when #94 registered ReviewInput and ReviewOutput as worker action
   // schemas; everything the registry still marks design-only stays unresolved
-  // in the live catalog.
-  for (
-    const name of [
-      "rpi.research",
-      "delivery.merge",
-    ]
-  ) {
-    assert((unresolved as string[]).includes(name), name);
-  }
+  // in the live catalog. #30 slice A1 registered rpi.research and the delivery
+  // actions. The set is pinned exactly, so registering another action fails
+  // this test until its schemas are listed as resolved here.
+  assertEquals([...unresolved].sort(), [
+    "artifact.publish",
+    "evaluation.sample",
+    "integration.action",
+    "memory.promote",
+  ]);
   for (
     const name of [
       "quality.check",
@@ -2498,6 +2503,12 @@ Deno.test("the live catalog reports the schemas missing from the contracts", () 
       "workflow.noop",
       "rpi.plan",
       "review.independent",
+      "rpi.research",
+      "delivery.candidate_evidence",
+      "delivery.prepare",
+      "delivery.merge",
+      "delivery.deploy",
+      "delivery.health",
     ]
   ) {
     assert(!(unresolved as string[]).includes(name), name);
@@ -2510,13 +2521,21 @@ Deno.test("the doc 06 specimen resolves cleanly against the design catalog", asy
     catalog: createDesignCatalog(),
   });
   assert(result.ok, result.ok ? "" : JSON.stringify(result.diagnostics));
-  // The live catalog lags the design and reports unresolved schemas.
+  // The live catalog still lags the design.
   const live = await compileWorkflowDocument(plain(specimen), {
     catalog: defaultWorkflowCompilerCatalog(),
   });
   assert(!live.ok);
-  assert(
-    live.diagnostics.some((d) => d.code === "action_schema_unresolved"),
+  // Every action the specimen uses now resolves (#30 slice A1). What remains
+  // is the specimen disagreeing with schemas that were already registered
+  // (review, repair, design and plan inputs), not missing schemas.
+  assertEquals(
+    live.diagnostics.filter((d) => d.code === "action_schema_unresolved"),
+    [],
+  );
+  assertEquals(
+    [...new Set(live.diagnostics.map((d) => d.code))].sort(),
+    ["input_field_missing", "input_field_unknown", "type_mismatch"],
   );
 });
 
@@ -3681,7 +3700,10 @@ Deno.test("sensitive outputs and unresolved actions", async () => {
   ], sensitive);
   // An action that does not resolve has no output type, so its readers are not
   // reported twice.
-  const live = defaultWorkflowCompilerCatalog();
+  // A catalog in which rpi.research does not resolve (its input schema is an
+  // empty object, which does not convert) while workflow.noop does, so the
+  // case does not depend on which live actions happen to be registered.
+  const live = createDesignCatalog({ schemas: { ResearchInput: {} } });
   assertEquals(
     await flowDiagnostics(
       workflow([
