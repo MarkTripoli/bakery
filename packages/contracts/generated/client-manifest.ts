@@ -54470,7 +54470,7 @@ export const clientManifest = {
           "type": "integer",
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
-          "description": "Number of events in this batch that were too large for one batch: their details were replaced by an omission marker and any string field over 1024 UTF-16 units was cut to at most 1024 without splitting a character. Read those events in full from the audit list."
+          "description": "Number of events in this batch that were too large for one batch: their details were replaced by an omission marker and any string field over 1024 UTF-16 units was cut to at most 1024 without splitting a surrogate pair. Read those events in full from the audit list."
         },
         "settledBefore": {
           "type": "string",
