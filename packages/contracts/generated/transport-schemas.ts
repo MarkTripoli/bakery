@@ -20675,6 +20675,24 @@ const transportSchemas = {
           ]
         },
         {
+          "type": "ping",
+          "direction": "client_or_server",
+          "fields": [
+            "requestId"
+          ]
+        },
+        {
+          "type": "problem",
+          "direction": "server",
+          "fields": [
+            "requestId",
+            "problem"
+          ],
+          "fieldTypes": {
+            "requestId": "uuid|null"
+          }
+        },
+        {
           "type": "sync",
           "direction": "client",
           "fields": [
@@ -20723,24 +20741,6 @@ const transportSchemas = {
           ],
           "fieldTypes": {
             "mutationId": "uuid|null"
-          }
-        },
-        {
-          "type": "ping",
-          "direction": "client_or_server",
-          "fields": [
-            "requestId"
-          ]
-        },
-        {
-          "type": "problem",
-          "direction": "server",
-          "fields": [
-            "requestId",
-            "problem"
-          ],
-          "fieldTypes": {
-            "requestId": "uuid|null"
           }
         }
       ],

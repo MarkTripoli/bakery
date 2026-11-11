@@ -174949,6 +174949,223 @@
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                     "description": "Client-chosen identifier correlating a reply with its request."
                   },
+                  "type": {
+                    "type": "string",
+                    "const": "ping",
+                    "description": "CollaborationFrame.ping discriminator."
+                  }
+                },
+                "required": [
+                  "requestId",
+                  "type"
+                ],
+                "additionalProperties": false,
+                "description": "CollaborationFrame ping frame."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "requestId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Client-chosen identifier correlating a reply with its request."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "CollaborationFrame.problem.requestId may be null in this transport value."
+                  },
+                  "problem": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "format": "uri",
+                        "description": "RFC 9457 URI identifying the problem type."
+                      },
+                      "title": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Human-readable title presented for the problem response."
+                      },
+                      "status": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Current lifecycle status of the record."
+                      },
+                      "detail": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Human-readable detail explaining the response outcome."
+                      },
+                      "code": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Stable Bakery code identifying the response outcome."
+                      },
+                      "instance": {
+                        "description": "URI identifying the request instance that produced the response.",
+                        "type": "string",
+                        "format": "uri"
+                      },
+                      "requestId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Request identifier used to correlate the response with server logs."
+                      },
+                      "traceId": {
+                        "description": "W3C trace identifier used to correlate work across services.",
+                        "type": "string",
+                        "maxLength": 65536
+                      },
+                      "retryable": {
+                        "type": "boolean",
+                        "description": "Whether retrying the failed operation may succeed."
+                      },
+                      "issues": {
+                        "description": "Problem.issues must contain at most 50 items.",
+                        "maxItems": 50,
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "path": {
+                              "type": "string",
+                              "maxLength": 65536,
+                              "description": "JSON Pointer into the submitted definition, or an empty string for the whole document."
+                            },
+                            "code": {
+                              "type": "string",
+                              "maxLength": 65536,
+                              "description": "Stable Bakery code identifying the response outcome."
+                            },
+                            "message": {
+                              "type": "string",
+                              "maxLength": 65536,
+                              "description": "Human-readable validation message."
+                            }
+                          },
+                          "required": [
+                            "path",
+                            "code",
+                            "message"
+                          ],
+                          "additionalProperties": false,
+                          "description": "Structured validation issues returned with the response. Each array item follows this format."
+                        }
+                      },
+                      "retryAfterSeconds": {
+                        "description": "Number of seconds the client should wait before retrying.",
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "limit": {
+                        "description": "Maximum number of values permitted by the response contract.",
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      "refineScope": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "description": "JSON string value."
+                          },
+                          {
+                            "type": "number",
+                            "description": "JSON number value."
+                          },
+                          {
+                            "type": "boolean",
+                            "description": "JSON boolean value."
+                          },
+                          {
+                            "type": "null",
+                            "description": "JSON null value."
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/CollaborationFrames____schema0"
+                            },
+                            "description": "JSON array value."
+                          },
+                          {
+                            "type": "object",
+                            "propertyNames": {
+                              "type": "string",
+                              "description": "JSON object key."
+                            },
+                            "additionalProperties": {
+                              "$ref": "#/components/schemas/CollaborationFrames____schema0"
+                            },
+                            "description": "JSON object value."
+                          }
+                        ],
+                        "description": "Validated scope information used to refine the response behavior."
+                      },
+                      "resetRequired": {
+                        "description": "Whether the client must discard its local state and request a fresh snapshot.",
+                        "type": "boolean"
+                      },
+                      "retainedFrom": {
+                        "description": "Earliest retained event sequence that can be used to establish a fresh sync position.",
+                        "type": "string",
+                        "pattern": "^(?:0|[1-9][0-9]*)$"
+                      },
+                      "retryWithoutAfter": {
+                        "description": "Whether the client should retry the sync request without its after cursor.",
+                        "type": "boolean"
+                      },
+                      "reason": {
+                        "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; absent when the conflict has no named rule.",
+                        "type": "string",
+                        "maxLength": 65536
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "code",
+                      "requestId",
+                      "retryable"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Safe standard problem describing why the request was refused."
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "problem",
+                    "description": "CollaborationFrame.problem discriminator."
+                  }
+                },
+                "required": [
+                  "requestId",
+                  "problem",
+                  "type"
+                ],
+                "additionalProperties": false,
+                "description": "CollaborationFrame problem frame."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "requestId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Client-chosen identifier correlating a reply with its request."
+                  },
                   "room": {
                     "type": "object",
                     "properties": {
@@ -175322,223 +175539,6 @@
                 ],
                 "additionalProperties": false,
                 "description": "CollaborationFrame resync_required frame."
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "requestId": {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Client-chosen identifier correlating a reply with its request."
-                  },
-                  "type": {
-                    "type": "string",
-                    "const": "ping",
-                    "description": "CollaborationFrame.ping discriminator."
-                  }
-                },
-                "required": [
-                  "requestId",
-                  "type"
-                ],
-                "additionalProperties": false,
-                "description": "CollaborationFrame ping frame."
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "requestId": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                        "description": "Client-chosen identifier correlating a reply with its request."
-                      },
-                      {
-                        "type": "null",
-                        "description": "Null indicates that the value is unavailable."
-                      }
-                    ],
-                    "description": "CollaborationFrame.problem.requestId may be null in this transport value."
-                  },
-                  "problem": {
-                    "type": "object",
-                    "properties": {
-                      "type": {
-                        "type": "string",
-                        "format": "uri",
-                        "description": "RFC 9457 URI identifying the problem type."
-                      },
-                      "title": {
-                        "type": "string",
-                        "maxLength": 65536,
-                        "description": "Human-readable title presented for the problem response."
-                      },
-                      "status": {
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991,
-                        "description": "Current lifecycle status of the record."
-                      },
-                      "detail": {
-                        "type": "string",
-                        "maxLength": 65536,
-                        "description": "Human-readable detail explaining the response outcome."
-                      },
-                      "code": {
-                        "type": "string",
-                        "maxLength": 65536,
-                        "description": "Stable Bakery code identifying the response outcome."
-                      },
-                      "instance": {
-                        "description": "URI identifying the request instance that produced the response.",
-                        "type": "string",
-                        "format": "uri"
-                      },
-                      "requestId": {
-                        "type": "string",
-                        "format": "uuid",
-                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                        "description": "Request identifier used to correlate the response with server logs."
-                      },
-                      "traceId": {
-                        "description": "W3C trace identifier used to correlate work across services.",
-                        "type": "string",
-                        "maxLength": 65536
-                      },
-                      "retryable": {
-                        "type": "boolean",
-                        "description": "Whether retrying the failed operation may succeed."
-                      },
-                      "issues": {
-                        "description": "Problem.issues must contain at most 50 items.",
-                        "maxItems": 50,
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "path": {
-                              "type": "string",
-                              "maxLength": 65536,
-                              "description": "JSON Pointer into the submitted definition, or an empty string for the whole document."
-                            },
-                            "code": {
-                              "type": "string",
-                              "maxLength": 65536,
-                              "description": "Stable Bakery code identifying the response outcome."
-                            },
-                            "message": {
-                              "type": "string",
-                              "maxLength": 65536,
-                              "description": "Human-readable validation message."
-                            }
-                          },
-                          "required": [
-                            "path",
-                            "code",
-                            "message"
-                          ],
-                          "additionalProperties": false,
-                          "description": "Structured validation issues returned with the response. Each array item follows this format."
-                        }
-                      },
-                      "retryAfterSeconds": {
-                        "description": "Number of seconds the client should wait before retrying.",
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "limit": {
-                        "description": "Maximum number of values permitted by the response contract.",
-                        "type": "integer",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      },
-                      "refineScope": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "description": "JSON string value."
-                          },
-                          {
-                            "type": "number",
-                            "description": "JSON number value."
-                          },
-                          {
-                            "type": "boolean",
-                            "description": "JSON boolean value."
-                          },
-                          {
-                            "type": "null",
-                            "description": "JSON null value."
-                          },
-                          {
-                            "type": "array",
-                            "items": {
-                              "$ref": "#/components/schemas/CollaborationFrames____schema0"
-                            },
-                            "description": "JSON array value."
-                          },
-                          {
-                            "type": "object",
-                            "propertyNames": {
-                              "type": "string",
-                              "description": "JSON object key."
-                            },
-                            "additionalProperties": {
-                              "$ref": "#/components/schemas/CollaborationFrames____schema0"
-                            },
-                            "description": "JSON object value."
-                          }
-                        ],
-                        "description": "Validated scope information used to refine the response behavior."
-                      },
-                      "resetRequired": {
-                        "description": "Whether the client must discard its local state and request a fresh snapshot.",
-                        "type": "boolean"
-                      },
-                      "retainedFrom": {
-                        "description": "Earliest retained event sequence that can be used to establish a fresh sync position.",
-                        "type": "string",
-                        "pattern": "^(?:0|[1-9][0-9]*)$"
-                      },
-                      "retryWithoutAfter": {
-                        "description": "Whether the client should retry the sync request without its after cursor.",
-                        "type": "boolean"
-                      },
-                      "reason": {
-                        "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; absent when the conflict has no named rule.",
-                        "type": "string",
-                        "maxLength": 65536
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "title",
-                      "status",
-                      "detail",
-                      "code",
-                      "requestId",
-                      "retryable"
-                    ],
-                    "additionalProperties": false,
-                    "description": "Safe standard problem describing why the request was refused."
-                  },
-                  "type": {
-                    "type": "string",
-                    "const": "problem",
-                    "description": "CollaborationFrame.problem discriminator."
-                  }
-                },
-                "required": [
-                  "requestId",
-                  "problem",
-                  "type"
-                ],
-                "additionalProperties": false,
-                "description": "CollaborationFrame problem frame."
               }
             ],
             "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, and committed draft sync. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
@@ -176320,6 +176320,223 @@
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                   "description": "Client-chosen identifier correlating a reply with its request."
                 },
+                "type": {
+                  "type": "string",
+                  "const": "ping",
+                  "description": "CollaborationFrame.ping discriminator."
+                }
+              },
+              "required": [
+                "requestId",
+                "type"
+              ],
+              "additionalProperties": false,
+              "description": "CollaborationFrame ping frame."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "requestId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Client-chosen identifier correlating a reply with its request."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "CollaborationFrame.problem.requestId may be null in this transport value."
+                },
+                "problem": {
+                  "type": "object",
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "RFC 9457 URI identifying the problem type."
+                    },
+                    "title": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Human-readable title presented for the problem response."
+                    },
+                    "status": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "Current lifecycle status of the record."
+                    },
+                    "detail": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Human-readable detail explaining the response outcome."
+                    },
+                    "code": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "Stable Bakery code identifying the response outcome."
+                    },
+                    "instance": {
+                      "description": "URI identifying the request instance that produced the response.",
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Request identifier used to correlate the response with server logs."
+                    },
+                    "traceId": {
+                      "description": "W3C trace identifier used to correlate work across services.",
+                      "type": "string",
+                      "maxLength": 65536
+                    },
+                    "retryable": {
+                      "type": "boolean",
+                      "description": "Whether retrying the failed operation may succeed."
+                    },
+                    "issues": {
+                      "description": "Problem.issues must contain at most 50 items.",
+                      "maxItems": 50,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "JSON Pointer into the submitted definition, or an empty string for the whole document."
+                          },
+                          "code": {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Stable Bakery code identifying the response outcome."
+                          },
+                          "message": {
+                            "type": "string",
+                            "maxLength": 65536,
+                            "description": "Human-readable validation message."
+                          }
+                        },
+                        "required": [
+                          "path",
+                          "code",
+                          "message"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Structured validation issues returned with the response. Each array item follows this format."
+                      }
+                    },
+                    "retryAfterSeconds": {
+                      "description": "Number of seconds the client should wait before retrying.",
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "limit": {
+                      "description": "Maximum number of values permitted by the response contract.",
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991
+                    },
+                    "refineScope": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "description": "JSON string value."
+                        },
+                        {
+                          "type": "number",
+                          "description": "JSON number value."
+                        },
+                        {
+                          "type": "boolean",
+                          "description": "JSON boolean value."
+                        },
+                        {
+                          "type": "null",
+                          "description": "JSON null value."
+                        },
+                        {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/CollaborationFrame____schema0"
+                          },
+                          "description": "JSON array value."
+                        },
+                        {
+                          "type": "object",
+                          "propertyNames": {
+                            "type": "string",
+                            "description": "JSON object key."
+                          },
+                          "additionalProperties": {
+                            "$ref": "#/components/schemas/CollaborationFrame____schema0"
+                          },
+                          "description": "JSON object value."
+                        }
+                      ],
+                      "description": "Validated scope information used to refine the response behavior."
+                    },
+                    "resetRequired": {
+                      "description": "Whether the client must discard its local state and request a fresh snapshot.",
+                      "type": "boolean"
+                    },
+                    "retainedFrom": {
+                      "description": "Earliest retained event sequence that can be used to establish a fresh sync position.",
+                      "type": "string",
+                      "pattern": "^(?:0|[1-9][0-9]*)$"
+                    },
+                    "retryWithoutAfter": {
+                      "description": "Whether the client should retry the sync request without its after cursor.",
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; absent when the conflict has no named rule.",
+                      "type": "string",
+                      "maxLength": 65536
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "title",
+                    "status",
+                    "detail",
+                    "code",
+                    "requestId",
+                    "retryable"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Safe standard problem describing why the request was refused."
+                },
+                "type": {
+                  "type": "string",
+                  "const": "problem",
+                  "description": "CollaborationFrame.problem discriminator."
+                }
+              },
+              "required": [
+                "requestId",
+                "problem",
+                "type"
+              ],
+              "additionalProperties": false,
+              "description": "CollaborationFrame problem frame."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "requestId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Client-chosen identifier correlating a reply with its request."
+                },
                 "room": {
                   "type": "object",
                   "properties": {
@@ -176693,223 +176910,6 @@
               ],
               "additionalProperties": false,
               "description": "CollaborationFrame resync_required frame."
-            },
-            {
-              "type": "object",
-              "properties": {
-                "requestId": {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                  "description": "Client-chosen identifier correlating a reply with its request."
-                },
-                "type": {
-                  "type": "string",
-                  "const": "ping",
-                  "description": "CollaborationFrame.ping discriminator."
-                }
-              },
-              "required": [
-                "requestId",
-                "type"
-              ],
-              "additionalProperties": false,
-              "description": "CollaborationFrame ping frame."
-            },
-            {
-              "type": "object",
-              "properties": {
-                "requestId": {
-                  "anyOf": [
-                    {
-                      "type": "string",
-                      "format": "uuid",
-                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                      "description": "Client-chosen identifier correlating a reply with its request."
-                    },
-                    {
-                      "type": "null",
-                      "description": "Null indicates that the value is unavailable."
-                    }
-                  ],
-                  "description": "CollaborationFrame.problem.requestId may be null in this transport value."
-                },
-                "problem": {
-                  "type": "object",
-                  "properties": {
-                    "type": {
-                      "type": "string",
-                      "format": "uri",
-                      "description": "RFC 9457 URI identifying the problem type."
-                    },
-                    "title": {
-                      "type": "string",
-                      "maxLength": 65536,
-                      "description": "Human-readable title presented for the problem response."
-                    },
-                    "status": {
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991,
-                      "description": "Current lifecycle status of the record."
-                    },
-                    "detail": {
-                      "type": "string",
-                      "maxLength": 65536,
-                      "description": "Human-readable detail explaining the response outcome."
-                    },
-                    "code": {
-                      "type": "string",
-                      "maxLength": 65536,
-                      "description": "Stable Bakery code identifying the response outcome."
-                    },
-                    "instance": {
-                      "description": "URI identifying the request instance that produced the response.",
-                      "type": "string",
-                      "format": "uri"
-                    },
-                    "requestId": {
-                      "type": "string",
-                      "format": "uuid",
-                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                      "description": "Request identifier used to correlate the response with server logs."
-                    },
-                    "traceId": {
-                      "description": "W3C trace identifier used to correlate work across services.",
-                      "type": "string",
-                      "maxLength": 65536
-                    },
-                    "retryable": {
-                      "type": "boolean",
-                      "description": "Whether retrying the failed operation may succeed."
-                    },
-                    "issues": {
-                      "description": "Problem.issues must contain at most 50 items.",
-                      "maxItems": 50,
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "path": {
-                            "type": "string",
-                            "maxLength": 65536,
-                            "description": "JSON Pointer into the submitted definition, or an empty string for the whole document."
-                          },
-                          "code": {
-                            "type": "string",
-                            "maxLength": 65536,
-                            "description": "Stable Bakery code identifying the response outcome."
-                          },
-                          "message": {
-                            "type": "string",
-                            "maxLength": 65536,
-                            "description": "Human-readable validation message."
-                          }
-                        },
-                        "required": [
-                          "path",
-                          "code",
-                          "message"
-                        ],
-                        "additionalProperties": false,
-                        "description": "Structured validation issues returned with the response. Each array item follows this format."
-                      }
-                    },
-                    "retryAfterSeconds": {
-                      "description": "Number of seconds the client should wait before retrying.",
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    "limit": {
-                      "description": "Maximum number of values permitted by the response contract.",
-                      "type": "integer",
-                      "minimum": -9007199254740991,
-                      "maximum": 9007199254740991
-                    },
-                    "refineScope": {
-                      "anyOf": [
-                        {
-                          "type": "string",
-                          "description": "JSON string value."
-                        },
-                        {
-                          "type": "number",
-                          "description": "JSON number value."
-                        },
-                        {
-                          "type": "boolean",
-                          "description": "JSON boolean value."
-                        },
-                        {
-                          "type": "null",
-                          "description": "JSON null value."
-                        },
-                        {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/components/schemas/CollaborationFrame____schema0"
-                          },
-                          "description": "JSON array value."
-                        },
-                        {
-                          "type": "object",
-                          "propertyNames": {
-                            "type": "string",
-                            "description": "JSON object key."
-                          },
-                          "additionalProperties": {
-                            "$ref": "#/components/schemas/CollaborationFrame____schema0"
-                          },
-                          "description": "JSON object value."
-                        }
-                      ],
-                      "description": "Validated scope information used to refine the response behavior."
-                    },
-                    "resetRequired": {
-                      "description": "Whether the client must discard its local state and request a fresh snapshot.",
-                      "type": "boolean"
-                    },
-                    "retainedFrom": {
-                      "description": "Earliest retained event sequence that can be used to establish a fresh sync position.",
-                      "type": "string",
-                      "pattern": "^(?:0|[1-9][0-9]*)$"
-                    },
-                    "retryWithoutAfter": {
-                      "description": "Whether the client should retry the sync request without its after cursor.",
-                      "type": "boolean"
-                    },
-                    "reason": {
-                      "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; absent when the conflict has no named rule.",
-                      "type": "string",
-                      "maxLength": 65536
-                    }
-                  },
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "detail",
-                    "code",
-                    "requestId",
-                    "retryable"
-                  ],
-                  "additionalProperties": false,
-                  "description": "Safe standard problem describing why the request was refused."
-                },
-                "type": {
-                  "type": "string",
-                  "const": "problem",
-                  "description": "CollaborationFrame.problem discriminator."
-                }
-              },
-              "required": [
-                "requestId",
-                "problem",
-                "type"
-              ],
-              "additionalProperties": false,
-              "description": "CollaborationFrame problem frame."
             }
           ],
           "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, and committed draft sync. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
@@ -196029,7 +196029,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:c187cdf6843484f1f7ff809342150997fd79c0dfa95c77dd074a36d317074fa9",
+  "compatibilityDigest": "sha256:d03af02ec7b11a1be515a131b780862c0af1421694b0592d0f2717dcbf4e8ff1",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -340318,6 +340318,223 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "Client-chosen identifier correlating a reply with its request."
               },
+              "type": {
+                "type": "string",
+                "const": "ping",
+                "description": "CollaborationFrame.ping discriminator."
+              }
+            },
+            "required": [
+              "requestId",
+              "type"
+            ],
+            "additionalProperties": false,
+            "description": "CollaborationFrame ping frame."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "requestId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Client-chosen identifier correlating a reply with its request."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "CollaborationFrame.problem.requestId may be null in this transport value."
+              },
+              "problem": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "RFC 9457 URI identifying the problem type."
+                  },
+                  "title": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Human-readable title presented for the problem response."
+                  },
+                  "status": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Current lifecycle status of the record."
+                  },
+                  "detail": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Human-readable detail explaining the response outcome."
+                  },
+                  "code": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Stable Bakery code identifying the response outcome."
+                  },
+                  "instance": {
+                    "description": "URI identifying the request instance that produced the response.",
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "requestId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Request identifier used to correlate the response with server logs."
+                  },
+                  "traceId": {
+                    "description": "W3C trace identifier used to correlate work across services.",
+                    "type": "string",
+                    "maxLength": 65536
+                  },
+                  "retryable": {
+                    "type": "boolean",
+                    "description": "Whether retrying the failed operation may succeed."
+                  },
+                  "issues": {
+                    "description": "Problem.issues must contain at most 50 items.",
+                    "maxItems": 50,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "JSON Pointer into the submitted definition, or an empty string for the whole document."
+                        },
+                        "code": {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "Stable Bakery code identifying the response outcome."
+                        },
+                        "message": {
+                          "type": "string",
+                          "maxLength": 65536,
+                          "description": "Human-readable validation message."
+                        }
+                      },
+                      "required": [
+                        "path",
+                        "code",
+                        "message"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Structured validation issues returned with the response. Each array item follows this format."
+                    }
+                  },
+                  "retryAfterSeconds": {
+                    "description": "Number of seconds the client should wait before retrying.",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "limit": {
+                    "description": "Maximum number of values permitted by the response contract.",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
+                  "refineScope": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "description": "JSON string value."
+                      },
+                      {
+                        "type": "number",
+                        "description": "JSON number value."
+                      },
+                      {
+                        "type": "boolean",
+                        "description": "JSON boolean value."
+                      },
+                      {
+                        "type": "null",
+                        "description": "JSON null value."
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "$ref": "#/$defs/__schema0"
+                        },
+                        "description": "JSON array value."
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "description": "JSON object key."
+                        },
+                        "additionalProperties": {
+                          "$ref": "#/$defs/__schema0"
+                        },
+                        "description": "JSON object value."
+                      }
+                    ],
+                    "description": "Validated scope information used to refine the response behavior."
+                  },
+                  "resetRequired": {
+                    "description": "Whether the client must discard its local state and request a fresh snapshot.",
+                    "type": "boolean"
+                  },
+                  "retainedFrom": {
+                    "description": "Earliest retained event sequence that can be used to establish a fresh sync position.",
+                    "type": "string",
+                    "pattern": "^(?:0|[1-9][0-9]*)$"
+                  },
+                  "retryWithoutAfter": {
+                    "description": "Whether the client should retry the sync request without its after cursor.",
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; absent when the conflict has no named rule.",
+                    "type": "string",
+                    "maxLength": 65536
+                  }
+                },
+                "required": [
+                  "type",
+                  "title",
+                  "status",
+                  "detail",
+                  "code",
+                  "requestId",
+                  "retryable"
+                ],
+                "additionalProperties": false,
+                "description": "Safe standard problem describing why the request was refused."
+              },
+              "type": {
+                "type": "string",
+                "const": "problem",
+                "description": "CollaborationFrame.problem discriminator."
+              }
+            },
+            "required": [
+              "requestId",
+              "problem",
+              "type"
+            ],
+            "additionalProperties": false,
+            "description": "CollaborationFrame problem frame."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "requestId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Client-chosen identifier correlating a reply with its request."
+              },
               "room": {
                 "type": "object",
                 "properties": {
@@ -340691,223 +340908,6 @@
             ],
             "additionalProperties": false,
             "description": "CollaborationFrame resync_required frame."
-          },
-          {
-            "type": "object",
-            "properties": {
-              "requestId": {
-                "type": "string",
-                "format": "uuid",
-                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Client-chosen identifier correlating a reply with its request."
-              },
-              "type": {
-                "type": "string",
-                "const": "ping",
-                "description": "CollaborationFrame.ping discriminator."
-              }
-            },
-            "required": [
-              "requestId",
-              "type"
-            ],
-            "additionalProperties": false,
-            "description": "CollaborationFrame ping frame."
-          },
-          {
-            "type": "object",
-            "properties": {
-              "requestId": {
-                "anyOf": [
-                  {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Client-chosen identifier correlating a reply with its request."
-                  },
-                  {
-                    "type": "null",
-                    "description": "Null indicates that the value is unavailable."
-                  }
-                ],
-                "description": "CollaborationFrame.problem.requestId may be null in this transport value."
-              },
-              "problem": {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "format": "uri",
-                    "description": "RFC 9457 URI identifying the problem type."
-                  },
-                  "title": {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "Human-readable title presented for the problem response."
-                  },
-                  "status": {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "Current lifecycle status of the record."
-                  },
-                  "detail": {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "Human-readable detail explaining the response outcome."
-                  },
-                  "code": {
-                    "type": "string",
-                    "maxLength": 65536,
-                    "description": "Stable Bakery code identifying the response outcome."
-                  },
-                  "instance": {
-                    "description": "URI identifying the request instance that produced the response.",
-                    "type": "string",
-                    "format": "uri"
-                  },
-                  "requestId": {
-                    "type": "string",
-                    "format": "uuid",
-                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Request identifier used to correlate the response with server logs."
-                  },
-                  "traceId": {
-                    "description": "W3C trace identifier used to correlate work across services.",
-                    "type": "string",
-                    "maxLength": 65536
-                  },
-                  "retryable": {
-                    "type": "boolean",
-                    "description": "Whether retrying the failed operation may succeed."
-                  },
-                  "issues": {
-                    "description": "Problem.issues must contain at most 50 items.",
-                    "maxItems": 50,
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "path": {
-                          "type": "string",
-                          "maxLength": 65536,
-                          "description": "JSON Pointer into the submitted definition, or an empty string for the whole document."
-                        },
-                        "code": {
-                          "type": "string",
-                          "maxLength": 65536,
-                          "description": "Stable Bakery code identifying the response outcome."
-                        },
-                        "message": {
-                          "type": "string",
-                          "maxLength": 65536,
-                          "description": "Human-readable validation message."
-                        }
-                      },
-                      "required": [
-                        "path",
-                        "code",
-                        "message"
-                      ],
-                      "additionalProperties": false,
-                      "description": "Structured validation issues returned with the response. Each array item follows this format."
-                    }
-                  },
-                  "retryAfterSeconds": {
-                    "description": "Number of seconds the client should wait before retrying.",
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991
-                  },
-                  "limit": {
-                    "description": "Maximum number of values permitted by the response contract.",
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991
-                  },
-                  "refineScope": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "description": "JSON string value."
-                      },
-                      {
-                        "type": "number",
-                        "description": "JSON number value."
-                      },
-                      {
-                        "type": "boolean",
-                        "description": "JSON boolean value."
-                      },
-                      {
-                        "type": "null",
-                        "description": "JSON null value."
-                      },
-                      {
-                        "type": "array",
-                        "items": {
-                          "$ref": "#/$defs/__schema0"
-                        },
-                        "description": "JSON array value."
-                      },
-                      {
-                        "type": "object",
-                        "propertyNames": {
-                          "type": "string",
-                          "description": "JSON object key."
-                        },
-                        "additionalProperties": {
-                          "$ref": "#/$defs/__schema0"
-                        },
-                        "description": "JSON object value."
-                      }
-                    ],
-                    "description": "Validated scope information used to refine the response behavior."
-                  },
-                  "resetRequired": {
-                    "description": "Whether the client must discard its local state and request a fresh snapshot.",
-                    "type": "boolean"
-                  },
-                  "retainedFrom": {
-                    "description": "Earliest retained event sequence that can be used to establish a fresh sync position.",
-                    "type": "string",
-                    "pattern": "^(?:0|[1-9][0-9]*)$"
-                  },
-                  "retryWithoutAfter": {
-                    "description": "Whether the client should retry the sync request without its after cursor.",
-                    "type": "boolean"
-                  },
-                  "reason": {
-                    "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; absent when the conflict has no named rule.",
-                    "type": "string",
-                    "maxLength": 65536
-                  }
-                },
-                "required": [
-                  "type",
-                  "title",
-                  "status",
-                  "detail",
-                  "code",
-                  "requestId",
-                  "retryable"
-                ],
-                "additionalProperties": false,
-                "description": "Safe standard problem describing why the request was refused."
-              },
-              "type": {
-                "type": "string",
-                "const": "problem",
-                "description": "CollaborationFrame.problem discriminator."
-              }
-            },
-            "required": [
-              "requestId",
-              "problem",
-              "type"
-            ],
-            "additionalProperties": false,
-            "description": "CollaborationFrame problem frame."
           }
         ],
         "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, and committed draft sync. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
@@ -341691,6 +341691,223 @@
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "description": "Client-chosen identifier correlating a reply with its request."
             },
+            "type": {
+              "type": "string",
+              "const": "ping",
+              "description": "CollaborationFrame.ping discriminator."
+            }
+          },
+          "required": [
+            "requestId",
+            "type"
+          ],
+          "additionalProperties": false,
+          "description": "CollaborationFrame ping frame."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "requestId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Client-chosen identifier correlating a reply with its request."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "CollaborationFrame.problem.requestId may be null in this transport value."
+            },
+            "problem": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "format": "uri",
+                  "description": "RFC 9457 URI identifying the problem type."
+                },
+                "title": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Human-readable title presented for the problem response."
+                },
+                "status": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Current lifecycle status of the record."
+                },
+                "detail": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Human-readable detail explaining the response outcome."
+                },
+                "code": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Stable Bakery code identifying the response outcome."
+                },
+                "instance": {
+                  "description": "URI identifying the request instance that produced the response.",
+                  "type": "string",
+                  "format": "uri"
+                },
+                "requestId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Request identifier used to correlate the response with server logs."
+                },
+                "traceId": {
+                  "description": "W3C trace identifier used to correlate work across services.",
+                  "type": "string",
+                  "maxLength": 65536
+                },
+                "retryable": {
+                  "type": "boolean",
+                  "description": "Whether retrying the failed operation may succeed."
+                },
+                "issues": {
+                  "description": "Problem.issues must contain at most 50 items.",
+                  "maxItems": 50,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "JSON Pointer into the submitted definition, or an empty string for the whole document."
+                      },
+                      "code": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Stable Bakery code identifying the response outcome."
+                      },
+                      "message": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Human-readable validation message."
+                      }
+                    },
+                    "required": [
+                      "path",
+                      "code",
+                      "message"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Structured validation issues returned with the response. Each array item follows this format."
+                  }
+                },
+                "retryAfterSeconds": {
+                  "description": "Number of seconds the client should wait before retrying.",
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "limit": {
+                  "description": "Maximum number of values permitted by the response contract.",
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "refineScope": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "JSON string value."
+                    },
+                    {
+                      "type": "number",
+                      "description": "JSON number value."
+                    },
+                    {
+                      "type": "boolean",
+                      "description": "JSON boolean value."
+                    },
+                    {
+                      "type": "null",
+                      "description": "JSON null value."
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/__schema0"
+                      },
+                      "description": "JSON array value."
+                    },
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "description": "JSON object key."
+                      },
+                      "additionalProperties": {
+                        "$ref": "#/$defs/__schema0"
+                      },
+                      "description": "JSON object value."
+                    }
+                  ],
+                  "description": "Validated scope information used to refine the response behavior."
+                },
+                "resetRequired": {
+                  "description": "Whether the client must discard its local state and request a fresh snapshot.",
+                  "type": "boolean"
+                },
+                "retainedFrom": {
+                  "description": "Earliest retained event sequence that can be used to establish a fresh sync position.",
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9][0-9]*)$"
+                },
+                "retryWithoutAfter": {
+                  "description": "Whether the client should retry the sync request without its after cursor.",
+                  "type": "boolean"
+                },
+                "reason": {
+                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; absent when the conflict has no named rule.",
+                  "type": "string",
+                  "maxLength": 65536
+                }
+              },
+              "required": [
+                "type",
+                "title",
+                "status",
+                "detail",
+                "code",
+                "requestId",
+                "retryable"
+              ],
+              "additionalProperties": false,
+              "description": "Safe standard problem describing why the request was refused."
+            },
+            "type": {
+              "type": "string",
+              "const": "problem",
+              "description": "CollaborationFrame.problem discriminator."
+            }
+          },
+          "required": [
+            "requestId",
+            "problem",
+            "type"
+          ],
+          "additionalProperties": false,
+          "description": "CollaborationFrame problem frame."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "requestId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Client-chosen identifier correlating a reply with its request."
+            },
             "room": {
               "type": "object",
               "properties": {
@@ -342064,223 +342281,6 @@
           ],
           "additionalProperties": false,
           "description": "CollaborationFrame resync_required frame."
-        },
-        {
-          "type": "object",
-          "properties": {
-            "requestId": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Client-chosen identifier correlating a reply with its request."
-            },
-            "type": {
-              "type": "string",
-              "const": "ping",
-              "description": "CollaborationFrame.ping discriminator."
-            }
-          },
-          "required": [
-            "requestId",
-            "type"
-          ],
-          "additionalProperties": false,
-          "description": "CollaborationFrame ping frame."
-        },
-        {
-          "type": "object",
-          "properties": {
-            "requestId": {
-              "anyOf": [
-                {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                  "description": "Client-chosen identifier correlating a reply with its request."
-                },
-                {
-                  "type": "null",
-                  "description": "Null indicates that the value is unavailable."
-                }
-              ],
-              "description": "CollaborationFrame.problem.requestId may be null in this transport value."
-            },
-            "problem": {
-              "type": "object",
-              "properties": {
-                "type": {
-                  "type": "string",
-                  "format": "uri",
-                  "description": "RFC 9457 URI identifying the problem type."
-                },
-                "title": {
-                  "type": "string",
-                  "maxLength": 65536,
-                  "description": "Human-readable title presented for the problem response."
-                },
-                "status": {
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991,
-                  "description": "Current lifecycle status of the record."
-                },
-                "detail": {
-                  "type": "string",
-                  "maxLength": 65536,
-                  "description": "Human-readable detail explaining the response outcome."
-                },
-                "code": {
-                  "type": "string",
-                  "maxLength": 65536,
-                  "description": "Stable Bakery code identifying the response outcome."
-                },
-                "instance": {
-                  "description": "URI identifying the request instance that produced the response.",
-                  "type": "string",
-                  "format": "uri"
-                },
-                "requestId": {
-                  "type": "string",
-                  "format": "uuid",
-                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                  "description": "Request identifier used to correlate the response with server logs."
-                },
-                "traceId": {
-                  "description": "W3C trace identifier used to correlate work across services.",
-                  "type": "string",
-                  "maxLength": 65536
-                },
-                "retryable": {
-                  "type": "boolean",
-                  "description": "Whether retrying the failed operation may succeed."
-                },
-                "issues": {
-                  "description": "Problem.issues must contain at most 50 items.",
-                  "maxItems": 50,
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "path": {
-                        "type": "string",
-                        "maxLength": 65536,
-                        "description": "JSON Pointer into the submitted definition, or an empty string for the whole document."
-                      },
-                      "code": {
-                        "type": "string",
-                        "maxLength": 65536,
-                        "description": "Stable Bakery code identifying the response outcome."
-                      },
-                      "message": {
-                        "type": "string",
-                        "maxLength": 65536,
-                        "description": "Human-readable validation message."
-                      }
-                    },
-                    "required": [
-                      "path",
-                      "code",
-                      "message"
-                    ],
-                    "additionalProperties": false,
-                    "description": "Structured validation issues returned with the response. Each array item follows this format."
-                  }
-                },
-                "retryAfterSeconds": {
-                  "description": "Number of seconds the client should wait before retrying.",
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
-                },
-                "limit": {
-                  "description": "Maximum number of values permitted by the response contract.",
-                  "type": "integer",
-                  "minimum": -9007199254740991,
-                  "maximum": 9007199254740991
-                },
-                "refineScope": {
-                  "anyOf": [
-                    {
-                      "type": "string",
-                      "description": "JSON string value."
-                    },
-                    {
-                      "type": "number",
-                      "description": "JSON number value."
-                    },
-                    {
-                      "type": "boolean",
-                      "description": "JSON boolean value."
-                    },
-                    {
-                      "type": "null",
-                      "description": "JSON null value."
-                    },
-                    {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/$defs/__schema0"
-                      },
-                      "description": "JSON array value."
-                    },
-                    {
-                      "type": "object",
-                      "propertyNames": {
-                        "type": "string",
-                        "description": "JSON object key."
-                      },
-                      "additionalProperties": {
-                        "$ref": "#/$defs/__schema0"
-                      },
-                      "description": "JSON object value."
-                    }
-                  ],
-                  "description": "Validated scope information used to refine the response behavior."
-                },
-                "resetRequired": {
-                  "description": "Whether the client must discard its local state and request a fresh snapshot.",
-                  "type": "boolean"
-                },
-                "retainedFrom": {
-                  "description": "Earliest retained event sequence that can be used to establish a fresh sync position.",
-                  "type": "string",
-                  "pattern": "^(?:0|[1-9][0-9]*)$"
-                },
-                "retryWithoutAfter": {
-                  "description": "Whether the client should retry the sync request without its after cursor.",
-                  "type": "boolean"
-                },
-                "reason": {
-                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; absent when the conflict has no named rule.",
-                  "type": "string",
-                  "maxLength": 65536
-                }
-              },
-              "required": [
-                "type",
-                "title",
-                "status",
-                "detail",
-                "code",
-                "requestId",
-                "retryable"
-              ],
-              "additionalProperties": false,
-              "description": "Safe standard problem describing why the request was refused."
-            },
-            "type": {
-              "type": "string",
-              "const": "problem",
-              "description": "CollaborationFrame.problem discriminator."
-            }
-          },
-          "required": [
-            "requestId",
-            "problem",
-            "type"
-          ],
-          "additionalProperties": false,
-          "description": "CollaborationFrame problem frame."
         }
       ],
       "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, and committed draft sync. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
