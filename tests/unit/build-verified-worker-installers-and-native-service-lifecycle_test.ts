@@ -1,5 +1,6 @@
 import { assert, assertEquals, assertFalse } from "@std/assert";
 import { Buffer } from "node:buffer";
+import { type ChildProcess, spawn } from "node:child_process";
 import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import {
   chmod,
@@ -20,6 +21,7 @@ import {
 import type { FileHandle } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import process from "node:process";
 import {
   BootstrapError,
   detectTarget,
@@ -1117,7 +1119,7 @@ Deno.test("the installer records its own pid and start time in the lock", async 
     let during: string | undefined;
     await install(root, verified(), BINARY, {
       probeProcess: (pid) =>
-        Promise.resolve(pid === Deno.pid ? running("777") : "absent"),
+        Promise.resolve(pid === process.pid ? running("777") : "absent"),
       openStagedFile: async (path) => {
         // The lock is held while the artifact is being staged.
         during = await readFile(join(root, LOCK, "owner.json"), "utf8");
@@ -1125,7 +1127,7 @@ Deno.test("the installer records its own pid and start time in the lock", async 
       },
     });
     assertEquals(JSON.parse(during ?? "null"), {
-      pid: Deno.pid,
+      pid: process.pid,
       start: "777",
     });
   });
@@ -1136,7 +1138,7 @@ Deno.test("two installers cannot both take over the same dead lock", async () =>
     await seedLock(root, ownedBy(OWNER_PID, "1"));
     // The seeded owner is gone; the installers, which share this process, are
     // alive, so a lock one of them takes is respected by the others.
-    const probeProcess = processes({ [Deno.pid]: running("1") });
+    const probeProcess = processes({ [process.pid]: running("1") });
     const settled = await Promise.allSettled([
       install(root, verified(), BINARY, { probeProcess }),
       install(root, verified(), BINARY, { probeProcess }),
@@ -1232,10 +1234,18 @@ const INSTALL_URL = new URL(
   import.meta.url,
 ).href;
 
+/** A Node process running one install, and the means to wait for its report. */
+type NodeRun = Readonly<{
+  child: ChildProcess;
+  dir: string;
+  /** Resolves with everything the process printed once it has exited. */
+  done: Promise<string>;
+}>;
+
 async function inNode(
   root: string,
   over: { stall?: string; upgrade?: boolean } = {},
-): Promise<Deno.ChildProcess & { dir: string }> {
+): Promise<NodeRun> {
   const dir = await mkdtemp(join(tmpdir(), "bakery-bootstrap-child-"));
   const spec = join(dir, "spec.json");
   const script = join(dir, "child.mjs");
@@ -1255,22 +1265,35 @@ async function inNode(
     script,
     NODE_INSTALL.replace("process.argv[3]", JSON.stringify(INSTALL_URL)),
   );
-  const child = new Deno.Command("node", {
-    args: [script, spec],
-    stdout: "piped",
-    stderr: "null",
-  }).spawn();
-  return Object.assign(child, { dir });
+  const child = spawn("node", [script, spec], {
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  let printed = "";
+  child.stdout?.setEncoding("utf8");
+  child.stdout?.on("data", (chunk: string) => {
+    printed += chunk;
+  });
+  const done = new Promise<string>((resolve, reject) => {
+    child.once("error", reject);
+    child.once("close", () => resolve(printed));
+  });
+  return { child, dir, done };
+}
+
+/** Ends a run that may still be going, waits for it, and removes its files. */
+async function finish(run: NodeRun): Promise<void> {
+  run.child.kill("SIGKILL");
+  await run.done.catch(() => "");
+  await rm(run.dir, { recursive: true, force: true });
 }
 
 /** Runs one install in Node to completion and returns what it reported. */
 async function installInNode(root: string): Promise<Record<string, string>> {
-  const child = await inNode(root);
+  const run = await inNode(root);
   try {
-    const { stdout } = await child.output();
-    return JSON.parse(new TextDecoder().decode(stdout).trim());
+    return JSON.parse((await run.done).trim());
   } finally {
-    await rm(child.dir, { recursive: true, force: true });
+    await finish(run);
   }
 }
 
@@ -1281,7 +1304,7 @@ Deno.test("the real /proc probe: a dead owner is taken over, a live one is respe
   });
   await withRoot(async (root) => {
     // This test process is alive, and its start time is not recorded.
-    await seedLock(root, ownedBy(Deno.pid, null));
+    await seedLock(root, ownedBy(process.pid, null));
     assertEquals(await installInNode(root), { code: "INSTALL_LOCKED" });
     assert((await lstat(join(root, LOCK))).isDirectory());
   });
@@ -1289,15 +1312,15 @@ Deno.test("the real /proc probe: a dead owner is taken over, a live one is respe
     // The same pid with a start time it never had: a different process. Zero
     // is no running process's start time (it is also what the neighbouring
     // /proc field always holds, so reading the wrong field would match it).
-    await seedLock(root, ownedBy(Deno.pid, "0"));
+    await seedLock(root, ownedBy(process.pid, "0"));
     assertEquals(await installInNode(root), { status: "installed" });
   });
 });
 
 Deno.test("an installer killed mid-download leaves a lock and a partial file that the next run recovers", async () => {
   await withRoot(async (root) => {
-    const flag = join(root, "..", `ready-${Date.now()}-${Deno.pid}`);
-    const child = await inNode(root, { stall: flag });
+    const flag = join(root, "..", `ready-${Date.now()}-${process.pid}`);
+    const run = await inNode(root, { stall: flag });
     try {
       const deadline = Date.now() + 20_000;
       while (!(await stat(flag).then(() => true, () => false))) {
@@ -1308,8 +1331,8 @@ Deno.test("an installer killed mid-download leaves a lock and a partial file tha
       // judged by the pid and start time it recorded itself.
       assertEquals(await installInNode(root), { code: "INSTALL_LOCKED" });
       assert((await lstat(join(root, LOCK))).isDirectory());
-      child.kill("SIGKILL");
-      await child.status;
+      run.child.kill("SIGKILL");
+      await run.done;
       // What a kill leaves behind: the lock and a partial staged file.
       assert((await lstat(join(root, LOCK))).isDirectory());
       assertEquals((await entries(join(root, "staging"))).length, 1);
@@ -1326,7 +1349,7 @@ Deno.test("an installer killed mid-download leaves a lock and a partial file tha
       assertFalse((await entries(root)).includes(LOCK));
     } finally {
       await rm(flag, { force: true });
-      await rm(child.dir, { recursive: true, force: true });
+      await finish(run);
     }
   });
 });
@@ -1628,4 +1651,83 @@ Deno.test("repeated-key detection reads JSON the way a parser does", () => {
     JSON.parse(text);
     assertFalse(hasDuplicateKeys(text), text);
   }
+});
+
+// --- reviewer lows: half-made `current` links and dots-only release names
+
+Deno.test("a half-made current link left by a dead installer is swept, and nothing else is", async () => {
+  await withRoot(async (root) => {
+    // What an installer killed between creating the link and renaming it
+    // leaves behind, plus names a sweep must not touch.
+    await symlink("releases/none", join(root, ".current-0123456789ab"));
+    await symlink("releases/none", join(root, ".current-ABCDEF012345"));
+    await symlink("releases/none", join(root, ".current-0123456789abc"));
+    await writeFile(join(root, ".current-notes"), "keep");
+    await writeFile(join(root, "keep.txt"), "keep");
+    assertEquals((await install(root, verified(), BINARY)).status, "installed");
+    assertEquals(await entries(root), [
+      ".current-0123456789abc",
+      ".current-ABCDEF012345",
+      ".current-notes",
+      "current",
+      "keep.txt",
+      "releases",
+      "staging",
+    ]);
+    assertEquals(await currentTarget(root), "releases/1.2.3-linux-x64");
+  });
+});
+
+Deno.test("a current link to a dots-only name is corrupt, and no record is read through it", async () => {
+  // Where a record would be found if `releases/<dots>` were followed.
+  const reached: [string, string[]][] = [
+    [".", ["releases"]],
+    ["..", []],
+    ["...", ["releases", "..."]],
+  ];
+  for (const [dots, where] of reached) {
+    await withRoot(async (root) => {
+      await mkdir(join(root, "releases", ...where.slice(1)), {
+        recursive: true,
+      });
+      // The target is written literally: `join` would fold `releases/..`
+      // into `.` and the link would never point where this test says.
+      const target = `releases/${dots}`;
+      await symlink(target, join(root, "current"));
+      // A trusted-looking record sits where that link would be followed to, so
+      // only the name check can refuse: without it the record would be read.
+      await writeFile(
+        join(root, ...where, "release.json"),
+        JSON.stringify({
+          release: "1.2.3",
+          target: "linux-x64",
+          sha256: sha(BINARY),
+        }),
+      );
+      const before = await entries(join(root, "releases"));
+      for (const upgrade of [false, true]) {
+        assertEquals(
+          await codeOfAsync(() =>
+            install(root, verified(), BINARY, { upgrade })
+          ),
+          "INSTALL_CORRUPT",
+          `${dots} upgrade=${upgrade}`,
+        );
+      }
+      assertEquals(await currentTarget(root), target);
+      assertEquals(await entries(join(root, "releases")), before);
+    });
+  }
+});
+
+Deno.test("dotted release names that are real names still install", async () => {
+  await withRoot(async (root) => {
+    const result = await install(
+      root,
+      verified(BINARY, "10.20.30-rc.1"),
+      BINARY,
+    );
+    assertEquals(result.status, "installed");
+    assertEquals(await currentTarget(root), "releases/10.20.30-rc.1-linux-x64");
+  });
 });

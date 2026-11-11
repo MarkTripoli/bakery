@@ -167,7 +167,11 @@ async function installed(
     throw error;
   }
   const match = /^releases\/([A-Za-z0-9._-]+)$/.exec(target);
-  if (!match) throw new BootstrapError("INSTALL_CORRUPT");
+  // A name made only of dots is the directory itself or its parent, never a
+  // release: `releases/..` would read a record from the install root.
+  if (!match || /^\.+$/.test(match[1])) {
+    throw new BootstrapError("INSTALL_CORRUPT");
+  }
   let record: unknown;
   try {
     record = JSON.parse(
@@ -434,6 +438,22 @@ async function sweepStaging(stagingRoot: string): Promise<void> {
   }
 }
 
+/** The temporary link `activate` creates before it renames it over `current`. */
+const PENDING_LINK = /^\.current-[0-9a-f]{12}$/;
+
+/**
+ * Half-made `current` links of an installer that died between creating the
+ * link and renaming it. Held under the lock, so none is live. Only names this
+ * installer would have made are removed.
+ */
+async function sweepPendingLinks(root: string): Promise<void> {
+  const names = await readdir(root).catch(() => []);
+  for (const name of names) {
+    if (!PENDING_LINK.test(name)) continue;
+    await rm(join(root, name), { force: true }).catch(() => {});
+  }
+}
+
 /**
  * The root must be a real directory owned by this user that no one else can
  * write to: a release is verified once and run later, and another user able to
@@ -513,6 +533,7 @@ export async function installRelease(
   let stagingDir: string | undefined;
   try {
     await sweepStaging(stagingRoot);
+    await sweepPendingLinks(root);
     const current = await installed(root);
     if (current !== null) {
       const same = current.name === name &&
