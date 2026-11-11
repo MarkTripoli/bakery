@@ -56,28 +56,38 @@ Deno.test("only the publish path names the workflow_versions pin columns", () =>
   );
 });
 
-Deno.test("the publish insert is preceded by the together guard on its own values", () => {
+Deno.test("the one insert is guarded first, on the values it then binds", () => {
   const source = read(writerFile);
-  const insertAt = source.indexOf("insert into bakery.workflow_versions");
-  assert(insertAt > 0, "publishWorkflowVersion no longer inserts a version");
-  const guardAt = source.indexOf("assertCompilerPinTogether(");
-  assert(
-    guardAt > 0,
-    "the publish path does not call assertCompilerPinTogether",
+  assertEquals(
+    source.split("insert into bakery.workflow_versions").length - 1,
+    1,
+    "workflows/postgres.ts must hold exactly one workflow_versions insert",
   );
+  const fn = source.indexOf("export async function insertWorkflowVersion(");
+  assert(fn > 0, "insertWorkflowVersion is gone; the write path moved");
+  const body = source.slice(fn, source.indexOf("const PUBLISH_ISSUE_MAX", fn));
+  const guardAt = body.indexOf(
+    "assertCompilerPinTogether(row.compilerVersion, row.semanticDigest)",
+  );
+  const insertAt = body.indexOf("insert into bakery.workflow_versions");
+  assert(guardAt > 0, "insertWorkflowVersion does not guard both pin values");
   assert(
     guardAt < insertAt,
     "assertCompilerPinTogether must run before the insert it protects",
   );
-  const guardCall = source.slice(guardAt, source.indexOf(";", guardAt));
+  const bound = body.slice(insertAt);
   assert(
-    guardCall.includes("pinValues[0]") && guardCall.includes("pinValues[1]"),
-    "the guard must check both values the insert binds",
+    bound.includes("row.compilerVersion,") &&
+      bound.includes("row.semanticDigest,"),
+    "the insert must bind the same two values the guard checked",
   );
+});
+
+Deno.test("publishWorkflowVersion writes through that helper, not around it", () => {
+  const source = read(writerFile);
   assert(
-    source.slice(insertAt, insertAt + 1500).includes("pinValues[0],") &&
-      source.slice(insertAt, insertAt + 1500).includes("pinValues[1],"),
-    "the insert must bind the same pinValues the guard checked",
+    source.includes("await insertWorkflowVersion(transaction, {"),
+    "the publish path no longer calls insertWorkflowVersion",
   );
 });
 
