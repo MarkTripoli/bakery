@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="nested-steps-bind-through-compiler-action-sites" project="bakery" issue="16">
+  <title>Check nested workflow steps from the compiler's action sites, never from the flat step extractor</title>
+  <trigger>Relaxing the flat workflow validator so branch, repeat, wait, sequence or parallel nodes validate, or adding any organization-scoped check (agent binding, capability policy) that reads a workflow's steps.</trigger>
+  <mistake>validateWorkflowBindings read steps through extractFixedWorkflowSteps and returned no errors when it threw. That is harmless while the flat validator rejects nested nodes first, and fail-open the moment it stops: a nested model step whose agent allows no model capability would validate and publish with no binding check. The compile result cannot carry the fix, because WorkflowCompileResultSchema is strict and a contract test parses a real result against it.</mistake>
+  <rule>For a document that declares apiVersion, take every action node from compileWorkflowDocumentDetailed (actionSites: qualified id, authored JSON Pointer, action, requires) and report findings at that pointer. A document that cannot be read yields no sites and the static pass reports it, so an empty list is only correct for an unreadable document. Keep compileWorkflowDocument's result unchanged; add sibling outputs instead of new keys.</rule>
+  <verification>
+    <requirement>A nested model step under an agent that denies the model capability fails binding validation at /agents/&lt;action&gt; and at the step's own requires pointer; with the nested-site source removed that test fails.</requirement>
+  </verification>
+</learning>

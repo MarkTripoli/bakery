@@ -42,6 +42,7 @@ import {
   insertRunSteps,
   reviewLoopLimitsFor,
   stepReferencesEarlierOutput,
+  WorkflowNotExecutableError,
   WorkflowNotFixedError,
   workflowRequiresRepository,
 } from "./run-steps.ts";
@@ -989,6 +990,12 @@ export async function createRunCommand(
       throw new StandardError({
         code: "STATE_CONFLICT",
         params: { reason: "workflow_not_fixed" },
+      });
+    }
+    if (error instanceof WorkflowNotExecutableError) {
+      throw new StandardError({
+        code: "STATE_CONFLICT",
+        params: { reason: "workflow_not_executable" },
       });
     }
     throw new Error("WORKFLOW_VERSION_INVALID", { cause: error });

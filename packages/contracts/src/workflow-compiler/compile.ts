@@ -12,8 +12,12 @@ import type { PointerSegment } from "./diagnostics.ts";
 import { normalizeWorkflow } from "./normalize.ts";
 import type { WorkflowCompilerCatalog } from "./catalog.ts";
 import { resolveWorkflowActions } from "./passes/actions.ts";
+import {
+  listWorkflowActionSites,
+  type WorkflowActionSite,
+} from "./action-sites.ts";
 import { checkWorkflowFlow } from "./passes/flow.ts";
-import { buildFlowIndex } from "./passes/flow-index.ts";
+import { buildFlowIndex, type FlowIndex } from "./passes/flow-index.ts";
 import {
   INPUT_NAME,
   LANE_ID,
@@ -173,23 +177,52 @@ export async function compileWorkflowDocument(
   input: unknown,
   options: WorkflowCompileOptions = {},
 ): Promise<WorkflowDocumentResult> {
+  return (await compileWorkflowDocumentDetailed(input, options)).result;
+}
+
+/** A compile result plus where each of its action nodes was authored. */
+export type WorkflowDetailedResult = {
+  readonly result: WorkflowDocumentResult;
+  /** Action nodes in authored order; empty unless `result.ok`. */
+  readonly actionSites: readonly WorkflowActionSite[];
+};
+
+/**
+ * Same compile as `compileWorkflowDocument`, additionally returning every
+ * action node with its authored JSON Pointer, so a caller can report
+ * organization-scoped findings on a nested step. The plain result is unchanged
+ * and stays what `WorkflowCompileResultSchema` describes.
+ */
+export async function compileWorkflowDocumentDetailed(
+  input: unknown,
+  options: WorkflowCompileOptions = {},
+): Promise<WorkflowDetailedResult> {
   const collector = createDiagnosticCollector();
   const decoded = typeof input === "string"
     ? decodeWorkflowJson(input, SNAPSHOT_OPTIONS)
     : snapshotWorkflowValue(input, SNAPSHOT_OPTIONS, collector);
-  if (!decoded.ok) return { ok: false, diagnostics: decoded.diagnostics };
+  if (!decoded.ok) {
+    return {
+      result: { ok: false, diagnostics: decoded.diagnostics },
+      actionSites: [],
+    };
+  }
   const { document, locations } = normalizeWorkflow(decoded.value, collector);
   if (document && options.catalog && collector.size === 0) {
     resolveWorkflowActions(document, locations, options.catalog, collector);
   }
+  let index: FlowIndex | undefined;
   if (document) {
-    const index = buildFlowIndex(document, locations);
+    index = buildFlowIndex(document, locations);
     checkWorkflowNeeds(document, locations, collector, index);
     checkWorkflowFlow(document, locations, options.catalog, collector, index);
     checkWorkflowBounds(document, locations, collector);
   }
-  if (!document || collector.size > 0) {
-    return { ok: false, diagnostics: collector.list() };
+  if (!document || !index || collector.size > 0) {
+    return {
+      result: { ok: false, diagnostics: collector.list() },
+      actionSites: [],
+    };
   }
   const checked = WorkflowSemanticDocumentSchema.safeParse(document, {
     jitless: true,
@@ -200,10 +233,13 @@ export async function compileWorkflowDocument(
     );
   }
   return {
-    ok: true,
-    document,
-    digest: await workflowSemanticDigest(document),
-    plan: buildWorkflowPlan(document),
-    diagnostics: [],
+    result: {
+      ok: true,
+      document,
+      digest: await workflowSemanticDigest(document),
+      plan: buildWorkflowPlan(document),
+      diagnostics: [],
+    },
+    actionSites: listWorkflowActionSites(index),
   };
 }

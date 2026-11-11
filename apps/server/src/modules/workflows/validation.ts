@@ -10,8 +10,10 @@ import {
   workflowActionCapabilities,
 } from "@bakery/persistence";
 import {
-  compileWorkflowDocument,
+  compileWorkflowDocumentDetailed,
   WORKFLOW_COMPILER_VERSION,
+  type WorkflowActionSite,
+  type WorkflowDocumentResult,
 } from "@bakery/contracts/workflow-compiler";
 import { defaultWorkflowCompilerCatalog } from "@bakery/contracts/workflow-compiler/default-catalog";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
@@ -41,7 +43,13 @@ export type WorkflowValidationReport = Readonly<{
   compilerVersion: string;
   /** Compiler semantic digest; null when the compiler rejected the definition. */
   semanticDigest: string | null;
-  /** Compiler findings (JSON Pointer, stable code, catalogued message). Advisory: they do not change `valid`. */
+  /**
+   * Compiler findings (JSON Pointer, stable code, catalogued message). For a
+   * document that declares `apiVersion` the compiler is the structural
+   * authority: every finding is also an entry of `errors` and `valid` is
+   * false. A legacy flat document (no `apiVersion`) keeps the flat verdict and
+   * these stay advisory.
+   */
   compilerDiagnostics: readonly WorkflowValidationIssue[];
   graph?: unknown;
   requiresRepository?: boolean;
@@ -321,24 +329,99 @@ function checkSteps(
   }
 }
 
-async function compilerReport(definition: unknown): Promise<
-  Pick<
-    WorkflowValidationReport,
-    "compilerVersion" | "semanticDigest" | "compilerDiagnostics"
-  >
-> {
-  const result = await compileWorkflowDocument(definition, {
-    catalog: defaultWorkflowCompilerCatalog(),
-  });
+type CompilerReport = Pick<
+  WorkflowValidationReport,
+  "compilerVersion" | "semanticDigest" | "compilerDiagnostics"
+>;
+
+type CompiledDefinition = Readonly<{
+  result: WorkflowDocumentResult;
+  /** Every action node with its authored pointer; empty unless the compile succeeded. */
+  actionSites: readonly WorkflowActionSite[];
+  report: CompilerReport;
+}>;
+
+async function compileDefinition(
+  definition: unknown,
+): Promise<CompiledDefinition> {
+  const { result, actionSites } = await compileWorkflowDocumentDetailed(
+    definition,
+    { catalog: defaultWorkflowCompilerCatalog() },
+  );
   return {
-    compilerVersion: WORKFLOW_COMPILER_VERSION,
-    semanticDigest: result.ok ? result.digest : null,
-    compilerDiagnostics: Object.freeze(
-      result.diagnostics.slice(0, MAX_ISSUES).map(({ path, code, message }) =>
-        Object.freeze({ path, code, message })
+    result,
+    actionSites,
+    report: {
+      compilerVersion: WORKFLOW_COMPILER_VERSION,
+      semanticDigest: result.ok ? result.digest : null,
+      compilerDiagnostics: Object.freeze(
+        result.diagnostics.slice(0, MAX_ISSUES).map(({ path, code, message }) =>
+          Object.freeze({ path, code, message })
+        ),
       ),
-    ),
+    },
   };
+}
+
+/**
+ * A document that declares `apiVersion` claims the compiler grammar. Legacy
+ * flat documents (the shipped presets among them) never carry the field, so
+ * each document has exactly one structural authority.
+ */
+function declaresCompilerGrammar(
+  definition: unknown,
+): definition is RecordValue {
+  return isRecord(definition) && Object.hasOwn(definition, "apiVersion");
+}
+
+/**
+ * Checks a compiler-grammar document. The compiler's verdict on structure and
+ * grammar stands: any diagnostic is an error and nothing else is run on a
+ * rejected document. On an accepted one only what a pure compiler cannot know
+ * remains here: the agents map, each action's capability request and agent
+ * binding warnings, at the authored path of the node, however deeply nested.
+ */
+function checkCompilerGrammar(
+  definition: RecordValue,
+  compiled: CompiledDefinition,
+  errors: WorkflowValidationIssue[],
+  warnings: WorkflowValidationIssue[],
+): void {
+  if (!compiled.result.ok) {
+    for (const { path, code, message } of compiled.report.compilerDiagnostics) {
+      errors.push(Object.freeze({ path, code, message }));
+    }
+    return;
+  }
+  checkAgents(definition, errors);
+  const agents = isRecord(definition.agents) ? definition.agents : {};
+  const warned = new Set<string>();
+  for (const site of compiled.actionSites) {
+    const at = (...tail: readonly string[]) => pointer(...site.path, ...tail);
+    let capabilities: string[] = [];
+    try {
+      capabilities = actionCapabilities(site.action, site.requires);
+    } catch {
+      errors.push(issue(at("requires"), "step_requires_invalid"));
+    }
+    if (!isExecutableAction(site.action) && !warned.has(`x:${site.action}`)) {
+      warned.add(`x:${site.action}`);
+      warnings.push(issue(at("uses"), "action_not_executable"));
+    }
+    if (
+      capabilities.includes("model") &&
+      selectStepAgentVersion({
+          action: site.action,
+          stepAgentVersionId: undefined,
+          workflowAgents: agents as Record<string, string>,
+          profileAgentBindings: undefined,
+        }).source === "none" &&
+      !warned.has(`m:${site.action}`)
+    ) {
+      warned.add(`m:${site.action}`);
+      warnings.push(issue(at("uses"), "model_agent_unbound"));
+    }
+  }
 }
 
 /**
@@ -350,7 +433,8 @@ export async function validateWorkflowDefinitionStatic(
 ): Promise<WorkflowValidationReport> {
   const errors: WorkflowValidationIssue[] = [];
   const warnings: WorkflowValidationIssue[] = [];
-  const compiled = await compilerReport(definition);
+  const compiledDefinition = await compileDefinition(definition);
+  const compiled = compiledDefinition.report;
   const finish = (): WorkflowValidationReport =>
     Object.freeze({
       ...compiled,
@@ -379,29 +463,42 @@ export async function validateWorkflowDefinitionStatic(
     return finish();
   }
 
-  checkKinds(definition, errors);
-  checkAgents(definition, errors);
-  for (const key of BINDING_OVERRIDE_KEYS) {
-    if (Object.hasOwn(definition, key)) {
-      errors.push(issue(pointer(key), "step_binding_override_forbidden"));
+  const compilerGrammar = declaresCompilerGrammar(definition);
+  if (compilerGrammar) {
+    checkCompilerGrammar(definition, compiledDefinition, errors, warnings);
+  } else {
+    checkKinds(definition, errors);
+    checkAgents(definition, errors);
+    for (const key of BINDING_OVERRIDE_KEYS) {
+      if (Object.hasOwn(definition, key)) {
+        errors.push(issue(pointer(key), "step_binding_override_forbidden"));
+      }
     }
+    checkSteps(definition, errors, warnings);
   }
-  checkSteps(definition, errors, warnings);
 
   let graph: unknown;
   let requiresRepository = false;
   if (errors.length === 0) {
     try {
-      const steps = extractFixedWorkflowSteps(definition);
       requiresRepository = workflowRequiresRepository(definition);
-      graph = {
-        kind: "fixed",
-        steps: steps.map((step) => ({
-          id: step.key,
-          uses: step.action,
-          requires: [...(step.requires ?? [])],
-        })),
-      };
+      graph = compilerGrammar
+        ? {
+          kind: "plan",
+          steps: compiledDefinition.actionSites.map((site) => ({
+            id: site.qualifiedId,
+            uses: site.action,
+            requires: [...site.requires],
+          })),
+        }
+        : {
+          kind: "fixed",
+          steps: extractFixedWorkflowSteps(definition).map((step) => ({
+            id: step.key,
+            uses: step.action,
+            requires: [...(step.requires ?? [])],
+          })),
+        };
     } catch {
       errors.push(issue("", "workflow_structure_invalid"));
     }
@@ -456,7 +553,9 @@ const STEP_POLICY_CODES: ReadonlySet<string> = new Set([
 async function attributePolicyToSteps(
   transaction: PgTransactionClient,
   organizationId: string,
-  selections: readonly (AgentVersionSelection & { position: number })[],
+  selections: readonly (AgentVersionSelection & {
+    path: readonly (string | number)[];
+  })[],
   errors: WorkflowValidationIssue[],
 ): Promise<void> {
   for (const selection of selections) {
@@ -471,9 +570,7 @@ async function attributePolicyToSteps(
       const mapped = bindingIssue("", error);
       if (mapped === null) throw error;
       if (!STEP_POLICY_CODES.has(mapped.code)) continue;
-      errors.push(
-        issue(pointer("steps", selection.position, "requires"), mapped.code),
-      );
+      errors.push(issue(pointer(...selection.path, "requires"), mapped.code));
     }
   }
 }
@@ -499,8 +596,62 @@ export type WorkflowBindingsResult = Readonly<{
 type BoundSelection = AgentVersionSelection & {
   action: string;
   position: number;
+  /** Authored JSON Pointer segments of the step; findings hang off it. */
+  path: readonly (string | number)[];
   source: AgentBindingSource;
 };
+
+/** One action step to bind, however the document spells it. */
+type BindingTarget = Readonly<{
+  key: string;
+  action: string;
+  /** Order of the step in the document; also the report order. */
+  position: number;
+  requires: readonly string[] | undefined;
+  stepAgentVersionId: string | null;
+  workflowAgentVersionId: string | null;
+  path: readonly (string | number)[];
+}>;
+
+/**
+ * Every action step that needs an agent binding. A compiler-grammar document
+ * yields all action nodes at any depth, from the compiler's own result; a
+ * legacy flat document yields its top-level steps. Empty when the document
+ * cannot be read, which the static pass reports. It must never be empty for a
+ * readable document: that would let a nested step publish unchecked.
+ */
+async function bindingTargets(
+  definition: RecordValue,
+): Promise<readonly BindingTarget[]> {
+  if (declaresCompilerGrammar(definition)) {
+    const compiled = await compileDefinition(definition);
+    if (!compiled.result.ok) return [];
+    const agents: Readonly<Record<string, string>> =
+      compiled.result.document.agents;
+    return compiled.actionSites.map((site, position) => ({
+      key: site.qualifiedId,
+      action: site.action,
+      position,
+      requires: site.requires,
+      stepAgentVersionId: null,
+      workflowAgentVersionId: agents[site.action] ?? null,
+      path: site.path,
+    }));
+  }
+  try {
+    return extractFixedWorkflowSteps(definition).map((step) => ({
+      key: step.key,
+      action: step.action,
+      position: step.position,
+      requires: step.requires,
+      stepAgentVersionId: step.stepAgentVersionId,
+      workflowAgentVersionId: step.workflowAgentVersionId,
+      path: ["steps", step.position],
+    }));
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Org-scoped pass: resolves each bound agent version through the same helper
@@ -519,17 +670,10 @@ export async function validateWorkflowBindings(
     bindings: Object.freeze([]),
   });
   if (!isRecord(definition)) return empty;
-  let steps;
-  try {
-    steps = extractFixedWorkflowSteps(definition);
-  } catch {
-    return empty;
-  }
+  const steps = await bindingTargets(definition);
+  if (steps.length === 0) return empty;
   const selections: BoundSelection[] = [];
-  const unbound: {
-    step: (typeof steps)[number];
-    required: string[];
-  }[] = [];
+  const unbound: { step: BindingTarget; required: string[] }[] = [];
   for (const step of steps) {
     let required: string[];
     try {
@@ -552,6 +696,7 @@ export async function validateWorkflowBindings(
     selections.push({
       action: step.action,
       position: step.position,
+      path: step.path,
       source,
       stepKey: step.key,
       agentVersionId,
@@ -590,7 +735,7 @@ export async function validateWorkflowBindings(
         const group = groups.get(key) ?? {
           path: workflowLevel
             ? pointer("agents", selection.action)
-            : pointer("steps", selection.position, "agentVersionId"),
+            : pointer(...selection.path, "agentVersionId"),
           selections: [],
         };
         group.selections.push(selection);
