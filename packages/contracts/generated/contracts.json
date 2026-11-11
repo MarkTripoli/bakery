@@ -52649,6 +52649,117 @@
           "additionalProperties": false,
           "description": "Input to the delivery.health workflow action: the deployment whose health is observed."
         },
+        "ArtifactPublishInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "artifact": {
+              "type": "object",
+              "properties": {
+                "artifactId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "ArtifactPublishInput.artifact.artifactId immutable artifact identifier."
+                },
+                "versionId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "ArtifactPublishInput.artifact.versionId immutable artifact-version identifier."
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "description": "ArtifactPublishInput.artifact.sha256 lowercase content digest."
+                }
+              },
+              "required": [
+                "artifactId",
+                "versionId",
+                "sha256"
+              ],
+              "additionalProperties": false,
+              "description": "Immutable artifact version to publish, normally the artifact a preceding step emitted; the step records it as published without changing its content."
+            }
+          },
+          "required": [
+            "artifact"
+          ],
+          "additionalProperties": false,
+          "description": "Input to the artifact.publish workflow action: the artifact version a preceding step produced, which this step publishes so it becomes a retained, addressable artifact of the run."
+        },
+        "MemoryPromoteInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "artifact": {
+              "type": "object",
+              "properties": {
+                "artifactId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "MemoryPromoteInput.artifact.artifactId immutable artifact identifier."
+                },
+                "versionId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "MemoryPromoteInput.artifact.versionId immutable artifact-version identifier."
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "description": "MemoryPromoteInput.artifact.sha256 lowercase content digest."
+                }
+              },
+              "required": [
+                "artifactId",
+                "versionId",
+                "sha256"
+              ],
+              "additionalProperties": false,
+              "description": "Immutable artifact version to promote into project memory, normally a research or review artifact a preceding step produced."
+            },
+            "sourceRevision": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "MemoryPromoteInput.sourceRevision must contain at least 1 characters."
+            }
+          },
+          "required": [
+            "artifact",
+            "sourceRevision"
+          ],
+          "additionalProperties": false,
+          "description": "Input to the memory.promote workflow action: the artifact version to promote into project memory and the repository revision that evidence was drawn from."
+        },
+        "EvaluationInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "runId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Workflow run whose outcomes are sampled for evaluation."
+            },
+            "sampleRate": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "EvaluationInput.sampleRate must be at most 1."
+            }
+          },
+          "required": [
+            "runId",
+            "sampleRate"
+          ],
+          "additionalProperties": false,
+          "description": "Input to the evaluation.sample workflow action: the completed run to sample and the fraction of its outcomes to evaluate."
+        },
         "WorkflowActionsListQuery": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -192770,6 +192881,60 @@
           "additionalProperties": false,
           "description": "HealthOutput is the pinned worker action output contract."
         },
+        "MemoryOutput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "memoryId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Project memory entry the artifact was promoted into."
+            },
+            "status": {
+              "type": "string",
+              "const": "promoted",
+              "description": "Always promoted: the step only answers once the memory entry is written."
+            }
+          },
+          "required": [
+            "memoryId",
+            "status"
+          ],
+          "additionalProperties": false,
+          "description": "MemoryOutput is the pinned worker action output contract."
+        },
+        "EvaluationOutput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "evaluationId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Evaluation record the sample was written to."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "completed",
+                "failed"
+              ],
+              "description": "Whether the sampled evaluation finished or failed."
+            },
+            "measured": {
+              "type": "boolean",
+              "description": "Whether the run was actually measured; false when the sample rate selected nothing to evaluate."
+            }
+          },
+          "required": [
+            "evaluationId",
+            "status",
+            "measured"
+          ],
+          "additionalProperties": false,
+          "description": "EvaluationOutput is the pinned worker action output contract."
+        },
         "HarnessOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -193598,11 +193763,209 @@
           ],
           "additionalProperties": false,
           "description": "FreeformOutput is the pinned worker action output contract."
+        },
+        "IntegrationActionOutput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "accepted": {
+              "type": "boolean",
+              "description": "Whether the requested action was accepted."
+            },
+            "operation": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Operation name associated with the record."
+            },
+            "externalEffectId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Stable UUID linking this record to the related external effect entity."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "ActionResult.externalEffectId may be null in this transport value."
+            },
+            "result": {
+              "anyOf": [
+                {
+                  "description": "ActionResult.result must contain at most 32000 UTF-8 bytes.",
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "JSON string value."
+                    },
+                    {
+                      "type": "number",
+                      "description": "JSON number value."
+                    },
+                    {
+                      "type": "boolean",
+                      "description": "JSON boolean value."
+                    },
+                    {
+                      "type": "null",
+                      "description": "JSON null value."
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                      },
+                      "description": "JSON array value."
+                    },
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "description": "JSON object key."
+                      },
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                      },
+                      "description": "JSON object value."
+                    }
+                  ],
+                  "x-utf8-max-bytes": 32000
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "ActionResult.result may be null in this transport value."
+            }
+          },
+          "required": [
+            "accepted",
+            "operation",
+            "externalEffectId",
+            "result"
+          ],
+          "additionalProperties": false,
+          "description": "Result of invoking one integration action: whether the request was accepted, which registered action ran, the linked external-effect identity when a write is involved, and the action's result payload. A read returns this immediately; a write returns it only after the external effect is reconciled by that stable effect identity."
+        },
+        "IntegrationActionOutput____schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
         }
       }
     }
   },
-  "compatibilityDigest": "sha256:2376574d56126f91ed67590a605c43e5bb87fca6d7e7b6c2fff4be14480451ae",
+  "compatibilityDigest": "sha256:2514e56319c076925707093b9b144cbc4cf4783e22bff83cf8bcd7ca4e522753",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -215377,6 +215740,117 @@
       ],
       "additionalProperties": false,
       "description": "Input to the delivery.health workflow action: the deployment whose health is observed."
+    },
+    "ArtifactPublishInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "artifact": {
+          "type": "object",
+          "properties": {
+            "artifactId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "ArtifactPublishInput.artifact.artifactId immutable artifact identifier."
+            },
+            "versionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "ArtifactPublishInput.artifact.versionId immutable artifact-version identifier."
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "ArtifactPublishInput.artifact.sha256 lowercase content digest."
+            }
+          },
+          "required": [
+            "artifactId",
+            "versionId",
+            "sha256"
+          ],
+          "additionalProperties": false,
+          "description": "Immutable artifact version to publish, normally the artifact a preceding step emitted; the step records it as published without changing its content."
+        }
+      },
+      "required": [
+        "artifact"
+      ],
+      "additionalProperties": false,
+      "description": "Input to the artifact.publish workflow action: the artifact version a preceding step produced, which this step publishes so it becomes a retained, addressable artifact of the run."
+    },
+    "MemoryPromoteInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "artifact": {
+          "type": "object",
+          "properties": {
+            "artifactId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "MemoryPromoteInput.artifact.artifactId immutable artifact identifier."
+            },
+            "versionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "MemoryPromoteInput.artifact.versionId immutable artifact-version identifier."
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "MemoryPromoteInput.artifact.sha256 lowercase content digest."
+            }
+          },
+          "required": [
+            "artifactId",
+            "versionId",
+            "sha256"
+          ],
+          "additionalProperties": false,
+          "description": "Immutable artifact version to promote into project memory, normally a research or review artifact a preceding step produced."
+        },
+        "sourceRevision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "MemoryPromoteInput.sourceRevision must contain at least 1 characters."
+        }
+      },
+      "required": [
+        "artifact",
+        "sourceRevision"
+      ],
+      "additionalProperties": false,
+      "description": "Input to the memory.promote workflow action: the artifact version to promote into project memory and the repository revision that evidence was drawn from."
+    },
+    "EvaluationInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Workflow run whose outcomes are sampled for evaluation."
+        },
+        "sampleRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "EvaluationInput.sampleRate must be at most 1."
+        }
+      },
+      "required": [
+        "runId",
+        "sampleRate"
+      ],
+      "additionalProperties": false,
+      "description": "Input to the evaluation.sample workflow action: the completed run to sample and the fraction of its outcomes to evaluate."
     },
     "WorkflowActionsListQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -355837,6 +356311,60 @@
       "additionalProperties": false,
       "description": "HealthOutput is the pinned worker action output contract."
     },
+    "MemoryOutput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "memoryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Project memory entry the artifact was promoted into."
+        },
+        "status": {
+          "type": "string",
+          "const": "promoted",
+          "description": "Always promoted: the step only answers once the memory entry is written."
+        }
+      },
+      "required": [
+        "memoryId",
+        "status"
+      ],
+      "additionalProperties": false,
+      "description": "MemoryOutput is the pinned worker action output contract."
+    },
+    "EvaluationOutput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "evaluationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Evaluation record the sample was written to."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "Whether the sampled evaluation finished or failed."
+        },
+        "measured": {
+          "type": "boolean",
+          "description": "Whether the run was actually measured; false when the sample rate selected nothing to evaluate."
+        }
+      },
+      "required": [
+        "evaluationId",
+        "status",
+        "measured"
+      ],
+      "additionalProperties": false,
+      "description": "EvaluationOutput is the pinned worker action output contract."
+    },
     "HarnessOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -356667,6 +357195,206 @@
       ],
       "additionalProperties": false,
       "description": "FreeformOutput is the pinned worker action output contract."
+    },
+    "IntegrationActionOutput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "accepted": {
+          "type": "boolean",
+          "description": "Whether the requested action was accepted."
+        },
+        "operation": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Operation name associated with the record."
+        },
+        "externalEffectId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID linking this record to the related external effect entity."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ActionResult.externalEffectId may be null in this transport value."
+        },
+        "result": {
+          "anyOf": [
+            {
+              "description": "ActionResult.result must contain at most 32000 UTF-8 bytes.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "x-utf8-max-bytes": 32000
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ActionResult.result may be null in this transport value."
+        }
+      },
+      "required": [
+        "accepted",
+        "operation",
+        "externalEffectId",
+        "result"
+      ],
+      "additionalProperties": false,
+      "description": "Result of invoking one integration action: whether the request was accepted, which registered action ran, the linked external-effect identity when a write is involved, and the action's result payload. A read returns this immediately; a write returns it only after the external effect is reconciled by that stable effect identity.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
     }
   }
 }
