@@ -1,4 +1,5 @@
 import { join, resolve } from "node:path";
+import { GIT_EXECUTABLE } from "./git-executable.ts";
 import { CHECK_REVISION_PATTERN } from "../../../packages/contracts/src/check-evidence.ts";
 import { registeredWorkerActionInputSchema } from "../../../packages/contracts/src/contracts.ts";
 import { RepositoryExecutionContextSchema } from "../../../packages/contracts/src/repository-inspection.ts";
@@ -252,7 +253,7 @@ async function boundedGit(
     stop.signal,
     AbortSignal.timeout(timeoutMs),
   ]);
-  const child = new Deno.Command("git", {
+  const child = new Deno.Command(GIT_EXECUTABLE, {
     args: [...args],
     cwd,
     stdin: "null",

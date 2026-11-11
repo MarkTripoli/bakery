@@ -23,6 +23,7 @@ import {
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
+  assertCompilerPinTogether,
   compilerPinOf,
   jsonPointerToSegments,
   MAX_WORKFLOW_DEFINITION_BYTES,
@@ -640,6 +641,60 @@ export async function updateWorkflowVersion(
   return toWorkflowVersion(row);
 }
 
+/** The columns of one published workflow version, as the single insert binds them. */
+export type WorkflowVersionInsert = Readonly<{
+  id: string;
+  organizationId: string;
+  workflowId: string;
+  revision: number;
+  sourceYaml: string;
+  /** Canonical JSON text of the normalized definition. */
+  normalizedSpec: string;
+  digest: string;
+  createdBy: string;
+  /** The compiler pin: both set or both null, enforced here, not by the database. */
+  compilerVersion: string | null;
+  semanticDigest: string | null;
+}>;
+
+/**
+ * The one statement that writes a published workflow version, and so the one
+ * place the compiler pin is checked. The database cannot hold "both null or
+ * both set" (the PostgreSQL boundary rail forbids a CHECK constraint, and the
+ * application role may insert), so a half pin is refused here, before any
+ * statement reaches the database and so before any row is stored.
+ */
+export async function insertWorkflowVersion(
+  transaction: PgTransactionClient,
+  row: WorkflowVersionInsert,
+) {
+  assertCompilerPinTogether(row.compilerVersion, row.semanticDigest);
+  return await boundedMutation(() =>
+    transaction.query<WorkflowVersionRow>(
+      `insert into bakery.workflow_versions (
+         id, organization_id, workflow_id, revision, source_yaml,
+         normalized_spec, digest, status, created_by,
+         compiler_version, semantic_digest
+       ) values ($1, $2, $3, $4, $5, $6::jsonb, $7, 'published', $8, $9, $10)
+       returning id, workflow_id, revision, source_yaml,
+                 normalized_spec as spec, digest, status, created_by,
+                 created_at, updated_at, version`,
+      [
+        row.id,
+        row.organizationId,
+        row.workflowId,
+        row.revision,
+        row.sourceYaml,
+        row.normalizedSpec,
+        row.digest,
+        row.createdBy,
+        row.compilerVersion,
+        row.semanticDigest,
+      ],
+    )
+  );
+}
+
 const PUBLISH_ISSUE_MAX = 20;
 
 export async function publishWorkflowVersion(
@@ -731,32 +786,20 @@ export async function publishWorkflowVersion(
   // The compile of exactly this definition, stored with the row. Published
   // rows are immutable, so this is what a later reader executes.
   const pin = compilerPinOf(report);
-  const inserted = await boundedMutation(() =>
-    transaction.query<WorkflowVersionRow>(
-      `insert into bakery.workflow_versions (
-         id, organization_id, workflow_id, revision, source_yaml,
-         normalized_spec, digest, status, created_by,
-         compiler_version, semantic_digest
-       ) values ($1, $2, $3, $4, $5, $6::jsonb, $7, 'published', $8, $9, $10)
-       returning id, workflow_id, revision, source_yaml,
-                 normalized_spec as spec, digest, status, created_by,
-                 created_at, updated_at, version`,
-      [
-        draft.id,
-        organizationId,
-        workflowId,
-        draft.revision,
-        draft.source_yaml,
-        canonicalJson(draft.definition),
-        report.normalizedDigest,
-        // created_by is the draft author; the publisher is recorded in the
-        // workflowVersions.publish audit row below.
-        draft.created_by,
-        pin?.compilerVersion ?? null,
-        pin?.semanticDigest ?? null,
-      ],
-    )
-  );
+  const inserted = await insertWorkflowVersion(transaction, {
+    id: draft.id,
+    organizationId,
+    workflowId,
+    revision: draft.revision,
+    sourceYaml: draft.source_yaml,
+    normalizedSpec: canonicalJson(draft.definition),
+    digest: report.normalizedDigest,
+    // created_by is the draft author; the publisher is recorded in the
+    // workflowVersions.publish audit row below.
+    createdBy: draft.created_by,
+    compilerVersion: pin?.compilerVersion ?? null,
+    semanticDigest: pin?.semanticDigest ?? null,
+  });
   await transaction.query(
     `delete from bakery.workflow_drafts
       where organization_id = $1 and workflow_id = $2 and id = $3`,

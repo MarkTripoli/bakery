@@ -1,5 +1,6 @@
 import { dirname, join } from "node:path";
 import { NativeExecutorError } from "./executor.ts";
+import { GIT_EXECUTABLE } from "./git-executable.ts";
 import { prepareHarnessHome } from "./harness-common.ts";
 
 /**
@@ -21,6 +22,10 @@ export const ATTEMPT_WORKTREE_LIMITS = Object.freeze({
   gitMs: 60_000,
   /** Deadline of the worktree checkout itself, which can be large. */
   checkoutMs: 5 * 60 * 1000,
+  /** How long a git child that was sent SIGTERM may take to exit before SIGKILL. */
+  killGraceMs: 2_000,
+  /** How long to wait for exit after SIGKILL before giving up on the child. */
+  exitWaitMs: 5_000,
 });
 
 /** What one executor needs to prepare, add and remove attempt worktrees. */
@@ -38,6 +43,8 @@ export type AttemptWorktreeOptions = {
   readonly limits?: {
     readonly gitMs?: number;
     readonly checkoutMs?: number;
+    readonly killGraceMs?: number;
+    readonly exitWaitMs?: number;
   };
 };
 
@@ -62,38 +69,137 @@ export type GitResult = {
   readonly stderr: string;
 };
 
+/** How a stopped git child is escalated; the defaults are the code-owned limits. */
+export type GitKillLimits = {
+  readonly killGraceMs?: number;
+  readonly exitWaitMs?: number;
+};
+
+/** The two things done to a git child; Deno's child process provides both. */
+export type GitChild = {
+  kill(signal: "SIGTERM" | "SIGKILL"): void;
+  output(): Promise<{ code: number; stdout: Uint8Array; stderr: Uint8Array }>;
+};
+
+/** Starts a git child. A seam, so tests can stand in a child that never exits. */
+export type GitSpawn = (
+  executable: string,
+  options: { args: string[]; cwd: string },
+) => GitChild;
+
+export const defaultGitSpawn: GitSpawn = (executable, { args, cwd }) => {
+  const child = new Deno.Command(executable, {
+    args,
+    cwd,
+    stdin: "null",
+    stdout: "piped",
+    stderr: "piped",
+  }).spawn();
+  return { kill: (signal) => child.kill(signal), output: () => child.output() };
+};
+
+/** A timer that can be cancelled, so no path leaves one running. */
+function after(ms: number) {
+  let id: ReturnType<typeof setTimeout> | undefined;
+  const promise = new Promise<"elapsed">((resolve) => {
+    id = setTimeout(() => resolve("elapsed"), ms);
+  });
+  return { promise, cancel: () => clearTimeout(id) };
+}
+
+function signalChild(child: GitChild, signal: "SIGTERM" | "SIGKILL"): void {
+  try {
+    child.kill(signal);
+  } catch {
+    // Already gone: the signal has nothing left to do.
+  }
+}
+
+const decoder = new TextDecoder();
+
 /**
  * Runs git with a deadline. Returns `"aborted"` when `signal` fired and a
- * `code: -1` result when only the deadline did.
+ * `code: -1` result when only the deadline did. A stop sends SIGTERM, waits
+ * `killGraceMs`, then sends SIGKILL, and waits at most `exitWaitMs` for the
+ * exit: a child that traps SIGTERM, or one that cannot be reaped, ends the call
+ * on schedule instead of holding the attempt for as long as it likes.
  */
-export async function git(
+export async function runGit(
+  spawn: GitSpawn,
+  executable: string,
   cwd: string,
   args: readonly string[],
   timeoutMs: number,
   signal?: AbortSignal,
+  limits: GitKillLimits = {},
 ): Promise<GitResult | "aborted"> {
-  const deadline = AbortSignal.timeout(timeoutMs);
+  const killGraceMs = limits.killGraceMs ?? ATTEMPT_WORKTREE_LIMITS.killGraceMs;
+  const exitWaitMs = limits.exitWaitMs ?? ATTEMPT_WORKTREE_LIMITS.exitWaitMs;
+  const child = spawn(executable, { args: [...args], cwd });
+  const settled = child.output().then(
+    (output) => ({ output }) as const,
+    (error: unknown) => ({ error }) as const,
+  );
+  let reason: "deadline" | "signal" | undefined;
+  let wake!: () => void;
+  const stopRequested = new Promise<"stop">((resolve) => {
+    wake = () => resolve("stop");
+  });
+  const stop = (why: "deadline" | "signal") => {
+    if (reason !== undefined) return;
+    reason = why;
+    wake();
+  };
+  const deadline = setTimeout(() => stop("deadline"), timeoutMs);
+  const onAbort = () => stop("signal");
+  if (signal?.aborted) onAbort();
+  else signal?.addEventListener("abort", onAbort, { once: true });
+  const timers: Array<{ cancel: () => void }> = [];
   try {
-    const output = await new Deno.Command("git", {
-      args: [...args],
-      cwd,
-      stdin: "null",
-      stdout: "piped",
-      stderr: "piped",
-      signal: signal ? AbortSignal.any([signal, deadline]) : deadline,
-    }).output();
-    return {
-      code: output.code,
-      stdout: new TextDecoder().decode(output.stdout),
-      stderr: new TextDecoder().decode(output.stderr),
-    };
-  } catch (error) {
-    if (signal?.aborted) return "aborted";
-    if (deadline.aborted) {
-      return { code: -1, stdout: "", stderr: "git deadline" };
+    const first = await Promise.race([settled, stopRequested]);
+    if (first !== "stop") {
+      if ("error" in first) throw first.error;
+      return {
+        code: first.output.code,
+        stdout: decoder.decode(first.output.stdout),
+        stderr: decoder.decode(first.output.stderr),
+      };
     }
-    throw error;
+    signalChild(child, "SIGTERM");
+    const grace = after(killGraceMs);
+    timers.push(grace);
+    if ((await Promise.race([settled, grace.promise])) === "elapsed") {
+      signalChild(child, "SIGKILL");
+      const exit = after(exitWaitMs);
+      timers.push(exit);
+      await Promise.race([settled, exit.promise]);
+    }
+    return reason === "signal"
+      ? "aborted"
+      : { code: -1, stdout: "", stderr: "git deadline" };
+  } finally {
+    clearTimeout(deadline);
+    signal?.removeEventListener("abort", onAbort);
+    for (const timer of timers) timer.cancel();
   }
+}
+
+export function git(
+  cwd: string,
+  args: readonly string[],
+  timeoutMs: number,
+  signal?: AbortSignal,
+  limits?: GitKillLimits,
+): Promise<GitResult | "aborted"> {
+  return runGit(
+    defaultGitSpawn,
+    GIT_EXECUTABLE,
+    cwd,
+    args,
+    timeoutMs,
+    signal,
+    limits,
+  );
 }
 
 function assertOutsideCredentials(
@@ -172,10 +278,16 @@ async function unlockAbandonedRecord(
   repository: string,
   worktree: string,
   gitMs: number,
+  limits?: GitKillLimits,
 ): Promise<void> {
-  await git(repository, ["worktree", "unlock", worktree], gitMs).catch(
-    () => undefined,
-  );
+  await git(
+    repository,
+    ["worktree", "unlock", worktree],
+    gitMs,
+    undefined,
+    limits,
+  )
+    .catch(() => undefined);
 }
 
 /** Removes leftover attempt roots and stale worktree records of a crashed worker. */
@@ -194,14 +306,20 @@ export async function sweepAttempts(
         options.repository,
         join(path, "worktree"),
         gitMs,
+        options.limits,
       );
     }
   } catch (error) {
     if (!(error instanceof Deno.errors.NotFound)) throw error;
   }
-  await git(options.repository, ["worktree", "prune"], gitMs).catch(
-    () => undefined,
-  );
+  await git(
+    options.repository,
+    ["worktree", "prune"],
+    gitMs,
+    undefined,
+    options.limits,
+  )
+    .catch(() => undefined);
 }
 
 /** Always runs: removes the worktree, the attempt root and the stale record. */
@@ -218,17 +336,29 @@ export async function removeAttempt(
       options.repository,
       ["worktree", "remove", "--force", layout.worktree],
       gitMs,
+      undefined,
+      options.limits,
     ).catch(() => undefined);
   }
   await Deno.remove(layout.root, { recursive: true }).catch(() => undefined);
   // `added: false` also covers a checkout that was cut off after git had
   // already registered (and locked) the record.
   if (!worktreeAdded) {
-    await unlockAbandonedRecord(options.repository, layout.worktree, gitMs);
+    await unlockAbandonedRecord(
+      options.repository,
+      layout.worktree,
+      gitMs,
+      options.limits,
+    );
   }
-  await git(options.repository, ["worktree", "prune"], gitMs).catch(
-    () => undefined,
-  );
+  await git(
+    options.repository,
+    ["worktree", "prune"],
+    gitMs,
+    undefined,
+    options.limits,
+  )
+    .catch(() => undefined);
 }
 
 export type WorktreeState = "ready" | "unavailable" | "aborted";
@@ -248,6 +378,7 @@ export async function addWorktree(
     ["worktree", "add", "--quiet", "--detach", layout.worktree, revision],
     checkoutMs,
     signal,
+    options.limits,
   );
   if (added === "aborted") return { state: "aborted", added: false };
   if (added.code !== 0) return { state: "unavailable", added: false };
@@ -256,6 +387,7 @@ export async function addWorktree(
     ["rev-parse", "--verify", "HEAD"],
     gitMs,
     signal,
+    options.limits,
   );
   if (head === "aborted") return { state: "aborted", added: true };
   return head.code === 0 && head.stdout.trim() === revision
