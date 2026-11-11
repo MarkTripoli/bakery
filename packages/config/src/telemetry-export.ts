@@ -7,10 +7,16 @@
  *
  * The guarantees, each pinned by a test:
  *
- * - `offer` is O(1), synchronous, never runs sink code and never throws.
- * - At most `capacity` items wait and at most `batchSize` are in flight, so
- *   memory is bounded by their sum whatever the sink does. A full queue drops
- *   the newest item and counts it.
+ * - `offer` is O(1), synchronous, never runs sink or reporter code and never
+ *   throws.
+ * - At most `capacity` items wait and at most `batchSize` are in flight. A full
+ *   queue drops the newest item and counts it. The references held at once are
+ *   bounded by `capacity + batchSize * (2 + MAX_STUCK_SENDS)`: the queue, the
+ *   batch being sent, the copy the live attempt was handed, and the copy each
+ *   abandoned send still holds.
+ * - The sink is handed a copy of its batch for every attempt, and the size is
+ *   counted once before the first. Whatever it does to that array, a retry
+ *   carries the same items and every counter is exact.
  * - Sends never overlap, and each is cut off after `sendTimeoutMs` even if the
  *   sink ignores its abort signal. A sink that never settles leaves a promise
  *   behind after every timeout, so after `MAX_STUCK_SENDS` of them are
@@ -18,11 +24,13 @@
  * - `close(deadlineMs)` returns by its deadline however the sink behaves.
  * - Every offered item is accounted for in exactly one place:
  *   `offered = queued + inFlight + exported + discarded + dropped.*`.
- * - No timer exists unless there is something to flush, and none outlives a
- *   call or `close`.
+ * - No timer exists unless there is something to flush or report, and none
+ *   outlives a call or `close`.
  *
  * Loss is reported, never hidden: each drop is counted by reason and passed to
- * `onLoss`, which is where an export-loss metric attaches.
+ * `onLoss`, which is where an export-loss metric attaches. Reports are totals
+ * per reason, delivered a tick after the loss, so a slow reporter cannot slow
+ * the code that is being observed and a burst of drops is one call.
  */
 
 /** Largest queue that may be asked for. */
@@ -37,6 +45,13 @@ export const MAX_EXPORT_ATTEMPTS = 10;
  * forever can make the process retain.
  */
 export const MAX_STUCK_SENDS = 4;
+
+/**
+ * Longest delay a timer holds. A larger one fires at once, which turned a
+ * 50-day timeout into an immediate one, so options past it are refused and a
+ * `close` deadline past it is clamped.
+ */
+export const MAX_TIMER_MS = 2 ** 31 - 1;
 
 /** Longest pause between two attempts at one batch. */
 const MAX_RETRY_DELAY_MS = 60_000;
@@ -69,7 +84,11 @@ export type BoundedExporterOptions<T> = {
   readonly retryDelayMs: number;
   /** How long after an item arrives the exporter waits before sending. */
   readonly intervalMs: number;
-  /** Told of every loss. May throw; that changes nothing. */
+  /**
+   * Told of losses: one call per reason with the count since the last, a tick
+   * after the first of them. May throw; that changes nothing. An item offered
+   * from inside it is refused and counted as `dropped.reentrant`.
+   */
   readonly onLoss?: (loss: ExportLoss) => void;
 };
 
@@ -86,6 +105,8 @@ export type ExportStats = {
     readonly queueFull: number;
     readonly sendFailed: number;
     readonly shutdown: number;
+    /** Offers made from inside `onLoss`, refused so a reporter cannot recurse. */
+    readonly reentrant: number;
   };
   /** Batches that used every attempt and were dropped. */
   readonly failedBatches: number;
@@ -95,7 +116,11 @@ export type BoundedExporter<T> = {
   /** Queues an item. False when it was not kept. Never throws, never waits. */
   offer(item: T): boolean;
   stats(): ExportStats;
-  /** Flushes what it can until `deadlineMs`, then abandons the rest. Idempotent. */
+  /**
+   * Flushes what it can until `deadlineMs`, then abandons the rest. Idempotent.
+   * A deadline past what a timer holds waits that long; one that is missing,
+   * negative or not a number abandons at once.
+   */
   close(deadlineMs: number): Promise<void>;
 };
 
@@ -160,9 +185,11 @@ function integerBetween(name: string, value: number, min: number, max: number) {
   }
 }
 
-function finiteAtLeast(name: string, value: number, min: number) {
-  if (!Number.isFinite(value) || value < min) {
-    throw new RangeError(`${name} must be a finite number of at least ${min}`);
+function finiteBetween(name: string, value: number, min: number, max: number) {
+  if (!Number.isFinite(value) || value < min || value > max) {
+    throw new RangeError(
+      `${name} must be a finite number from ${min} to ${max}`,
+    );
   }
 }
 
@@ -173,9 +200,9 @@ export function createBoundedExporter<T>(
   integerBetween("capacity", capacity, 1, MAX_EXPORT_CAPACITY);
   integerBetween("batchSize", batchSize, 1, capacity);
   integerBetween("maxAttempts", maxAttempts, 1, MAX_EXPORT_ATTEMPTS);
-  finiteAtLeast("sendTimeoutMs", sendTimeoutMs, 1);
-  finiteAtLeast("retryDelayMs", options.retryDelayMs, 0);
-  finiteAtLeast("intervalMs", options.intervalMs, 1);
+  finiteBetween("sendTimeoutMs", sendTimeoutMs, 1, MAX_TIMER_MS);
+  finiteBetween("retryDelayMs", options.retryDelayMs, 0, MAX_TIMER_MS);
+  finiteBetween("intervalMs", options.intervalMs, 1, MAX_TIMER_MS);
 
   const ring = new Ring<T>(capacity);
   const shutdown = new AbortController();
@@ -196,18 +223,48 @@ export function createBoundedExporter<T>(
   let discarded = 0;
   let failedBatches = 0;
   let stuck = 0;
-  const dropped = { queueFull: 0, sendFailed: 0, shutdown: 0 };
+  const dropped = { queueFull: 0, sendFailed: 0, shutdown: 0, reentrant: 0 };
   let closing = false;
   let closed = false;
   let flushTimer: ReturnType<typeof setTimeout> | undefined;
   let running: Promise<void> | undefined;
   let closePromise: Promise<void> | undefined;
 
+  // Losses are noted here and reported later, as totals per reason: the
+  // reporter is the caller's code and may be slow, so it never runs inside
+  // `offer`, and a burst of drops is one call.
+  const pendingLoss: Record<ExportLoss["reason"], number> = {
+    "queue-full": 0,
+    "send-failed": 0,
+    shutdown: 0,
+  };
+  let lossTimer: ReturnType<typeof setTimeout> | undefined;
+  let reporting = false;
+
+  const reportLosses = () => {
+    if (lossTimer !== undefined) clearTimeout(lossTimer);
+    lossTimer = undefined;
+    for (const reason of ["queue-full", "send-failed", "shutdown"] as const) {
+      const count = pendingLoss[reason];
+      if (count === 0) continue;
+      pendingLoss[reason] = 0;
+      reporting = true;
+      try {
+        options.onLoss?.({ reason, count });
+      } catch {
+        // A broken reporter must not reach the code being observed.
+      } finally {
+        reporting = false;
+      }
+    }
+  };
+
   const lost = (reason: ExportLoss["reason"], count: number) => {
-    try {
-      options.onLoss?.({ reason, count });
-    } catch {
-      // A broken reporter must not reach the code being observed.
+    if (!options.onLoss) return;
+    pendingLoss[reason] += count;
+    if (lossTimer === undefined) {
+      lossTimer = setTimeout(reportLosses, 0);
+      unref(lossTimer);
     }
   };
 
@@ -232,8 +289,11 @@ export function createBoundedExporter<T>(
       shutdown.signal.addEventListener("abort", onShutdown, { once: true });
       const timeout = after(sendTimeoutMs);
       let settled = false;
+      // Its own copy, so a sink that edits what it is handed (a draining sink
+      // is ordinary) changes nothing here and a retry carries the same items.
+      const handed = [...batch];
       const call = Promise.resolve()
-        .then(() => (send as ExportSink<T>)(batch, controller.signal))
+        .then(() => (send as ExportSink<T>)(handed, controller.signal))
         .then(() => "sent" as const, () => "error" as const)
         .finally(() => {
           settled = true;
@@ -282,18 +342,20 @@ export function createBoundedExporter<T>(
     try {
       while (ring.size > 0 && !shutdown.signal.aborted) {
         const batch = ring.take(batchSize);
-        inFlight = batch.length;
+        // Counted once, before any sink sees anything.
+        const size = batch.length;
+        inFlight = size;
         const outcome = await deliver(batch);
         inFlight = 0;
         if (outcome === "sent") {
-          exported += batch.length;
+          exported += size;
         } else if (outcome === "abandoned") {
-          dropped.shutdown += batch.length;
-          lost("shutdown", batch.length);
+          dropped.shutdown += size;
+          lost("shutdown", size);
         } else {
-          dropped.sendFailed += batch.length;
+          dropped.sendFailed += size;
           failedBatches += 1;
-          lost("send-failed", batch.length);
+          lost("send-failed", size);
         }
       }
     } finally {
@@ -312,6 +374,10 @@ export function createBoundedExporter<T>(
   return {
     offer(item) {
       offered += 1;
+      if (reporting) {
+        dropped.reentrant += 1;
+        return false;
+      }
       if (!send) {
         discarded += 1;
         return false;
@@ -350,7 +416,10 @@ export function createBoundedExporter<T>(
         startClosing();
         if (flushTimer !== undefined) clearTimeout(flushTimer);
         flushTimer = undefined;
-        const deadline = after(Math.max(0, deadlineMs));
+        const wait = typeof deadlineMs === "number" && deadlineMs > 0
+          ? Math.min(deadlineMs, MAX_TIMER_MS)
+          : 0;
+        const deadline = after(wait);
         try {
           const flushing = pump();
           await Promise.race([flushing, deadline.promise]);
@@ -364,6 +433,7 @@ export function createBoundedExporter<T>(
           dropped.shutdown += rest;
           lost("shutdown", rest);
         }
+        reportLosses();
         closed = true;
       })();
       return closePromise;

@@ -4,6 +4,7 @@ import {
   createBoundedExporter,
   type ExportLoss,
   MAX_STUCK_SENDS,
+  MAX_TIMER_MS,
 } from "../../packages/config/src/telemetry-export.ts";
 
 /** Seeded xorshift32, so a schedule is the same on every run. */
@@ -60,7 +61,7 @@ function conserved(stats: ReturnType<ReturnType<typeof make>["stats"]>) {
   assertEquals(
     offered,
     queued + inFlight + exported + discarded + dropped.queueFull +
-      dropped.sendFailed + dropped.shutdown,
+      dropped.sendFailed + dropped.shutdown + dropped.reentrant,
     JSON.stringify(stats),
   );
 }
@@ -76,7 +77,12 @@ Deno.test("a disabled exporter keeps nothing and costs nothing", () => {
   assertEquals(stats.disabled, true);
   assertEquals(stats.queued, 0);
   assertEquals(stats.discarded, 200_000);
-  assertEquals(stats.dropped, { queueFull: 0, sendFailed: 0, shutdown: 0 });
+  assertEquals(stats.dropped, {
+    queueFull: 0,
+    sendFailed: 0,
+    shutdown: 0,
+    reentrant: 0,
+  });
   conserved(stats);
 });
 
@@ -366,7 +372,12 @@ Deno.test("close flushes a healthy exporter completely before its deadline", asy
   assertEquals(sent.length, 30);
   const stats = exporter.stats();
   assertEquals(stats.exported, 30);
-  assertEquals(stats.dropped, { queueFull: 0, sendFailed: 0, shutdown: 0 });
+  assertEquals(stats.dropped, {
+    queueFull: 0,
+    sendFailed: 0,
+    shutdown: 0,
+    reentrant: 0,
+  });
   conserved(stats);
 });
 
@@ -392,6 +403,11 @@ Deno.test("every loss is reported with its reason, and a reporter that throws ch
   });
   for (let item = 0; item < 5; item += 1) exporter.offer(item);
   await until(() => exporter.stats().failedBatches === 1, "a failed batch");
+  // Reports are delivered a tick after the loss, one per reason.
+  await until(
+    () => losses.reduce((n, l) => n + l.count, 0) === 5,
+    "all five losses to be reported",
+  );
   assertEquals(
     losses.filter((l) => l.reason === "queue-full").reduce(
       (n, l) => n + l.count,
@@ -464,6 +480,19 @@ Deno.test("no timer is left running by an idle, a failed or a closed exporter", 
     await pause(10);
     await backingOff.close(500);
     assertEquals(live.size, 0, "closed during a retry pause");
+
+    // A loss is noted and its report scheduled; closing must deliver it and
+    // leave no timer behind, however soon after the drop it is called.
+    const reporting = make<number>(() => Promise.reject(new Error("x")), {
+      capacity: 1,
+      batchSize: 1,
+      maxAttempts: 1,
+      onLoss: () => {},
+    });
+    reporting.offer(1);
+    reporting.offer(2);
+    await reporting.close(100);
+    assertEquals(live.size, 0, "closed with a loss report pending");
 
     const hung = make<number>(() => new Promise(() => {}), {
       sendTimeoutMs: 60_000,
@@ -544,4 +573,248 @@ Deno.test("under a seeded random schedule of outcomes every item is accounted fo
     assertEquals(stats.queued + stats.inFlight, 0, `seed ${seed}`);
     conserved(stats);
   }
+});
+
+// ---- QA round 1 on #120 ----------------------------------------------------
+// The sink is handed the batch it is told to read. Whatever it does to that
+// array, the accounting identity holds and a retry carries the same items.
+
+type Mutation = [name: string, mutate: (batch: number[]) => void];
+const mutations: Mutation[] = [
+  ["splice(0, 2)", (batch) => void batch.splice(0, 2)],
+  ["splice(0)", (batch) => void batch.splice(0)],
+  ["pop()", (batch) => void batch.pop()],
+  ["length = 0", (batch) => void (batch.length = 0)],
+  ["push(99)", (batch) => void batch.push(99)],
+  ["shift() until empty (a draining sink)", (batch) => {
+    while (batch.length > 0) batch.shift();
+  }],
+  ["reverse()", (batch) => void batch.reverse()],
+];
+
+for (const [name, mutate] of mutations) {
+  Deno.test(`a sink that does ${name} to its batch and then succeeds is counted for every item it was given`, async () => {
+    const exporter = make<number>((batch) => {
+      mutate(batch as number[]);
+    }, { capacity: 20, batchSize: 6 });
+    for (let item = 1; item <= 6; item += 1) exporter.offer(item);
+    await until(() => exporter.stats().exported === 6, "export of 6");
+    const stats = exporter.stats();
+    assertEquals(stats.exported, 6);
+    assertEquals(stats.offered, 6);
+    assertEquals(stats.dropped.sendFailed, 0);
+    conserved(stats);
+    await exporter.close(50);
+  });
+
+  Deno.test(`a sink that does ${name} and then fails is retried with every item, not what it left`, async () => {
+    const seen: number[][] = [];
+    let attempts = 0;
+    const exporter = make<number>((batch) => {
+      attempts += 1;
+      seen.push([...batch]);
+      mutate(batch as number[]);
+      if (attempts === 1) throw new Error("collector down");
+    }, { capacity: 20, batchSize: 4, maxAttempts: 2, retryDelayMs: 1 });
+    for (let item = 1; item <= 4; item += 1) exporter.offer(item);
+    await until(() => exporter.stats().exported === 4, "export of 4");
+    assertEquals(seen, [[1, 2, 3, 4], [1, 2, 3, 4]]);
+    assertEquals(exporter.stats().dropped.sendFailed, 0);
+    conserved(exporter.stats());
+    await exporter.close(50);
+  });
+}
+
+Deno.test("a sink that edits its batch and then never answers is dropped for the size it was given", async () => {
+  const exporter = make<number>((batch) => {
+    (batch as number[]).splice(0);
+    return new Promise(() => {});
+  }, { capacity: 20, batchSize: 5, sendTimeoutMs: 15, maxAttempts: 1 });
+  for (let item = 1; item <= 5; item += 1) exporter.offer(item);
+  await until(() => exporter.stats().failedBatches === 1, "a failed batch");
+  assertEquals(exporter.stats().dropped.sendFailed, 5);
+  conserved(exporter.stats());
+  await exporter.close(50);
+});
+
+Deno.test("a sink that edits its batch and is then abandoned at close is counted for the size it was given", async () => {
+  const exporter = make<number>((batch) => {
+    (batch as number[]).length = 0;
+    return new Promise(() => {});
+  }, { capacity: 20, batchSize: 5, sendTimeoutMs: 60_000 });
+  for (let item = 1; item <= 5; item += 1) exporter.offer(item);
+  await until(() => exporter.stats().inFlight === 5, "a batch in flight");
+  await exporter.close(30);
+  const stats = exporter.stats();
+  assertEquals(stats.dropped.shutdown, 5);
+  assertEquals(stats.exported, 0);
+  conserved(stats);
+});
+
+Deno.test("what the sink is handed is not what the exporter keeps: each attempt gets its own array", async () => {
+  const handed: Array<readonly number[]> = [];
+  const exporter = make<number>((batch) => {
+    handed.push(batch);
+  }, { capacity: 20, batchSize: 3 });
+  for (let item = 1; item <= 6; item += 1) exporter.offer(item);
+  await until(() => exporter.stats().exported === 6, "export of 6");
+  assertEquals(new Set(handed).size, handed.length, "no array is handed twice");
+  // Keeping a reference past the call and editing it later changes nothing.
+  for (const batch of handed) (batch as number[]).push(-1);
+  assertEquals(exporter.stats().exported, 6);
+  conserved(exporter.stats());
+  await exporter.close(50);
+});
+
+// ---- timers ----------------------------------------------------------------
+
+Deno.test("a timer value past what a timer can hold is refused instead of firing at once", () => {
+  const ok = { ...base, send: () => Promise.resolve() };
+  for (
+    const overrides of [
+      { sendTimeoutMs: MAX_TIMER_MS + 1 },
+      { sendTimeoutMs: 3e9 },
+      { intervalMs: MAX_TIMER_MS + 1 },
+      { intervalMs: 3e9 },
+      { retryDelayMs: MAX_TIMER_MS + 1 },
+      { retryDelayMs: 3e9 },
+    ]
+  ) {
+    let error: unknown;
+    try {
+      createBoundedExporter<number>({ ...ok, ...overrides });
+    } catch (caught) {
+      error = caught;
+    }
+    assert(error instanceof RangeError, JSON.stringify(overrides));
+  }
+  // The largest value a timer holds is allowed.
+  createBoundedExporter<number>({
+    ...ok,
+    sendTimeoutMs: MAX_TIMER_MS,
+    intervalMs: MAX_TIMER_MS,
+    retryDelayMs: MAX_TIMER_MS,
+  }).close(1);
+});
+
+Deno.test("close clamps its deadline: a huge one waits, and a missing or negative one abandons at once", async () => {
+  for (const huge of [3e9, MAX_TIMER_MS + 1, Number.POSITIVE_INFINITY]) {
+    const sent: number[] = [];
+    const exporter = make<number>(async (batch) => {
+      await pause(40);
+      sent.push(...batch);
+    }, { capacity: 20, batchSize: 5, intervalMs: 1000 });
+    for (let item = 1; item <= 10; item += 1) exporter.offer(item);
+    await exporter.close(huge);
+    assertEquals(sent.length, 10, `close(${huge}) abandoned a healthy queue`);
+    assertEquals(exporter.stats().dropped.shutdown, 0);
+    conserved(exporter.stats());
+  }
+  for (const none of [Number.NaN, -5, 0, "soon" as unknown as number]) {
+    const exporter = make<number>(() => new Promise(() => {}), {
+      sendTimeoutMs: 60_000,
+    });
+    for (let item = 1; item <= 8; item += 1) exporter.offer(item);
+    await until(() => exporter.stats().inFlight > 0, "a batch in flight");
+    const started = performance.now();
+    await exporter.close(none);
+    assert(performance.now() - started < 500, `close(${none}) did not return`);
+    const stats = exporter.stats();
+    assertEquals(stats.dropped.shutdown, 8, `close(${none})`);
+    conserved(stats);
+  }
+});
+
+// ---- the loss reporter ------------------------------------------------------
+
+Deno.test("a loss reporter that offers more is stopped: those offers are refused and counted, not recursed into", async () => {
+  let reports = 0;
+  const exporter: ReturnType<typeof make<number>> = make<number>(
+    () => Promise.reject(new Error("down")),
+    {
+      capacity: 1,
+      batchSize: 1,
+      maxAttempts: 1,
+      onLoss: () => {
+        reports += 1;
+        for (let index = 0; index < 5; index += 1) exporter.offer(-1);
+      },
+    },
+  );
+  for (let item = 0; item < 3; item += 1) exporter.offer(item);
+  await until(() => exporter.stats().failedBatches >= 1, "a failed batch");
+  await exporter.close(100);
+  const stats = exporter.stats();
+  assert(
+    stats.offered < 100,
+    `offered ${stats.offered}: the reporter recursed`,
+  );
+  assert(reports < 20, `${reports} reports`);
+  assert(stats.dropped.reentrant >= 5, "the reporter's own offers are counted");
+  conserved(stats);
+});
+
+Deno.test("a slow loss reporter does not slow the offers that cause the reports", async () => {
+  let reports = 0;
+  let reported = 0;
+  const exporter = make<number>(() => new Promise(() => {}), {
+    capacity: 1,
+    batchSize: 1,
+    sendTimeoutMs: 60_000,
+    onLoss: ({ count }) => {
+      reports += 1;
+      reported += count;
+      const until = performance.now() + 15;
+      while (performance.now() < until) { /* a reporter that blocks */ }
+    },
+  });
+  exporter.offer(0);
+  const started = performance.now();
+  for (let item = 1; item <= 200; item += 1) exporter.offer(item);
+  const elapsed = performance.now() - started;
+  assert(elapsed < 100, `200 dropped offers took ${elapsed} ms`);
+  assertEquals(reports, 0, "no report runs inside an offer");
+  await until(() => reported >= 199, "the reports");
+  assert(reports <= 5, `${reports} reports for 199 losses: they must coalesce`);
+  assertEquals(reported, exporter.stats().dropped.queueFull);
+  await exporter.close(50);
+});
+
+Deno.test("reports are totals per reason and nothing is lost between them", async () => {
+  const totals: Record<string, number> = {};
+  const exporter = make<number>(() => Promise.reject(new Error("down")), {
+    capacity: 3,
+    batchSize: 3,
+    maxAttempts: 1,
+    onLoss: ({ reason, count }) => {
+      totals[reason] = (totals[reason] ?? 0) + count;
+    },
+  });
+  for (let item = 0; item < 10; item += 1) exporter.offer(item);
+  await until(() => exporter.stats().failedBatches >= 1, "a failed batch");
+  await exporter.close(100);
+  exporter.offer(99);
+  await pause(10);
+  const stats = exporter.stats();
+  assertEquals(totals["queue-full"], stats.dropped.queueFull);
+  assertEquals(totals["send-failed"], stats.dropped.sendFailed);
+  assertEquals(totals["shutdown"], stats.dropped.shutdown);
+  conserved(stats);
+});
+
+Deno.test("close delivers any report still pending before it returns", async () => {
+  let reported = 0;
+  const exporter = make<number>(() => new Promise(() => {}), {
+    capacity: 1,
+    batchSize: 1,
+    sendTimeoutMs: 60_000,
+    onLoss: ({ count }) => {
+      reported += count;
+    },
+  });
+  for (let item = 0; item < 6; item += 1) exporter.offer(item);
+  await exporter.close(20);
+  // Five were dropped for room and one was in flight at close; none is missing.
+  assertEquals(reported, exporter.stats().offered);
+  assertEquals(reported, 6);
 });
