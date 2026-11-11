@@ -42,6 +42,7 @@ import {
 import {
   auditEventsExport,
   auditEventsList,
+  auditEventsStream,
   auditRetentionGet,
   auditRetentionUpdate,
   authorizeOrganizationCreation,
@@ -354,6 +355,20 @@ export function createAuthActionRegistry(
         OrganizationContextPolicy.RequiredAuthenticatedContext,
     },
     handler: (context, input) => auditEventsExport(context, input),
+  }).register({
+    name: AuthImplementedAction.AuditEventsStream,
+    method: HttpMethod.Get,
+    path: "/v1/audit-events/stream",
+    input: contractSchemas.AuditStreamQuery,
+    output: contractSchemas.AuditStreamBatch,
+    policy: {
+      type: ActionKind.Query,
+      access: ActionAccess.Admin,
+      organizationContext:
+        OrganizationContextPolicy.RequiredAuthenticatedContext,
+    },
+    handler: (context, input) =>
+      auditEventsStream(context, input, options.secret),
   }).register({
     name: AuthImplementedAction.AuditRetentionGet,
     method: HttpMethod.Get,
@@ -1038,6 +1053,7 @@ export function createAuthV1Routes(
   app.use("/v1/installation/audit-events", browserSession);
   app.use("/v1/audit-events", browserSession);
   app.use("/v1/audit-events/export", browserSession);
+  app.use("/v1/audit-events/stream", browserSession);
   app.use("/v1/audit-retention", browserSession);
   app.use("/v1/scim-connection", browserSession);
   app.use("/v1/scim-connection/*", browserSession);

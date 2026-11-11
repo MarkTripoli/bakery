@@ -4028,6 +4028,32 @@
     {
       "group": "Access",
       "method": "GET",
+      "path": "/v1/audit-events/stream",
+      "action": "auditEvents.stream",
+      "access": "Admin",
+      "permission": "auditEvent:export",
+      "input": "AuditStreamQuery",
+      "output": "AuditStreamBatch",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "INTERNAL"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Access",
+      "method": "GET",
       "path": "/v1/audit-retention",
       "action": "auditRetention.get",
       "access": "Admin",

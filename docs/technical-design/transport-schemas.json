@@ -8788,6 +8788,53 @@
       ],
       "description": "Selects the bounded window and optional filters of an organization audit export; the export is the same redacted trail the audit list shows, as JSON Lines."
     },
+    "AuditStreamQuery": {
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque resume position: the nextCursor of the previous batch. Omit it to start at the oldest retained event. The server binds it to this operation, the current principal and organization and the filters, and rejects any cursor that no longer matches."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 1000,
+            "default": 500
+          },
+          "description": "Maximum number of audit events in one batch; defaults to 500 and is capped at 1000."
+        },
+        {
+          "name": "operation",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 200
+          },
+          "description": "Restricts the export to audit events whose operation name matches exactly, e.g. `secrets.rotate`."
+        },
+        {
+          "name": "outcome",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 80
+          },
+          "description": "Restricts the export to one outcome: allowed, denied, succeeded, or failed, matching the audit_events outcome enum."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Keyset cursor only, oldest first. A batch is cut at the row limit or 1 MiB of JSON Lines, whichever comes first. Events younger than 30 seconds are held back for a later batch so late commits are not skipped. Every batch returns a resume cursor; starting a stream without a cursor is audited, batches are not."
+      ],
+      "description": "Selects one resumable batch of an organization audit stream for an external collector: an optional resume cursor, batch size and the same filters as the export."
+    },
     "AuditRetentionUpdate": {
       "fields": [
         {
@@ -23426,6 +23473,36 @@
         "lineCount": "Number of audit events, one per line, in content.",
         "truncated": "True when more events matched the window than the row limit allowed; narrow the window and export again.",
         "content": "The JSON Lines document: one AuditEvent JSON object per line."
+      }
+    },
+    "AuditStreamBatch": {
+      "fields": [
+        "contentType",
+        "lineCount",
+        "content",
+        "nextCursor",
+        "caughtUp",
+        "settledBefore"
+      ],
+      "fieldTypes": {
+        "contentType": "string",
+        "lineCount": "integer",
+        "content": "string",
+        "nextCursor": "string|null",
+        "caughtUp": "boolean",
+        "settledBefore": "timestamp"
+      },
+      "nullableFields": [
+        "nextCursor"
+      ],
+      "description": "One batch of the organization audit stream, oldest first, one redacted AuditEvent object per line, with the cursor to resume from.",
+      "fieldDescriptions": {
+        "contentType": "Media type of content, always application/x-ndjson.",
+        "lineCount": "Number of audit events, one per line, in content.",
+        "content": "The JSON Lines batch: one AuditEvent JSON object per line, empty when no new event has settled.",
+        "nextCursor": "Cursor to pass on the next read; it repeats the request cursor when the batch is empty, and is null only when the stream has not yet delivered any event.",
+        "caughtUp": "True when no further settled event is waiting; the collector should wait before polling again. False means read again at once.",
+        "settledBefore": "Instant up to which events were eligible for this batch; newer events arrive in a later batch."
       }
     },
     "AuditRetention": {
