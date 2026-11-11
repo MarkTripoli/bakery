@@ -130,12 +130,15 @@ function toolInputSchema(
 
 /**
  * A header argument Headers.set accepts unchanged: visible ASCII with inner
- * spaces, not blank. Control characters, CR/LF, characters above U+007E and
- * lone surrogates are a validation fault, not a 500.
+ * spaces, starting and ending with a visible character. The raw value is
+ * tested, never a trimmed copy: JavaScript trim() strips characters (U+3000,
+ * U+FEFF and others) that Headers rejects. Leading or trailing whitespace,
+ * control characters, CR/LF, characters above U+007E and lone surrogates are
+ * a validation fault, not a 500.
  */
 function isHeaderValue(value: unknown): value is string {
   return typeof value === "string" &&
-    /^[\x21-\x7e](?:[\x20-\x7e]*[\x21-\x7e])?$/.test(value.trim());
+    /^[\x21-\x7e](?:[\x20-\x7e]*[\x21-\x7e])?$/.test(value);
 }
 
 /**

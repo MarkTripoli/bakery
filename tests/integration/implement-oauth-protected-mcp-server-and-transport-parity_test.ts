@@ -785,6 +785,8 @@ Deno.test("catalog tools run the REST operation: same state, replay, preconditio
         { ifMatch: "\t " },
         { idempotencyKey: "k\ud800" },
         { idempotencyKey: "k€" },
+        { idempotencyKey: "\u3000k" },
+        { ifMatch: '"v1"\ufeff' },
         { ifMatch: '"v1"\r\nx-evil: 1' },
       ]
     ) {
