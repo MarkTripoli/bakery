@@ -1,6 +1,7 @@
 import { dirname, join } from "node:path";
 import { NativeExecutorError } from "./executor.ts";
 import { prepareHarnessHome } from "./harness-common.ts";
+import { GIT_EXECUTABLE } from "./git-executable.ts";
 
 /**
  * Throwaway detached `git worktree` of the operator repository, shared by the
@@ -74,7 +75,7 @@ export async function git(
 ): Promise<GitResult | "aborted"> {
   const deadline = AbortSignal.timeout(timeoutMs);
   try {
-    const output = await new Deno.Command("git", {
+    const output = await new Deno.Command(GIT_EXECUTABLE, {
       args: [...args],
       cwd,
       stdin: "null",
