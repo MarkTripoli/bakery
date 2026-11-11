@@ -52380,6 +52380,386 @@
           "additionalProperties": false,
           "description": "Input to the rpi.design workflow action: the research artifact produced by the preceding rpi.research step, which the design step reads to ground its proposed design."
         },
+        "ResearchInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "taskId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Task the research is for; the step reads the task brief and scope from it."
+            },
+            "repositoryId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Repository the research inspects through a detached worktree."
+            }
+          },
+          "required": [
+            "taskId",
+            "repositoryId"
+          ],
+          "additionalProperties": false,
+          "description": "Input to the rpi.research workflow action: the task to research and the repository whose code the research reads, from which the step produces its research artifact."
+        },
+        "PrepareInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "repositoryId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Repository whose merged commit is prepared for release."
+            },
+            "headSha": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "PrepareInput.headSha must contain at least 1 characters."
+            },
+            "profileRevision": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991,
+              "description": "PrepareInput.profileRevision must be at least 1."
+            }
+          },
+          "required": [
+            "repositoryId",
+            "headSha",
+            "profileRevision"
+          ],
+          "additionalProperties": false,
+          "description": "Input to the delivery.prepare workflow action: the exact merged commit to turn into a release candidate and the repository profile revision that governs how it is built."
+        },
+        "MergeInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "repositoryId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Repository the candidate is merged into."
+            },
+            "candidate": {
+              "type": "object",
+              "properties": {
+                "headSha": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 65536,
+                  "description": "Full commit SHA of the candidate the checks ran on and the review judged. CandidateEvidence.headSha must contain at least 1 characters."
+                },
+                "baseSha": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 65536,
+                  "description": "Base commit SHA pinned by the inspected repository profile, as the checks and the review reported it. CandidateEvidence.baseSha must contain at least 1 characters."
+                },
+                "policyDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 65536,
+                  "description": "Digest of the effective policy the checks ran under, as the check step reported it. CandidateEvidence.policyDigest must contain at least 1 characters."
+                },
+                "checksPassed": {
+                  "type": "boolean",
+                  "description": "True only when every required check passed, taken from the check step's allRequired."
+                },
+                "checkRunIds": {
+                  "minItems": 1,
+                  "maxItems": 32,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "CandidateEvidence.checkRunIds emitted by the worker action. Each array item follows this format."
+                  },
+                  "description": "Identifiers of the recorded check runs of this candidate, in input order, which the delivery gate can cite. CandidateEvidence.checkRunIds must contain at most 32 items."
+                },
+                "failedCheckIds": {
+                  "maxItems": 32,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "CandidateEvidence.failedCheckIds emitted by the worker action. Each array item follows this format."
+                  },
+                  "description": "Identifiers of the required check runs that did not pass; empty when checksPassed is true. CandidateEvidence.failedCheckIds must contain at most 32 items."
+                },
+                "blockingFindings": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 25,
+                  "description": "Count of review findings with severity blocker or major, taken from the review step; a merge requires zero. CandidateEvidence.blockingFindings must be at most 25."
+                },
+                "reviewId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Identifier of the independent review cycle that judged this candidate."
+                },
+                "findings": {
+                  "maxItems": 25,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "fingerprint": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$",
+                        "description": "Stable lowercase SHA-256 over the normalized path, category and title of the issue, with no line number; the worker computes it so a repeated fingerprint across repair cycles is deduplicated and recognized as an unchanged blocker."
+                      },
+                      "severity": {
+                        "type": "string",
+                        "enum": [
+                          "blocker",
+                          "major",
+                          "minor",
+                          "note"
+                        ],
+                        "description": "How serious the finding is; blocker and major block delivery, minor and note are advisory."
+                      },
+                      "blocking": {
+                        "type": "boolean",
+                        "description": "Whether this finding must be resolved before delivery can proceed; true exactly when severity is blocker or major, and the server rejects a report where the two disagree."
+                      },
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200,
+                        "description": "Finding.path must contain at most 200 characters."
+                      },
+                      "line": {
+                        "anyOf": [
+                          {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 2147483647,
+                            "description": "Finding.line must be at most 2147483647."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "Finding.line may be null in this transport value."
+                      },
+                      "detail": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 500,
+                        "description": "Finding.detail must contain at most 500 characters."
+                      }
+                    },
+                    "required": [
+                      "fingerprint",
+                      "severity",
+                      "blocking",
+                      "path",
+                      "line",
+                      "detail"
+                    ],
+                    "additionalProperties": false,
+                    "description": "CandidateEvidence.findings emitted by the worker action. Each array item follows this format."
+                  },
+                  "description": "Structured findings from that review in severity order; empty for a clean review. CandidateEvidence.findings must contain at most 25 items."
+                }
+              },
+              "required": [
+                "headSha",
+                "baseSha",
+                "policyDigest",
+                "checksPassed",
+                "checkRunIds",
+                "failedCheckIds",
+                "blockingFindings",
+                "reviewId",
+                "findings"
+              ],
+              "additionalProperties": false,
+              "description": "Evidence for the exact candidate being merged: its head and base commits, the policy it was checked under, the check runs and the independent review. The merge step refuses evidence that does not match the repository's current candidate."
+            },
+            "effectKey": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "MergeInput.effectKey must contain at least 1 characters."
+            }
+          },
+          "required": [
+            "repositoryId",
+            "candidate",
+            "effectKey"
+          ],
+          "additionalProperties": false,
+          "description": "Input to the delivery.merge workflow action: the repository to merge into and the candidate evidence that justifies the merge. The effect key makes a retried merge reconcile with the first attempt and never merge twice."
+        },
+        "DeployInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "releaseId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "DeployInput.releaseId must contain at least 1 characters."
+            },
+            "environment": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "DeployInput.environment must contain at least 1 characters."
+            },
+            "effectKey": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "DeployInput.effectKey must contain at least 1 characters."
+            }
+          },
+          "required": [
+            "releaseId",
+            "environment",
+            "effectKey"
+          ],
+          "additionalProperties": false,
+          "description": "Input to the delivery.deploy workflow action: the prepared release to roll out and the environment to roll it out to. The effect key makes a retried deploy reconcile with the first attempt."
+        },
+        "HealthInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "deploymentId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Deployment a preceding delivery.deploy step accepted; the step reads its observed health and records the evidence."
+            }
+          },
+          "required": [
+            "deploymentId"
+          ],
+          "additionalProperties": false,
+          "description": "Input to the delivery.health workflow action: the deployment whose health is observed."
+        },
+        "ArtifactPublishInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "artifact": {
+              "type": "object",
+              "properties": {
+                "artifactId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "ArtifactPublishInput.artifact.artifactId immutable artifact identifier."
+                },
+                "versionId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "ArtifactPublishInput.artifact.versionId immutable artifact-version identifier."
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "description": "ArtifactPublishInput.artifact.sha256 lowercase content digest."
+                }
+              },
+              "required": [
+                "artifactId",
+                "versionId",
+                "sha256"
+              ],
+              "additionalProperties": false,
+              "description": "Immutable artifact version to publish, normally the artifact a preceding step emitted; the step records it as published without changing its content."
+            }
+          },
+          "required": [
+            "artifact"
+          ],
+          "additionalProperties": false,
+          "description": "Input to the artifact.publish workflow action: the artifact version a preceding step produced, which this step publishes so it becomes a retained, addressable artifact of the run."
+        },
+        "MemoryPromoteInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "artifact": {
+              "type": "object",
+              "properties": {
+                "artifactId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "MemoryPromoteInput.artifact.artifactId immutable artifact identifier."
+                },
+                "versionId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "MemoryPromoteInput.artifact.versionId immutable artifact-version identifier."
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "description": "MemoryPromoteInput.artifact.sha256 lowercase content digest."
+                }
+              },
+              "required": [
+                "artifactId",
+                "versionId",
+                "sha256"
+              ],
+              "additionalProperties": false,
+              "description": "Immutable artifact version to promote into project memory, normally a research or review artifact a preceding step produced."
+            },
+            "sourceRevision": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "MemoryPromoteInput.sourceRevision must contain at least 1 characters."
+            }
+          },
+          "required": [
+            "artifact",
+            "sourceRevision"
+          ],
+          "additionalProperties": false,
+          "description": "Input to the memory.promote workflow action: the artifact version to promote into project memory and the repository revision that evidence was drawn from."
+        },
+        "EvaluationInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "runId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Workflow run whose outcomes are sampled for evaluation."
+            },
+            "sampleRate": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "EvaluationInput.sampleRate must be at most 1."
+            }
+          },
+          "required": [
+            "runId",
+            "sampleRate"
+          ],
+          "additionalProperties": false,
+          "description": "Input to the evaluation.sample workflow action: the completed run to sample and the fraction of its outcomes to evaluate."
+        },
         "WorkflowActionsListQuery": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -192140,6 +192520,421 @@
           "additionalProperties": false,
           "description": "ArtifactOutput is the pinned worker action output contract."
         },
+        "ResearchOutput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "artifact": {
+              "type": "object",
+              "properties": {
+                "artifactId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "ResearchOutput.artifact.artifactId immutable artifact identifier."
+                },
+                "versionId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "ResearchOutput.artifact.versionId immutable artifact-version identifier."
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "description": "ResearchOutput.artifact.sha256 lowercase content digest."
+                }
+              },
+              "required": [
+                "artifactId",
+                "versionId",
+                "sha256"
+              ],
+              "additionalProperties": false,
+              "description": "Immutable research artifact the step published; the design step reads it."
+            },
+            "repositoryRevision": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Full commit SHA of the repository revision the research read, so a later reader knows what the findings describe. ResearchOutput.repositoryRevision must contain at least 1 characters."
+            }
+          },
+          "required": [
+            "artifact",
+            "repositoryRevision"
+          ],
+          "additionalProperties": false,
+          "description": "ResearchOutput is the pinned worker action output contract."
+        },
+        "CandidateEvidence": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "headSha": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Full commit SHA of the candidate the checks ran on and the review judged. CandidateEvidence.headSha must contain at least 1 characters."
+            },
+            "baseSha": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Base commit SHA pinned by the inspected repository profile, as the checks and the review reported it. CandidateEvidence.baseSha must contain at least 1 characters."
+            },
+            "policyDigest": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Digest of the effective policy the checks ran under, as the check step reported it. CandidateEvidence.policyDigest must contain at least 1 characters."
+            },
+            "checksPassed": {
+              "type": "boolean",
+              "description": "True only when every required check passed, taken from the check step's allRequired."
+            },
+            "checkRunIds": {
+              "minItems": 1,
+              "maxItems": 32,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "CandidateEvidence.checkRunIds emitted by the worker action. Each array item follows this format."
+              },
+              "description": "Identifiers of the recorded check runs of this candidate, in input order, which the delivery gate can cite. CandidateEvidence.checkRunIds must contain at most 32 items."
+            },
+            "failedCheckIds": {
+              "maxItems": 32,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "CandidateEvidence.failedCheckIds emitted by the worker action. Each array item follows this format."
+              },
+              "description": "Identifiers of the required check runs that did not pass; empty when checksPassed is true. CandidateEvidence.failedCheckIds must contain at most 32 items."
+            },
+            "blockingFindings": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 25,
+              "description": "Count of review findings with severity blocker or major, taken from the review step; a merge requires zero. CandidateEvidence.blockingFindings must be at most 25."
+            },
+            "reviewId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Identifier of the independent review cycle that judged this candidate."
+            },
+            "findings": {
+              "maxItems": 25,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "fingerprint": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$",
+                    "description": "Stable lowercase SHA-256 over the normalized path, category and title of the issue, with no line number; the worker computes it so a repeated fingerprint across repair cycles is deduplicated and recognized as an unchanged blocker."
+                  },
+                  "severity": {
+                    "type": "string",
+                    "enum": [
+                      "blocker",
+                      "major",
+                      "minor",
+                      "note"
+                    ],
+                    "description": "How serious the finding is; blocker and major block delivery, minor and note are advisory."
+                  },
+                  "blocking": {
+                    "type": "boolean",
+                    "description": "Whether this finding must be resolved before delivery can proceed; true exactly when severity is blocker or major, and the server rejects a report where the two disagree."
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "description": "Finding.path must contain at most 200 characters."
+                  },
+                  "line": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "description": "Finding.line must be at most 2147483647."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "Finding.line may be null in this transport value."
+                  },
+                  "detail": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "description": "Finding.detail must contain at most 500 characters."
+                  }
+                },
+                "required": [
+                  "fingerprint",
+                  "severity",
+                  "blocking",
+                  "path",
+                  "line",
+                  "detail"
+                ],
+                "additionalProperties": false,
+                "description": "CandidateEvidence.findings emitted by the worker action. Each array item follows this format."
+              },
+              "description": "Structured findings from that review in severity order; empty for a clean review. CandidateEvidence.findings must contain at most 25 items."
+            }
+          },
+          "required": [
+            "headSha",
+            "baseSha",
+            "policyDigest",
+            "checksPassed",
+            "checkRunIds",
+            "failedCheckIds",
+            "blockingFindings",
+            "reviewId",
+            "findings"
+          ],
+          "additionalProperties": false,
+          "description": "CandidateEvidence is the pinned worker action output contract."
+        },
+        "PrepareOutput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "releaseId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Identifier of the prepared release; the deploy step takes it as its input. PrepareOutput.releaseId must contain at least 1 characters."
+            },
+            "artifactDigest": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Digest of the release artifact that was prepared, so a deploy can prove it rolls out the same bytes. PrepareOutput.artifactDigest must contain at least 1 characters."
+            },
+            "environment": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Environment the release was prepared for. PrepareOutput.environment must contain at least 1 characters."
+            },
+            "status": {
+              "type": "string",
+              "const": "prepared",
+              "description": "Always prepared: a failed prepare fails the step instead."
+            }
+          },
+          "required": [
+            "releaseId",
+            "artifactDigest",
+            "environment",
+            "status"
+          ],
+          "additionalProperties": false,
+          "description": "PrepareOutput is the pinned worker action output contract."
+        },
+        "MergeOutput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "commitSha": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Full commit SHA of the merge commit the provider confirmed; the prepare step builds exactly this commit. MergeOutput.commitSha must contain at least 1 characters."
+            },
+            "providerEffectId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Identifier of the provider-side merge effect, kept so the merge can be reconciled later. MergeOutput.providerEffectId must contain at least 1 characters."
+            },
+            "status": {
+              "type": "string",
+              "const": "confirmed",
+              "description": "Always confirmed: an uncertain merge is reconciled before the step finishes, never reported as done."
+            }
+          },
+          "required": [
+            "commitSha",
+            "providerEffectId",
+            "status"
+          ],
+          "additionalProperties": false,
+          "description": "MergeOutput is the pinned worker action output contract."
+        },
+        "DeployOutput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "deploymentId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Identifier of the deployment the provider accepted; the health step observes it."
+            },
+            "commitSha": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Full commit SHA the deployment rolls out. DeployOutput.commitSha must contain at least 1 characters."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "accepted",
+                "queued",
+                "deploying"
+              ],
+              "description": "How far the provider has taken the deployment when the step returns; health, not this status, decides whether it is good."
+            },
+            "providerEffectId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Identifier of the provider-side deploy effect, kept so the deploy can be reconciled later. DeployOutput.providerEffectId must contain at least 1 characters."
+            }
+          },
+          "required": [
+            "deploymentId",
+            "commitSha",
+            "status",
+            "providerEffectId"
+          ],
+          "additionalProperties": false,
+          "description": "DeployOutput is the pinned worker action output contract."
+        },
+        "HealthOutput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "deploymentId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Deployment whose health was observed."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "healthy",
+                "degraded",
+                "failed"
+              ],
+              "description": "Observed health; only healthy lets a delivery count as released."
+            },
+            "checkedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the health observation was taken."
+            },
+            "evidenceArtifact": {
+              "type": "object",
+              "properties": {
+                "artifactId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "HealthOutput.evidenceArtifact.artifactId immutable artifact identifier."
+                },
+                "versionId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "HealthOutput.evidenceArtifact.versionId immutable artifact-version identifier."
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$",
+                  "description": "HealthOutput.evidenceArtifact.sha256 lowercase content digest."
+                }
+              },
+              "required": [
+                "artifactId",
+                "versionId",
+                "sha256"
+              ],
+              "additionalProperties": false,
+              "description": "Immutable artifact holding the evidence the observation is based on."
+            }
+          },
+          "required": [
+            "deploymentId",
+            "status",
+            "checkedAt",
+            "evidenceArtifact"
+          ],
+          "additionalProperties": false,
+          "description": "HealthOutput is the pinned worker action output contract."
+        },
+        "MemoryOutput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "memoryId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Project memory entry the artifact was promoted into."
+            },
+            "status": {
+              "type": "string",
+              "const": "promoted",
+              "description": "Always promoted: the step only answers once the memory entry is written."
+            }
+          },
+          "required": [
+            "memoryId",
+            "status"
+          ],
+          "additionalProperties": false,
+          "description": "MemoryOutput is the pinned worker action output contract."
+        },
+        "EvaluationOutput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "evaluationId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Evaluation record the sample was written to."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "completed",
+                "failed"
+              ],
+              "description": "Whether the sampled evaluation finished or failed."
+            },
+            "measured": {
+              "type": "boolean",
+              "description": "Whether the run was actually measured; false when the sample rate selected nothing to evaluate."
+            }
+          },
+          "required": [
+            "evaluationId",
+            "status",
+            "measured"
+          ],
+          "additionalProperties": false,
+          "description": "EvaluationOutput is the pinned worker action output contract."
+        },
         "HarnessOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -192968,11 +193763,209 @@
           ],
           "additionalProperties": false,
           "description": "FreeformOutput is the pinned worker action output contract."
+        },
+        "IntegrationActionOutput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "accepted": {
+              "type": "boolean",
+              "description": "Whether the requested action was accepted."
+            },
+            "operation": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Operation name associated with the record."
+            },
+            "externalEffectId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Stable UUID linking this record to the related external effect entity."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "ActionResult.externalEffectId may be null in this transport value."
+            },
+            "result": {
+              "anyOf": [
+                {
+                  "description": "ActionResult.result must contain at most 32000 UTF-8 bytes.",
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "JSON string value."
+                    },
+                    {
+                      "type": "number",
+                      "description": "JSON number value."
+                    },
+                    {
+                      "type": "boolean",
+                      "description": "JSON boolean value."
+                    },
+                    {
+                      "type": "null",
+                      "description": "JSON null value."
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                      },
+                      "description": "JSON array value."
+                    },
+                    {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string",
+                        "description": "JSON object key."
+                      },
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                      },
+                      "description": "JSON object value."
+                    }
+                  ],
+                  "x-utf8-max-bytes": 32000
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "ActionResult.result may be null in this transport value."
+            }
+          },
+          "required": [
+            "accepted",
+            "operation",
+            "externalEffectId",
+            "result"
+          ],
+          "additionalProperties": false,
+          "description": "Result of invoking one integration action: whether the request was accepted, which registered action ran, the linked external-effect identity when a write is involved, and the action's result payload. A read returns this immediately; a write returns it only after the external effect is reconciled by that stable effect identity."
+        },
+        "IntegrationActionOutput____schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/IntegrationActionOutput____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
         }
       }
     }
   },
-  "compatibilityDigest": "sha256:f34d03b94d9a9346f2d2610467181cf78121fa88757d0f54d9ccc08a78921846",
+  "compatibilityDigest": "sha256:2514e56319c076925707093b9b144cbc4cf4783e22bff83cf8bcd7ca4e522753",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -214478,6 +215471,386 @@
       ],
       "additionalProperties": false,
       "description": "Input to the rpi.design workflow action: the research artifact produced by the preceding rpi.research step, which the design step reads to ground its proposed design."
+    },
+    "ResearchInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "taskId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Task the research is for; the step reads the task brief and scope from it."
+        },
+        "repositoryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Repository the research inspects through a detached worktree."
+        }
+      },
+      "required": [
+        "taskId",
+        "repositoryId"
+      ],
+      "additionalProperties": false,
+      "description": "Input to the rpi.research workflow action: the task to research and the repository whose code the research reads, from which the step produces its research artifact."
+    },
+    "PrepareInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Repository whose merged commit is prepared for release."
+        },
+        "headSha": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "PrepareInput.headSha must contain at least 1 characters."
+        },
+        "profileRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "PrepareInput.profileRevision must be at least 1."
+        }
+      },
+      "required": [
+        "repositoryId",
+        "headSha",
+        "profileRevision"
+      ],
+      "additionalProperties": false,
+      "description": "Input to the delivery.prepare workflow action: the exact merged commit to turn into a release candidate and the repository profile revision that governs how it is built."
+    },
+    "MergeInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Repository the candidate is merged into."
+        },
+        "candidate": {
+          "type": "object",
+          "properties": {
+            "headSha": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Full commit SHA of the candidate the checks ran on and the review judged. CandidateEvidence.headSha must contain at least 1 characters."
+            },
+            "baseSha": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Base commit SHA pinned by the inspected repository profile, as the checks and the review reported it. CandidateEvidence.baseSha must contain at least 1 characters."
+            },
+            "policyDigest": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Digest of the effective policy the checks ran under, as the check step reported it. CandidateEvidence.policyDigest must contain at least 1 characters."
+            },
+            "checksPassed": {
+              "type": "boolean",
+              "description": "True only when every required check passed, taken from the check step's allRequired."
+            },
+            "checkRunIds": {
+              "minItems": 1,
+              "maxItems": 32,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "CandidateEvidence.checkRunIds emitted by the worker action. Each array item follows this format."
+              },
+              "description": "Identifiers of the recorded check runs of this candidate, in input order, which the delivery gate can cite. CandidateEvidence.checkRunIds must contain at most 32 items."
+            },
+            "failedCheckIds": {
+              "maxItems": 32,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "CandidateEvidence.failedCheckIds emitted by the worker action. Each array item follows this format."
+              },
+              "description": "Identifiers of the required check runs that did not pass; empty when checksPassed is true. CandidateEvidence.failedCheckIds must contain at most 32 items."
+            },
+            "blockingFindings": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 25,
+              "description": "Count of review findings with severity blocker or major, taken from the review step; a merge requires zero. CandidateEvidence.blockingFindings must be at most 25."
+            },
+            "reviewId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Identifier of the independent review cycle that judged this candidate."
+            },
+            "findings": {
+              "maxItems": 25,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "fingerprint": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$",
+                    "description": "Stable lowercase SHA-256 over the normalized path, category and title of the issue, with no line number; the worker computes it so a repeated fingerprint across repair cycles is deduplicated and recognized as an unchanged blocker."
+                  },
+                  "severity": {
+                    "type": "string",
+                    "enum": [
+                      "blocker",
+                      "major",
+                      "minor",
+                      "note"
+                    ],
+                    "description": "How serious the finding is; blocker and major block delivery, minor and note are advisory."
+                  },
+                  "blocking": {
+                    "type": "boolean",
+                    "description": "Whether this finding must be resolved before delivery can proceed; true exactly when severity is blocker or major, and the server rejects a report where the two disagree."
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "description": "Finding.path must contain at most 200 characters."
+                  },
+                  "line": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 2147483647,
+                        "description": "Finding.line must be at most 2147483647."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "Finding.line may be null in this transport value."
+                  },
+                  "detail": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "description": "Finding.detail must contain at most 500 characters."
+                  }
+                },
+                "required": [
+                  "fingerprint",
+                  "severity",
+                  "blocking",
+                  "path",
+                  "line",
+                  "detail"
+                ],
+                "additionalProperties": false,
+                "description": "CandidateEvidence.findings emitted by the worker action. Each array item follows this format."
+              },
+              "description": "Structured findings from that review in severity order; empty for a clean review. CandidateEvidence.findings must contain at most 25 items."
+            }
+          },
+          "required": [
+            "headSha",
+            "baseSha",
+            "policyDigest",
+            "checksPassed",
+            "checkRunIds",
+            "failedCheckIds",
+            "blockingFindings",
+            "reviewId",
+            "findings"
+          ],
+          "additionalProperties": false,
+          "description": "Evidence for the exact candidate being merged: its head and base commits, the policy it was checked under, the check runs and the independent review. The merge step refuses evidence that does not match the repository's current candidate."
+        },
+        "effectKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "MergeInput.effectKey must contain at least 1 characters."
+        }
+      },
+      "required": [
+        "repositoryId",
+        "candidate",
+        "effectKey"
+      ],
+      "additionalProperties": false,
+      "description": "Input to the delivery.merge workflow action: the repository to merge into and the candidate evidence that justifies the merge. The effect key makes a retried merge reconcile with the first attempt and never merge twice."
+    },
+    "DeployInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "releaseId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "DeployInput.releaseId must contain at least 1 characters."
+        },
+        "environment": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "DeployInput.environment must contain at least 1 characters."
+        },
+        "effectKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "DeployInput.effectKey must contain at least 1 characters."
+        }
+      },
+      "required": [
+        "releaseId",
+        "environment",
+        "effectKey"
+      ],
+      "additionalProperties": false,
+      "description": "Input to the delivery.deploy workflow action: the prepared release to roll out and the environment to roll it out to. The effect key makes a retried deploy reconcile with the first attempt."
+    },
+    "HealthInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "deploymentId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Deployment a preceding delivery.deploy step accepted; the step reads its observed health and records the evidence."
+        }
+      },
+      "required": [
+        "deploymentId"
+      ],
+      "additionalProperties": false,
+      "description": "Input to the delivery.health workflow action: the deployment whose health is observed."
+    },
+    "ArtifactPublishInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "artifact": {
+          "type": "object",
+          "properties": {
+            "artifactId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "ArtifactPublishInput.artifact.artifactId immutable artifact identifier."
+            },
+            "versionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "ArtifactPublishInput.artifact.versionId immutable artifact-version identifier."
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "ArtifactPublishInput.artifact.sha256 lowercase content digest."
+            }
+          },
+          "required": [
+            "artifactId",
+            "versionId",
+            "sha256"
+          ],
+          "additionalProperties": false,
+          "description": "Immutable artifact version to publish, normally the artifact a preceding step emitted; the step records it as published without changing its content."
+        }
+      },
+      "required": [
+        "artifact"
+      ],
+      "additionalProperties": false,
+      "description": "Input to the artifact.publish workflow action: the artifact version a preceding step produced, which this step publishes so it becomes a retained, addressable artifact of the run."
+    },
+    "MemoryPromoteInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "artifact": {
+          "type": "object",
+          "properties": {
+            "artifactId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "MemoryPromoteInput.artifact.artifactId immutable artifact identifier."
+            },
+            "versionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "MemoryPromoteInput.artifact.versionId immutable artifact-version identifier."
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "MemoryPromoteInput.artifact.sha256 lowercase content digest."
+            }
+          },
+          "required": [
+            "artifactId",
+            "versionId",
+            "sha256"
+          ],
+          "additionalProperties": false,
+          "description": "Immutable artifact version to promote into project memory, normally a research or review artifact a preceding step produced."
+        },
+        "sourceRevision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "MemoryPromoteInput.sourceRevision must contain at least 1 characters."
+        }
+      },
+      "required": [
+        "artifact",
+        "sourceRevision"
+      ],
+      "additionalProperties": false,
+      "description": "Input to the memory.promote workflow action: the artifact version to promote into project memory and the repository revision that evidence was drawn from."
+    },
+    "EvaluationInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Workflow run whose outcomes are sampled for evaluation."
+        },
+        "sampleRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "EvaluationInput.sampleRate must be at most 1."
+        }
+      },
+      "required": [
+        "runId",
+        "sampleRate"
+      ],
+      "additionalProperties": false,
+      "description": "Input to the evaluation.sample workflow action: the completed run to sample and the fraction of its outcomes to evaluate."
     },
     "WorkflowActionsListQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -354577,6 +355950,421 @@
       "additionalProperties": false,
       "description": "ArtifactOutput is the pinned worker action output contract."
     },
+    "ResearchOutput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "artifact": {
+          "type": "object",
+          "properties": {
+            "artifactId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "ResearchOutput.artifact.artifactId immutable artifact identifier."
+            },
+            "versionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "ResearchOutput.artifact.versionId immutable artifact-version identifier."
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "ResearchOutput.artifact.sha256 lowercase content digest."
+            }
+          },
+          "required": [
+            "artifactId",
+            "versionId",
+            "sha256"
+          ],
+          "additionalProperties": false,
+          "description": "Immutable research artifact the step published; the design step reads it."
+        },
+        "repositoryRevision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "Full commit SHA of the repository revision the research read, so a later reader knows what the findings describe. ResearchOutput.repositoryRevision must contain at least 1 characters."
+        }
+      },
+      "required": [
+        "artifact",
+        "repositoryRevision"
+      ],
+      "additionalProperties": false,
+      "description": "ResearchOutput is the pinned worker action output contract."
+    },
+    "CandidateEvidence": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "headSha": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "Full commit SHA of the candidate the checks ran on and the review judged. CandidateEvidence.headSha must contain at least 1 characters."
+        },
+        "baseSha": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "Base commit SHA pinned by the inspected repository profile, as the checks and the review reported it. CandidateEvidence.baseSha must contain at least 1 characters."
+        },
+        "policyDigest": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "Digest of the effective policy the checks ran under, as the check step reported it. CandidateEvidence.policyDigest must contain at least 1 characters."
+        },
+        "checksPassed": {
+          "type": "boolean",
+          "description": "True only when every required check passed, taken from the check step's allRequired."
+        },
+        "checkRunIds": {
+          "minItems": 1,
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "CandidateEvidence.checkRunIds emitted by the worker action. Each array item follows this format."
+          },
+          "description": "Identifiers of the recorded check runs of this candidate, in input order, which the delivery gate can cite. CandidateEvidence.checkRunIds must contain at most 32 items."
+        },
+        "failedCheckIds": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "CandidateEvidence.failedCheckIds emitted by the worker action. Each array item follows this format."
+          },
+          "description": "Identifiers of the required check runs that did not pass; empty when checksPassed is true. CandidateEvidence.failedCheckIds must contain at most 32 items."
+        },
+        "blockingFindings": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 25,
+          "description": "Count of review findings with severity blocker or major, taken from the review step; a merge requires zero. CandidateEvidence.blockingFindings must be at most 25."
+        },
+        "reviewId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifier of the independent review cycle that judged this candidate."
+        },
+        "findings": {
+          "maxItems": 25,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "fingerprint": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$",
+                "description": "Stable lowercase SHA-256 over the normalized path, category and title of the issue, with no line number; the worker computes it so a repeated fingerprint across repair cycles is deduplicated and recognized as an unchanged blocker."
+              },
+              "severity": {
+                "type": "string",
+                "enum": [
+                  "blocker",
+                  "major",
+                  "minor",
+                  "note"
+                ],
+                "description": "How serious the finding is; blocker and major block delivery, minor and note are advisory."
+              },
+              "blocking": {
+                "type": "boolean",
+                "description": "Whether this finding must be resolved before delivery can proceed; true exactly when severity is blocker or major, and the server rejects a report where the two disagree."
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Finding.path must contain at most 200 characters."
+              },
+              "line": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483647,
+                    "description": "Finding.line must be at most 2147483647."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Finding.line may be null in this transport value."
+              },
+              "detail": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+                "description": "Finding.detail must contain at most 500 characters."
+              }
+            },
+            "required": [
+              "fingerprint",
+              "severity",
+              "blocking",
+              "path",
+              "line",
+              "detail"
+            ],
+            "additionalProperties": false,
+            "description": "CandidateEvidence.findings emitted by the worker action. Each array item follows this format."
+          },
+          "description": "Structured findings from that review in severity order; empty for a clean review. CandidateEvidence.findings must contain at most 25 items."
+        }
+      },
+      "required": [
+        "headSha",
+        "baseSha",
+        "policyDigest",
+        "checksPassed",
+        "checkRunIds",
+        "failedCheckIds",
+        "blockingFindings",
+        "reviewId",
+        "findings"
+      ],
+      "additionalProperties": false,
+      "description": "CandidateEvidence is the pinned worker action output contract."
+    },
+    "PrepareOutput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "releaseId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "Identifier of the prepared release; the deploy step takes it as its input. PrepareOutput.releaseId must contain at least 1 characters."
+        },
+        "artifactDigest": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "Digest of the release artifact that was prepared, so a deploy can prove it rolls out the same bytes. PrepareOutput.artifactDigest must contain at least 1 characters."
+        },
+        "environment": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "Environment the release was prepared for. PrepareOutput.environment must contain at least 1 characters."
+        },
+        "status": {
+          "type": "string",
+          "const": "prepared",
+          "description": "Always prepared: a failed prepare fails the step instead."
+        }
+      },
+      "required": [
+        "releaseId",
+        "artifactDigest",
+        "environment",
+        "status"
+      ],
+      "additionalProperties": false,
+      "description": "PrepareOutput is the pinned worker action output contract."
+    },
+    "MergeOutput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "commitSha": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "Full commit SHA of the merge commit the provider confirmed; the prepare step builds exactly this commit. MergeOutput.commitSha must contain at least 1 characters."
+        },
+        "providerEffectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "Identifier of the provider-side merge effect, kept so the merge can be reconciled later. MergeOutput.providerEffectId must contain at least 1 characters."
+        },
+        "status": {
+          "type": "string",
+          "const": "confirmed",
+          "description": "Always confirmed: an uncertain merge is reconciled before the step finishes, never reported as done."
+        }
+      },
+      "required": [
+        "commitSha",
+        "providerEffectId",
+        "status"
+      ],
+      "additionalProperties": false,
+      "description": "MergeOutput is the pinned worker action output contract."
+    },
+    "DeployOutput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "deploymentId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Identifier of the deployment the provider accepted; the health step observes it."
+        },
+        "commitSha": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "Full commit SHA the deployment rolls out. DeployOutput.commitSha must contain at least 1 characters."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "accepted",
+            "queued",
+            "deploying"
+          ],
+          "description": "How far the provider has taken the deployment when the step returns; health, not this status, decides whether it is good."
+        },
+        "providerEffectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "Identifier of the provider-side deploy effect, kept so the deploy can be reconciled later. DeployOutput.providerEffectId must contain at least 1 characters."
+        }
+      },
+      "required": [
+        "deploymentId",
+        "commitSha",
+        "status",
+        "providerEffectId"
+      ],
+      "additionalProperties": false,
+      "description": "DeployOutput is the pinned worker action output contract."
+    },
+    "HealthOutput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "deploymentId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Deployment whose health was observed."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "healthy",
+            "degraded",
+            "failed"
+          ],
+          "description": "Observed health; only healthy lets a delivery count as released."
+        },
+        "checkedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "When the health observation was taken."
+        },
+        "evidenceArtifact": {
+          "type": "object",
+          "properties": {
+            "artifactId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "HealthOutput.evidenceArtifact.artifactId immutable artifact identifier."
+            },
+            "versionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "HealthOutput.evidenceArtifact.versionId immutable artifact-version identifier."
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "description": "HealthOutput.evidenceArtifact.sha256 lowercase content digest."
+            }
+          },
+          "required": [
+            "artifactId",
+            "versionId",
+            "sha256"
+          ],
+          "additionalProperties": false,
+          "description": "Immutable artifact holding the evidence the observation is based on."
+        }
+      },
+      "required": [
+        "deploymentId",
+        "status",
+        "checkedAt",
+        "evidenceArtifact"
+      ],
+      "additionalProperties": false,
+      "description": "HealthOutput is the pinned worker action output contract."
+    },
+    "MemoryOutput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "memoryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Project memory entry the artifact was promoted into."
+        },
+        "status": {
+          "type": "string",
+          "const": "promoted",
+          "description": "Always promoted: the step only answers once the memory entry is written."
+        }
+      },
+      "required": [
+        "memoryId",
+        "status"
+      ],
+      "additionalProperties": false,
+      "description": "MemoryOutput is the pinned worker action output contract."
+    },
+    "EvaluationOutput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "evaluationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Evaluation record the sample was written to."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "failed"
+          ],
+          "description": "Whether the sampled evaluation finished or failed."
+        },
+        "measured": {
+          "type": "boolean",
+          "description": "Whether the run was actually measured; false when the sample rate selected nothing to evaluate."
+        }
+      },
+      "required": [
+        "evaluationId",
+        "status",
+        "measured"
+      ],
+      "additionalProperties": false,
+      "description": "EvaluationOutput is the pinned worker action output contract."
+    },
     "HarnessOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -355407,6 +357195,206 @@
       ],
       "additionalProperties": false,
       "description": "FreeformOutput is the pinned worker action output contract."
+    },
+    "IntegrationActionOutput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "accepted": {
+          "type": "boolean",
+          "description": "Whether the requested action was accepted."
+        },
+        "operation": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Operation name associated with the record."
+        },
+        "externalEffectId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID linking this record to the related external effect entity."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ActionResult.externalEffectId may be null in this transport value."
+        },
+        "result": {
+          "anyOf": [
+            {
+              "description": "ActionResult.result must contain at most 32000 UTF-8 bytes.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/$defs/__schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "x-utf8-max-bytes": 32000
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ActionResult.result may be null in this transport value."
+        }
+      },
+      "required": [
+        "accepted",
+        "operation",
+        "externalEffectId",
+        "result"
+      ],
+      "additionalProperties": false,
+      "description": "Result of invoking one integration action: whether the request was accepted, which registered action ran, the linked external-effect identity when a write is involved, and the action's result payload. A read returns this immediately; a write returns it only after the external effect is reconciled by that stable effect identity.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
     }
   }
 }
