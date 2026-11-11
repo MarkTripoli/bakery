@@ -154,6 +154,12 @@ export type CollaborationRegistry = {
 
 type RegistryInternals = {
   readonly connections: Set<Connection>;
+  /**
+   * Slots per principal, taken synchronously before any await in the upgrade
+   * and released on failure or close, so concurrent upgrades cannot exceed
+   * the per-principal cap.
+   */
+  readonly slots: Map<string, number>;
   readonly rooms: Map<string, Map<string, Participant>>;
 };
 
@@ -169,6 +175,7 @@ function roomKey(room: Room): string {
 export function createCollaborationRegistry(): CollaborationRegistry {
   const internals: RegistryInternals = {
     connections: new Set(),
+    slots: new Map(),
     rooms: new Map(),
   };
   const registry: CollaborationRegistry = {
@@ -637,6 +644,12 @@ export function createCollaborationSocketHandler(
     }, limits.sweepMilliseconds);
   }
 
+  function releaseSlot(principalId: string): void {
+    const held = (internals!.slots.get(principalId) ?? 1) - 1;
+    if (held <= 0) internals!.slots.delete(principalId);
+    else internals!.slots.set(principalId, held);
+  }
+
   return async function collaborationSocketHandler(context) {
     const request = context.req.raw;
     const connectionId = crypto.randomUUID();
@@ -648,6 +661,7 @@ export function createCollaborationSocketHandler(
         traceId,
       });
     let organization: OrganizationId;
+    let slotHeld = false;
     let principal: AuthenticatedSubject;
     let token: string;
     let upgraded: { socket: WebSocket; response: Response };
@@ -662,12 +676,12 @@ export function createCollaborationSocketHandler(
       if (!parsed.success) throw parsed.error;
       assertWebSocketHandshake(request.headers);
       principal = principalFromContext(context);
-      const open = [...internals!.connections].filter((value) =>
-        value.principal.principalId === principal.principalId
-      ).length;
-      if (open >= limits.maxConnectionsPerPrincipal) {
+      const held = internals!.slots.get(principal.principalId) ?? 0;
+      if (held >= limits.maxConnectionsPerPrincipal) {
         throw new StandardError({ code: "RATE_LIMITED" });
       }
+      internals!.slots.set(principal.principalId, held + 1);
+      slotHeld = true;
       let sessionToken: string | null;
       try {
         sessionToken = await readSessionToken(request.headers, options.secret);
@@ -702,6 +716,7 @@ export function createCollaborationSocketHandler(
           : cause;
       }
     } catch (error) {
+      if (slotHeld) releaseSlot(principal!.principalId);
       return fail(error);
     }
 
@@ -730,6 +745,7 @@ export function createCollaborationSocketHandler(
       if (connection.closed) return;
       connection.closed = true;
       internals!.connections.delete(connection);
+      releaseSlot(principal.principalId);
       for (const { participant } of [...connection.rooms.values()]) {
         removeParticipant(participant, "closed");
       }
