@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+
 /**
  * A bounded, non-blocking hand-off from the code being observed to a telemetry
  * sink. Telemetry is never allowed to be a dependency of execution: lease
@@ -31,7 +33,20 @@
  * `onLoss`, which is where an export-loss metric attaches. Reports are totals
  * per reason, delivered a tick after the loss, so a slow reporter cannot slow
  * the code that is being observed and a burst of drops is one call.
+ *
+ * A reporter must not be able to feed itself. Code the reporter starts (after
+ * an `await`, in a timer, a microtask or a `then`) runs in the reporter's async
+ * context, and an offer made from there is refused and counted as
+ * `dropped.reentrant` instead of becoming a loss to report. Offers from the
+ * rest of the application are unaffected however slow the reporter is. Context
+ * does not follow a callback that was queued from outside (a mailbox drained by
+ * a timer created earlier), so two things bound what then gets through: reports
+ * are at least `MIN_LOSS_REPORT_GAP_MS` apart, and a closed exporter still
+ * counts what it refuses but reports nothing more.
  */
+
+/** Least time between two loss reports from one exporter. */
+export const MIN_LOSS_REPORT_GAP_MS = 50;
 
 /** Largest queue that may be asked for. */
 export const MAX_EXPORT_CAPACITY = 100_000;
@@ -95,10 +110,12 @@ export type BoundedExporterOptions<T> = {
   readonly intervalMs: number;
   /**
    * Told of losses: one call per reason with the count since the last, a tick
-   * after the first of them. May throw, or be async and reject; neither changes
+   * after the first of them and never sooner than `MIN_LOSS_REPORT_GAP_MS`
+   * after the previous. May throw, or be async and reject; neither changes
    * anything, and what it returns is never waited for, so a slow async reporter
-   * can overlap the next report. An item offered from inside it is refused and
-   * counted as `dropped.reentrant`.
+   * can overlap the next report. An item offered by code the reporter started,
+   * synchronously or later (after an `await`, in a timer or a microtask), is
+   * refused and counted as `dropped.reentrant`.
    */
   readonly onLoss?: (loss: ExportLoss) => void | PromiseLike<unknown>;
 };
@@ -116,7 +133,7 @@ export type ExportStats = {
     readonly queueFull: number;
     readonly sendFailed: number;
     readonly shutdown: number;
-    /** Offers made from inside `onLoss`, refused so a reporter cannot recurse. */
+    /** Offers made by code `onLoss` started, refused so a reporter cannot feed itself. */
     readonly reentrant: number;
   };
   /** Batches that used every attempt and were dropped. */
@@ -137,11 +154,15 @@ export type BoundedExporter<T> = {
 
 /** Fixed-size ring: no allocation per item and nothing retained after a take. */
 class Ring<T> {
+  // Declared and assigned in the body: a parameter property is TypeScript-only
+  // syntax that Node's type stripping refuses.
+  readonly capacity: number;
   readonly #items: Array<T | undefined>;
   #head = 0;
   #size = 0;
 
-  constructor(readonly capacity: number) {
+  constructor(capacity: number) {
+    this.capacity = capacity;
     this.#items = new Array(capacity);
   }
 
@@ -179,23 +200,40 @@ function after(ms: number) {
   return { promise, cancel: () => clearTimeout(id) };
 }
 
+/** How many thenables deep `watch` follows a value before it stops. */
+const MAX_THENABLE_DEPTH = 8;
+
+const noop = () => {};
+
 /**
  * Makes sure a value the caller's code returned cannot reject unhandled. A
  * reporter typed to return nothing may still be an async function, and an
  * unhandled rejection ends a Node 24 process; this is the one place the
  * exporter calls caller code without a promise chain of its own to catch it.
+ *
+ * Calling `then` is not enough: what `then` returns is itself a promise nobody
+ * holds, and a `then` that returns a rejected one (a thenable, a class with an
+ * async `then`, a promise subclass that overrides it) leaks. So the value
+ * `then` returns is watched the same way, up to `MAX_THENABLE_DEPTH` deep. A
+ * chain deeper than that, each link handing back another rejection, is not
+ * contained. `then` is read once, so a getter cannot answer differently the
+ * second time.
  */
-function swallowRejection(value: unknown): void {
-  try {
+function watch(value: unknown): void {
+  let current = value;
+  for (let depth = 0; depth < MAX_THENABLE_DEPTH; depth += 1) {
     if (
-      (typeof value === "object" || typeof value === "function") &&
-      value !== null &&
-      typeof (value as PromiseLike<unknown>).then === "function"
-    ) {
-      (value as PromiseLike<unknown>).then(undefined, () => {});
+      (typeof current !== "object" && typeof current !== "function") ||
+      current === null
+    ) return;
+    try {
+      const then = (current as { then?: unknown }).then;
+      if (typeof then !== "function") return;
+      current = Reflect.apply(then, current, [noop, noop]);
+    } catch {
+      // A thenable whose `then` throws, or a revoked proxy: nothing to wait for.
+      return;
     }
-  } catch {
-    // A thenable whose `then` throws, or a revoked proxy: nothing to wait for.
   }
 }
 
@@ -270,31 +308,43 @@ export function createBoundedExporter<T>(
     shutdown: 0,
   };
   let lossTimer: ReturnType<typeof setTimeout> | undefined;
-  let reporting = false;
+  let lastReportAt = Number.NEGATIVE_INFINITY;
+  // Marks the async context the reporter runs in. One per exporter, so a
+  // reporter that offers to a different exporter is not refused there.
+  const inReporter = new AsyncLocalStorage<true>();
 
   const reportLosses = () => {
     if (lossTimer !== undefined) clearTimeout(lossTimer);
     lossTimer = undefined;
+    lastReportAt = performance.now();
     for (const reason of ["queue-full", "send-failed", "shutdown"] as const) {
       const count = pendingLoss[reason];
       if (count === 0) continue;
       pendingLoss[reason] = 0;
-      reporting = true;
       try {
-        swallowRejection(options.onLoss?.({ reason, count }));
+        // Everything the reporter starts inherits this context, so an offer it
+        // makes later is recognised as its own. That includes what the value it
+        // returns does when `watch` calls its `then`, so that runs inside too.
+        inReporter.run(true, () => {
+          watch(options.onLoss?.({ reason, count }));
+        });
       } catch {
         // A broken reporter must not reach the code being observed.
-      } finally {
-        reporting = false;
       }
     }
   };
 
   const lost = (reason: ExportLoss["reason"], count: number) => {
-    if (!options.onLoss) return;
+    // Once closed there is no timer to schedule: what is refused is counted in
+    // the stats, and nothing is reported, so nothing can keep this running.
+    if (!options.onLoss || closed) return;
     pendingLoss[reason] += count;
     if (lossTimer === undefined) {
-      lossTimer = setTimeout(reportLosses, 0);
+      const wait = Math.max(
+        0,
+        lastReportAt + MIN_LOSS_REPORT_GAP_MS - performance.now(),
+      );
+      lossTimer = setTimeout(reportLosses, wait);
       unref(lossTimer);
     }
   };
@@ -405,7 +455,7 @@ export function createBoundedExporter<T>(
   return {
     offer(item) {
       offered += 1;
-      if (reporting) {
+      if (inReporter.getStore() === true) {
         dropped.reentrant += 1;
         return false;
       }

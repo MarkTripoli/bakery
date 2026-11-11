@@ -5,6 +5,7 @@ import {
   type ExportLoss,
   MAX_STUCK_SENDS,
   MAX_TIMER_MS,
+  MIN_LOSS_REPORT_GAP_MS,
 } from "../../packages/config/src/telemetry-export.ts";
 
 /** Seeded xorshift32, so a schedule is the same on every run. */
@@ -793,13 +794,19 @@ Deno.test("reports are totals per reason and nothing is lost between them", asyn
   for (let item = 0; item < 10; item += 1) exporter.offer(item);
   await until(() => exporter.stats().failedBatches >= 1, "a failed batch");
   await exporter.close(100);
-  exporter.offer(99);
-  await pause(10);
   const stats = exporter.stats();
   assertEquals(totals["queue-full"], stats.dropped.queueFull);
   assertEquals(totals["send-failed"], stats.dropped.sendFailed);
-  assertEquals(totals["shutdown"], stats.dropped.shutdown);
+  assertEquals(totals["shutdown"] ?? 0, stats.dropped.shutdown);
   conserved(stats);
+  // What a closed exporter refuses is still counted, and no longer reported.
+  const before = { ...totals };
+  exporter.offer(99);
+  await pause(2 * MIN_LOSS_REPORT_GAP_MS);
+  const after = exporter.stats();
+  assertEquals(after.dropped.shutdown, stats.dropped.shutdown + 1);
+  assertEquals(totals, before, "a closed exporter reports nothing more");
+  conserved(after);
 });
 
 Deno.test("close delivers any report still pending before it returns", async () => {
@@ -872,6 +879,35 @@ const reporters: Array<[string, () => unknown]> = [
     return revoked.proxy;
   }],
   ["a reporter that returns a promise that resolves", () => Promise.resolve()],
+  ["a thenable whose then returns a rejecting promise", () => ({
+    then: () => Promise.reject(new Error("returned from then")),
+  })],
+  ["a class with an async then that throws", () =>
+    new (class {
+      // deno-lint-ignore require-await
+      async then() {
+        throw new Error("async then");
+      }
+    })()],
+  ["a promise subclass whose then returns a rejecting promise", () => {
+    class Evil extends Promise<void> {
+      override then(): never {
+        return Promise.reject(new Error("subclass then")) as never;
+      }
+    }
+    return new Evil(() => {});
+  }],
+  ["a thenable chain three deep that ends in a rejection", () => {
+    const link = (depth: number): unknown => ({
+      then: () =>
+        depth > 0 ? link(depth - 1) : Promise.reject(new Error("deep")),
+    });
+    return link(3);
+  }],
+  ["a thenable whose then hands back itself", () => {
+    const self: { then: () => unknown } = { then: () => self };
+    return self;
+  }],
 ];
 
 for (const [name, report] of reporters) {
@@ -896,3 +932,409 @@ for (const [name, report] of reporters) {
     assertEquals(unhandled, []);
   });
 }
+
+// ---- QA round 3 -------------------------------------------------------------
+// A reporter that awaits and then offers escaped the old flag, which was only
+// true while the reporter's synchronous part ran. Each offer it made into a full
+// queue was a new loss, which scheduled a new report, so it called itself 400 to
+// 700 times a second and kept going after close. Offers are now attributed by
+// async context, which follows whatever the reporter starts.
+
+/** A full queue behind a send that never answers: item 0 in flight, 1 queued. */
+async function fullQueue(onLoss: (loss: ExportLoss) => unknown) {
+  const exporter = make<number>(() => new Promise(() => {}), {
+    capacity: 1,
+    batchSize: 1,
+    sendTimeoutMs: 60_000,
+    maxAttempts: 1,
+    onLoss: onLoss as BoundedExporterOptions<number>["onLoss"],
+  });
+  exporter.offer(0);
+  await until(() => exporter.stats().inFlight === 1, "an item in flight");
+  exporter.offer(1);
+  exporter.offer(2);
+  exporter.offer(3);
+  return exporter;
+}
+
+const feeders: Array<
+  [name: string, offers: number, start: (offer: () => void) => unknown]
+> = [
+  ["after an await", 1, async (offer) => {
+    await null;
+    offer();
+  }],
+  ["after several awaits", 3, async (offer) => {
+    for (let index = 0; index < 3; index += 1) {
+      await null;
+      offer();
+    }
+  }],
+  ["after a sleep", 1, async (offer) => {
+    await pause(20);
+    offer();
+  }],
+  // The reporter returns nothing: no promise to wait for, yet the work it
+  // started is still its own.
+  ["from a timer it started", 1, (offer) => {
+    setTimeout(offer, 1);
+  }],
+  ["from a microtask it started", 1, (offer) => {
+    queueMicrotask(offer);
+  }],
+  ["from a then it started", 1, (offer) => {
+    Promise.resolve().then(offer);
+  }],
+  ["from inside a thenable it returned", 1, (offer) => ({
+    then(done: () => void) {
+      setTimeout(() => {
+        offer();
+        done();
+      }, 1);
+    },
+  })],
+];
+
+for (const [name, offers, start] of feeders) {
+  Deno.test(`a loss reporter that offers ${name} is not reported to again, now or after close`, async () => {
+    let reports = 0;
+    const exporter: Awaited<ReturnType<typeof fullQueue>> = await fullQueue(
+      () => {
+        reports += 1;
+        return start(() => {
+          exporter.offer(-1);
+        });
+      },
+    );
+    await until(
+      () => exporter.stats().dropped.reentrant >= offers,
+      "the reporter's own offers",
+    );
+    // Long enough for a loop to show: it called itself every MIN_LOSS_REPORT_GAP_MS.
+    await pause(4 * MIN_LOSS_REPORT_GAP_MS);
+    assertEquals(
+      reports,
+      1,
+      "one loss, one report: the reporter fed nothing back",
+    );
+    const live = exporter.stats();
+    assertEquals(live.dropped.reentrant, offers);
+    assertEquals(live.dropped.queueFull, 2, "only the two real drops");
+    conserved(live);
+
+    await exporter.close(20);
+    const reportsAtClose = reports;
+    await pause(4 * MIN_LOSS_REPORT_GAP_MS);
+    assertEquals(reports, reportsAtClose, "no report after close");
+    conserved(exporter.stats());
+  });
+}
+
+Deno.test("what a closed exporter refuses is counted and nothing is reported or scheduled", async () => {
+  const live = new Set<unknown>();
+  const realSet = globalThis.setTimeout;
+  const realClear = globalThis.clearTimeout;
+  globalThis.setTimeout = ((handler: () => void, ms?: number) => {
+    const id: unknown = realSet(() => {
+      live.delete(id);
+      handler();
+    }, ms);
+    live.add(id);
+    return id;
+  }) as unknown as typeof setTimeout;
+  globalThis.clearTimeout = ((id: unknown) => {
+    live.delete(id);
+    realClear(id as ReturnType<typeof setTimeout>);
+  }) as typeof clearTimeout;
+  try {
+    let reports = 0;
+    const exporter = make<number>(() => Promise.resolve(), {
+      onLoss: () => {
+        reports += 1;
+      },
+    });
+    await exporter.close(20);
+    assertEquals(live.size, 0);
+    for (let item = 0; item < 50; item += 1) exporter.offer(item);
+    assertEquals(live.size, 0, "refusing offers after close schedules nothing");
+    await pause(3 * MIN_LOSS_REPORT_GAP_MS);
+    assertEquals(reports, 0, "and reports nothing");
+    const stats = exporter.stats();
+    assertEquals(stats.dropped.shutdown, 50, "but every one is counted");
+    conserved(stats);
+  } finally {
+    globalThis.setTimeout = realSet;
+    globalThis.clearTimeout = realClear;
+    for (const id of live) realClear(id as ReturnType<typeof setTimeout>);
+  }
+});
+
+Deno.test("a reporter that is still working does not make the application's own offers fail", async () => {
+  // The first design held the refusal until the reporter's promise settled,
+  // which blacked out every offer for as long as an async reporter took.
+  let pending = false;
+  let refusedWhilePending = 0;
+  let reportsStarted = 0;
+  const exporter = make<number>(() => Promise.reject(new Error("down")), {
+    capacity: 50,
+    batchSize: 50,
+    maxAttempts: 1,
+    onLoss: async () => {
+      reportsStarted += 1;
+      pending = true;
+      await pause(120);
+      pending = false;
+    },
+  });
+  exporter.offer(0);
+  await until(() => pending, "a reporter in progress");
+  for (let item = 1; item <= 10; item += 1) {
+    if (!exporter.offer(item)) refusedWhilePending += 1;
+  }
+  assert(
+    pending,
+    "the reporter was still working while the application offered",
+  );
+  assertEquals(refusedWhilePending, 0);
+  assertEquals(exporter.stats().dropped.reentrant, 0);
+  await exporter.close(300);
+  assert(reportsStarted >= 1);
+  conserved(exporter.stats());
+});
+
+Deno.test("a reporter that offers to a different exporter is not refused there", async () => {
+  const other = make<number>(() => Promise.resolve());
+  const exporter: Awaited<ReturnType<typeof fullQueue>> = await fullQueue(
+    async () => {
+      await null;
+      assertEquals(other.offer(7), true, "another exporter accepts it");
+      exporter.offer(-1);
+    },
+  );
+  await until(() => exporter.stats().dropped.reentrant >= 1, "the refusal");
+  await until(() => other.stats().exported === 1, "the other export");
+  assertEquals(other.stats().dropped.reentrant, 0);
+  await exporter.close(20);
+  await other.close(20);
+});
+
+Deno.test("reports are never closer together than the gap", async () => {
+  const at: number[] = [];
+  const exporter = make<number>(() => new Promise(() => {}), {
+    capacity: 1,
+    batchSize: 1,
+    sendTimeoutMs: 60_000,
+    onLoss: () => {
+      at.push(performance.now());
+    },
+  });
+  exporter.offer(0);
+  await until(() => exporter.stats().inFlight === 1, "an item in flight");
+  exporter.offer(1);
+  exporter.offer(2);
+  await until(() => at.length === 1, "the first report");
+  // A loss right after a report waits out the rest of the gap.
+  exporter.offer(3);
+  await until(() => at.length === 2, "the second report");
+  assert(
+    at[1] - at[0] >= MIN_LOSS_REPORT_GAP_MS - 5,
+    `${at[1] - at[0]} ms between reports`,
+  );
+  assert(at[1] - at[0] < MIN_LOSS_REPORT_GAP_MS + 1000, "and not much longer");
+  await exporter.close(20);
+});
+
+Deno.test("close reports what is pending at once, however recently the last report was", async () => {
+  let reported = 0;
+  const exporter = make<number>(() => new Promise(() => {}), {
+    capacity: 1,
+    batchSize: 1,
+    sendTimeoutMs: 60_000,
+    onLoss: ({ count }) => {
+      reported += count;
+    },
+  });
+  for (let item = 0; item < 4; item += 1) exporter.offer(item);
+  await until(() => reported >= 2, "the first report");
+  exporter.offer(10);
+  exporter.offer(11);
+  const closed = exporter.close(20);
+  await closed;
+  assertEquals(
+    reported,
+    exporter.stats().offered,
+    "nothing is left unreported",
+  );
+});
+
+Deno.test("a callback the reporter queued from outside its context is still bounded: rate-limited, and over at close", async () => {
+  // Async context cannot follow a callback that a timer created earlier drains
+  // from a mailbox. The reporter's offers then look like the application's, so
+  // the loop is real; what stops it is the gap between reports and close.
+  const mailbox: Array<() => void> = [];
+  const drain = setInterval(() => {
+    for (const run of mailbox.splice(0)) run();
+  }, 1);
+  try {
+    let reports = 0;
+    const exporter: Awaited<ReturnType<typeof fullQueue>> = await fullQueue(
+      () => {
+        reports += 1;
+        mailbox.push(() => {
+          exporter.offer(-1);
+        });
+      },
+    );
+    const started = performance.now();
+    await pause(8 * MIN_LOSS_REPORT_GAP_MS);
+    const elapsed = performance.now() - started;
+    assert(
+      reports >= 3,
+      `${reports} reports: the escape did not happen, so this proves nothing`,
+    );
+    assert(
+      reports <= Math.floor(elapsed / MIN_LOSS_REPORT_GAP_MS) + 2,
+      `${reports} reports in ${elapsed} ms`,
+    );
+    assertEquals(exporter.stats().dropped.reentrant, 0, "it really did escape");
+    await exporter.close(20);
+    const reportsAtClose = reports;
+    await pause(6 * MIN_LOSS_REPORT_GAP_MS);
+    assertEquals(reports, reportsAtClose, "and it stops at close");
+  } finally {
+    clearInterval(drain);
+  }
+});
+
+Deno.test("a reporter's then is read once, so a getter cannot answer differently the second time", async () => {
+  let reads = 0;
+  let reports = 0;
+  const exporter = make<number>(() => Promise.reject(new Error("down")), {
+    capacity: 1,
+    batchSize: 1,
+    maxAttempts: 1,
+    onLoss: () => {
+      reports += 1;
+      return {
+        get then() {
+          reads += 1;
+          // Callable, so an implementation that reads it once to check and
+          // again to call it reads twice; one that reads undefined stops early.
+          return () => undefined;
+        },
+      } as unknown as void;
+    },
+  });
+  for (let item = 0; item < 4; item += 1) exporter.offer(item);
+  await until(() => exporter.stats().failedBatches >= 1, "a failed batch");
+  await exporter.close(100);
+  assert(reports >= 1);
+  assertEquals(reads, reports, "one read of then per report");
+});
+
+Deno.test("a long chain of thenables is followed to a bound and then left alone", async () => {
+  let calls = 0;
+  const link = (depth: number): unknown => ({
+    then: () => {
+      calls += 1;
+      return depth > 0 ? link(depth - 1) : undefined;
+    },
+  });
+  let reports = 0;
+  const exporter = make<number>(() => Promise.reject(new Error("down")), {
+    capacity: 1,
+    batchSize: 1,
+    maxAttempts: 1,
+    onLoss: () => {
+      reports += 1;
+      return link(50) as void;
+    },
+  });
+  for (let item = 0; item < 4; item += 1) exporter.offer(item);
+  await until(() => exporter.stats().failedBatches >= 1, "a failed batch");
+  await exporter.close(100);
+  assert(reports >= 1);
+  assert(
+    calls <= reports * 8,
+    `${calls} calls for ${reports} reports: not bounded`,
+  );
+  assert(calls >= reports, "it was followed at all");
+});
+
+// ---- Node ------------------------------------------------------------------
+// The module is meant to run under Node 24 as well (epic #139). Deno compiles
+// TypeScript that Node's type stripping refuses, such as a parameter property,
+// so this loads the file as Node would and repeats the loop case there, where
+// AsyncLocalStorage is Node's own.
+
+Deno.test("the exporter loads and holds its guarantees under Node's type stripping", async () => {
+  const url =
+    new URL("../../packages/config/src/telemetry-export.ts", import.meta.url)
+      .href;
+  const script = `
+    import { createBoundedExporter, MIN_LOSS_REPORT_GAP_MS } from ${
+    JSON.stringify(url)
+  };
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const unhandled = [];
+    process.on("unhandledRejection", (e) => unhandled.push(String(e)));
+    let calls = 0;
+    const exporter = createBoundedExporter({
+      send: () => new Promise(() => {}),
+      capacity: 1, batchSize: 1, sendTimeoutMs: 60000, maxAttempts: 1,
+      retryDelayMs: 0, intervalMs: 2,
+      onLoss: async () => { calls += 1; await null; exporter.offer(-1); },
+    });
+    exporter.offer(0);
+    while (exporter.stats().inFlight !== 1) await sleep(2);
+    exporter.offer(1); exporter.offer(2); exporter.offer(3);
+    await sleep(4 * MIN_LOSS_REPORT_GAP_MS);
+    const before = { calls, ...exporter.stats().dropped };
+    await exporter.close(20);
+    const atClose = calls;
+    await sleep(4 * MIN_LOSS_REPORT_GAP_MS);
+    // three shapes whose then() hands back a rejection nobody holds
+    const exotic = [
+      () => ({ then: () => Promise.reject(new Error("a")) }),
+      () => new (class { async then() { throw new Error("b"); } })(),
+      () => { class E extends Promise { then() { return Promise.reject(new Error("c")); } } return new E(() => {}); },
+    ];
+    for (const make of exotic) {
+      const e = createBoundedExporter({
+        send: () => Promise.reject(new Error("down")),
+        capacity: 1, batchSize: 1, sendTimeoutMs: 100, maxAttempts: 1,
+        retryDelayMs: 0, intervalMs: 2, onLoss: () => make(),
+      });
+      for (let i = 0; i < 4; i++) e.offer(i);
+      await sleep(3 * MIN_LOSS_REPORT_GAP_MS);
+      await e.close(20);
+    }
+    await sleep(100);
+    console.log("NODE_RESULT " + JSON.stringify({
+      version: process.versions.node, before, atClose, after: calls, unhandled,
+    }));
+  `;
+  const { execFile } = await import("node:child_process");
+  const output = await new Promise<string>((resolve, reject) => {
+    execFile(
+      "node",
+      ["--experimental-strip-types", "--input-type=module", "-e", script],
+      { timeout: 20_000 },
+      (error, stdout, stderr) =>
+        error
+          ? reject(new Error(`${error.message}\n${stderr}`))
+          : resolve(stdout),
+    );
+  });
+  const line = output.split("\n").find((l) => l.startsWith("NODE_RESULT "));
+  assert(line, `node printed no result: ${output}`);
+  const result = JSON.parse(line.slice("NODE_RESULT ".length));
+  assertEquals(
+    result.before.calls,
+    1,
+    `node ${result.version}: one loss, one report`,
+  );
+  assertEquals(result.before.reentrant, 1);
+  assertEquals(result.after, result.atClose, "no report after close");
+  assertEquals(result.unhandled, [], "no unhandled rejection under Node");
+});
