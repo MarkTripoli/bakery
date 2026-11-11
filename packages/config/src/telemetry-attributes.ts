@@ -57,11 +57,24 @@ export const STEP_ID_SEGMENT = /^[a-z][a-z0-9_]{1,63}$/;
 export const STEP_KEY_SEGMENT =
   /^([a-z][a-z0-9_]{1,63})(?:@(0|[1-9][0-9]{0,2}))?$/;
 
-/** Deepest nesting a plan allows (8) plus the two levels its flattening adds. */
-export const MAX_STEP_KEY_SEGMENTS = 10;
+/**
+ * Most segments a qualified step id can have. The compiler allows 8 levels of
+ * nesting (`WORKFLOW_COMPILER_LIMITS.nodeDepth`), which is 7 wrappers around a
+ * leaf step. A sequence, a branch arm and a repeat body each add one segment
+ * (the node's id); a parallel group adds two (its id and its lane's id). Seven
+ * nested parallel groups plus the leaf give 2 * 7 + 1 = 15, the most any plan
+ * can produce. This package cannot import the compiler, so a unit test derives
+ * the number from `nodeDepth` and fails if the two ever disagree.
+ */
+export const MAX_STEP_KEY_SEGMENTS = 15;
 
-/** Longest step key: ten segments of 64 characters, each with `@999`, and dots. */
-export const MAX_STEP_KEY_LENGTH = 1024;
+/**
+ * Longest step key: 15 segments of 64 characters, each with the grammar's
+ * widest loop marker (`@999`, 4 characters), and 14 dots, which is 1034. The
+ * compiler's repeat limit is 8, so real keys carry `@8` at most and the longest
+ * the compiler can produce is 974; the bound covers what the grammar admits.
+ */
+export const MAX_STEP_KEY_LENGTH = 1040;
 
 /** Longest accepted duration: a year plus a day, in milliseconds. */
 const MAX_DURATION_MS = 366 * 86_400_000;
