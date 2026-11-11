@@ -7,6 +7,7 @@ export {
 } from "./export.ts";
 export {
   type AuditStreamInput,
+  cutField,
   DEFAULT_STREAM_BATCH_ROWS,
   MAX_STREAM_BATCH_BYTES,
   MAX_STREAM_BATCH_ROWS,

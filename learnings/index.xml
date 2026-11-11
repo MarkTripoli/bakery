@@ -98,4 +98,5 @@
   <entry file="paper-identity-repin-after-wording-edit.xml" scope="project" />
   <entry file="navigating-click-reads-storage-from-context.xml" scope="project" />
   <entry file="heavy-lane-label-is-pool-not-cpu.xml" scope="project" />
+  <entry file="nested-steps-bind-through-compiler-action-sites.xml" scope="project" />
 </learnings>
