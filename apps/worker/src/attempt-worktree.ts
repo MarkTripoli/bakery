@@ -158,26 +158,50 @@ async function makeTreeRemovable(path: string): Promise<void> {
   }
 }
 
+/**
+ * `git worktree add` locks its record as "initializing" until it has finished.
+ * A checkout cut off in that window (deadline, cancellation, a lost worker)
+ * leaves the record locked with no directory behind it, and neither
+ * `worktree remove --force` nor `worktree prune` removes a locked record, so it
+ * would stay in the operator's repository for good. Unlocking the path of an
+ * attempt that is being discarded lets the prune that follows drop it. Only the
+ * attempt's own path is named, so a lock somebody else holds is never touched.
+ * Best effort: git refuses for a path that is unregistered or not locked.
+ */
+async function unlockAbandonedRecord(
+  repository: string,
+  worktree: string,
+  gitMs: number,
+): Promise<void> {
+  await git(repository, ["worktree", "unlock", worktree], gitMs).catch(
+    () => undefined,
+  );
+}
+
 /** Removes leftover attempt roots and stale worktree records of a crashed worker. */
 export async function sweepAttempts(
   options: AttemptWorktreeOptions,
   scope: AttemptScope,
 ): Promise<void> {
   const base = join(options.stateDir, scope.directory);
+  const gitMs = options.limits?.gitMs ?? ATTEMPT_WORKTREE_LIMITS.gitMs;
   try {
     for await (const entry of Deno.readDir(base)) {
       const path = join(base, entry.name);
       await makeTreeRemovable(path);
       await Deno.remove(path, { recursive: true }).catch(() => undefined);
+      await unlockAbandonedRecord(
+        options.repository,
+        join(path, "worktree"),
+        gitMs,
+      );
     }
   } catch (error) {
     if (!(error instanceof Deno.errors.NotFound)) throw error;
   }
-  await git(
-    options.repository,
-    ["worktree", "prune"],
-    options.limits?.gitMs ?? ATTEMPT_WORKTREE_LIMITS.gitMs,
-  ).catch(() => undefined);
+  await git(options.repository, ["worktree", "prune"], gitMs).catch(
+    () => undefined,
+  );
 }
 
 /** Always runs: removes the worktree, the attempt root and the stale record. */
@@ -197,6 +221,11 @@ export async function removeAttempt(
     ).catch(() => undefined);
   }
   await Deno.remove(layout.root, { recursive: true }).catch(() => undefined);
+  // `added: false` also covers a checkout that was cut off after git had
+  // already registered (and locked) the record.
+  if (!worktreeAdded) {
+    await unlockAbandonedRecord(options.repository, layout.worktree, gitMs);
+  }
   await git(options.repository, ["worktree", "prune"], gitMs).catch(
     () => undefined,
   );
