@@ -50,6 +50,13 @@ import { resolvePrincipal } from "./modules/auth/application/identity.ts";
 import { REMOTE_ADDRESS_HEADER } from "./modules/auth/adapters/better-auth.ts";
 import { createMcpMetadataRoutes } from "./platform/mcp/metadata.ts";
 import { createMcpRoutes } from "./platform/mcp/server.ts";
+import {
+  type CollaborationRegistry,
+  type CollaborationSocketHandlerOptions,
+  type CollaborationSocketLimits,
+  createCollaborationRegistry,
+  createCollaborationSocketHandler,
+} from "./modules/knowledge/collaboration-socket.ts";
 import { createMcpToolRunner } from "./platform/mcp/tools.ts";
 import { mcpResourceUrl, oauthIssuerUrl } from "./platform/mcp/scopes.ts";
 import {
@@ -135,6 +142,13 @@ export function createApp(options: {
   eventsSocket?: {
     registry?: EventsSocketRegistry;
     limits?: Partial<EventsSocketLimits>;
+  };
+  /** Collaboration socket overrides; tests share the registry and tighten the bounds. */
+  collaborationSocket?: {
+    registry?: CollaborationRegistry;
+    limits?: Partial<CollaborationSocketLimits>;
+    now?: () => Date;
+    upgradeWebSocket?: CollaborationSocketHandlerOptions["upgradeWebSocket"];
   };
 }) {
   assertRuntimeConfig(options.config);
@@ -348,6 +362,32 @@ export function createApp(options: {
     }),
   );
   app.use("/v1/events", browserSession);
+  const collaborationHandler = createCollaborationSocketHandler({
+    database: options.pgDatabase,
+    store: persistence,
+    secret: options.config.auth.secret,
+    publicBaseUrl: options.config.publicBaseUrl,
+    registry: options.collaborationSocket?.registry ??
+      createCollaborationRegistry(),
+    limits: options.collaborationSocket?.limits,
+    now: options.collaborationSocket?.now,
+    upgradeWebSocket: options.collaborationSocket?.upgradeWebSocket,
+  });
+  app.use(
+    "/v1/collaboration",
+    createOriginGuard({
+      publicBaseUrl: options.config.publicBaseUrl,
+      trustedOrigins: options.config.auth.trustedOrigins,
+    }),
+  );
+  app.use("/v1/collaboration", browserSession);
+  app.get("/v1/collaboration", collaborationHandler);
+  app.all("/v1/collaboration", (context) =>
+    problemResponse(
+      context,
+      new StandardError({ code: "METHOD_NOT_ALLOWED" }),
+      { publicBaseUrl: options.config.publicBaseUrl, allow: "GET" },
+    ));
   app.get("/v1/events", eventsHandler);
   app.all("/v1/events", (context) =>
     problemResponse(
