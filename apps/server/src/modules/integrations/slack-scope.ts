@@ -42,10 +42,25 @@ const TEAM_ID = /^T[A-Z0-9]{2,31}$/;
 const ENTERPRISE_ID = /^E[A-Z0-9]{2,31}$/;
 const USER_ID = /^[UW][A-Z0-9]{2,31}$/;
 const CHANNEL_ID = /^[CG][A-Z0-9]{2,31}$/;
-const SCOPE = /^[a-z][a-z_]*(?:\.[a-z_]+)?(?::[a-z_]+)?$/;
+/**
+ * A Slack scope: dot-separated parts, optionally followed by a colon and more
+ * dot-separated parts, each part starting with a lowercase letter and then
+ * lowercase letters, digits, underscores or hyphens. That covers `commands`,
+ * `chat:write`, `chat:write.public`, `users:read.email`, `links.embed:write` and
+ * `incoming-webhook`. Every `.` and `:` is a literal separator between parts that
+ * cannot contain it, so the pattern cannot backtrack catastrophically.
+ */
+const SCOPE =
+  /^[a-z][a-z0-9_-]*(?:\.[a-z][a-z0-9_-]*)*(?::[a-z][a-z0-9_-]*(?:\.[a-z][a-z0-9_-]*)*)?$/;
 
 /** Most scopes read from one response; a real bot has a dozen. */
 const MAX_SCOPES = 100;
+
+/** Longest single scope; real ones are under 40 characters. */
+const MAX_SCOPE_LENGTH = 128;
+
+/** The most a scope string can hold: the count, the length and the commas. */
+const MAX_SCOPE_STRING_LENGTH = MAX_SCOPES * (MAX_SCOPE_LENGTH + 1);
 
 const refuse = (
   reason: SlackInstallationRejection,
@@ -105,9 +120,15 @@ export function classifySlackInstallation(
     ) return refuse("malformed");
 
     if (typeof body.scope !== "string") return refuse("malformed");
+    // Bounded before it is split or matched, so a huge string costs nothing.
+    if (body.scope.length > MAX_SCOPE_STRING_LENGTH) return refuse("malformed");
     const listed = body.scope === "" ? [] : body.scope.split(",");
     if (listed.length > MAX_SCOPES) return refuse("malformed");
-    if (listed.some((scope) => !SCOPE.test(scope))) return refuse("malformed");
+    if (
+      listed.some((scope) =>
+        scope.length > MAX_SCOPE_LENGTH || !SCOPE.test(scope)
+      )
+    ) return refuse("malformed");
 
     return {
       ok: true,

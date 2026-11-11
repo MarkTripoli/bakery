@@ -619,3 +619,272 @@ Deno.test("a selection that only looks like a set cannot make every channel avai
     { available: false, reason: "malformed" },
   );
 });
+
+// ---- QA round 1 on #148 -----------------------------------------------------
+// The scope pattern was written from memory and tested only with scopes of the
+// shape it allowed, so it refused a whole installation over a routine scope.
+// These are real bot scopes from Slack's reference, in the shapes that matter:
+// a dot after the colon, a dot before it, a hyphen, and several of them.
+
+const REAL_SCOPES = [
+  "app_mentions:read",
+  "channels:history",
+  "channels:read",
+  "channels:write.invites",
+  "chat:write",
+  "chat:write.customize",
+  "chat:write.public",
+  "commands",
+  "files:read",
+  "im:history",
+  "incoming-webhook",
+  "links.embed:write",
+  "pins:write",
+  "reactions:write",
+  "users:read",
+  "users:read.email",
+  "workflow.steps:execute",
+];
+
+Deno.test("every real Slack bot scope shape is accepted, singly and all together", () => {
+  for (const scope of REAL_SCOPES) {
+    const result = classifySlackInstallation(install({ scope }), expectedApp);
+    assert(result.ok, `refused a real scope: ${scope}`);
+    assertEquals(result.installation.scopes, [scope]);
+  }
+  const all = classifySlackInstallation(
+    install({ scope: [...REAL_SCOPES].reverse().join(",") }),
+    expectedApp,
+  );
+  assert(all.ok);
+  assertEquals(all.installation.scopes, [...REAL_SCOPES].sort());
+});
+
+Deno.test("a feature still switches on when its scope arrives alongside the dotted and hyphenated ones", () => {
+  const result = classifySlackInstallation(
+    install({
+      scope: "chat:write,chat:write.public,incoming-webhook,commands",
+    }),
+    expectedApp,
+  );
+  assert(result.ok);
+  assertEquals(
+    slackFeaturesFor(result.installation.scopes).sort(),
+    ["progress_posts", "slash_commands"],
+  );
+  // chat:write.public is a different scope from chat:write: it grants nothing here.
+  const only = classifySlackInstallation(
+    install({ scope: "chat:write.public" }),
+    expectedApp,
+  );
+  assert(only.ok);
+  assertEquals(slackFeaturesFor(only.installation.scopes), []);
+});
+
+Deno.test("what is not a scope is still refused: empty parts, case, space, control characters, odd punctuation and non-ASCII", () => {
+  const refused = [
+    "Chat:write",
+    "CHAT:WRITE",
+    "chat:Write",
+    "chat:write ",
+    " chat:write",
+    "chat: write",
+    "chat write",
+    "chat:write\n",
+    "\nchat:write",
+    "chat:write\r",
+    "chat:write\t",
+    "chat:write\u0000",
+    "chat:write\u0085",
+    "chat:write ",
+    "chat::write",
+    "chat:write:extra",
+    "chat:write:public:more",
+    ":write",
+    "chat:",
+    ":",
+    ".",
+    ".write",
+    "chat.",
+    "chat..write",
+    "chat:.write",
+    "chat:write.",
+    "chat:write..public",
+    "chat.:write",
+    "-chat",
+    "_chat",
+    "9chat",
+    "chat:-write",
+    "chat/write",
+    "chat*",
+    "chat:*",
+    "*",
+    "chat;write",
+    "chat'write",
+    'chat"write',
+    "chat\\write",
+    "chat:write=public",
+    "chat:wrïte",
+    "chät:write",
+    "ｃhat:write",
+    "chat:write​",
+    "chat‮:write",
+  ];
+  for (const scope of refused) {
+    const result = classifySlackInstallation(
+      install({ scope: `commands,${scope}` }),
+      expectedApp,
+    );
+    assert(!result.ok, `accepted ${JSON.stringify(scope)}`);
+    assertEquals(result.reason, "malformed", JSON.stringify(scope));
+  }
+  // An empty scope between commas, and a response with no scopes at all.
+  for (const scope of ["commands,,chat:write", ",", "commands,"]) {
+    assertEquals(
+      classifySlackInstallation(install({ scope }), expectedApp),
+      { ok: false, reason: "malformed" },
+      JSON.stringify(scope),
+    );
+  }
+  const none = classifySlackInstallation(install({ scope: "" }), expectedApp);
+  assert(none.ok);
+  assertEquals(none.installation.scopes, []);
+});
+
+Deno.test("a scope has a length limit, and an enormous scope string is refused before it is split or matched", () => {
+  const name = (length: number) => `a${"b".repeat(length - 1)}`;
+  assert(
+    classifySlackInstallation(install({ scope: name(128) }), expectedApp).ok,
+  );
+  assertEquals(
+    classifySlackInstallation(install({ scope: name(129) }), expectedApp),
+    { ok: false, reason: "malformed" },
+  );
+  // Shapes a backtracking pattern could be tortured with, at a size that would
+  // take a naive implementation a long time: they are refused by length first.
+  const started = performance.now();
+  for (
+    const scope of [
+      "a".repeat(5_000_000),
+      `${"a.".repeat(2_000_000)}!`,
+      `${"a-".repeat(2_000_000)}:`,
+      `${"a:".repeat(2_000_000)}`,
+      ",".repeat(5_000_000),
+    ]
+  ) {
+    assertEquals(
+      classifySlackInstallation(install({ scope }), expectedApp),
+      { ok: false, reason: "malformed" },
+    );
+  }
+  const elapsed = performance.now() - started;
+  assert(elapsed < 1000, `five huge scope strings took ${elapsed} ms`);
+  // A near-limit scope made of many short parts is matched in linear time.
+  const dotted = Array.from({ length: 64 }, () => "a").join(".");
+  const nearly = `${dotted}:${dotted}`.slice(0, 128);
+  const once = performance.now();
+  classifySlackInstallation(install({ scope: `${nearly}!` }), expectedApp);
+  assert(performance.now() - once < 50, "a 128-character near miss is cheap");
+});
+
+Deno.test("the total size of the scope string is bounded by the count and the length together", () => {
+  const scope = (count: number, length: number) =>
+    Array.from(
+      { length: count },
+      (_, i) =>
+        `${String.fromCharCode(97 + (i % 26))}${
+          String.fromCharCode(97 + Math.floor(i / 26))
+        }${"x".repeat(length - 2)}`,
+    ).join(",");
+  const atLimit = classifySlackInstallation(
+    install({ scope: scope(100, 128) }),
+    expectedApp,
+  );
+  assert(atLimit.ok, "100 scopes of 128 characters are the largest accepted");
+  assertEquals(atLimit.installation.scopes.length, 100);
+  assertEquals(
+    classifySlackInstallation(install({ scope: scope(101, 128) }), expectedApp),
+    { ok: false, reason: "malformed" },
+  );
+});
+
+Deno.test("digits are allowed after the first character of a part, and nowhere else is case allowed", () => {
+  for (
+    const scope of [
+      "a1",
+      "chat2:write",
+      "chat:write2",
+      "a-1",
+      "x1.y2:z3.w4",
+      "app2_v3:read-9",
+    ]
+  ) {
+    const result = classifySlackInstallation(install({ scope }), expectedApp);
+    assert(result.ok, `refused a scope with digits: ${scope}`);
+    assertEquals(result.installation.scopes, [scope]);
+  }
+  // Upper case anywhere is refused, not only at the start of the scope: each
+  // position class (first letter, rest of a part, after a dot, after the colon).
+  for (
+    const scope of [
+      "cHat:write",
+      "chaT:write",
+      "chat:wRite",
+      "chat:writE",
+      "chat:write.pUblic",
+      "chat:write.publiC",
+      "chat.Embed:write",
+      "chat.embeD:write",
+      "incoming-Webhook",
+      "incoming-webhooK",
+      "a_B",
+      "a1B",
+    ]
+  ) {
+    const result = classifySlackInstallation(install({ scope }), expectedApp);
+    assert(!result.ok, `accepted upper case: ${scope}`);
+    assertEquals(result.reason, "malformed", scope);
+  }
+});
+
+Deno.test("a scope string over the size limit is refused without being split or matched", () => {
+  const realSplit = String.prototype.split;
+  const splitLengths: number[] = [];
+  String.prototype.split = function (this: string, ...args: unknown[]) {
+    splitLengths.push(String(this).length);
+    return (realSplit as (...a: unknown[]) => string[]).apply(this, args);
+  } as typeof String.prototype.split;
+  try {
+    // The size limit is 100 scopes of 128 characters and their commas: 12,900.
+    const huge = "a".repeat(13_000);
+    assertEquals(
+      classifySlackInstallation(install({ scope: huge }), expectedApp),
+      { ok: false, reason: "malformed" },
+    );
+    assertEquals(
+      classifySlackInstallation(
+        install({ scope: ",".repeat(5_000_000) }),
+        expectedApp,
+      ),
+      { ok: false, reason: "malformed" },
+    );
+    const bigSplits = splitLengths.filter((length) => length > 12_900);
+    assertEquals(
+      bigSplits,
+      [],
+      "a string over the limit must never reach split",
+    );
+    // A string at the limit is split: this proves the instrument sees the call.
+    const before = splitLengths.length;
+    classifySlackInstallation(
+      install({ scope: "chat:write,commands" }),
+      expectedApp,
+    );
+    assert(
+      splitLengths.length > before,
+      "the spy did not see a split it should have",
+    );
+  } finally {
+    String.prototype.split = realSplit;
+  }
+});
