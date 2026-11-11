@@ -887,8 +887,20 @@ export function createCollaborationSocketHandler(
         sequence: BigInt(receipt.serverSequence),
         payload: candidate.update,
       });
-      for (const peer of internals!.rooms.get(roomKey(room))?.values() ?? []) {
+      for (
+        const peer of [...(internals!.rooms.get(roomKey(room))?.values() ?? [])]
+      ) {
         if (peer.connection === connection) continue;
+        // Draft bytes go only to a peer whose session and read access hold
+        // now, not just at the last sweep.
+        try {
+          await assertSession(peer.connection.token);
+          await assertRoomAccess(peer.connection, room);
+        } catch (error) {
+          removeParticipant(peer, "revoked");
+          problem(peer.connection, null, error);
+          continue;
+        }
         sendBinary(peer.connection, {
           type: "committed",
           room,

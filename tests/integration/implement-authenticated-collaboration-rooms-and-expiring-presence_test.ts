@@ -949,3 +949,54 @@ Deno.test("concurrent upgrades from one principal cannot exceed the connection c
     await closeHarness(harness);
   }
 });
+
+Deno.test("a peer revoked between sweeps receives no draft bytes (AC1)", async () => {
+  // The sweep is held far away, so only the relay-time check can stop it.
+  const harness = await openHarness({ sweepMilliseconds: 600_000 });
+  try {
+    const second = await addMember(
+      harness.fixture,
+      harness.fixture.ids.organizationId,
+      "Revoked Person",
+    );
+    harness.extra.push(second);
+    const a = await open(harness, harness.owner);
+    const aState = await joinAndSync(a, harness);
+    const b = await open(harness, second);
+    await joinAndSync(b, harness);
+    await harness.fixture.pgDatabase.query(
+      "delete from public.session where token=$1",
+      [second.sessionToken],
+    );
+    await a.sendRaw(
+      0x2,
+      updateFrame(
+        harness,
+        aState.epoch,
+        crypto.randomUUID(),
+        localEdit(aState.doc, 0, "secret "),
+      ),
+    );
+    assertEquals((await until(a, "ack")).type, "ack");
+    const binaries: Uint8Array[] = [];
+    let closed: { code: number; reason: string } | undefined;
+    const deadline = Date.now() + 1_500;
+    while (Date.now() < deadline) {
+      const value = await b.nextMessage(deadline - Date.now()).catch(() =>
+        undefined
+      );
+      if (value === undefined) break;
+      if (typeof value === "object" && "binary" in value) {
+        binaries.push(value.binary);
+      } else if (typeof value === "object" && "code" in value) {
+        closed = value;
+        break;
+      }
+    }
+    assertEquals(binaries.length, 0);
+    assertExists(closed);
+    assertEquals(closed.code, 1008);
+  } finally {
+    await closeHarness(harness);
+  }
+});
