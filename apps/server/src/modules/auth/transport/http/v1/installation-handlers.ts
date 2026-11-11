@@ -22,7 +22,11 @@ import { listAuditEvents } from "../../../adapters/audit-events-postgres.ts";
 import { readAuditRetention } from "../../../adapters/audit-retention-postgres.ts";
 import { AuthImplementedAction as Action } from "@bakery/contracts/implemented-actions";
 import { recordAuthAudit } from "../../../application/audit.ts";
-import { exportAuditEvents, updateAuditRetention } from "../../../audit/mod.ts";
+import {
+  exportAuditEvents,
+  streamAuditEvents,
+  updateAuditRetention,
+} from "../../../audit/mod.ts";
 
 function authorized(context: ActionContext): AuthorizedActionContext {
   const value = context as Partial<AuthorizedActionContext>;
@@ -247,6 +251,42 @@ export async function auditEventsExport(
     },
   });
   return exported;
+}
+
+/**
+ * One batch of the audit stream. Opening a stream (no cursor) is audited with
+ * its filters; resumed batches are not, or each poll would append the row the
+ * next poll delivers.
+ */
+export async function auditEventsStream(
+  context: ActionContext,
+  input: z.output<typeof contractSchemas.AuditStreamQuery>,
+  secret: string,
+) {
+  const value = authorized(context);
+  const organizationId = organizationScope(value);
+  const batch = await streamAuditEvents(value.transaction, {
+    action: Action.AuditEventsStream,
+    principalId: value.principal.principalId,
+    organizationId,
+    query: input,
+    secret,
+  });
+  if (!input.cursor) {
+    await recordAuthAudit(value.transaction, value, {
+      organizationId,
+      principalId: value.principal.principalId,
+      operation: Action.AuditEventsStream,
+      resourceType: "audit_events",
+      resourceId: organizationId,
+      details: {
+        operation: input.operation ?? null,
+        outcome: input.outcome ?? null,
+        lineCount: batch.lineCount,
+      },
+    });
+  }
+  return batch;
 }
 
 export function auditRetentionGet(context: ActionContext) {
