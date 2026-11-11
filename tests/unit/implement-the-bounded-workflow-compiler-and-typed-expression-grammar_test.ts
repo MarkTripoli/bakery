@@ -2486,16 +2486,11 @@ Deno.test("the live catalog reports the schemas missing from the contracts", () 
   // rpi.plan left the design-only set when #437/#440 published dispatchable
   // workflow action discovery and step bindings for it; review.independent
   // left it when #94 registered ReviewInput and ReviewOutput as worker action
-  // schemas; everything the registry still marks design-only stays unresolved
-  // in the live catalog. #30 slice A1 registered rpi.research and the delivery
-  // actions. The set is pinned exactly, so registering another action fails
-  // this test until its schemas are listed as resolved here.
-  assertEquals([...unresolved].sort(), [
-    "artifact.publish",
-    "evaluation.sample",
-    "integration.action",
-    "memory.promote",
-  ]);
+  // schemas; #30 slices A1 and A2 registered the schemas of every action that
+  // was still design-only, so none is unresolved now. The set is pinned
+  // exactly, so adding an action to the registry without schemas fails this
+  // test.
+  assertEquals([...unresolved], []);
   for (
     const name of [
       "quality.check",

@@ -1586,6 +1586,27 @@ const actionSpecs: Record<
         "Immutable artifact holding the evidence the observation is based on.",
     },
   },
+  MemoryOutput: {
+    fields: { memoryId: "uuid", status: "literal(promoted)" },
+    meanings: {
+      memoryId: "Project memory entry the artifact was promoted into.",
+      status:
+        "Always promoted: the step only answers once the memory entry is written.",
+    },
+  },
+  EvaluationOutput: {
+    fields: {
+      evaluationId: "uuid",
+      status: "enum(completed|failed)",
+      measured: "boolean",
+    },
+    meanings: {
+      evaluationId: "Evaluation record the sample was written to.",
+      status: "Whether the sampled evaluation finished or failed.",
+      measured:
+        "Whether the run was actually measured; false when the sample rate selected nothing to evaluate.",
+    },
+  },
   HarnessOutput: {
     fields: {
       headSha: "string",
@@ -1681,6 +1702,15 @@ const actionSpecs: Record<
   },
 };
 const actionOutputTypes = new Set(Object.keys(actionSpecs));
+/**
+ * Action output names that are another contract under the action's own name:
+ * doc 06 defines `IntegrationActionOutput = ActionResult (read or confirmed
+ * write)`, so the action resolves to the one result shape the connection
+ * routes already return instead of a second copy that could drift.
+ */
+const actionOutputAliases: Readonly<Record<string, string>> = {
+  IntegrationActionOutput: "ActionResult",
+};
 
 function actionOutput(name: string): Schema {
   const spec = actionSpecs[name];
@@ -2585,6 +2615,14 @@ function buildSchemas(
   }
   for (const name of actionOutputTypes) {
     if (selected(name)) schemas[name] = actionOutput(name);
+  }
+  for (const [alias, target] of Object.entries(actionOutputAliases)) {
+    if (!selected(alias)) continue;
+    schemas[alias] = schemas[target] ?? buildOutput(
+      target,
+      (source.outputs as JsonObject)[target],
+      source,
+    );
   }
   return schemas;
 }

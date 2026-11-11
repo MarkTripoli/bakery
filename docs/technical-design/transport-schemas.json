@@ -7874,6 +7874,58 @@
         }
       ]
     },
+    "ArtifactPublishInput": {
+      "description": "Input to the artifact.publish workflow action: the artifact version a preceding step produced, which this step publishes so it becomes a retained, addressable artifact of the run.",
+      "fields": [
+        {
+          "name": "artifact",
+          "type": "ArtifactRef",
+          "required": true,
+          "description": "Immutable artifact version to publish, normally the artifact a preceding step emitted; the step records it as published without changing its content."
+        }
+      ]
+    },
+    "MemoryPromoteInput": {
+      "description": "Input to the memory.promote workflow action: the artifact version to promote into project memory and the repository revision that evidence was drawn from.",
+      "fields": [
+        {
+          "name": "artifact",
+          "type": "ArtifactRef",
+          "required": true,
+          "description": "Immutable artifact version to promote into project memory, normally a research or review artifact a preceding step produced."
+        },
+        {
+          "name": "sourceRevision",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1
+          },
+          "description": "Repository revision the promoted artifact describes, kept with the memory so a later reader can tell when it was true."
+        }
+      ]
+    },
+    "EvaluationInput": {
+      "description": "Input to the evaluation.sample workflow action: the completed run to sample and the fraction of its outcomes to evaluate.",
+      "fields": [
+        {
+          "name": "runId",
+          "type": "uuid",
+          "required": true,
+          "description": "Workflow run whose outcomes are sampled for evaluation."
+        },
+        {
+          "name": "sampleRate",
+          "type": "number",
+          "required": true,
+          "bounds": {
+            "min": 0,
+            "max": 1
+          },
+          "description": "Fraction of the run's outcomes to evaluate, from 0 (none) to 1 (all)."
+        }
+      ]
+    },
     "WorkflowActionsListQuery": {
       "fields": [
         {
