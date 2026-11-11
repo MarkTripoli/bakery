@@ -1042,3 +1042,60 @@ Deno.test("frames queued behind a slow join are bounded and the connection is cl
     await closeHarness(harness);
   }
 });
+
+// Smoke test for back-to-back updates with many joined peers. It passes with
+// the relay inside or outside the admission section on a fast local database,
+// so it does not by itself prove the ordering fix; see PR #140 round 1 notes.
+Deno.test("back-to-back updates with twenty joined peers are all acknowledged", async () => {
+  const harness = await openHarness({ maxConnectionsPerPrincipal: 32 });
+  try {
+    const a = await open(harness, harness.owner);
+    const aState = await joinAndSync(a, harness);
+    // Twenty other connections of members join the room.
+    const peers: WsClient[] = [];
+    for (let index = 0; index < 4; index += 1) {
+      const member = await addMember(
+        harness.fixture,
+        harness.fixture.ids.organizationId,
+        `Peer ${index}`,
+      );
+      harness.extra.push(member);
+      for (let tab = 0; tab < 5; tab += 1) {
+        const peer = await open(harness, member);
+        await join(peer, harness);
+        await until(peer, "joined");
+        peers.push(peer);
+      }
+    }
+    // Twelve updates back to back; every one is acknowledged in time.
+    const ids = Array.from({ length: 12 }, () => crypto.randomUUID());
+    for (const [index, id] of ids.entries()) {
+      await a.sendRaw(
+        0x2,
+        updateFrame(
+          harness,
+          aState.epoch,
+          id,
+          localEdit(aState.doc, 0, `${index}`),
+        ),
+      );
+    }
+    const acked = new Set<string>();
+    const binaries: Uint8Array[] = [];
+    const deadline = Date.now() + 20_000;
+    while (acked.size < ids.length && Date.now() < deadline) {
+      const ack = await untilWithBinary(
+        a,
+        "ack",
+        binaries,
+        deadline - Date.now(),
+      );
+      acked.add(ack.mutationId as string);
+    }
+    assertEquals(acked.size, ids.length);
+    const committed = await committedText(harness);
+    assertEquals(committed.serverSequence, "12");
+  } finally {
+    await closeHarness(harness);
+  }
+});

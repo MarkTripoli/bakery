@@ -333,6 +333,25 @@ function principalFromContext(context: {
   };
 }
 
+/**
+ * Whether an authorization failure means access is really gone. Only these
+ * evict a participant; anything else (a database 503/504, a timeout) is
+ * transient and must not be reported as revocation.
+ */
+export function accessLost(error: unknown): boolean {
+  if (error instanceof IdentityResolutionError) return true;
+  return error instanceof StandardError && ACCESS_LOST_CODES.has(error.code);
+}
+
+const ACCESS_LOST_CODES = new Set([
+  "AUTH_REQUIRED",
+  "AUTH_INVALID",
+  "AUTH_EXPIRED",
+  "AUTH_FACTOR_REQUIRED",
+  "AUTH_FORBIDDEN",
+  "RESOURCE_NOT_FOUND",
+]);
+
 /** Problem codes meaning the connection lost its access: close 1008. */
 const ACCESS_LOST = new Set([
   "AUTH_REQUIRED",
@@ -782,10 +801,48 @@ export function createCollaborationSocketHandler(
       );
       return;
     }
-    await serialize(room.id, () => admit(connection, entry.room, frame));
+    const relay = await serialize(
+      room.id,
+      () => admit(connection, entry.room, frame),
+    );
+    if (relay) void relay().catch(() => {});
   }
 
-  async function admit(connection: Connection, room: Room, frame: BinaryFrame) {
+  /**
+   * Draft bytes go only to a peer whose session and read access hold now.
+   * Peers are checked in parallel. Lost access evicts the peer; a transient
+   * failure tells only that peer to resynchronize, without changing membership.
+   */
+  async function relayCommitted(
+    peers: readonly Participant[],
+    room: Room,
+    mutationId: string,
+    committed: Frame,
+    relayed: Uint8Array,
+  ): Promise<void> {
+    await Promise.all(peers.map(async (peer) => {
+      if (peer.connection.closed) return;
+      try {
+        await assertSession(peer.connection.token);
+        await assertRoomAccess(peer.connection, room);
+      } catch (error) {
+        if (accessLost(error)) {
+          removeParticipant(peer, "revoked");
+          problem(peer.connection, null, error);
+        } else {
+          resync(peer.connection, room, mutationId, "stale");
+        }
+        return;
+      }
+      sendBinary(peer.connection, committed, relayed);
+    }));
+  }
+
+  async function admit(
+    connection: Connection,
+    room: Room,
+    frame: BinaryFrame,
+  ): Promise<(() => Promise<void>) | undefined> {
     const input = {
       epoch: frame.epoch,
       mutationId: frame.mutationId,
@@ -906,29 +963,19 @@ export function createCollaborationSocketHandler(
         sequence: BigInt(receipt.serverSequence),
         payload: candidate.update,
       });
-      for (
-        const peer of [...(internals!.rooms.get(roomKey(room))?.values() ?? [])]
-      ) {
-        if (peer.connection === connection) continue;
-        // Draft bytes go only to a peer whose session and read access hold
-        // now, not just at the last sweep.
-        try {
-          await assertSession(peer.connection.token);
-          await assertRoomAccess(peer.connection, room);
-        } catch (error) {
-          removeParticipant(peer, "revoked");
-          problem(peer.connection, null, error);
-          continue;
-        }
-        sendBinary(peer.connection, {
-          type: "committed",
-          room,
-          mutationId: frame.mutationId,
-          serverSequence: receipt.serverSequence,
-          byteLength: relayed.length,
-        } as Frame, relayed);
-      }
-      return;
+      const peers = [...(internals!.rooms.get(roomKey(room))?.values() ?? [])]
+        .filter((peer) => peer.connection !== connection);
+      const committed = {
+        type: "committed",
+        room,
+        mutationId: frame.mutationId,
+        serverSequence: receipt.serverSequence,
+        byteLength: relayed.length,
+      } as Frame;
+      // The relay runs after the admission section is released, so the
+      // sender's next update never waits on the fan-out of this one.
+      return () =>
+        relayCommitted(peers, room, frame.mutationId, committed, relayed);
     }
     resync(connection, room, frame.mutationId, "stale");
   }
@@ -1014,6 +1061,8 @@ export function createCollaborationSocketHandler(
       try {
         await assertSession(connection.token);
       } catch (error) {
+        // A transient failure is retried at the next sweep.
+        if (!accessLost(error)) continue;
         for (const { participant } of [...connection.rooms.values()]) {
           removeParticipant(participant, "revoked");
         }
@@ -1025,6 +1074,7 @@ export function createCollaborationSocketHandler(
         try {
           await assertRoomAccess(connection, room);
         } catch (error) {
+          if (!accessLost(error)) continue;
           removeParticipant(participant, "revoked");
           problem(connection, null, error);
         }
