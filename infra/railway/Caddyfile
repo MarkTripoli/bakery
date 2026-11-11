@@ -1,0 +1,64 @@
+# Bakery web tier on Railway: static SPA + reverse proxy to the API over the
+# private network. Mirrors the production template in scripts/deploy/release.mjs
+# (renderCaddy) plus /mcp and the OAuth discovery paths.
+#
+# BAKERY_API_UPSTREAM        host:port of the API, e.g. api.railway.internal:8000
+# BAKERY_WEB_TRUSTED_PROXIES space-separated CIDRs allowed to set the client
+#                            address header; the default trusts nothing remote.
+# BAKERY_WEB_CLIENT_IP_HEADER header those proxies use; default X-Forwarded-For.
+# BAKERY_WEB_ROOT            static files directory; default /srv/bakery (tests override).
+# BAKERY_WEB_GRACE_PERIOD    shutdown wait for open connections; default 10s.
+{
+	admin off
+	auto_https off
+	persist_config off
+	# On SIGTERM wait this long for open connections (keep-alive, WebSockets),
+	# then exit, so a redeploy is never held until Railway kills the container.
+	grace_period {$BAKERY_WEB_GRACE_PERIOD:10s}
+	servers {
+		trusted_proxies static {$BAKERY_WEB_TRUSTED_PROXIES:127.0.0.1/32}
+		client_ip_headers {$BAKERY_WEB_CLIENT_IP_HEADER:X-Forwarded-For}
+	}
+}
+
+:{$PORT:8080} {
+	# Caddy's `/x/*` requires the trailing slash, so a bare prefix needs its own
+	# token: without `/health` here, GET /health fell through to the SPA catch-all
+	# below and answered 200 text/html, a health check that could never go red.
+	@api path /health /health/* /livez /readyz /v1 /v1/* /api /api/* /mcp /mcp/* /.well-known/oauth-*
+	handle @api {
+		reverse_proxy {$BAKERY_API_UPSTREAM} {
+			# Overwrite, never append: the API rate-limits on this value, so it must
+			# be the address Caddy resolved, not what a client sent.
+			header_up X-Forwarded-For {client_ip}
+			header_up -X-Real-IP
+			header_up -Forwarded
+			# The API trusts this header only from its own router; never forward it.
+			header_up -X-Bakery-Remote-Addr
+			# Rides the gap while the previous API container stops and the new one starts.
+			lb_try_duration 10s
+			lb_try_interval 250ms
+		}
+	}
+	# Caddy sorts `handle` blocks by path length, so a bare `*.map` handler would
+	# lose to `/assets/*`; the assets block therefore rejects maps itself.
+	@maps path *.map
+	handle @maps {
+		respond 404
+	}
+	handle /assets/* {
+		route {
+			@assetmaps path *.map
+			respond @assetmaps 404
+			root * {$BAKERY_WEB_ROOT:/srv/bakery}
+			header Cache-Control "public, max-age=31536000, immutable"
+			file_server
+		}
+	}
+	handle {
+		root * {$BAKERY_WEB_ROOT:/srv/bakery}
+		header Cache-Control "no-store"
+		try_files {path} /index.html
+		file_server
+	}
+}

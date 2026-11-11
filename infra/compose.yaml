@@ -1,0 +1,357 @@
+name: bakery-local
+secrets:
+  worker_enrollment_token:
+    environment: BAKERY_WORKER_ENROLLMENT_TOKEN
+
+
+services:
+  s3-fixture:
+    profiles: ["s3-fixture"]
+    image: docker.io/adobe/s3mock:4.5.0@sha256:c7e19931d107941feae26b5b9c5a2e331f2a2ff661dc64b4afb3fb10bb10ae22
+    environment:
+      initialBuckets: bakery-skill-fixture
+    ports:
+      - target: 9090
+        published: "${BAKERY_S3_FIXTURE_PORT:-0}"
+        host_ip: 127.0.0.1
+    networks: [test-access]
+    mem_limit: 768m
+
+  config-guard:
+    image: redis:7.4-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    command:
+      - sh
+      - -eu
+      - -c
+      - |
+          case "$$BAKERY_LOCAL_BAKERY_PASSWORD$$BAKERY_LOCAL_APP_PASSWORD$$BAKERY_LOCAL_INNGEST_PASSWORD$$BAKERY_LOCAL_REDIS_PASSWORD" in
+            *[!A-Za-z0-9._~-]*) echo "Local passwords must be URI-safe" >&2; exit 78 ;;
+          esac
+    environment:
+      BAKERY_LOCAL_BAKERY_PASSWORD: ${BAKERY_LOCAL_BAKERY_PASSWORD:-bakery-local-bakery}
+      BAKERY_LOCAL_APP_PASSWORD: ${BAKERY_LOCAL_APP_PASSWORD:-bakery-local-app}
+      BAKERY_LOCAL_INNGEST_PASSWORD: ${BAKERY_LOCAL_INNGEST_PASSWORD:-bakery-local-inngest}
+      BAKERY_LOCAL_REDIS_PASSWORD: ${BAKERY_LOCAL_REDIS_PASSWORD:-bakery-local-redis}
+    networks:
+      - infra
+    restart: "no"
+
+  postgres:
+    image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${BAKERY_LOCAL_POSTGRES_PASSWORD:-bakery-local-postgres}
+      POSTGRES_DB: postgres
+      BAKERY_LOCAL_BAKERY_PASSWORD: ${BAKERY_LOCAL_BAKERY_PASSWORD:-bakery-local-bakery}
+      BAKERY_LOCAL_APP_PASSWORD: ${BAKERY_LOCAL_APP_PASSWORD:-bakery-local-app}
+      BAKERY_LOCAL_INNGEST_PASSWORD: ${BAKERY_LOCAL_INNGEST_PASSWORD:-bakery-local-inngest}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - infra
+      - test-access
+    # Probe over TCP. The image's first-boot init server listens on the unix
+    # socket only, so a socket probe turns healthy before the real server is up
+    # and dependents such as Inngest hit "database system is starting up".
+    healthcheck:
+      test: [
+        "CMD-SHELL",
+        "psql -h 127.0.0.1 -U postgres -d postgres -Atqc \"SELECT count(*) FROM pg_database WHERE datname IN ('bakery', 'inngest')\" | grep -qx 2",
+      ]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    ports:
+      - target: 5432
+        published: "${BAKERY_POSTGRES_PORT:-5432}"
+        host_ip: 127.0.0.1
+    depends_on:
+      config-guard:
+        condition: service_completed_successfully
+
+  redis:
+    image: redis:7.4-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    command: [
+      "redis-server",
+      "--appendonly",
+      "yes",
+      "--appendfsync",
+      "everysec",
+      "--maxmemory-policy",
+      "noeviction",
+      "--requirepass",
+      "${BAKERY_LOCAL_REDIS_PASSWORD:-bakery-local-redis}",
+    ]
+    environment:
+      BAKERY_LOCAL_REDIS_PASSWORD: ${BAKERY_LOCAL_REDIS_PASSWORD:-bakery-local-redis}
+    volumes:
+      - redis-data:/data
+    networks:
+      - infra
+    healthcheck:
+      test: [
+        "CMD-SHELL",
+        "redis-cli --no-auth-warning -e -a \"$$BAKERY_LOCAL_REDIS_PASSWORD\" ping",
+      ]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  inngest:
+    image: inngest/inngest:v1.44.0@sha256:d5365a31f8bf504dc2d54ddd114fcdc1a0413f8b57a450365c095ab6234ad8c2
+    command:
+      - sh
+      - -eu
+      - -c
+      - |
+          case "$$BAKERY_LOCAL_INNGEST_PASSWORD$$BAKERY_LOCAL_REDIS_PASSWORD" in
+            *[!A-Za-z0-9._~-]*) echo "Inngest local passwords must be URI-safe" >&2; exit 78 ;;
+          esac
+          exec inngest start \
+            --host=0.0.0.0 \
+            --port=8288 \
+            --postgres-uri="postgres://inngest:$$BAKERY_LOCAL_INNGEST_PASSWORD@postgres:5432/inngest" \
+            --redis-uri="redis://:$$BAKERY_LOCAL_REDIS_PASSWORD@redis:6379/0" \
+            --event-key="$$BAKERY_INNGEST_EVENT_KEY" \
+            --signing-key="$$BAKERY_INNGEST_SIGNING_KEY" \
+            --sdk-url="http://server:8000/api/inngest"
+    environment:
+      BAKERY_LOCAL_INNGEST_PASSWORD: ${BAKERY_LOCAL_INNGEST_PASSWORD:-bakery-local-inngest}
+      BAKERY_LOCAL_REDIS_PASSWORD: ${BAKERY_LOCAL_REDIS_PASSWORD:-bakery-local-redis}
+      BAKERY_INNGEST_EVENT_KEY: ${BAKERY_INNGEST_EVENT_KEY:-local-event-key}
+      BAKERY_INNGEST_SIGNING_KEY: ${BAKERY_INNGEST_SIGNING_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - target: 8288
+        published: "${BAKERY_INNGEST_PORT:-8288}"
+        host_ip: 127.0.0.1
+    networks:
+      - infra
+      - test-access
+    healthcheck:
+      # The `inngest api ... health` CLI subcommand (used previously) boots
+      # its own internal client machinery just to make one HTTP call, and
+      # that bootstrap can hang indefinitely (confirmed via `docker exec`:
+      # 0.7s of CPU time but never returns inside 60s) when it contends
+      # with the main process during concurrent stack startup under a
+      # CPU-capped host -- raising the timeout doesn't help since the
+      # process isn't slow, it's stuck. The plain HTTP server is never
+      # affected: `GET /health` on the same port answers instantly
+      # (unauthenticated, no signing key needed) throughout. Check that
+      # endpoint directly over bash's /dev/tcp instead of re-invoking the
+      # inngest binary.
+      test: [
+        "CMD",
+        "bash",
+        "-c",
+        "exec 3<>/dev/tcp/127.0.0.1/8288 && printf 'GET /health HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n' >&3 && head -1 <&3 | grep -q '200 OK'",
+      ]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+
+  migrate:
+    image: denoland/deno:2.9.1@sha256:c40ad61ed0b40cca8fda05a2bbf44f8e02485bebec8ee4820bdb4b6fff42599d
+    working_dir: /workspace
+    command:
+      - deno
+      - run
+      - --allow-env
+      - --allow-net
+      - --allow-read=apps/server/src/platform/migrations,apps/server/src/modules/auth/migrations,apps/server/src/modules/work/migrations,apps/server/src/modules/projects/migrations,apps/server/src/modules/agents/migrations,apps/server/src/modules/repository-rules/migrations,apps/server/src/modules/integrations/migrations,apps/server/src/modules/delivery/migrations
+      - apps/server/src/tasks.ts
+      - migrate
+    environment:
+      DATABASE_URL: postgres://bakery:${BAKERY_LOCAL_BAKERY_PASSWORD:-bakery-local-bakery}@postgres:5432/bakery
+    volumes:
+      - ..:/workspace:ro
+    networks:
+      - infra
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  server:
+    image: denoland/deno:2.9.1@sha256:c40ad61ed0b40cca8fda05a2bbf44f8e02485bebec8ee4820bdb4b6fff42599d
+    working_dir: /workspace
+    command:
+      - sh
+      - -eu
+      - -c
+      - |
+          case "$$BAKERY_LOCAL_APP_PASSWORD" in
+            *[!A-Za-z0-9._~-]*) echo "Bakery local passwords must be URI-safe" >&2; exit 78 ;;
+          esac
+          export BAKERY_APP_DATABASE_URL="postgres://bakery_app:$$BAKERY_LOCAL_APP_PASSWORD@postgres:5432/bakery"
+          if [ "$$BAKERY_DEV_WATCH" = "1" ]; then
+            set -- --watch
+          else
+            set --
+          fi
+          # ee/ is imported dynamically, so Deno needs read access to its graph.
+          if [ -d ee/server ]; then
+            set -- "$$@" "--allow-read=ee,packages,apps/server/src,node_modules"
+          fi
+          for fixture_path in "$${BAKERY_SECRETS_KEY_FILE:-}" "$${BAKERY_SECRET_IDENTITY_PROVIDER_FIXTURE_FILE:-}" "$${BAKERY_SCRIPTED_COORDINATOR_DIR:-}"; do
+            if [ -n "$$fixture_path" ]; then
+              set -- "$$@" "--allow-read=$$fixture_path"
+            fi
+          done
+          exec deno run "$$@" --allow-env --allow-net --allow-sys=uid apps/server/src/main.ts
+    environment:
+      BAKERY_ENV: ${BAKERY_ENV:-development}
+      BAKERY_SERVER_HOST: 0.0.0.0
+      BAKERY_SERVER_SENTRY_DSN: ${BAKERY_SERVER_SENTRY_DSN:-}
+      BAKERY_SENTRY_ENABLED: ${BAKERY_SENTRY_ENABLED:-}
+      BAKERY_SENTRY_ENVIRONMENT: ${BAKERY_SENTRY_ENVIRONMENT:-}
+      BAKERY_SENTRY_RELEASE: ${BAKERY_SENTRY_RELEASE:-}
+      BAKERY_SENTRY_TRACES_SAMPLE_RATE: ${BAKERY_SENTRY_TRACES_SAMPLE_RATE:-}
+      BAKERY_SERVER_PORT: 8000
+      BAKERY_VERSION: ${BAKERY_VERSION:-0.0.0-dev}
+      # HTTP is the local smoke origin; trusted HTTPS is added by the auth/MCP slice.
+      BAKERY_PUBLIC_BASE_URL: ${BAKERY_PUBLIC_BASE_URL:-http://127.0.0.1:${BAKERY_SERVER_PORT:-8000}}
+      BAKERY_CONTAINER_BASE_URL: http://server:8000
+      # Separate origin for artifact previews; a public origin, not a
+      # credential. Unset fails previews closed (see 14-artifacts.md).
+      BAKERY_ARTIFACT_PREVIEW_ORIGIN: ${BAKERY_ARTIFACT_PREVIEW_ORIGIN:-}
+      BAKERY_LOCAL_APP_PASSWORD: ${BAKERY_LOCAL_APP_PASSWORD:-bakery-local-app}
+      # Bare optional mappings distinguish an unset host variable (omitted) from
+      # an explicitly empty or partial configuration (preserved for validation).
+      BAKERY_SECRETS_KEY_FILE:
+      BAKERY_SECRETS_KEY_ID:
+      BAKERY_SECRET_IDENTITY_PROVIDER_FIXTURE_FILE:
+      # Budget policy for run admission; all three or none (see worktree-dev-stack runbook).
+      BAKERY_BUDGET_INSTALLATION_MONTHLY_LIMIT_USD:
+      BAKERY_BUDGET_RESERVATION_TTL_SECONDS:
+      BAKERY_BUDGET_MAX_RUN_DURATION_SECONDS:
+      # Test-only scripted coordinator directory; rejected outside BAKERY_ENV=test.
+      BAKERY_SCRIPTED_COORDINATOR_DIR: ${BAKERY_SCRIPTED_COORDINATOR_DIR:-}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET must be set}
+      BAKERY_DEV_WATCH: "0"
+      INNGEST_URL: http://inngest:8288
+      INNGEST_SIGNING_KEY: ${BAKERY_INNGEST_SIGNING_KEY:-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
+      INNGEST_EVENT_KEY: ${BAKERY_INNGEST_EVENT_KEY:-local-event-key}
+      INNGEST_JOB_COMPLETION_TIMEOUT: ${INNGEST_JOB_COMPLETION_TIMEOUT:-5m}
+      BAKERY_INNGEST_LOCAL_COMPOSE: "1"
+    volumes:
+      - ..:/workspace:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      inngest:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${BAKERY_SERVER_PORT:-8000}:8000"
+    networks:
+      - app
+      - infra
+    healthcheck:
+      test: [
+        "CMD",
+        "deno",
+        "eval",
+        "--no-config",
+        "const r = await fetch('http://127.0.0.1:8000/health/live'); if (!r.ok) Deno.exit(1)",
+      ]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+
+  worker:
+    profiles: ["worker"]
+    image: denoland/deno:2.9.1@sha256:c40ad61ed0b40cca8fda05a2bbf44f8e02485bebec8ee4820bdb4b6fff42599d
+    working_dir: /workspace
+    command:
+      - sh
+      - -eu
+      - -c
+      - |
+          root="$$BAKERY_WORKER_CGROUP_ROOT"
+          case "$$root" in
+            /sys/fs/cgroup/*|/sys/fs/cgroup) ;;
+            *) echo "WORKER_CGROUP_ROOT_INVALID" >&2; exit 78 ;;
+          esac
+          test -w /sys/fs/cgroup/cgroup.subtree_control || {
+            echo "WORKER_CGROUP_DELEGATION_REQUIRED" >&2
+            exit 78
+          }
+          case " $$(cat /sys/fs/cgroup/cgroup.subtree_control) " in
+            *" pids "*) ;;
+            *) echo "WORKER_CGROUP_DELEGATION_REQUIRED" >&2; exit 78 ;;
+          esac
+          mkdir "$$root"
+          case " $$(cat "$$root/cgroup.controllers") " in
+            *" pids "*) ;;
+            *) echo "WORKER_CGROUP_DELEGATION_REQUIRED" >&2; exit 78 ;;
+          esac
+          test -f "$$root/cgroup.events"
+          test -f "$$root/cgroup.procs"
+          test -f "$$root/cgroup.kill"
+          cd apps/worker
+          exec bash scripts/run-worker.sh
+    environment:
+      BAKERY_ENV: ${BAKERY_ENV:-development}
+      BAKERY_VERSION: ${BAKERY_VERSION:-0.0.0-dev}
+      BAKERY_SERVER_URL: http://server:8000
+      BAKERY_WORKER_SENTRY_DSN: ${BAKERY_WORKER_SENTRY_DSN:-}
+      BAKERY_SENTRY_ENABLED: ${BAKERY_SENTRY_ENABLED:-}
+      BAKERY_SENTRY_ENVIRONMENT: ${BAKERY_SENTRY_ENVIRONMENT:-}
+      BAKERY_SENTRY_RELEASE: ${BAKERY_SENTRY_RELEASE:-}
+      BAKERY_SENTRY_TRACES_SAMPLE_RATE: ${BAKERY_SENTRY_TRACES_SAMPLE_RATE:-}
+      BAKERY_WORKER_CGROUP_ROOT: /sys/fs/cgroup/bakery-worker
+      BAKERY_WORKER_CAPABILITIES: ${BAKERY_WORKER_CAPABILITIES:-git}
+      BAKERY_WORKER_ADAPTER_CAPABILITIES: ${BAKERY_WORKER_ADAPTER_CAPABILITIES:-}
+      BAKERY_WORKER_NAME: ${BAKERY_WORKER_NAME:-bakery-worker}
+      BAKERY_WORKER_OUTPUT_REDACTION_SECRETS: ${BAKERY_WORKER_OUTPUT_REDACTION_SECRETS:-}
+      BAKERY_WORKER_STATE_DIR: /var/lib/bakery-worker
+    volumes:
+      - ../apps/worker:/workspace/apps/worker:ro
+      - ../packages/config:/workspace/packages/config:ro
+      - ../packages/contracts:/workspace/packages/contracts:ro
+      - ../docs/technical-design/api-catalog.json:/workspace/docs/technical-design/api-catalog.json:ro
+      - ../deno.json:/workspace/deno.json:ro
+      - ../deno.lock:/workspace/deno.lock:ro
+      - ../node_modules/zod:/workspace/node_modules/zod:ro
+      - worker-state:/var/lib/bakery-worker
+    networks:
+      - app
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      server:
+        condition: service_healthy
+  worker-pair:
+    profiles: ["worker-pair"]
+    extends:
+      service: worker
+    environment:
+      BAKERY_WORKER_CGROUP_ROOT: /sys/fs/cgroup/bakery-worker-pair
+      BAKERY_WORKER_ENROLLMENT_TOKEN_FILE: /run/secrets/worker-enrollment
+    secrets:
+      - source: worker_enrollment_token
+        target: worker-enrollment
+        mode: 0400
+volumes:
+  postgres-data:
+  redis-data:
+  worker-state:
+
+networks:
+  app:
+  infra:
+    internal: true
+  test-access:

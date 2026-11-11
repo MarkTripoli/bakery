@@ -1,0 +1,39 @@
+name: Epic
+description: Group related work with clear outcomes and native child issues.
+labels: ["epic"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Shared outcome, scope and non-goals. An epic is not an executable queue item.
+    validations:
+      required: true
+  - type: textarea
+    id: children
+    attributes:
+      label: Child issues
+      description: List issue numbers with their outcomes and add the native sub-issue links. Explain any not-yet-created children.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Observable exit criteria for this group; do not conflate a completed service with product completion.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: List true epic prerequisites or None. Gate children on precise prerequisites rather than the whole epic.
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: Sources
+      description: Approved roadmap, designs and contracts that define the group.
+    validations:
+      required: true

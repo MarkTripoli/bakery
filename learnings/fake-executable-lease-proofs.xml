@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="fake-executable-lease-proofs" project="bakery">
+  <title>Prove lease, interruption and stale-producer states with a fake executable at zero model cost</title>
+  <trigger>A proof needs SIGSTOP, SIGKILL, lost-lease, timeout or quota states from a harness run.</trigger>
+  <mistake>Spent funded model runs on states that do not need inference, and missed that the harness spawns the executable with a cleared environment so env knobs never reach a fake.</mistake>
+  <rule>Use a fake claude executable that sleeps and sources a config file beside itself. Drive SIGSTOP, SIGKILL and cancel from the host, and keep funded runs for the one real digest chain. Set the harness time limit explicitly per drill.</rule>
+  <verification>
+    <command>BAKERY_REAL_API=1 BAKERY_REAL_API_HARNESS=1 BAKERY_FS06_MODE=observe BAKERY_FS06_HARNESS=fake pnpm --dir apps/web test:ui run-observation-real-harness.spec --project=desktop-real-harness --workers=2</command>
+    <requirement>Record the drill used, the observed worker and attempt states, and the restore result.</requirement>
+  </verification>
+  <boundary>Applies to ephemeral per-worktree stacks only; never drill the shared bakery-main stack.</boundary>
+</learning>

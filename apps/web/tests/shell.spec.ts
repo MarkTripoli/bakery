@@ -1,0 +1,603 @@
+import { readFileSync, renameSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import AxeBuilder from "@axe-core/playwright";
+import { expect, type Page, test } from "@playwright/test";
+import {
+  openAccountMenu,
+  revealShellNavigation,
+} from "./helpers/shell-navigation.ts";
+import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
+import { registerPageHealth } from "./helpers/page-health.ts";
+import { firstRender } from "./helpers/first-render.ts";
+
+registerPageHealth(test);
+
+type RouteCoverageEntry = {
+  readonly id: string;
+  readonly path: string;
+  readonly classification: string;
+  readonly states: readonly string[];
+};
+
+type RouteCoverage = {
+  readonly routes: readonly RouteCoverageEntry[];
+  readonly shellStates: readonly string[];
+  readonly authStates: readonly string[];
+};
+
+function routeEntry(candidate: unknown): RouteCoverageEntry {
+  if (candidate === null || typeof candidate !== "object") {
+    throw new Error("route entry must be an object");
+  }
+  if (
+    !("id" in candidate) || typeof candidate.id !== "string" ||
+    !("path" in candidate) || typeof candidate.path !== "string" ||
+    !("classification" in candidate) ||
+    typeof candidate.classification !== "string" ||
+    !("states" in candidate) || !Array.isArray(candidate.states)
+  ) {
+    throw new Error(
+      "route entry must declare id, path, classification, states",
+    );
+  }
+  const states: unknown[] = candidate.states;
+  for (const state of states) {
+    if (typeof state !== "string") {
+      throw new Error(`route ${candidate.id} must declare string states`);
+    }
+  }
+  return {
+    id: candidate.id,
+    path: candidate.path,
+    classification: candidate.classification,
+    states: states.map(String),
+  };
+}
+
+function stringArray(value: unknown, label: string): readonly string[] {
+  if (!Array.isArray(value)) throw new Error(`${label} must be an array`);
+  return value.map((entry) => {
+    if (typeof entry !== "string") throw new Error(`${label} must be strings`);
+    return entry;
+  });
+}
+
+/**
+ * Reads canonical route coverage from the DEV-only `window.__bakeryRouteCoverage`
+ * hook that `src/router.tsx` installs. The data is the app's own, evaluated in
+ * the page; no /src module is imported, so it works under `vite preview`.
+ */
+async function readRouteCoverage(page: Page): Promise<RouteCoverage> {
+  const value: unknown = await page.evaluate(
+    `(() => {
+      const hook = window.__bakeryRouteCoverage;
+      if (!hook) throw new Error("route coverage hook missing");
+      return {
+        routes: hook.routeCoverage.map((route) => ({
+          id: route.id,
+          path: route.path,
+          classification: route.classification,
+          states: [...route.states],
+        })),
+        shellStates: [...hook.shellFixtureStates],
+        authStates: [...hook.authFixtureStates],
+      };
+    })()`,
+  );
+  if (
+    value === null || typeof value !== "object" ||
+    !("routes" in value) || !Array.isArray(value.routes) ||
+    !("shellStates" in value) || !("authStates" in value)
+  ) {
+    throw new Error("route coverage module did not expose routes and states");
+  }
+  const routes: unknown[] = value.routes;
+  return {
+    routes: routes.map(routeEntry),
+    shellStates: stringArray(value.shellStates, "shell state"),
+    authStates: stringArray(value.authStates, "auth fixture state"),
+  };
+}
+
+/**
+ * Known auth fixture screen ids, longest first so a screen name that is
+ * itself a prefix of another (`invite` / `invite-login`) never matches
+ * short. Mirrors the ids `AuthStateFixture.tsx` prefixes with.
+ */
+const AUTH_FIXTURE_SCREENS = [
+  "setup",
+  "login",
+  "expired",
+  "join",
+  "register",
+  "invite",
+  "invite-login",
+  "organizations",
+  "security",
+  "sessions",
+  "revoke-client",
+  "revoke",
+  "clients",
+  "consent",
+  "totp-challenge",
+  "two-factor",
+  "totp-setup",
+  "backup-codes",
+  "totp-disable",
+  "backup-challenge",
+  "signout",
+  "security-hub",
+  "password",
+  "passkeys",
+  "passkey-add",
+  "reauth",
+  "profile",
+  "appearance",
+  "your-access",
+  "section-index",
+].sort((a, b) => b.length - a.length);
+
+/** The auth fixture screens `isSettingsPath` (`auth-paths.ts`) places in the settings shell. */
+const SETTINGS_SHELL_AUTH_SCREENS = [
+  "section-index",
+  "profile",
+  "appearance",
+  "your-access",
+  "security",
+  "sessions",
+  "revoke",
+  "revoke-client",
+  "clients",
+  "two-factor",
+  "totp-setup",
+  "backup-codes",
+  "totp-disable",
+  "password",
+  "passkeys",
+  "passkey-add",
+];
+
+function authFixtureBareState(token: string): string {
+  const screen = AUTH_FIXTURE_SCREENS.find((id) => token.startsWith(`${id}-`));
+  if (!screen) throw new Error(`unrecognised auth fixture token ${token}`);
+  return token.slice(screen.length + 1);
+}
+
+function routedCases(
+  coverage: RouteCoverage,
+): readonly { readonly id: string; readonly path: string }[] {
+  return coverage.routes.flatMap((route) => {
+    if (route.id === "fixture-auth") {
+      return coverage.authStates.map((state) => ({
+        id: `${route.id}:${state}`,
+        path: route.path.replace("$state", state),
+      }));
+    }
+    return route.path.includes("$state")
+      ? route.states.map((state) => ({
+        id: `${route.id}:${state}`,
+        path: route.path.replace("$state", state),
+      }))
+      : [{ id: route.id, path: route.path }];
+  });
+}
+
+async function expectNoHorizontalOverflow(page: Page) {
+  await expect.poll(() =>
+    page.evaluate(() =>
+      document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth
+    )
+  ).toBe(true);
+}
+
+async function expectSelectedParent(page: Page, path: string) {
+  if (path === "/settings" || path.startsWith("/settings/")) {
+    const expectedHref = path.startsWith("/settings/sessions")
+      ? "/settings/sessions"
+      : path.startsWith("/settings/clients")
+      ? "/settings/clients"
+      : path === "/settings" || path.startsWith("/settings/profile")
+      ? "/settings/profile"
+      : path.startsWith("/settings/security")
+      ? "/settings/security"
+      : path.startsWith("/settings/access")
+      ? "/settings/access"
+      : path.startsWith("/settings/organization/access")
+      ? "/settings/organization/access"
+      : path.startsWith("/settings/organization/roles")
+      ? "/settings/organization/roles"
+      : path.startsWith("/settings/organization/integrations")
+      ? "/settings/organization/integrations"
+      : path.startsWith("/settings/audit")
+      ? "/settings/audit"
+      : path.startsWith("/settings/scim")
+      ? "/settings/scim"
+      : path.startsWith("/settings/installation/integrations")
+      ? "/settings/installation/integrations"
+      : "/settings/appearance";
+    await expect(
+      page.locator(
+        `.bakery-section-navigation a[aria-current="page"][href="${expectedHref}"]`,
+      ),
+    ).toHaveCount(1);
+    return;
+  }
+  if (path === "/machines" || path.startsWith("/machines/")) {
+    await expect(
+      page.locator(
+        '.bakery-section-navigation a[aria-current="page"][href="/machines"]',
+      ),
+    ).toHaveCount(1);
+    return;
+  }
+  // Paper `settingsShell` fixtures (`isSettingsPath` in `auth-paths.ts`):
+  // the account-settings specimens render inside the production settings
+  // shell so the parity gate can compare the real `<main>` box. The section
+  // navigation is present, but no production href matches a fixture path,
+  // so nothing is marked current.
+  const authFixture = "/__fixtures__/auth/";
+  if (
+    path.startsWith(authFixture) &&
+    SETTINGS_SHELL_AUTH_SCREENS.some((screen) =>
+      path.startsWith(`${authFixture}${screen}-`)
+    )
+  ) {
+    // Sidebar list at desktop, `<details>` menu on phone — the container
+    // class is the one thing both modes share.
+    await expect(page.locator(".bakery-section-navigation").first())
+      .toBeAttached();
+    await expect(
+      page.locator('.bakery-section-navigation a[aria-current="page"]'),
+    ).toHaveCount(0);
+    return;
+  }
+  if (!path.startsWith("/__fixtures__/settings")) {
+    await expect(
+      page.getByRole("navigation", { name: "Settings sections" }),
+    ).toHaveCount(0);
+    return;
+  }
+
+  const expected = path.startsWith("/__fixtures__/settings/security")
+    ? "Account & security"
+    : path.startsWith("/__fixtures__/settings/sessions")
+    ? "Active sessions"
+    : path.startsWith("/__fixtures__/settings/clients")
+    ? "Connected clients"
+    : path.startsWith("/__fixtures__/settings/appearance")
+    ? "Appearance"
+    : path.startsWith("/__fixtures__/settings/access")
+    ? "Your access"
+    : path === "/__fixtures__/settings"
+    ? null
+    : "Profile";
+
+  if (expected) {
+    await expect(
+      page.locator('.bakery-section-navigation a[aria-current="page"]', {
+        hasText: expected,
+      }).first(),
+    ).toHaveAttribute("aria-current", "page");
+  }
+}
+
+type RouteMatrixCase = { readonly id: string; readonly path: string };
+
+const ROUTE_MATRIX_SNAPSHOT = new URL(
+  "./helpers/route-matrix-cases.json",
+  import.meta.url,
+);
+const UPDATE_COMMAND =
+  "BAKERY_UPDATE_ROUTE_MATRIX=1 pnpm --dir apps/web exec playwright test shell.spec.ts --project=desktop --workers=1 -g 'manifest route matrix phone route manifest matches the running app'";
+const UPDATING_ROUTE_MATRIX = process.env.BAKERY_UPDATE_ROUTE_MATRIX === "1";
+
+/** Reads the committed case list; only a missing file in update mode is empty. */
+function readRouteMatrixSnapshot(): readonly RouteMatrixCase[] {
+  let text: string;
+  try {
+    text = readFileSync(ROUTE_MATRIX_SNAPSHOT, "utf8");
+  } catch (error) {
+    if (
+      UPDATING_ROUTE_MATRIX && error instanceof Error && "code" in error &&
+      error.code === "ENOENT"
+    ) {
+      return [];
+    }
+    throw new Error(
+      `route matrix snapshot unreadable; regenerate with: ${UPDATE_COMMAND}`,
+      { cause: error },
+    );
+  }
+  const parsed: unknown = JSON.parse(text);
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new Error(
+      `route matrix snapshot must be a non-empty array; regenerate with: ${UPDATE_COMMAND}`,
+    );
+  }
+  const seen = new Set<string>();
+  return parsed.map((entry: unknown): RouteMatrixCase => {
+    if (
+      entry === null || typeof entry !== "object" || !("id" in entry) ||
+      typeof entry.id !== "string" || !("path" in entry) ||
+      typeof entry.path !== "string"
+    ) {
+      throw new Error("route matrix snapshot entries need string id and path");
+    }
+    if (seen.has(entry.id)) {
+      throw new Error(`route matrix snapshot repeats id ${entry.id}`);
+    }
+    seen.add(entry.id);
+    return { id: entry.id, path: entry.path };
+  });
+}
+
+/** Atomically rewrites the snapshot; refused under CI. */
+function writeRouteMatrixSnapshot(cases: readonly RouteMatrixCase[]): void {
+  if (process.env.CI) {
+    throw new Error("route matrix snapshot cannot be rewritten under CI");
+  }
+  const target = fileURLToPath(ROUTE_MATRIX_SNAPSHOT);
+  const temporary = `${target}.tmp-${process.pid}`;
+  const body = JSON.stringify(
+    cases.map(({ id, path }) => ({ id, path })),
+    null,
+    2,
+  ) + "\n";
+  writeFileSync(temporary, body);
+  renameSync(temporary, target);
+}
+
+const VIEWPORTS = [
+  { name: "phone", width: 390, height: 844 },
+  { name: "tablet", width: 744, height: 960 },
+  { name: "desktop", width: 1280, height: 960 },
+] as const;
+const MATRIX_CASE_TIMEOUT_MS = 60_000;
+
+async function assertRouteCase(
+  page: Page,
+  route: RouteMatrixCase,
+  viewport: { readonly width: number; readonly height: number },
+): Promise<void> {
+  await mockAuthenticatedSession(page);
+  await page.setViewportSize(viewport);
+  const phoneIndex = route.path === "/settings" &&
+    viewport.width < 744;
+  await firstRender(() => page.goto(route.path), async (timeout) => {
+    if (route.path === "/settings") {
+      await expect(page).toHaveURL(
+        phoneIndex ? "/settings" : "/settings/profile",
+        { timeout },
+      );
+    }
+    await expect(page.locator("main h1")).toHaveCount(1, { timeout });
+  });
+  await expect(
+    page.locator(".bakery-section-navigation")
+      .getByRole("link", { name: "Settings", exact: true }),
+  ).toHaveCount(0);
+  if (!phoneIndex) {
+    await expectSelectedParent(page, route.path);
+  }
+  await expectNoHorizontalOverflow(page);
+  const accessibility = await new AxeBuilder({ page }).analyze();
+  expect(accessibility.violations, route.id).toEqual([]);
+}
+
+test.describe("manifest route matrix", () => {
+  // Every routed case (the auth screens times their design states plus the
+  // shell/settings fixtures) is a navigation plus an axe scan at three
+  // viewports. Each (viewport, case) is its own test so Playwright spreads
+  // and reports them individually and none nears its budget under runner
+  // contention. The case list is committed in helpers/route-matrix-cases.json
+  // because it only exists at runtime; a guard per viewport proves it still
+  // matches the running app. Regenerate (never under CI) with UPDATE_COMMAND.
+  test.skip(
+    ({ isMobile }) => isMobile,
+    "route matrix runs in the desktop project only",
+  );
+  const snapshot = readRouteMatrixSnapshot();
+  for (const viewport of VIEWPORTS) {
+    test(
+      `${viewport.name} route manifest matches the running app`,
+      async ({ page }) => {
+        test.skip(
+          UPDATING_ROUTE_MATRIX && viewport.name !== "phone",
+          "only the phone guard rewrites the snapshot",
+        );
+        test.setTimeout(MATRIX_CASE_TIMEOUT_MS);
+        await mockAuthenticatedSession(page);
+        await page.setViewportSize(viewport);
+        await page.goto("/");
+        const coverage = await readRouteCoverage(page);
+        const shellRoute = coverage.routes.find((route) =>
+          route.path === "/__fixtures__/shell/$state"
+        );
+        expect(shellRoute?.states).toEqual(coverage.shellStates);
+
+        const authRoute = coverage.routes.find((route) =>
+          route.id === "fixture-auth"
+        );
+        expect(authRoute).toBeDefined();
+        const bareStates = [
+          ...new Set(coverage.authStates.map(authFixtureBareState)),
+        ].sort();
+        expect([...(authRoute?.states ?? [])].sort()).toEqual(bareStates);
+
+        const cases = routedCases(coverage);
+        expect(cases.length).toBeGreaterThan(0);
+        if (UPDATING_ROUTE_MATRIX) {
+          writeRouteMatrixSnapshot(cases);
+        } else {
+          expect(cases, `regenerate with: ${UPDATE_COMMAND}`).toEqual(
+            snapshot,
+          );
+        }
+      },
+    );
+    for (const route of snapshot) {
+      test(`${viewport.name} ${route.id}`, async ({ page }) => {
+        test.setTimeout(MATRIX_CASE_TIMEOUT_MS);
+        await assertRouteCase(page, route, viewport);
+      });
+    }
+  }
+});
+
+test("keeps shell navigation and route focus native", async ({ page }) => {
+  await mockAuthenticatedSession(page);
+  await page.setViewportSize({ width: 1280, height: 960 });
+  await page.goto("/__fixtures__/settings/profile");
+  await page.getByRole("link", { name: "Appearance", exact: true }).click();
+  await expect(page).toHaveURL("/__fixtures__/settings/appearance");
+  await expect(page.getByRole("heading", { name: "Appearance", exact: true }))
+    .toBeFocused();
+
+  // Paper's Work destination is the task queue (5J-0).
+  await page.getByRole("link", { name: "Work", exact: true }).click();
+  await expect(page).toHaveURL("/tasks");
+  await expect(page.locator("main h1")).toBeFocused();
+});
+
+test.describe("settings routes and navigation", () => {
+  const RENAMED: readonly {
+    readonly path: string;
+    readonly heading: string | RegExp;
+    readonly selected: string;
+  }[] = [
+    {
+      path: "/settings/security",
+      heading: "Account and security",
+      selected: "/settings/security",
+    },
+    {
+      path: "/settings/security/two-factor",
+      heading: /Two-factor authentication/,
+      selected: "/settings/security",
+    },
+    {
+      path: "/settings/security/two-factor/setup",
+      heading: /authenticator/i,
+      selected: "/settings/security",
+    },
+    {
+      path: "/settings/sessions",
+      heading: "Active sessions",
+      selected: "/settings/sessions",
+    },
+    {
+      path: "/settings/sessions/revoke",
+      heading: /sessions?/i,
+      selected: "/settings/sessions",
+    },
+    {
+      path: "/settings/appearance",
+      heading: "Appearance",
+      selected: "/settings/appearance",
+    },
+  ];
+
+  for (const route of RENAMED) {
+    test(`${route.path} renders one h1 and keeps its section selected`, async ({ page }) => {
+      await mockAuthenticatedSession(page);
+      await page.setViewportSize({ width: 1280, height: 960 });
+      await page.goto(route.path);
+      await expect(page.locator("main h1")).toHaveCount(1);
+      await expect(page.locator("main h1")).toHaveText(route.heading);
+      await expect(
+        page.locator(
+          `.bakery-section-navigation a[aria-current="page"][href="${route.selected}"]`,
+        ),
+      ).toHaveCount(1);
+      await expect(page).toHaveURL(route.path);
+    });
+  }
+
+  test("lists the sections in order, with the connected-clients item", async ({ page }) => {
+    await mockAuthenticatedSession(page);
+    await page.setViewportSize({ width: 1280, height: 960 });
+    await page.goto("/settings/security");
+    await expect(page.locator(".bakery-section-navigation a")).toHaveText([
+      "Machines",
+      "Profile",
+      "Account & security",
+      "Active sessions",
+      "Connected clients",
+      "Appearance",
+      "Your access",
+      "Organization access",
+      "Custom roles",
+      "Integrations",
+      "Audit log",
+      "SCIM provisioning",
+    ]);
+  });
+
+  test("a phone gets the section index at /settings and each row opens its page", async ({ page }) => {
+    await mockAuthenticatedSession(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/settings");
+    await expect(page).toHaveURL("/settings");
+    await expect(page.locator("main h1")).toHaveText("Settings");
+    await expect(page.locator("main .ui-settings-index-row")).toHaveText([
+      /Profile/,
+      /Account & security/,
+      /Active sessions/,
+      /Appearance/,
+      /Your access/,
+    ]);
+    await page.getByRole("link", { name: /Appearance/ }).click();
+    await expect(page).toHaveURL("/settings/appearance");
+  });
+
+  test("the Settings rail link and /settings land on Profile", async ({ page }) => {
+    await mockAuthenticatedSession(page);
+    await page.setViewportSize({ width: 1280, height: 960 });
+    await page.goto("/settings");
+    await expect(page).toHaveURL("/settings/profile");
+    await page.goto("/tasks");
+    await page.getByRole("link", { name: "Settings", exact: true }).click();
+    await expect(page).toHaveURL("/settings/profile");
+    await expect(page.locator("main h1")).toBeFocused();
+  });
+
+  test("settings pages claim the breadcrumb region in the top bar", async ({ page }) => {
+    await mockAuthenticatedSession(page);
+    await page.setViewportSize({ width: 1280, height: 960 });
+    await page.goto("/settings/sessions");
+    const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
+    await expect(breadcrumb).toContainText("Settings");
+    await expect(breadcrumb).toContainText("Active sessions");
+    await expect(breadcrumb.locator("[aria-current=page]")).toHaveText(
+      "Active sessions",
+    );
+  });
+
+  test("organization settings is reached from the account menu, outside the Settings tree", async ({ page }) => {
+    await mockAuthenticatedSession(page);
+    await page.setViewportSize({ width: 1280, height: 960 });
+    await page.goto("/tasks");
+    const menu = await openAccountMenu(page, "Fixture Admin");
+    await menu.getByRole("button", { name: "Organization settings" }).click();
+    await expect(page).toHaveURL("/organization/settings");
+    await expect(page.locator("main h1")).toHaveText("Organization settings");
+    await expect(page.locator("main h1")).toBeFocused();
+    // It is organization administration, not a personal section.
+    await expect(page.locator(".bakery-section-navigation")).toHaveCount(0);
+    const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
+    await expect(breadcrumb).toContainText("Organization settings");
+    await expect(breadcrumb).not.toContainText("Settings Organization");
+  });
+
+  test("organization settings is reached from the workspace switcher", async ({ page }) => {
+    await mockAuthenticatedSession(page);
+    await page.setViewportSize({ width: 1280, height: 960 });
+    await page.goto("/tasks");
+    await revealShellNavigation(page);
+    await page.getByRole("button", { name: "Organization", exact: true })
+      .click();
+    await page.getByRole("button", { name: "Organization settings" }).click();
+    await expect(page).toHaveURL("/organization/settings");
+  });
+});

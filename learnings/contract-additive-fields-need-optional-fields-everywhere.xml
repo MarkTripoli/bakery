@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="contract-additive-fields-need-optional-fields-everywhere" project="bakery">
+  <title>A new output field is additive only when every schema that carries it lists it as optional</title>
+  <trigger>A field is added to an output in docs/technical-design/transport-schemas.json, and a projection of the same record exists.</trigger>
+  <mistake>The base-ref compatibility check rejects any new member of a schema's required list. An output and its projection are separate OpenAPI schemas, so listing the field in the output's optionalFields alone still fails with `schemas.&lt;projection&gt;.required: field became required`. A nullable type does not make a field optional.</mistake>
+  <rule>List every new field in optionalFields on the output and on each projection that carries it, run `pnpm catalog:literals` and then `pnpm contracts:generate -- --base-ref origin/main`, and expect exit 0 without a compatibility migration. Do not edit the approval file to get past a drift error.</rule>
+  <verification>
+    <requirement>`pnpm contracts:generate -- --base-ref origin/main` exits 0 without --compatibility-migration, and removing the projection optionalFields in a scratch copy makes it exit 1.</requirement>
+  </verification>
+</learning>

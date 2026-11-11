@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+<!--
+  Hermetic fontconfig for the Paper render lane (ui_paper) only. Rendered by
+  scripts/ci/paper-fontconfig.sh and selected through FONTCONFIG_FILE, which
+  replaces the host's /etc/fonts and per-user configuration entirely.
+
+  - Fonts: only the repo's pinned Geist / Geist Mono plus one vendored
+    fallback, JetBrainsMono Nerd Font Regular (OFL, scripts/ci/paper-fonts/),
+    the sole source of the glyphs Geist lacks (U+2318, U+2304, U+2713). No
+    system font is visible, so fallback never depends on what the host ships.
+  - Rasterization: grayscale antialiasing, no hinting, no LCD filter, so a host
+    default of subpixel (rgb/bgr) rendering cannot change ink scores.
+  Does not touch references, thresholds, approved inputs or provenance.
+-->
+<fontconfig>
+  <dir>@FONTS_DIR@</dir>
+  <dir>@FALLBACK_DIR@</dir>
+  <cachedir>@CACHE_DIR@</cachedir>
+  <match target="font">
+    <edit name="antialias" mode="assign"><bool>true</bool></edit>
+    <edit name="rgba" mode="assign"><const>none</const></edit>
+    <edit name="lcdfilter" mode="assign"><const>lcdnone</const></edit>
+    <edit name="hinting" mode="assign"><bool>false</bool></edit>
+    <edit name="hintstyle" mode="assign"><const>hintnone</const></edit>
+  </match>
+</fontconfig>

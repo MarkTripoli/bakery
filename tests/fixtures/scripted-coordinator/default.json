@@ -1,0 +1,5 @@
+{
+  "effects": [
+    { "type": "reply", "body": "Scripted coordinator reply." }
+  ]
+}

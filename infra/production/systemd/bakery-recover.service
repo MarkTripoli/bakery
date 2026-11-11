@@ -1,0 +1,13 @@
+[Unit]
+Description=Recover interrupted Bakery release
+After=network-online.target docker.service bakery-caddy.service user@BAKERY_API_UID.service
+Wants=network-online.target docker.service bakery-caddy.service user@BAKERY_API_UID.service
+ConditionPathExists=/var/lib/bakery/deploy/state.json
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/flock --exclusive --timeout 300 /run/lock/bakery-deploy.lock /usr/bin/node /opt/bakery/deploy/release.mjs restore
+TimeoutStartSec=10min
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="graft-wiring-assume-unchanged" project="bakery">
+  <title>Hide graft's rewritten wiring files with assume-unchanged before the first /deliver review in a worktree</title>
+  <trigger>A new worktree runs graft, which rewrites five tracked files: .claude/helpers/graft-hooks.cjs, .claude/helpers/graft-statusline.cjs, .cursor/hooks.json, .cursor/hooks/graft-hooks.cjs and .github/copilot-instructions.md.</trigger>
+  <mistake>A slice review was recorded while those files were modified. The /deliver contract revision covers the tracked working tree, and phase-complete needs a clean tracked tree, so the valid approval could not complete the phase. Hiding the files afterwards changed the revision and made the approval stale, which cost another full review.</mistake>
+  <rule>In every new worktree, before the first review: save `git diff` of the five files to a backup patch outside the repo, then run `git update-index --assume-unchanged` on them. Never stage or commit them. Undo with `--no-assume-unchanged` before the worktree is removed. Never edit a reviewer record to match a new revision; run a fresh review instead.</rule>
+  <verification>
+    <requirement>`git status --porcelain --untracked-files=no` prints nothing before the first review, and `git ls-files -v` shows `h` for the five files.</requirement>
+  </verification>
+</learning>

@@ -1,0 +1,1263 @@
+{
+  "status": "editable-design-specimens-only",
+  "fileId": "01M1X504XVC45FC0VDK857A37D",
+  "pageId": "N-0",
+  "paperUrl": "https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/N-0",
+  "componentFamily": "Chat workspace, composer, linked work, and execution activity",
+  "reviewStatus": "Workspace tools and device refinement reviewed independently; no material fixes remain. Awaiting user review.",
+  "sourceOfTruth": "Editable Paper nodes and shared Bakery tokens",
+  "implementationStatus": "Static editable Paper designs only. Message rendering, uploads, playback, remote connections, panel interactions, linked-work enforcement, Git diffs, and execution telemetry are not implemented. People mentions, direct chat access grants, notification inbox/read state and push delivery are also unimplemented.",
+  "pixelParityMeasured": false,
+  "requiredImplementationSimilarity": 0.95,
+  "states": [
+    "rest",
+    "skill-suggestions",
+    "integration-suggestions",
+    "file-drop",
+    "long-paste-feedback",
+    "markdown-preview",
+    "failed-upload",
+    "reference-details-and-removal"
+  ],
+  "frames": [
+    {
+      "nodeId": "FZM-0",
+      "name": "Desktop · Light",
+      "file": "states-desktop-light.png",
+      "width": 820,
+      "theme": "light",
+      "sha256": "70b552e14427b2dae75b67565a0f6bad736b6b70b3970415eb86863085a9d299",
+      "paperName": "Chat composer · Desktop · Light"
+    },
+    {
+      "nodeId": "G9U-0",
+      "name": "Desktop · Dark",
+      "file": "states-desktop-dark.png",
+      "width": 820,
+      "theme": "dark",
+      "sha256": "13bc1f55c97a09a7c2915486fe598ab3c3494dd2db4e45d7d87975cf1fbebf03",
+      "paperName": "Chat composer · Desktop · Dark"
+    },
+    {
+      "nodeId": "GIO-0",
+      "name": "Phone · Light",
+      "file": "states-phone-light.png",
+      "width": 390,
+      "theme": "light",
+      "sha256": "85775d06c3c7c775e2af5f3fa4da245a0f3ac3a3debb2e2b6afacec1ddcbf1ed",
+      "paperName": "Chat composer · Phone · Light"
+    },
+    {
+      "nodeId": "GXR-0",
+      "name": "Phone · Dark",
+      "file": "states-phone-dark.png",
+      "width": 390,
+      "theme": "dark",
+      "sha256": "3eb51d2a9bf9958727d383415cbd0e87daa699f3bd3a3ce0c63e86a7c66cde75",
+      "paperName": "Chat composer · Phone · Dark"
+    },
+    {
+      "nodeId": "FP9-0",
+      "name": "Session context · Desktop",
+      "file": "session-desktop.png",
+      "width": 1440,
+      "theme": "light",
+      "sha256": "7c2486e13b85c39456994942d8463d5a225c24e61e1de60994aaf5ef4d77dcfd",
+      "paperName": "Chat · Desktop preview",
+      "height": 942.0
+    },
+    {
+      "nodeId": "FUC-0",
+      "name": "Session context · Phone",
+      "file": "session-phone.png",
+      "width": 390,
+      "theme": "light",
+      "sha256": "d8f6cbc27e66f99c1171752a0a9c078c749ad44028f5bf5d7f3188757fa0b02b",
+      "paperName": "Chat · Phone preview",
+      "height": 844.0
+    }
+  ],
+  "components": [
+    {
+      "nodeId": "FW2-0",
+      "file": "composer-desktop-light.png",
+      "theme": "light",
+      "width": 672,
+      "sha256": "c6538f008f574396e298b8d7a462eca13e4cc6900b82d3d32f10dcaa0224ed0f",
+      "exportScale": 2
+    },
+    {
+      "nodeId": "FW4-0",
+      "file": "composer-phone-light.png",
+      "theme": "light",
+      "width": 358,
+      "sha256": "09159da61c151726fa5da1e988ad4732588fd98de0bf50717718e2f15ab4839c",
+      "exportScale": 2
+    },
+    {
+      "nodeId": "GC6-0",
+      "file": "composer-desktop-dark.png",
+      "theme": "dark",
+      "width": 724,
+      "sha256": "28a20da1052084a7569043aefebcee1dcaf40aab547e589c8102a7abf4af9357",
+      "exportScale": 2
+    },
+    {
+      "nodeId": "H03-0",
+      "file": "composer-phone-dark.png",
+      "theme": "dark",
+      "width": 358,
+      "sha256": "24cd7f6a2a199a30cf399b3e9e082a283dcb39f5fd24ad6756127a61aad9e920",
+      "exportScale": 2
+    }
+  ],
+  "geometry": {
+    "FW2-0": {
+      "display": "flex",
+      "flexDirection": "column",
+      "flexShrink": "0",
+      "alignSelf": "center",
+      "width": "672px",
+      "fontFamily": "var(--font-sans)",
+      "paddingTop": "16px",
+      "paddingBottom": "10px",
+      "borderRadius": "20px",
+      "gap": "16px",
+      "paddingInline": "12px",
+      "backgroundColor": "var(--color-light-canvas)",
+      "borderWidth": "1px",
+      "borderStyle": "solid",
+      "borderColor": "var(--color-light-border-strong)"
+    },
+    "FW4-0": {
+      "display": "flex",
+      "flexDirection": "column",
+      "flexShrink": "0",
+      "alignSelf": "center",
+      "width": "358px",
+      "fontFamily": "var(--font-sans)",
+      "paddingTop": "16px",
+      "paddingBottom": "10px",
+      "borderRadius": "20px",
+      "gap": "16px",
+      "paddingInline": "12px",
+      "backgroundColor": "var(--color-light-canvas)",
+      "borderWidth": "1px",
+      "borderStyle": "solid",
+      "borderColor": "var(--color-light-border-strong)"
+    },
+    "FZM-0": {
+      "display": "flex",
+      "overflow": "clip",
+      "width": "820px",
+      "height": "fit-content",
+      "fontFamily": "var(--font-sans)",
+      "left": "0px",
+      "top": "0px",
+      "flexDirection": "column",
+      "padding": "48px",
+      "gap": "32px",
+      "position": "relative",
+      "flexShrink": "0",
+      "backgroundColor": "var(--color-light-surface)"
+    },
+    "G9U-0": {
+      "display": "flex",
+      "overflow": "clip",
+      "width": "820px",
+      "height": "fit-content",
+      "fontFamily": "var(--font-sans)",
+      "left": "0px",
+      "top": "0px",
+      "flexDirection": "column",
+      "padding": "48px",
+      "gap": "32px",
+      "position": "relative",
+      "flexShrink": "0",
+      "backgroundColor": "var(--color-dark-canvas)"
+    },
+    "GIO-0": {
+      "display": "flex",
+      "overflow": "clip",
+      "width": "390px",
+      "height": "fit-content",
+      "fontFamily": "var(--font-sans)",
+      "left": "0px",
+      "top": "0px",
+      "flexDirection": "column",
+      "padding": "16px",
+      "gap": "32px",
+      "position": "relative",
+      "flexShrink": "0",
+      "backgroundColor": "var(--color-light-surface)"
+    },
+    "GXR-0": {
+      "display": "flex",
+      "overflow": "clip",
+      "width": "390px",
+      "height": "fit-content",
+      "fontFamily": "var(--font-sans)",
+      "left": "0px",
+      "top": "0px",
+      "flexDirection": "column",
+      "padding": "16px",
+      "gap": "32px",
+      "position": "relative",
+      "flexShrink": "0",
+      "backgroundColor": "var(--color-dark-canvas)"
+    },
+    "H03-0": {
+      "display": "flex",
+      "flexDirection": "column",
+      "flexShrink": "0",
+      "alignSelf": "stretch",
+      "width": "100%",
+      "fontFamily": "var(--font-sans)",
+      "paddingTop": "16px",
+      "paddingBottom": "10px",
+      "borderRadius": "20px",
+      "gap": "16px",
+      "paddingInline": "12px",
+      "backgroundColor": "var(--color-dark-surface)",
+      "borderWidth": "1px",
+      "borderStyle": "solid",
+      "borderColor": "var(--color-dark-border-strong)"
+    }
+  },
+  "scope": "Autonomous work conversation with a simple request/guidance composer and optional saved workflow. Rich Markdown, files/long paste/skills/integrations, media/HTML previews, expandable artifact panels and side chats, open-work links, revision-pinned diffs, and agent/call/workflow activity. Existing desktop/phone and light/dark designs are refined in place.",
+  "proof": "All 71 referenced PNG exports pass recorded hash and dimension checks. This refinement adds four Workspace tools specimens and refreshes six existing artifact/simulator views. The notification manifest's shared chat references are synchronized. Six chat groups retain non-overlapping computed/exported bounds after making room for the new specimens. Independent review found no material fixes. Historical comparisons describe earlier intentional revisions. Static Paper designs do not prove remote connectivity, device control, message/media behavior, accessibility behavior, responsive reflow or runtime pixel parity.",
+  "review": {
+    "independentDesignReview": "complete",
+    "fixes": [
+      "Match suggestion lists to their query.",
+      "Show reference account, scope, and Remove."
+    ],
+    "runtimeVerification": "not implemented",
+    "workspaceDesignReview": "complete",
+    "workspaceFixes": [
+      "44px independent phone video controls and preview/simulator actions.",
+      "Explicit bold, italic, strikethrough, and nested Markdown indentation.",
+      "Bounded image thumbnail with dimensions and Open, plus a separate unknown-file fallback.",
+      "Expanded dark side-chat composer anchored to its panel; phone simulator caption kept within its display.",
+      "Five consistently styled groups in navigation order, with no overlapping bounds."
+    ],
+    "workContextDesignReview": "complete; account and repository/project metadata added after independent review; final dark views checked visually",
+    "workContextFixes": [
+      "Disambiguate work-link search results with connected account and project/repository.",
+      "Keep diff hunk counts and old/new line markers consistent.",
+      "Label pending call output as unavailable rather than an enabled action.",
+      "Keep phone navigation and recovery actions at least 44px high."
+    ],
+    "compactRunDesignReview": "complete",
+    "compactRunFixes": [
+      "Label every summary agents complete; Run 84 explicitly counts child agents and excludes the coordinator and ordinary checks.",
+      "Keep narrow-layout elapsed time on its own line; phone Activity still fits its 844px viewport.",
+      "Use disclosure chevrons for collapsible runs and stages."
+    ],
+    "autonomousChatReview": "complete; no material fixes",
+    "autonomousChatChanges": [
+      "One input for requests and guidance, optional Workflow, More and Send.",
+      "Remove primary intent modes and model/harness controls; preserve resolved metadata in Activity.",
+      "Allow freeform planning before work linking; agents establish authorized anchors before execution.",
+      "Preserve a 44px workflow control on phone and existing panel/media/diff layouts."
+    ],
+    "humanPresenceReview": "complete; no material fixes",
+    "humanPresenceChanges": [
+      "Replace 13 text presence indicators with circular avatars and lower-right overlapping green dots.",
+      "Add avatar access to three phone conversation headers.",
+      "Show Here now, Viewed, and Last active details in light/dark desktop and phone specimens.",
+      "Keep live expiry separate from proposed historical viewing/activity timestamps."
+    ],
+    "mentionsAndNotificationsReview": "complete; sidebar order synchronized after independent review",
+    "mentionsAndNotificationsChanges": [
+      "Typed People search, access-on-send disclosure, sent state and blocked-sharing recovery in both themes and form factors.",
+      "Global bell added to the four primary chat workspace examples; a dedicated Notifications page owns the inbox and recovery specimens."
+    ],
+    "workspaceToolsReview": "complete; no material fixes",
+    "workspaceToolsChanges": [
+      "One Add panel picker with Files & artifacts, Changes, Live app, Devices, Run logs, Side chat, Context and Activity.",
+      "Host-scoped device directory, distinct Open/Boot actions and explicit remote-control ownership.",
+      "Resource tabs in the primary artifact and simulator examples; phone uses Panels.",
+      "Read-only environment, revision, files and run-log context; device input disabled while view-only."
+    ]
+  },
+  "navigation": {
+    "workspace": "https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/N-0/PTL-0",
+    "artifactsAndPanels": "https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/N-0/1NU4-0",
+    "messagesAndMedia": "https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/N-0/1OR3-0",
+    "composerStates": "https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/N-0/PU1-0",
+    "conversationFoundations": "https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/N-0/PUC-0",
+    "changesAndExecution": "https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/N-0/1R8M-0",
+    "compactRunActivity": "https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/N-0/1VXC-0",
+    "humanPresence": "https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/N-0/1Z3R-0",
+    "peopleMentions": "https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/N-0/20Y3-0",
+    "notifications": "https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/11-0",
+    "workspaceTools": "https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/N-0/222V-0"
+  },
+  "canvasOrganization": {
+    "pageName": "32 · Chat",
+    "groups": [
+      {
+        "nodeId": "PTL-0",
+        "name": "01 · Chat workspace",
+        "x": 0.0,
+        "y": 0.0,
+        "width": 1990,
+        "height": 2448
+      },
+      {
+        "nodeId": "1NU4-0",
+        "name": "02 · Artifacts & panels",
+        "x": 2182.0,
+        "y": 0.0,
+        "width": 4012,
+        "height": 7782
+      },
+      {
+        "nodeId": "1OR3-0",
+        "name": "03 · Messages & media",
+        "x": 0.0,
+        "y": 8200.0,
+        "width": 2772,
+        "height": 3200
+      },
+      {
+        "nodeId": "PU1-0",
+        "name": "04 · Composer states",
+        "x": 0.0,
+        "y": 11800.0,
+        "width": 2772,
+        "height": 4716
+      },
+      {
+        "nodeId": "PUC-0",
+        "name": "05 · Conversation foundations",
+        "x": 2976.0,
+        "y": 11800.0,
+        "width": 1990,
+        "height": 2989
+      },
+      {
+        "nodeId": "1R8M-0",
+        "name": "06 · Changes & execution",
+        "x": 6346.0,
+        "y": 0.0,
+        "width": 4012,
+        "height": 8739
+      }
+    ],
+    "verification": {
+      "boundsSource": "Live computed Paper positions and fresh group PNG dimensions after workspace tools and device refinement",
+      "overlaps": 0,
+      "specimenDimensionsChanged": 0,
+      "priorExportComparison": [
+        {
+          "nodeId": "FZM-0",
+          "dimensionsUnchanged": true,
+          "maxChannelDelta": 0
+        },
+        {
+          "nodeId": "G9U-0",
+          "dimensionsUnchanged": true,
+          "maxChannelDelta": 1
+        },
+        {
+          "nodeId": "GIO-0",
+          "dimensionsUnchanged": true,
+          "maxChannelDelta": 1
+        },
+        {
+          "nodeId": "GXR-0",
+          "dimensionsUnchanged": true,
+          "maxChannelDelta": 1
+        },
+        {
+          "nodeId": "FP9-0",
+          "dimensionsUnchanged": true,
+          "maxChannelDelta": 1
+        },
+        {
+          "nodeId": "FUC-0",
+          "dimensionsUnchanged": true,
+          "maxChannelDelta": 1
+        }
+      ],
+      "workContextFramesAdded": 20,
+      "workspaceHeadersUpdated": 8,
+      "compactRunFramesAdded": 4,
+      "compactActivityViewsUpdated": 4,
+      "existingSpecimensRetained": 7,
+      "priorExportComparisonIsHistorical": true,
+      "autonomousComposerExportsUpdated": 28,
+      "autonomousComposerDimensionsChanged": [],
+      "presenceExportsUpdated": 21,
+      "presenceExistingDimensionsChanged": [],
+      "mentionFramesAdded": 4,
+      "globalBellWorkspaceExportsUpdated": 4,
+      "workspaceToolFramesAdded": 4,
+      "workspaceToolExistingExportsUpdated": 6
+    }
+  },
+  "pageName": "32 · Chat",
+  "relatedComponents": [
+    {
+      "nodeId": "7X5-0",
+      "name": "Collaboration",
+      "groupNodeId": "PUC-0",
+      "pageId": "N-0",
+      "file": "collaboration-foundations.png",
+      "width": 1440,
+      "theme": "light",
+      "exportScale": 1,
+      "height": 1120.0,
+      "sha256": "80f41cc357403a7f419e68234867ac408284258bdc47cd137be92eec6dddee09"
+    }
+  ],
+  "workspaceFrames": [
+    {
+      "nodeId": "1LF0-0",
+      "name": "Chat workspace · Desktop · Light",
+      "file": "workspace-desktop-light.png",
+      "theme": "light",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 1080,
+      "sha256": "12b04abdd75bf05a07271b4d087ce6a91169bed4ddfecd5ccfcd43382e3bc0a7",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1M8E-0",
+      "name": "Chat workspace · Phone · Light",
+      "file": "workspace-phone-light.png",
+      "theme": "light",
+      "viewport": "phone",
+      "width": 390,
+      "height": 844,
+      "sha256": "7b23256ba28577b8393d3fd99971ed82a6b1037bd3d7058b1d476f66c83c1019",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1MBA-0",
+      "name": "Chat workspace · Desktop · Dark",
+      "file": "workspace-desktop-dark.png",
+      "theme": "dark",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 1080,
+      "sha256": "0834b2a10713b0db81c4f0dc48c892d9ab09e5d79d1464c7e1664159c32f7fff",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1MKQ-0",
+      "name": "Chat workspace · Phone · Dark",
+      "file": "workspace-phone-dark.png",
+      "theme": "dark",
+      "viewport": "phone",
+      "width": 390,
+      "height": 844,
+      "sha256": "c5a246fa3435890082673548fe5ee35a59affc5129ec8f5d0a6f487d4702b69d",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1NPT-0",
+      "name": "Expanded web preview · desktop · light",
+      "file": "expanded-desktop-light.png",
+      "theme": "light",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 1000.0,
+      "sha256": "0eb27dfa2dbb909c707fc7d6a5568b7477c134acdebc29245c8d261d21e90071",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1PPJ-0",
+      "name": "Expanded web preview · desktop · dark",
+      "file": "expanded-desktop-dark.png",
+      "theme": "dark",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 1000.0,
+      "sha256": "752f8ca8678dadf3e06650483ec83335b825e35a36a987092c105f64e456b633",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1NU5-0",
+      "name": "Expanded web preview · phone · light",
+      "file": "expanded-phone-light.png",
+      "theme": "light",
+      "viewport": "phone",
+      "width": 390,
+      "height": 844,
+      "sha256": "105ee6953ef7ab9978cf38220c67f7e1cbcc7cc7b92f4b39a26e15b34adc15d5",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1PT9-0",
+      "name": "Expanded web preview · phone · dark",
+      "file": "expanded-phone-dark.png",
+      "theme": "dark",
+      "viewport": "phone",
+      "width": 390,
+      "height": 844,
+      "sha256": "9e958c0904a56a713a017278c7554be185216bc12a2f85fc426fe496f989a33d",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1O0J-0",
+      "name": "Remote simulator · desktop · light",
+      "file": "simulator-desktop-light.png",
+      "theme": "light",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 1080.0,
+      "sha256": "148bef88f6cfde2ef3fbff987648844797496c1639d115726ffd51655269eab0",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1PXD-0",
+      "name": "Remote simulator · desktop · dark",
+      "file": "simulator-desktop-dark.png",
+      "theme": "dark",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 1080.0,
+      "sha256": "75541555013708a12f319cce858a39d4ed25a6019084093f9aa849b01c901048",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1OCY-0",
+      "name": "Remote simulator · phone · light",
+      "file": "simulator-phone-light.png",
+      "theme": "light",
+      "viewport": "phone",
+      "width": 390,
+      "height": 844,
+      "sha256": "8890be8f69d0a484b01429a633b0ed9bebd6f9c4d76ab8cfeb68ad0449282323",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1Q6C-0",
+      "name": "Remote simulator · phone · dark",
+      "file": "simulator-phone-dark.png",
+      "theme": "dark",
+      "viewport": "phone",
+      "width": 390,
+      "height": 844,
+      "sha256": "2831e03938b6d2b30706a864fc3b0b2566e59033c3df231d02d575526e00c4ab",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1OFH-0",
+      "name": "Minimized workspace · desktop · light",
+      "file": "minimized-desktop-light.png",
+      "theme": "light",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 1080.0,
+      "sha256": "fc8421920fcc5182fd3a7cd28b1454b1a68be3b7ab1827c22ac883fad2edf7de",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1QHY-0",
+      "name": "Minimized workspace · desktop · dark",
+      "file": "minimized-desktop-dark.png",
+      "theme": "dark",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 1080.0,
+      "sha256": "b78a2516f1603ad24cf7d429e635fea713243d6cba4f99d48e2ff6d2867e273b",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1OP3-0",
+      "name": "Side chat · Phone · light",
+      "file": "side-chat-phone-light.png",
+      "theme": "light",
+      "viewport": "phone",
+      "width": 390,
+      "height": 844.0,
+      "sha256": "999b3b25270a2d57757b65193c31a7237b6e1b6a857276876fad6af76e2f7c74",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1QOG-0",
+      "name": "Side chat · Phone · dark",
+      "file": "side-chat-phone-dark.png",
+      "theme": "dark",
+      "viewport": "phone",
+      "width": 390,
+      "height": 844.0,
+      "sha256": "3fcdc0c7c211d3e54378857cb7cf56db817c492ecbda02aaac58f6da726f45df",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1P50-0",
+      "name": "Workspace states · desktop · light",
+      "file": "panel-states-desktop-light.png",
+      "theme": "light",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 648,
+      "sha256": "8469821dd7076c2d66dee6dd33e522dadfc812c25f7882e1cccc0482b6d51084",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1QUC-0",
+      "name": "Workspace states · desktop · dark",
+      "file": "panel-states-desktop-dark.png",
+      "theme": "dark",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 648,
+      "sha256": "1b65d8c666c167addc254338d5c6326b892c8924de9e240edf5ba66607a0cd2e",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1P8D-0",
+      "name": "Workspace states · phone · light",
+      "file": "panel-states-phone-light.png",
+      "theme": "light",
+      "viewport": "phone",
+      "width": 390,
+      "height": 1515,
+      "sha256": "8b9c46d19365ea04b882fe42235bb462d23e738d93302c3127b5c03f16e0549d",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1QWN-0",
+      "name": "Workspace states · phone · dark",
+      "file": "panel-states-phone-dark.png",
+      "theme": "dark",
+      "viewport": "phone",
+      "width": 390,
+      "height": 1515,
+      "sha256": "7669936090093ff2d8fedbe1dd9ae133465f2e52062b2ed4c568211367070077",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1ORC-0",
+      "name": "Message rendering · desktop · light",
+      "file": "messages-desktop-light.png",
+      "theme": "light",
+      "viewport": "desktop",
+      "width": 820,
+      "height": 2976,
+      "sha256": "0531ee704b25f1b2f1ce9b4363990aaa2d4cbae920df3f5305f044bb6c783440",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1PC7-0",
+      "name": "Message rendering · desktop · dark",
+      "file": "messages-desktop-dark.png",
+      "theme": "dark",
+      "viewport": "desktop",
+      "width": 820,
+      "height": 2976,
+      "sha256": "bb10d966942cea66849d8056e25368cbc905a1814c505bffb703e6fb55c6aabc",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1ORE-0",
+      "name": "Message rendering · phone · light",
+      "file": "messages-phone-light.png",
+      "theme": "light",
+      "viewport": "phone",
+      "width": 390,
+      "height": 2900,
+      "sha256": "9ae4af610c50b2475b59ced689f75ec3390ee7fa25f4e09122d73acd22b1f4d5",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "1PH4-0",
+      "name": "Message rendering · phone · dark",
+      "file": "messages-phone-dark.png",
+      "theme": "dark",
+      "viewport": "phone",
+      "width": 390,
+      "height": 2900,
+      "sha256": "b423e27c41b9d554531e83d0c29f37db6f36948e254a5b3cc737af952d141b38",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "222X-0",
+      "file": "workspace-tools-desktop-light.png",
+      "name": "Workspace tools · desktop · light",
+      "width": 1440,
+      "viewport": "desktop",
+      "theme": "light",
+      "height": 1099,
+      "exportScale": 1,
+      "sha256": "5d1f120a128f736237a973c09d7215d1cbd84fcc715162e5118f66e5eee37236"
+    },
+    {
+      "nodeId": "223L-0",
+      "file": "workspace-tools-phone-light.png",
+      "name": "Workspace tools · phone · light",
+      "width": 390,
+      "viewport": "phone",
+      "theme": "light",
+      "height": 2627,
+      "exportScale": 1,
+      "sha256": "6cc22317f8d78851b8dd3647ee51251c09229441253fe254aa833c25364b77cc"
+    },
+    {
+      "nodeId": "22QQ-0",
+      "file": "workspace-tools-desktop-dark.png",
+      "name": "Workspace tools · desktop · dark",
+      "width": 1440,
+      "viewport": "desktop",
+      "theme": "dark",
+      "height": 1099,
+      "exportScale": 1,
+      "sha256": "2ac0f19e520de36fa0541d3dc6b4bef3c9c7e34a0084278cbc9933beb177ec9e"
+    },
+    {
+      "nodeId": "22YF-0",
+      "file": "workspace-tools-phone-dark.png",
+      "name": "Workspace tools · phone · dark",
+      "width": 390,
+      "viewport": "phone",
+      "theme": "dark",
+      "height": 2627,
+      "exportScale": 1,
+      "sha256": "520adf706add3a6d73c38dd74660445aeff7494db957a89f76da08d32ecb9350"
+    }
+  ],
+  "workspaceGeometry": {
+    "1LF0-0": {
+      "display": "flex",
+      "flexDirection": "column",
+      "width": "1440px",
+      "height": "1080px",
+      "flexShrink": "0",
+      "overflow": "clip",
+      "position": "relative",
+      "backgroundColor": "var(--color-light-surface)"
+    },
+    "1LKR-0": {
+      "display": "flex",
+      "flexDirection": "column",
+      "position": "absolute",
+      "left": "208px",
+      "top": "0px",
+      "width": "768px",
+      "height": "1080px",
+      "backgroundColor": "var(--color-light-surface)"
+    },
+    "1LH0-0": {
+      "display": "flex",
+      "flexDirection": "column",
+      "position": "absolute",
+      "left": "976px",
+      "top": "0px",
+      "width": "464px",
+      "height": "1080px",
+      "backgroundColor": "var(--color-light-canvas)",
+      "borderLeftWidth": "1px",
+      "borderLeftStyle": "solid",
+      "borderLeftColor": "var(--color-light-border)"
+    },
+    "1M8E-0": {
+      "display": "flex",
+      "flexDirection": "column",
+      "width": "390px",
+      "height": "844px",
+      "flexShrink": "0",
+      "overflow": "clip",
+      "position": "relative",
+      "backgroundColor": "var(--color-light-surface)"
+    }
+  },
+  "paperRenderNotes": [
+    "The Markdown italic sample uses Arial Italic because the local Geist family has no italic face; other interface type remains Geist. Media and connection specimens use synthetic content.",
+    "The compact run presentation follows the user-provided Screenshot 2026-09-08 at 12.41.53 AM.png. Agent/session/model/cache/timing examples are synthetic; cached results with unknown reuse duration show an em dash.",
+    "The September 8 clarification defines Bakery as autonomous: people plan, review, and guide. The screenshots are selective references, not a requirement for local coding controls or exhaustive feature parity.",
+    "The seven September 8 side-panel screenshots inform tool tabs, environment/files, review and remote-device UX. Their embedded local commands and Commit/Push controls are not Bakery requirements. The existing Phone Simulator Plugins implementation is a user-reported reuse candidate, not a source or live transport verified in this task."
+  ],
+  "workContextFrames": [
+    {
+      "nodeId": "1RE3-0",
+      "file": "changes-desktop-light.png",
+      "theme": "light",
+      "viewport": "desktop",
+      "exportScale": 1,
+      "name": "Changes · Chat workspace · Desktop · Light",
+      "width": 1440,
+      "height": 1080.0,
+      "sha256": "986be1f19366dd8d81667c963fdc209eb198ec7d51cc315ec80ca27780e13589"
+    },
+    {
+      "nodeId": "1RSO-0",
+      "file": "changes-phone-light.png",
+      "theme": "light",
+      "viewport": "phone",
+      "exportScale": 1,
+      "name": "Changes · Phone · Light",
+      "width": 390,
+      "height": 844,
+      "sha256": "d7fa7804052614d03ea80f326e65564e1ac35a3891d70ebeaa6eddc404ee8191"
+    },
+    {
+      "nodeId": "1TV5-0",
+      "file": "changes-desktop-dark.png",
+      "theme": "dark",
+      "viewport": "desktop",
+      "exportScale": 1,
+      "name": "Changes · Desktop · Dark",
+      "width": 1440,
+      "height": 1080.0,
+      "sha256": "75f2857a60fb690db1f672cb82b79a13a0871c2da7846a3dcae67dcca50b121d"
+    },
+    {
+      "nodeId": "1U5W-0",
+      "file": "changes-phone-dark.png",
+      "theme": "dark",
+      "viewport": "phone",
+      "exportScale": 1,
+      "name": "Changes · Phone · Dark",
+      "width": 390,
+      "height": 844,
+      "sha256": "01f83f6173502611c641fce66969429b9670388fb3054e8210d537d192295ec2"
+    },
+    {
+      "nodeId": "1RY4-0",
+      "file": "linked-work-desktop-light.png",
+      "theme": "light",
+      "viewport": "desktop",
+      "exportScale": 1,
+      "name": "Linked work · Chat workspace · Desktop · Light",
+      "width": 1440,
+      "height": 1080.0,
+      "sha256": "4c915f58cdadf329d8a1fad6d9507b835719be942cb2abe627ea225522f8d017"
+    },
+    {
+      "nodeId": "1S8V-0",
+      "file": "linked-work-phone-light.png",
+      "theme": "light",
+      "viewport": "phone",
+      "exportScale": 1,
+      "name": "Linked work · Phone · Light",
+      "width": 390,
+      "height": 844,
+      "sha256": "03ebcf096968658da6512c8e25b8d19453a958b9ebe38692a3521b0ea7d14647"
+    },
+    {
+      "nodeId": "1U8V-0",
+      "file": "linked-work-desktop-dark.png",
+      "theme": "dark",
+      "viewport": "desktop",
+      "exportScale": 1,
+      "name": "Linked work · Desktop · Dark",
+      "width": 1440,
+      "height": 1080.0,
+      "sha256": "8da41dfd3908fc6e6d397d70663a35f9bf60b7239f9e3ba46471072695dd3749"
+    },
+    {
+      "nodeId": "1UIR-0",
+      "file": "linked-work-phone-dark.png",
+      "theme": "dark",
+      "viewport": "phone",
+      "exportScale": 1,
+      "name": "Linked work · Phone · Dark",
+      "width": 390,
+      "height": 844,
+      "sha256": "9cea931a211b0c9c3806d9729dd4285fcf35bc85a1faec25ec95cade1fde8fad"
+    },
+    {
+      "nodeId": "1SIA-0",
+      "file": "activity-desktop-light.png",
+      "theme": "light",
+      "viewport": "desktop",
+      "exportScale": 1,
+      "name": "Activity · Chat workspace · Desktop · Light",
+      "width": 1440,
+      "height": 1080.0,
+      "sha256": "22724c499393e559abe76134aec2fa153bb4e345f894ec8d02c453ee1d201024"
+    },
+    {
+      "nodeId": "1ST1-0",
+      "file": "activity-phone-light.png",
+      "theme": "light",
+      "viewport": "phone",
+      "exportScale": 1,
+      "name": "Activity · Phone · Light",
+      "width": 390,
+      "height": 844,
+      "sha256": "ec663af20d310e71416c5c315850b44f1b57fee0d72b87219eaa688265ae78cc"
+    },
+    {
+      "nodeId": "1ULA-0",
+      "file": "activity-desktop-dark.png",
+      "theme": "dark",
+      "viewport": "desktop",
+      "exportScale": 1,
+      "name": "Activity · Desktop · Dark",
+      "width": 1440,
+      "height": 1080.0,
+      "sha256": "42b0ebad6d72b39e1f0c1bd992cb22492ca4917dc8b2bac33883a9329760882e"
+    },
+    {
+      "nodeId": "1UVZ-0",
+      "file": "activity-phone-dark.png",
+      "theme": "dark",
+      "viewport": "phone",
+      "exportScale": 1,
+      "name": "Activity · Phone · Dark",
+      "width": 390,
+      "height": 844,
+      "sha256": "ce7ee348f6b2c3667b050b2adc0fc7b16173a40ff957db9c907768b53b95c062"
+    },
+    {
+      "nodeId": "1T39-0",
+      "file": "activity-expanded-desktop-light.png",
+      "theme": "light",
+      "viewport": "desktop",
+      "exportScale": 1,
+      "name": "Activity · Expanded · Desktop · Light",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "2a33dc30ffcb665eefe760560a92b860c2e56cd07335553bd536cb5c6f7e25d2"
+    },
+    {
+      "nodeId": "1TAJ-0",
+      "file": "activity-expanded-phone-light.png",
+      "theme": "light",
+      "viewport": "phone",
+      "exportScale": 1,
+      "name": "Workflow stack · Phone · Light",
+      "width": 390,
+      "height": 844,
+      "sha256": "8edd5e2905052b869214a61abf964c8ecea653c36e91807233046620791f15e3"
+    },
+    {
+      "nodeId": "1UYH-0",
+      "file": "activity-expanded-desktop-dark.png",
+      "theme": "dark",
+      "viewport": "desktop",
+      "exportScale": 1,
+      "name": "Expanded activity · Desktop · Dark",
+      "width": 1440,
+      "height": 1000,
+      "sha256": "0be92c0c7dd58d37173a0152afdf11ea8673bbaae82b76e89d4b48798e197048"
+    },
+    {
+      "nodeId": "1V45-0",
+      "file": "activity-expanded-phone-dark.png",
+      "theme": "dark",
+      "viewport": "phone",
+      "exportScale": 1,
+      "name": "Expanded activity · Phone · Dark",
+      "width": 390,
+      "height": 844,
+      "sha256": "6c118139dacea1cce5d6a1a9cbc635478824c918a741f99d25927ac36ac150c1"
+    },
+    {
+      "nodeId": "1TG7-0",
+      "file": "work-context-states-desktop-light.png",
+      "theme": "light",
+      "viewport": "desktop",
+      "exportScale": 1,
+      "name": "Work context & execution · Supporting states · Light",
+      "width": 1440,
+      "height": 1041,
+      "sha256": "f1b81d8b83d6d16a8552a5a24f676165da5902650ea76c8aa6cbf4c02c780d8d"
+    },
+    {
+      "nodeId": "1TGK-0",
+      "file": "work-context-states-phone-light.png",
+      "theme": "light",
+      "viewport": "phone",
+      "exportScale": 1,
+      "name": "Work context & execution · Supporting states · Phone · Light",
+      "width": 390,
+      "height": 2503,
+      "sha256": "a25e3179642045195ff5c5bb423f41096384128ce8339fe1c388d634e08eeae5"
+    },
+    {
+      "nodeId": "1V71-0",
+      "file": "work-context-states-desktop-dark.png",
+      "theme": "dark",
+      "viewport": "desktop",
+      "exportScale": 1,
+      "name": "Supporting states · Desktop · Dark",
+      "width": 1440,
+      "height": 1041,
+      "sha256": "d48b8e542e19dec00e403dd4af97cb8503628247aadfbc0c18bcaa4927124a71"
+    },
+    {
+      "nodeId": "1VDE-0",
+      "file": "work-context-states-phone-dark.png",
+      "theme": "dark",
+      "viewport": "phone",
+      "exportScale": 1,
+      "name": "Supporting states · Phone · Dark",
+      "width": 390,
+      "height": 2503,
+      "sha256": "8a771dffe380f0d59a5d24bea77f8b1a01f84551ebba5dcbec426d1d7694ea70"
+    },
+    {
+      "nodeId": "1VXE-0",
+      "name": "Compact run activity · Desktop · Light",
+      "file": "compact-run-desktop-light.png",
+      "theme": "light",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 1180,
+      "exportScale": 1,
+      "presentation": "component-states",
+      "sha256": "30209e255717664d85fc2c659e3014f01ddff4caac67d94cdc3160f0bec5059f"
+    },
+    {
+      "nodeId": "1VXF-0",
+      "name": "Compact run activity · Phone · Light",
+      "file": "compact-run-phone-light.png",
+      "theme": "light",
+      "viewport": "phone",
+      "width": 390,
+      "height": 1448,
+      "exportScale": 1,
+      "presentation": "component-states",
+      "sha256": "6608afeb076b12b8f05d135b3d2c827264ee2a3a087d7abee85a705fcbcdb784"
+    },
+    {
+      "nodeId": "1WN2-0",
+      "name": "Compact run activity · Desktop · Dark",
+      "file": "compact-run-desktop-dark.png",
+      "theme": "dark",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 1180,
+      "exportScale": 1,
+      "presentation": "component-states",
+      "sha256": "915173e8a73125111b745bfa647aac443917f1647b3b1e111b5867e42770a924"
+    },
+    {
+      "nodeId": "1WSY-0",
+      "name": "Compact run activity · Phone · Dark",
+      "file": "compact-run-phone-dark.png",
+      "theme": "dark",
+      "viewport": "phone",
+      "width": 390,
+      "height": 1448,
+      "exportScale": 1,
+      "presentation": "component-states",
+      "sha256": "16c9b968b85b04afe9f99d9591dc38705a8e42dad0e9ff9cc0a59b69cb851b1e"
+    }
+  ],
+  "workContextStates": [
+    "revision-pinned-git-diff",
+    "linked-work-and-evidence",
+    "open-work-picker",
+    "agent-hierarchy",
+    "recorded-call-stack",
+    "workflow-stack-with-parallel-join",
+    "expanded-activity",
+    "merged-link-recovery",
+    "unverified-provider-state",
+    "new-head",
+    "binary-file",
+    "incomplete-diff",
+    "empty-comparison",
+    "outdated-anchor",
+    "partial-adapter",
+    "disconnected-activity",
+    "failed-attempt",
+    "partial-trace",
+    "coordination-plan-fallback",
+    "compact-run-expanded",
+    "compact-run-collapsed",
+    "compact-run-disconnected",
+    "stage-disclosure",
+    "explicit-child-agent-counts"
+  ],
+  "operatingModel": "People plan, review and guide; agents execute. One composer supports freeform requests, natural-language workflow invocation and optional versioned workflow selection. Planning-only intent stays planning; clear execution requests start autonomous work without a routine launch confirmation. Guidance joins the active run. Agents establish authorized open work anchors before execution.",
+  "composerControls": [
+    "Add context",
+    "Workflow (optional)",
+    "More",
+    "Send"
+  ],
+  "referenceScope": "Use the provided coding-assistant screenshots selectively for layout and information density. Plan-mode, access-mode, manual model/harness, Commit and worktree controls are excluded from the default chat composer. Execution model details remain in Activity.",
+  "presenceFrames": [
+    {
+      "nodeId": "1Z3T-0",
+      "theme": "light",
+      "viewport": "desktop",
+      "width": 390,
+      "panel": "1Z4C-0",
+      "file": "presence-desktop-light.png",
+      "name": "Human presence · desktop · light",
+      "exportScale": 1,
+      "height": 575.0,
+      "sha256": "8aeeda17f47aa1031fbf667a94e3a72084da206ae56f54a97568c746c31ebdfd"
+    },
+    {
+      "nodeId": "1Z5N-0",
+      "theme": "light",
+      "viewport": "phone",
+      "width": 390,
+      "panel": "1Z67-0",
+      "file": "presence-phone-light.png",
+      "name": "Human presence · phone · light",
+      "exportScale": 1,
+      "height": 575.0,
+      "sha256": "6933fa98e3ebd65554d348bc5017033939be5b931a2c23a2093407344a72e93d"
+    },
+    {
+      "nodeId": "1Z7I-0",
+      "theme": "dark",
+      "viewport": "desktop",
+      "width": 390,
+      "panel": "1Z81-0",
+      "file": "presence-desktop-dark.png",
+      "name": "Human presence · desktop · dark",
+      "exportScale": 1,
+      "height": 575.0,
+      "sha256": "fa7bc63b92d0558317d86c89ef31a4fb819345dcf03473425cd05a998da9389b"
+    },
+    {
+      "nodeId": "1Z9C-0",
+      "theme": "dark",
+      "viewport": "phone",
+      "width": 390,
+      "panel": "1Z9W-0",
+      "file": "presence-phone-dark.png",
+      "name": "Human presence · phone · dark",
+      "exportScale": 1,
+      "height": 575.0,
+      "sha256": "6b411e14e4ce05d51ddfa669afb8dd65510005e4581979de209e3ffa030056a1"
+    }
+  ],
+  "humanPresence": {
+    "states": [
+      "here-now",
+      "viewed-recently",
+      "last-active"
+    ],
+    "avatarSource": "Profile image with initials fallback; Paper samples use initials",
+    "liveIndicator": {
+      "size": 12,
+      "surfaceRing": 2,
+      "right": -2,
+      "bottom": -2
+    },
+    "desktopAvatar": 32,
+    "phoneAvatar": 28,
+    "desktopHitTarget": 44,
+    "phonePeopleHitTarget": {
+      "width": 72,
+      "height": 44
+    },
+    "history": "Proposed per-conversation server-stamped latest view/activity summary, separate from expiring presence",
+    "runtime": "Not implemented"
+  },
+  "mentionFrames": [
+    {
+      "nodeId": "20Y5-0",
+      "name": "People mentions · Desktop · Light",
+      "file": "../notification-mocks/mentions-desktop-light.png",
+      "width": 820,
+      "theme": "light",
+      "viewport": "desktop",
+      "pageId": "N-0",
+      "height": 1160,
+      "sha256": "58481f15c36b946a4ab470c30fdfc463d9038794363a6734900cfab680ee0f60",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "2112-0",
+      "name": "People mentions · Phone · Light",
+      "file": "../notification-mocks/mentions-phone-light.png",
+      "width": 390,
+      "theme": "light",
+      "viewport": "phone",
+      "pageId": "N-0",
+      "height": 1242,
+      "sha256": "8538118d8be241c980ffc2c90cac5cf9c4af96f5679cdd52c0205ccf6535b17b",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "213V-0",
+      "name": "People mentions · Desktop · Dark",
+      "file": "../notification-mocks/mentions-desktop-dark.png",
+      "width": 820,
+      "theme": "dark",
+      "viewport": "desktop",
+      "pageId": "N-0",
+      "height": 1160,
+      "sha256": "8ec4b8c2e025a5e7e114b8c3d63c267b965a832d8693b91db4443995fd79a5af",
+      "exportScale": 1
+    },
+    {
+      "nodeId": "2163-0",
+      "name": "People mentions · Phone · Dark",
+      "file": "../notification-mocks/mentions-phone-dark.png",
+      "width": 390,
+      "theme": "dark",
+      "viewport": "phone",
+      "pageId": "N-0",
+      "height": 1242,
+      "sha256": "60a082b2eb340683c0e1d3a9680e75984e7e158a0e45110dac6ad11e896719a7",
+      "exportScale": 1
+    }
+  ],
+  "workspaceToolGeometry": {
+    "222X-0": {
+      "display": "flex",
+      "flexDirection": "column",
+      "width": "1440px",
+      "flexShrink": "0",
+      "padding": "32px",
+      "gap": "24px",
+      "backgroundColor": "var(--color-light-surface)"
+    },
+    "223L-0": {
+      "display": "flex",
+      "flexDirection": "column",
+      "width": "390px",
+      "flexShrink": "0",
+      "padding": "16px",
+      "gap": "24px",
+      "backgroundColor": "var(--color-light-surface)"
+    },
+    "22QQ-0": {
+      "display": "flex",
+      "flexDirection": "column",
+      "width": "1440px",
+      "flexShrink": "0",
+      "padding": "32px",
+      "gap": "24px",
+      "backgroundColor": "var(--color-dark-surface)"
+    },
+    "22YF-0": {
+      "display": "flex",
+      "flexDirection": "column",
+      "width": "390px",
+      "flexShrink": "0",
+      "padding": "16px",
+      "gap": "24px",
+      "backgroundColor": "var(--color-dark-surface)"
+    }
+  },
+  "workspaceToolStates": [
+    "add-panel-picker",
+    "selected-resource-tab",
+    "phone-panel-selector",
+    "host-device-directory",
+    "running-device-open",
+    "stopped-device-boot",
+    "unavailable-device",
+    "explicit-control-owner",
+    "view-only-input-disabled",
+    "environment-and-revision-context",
+    "session-files",
+    "read-only-run-logs"
+  ],
+  "remoteSimulatorReuse": {
+    "candidate": "Existing local Phone Simulator Plugins implementation reported by the user",
+    "evidence": "User-supplied September 8 device directory and streamed-phone screenshots; user reports remote-machine access",
+    "verifiedSource": false,
+    "verifiedRemoteConnection": false,
+    "nextImplementationStep": "Inspect source/licensing, device lifecycle, stream/input transport, coordinate mapping, authorization, control ownership and reconnect before adapting existing code. No new streaming service or transport choice is implied."
+  }
+}

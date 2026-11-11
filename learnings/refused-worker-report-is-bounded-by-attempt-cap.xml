@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="refused-worker-report-is-bounded-by-attempt-cap" project="bakery" issue="94">
+  <title>A refused worker report follows the denied-answer path and is bounded by the attempt cap, not by a decision</title>
+  <trigger>A result hook refuses a worker report that contradicts what the server derived, as the quality.check and review.independent finalizers do.</trigger>
+  <mistake>The first design of the review finalizer completed a refused review report as a non-retryable failed result with its own decision reasons. That differed from the quality.check precedent, in which a refused report is a denied answer that applies nothing, and it let one refused POST end the run and record a reason that blamed the worker for what the server refused. Plan review round 1 (finding F2) moved it to the denied path.</mistake>
+  <rule>Roll back to the savepoint, append one denied audit row and return the denied answer. Apply nothing and write no cycle, no decision and no step. The lease then expires and the job's attempt cap bounds how many reports a worker can send; the cost of a refused report is one denied audit row per POST. State this limit in the design document (06, Known limits) and the PR instead of hiding it. A report that is accepted is the only thing that can reach a decision.</rule>
+  <verification>
+    <command>pnpm test:security -- tests/security/implement-independent-review-and-bounded-repair-loops_test.ts</command>
+    <requirement>A forged head, base or policy, a duplicate fingerprint and an over-bound report are each refused with exactly one denied audit entry and no cycle, finding or decision row.</requirement>
+  </verification>
+  <boundary>A review job that fails through lease exhaustion, or that no worker claims, records no decision either; both are stated residuals, not fixed by this rule.</boundary>
+</learning>

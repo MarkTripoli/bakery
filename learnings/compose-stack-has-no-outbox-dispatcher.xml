@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="compose-stack-has-no-outbox-dispatcher" project="bakery">
+  <title>A stack from compose-up.sh has no outbox dispatcher, so event-driven steps stay queued</title>
+  <trigger>Hand-running a real-API browser spec or a manual journey against a stack from scripts/dev/compose-up.sh and a conversation turn, run or other event-driven step never leaves queued.</trigger>
+  <mistake>Assumed compose-up.sh started everything the server needs. infra/compose.yaml defines no dispatcher service, so outbox events never reach Inngest and the stack looks healthy while nothing advances.</mistake>
+  <rule>Start the dispatcher beside the stack, in its compose project and network, with the same Inngest event key the stack uses and the application role URL: docker compose -p PROJECT -f infra/compose.yaml run -d --no-deps -e INNGEST_EVENT_KEY=KEY server sh -eu -c 'export BAKERY_APP_DATABASE_URL="postgres://bakery_app:$BAKERY_LOCAL_APP_PASSWORD@postgres:5432/bakery"; exec deno run --allow-env --allow-net apps/server/src/dispatch.ts'. Two dispatchers overlapping are safe because both use leases. scripts/dev/compose-down.sh removes every container labelled with the project, including a run -d dispatcher.</rule>
+  <rule>Pass the same variables to compose-down.sh as to compose-up.sh (compose interpolation needs BETTER_AUTH_SECRET), and set INNGEST_EVENT_KEY and INNGEST_SIGNING_KEY on the host equal to the stack's, or host seeding fails AUTH_CONFIGURATION_INVALID; see compose-partial-service-environment and local-bootstrap-environment.</rule>
+  <verification>
+    <requirement>A queued turn or run becomes active within about a minute of starting the dispatcher (the recovery cron re-arms queued work). After teardown, docker ps -a --filter label=com.docker.compose.project=PROJECT is empty.</requirement>
+  </verification>
+  <boundary>For the hosted environment the equivalent service and its crash-loop recovery are in railway-qa-dispatcher-recovery.</boundary>
+</learning>

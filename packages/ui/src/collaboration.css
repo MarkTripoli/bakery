@@ -1,0 +1,1790 @@
+@import "./foundations/index.css";
+
+.ui-conversation-message,
+.ui-question-card,
+.ui-artifact-comment,
+.ui-model-resolution,
+.ui-task-detail {
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  color: var(--color-fg);
+  font: var(--type-body);
+  padding: var(--space-4);
+}
+
+.ui-conversation-message header,
+.ui-question-card header,
+.ui-artifact-comment header,
+.ui-task-detail > header,
+.ui-run-timeline__event,
+.ui-model-resolution dl > div {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.ui-conversation-message header > *,
+.ui-question-card header > *,
+.ui-artifact-comment header > *,
+.ui-task-detail > header > *,
+.ui-run-timeline__event > *,
+.ui-model-resolution dl > div > * {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.ui-conversation-message time,
+.ui-artifact-comment time,
+.ui-question-card header span,
+.ui-artifact-comment header span,
+.ui-run-timeline time,
+.ui-model-resolution dt {
+  color: var(--color-fg-muted);
+  font: var(--type-meta);
+}
+
+.ui-conversation-message--agent {
+  background: var(--color-selection-surface);
+}
+.ui-conversation-message--system {
+  background: var(--color-surface-subtle);
+}
+.ui-conversation-message[data-state="failed"] {
+  border-color: var(--color-destructive);
+}
+.ui-question-card[data-variant="multipleChoice"],
+.ui-question-card[data-variant="text"] {
+  border-style: dashed;
+}
+.ui-question-card--expired,
+.ui-artifact-comment[data-state="outdated"] {
+  color: var(--color-fg-muted);
+}
+.ui-artifact-comment[data-variant="reply"] {
+  margin-inline-start: var(--space-6);
+}
+.ui-run-timeline--compact .ui-run-timeline__event {
+  padding-block: var(--space-2);
+}
+.ui-model-resolution--overridden {
+  border-color: var(--color-selection);
+}
+.ui-model-resolution--unsupported,
+.ui-model-resolution--unavailable {
+  border-color: var(--color-destructive);
+}
+.ui-conversation-message__body,
+.ui-artifact-comment__body,
+.ui-question-card__answer,
+.ui-task-detail__layout,
+.ui-model-resolution dl {
+  margin-block-start: var(--space-3);
+  overflow-wrap: anywhere;
+}
+.ui-conversation-message footer,
+.ui-artifact-comment footer {
+  margin-block-start: var(--space-3);
+}
+
+.ui-question-card--answered,
+.ui-artifact-comment--resolved {
+  border-color: var(--color-control-border);
+}
+.ui-question-card h3,
+.ui-model-resolution h3,
+.ui-task-detail h1,
+.ui-task-inbox h1 {
+  font: var(--type-heading-subsection);
+  margin: var(--space-0);
+}
+.ui-question-card__answer {
+  border-block-start: var(--border-default) solid var(--color-border);
+  padding-block-start: var(--space-3);
+}
+
+.ui-run-timeline {
+  list-style: none;
+  margin: var(--space-0);
+  padding: var(--space-0);
+}
+.ui-run-timeline__event {
+  border-inline-start: var(--border-emphasis) solid var(--color-border);
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+}
+.ui-run-timeline__event--active {
+  border-color: var(--color-selection);
+}
+.ui-run-timeline__event--complete,
+.ui-run-timeline__event--queued,
+.ui-run-timeline__event--waiting,
+.ui-run-timeline__event--canceled {
+  border-color: var(--color-control-border);
+}
+.ui-run-timeline__event--blocked {
+  border-color: var(--color-status-warning);
+}
+.ui-run-timeline__event[data-scope="run"] {
+  border-inline-start-width: calc(var(--border-emphasis) * 2);
+}
+.ui-run-timeline__reason {
+  color: var(--color-status-warning);
+  font: var(--type-hint);
+}
+.ui-run-timeline__connectivity:not(:empty) {
+  background: var(--color-status-warning-surface);
+  border: var(--border-default) solid var(--color-status-warning);
+  border-radius: var(--radius-control);
+  color: var(--color-status-warning);
+  font: var(--type-hint);
+  margin-block-end: var(--space-3);
+  overflow-wrap: anywhere;
+  padding: var(--space-2) var(--space-3);
+}
+.ui-run-timeline__event--failed {
+  border-color: var(--color-destructive);
+}
+
+.ui-model-resolution dl {
+  display: grid;
+  gap: var(--space-2);
+  margin-bottom: var(--space-0);
+}
+.ui-model-resolution dt,
+.ui-model-resolution dd {
+  margin: var(--space-0);
+}
+.ui-model-resolution dd {
+  text-align: end;
+}
+.ui-model-resolution__status {
+  color: var(--color-fg-muted);
+  font: var(--type-meta);
+  margin: var(--space-1) var(--space-0) var(--space-0);
+}
+
+/* Task surfaces keep full touch targets for every input and action, including
+   fine-pointer desktop use. Descendant shared controls consume this token. */
+.ui-task-inbox,
+.ui-task-detail {
+  --target-min: var(--target-coarse);
+}
+
+.ui-task-detail__layout {
+  display: grid;
+  gap: var(--space-6);
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 20rem);
+}
+.ui-task-detail__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+/* Paper E-0 Work queue page body (paper-source/5J-0.jsx): header 24/24/12,
+   count tabs, 16px filter bar, queue inset 24px; inspector column 320px.
+   Inputs and links keep the 44px task-surface target; fine-pointer buttons
+   and tabs use Paper's 36px control height. */
+.ui-task-inbox {
+  box-sizing: border-box;
+  color: var(--color-fg);
+  display: grid;
+  font: var(--type-body);
+  grid-template-columns: minmax(0, 1fr);
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+.ui-task-inbox:has(> .ui-task-inbox__inspector) {
+  grid-template-columns: minmax(0, 1fr) var(--layout-inspector);
+}
+.ui-task-inbox__work {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+.ui-task-inbox__header {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  padding: var(--space-6) var(--space-task-inset) var(--space-3);
+}
+.ui-task-inbox__header > div:first-child {
+  flex: 1 1 0%;
+  min-inline-size: 0;
+}
+.ui-task-inbox h1 {
+  font: var(--type-heading-page);
+}
+.ui-task-inbox__description,
+.ui-task-inbox__summary,
+.ui-task-inbox__state {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+  overflow-wrap: anywhere;
+}
+.ui-task-inbox__state {
+  padding: var(--space-4) var(--space-task-inset);
+}
+.ui-task-inbox > .ui-task-inbox__work > .ui-tabs {
+  border-block-end: var(--border-none);
+}
+.ui-task-inbox .ui-tabs__bar {
+  border-block-end: var(--border-default) solid var(--color-border);
+  padding-inline: var(--space-task-inset);
+}
+.ui-task-inbox .ui-tabs__list {
+  gap: var(--space-6);
+}
+.ui-task-inbox__more-label {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  block-size: 1px;
+  inline-size: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+}
+.ui-task-inbox .ui-tabs__tab {
+  font: var(--type-body);
+  min-block-size: auto;
+  min-inline-size: 0;
+  padding: var(--space-2-5) var(--space-0);
+}
+.ui-task-inbox .ui-tabs__tab[aria-selected="true"] {
+  font-weight: var(--weight-medium);
+}
+.ui-task-inbox .ui-tabs__panel {
+  padding-block: var(--space-0);
+}
+.ui-task-inbox__filters {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-task-inset);
+}
+.ui-task-inbox__results {
+  padding-inline: var(--space-task-inset);
+}
+.ui-task-inbox__cursor {
+  padding: var(--space-4) var(--space-task-inset);
+}
+.ui-task-inbox__inspector {
+  background: var(--color-surface);
+  border-inline-start: var(--border-default) solid var(--color-border);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-6) var(--space-5);
+}
+@media (pointer: fine) {
+  .ui-task-inbox__filters .ui-button,
+  .ui-task-inbox__filters .ui-popover__trigger {
+    min-block-size: var(--size-control);
+  }
+}
+.ui-task-inbox--sheet .ui-tabs__bar {
+  /* E8-0 draws the views chevron 24px after the last tab; its 44px target
+     centres the 16px glyph 14px in, so the bar gap gives those 14px back. */
+  gap: var(--space-2-5);
+  padding-inline: var(--space-5);
+}
+/* Phones: the top bar carries the page title (E8-0), so the page heading
+   stays in the outline but is not drawn twice. */
+.ui-task-inbox--sheet .ui-task-inbox__header {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  block-size: 1px;
+  inline-size: 1px;
+  overflow: hidden;
+  padding: var(--space-0);
+  position: absolute;
+  white-space: nowrap;
+}
+.ui-task-inbox--sheet .ui-tabs__tab {
+  padding-block: var(--space-3-5);
+}
+.ui-task-inbox--sheet .ui-tabs__tab[aria-selected="true"] {
+  color: var(--color-selection);
+}
+.ui-task-inbox--sheet .ui-task-inbox__filters {
+  padding-inline: var(--space-5);
+}
+.ui-task-inbox--sheet .ui-task-inbox__results {
+  padding-inline: var(--space-0);
+}
+
+/* Inspector body (5J-0 right column): 20px rhythm between blocks. */
+.ui-task-inspector {
+  color: var(--color-fg);
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-block-size: 100%;
+}
+.ui-task-inspector__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ui-task-inspector h2 {
+  font: var(--type-heading-section);
+  margin: var(--space-0);
+}
+.ui-task-inspector__identity,
+.ui-task-inspector__participants {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.ui-task-inspector__reference {
+  flex: 1 1 auto;
+  font: var(--type-data);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.ui-task-inspector__participants {
+  border-block-end: var(--border-default) solid var(--color-border);
+  padding-block-end: var(--space-4);
+}
+.ui-task-inspector__participants > span:first-child {
+  color: var(--color-fg-muted);
+  flex: 1 1 0%;
+  font: var(--type-hint);
+}
+.ui-task-inspector__participants .ui-avatar {
+  flex: none;
+  background: var(--color-canvas);
+  color: var(--color-fg);
+  font: var(--type-meta);
+}
+.ui-task-inspector__spacer {
+  flex: 1 1 0%;
+}
+.ui-task-inspector__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ui-task-inspector .ui-tabs {
+  border-block-end: var(--border-none);
+}
+.ui-task-inspector .ui-tabs__bar {
+  border-block-end: var(--border-default) solid var(--color-border);
+  padding: var(--space-4) var(--space-0) var(--space-3);
+}
+.ui-task-inspector .ui-tabs__list {
+  gap: var(--space-6);
+}
+.ui-task-inspector .ui-tabs__tab {
+  border-block-end: var(--border-none);
+  font: var(--type-body);
+  min-block-size: auto;
+  min-inline-size: 0;
+  padding: var(--space-0);
+}
+.ui-task-inspector .ui-tabs__tab[aria-selected="true"] {
+  color: var(--color-selection);
+  font-weight: var(--weight-medium);
+}
+.ui-task-inspector .ui-tabs__panel {
+  padding-block: var(--space-5) var(--space-0);
+}
+
+/* Inline question (5J-0 inspector): title 14/500, hint, choice cards. */
+.ui-question-card--inline {
+  border: var(--border-none);
+  border-radius: var(--radius-none);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-0);
+}
+.ui-question-card--inline header {
+  align-items: stretch;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ui-question-card--inline h3 {
+  font: var(--type-control);
+}
+.ui-question-card--inline header > span {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  block-size: 1px;
+  inline-size: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+}
+.ui-question-card__description {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+  margin: var(--space-0);
+}
+.ui-question-card--inline .ui-question-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+.ui-question-card--inline .ui-radio,
+.ui-preset-option .ui-radio {
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-control);
+  box-sizing: border-box;
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+.ui-question-card--inline .ui-radio[data-variant="checked"],
+.ui-preset-option .ui-radio[data-variant="checked"] {
+  background: var(--color-selection-surface);
+  border-color: var(--color-selection);
+}
+.ui-question-card--inline .ui-radio input,
+.ui-preset-option .ui-radio input {
+  appearance: none;
+  min-block-size: var(--size-checkbox);
+  min-inline-size: var(--size-checkbox);
+  block-size: var(--size-checkbox);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-circle);
+  box-sizing: border-box;
+  inline-size: var(--size-checkbox);
+}
+.ui-question-card--inline .ui-radio input:checked,
+.ui-preset-option .ui-radio input:checked {
+  background: var(--color-surface);
+  border: var(--border-radio-checked) solid var(--color-selection);
+}
+/* Preset card: the 5J-0 option frame plus a 44px target and a text stack. A
+   disabled card keeps the radio state but drops the selected frame. */
+.ui-preset-option .ui-radio {
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  inline-size: 100%;
+  min-block-size: var(--target-coarse);
+}
+.ui-preset-option .ui-radio:has(input:disabled) {
+  background: var(--color-surface-subtle);
+  border-color: var(--color-border);
+  cursor: not-allowed;
+  opacity: .55;
+}
+.ui-preset-option__text {
+  display: flex;
+  flex: 1 1 0%;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.ui-preset-option__title {
+  font: var(--type-control);
+}
+.ui-preset-option__description {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+}
+.ui-preset-option__unavailable {
+  color: var(--color-status-warning);
+  font: var(--type-hint);
+}
+.ui-question-card--inline .ui-question-card__actions {
+  display: flex;
+  flex-direction: column;
+}
+.ui-question-card--inline .ui-question-card__actions .ui-button {
+  padding-block: var(--space-0); /* 5J-0 36px button, 18px label line */
+}
+
+/* Activity feed (5J-0 inspector): 16px glyph, title, then time · detail. */
+.ui-run-timeline--activity {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+.ui-run-timeline--activity .ui-run-timeline__event {
+  align-items: flex-start;
+  border: var(--border-none);
+  flex-wrap: nowrap;
+  gap: var(--space-3);
+  justify-content: flex-start;
+  padding: var(--space-0);
+}
+.ui-run-timeline--activity .ui-run-timeline__event > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.ui-run-timeline__title {
+  font: var(--type-hint);
+}
+.ui-run-timeline__meta {
+  color: var(--color-fg-muted);
+  font: var(--type-meta);
+}
+.ui-run-timeline--activity .ui-icon {
+  stroke-width: var(--icon-stroke-compact);
+}
+.ui-artifact-descriptor {
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  padding: var(--space-4);
+}
+.ui-artifact-descriptor dl {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-0);
+}
+.ui-artifact-descriptor dl > div {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: minmax(7rem, 0.35fr) minmax(0, 1fr);
+}
+.ui-artifact-descriptor dt {
+  color: var(--color-fg-muted);
+  font: var(--type-meta);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
+.ui-artifact-descriptor dd {
+  margin: var(--space-0);
+  overflow-wrap: anywhere;
+}
+.ui-artifact-descriptor > a {
+  display: inline-block;
+  margin-block-start: var(--space-4);
+  min-block-size: 2.75rem;
+  padding-block: var(--space-2);
+}
+@media (max-width: 640px) {
+  .ui-task-detail__layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ui-artifact-descriptor dl > div {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Paper HU-0 task session: transcript column + 496px side pane. Header
+   24px inset; transcript 32px inset with 24px message rhythm; messages are
+   unframed 14/24 text capped at 620px; pane title row is 64px. */
+.ui-task-detail--session {
+  border: var(--border-none);
+  border-radius: var(--radius-none);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  padding: var(--space-0);
+}
+.ui-task-detail--session:has(> .ui-task-detail__pane) {
+  grid-template-columns: minmax(0, 1fr) var(--layout-session-pane);
+}
+.ui-task-detail__main {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+.ui-task-detail--session .ui-task-detail__main > header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-6);
+}
+.ui-task-detail--session h1 {
+  font: var(--type-heading-page);
+  overflow-wrap: anywhere;
+}
+.ui-task-detail__heading-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.ui-task-detail__heading-summary h1 {
+  letter-spacing: var(--tracking-heading-page);
+}
+.ui-task-detail__heading-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.ui-task-detail__reference {
+  color: var(--color-fg-muted);
+  font: var(--type-meta);
+  font-weight: var(--weight-semibold);
+}
+.ui-task-detail__run-status {
+  background: var(--color-surface-subtle);
+  border-radius: var(--radius-control);
+  font: var(--type-meta);
+  font-weight: var(--weight-medium);
+  padding: var(--space-1) var(--space-2);
+}
+.ui-task-detail__description {
+  color: var(--color-fg-muted);
+  font: var(--type-body);
+  margin: var(--space-0);
+}
+.ui-task-detail__meta {
+  align-items: center;
+  color: var(--color-fg-muted);
+  display: flex;
+  font: var(--type-hint);
+  gap: var(--space-3);
+}
+.ui-task-detail__meta > div:first-child {
+  flex: 1 1 0%;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.ui-task-detail__transcript {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: calc(var(--space-6) + var(--space-1)) var(--space-8) var(--space-1);
+}
+.ui-task-detail__composer {
+  padding: var(--space-2) var(--space-8) var(--space-5);
+}
+.ui-task-detail__pane {
+  border-inline-start: var(--border-default) solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+.ui-task-detail__pane-header {
+  align-items: center;
+  block-size: var(--space-16);
+  border-block-end: var(--border-default) solid var(--color-border);
+  box-sizing: border-box;
+  display: flex;
+  font: var(--type-control);
+  gap: var(--space-3);
+  padding-inline: var(--space-6);
+}
+.ui-task-detail__pane-header > :nth-child(2) {
+  flex: 1 1 0%;
+}
+.ui-task-detail__pane-header .ui-icon {
+  stroke-width: var(--icon-stroke-compact);
+}
+.ui-task-detail__pane-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-6);
+}
+.ui-task-detail--session .ui-conversation-message {
+  background: transparent;
+  border: var(--border-none);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-0);
+}
+.ui-task-detail--session .ui-conversation-message header {
+  flex-wrap: nowrap;
+  gap: var(--space-3);
+  justify-content: flex-start;
+}
+.ui-task-detail--session .ui-conversation-message strong {
+  font: var(--type-control);
+  font-weight: var(--weight-semibold);
+}
+.ui-task-detail--session .ui-conversation-message__body {
+  font: var(--type-reading);
+  margin: var(--space-0);
+  max-inline-size: var(--layout-message);
+}
+@media (max-width: 743px) {
+  .ui-task-detail--session,
+  .ui-task-detail--session:has(> .ui-task-detail__pane) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ui-task-detail--session .ui-task-detail__main > header,
+  .ui-task-detail__transcript,
+  .ui-task-detail__composer,
+  .ui-task-detail__pane-body {
+    padding-inline: var(--space-5);
+  }
+  .ui-task-detail__pane {
+    border-block-start: var(--border-default) solid var(--color-border);
+    border-inline-start: var(--border-none);
+  }
+}
+
+/* HU-0 plan card: 6px frame, 16px inset, glyph, title/meta, arrow. */
+.ui-artifact-preview {
+  align-items: center;
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  color: var(--color-fg);
+  display: flex;
+  gap: var(--space-3);
+  min-block-size: var(--target-min);
+  padding: var(--space-4);
+  text-decoration: none;
+}
+.ui-artifact-preview:hover .ui-artifact-preview__title {
+  text-decoration: underline;
+  text-underline-offset: var(--underline-offset);
+}
+.ui-artifact-preview:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+}
+.ui-artifact-preview .ui-icon {
+  stroke-width: var(--icon-stroke-compact);
+}
+.ui-artifact-preview__text {
+  display: flex;
+  flex: 1 1 0%;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.ui-artifact-preview__title {
+  font: var(--type-control);
+}
+.ui-artifact-preview__meta {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+}
+
+/* Paper HU-0 session pane: 64px ruled title row (24px inset), body sections
+   carry their own 24px inset, ruled footer with 20px/24px padding. */
+.ui-session-pane {
+  background: var(--color-surface);
+  color: var(--color-fg);
+  display: flex;
+  flex-direction: column;
+  min-block-size: 100%;
+}
+.ui-session-pane__header {
+  align-items: center;
+  border-block-end: var(--border-default) solid var(--color-border);
+  box-sizing: border-box;
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  font: var(--type-control);
+  gap: var(--space-3);
+  min-block-size: var(--space-16);
+  min-inline-size: 0;
+  padding-inline: var(--space-6);
+}
+.ui-session-pane__header > :nth-child(2) {
+  flex: 1 1 0%;
+  font: var(--type-control);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.ui-session-pane {
+  min-inline-size: 0;
+}
+.ui-session-pane__header .ui-icon {
+  stroke-width: var(--icon-stroke-compact);
+}
+.ui-session-pane__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-block: var(--space-6);
+}
+.ui-session-pane__body > :not(.ui-run-timeline--steps) {
+  margin-inline: var(--space-6);
+}
+.ui-session-pane__summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-block-end: var(--space-2);
+}
+.ui-session-pane__summary h2 {
+  font: var(--type-heading-section);
+  margin: var(--space-0);
+}
+.ui-session-pane__summary p {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+  margin: var(--space-0);
+}
+.ui-session-pane__footer {
+  align-items: center;
+  min-inline-size: 0;
+  border-block-start: var(--border-default) solid var(--color-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-6);
+}
+
+/* Run steps as HU-0 plan-style sections: "N. title" 14/600, detail 14/24,
+   the active step on the selection tint with a 2px selection rule. */
+.ui-run-timeline--steps {
+  counter-reset: run-step;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ui-run-timeline--steps .ui-run-timeline__event {
+  align-items: stretch;
+  border: var(--border-none);
+  counter-increment: run-step;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+  padding: var(--space-0) var(--space-6);
+}
+.ui-run-timeline--steps .ui-run-timeline__event + .ui-run-timeline__event {
+  padding-block-start: var(--space-3);
+}
+.ui-run-timeline--steps .ui-run-timeline__title {
+  font: var(--type-control);
+  font-weight: var(--weight-semibold);
+}
+.ui-run-timeline--steps .ui-run-timeline__title::before {
+  content: counter(run-step) ". ";
+}
+.ui-run-timeline--steps .ui-run-timeline__meta {
+  color: var(--color-fg);
+  font: var(--type-reading);
+}
+.ui-run-timeline--steps .ui-run-timeline__event--active .ui-run-timeline__meta {
+  background: var(--color-selection-surface);
+  border-inline-start: var(--border-emphasis) solid var(--color-selection);
+  padding: var(--space-3);
+}
+
+/* Paper HU-0 plan pane body: the descriptor and a bounded plain-text preview
+   that scrolls inside the pane. The ruled rows come from SessionPane. */
+.ui-artifact-pane {
+  color: var(--color-fg);
+  display: flex;
+  flex-direction: column;
+  font: var(--type-body);
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+/* The status region stays mounted so a later notice is announced. Empty, it
+   is visually hidden and out of flow, so it adds no flex gap. */
+.ui-artifact-pane__notice:empty {
+  block-size: 1px;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  inline-size: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+}
+.ui-artifact-pane__preview {
+  background: var(--color-surface-subtle);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-control);
+  max-block-size: 28rem;
+  max-inline-size: 100%;
+  overflow: auto; /* intentional: the bounded preview scrolls inside the pane */
+  padding: var(--space-3);
+}
+.ui-artifact-pane__preview pre {
+  font: var(--type-data);
+  margin: var(--space-0);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.ui-artifact-pane__preview:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+}
+.ui-session-pane__footer .ui-button {
+  align-items: center;
+  box-sizing: border-box;
+  min-block-size: max(var(--size-control), var(--target-min));
+  padding-block: var(--space-2);
+  text-decoration: none;
+}
+/* A header control and the title block shrink and wrap before they overflow. */
+.ui-session-pane__header .ui-combobox--filter {
+  /* The frame grows to the coarse target instead of the select overhanging it. */
+  block-size: max(var(--size-control), var(--target-min));
+  max-inline-size: 100%;
+}
+.ui-session-pane__header .ui-combobox--filter select {
+  margin-block: calc(
+    (max(var(--size-control), var(--target-min)) - var(--target-min)) / 2
+  );
+  max-inline-size: 100%;
+  min-inline-size: var(--space-0);
+  text-overflow: ellipsis;
+}
+.ui-session-pane__summary h2,
+.ui-session-pane__summary p {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 743px) {
+  .ui-artifact-pane__notice .ui-inline-notice {
+    gap: var(--space-2);
+    padding-inline: var(--space-2);
+  }
+}
+
+/* Paper p-18-0 shared conversation (frames 2IBL-0..2IW7-0): a full-height
+   work column of title block, ruled stage strip, scrolling transcript and a
+   pinned composer. Title block 24/32 inset, transcript 24/32 inset with a
+   20px message rhythm, composer 24px from the bottom. */
+.bakery-app-shell__main .ui-task-detail--conversation {
+  block-size: calc(100dvb - var(--layout-header));
+}
+.ui-task-detail--conversation {
+  border: var(--border-none);
+  border-radius: var(--radius-none);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-0);
+}
+.ui-task-detail--conversation > .ui-task-detail__main {
+  flex: 1 1 auto;
+  min-block-size: 0;
+}
+.ui-task-detail--conversation .ui-task-detail__main > header {
+  align-items: stretch;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: var(--space-1);
+  justify-content: flex-start;
+  padding: var(--space-6) var(--space-8) var(--space-4);
+}
+.ui-task-detail--conversation h1 {
+  font: var(--type-heading-page);
+  letter-spacing: var(--tracking-heading-page);
+  margin: var(--space-0);
+  overflow-wrap: anywhere;
+}
+.ui-task-detail__subtitle {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+  margin: var(--space-0);
+  overflow-wrap: anywhere;
+}
+.ui-task-detail__stages {
+  border-block-end: var(--border-default) solid var(--color-border);
+  flex: 0 0 auto;
+  padding: var(--space-0) var(--space-8) var(--space-4);
+}
+.ui-task-detail--conversation .ui-task-detail__transcript {
+  /* intentional: the transcript scrolls while the composer stays pinned */
+  overflow-y: auto;
+  min-block-size: 0;
+  padding: var(--space-6) var(--space-8);
+  gap: var(--space-5);
+}
+.ui-task-detail--conversation .ui-task-detail__composer {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-0) var(--space-8) var(--space-6);
+}
+.ui-task-detail--conversation .ui-conversation-message {
+  background: transparent;
+  border: var(--border-none);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-inline-size: calc(var(--layout-message) + var(--space-5));
+  padding: var(--space-0);
+}
+.ui-task-detail--conversation .ui-conversation-message header {
+  align-items: baseline;
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+  justify-content: flex-start;
+}
+.ui-task-detail--conversation .ui-conversation-message strong {
+  font: var(--type-control);
+  font-weight: var(--weight-semibold);
+}
+.ui-task-detail--conversation .ui-conversation-message time {
+  font: var(--type-caption);
+}
+.ui-task-detail--conversation .ui-conversation-message__body {
+  font: var(--type-notice);
+  margin: var(--space-0);
+}
+
+/* Paper p-18-0 stage strip: 120px-min cards on a 6px frame, 8px gap, the
+   current stage on the selection tint; the trailing control sits at the end. */
+.ui-stage-strip {
+  align-items: center;
+  color: var(--color-fg);
+  display: flex;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+.ui-stage-strip__stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  margin: var(--space-0);
+  min-inline-size: 0;
+  padding: var(--space-0);
+}
+.ui-stage-strip__stage {
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  min-inline-size: 120px;
+  padding: var(--space-2) var(--space-3);
+}
+.ui-stage-strip__title {
+  font: var(--type-label);
+  white-space: nowrap;
+}
+.ui-stage-strip__detail {
+  color: var(--color-fg-muted);
+  font: var(--type-caption);
+  white-space: nowrap;
+}
+.ui-stage-strip__stage[data-current="true"] {
+  background: var(--color-selection-surface);
+  border-color: var(--color-selection);
+}
+.ui-stage-strip__stage[data-current="true"] .ui-stage-strip__title {
+  color: var(--color-selection);
+  font-weight: var(--weight-semibold);
+}
+.ui-stage-strip__stage[data-current="true"] .ui-stage-strip__detail {
+  color: var(--color-fg);
+}
+.ui-stage-strip__trailing {
+  margin-inline-start: auto;
+}
+
+/* Paper p-18-0 composer: 8px frame on the control border, 12/16 inset, the
+   field above a toolbar (mode switch, hint, send) and a caption below. */
+.ui-message-composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+.ui-message-composer__notices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ui-message-composer__box {
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-control-border);
+  border-radius: var(--radius-overlay);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+.ui-message-composer__field textarea {
+  background: transparent;
+  border: var(--border-none);
+  box-sizing: border-box;
+  color: var(--color-fg);
+  display: block;
+  font: var(--type-notice);
+  inline-size: 100%;
+  margin: var(--space-0);
+  min-block-size: calc(var(--space-6) - var(--space-0-5));
+  padding: var(--space-0);
+  resize: none;
+}
+.ui-message-composer__field textarea:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+}
+.ui-message-composer__toolbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.ui-message-composer__hint {
+  color: var(--color-fg-muted);
+  flex: 1 1 0%;
+  font: var(--type-caption);
+  min-inline-size: 0;
+}
+.ui-message-composer__footnote {
+  color: var(--color-fg-muted);
+  font: var(--type-caption);
+  margin: var(--space-0);
+}
+
+/* Paper p-18-0 inspector sections: each block carries a 20/24 inset and a
+   12px rhythm; a ruled one ends in the pane rule. */
+.ui-session-pane[data-layout="sections"] > .ui-session-pane__body {
+  gap: var(--space-0);
+  padding: var(--space-0);
+}
+.ui-session-pane[data-layout="sections"] > .ui-session-pane__body > * {
+  margin-inline: var(--space-0);
+}
+.ui-pane-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-6);
+}
+.ui-pane-section[data-state="ruled"] {
+  border-block-end: var(--border-default) solid var(--color-border);
+}
+.ui-pane-section__title {
+  color: var(--color-fg-muted);
+  font: var(--type-label);
+  margin: var(--space-0);
+}
+
+/* Paper p-18-0 plan revision: 16/24 title, a 13/20 revision line with a
+   12/20 status pill, then numbered steps (a detailed step is a 14/20
+   semibold title over a 13/20 muted line). */
+.ui-plan-revision {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-inline-size: 0;
+}
+.ui-plan-revision__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.ui-plan-revision__header h3 {
+  font: var(--type-heading-subsection);
+  margin: var(--space-0);
+  overflow-wrap: anywhere;
+}
+.ui-plan-revision__meta {
+  align-items: center;
+  color: var(--color-fg-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font: var(--type-hint);
+  gap: var(--space-2);
+}
+.ui-plan-revision__status {
+  align-items: center;
+  border-radius: var(--radius-control);
+  display: inline-flex;
+  font: var(--type-meta);
+  gap: var(--space-1-5);
+  padding-inline: var(--space-2);
+}
+.ui-plan-revision__dot {
+  background: currentColor;
+  block-size: var(--space-1-5);
+  border-radius: var(--radius-circle);
+  flex: 0 0 auto;
+  inline-size: var(--space-1-5);
+}
+.ui-plan-revision__status--warning {
+  background: var(--color-status-warning-surface);
+  color: var(--color-status-warning);
+}
+.ui-plan-revision__status--neutral {
+  background: var(--color-surface-subtle);
+  color: var(--color-fg-muted);
+}
+.ui-plan-revision__status--success {
+  background: var(--color-status-success-surface);
+  color: var(--color-status-success);
+}
+.ui-plan-revision__status--destructive {
+  background: var(--color-destructive-surface);
+  color: var(--color-destructive);
+}
+.ui-plan-revision__steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  list-style: none;
+  margin: var(--space-0);
+  padding: var(--space-0);
+}
+.ui-plan-revision:has([data-detailed]) {
+  gap: var(--space-4);
+}
+.ui-plan-revision__steps:has([data-detailed]) {
+  gap: var(--space-3-5);
+}
+.ui-plan-revision__step {
+  display: flex;
+  flex-direction: column;
+  font: var(--type-notice);
+  gap: var(--space-0-5);
+  overflow-wrap: anywhere;
+}
+.ui-plan-revision__step[data-detailed] .ui-plan-revision__step-title {
+  font: var(--type-control);
+  font-weight: var(--weight-semibold);
+}
+.ui-plan-revision__step-detail {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+}
+.ui-plan-revision[data-state="muted"] .ui-plan-revision__step {
+  color: var(--color-fg-muted);
+}
+/* The pane footer: the first action spans the row, the rest share the next. */
+.ui-session-pane[data-layout="sections"] > .ui-session-pane__footer {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: 1fr 1fr;
+  padding: var(--space-4) var(--space-6) var(--space-6);
+}
+.ui-session-pane[data-layout="sections"] > .ui-session-pane__footer > :first-child,
+.ui-session-pane[data-layout="sections"] > .ui-session-pane__footer > :nth-child(2):last-child {
+  grid-column: 1 / -1;
+}
+.ui-session-pane[data-layout="sections"] > .ui-session-pane__footer .ui-button {
+  inline-size: 100%;
+}
+
+.ui-task-detail--conversation .ui-task-detail__transcript > .ui-stack,
+.ui-task-detail--conversation .ui-stack[role="log"] {
+  gap: var(--space-5);
+}
+.ui-pane-section .ui-stack--standard {
+  gap: var(--space-3);
+}
+.ui-pane-section .ui-avatar:not([data-you]) {
+  background: var(--color-surface-subtle);
+  color: var(--color-fg);
+}
+.ui-stage-strip__trailing .ui-switch {
+  font: var(--type-hint);
+}
+.ui-message-composer__action .ui-button {
+  font: var(--type-label);
+  min-block-size: var(--space-8);
+  padding: var(--space-0) var(--space-3-5);
+}
+.ui-pane-section .ui-inline--standard {
+  gap: var(--space-2-5);
+}
+.ui-stage-strip__trailing .ui-switch {
+  min-block-size: var(--space-5);
+}
+.ui-message-composer__notices:not(:has(.ui-inline-notice)) {
+  block-size: 1px;
+  clip-path: inset(50%);
+  inline-size: 1px;
+  overflow: hidden;
+  position: absolute;
+}
+
+/* p-18-0 inspector question: eyebrow and status pill over a 16/24 title,
+   10/12 choice cards, a 64px answer box, a hint and a full-width action. */
+.ui-question-card--pane {
+  border: var(--border-none);
+  border-radius: var(--radius-none);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-0);
+}
+.ui-question-card--pane header {
+  align-items: center;
+  display: grid;
+  gap: var(--space-4) var(--space-2);
+  grid-template-columns: 1fr auto;
+}
+.ui-question-card--pane .ui-question-card__eyebrow {
+  color: var(--color-fg-muted);
+  font: var(--type-label);
+  grid-column: 1;
+  grid-row: 1;
+}
+.ui-question-card--pane header > .ui-question-card__status {
+  align-items: center;
+  background: var(--color-status-warning-surface);
+  border-radius: var(--radius-control);
+  color: var(--color-status-warning);
+  display: inline-flex;
+  font: var(--type-meta);
+  gap: var(--space-1-5);
+  grid-column: 2;
+  grid-row: 1;
+  padding-inline: var(--space-2);
+}
+.ui-question-card--pane header > .ui-question-card__status::before {
+  background: currentColor;
+  block-size: var(--space-1-5);
+  border-radius: var(--radius-circle);
+  content: "";
+  inline-size: var(--space-1-5);
+}
+.ui-question-card--pane.ui-question-card--answered header > .ui-question-card__status {
+  background: var(--color-status-success-surface);
+  color: var(--color-status-success);
+}
+.ui-question-card--pane.ui-question-card--expired header > .ui-question-card__status,
+.ui-question-card--pane.ui-question-card--conflict header > .ui-question-card__status {
+  background: var(--color-surface-subtle);
+  color: var(--color-fg-muted);
+}
+.ui-question-card--pane h3 {
+  font: var(--type-heading-subsection);
+  grid-column: 1 / -1;
+  grid-row: 2;
+  margin: var(--space-0);
+}
+.ui-question-card--pane .ui-question-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ui-question-card--pane .ui-radio {
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--space-3);
+  min-block-size: var(--space-0);
+  padding: var(--space-2-5) var(--space-3);
+}
+.ui-question-card--pane .ui-radio[data-variant="checked"] {
+  background: var(--color-selection-surface);
+  border-color: var(--color-selection);
+}
+.ui-question-card--pane .ui-radio input {
+  appearance: none;
+  background: var(--color-surface);
+  block-size: var(--space-4);
+  border: var(--border-default) solid var(--color-control-border);
+  border-radius: var(--radius-circle);
+  box-sizing: border-box;
+  inline-size: var(--space-4);
+  min-block-size: var(--space-0);
+  min-inline-size: var(--space-0);
+}
+.ui-question-card--pane .ui-radio input:checked {
+  background: var(--color-surface);
+  border: var(--border-radio-checked) solid var(--color-selection);
+}
+.ui-question-card--pane .ui-field {
+  gap: var(--space-1-5);
+}
+.ui-question-card--pane .ui-field textarea {
+  border-radius: var(--radius-surface);
+  box-sizing: border-box;
+  min-block-size: var(--space-16);
+}
+.ui-question-card--pane .ui-question-card__description {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+}
+.ui-question-card--pane .ui-question-card__actions .ui-button {
+  inline-size: 100%;
+  min-block-size: max(var(--size-control), var(--target-min));
+}
+
+@media (min-width: 1280px) {
+  /* One row on a wide column: the cards give up width before the strip wraps. */
+  .ui-stage-strip__stages {
+    flex-wrap: nowrap;
+  }
+}
+.ui-stage-strip__trailing .ui-switch {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+.ui-stage-strip__title,
+.ui-stage-strip__detail {
+  flex-shrink: 0;
+  inline-size: max-content;
+}
+.ui-stage-strip__trailing .ui-switch input {
+  block-size: var(--size-checkbox);
+  inline-size: var(--size-switch);
+  min-block-size: var(--space-0);
+  min-inline-size: var(--space-0);
+}
+.ui-stage-strip__trailing {
+  padding-inline-start: var(--space-2);
+}
+.ui-question-card--pane .ui-field label {
+  font: var(--type-label);
+}
+.ui-question-card--pane .ui-field {
+  margin-block-start: var(--space-2);
+}
+.ui-question-card--pane .ui-field textarea {
+  block-size: var(--space-16);
+}
+.ui-question-card--pane .ui-field > div:empty {
+  display: none;
+}
+.ui-pane-section:has(> .ui-plan-revision) {
+  gap: var(--space-4);
+}
+.ui-plan-revision[data-state="muted"] .ui-plan-revision__steps {
+  gap: var(--space-4);
+}
+.ui-pane-section .ui-inline-notice--bar {
+  gap: var(--space-2-5);
+  padding: var(--space-2-5) var(--space-3);
+}
+.ui-session-pane[data-layout="sections"] > .ui-session-pane__footer .ui-button:disabled {
+  background: var(--color-surface-subtle);
+  color: var(--color-fg-disabled);
+  opacity: 1;
+}
+.ui-plan-revision[data-state="muted"] {
+  gap: var(--space-4);
+}
+.ui-pane-section > .ui-stack--compact:has(> .ui-button) {
+  margin-block-start: var(--space-1);
+}
+.ui-pane-section > .ui-stack--compact > .ui-button {
+  inline-size: 100%;
+  min-block-size: var(--size-control);
+}
+.ui-pane-section > .ui-stack--compact > .ui-button:disabled {
+  background: var(--color-surface-subtle);
+  color: var(--color-fg-disabled);
+  opacity: 1;
+}
+.ui-question-card--pane .ui-question-card__body > div:empty {
+  block-size: 1px;
+  clip-path: inset(50%);
+  inline-size: 1px;
+  overflow: hidden;
+  position: absolute;
+}
+
+.ui-task-detail--conversation .ui-task-detail__titles {
+  display: contents;
+}
+.ui-task-detail--conversation > .ui-task-detail__main > header .ui-task-detail__leading {
+  display: contents;
+}
+/* Phone conversation (2J3V-0): a 52px ruled header with a back control, a
+   16/22 title over the task reference, chips, and a pinned composer. */
+.bakery-app-shell__main .ui-task-detail--conversation.ui-task-detail--sheet {
+  block-size: 100dvb;
+}
+.ui-task-detail--conversation.ui-task-detail--sheet .ui-task-detail__main > header {
+  align-items: center;
+  block-size: calc(var(--space-12) + var(--space-1));
+  border-block-end: var(--border-default) solid var(--color-border);
+  box-sizing: border-box;
+  flex-direction: row;
+  gap: var(--space-2);
+  padding: var(--space-0) var(--space-4);
+}
+.ui-task-detail--conversation.ui-task-detail--sheet .ui-task-detail__titles {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+.ui-task-detail--conversation.ui-task-detail--sheet h1 {
+  font: var(--type-heading-subsection);
+  letter-spacing: var(--space-0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ui-task-detail--conversation.ui-task-detail--sheet .ui-task-detail__subtitle {
+  font: var(--type-caption);
+}
+.ui-task-detail--conversation.ui-task-detail--sheet .ui-task-detail__stages {
+  padding: var(--space-3) var(--space-4);
+}
+.ui-task-detail--conversation.ui-task-detail--sheet .ui-task-detail__transcript {
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+.ui-task-detail--conversation.ui-task-detail--sheet .ui-conversation-message {
+  gap: var(--space-0-5);
+}
+.ui-task-detail--conversation.ui-task-detail--sheet .ui-task-detail__composer {
+  border-block-start: var(--border-default) solid var(--color-border);
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4) var(--space-6);
+}
+.ui-stage-strip--compact {
+  align-items: stretch;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ui-stage-strip--compact .ui-stage-strip__stages {
+  flex-wrap: nowrap;
+  gap: var(--space-1);
+}
+.ui-stage-strip--compact .ui-stage-strip__stage {
+  background: var(--color-surface-subtle);
+  border: var(--border-none);
+  border-radius: var(--radius-control);
+  flex-direction: row;
+  min-inline-size: var(--space-0);
+  padding: var(--space-0-5) var(--space-2);
+}
+.ui-stage-strip--compact .ui-stage-strip__title {
+  color: var(--color-fg-muted);
+  font: var(--type-caption);
+}
+.ui-stage-strip--compact .ui-stage-strip__detail {
+  display: none;
+}
+.ui-stage-strip--compact .ui-stage-strip__stage[data-current="true"] {
+  background: var(--color-selection-surface);
+  border: var(--border-default) solid var(--color-selection);
+}
+.ui-stage-strip--compact .ui-stage-strip__stage[data-current="true"] .ui-stage-strip__title {
+  color: var(--color-selection);
+  font-weight: var(--weight-semibold);
+}
+.ui-stage-strip__summary {
+  align-items: center;
+  display: flex;
+  font: var(--type-caption);
+  gap: var(--space-2);
+}
+
+.ui-plan-summary-card {
+  align-items: center;
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-overlay);
+  box-sizing: border-box;
+  color: var(--color-fg);
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  gap: var(--space-3);
+  inline-size: 100%;
+  padding: var(--space-3);
+  text-align: start;
+}
+.ui-plan-summary-card .ui-icon {
+  color: var(--color-fg-muted);
+  stroke-width: var(--icon-stroke-compact);
+}
+.ui-plan-summary-card__text {
+  display: flex;
+  flex: 1 1 0%;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+.ui-plan-summary-card__title {
+  font: var(--type-control);
+}
+.ui-plan-summary-card__meta {
+  color: var(--color-fg-muted);
+  font: var(--type-caption);
+}
+.ui-plan-summary-card--warning .ui-plan-summary-card__meta {
+  color: var(--color-status-warning);
+}
+.ui-plan-summary-card:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+}
+@media (max-width: 743px) {
+  .ui-message-composer__hint {
+    display: none;
+  }
+  .ui-message-composer__action {
+    margin-inline-start: auto;
+  }
+  .ui-message-composer__box {
+    gap: var(--space-2-5);
+    padding: var(--space-2-5) var(--space-3);
+  }
+  .ui-message-composer__action .ui-button {
+    font: var(--type-control);
+    min-block-size: var(--target-coarse);
+    padding-inline: var(--space-4);
+  }
+  .ui-task-detail--conversation .ui-inline-notice--bar {
+    font: var(--type-caption);
+    gap: var(--space-2);
+    padding: var(--space-1-5) var(--space-2-5);
+  }
+  .ui-task-detail--conversation .ui-inline-notice--bar .ui-button--quiet {
+    min-block-size: var(--target-coarse);
+  }
+  .ui-message-composer__footnote {
+    font: var(--type-caption);
+  }
+}
+.ui-stage-strip__summary > :first-child {
+  flex: 1 1 0%;
+}
+.ui-stage-strip__summary .ui-inline {
+  gap: var(--space-0);
+}
+.ui-stage-strip__summary .ui-avatar {
+  block-size: calc(var(--space-5) + var(--space-0-5));
+  border: var(--border-default) solid var(--color-surface);
+  box-sizing: border-box;
+  inline-size: calc(var(--space-5) + var(--space-0-5));
+}
+.ui-stage-strip__summary .ui-avatar:not([data-you]) {
+  background: var(--color-surface-subtle);
+  color: var(--color-fg);
+}
+.ui-task-detail--conversation.ui-task-detail--sheet .ui-stack[role="log"] {
+  gap: var(--space-4);
+}
+@media (max-width: 743px) {
+  .ui-task-detail--conversation .ui-inline-notice--bar .ui-inline-notice__icon,
+  .ui-message-composer__action .ui-icon {
+    display: none;
+  }
+}
+/* The frames show the empty composer with its primary send; disabled keeps
+   the full-strength fill and relies on the not-allowed cursor and a11y state. */
+.ui-message-composer__action .ui-button:disabled {
+  opacity: 1;
+}
+@media (max-width: 743px) {
+  .ui-task-detail--conversation .ui-inline-notice--bar {
+    align-items: center;
+  }
+}
+@media (pointer: coarse) {
+  /* A 44px touch target around the 22px field line, without moving layout. */
+  .ui-message-composer__field textarea {
+    block-size: var(--target-coarse);
+    margin-block: calc((var(--space-6) - var(--space-0-5) -
+      var(--target-coarse)) / 2);
+    padding-block: calc((var(--target-coarse) - var(--space-6) +
+      var(--space-0-5)) / 2);
+  }
+}
+/* The artifact pane is a task surface: it keeps full touch targets wherever
+   it is placed, as it did in the wide session inspector. */
+.ui-artifact-pane {
+  --target-min: var(--target-coarse);
+}
+.ui-session-pane:has(.ui-artifact-pane) {
+  --target-min: var(--target-coarse);
+}
+.ui-pane-section__title {
+  overflow-wrap: anywhere;
+}
+@media (pointer: coarse) {
+  .ui-message-composer__action .ui-button {
+    min-block-size: var(--target-coarse);
+  }
+}
+.ui-plan-summary-card__title,
+.ui-plan-summary-card__meta {
+  overflow-wrap: anywhere;
+}
+@media (pointer: coarse) {
+  .ui-stage-strip__trailing .ui-switch {
+    min-block-size: var(--target-coarse);
+  }
+}
+.ui-message-composer__box,
+.ui-message-composer__toolbar {
+  min-inline-size: var(--space-0);
+}
+@media (max-width: 420px) {
+  /* A narrow column wraps chips and lets card text wrap instead of escaping. */
+  .ui-stage-strip__stages,
+  .ui-stage-strip--compact .ui-stage-strip__stages {
+    flex-wrap: wrap;
+  }
+  .ui-stage-strip__title,
+  .ui-stage-strip__detail {
+    inline-size: auto;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+  .ui-stage-strip__stage {
+    min-inline-size: var(--space-0);
+  }
+}
+@media (max-width: 420px) {
+  .ui-stage-strip {
+    flex-wrap: wrap;
+  }
+  .ui-stage-strip__trailing {
+    margin-inline-start: var(--space-0);
+    min-inline-size: var(--space-0);
+    padding-inline-start: var(--space-0);
+  }
+  .ui-stage-strip__trailing .ui-switch {
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+}
+@media (max-width: 420px) {
+  .ui-task-detail--conversation .ui-task-detail__stages,
+  .ui-task-detail--conversation .ui-task-detail__composer,
+  .ui-task-detail--conversation .ui-task-detail__transcript {
+    padding-inline: var(--space-4);
+  }
+  .ui-task-detail--conversation .ui-task-detail__main > header {
+    padding-inline: var(--space-4);
+  }
+  .ui-message-composer__field,
+  .ui-message-composer__field textarea {
+    min-inline-size: var(--space-0);
+  }
+}
+.ui-pane-section__heading {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+}
+.ui-pane-section__heading .ui-pane-section__title {
+  flex: 1 1 auto;
+}
+.ui-pane-section[data-heading="strong"] .ui-pane-section__title {
+  color: var(--color-fg);
+  font: var(--type-control);
+  font-weight: var(--weight-semibold);
+}
+.ui-pane-section > p {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+  margin: var(--space-0);
+}
+.ui-pane-section > .ui-button--text {
+  align-self: flex-start;
+}
+.ui-pane-section[data-heading="strong"] {
+  gap: var(--space-2-5);
+}
+.ui-pane-section {
+  min-inline-size: 0;
+}
+.ui-pane-section dd code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}

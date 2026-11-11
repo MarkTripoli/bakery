@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="lock-held-lane-waits-for-memory" project="bakery">
+  <title>A lane that holds the verification lock waits for the memory floor instead of aborting</title>
+  <trigger>A heavy lane runs under the shared verification lock and MemAvailable is below the floor.</trigger>
+  <mistake>Aborting on low memory inside the lock turned a transient dip into a failed lane and a lost queue slot, and the caller restarted the whole queue.</mistake>
+  <rule>Inside the lock, poll MemAvailable (every 60 s, bounded to 30 minutes) until it reaches 3145728 kB, then run the step. Abort only when the bound expires, and report the last value read. Size the tool timeout to cover the queue, the wait and the job.</rule>
+  <verification>
+    <requirement>A lane started at low MemAvailable keeps the lock, resumes when memory recovers and passes; on expiry it exits non-zero with the last MemAvailable value.</requirement>
+  </verification>
+</learning>

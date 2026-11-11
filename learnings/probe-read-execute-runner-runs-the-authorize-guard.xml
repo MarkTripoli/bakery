@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="probe-read-execute-runner-runs-the-authorize-guard" project="bakery" issue="82">
+  <title>A probe-read-execute runner must run the action's own authorize guard in the probe</title>
+  <trigger>An operation reads the provider outside a transaction by wrapping the authority runner in a probe, a read step and a second authority run (the shape of the ticket operation runner and createResourceUpdateRunner).</trigger>
+  <mistake>The probe skips the registry's own next, so an action registered with DeveloperAndAdmissionAuthority and a policy.authorize guard was not checked before the provider reads: an unauthorized principal could trigger them. Tests could not tell task:write apart from run:write because no built-in role holds one without the other, and a Viewer lacking a read permission answers 404 on that read while a missing write answers 403.</mistake>
+  <rule>Call action.policy.authorize in the probe, before the first provider read, and test it with a principal that holds exactly one of the two permissions (a custom role on a guest membership, or a permission_grants row for a viewer) plus a spy that proves zero provider reads on refusal.</rule>
+  <verification>
+    <requirement>A refused call performs no provider read, and removing the probe guard fails a test.</requirement>
+  </verification>
+</learning>

@@ -1,0 +1,22 @@
+[Unit]
+Description=Bakery native worker
+After=network-online.target docker.service
+
+[Service]
+User=bakery-worker
+Group=bakery-worker
+EnvironmentFile=/etc/bakery/worker.env
+EnvironmentFile=/etc/bakery/background.env
+EnvironmentFile=/etc/bakery/worker-launch.env
+ExecStart=/opt/bakery/deploy/runtime.sh worker
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=45
+KillMode=control-group
+Delegate=memory pids
+DelegateSubgroup=supervisor
+UMask=0077
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

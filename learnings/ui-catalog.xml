@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="ui-catalog" project="bakery">
+  <title>Make containment rails understand intentional UI overflow</title>
+  <trigger>A shared Storybook specimen uses truncation, an overlay, or a native scroll owner and the containment rail reports intrinsic overflow.</trigger>
+  <mistake>Measured every descendant scroll box as accidental overflow, including positioned overlay descendants, native option text, and content intentionally clipped by a documented rail; capture fixtures also inherited BASE_URL, and hidden modal specimens still promoted native dialogs into the top layer.</mistake>
+  <rule>Mark deliberate ellipsis with data-rail="truncation-allowed". Treat a non-root native scroll owner as the owner of its content, validate positioned overlays by their geometry, and keep the Storybook root's vertical page scroll native. Scrub BASE_URL when capture fixtures must start their own server, and do not call showModal while a native dialog is under a hidden specimen branch. Full-page Storybook templates own their top-level landmarks; do not wrap them in a specimen region or render multiple page shells together. Pair one page with a distinct section specimen while retaining every catalog variant and state. For simulated 2x CSS zoom, constrain top-layer modal viewport units to the half-width CSS aperture; production browser zoom already reduces its layout viewport. Unannotated overflow must still fail.</rule>
+  <rule>A transition specimen can share its initial data-state with a canonical specimen. Consumer tests must select the intended accessible name and assert uniqueness plus state, while retaining per-view content bounds and interaction assertions. Include direct story consumers when verifying catalog repairs; a catalog sweep alone can miss selectors that combine distinct specimens.</rule>
+  <verification>
+    <command>pnpm --dir packages/ui test:storybook</command>
+    <requirement>Canonical Storybook accessibility, containment, responsive, interaction, and visual-parity cases pass while negative containment fixtures continue to fail closed.</requirement>
+  </verification>
+</learning>

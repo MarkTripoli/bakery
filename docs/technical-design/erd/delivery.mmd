@@ -1,0 +1,136 @@
+erDiagram
+  direction LR
+  organizations {
+    uuid id PK
+  }
+  repositories {
+    uuid id PK
+  }
+  tasks {
+    uuid id PK
+  }
+  workflow_runs {
+    uuid id PK
+  }
+  agent_sessions {
+    uuid id PK
+  }
+  artifact_versions {
+    uuid id PK
+  }
+  pull_requests {
+    uuid id PK
+    uuid organization_id FK
+    uuid task_id FK
+    uuid repository_id FK
+    int provider_number
+    text url
+    text head_sha
+    text base_sha
+    enum status
+    text merged_sha "nullable"
+  }
+  organizations ||..o{ pull_requests : "organization_id"
+  tasks ||..o{ pull_requests : "task_id"
+  repositories ||..o{ pull_requests : "repository_id"
+  review_cycles {
+    uuid id PK
+    uuid organization_id FK
+    uuid pull_request_id FK
+    uuid run_id FK
+    uuid reviewer_session_id FK
+    text head_sha
+    text base_sha
+    text policy_digest
+    enum status
+    uuid artifact_version_id FK "nullable"
+  }
+  organizations ||..o{ review_cycles : "organization_id"
+  pull_requests ||..o{ review_cycles : "pull_request_id"
+  workflow_runs ||..o{ review_cycles : "run_id"
+  agent_sessions ||..o{ review_cycles : "reviewer_session_id"
+  artifact_versions |o..o{ review_cycles : "artifact_version_id"
+  review_findings {
+    uuid id PK
+    uuid organization_id FK
+    uuid review_cycle_id FK
+    text fingerprint
+    enum severity
+    text path
+    int line "nullable"
+    text body
+    enum status
+    uuid resolution_artifact_id FK "nullable"
+    text remote_comment_id "nullable"
+  }
+  organizations ||..o{ review_findings : "organization_id"
+  review_cycles ||..o{ review_findings : "review_cycle_id"
+  artifact_versions |o..o{ review_findings : "resolution_artifact_id"
+  check_runs {
+    uuid id PK
+    uuid organization_id FK
+    uuid run_id FK
+    uuid pull_request_id FK "nullable"
+    text check_name
+    text head_sha
+    text base_sha "nullable"
+    text policy_digest
+    enum result
+    uuid evidence_version_id FK "nullable"
+    text provider_run_id "nullable"
+  }
+  organizations ||..o{ check_runs : "organization_id"
+  workflow_runs ||..o{ check_runs : "run_id"
+  pull_requests |o..o{ check_runs : "pull_request_id"
+  artifact_versions |o..o{ check_runs : "evidence_version_id"
+  merge_entries {
+    uuid id PK
+    uuid organization_id FK
+    uuid pull_request_id FK
+    uuid repository_id FK
+    text target_branch
+    text expected_head_sha
+    text expected_base_sha
+    enum status
+    uuid external_effect_id FK "nullable"
+    uuid run_id FK
+    text policy_digest
+    uuid review_cycle_id FK
+  }
+  organizations ||..o{ merge_entries : "organization_id"
+  pull_requests ||..o{ merge_entries : "pull_request_id"
+  repositories ||..o{ merge_entries : "repository_id"
+  external_effects |o..o{ merge_entries : "external_effect_id"
+  workflow_runs ||..o{ merge_entries : "run_id"
+  review_cycles ||..o{ merge_entries : "review_cycle_id"
+  merge_entry_checks {
+    uuid id PK
+    uuid organization_id FK
+    uuid merge_entry_id FK
+    uuid check_run_id FK
+  }
+  organizations ||..o{ merge_entry_checks : "organization_id"
+  merge_entries ||..o{ merge_entry_checks : "merge_entry_id"
+  check_runs ||..o{ merge_entry_checks : "check_run_id"
+  deployments {
+    uuid id PK
+    uuid organization_id FK
+    uuid repository_id FK
+    uuid run_id FK
+    text environment
+    text commit_sha
+    text artifact_digest
+    uuid previous_deployment_id FK "nullable"
+    enum status
+    uuid external_effect_id FK "nullable"
+    uuid health_evidence_id FK "nullable"
+  }
+  organizations ||..o{ deployments : "organization_id"
+  repositories ||..o{ deployments : "repository_id"
+  workflow_runs ||..o{ deployments : "run_id"
+  deployments |o..o{ deployments : "previous_deployment_id"
+  external_effects |o..o{ deployments : "external_effect_id"
+  artifact_versions |o..o{ deployments : "health_evidence_id"
+  external_effects {
+    uuid id PK
+  }

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="transaction-watch-needs-sequential-calls" project="bakery">
+  <title>A pool-wide open-transaction watch only proves "no provider read in a transaction" for one call at a time</title>
+  <trigger>A test checks that a reader or other provider call never happens while a database transaction is open, by counting the begin and commit statements of a wrapped pool.</trigger>
+  <mistake>Run under Promise.all, the watch counts every concurrent admission's transaction, so one call's provider read sees another call's open transaction and the assertion fails for a correct implementation.</mistake>
+  <rule>Assert the property in a sequential run (one call at a time, each origin in turn) and require that the watch saw its transaction open; keep the concurrent test for convergence only.</rule>
+  <verification>
+    <requirement>The sequential test fails when the prefetch is moved inside withPgTransaction, and the concurrent test does not assert on the watch.</requirement>
+  </verification>
+</learning>

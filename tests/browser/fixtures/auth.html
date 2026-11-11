@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Bakery authentication fixture</title>
+  </head>
+  <body>
+    <main>
+      <h1>Authentication fixture</h1>
+
+      <form id="sign-in-form">
+        <p>
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="email"
+            required>
+        </p>
+        <p>
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password"
+            autocomplete="current-password" required>
+        </p>
+        <button type="submit">Sign in</button>
+      </form>
+
+      <p id="status" role="status" aria-live="polite"></p>
+
+      <section id="identity" aria-labelledby="identity-heading" hidden>
+        <h2 id="identity-heading">Identity</h2>
+        <dl>
+          <dt>Principal ID</dt>
+          <dd data-testid="principal-id"></dd>
+          <dt>Principal type</dt>
+          <dd data-testid="principal-type"></dd>
+          <dt>Display name</dt>
+          <dd data-testid="display-name"></dd>
+        </dl>
+      </section>
+
+      <button id="sign-out" type="button" disabled>Sign out</button>
+    </main>
+
+    <script type="module">
+    const form = document.querySelector("#sign-in-form");
+    const passwordInput = document.querySelector("#password");
+    const status = document.querySelector("#status");
+    const identity = document.querySelector("#identity");
+    const signOut = document.querySelector("#sign-out");
+
+    const clearIdentity = () => {
+      identity.hidden = true;
+      for (const value of identity.querySelectorAll("dd")) value.textContent = "";
+      signOut.disabled = true;
+    };
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      status.textContent = "Signing in…";
+      clearIdentity();
+      const email = form.elements.email.value;
+      const password = passwordInput.value;
+      passwordInput.value = "";
+      try {
+        const signIn = await fetch("/api/auth/sign-in/email", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        if (!signIn.ok) throw new Error("SIGN_IN_FAILED");
+
+        const response = await fetch("/v1/me", {
+          headers: { accept: "application/json" },
+        });
+        if (!response.ok) throw new Error("IDENTITY_FAILED");
+        const current = await response.json();
+        identity.querySelector('[data-testid="principal-id"]').textContent =
+          current.principalId;
+        identity.querySelector('[data-testid="principal-type"]').textContent =
+          current.principalType;
+        identity.querySelector('[data-testid="display-name"]').textContent =
+          current.displayName;
+        identity.hidden = false;
+        signOut.disabled = false;
+        status.textContent = "Signed in.";
+      } catch {
+        clearIdentity();
+        status.textContent = "Sign in failed.";
+      }
+    });
+
+    signOut.addEventListener("click", async () => {
+      status.textContent = "Signing out…";
+      try {
+        const response = await fetch("/api/auth/sign-out", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: "{}",
+        });
+        if (!response.ok) throw new Error("SIGN_OUT_FAILED");
+        clearIdentity();
+        status.textContent = "Signed out.";
+      } catch {
+        status.textContent = "Sign out failed.";
+      }
+    });
+    </script>
+  </body>
+</html>

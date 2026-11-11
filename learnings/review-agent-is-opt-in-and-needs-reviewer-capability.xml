@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="review-agent-is-opt-in-and-needs-reviewer-capability" project="bakery" issue="94">
+  <title>The independent reviewer runs only on a worker that opted in with the Claude harness and the reviewer capability</title>
+  <trigger>You enable `fixed-coding-reviewed` and a `review.independent` job is never leased, or the preset reports `review_agent_unavailable` or `repair_agent_unavailable`.</trigger>
+  <mistake>Nothing adds the `reviewer` capability on its own. A host without `model` and `reviewer` in `BAKERY_WORKER_CAPABILITIES` never leases the job, a claim that asks for a capability the host is not enrolled with gets a 403, and a profile without `agentBindings` for the three model actions makes the preset unavailable. The run then sits `running` with no decision, which reads like a hang.</mistake>
+  <rule>Start the worker with the Claude harness (`BAKERY_CLAUDE_HARNESS=1` and `BAKERY_CLAUDE_HARNESS_REPOSITORY`; optional executable, model, effort and time limit; credentials from `BAKERY_CLAUDE_AUTH_SOURCE_DIR`, else `$HOME/.claude`). List at least `git`, `model` and `reviewer` in `BAKERY_WORKER_CAPABILITIES` (`git`, `shell`, `web` and `model` for implement; `git`, `shell` and `model` for repair). Check that the host reports `capability:reviewer` (the CLI runs and the credential file is readable). Bind priced agents for `harness.implement`, `harness.repair` and `review.independent` in the repository profile's `agentBindings`, with a fixed policy that allows `artifact_only`, `repository_revision`, `evidence_only` and `review_evidence`. The reviewer runs `claude -p` read-only (`Read`, `Glob`, `Grep`) in a detached worktree with its own config directory under `&lt;stateDir&gt;/reviews`; it must not reuse `claudeConfigDirectory`, which deletes every other entry under `&lt;stateDir&gt;/claude-harness` and would remove another attempt's config while it runs.</rule>
+  <verification>
+    <command>pnpm test:integration -- tests/integration/implement-independent-review-and-bounded-repair-loops_test.ts</command>
+    <requirement>A review job is leased only to a host enrolled with both `model` and `reviewer`, and the preset availability names the review and repair agent reasons.</requirement>
+  </verification>
+  <boundary>Live Claude reviewer runs are unproven (no credentials); the proof uses a scripted substitute worker that speaks the real worker protocol.</boundary>
+</learning>

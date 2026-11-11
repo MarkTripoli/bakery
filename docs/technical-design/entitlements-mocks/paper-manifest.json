@@ -1,0 +1,807 @@
+{
+  "fileId": "01M1X504XVC45FC0VDK857A37D",
+  "pageId": "p-17-0",
+  "pageName": "16 · Product · Access, licence & entitlements",
+  "url": "https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/p-17-0",
+  "status": "Editable design proposal; sample data; runtime not implemented",
+  "screens": [
+    {
+      "nodeId": "2DA1-0",
+      "name": "01 · Installation settings · Default · Desktop · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2C24-0",
+      "name": "01 · Installation settings · Default · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2DYC-0",
+      "name": "01 · Installation settings · Default · Phone · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2D27-0",
+      "name": "01 · Installation settings · Default · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2E5Y-0",
+      "name": "01 · Installation settings · Save conflict · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2E62-0",
+      "name": "01 · Installation settings · Save conflict · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2E5Z-0",
+      "name": "01 · Installation settings · Save error · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2E63-0",
+      "name": "01 · Installation settings · Save error · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2E61-0",
+      "name": "02 · Installation administrators · Denied non-admin · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2E65-0",
+      "name": "02 · Installation administrators · Denied non-admin · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2DCR-0",
+      "name": "02 · Installation administrators · List · Desktop · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2C4V-0",
+      "name": "02 · Installation administrators · List · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2DYD-0",
+      "name": "02 · Installation administrators · List · Phone · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2D28-0",
+      "name": "02 · Installation administrators · List · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2E60-0",
+      "name": "02 · Installation administrators · Revoke confirm · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2E64-0",
+      "name": "02 · Installation administrators · Revoke confirm · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2DCS-0",
+      "name": "03 · Licence page · Active · Desktop · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2C74-0",
+      "name": "03 · Licence page · Active · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2DYE-0",
+      "name": "03 · Licence page · Active · Phone · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2D29-0",
+      "name": "03 · Licence page · Active · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2EDO-0",
+      "name": "03 · Licence page · Expired · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2EDT-0",
+      "name": "03 · Licence page · Expired · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2EDN-0",
+      "name": "03 · Licence page · Grace · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2EDS-0",
+      "name": "03 · Licence page · Grace · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2EDP-0",
+      "name": "03 · Licence page · Invalid key · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2EDU-0",
+      "name": "03 · Licence page · Invalid key · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2EDM-0",
+      "name": "03 · Licence page · No key (Community) · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2EDR-0",
+      "name": "03 · Licence page · No key (Community) · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2EDQ-0",
+      "name": "03 · Licence page · Paste and update · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2EDV-0",
+      "name": "03 · Licence page · Paste and update · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2ENR-0",
+      "name": "04 · Licence banner · Expired · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2D2A-0",
+      "name": "04 · Licence banner · Expired · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2DCT-0",
+      "name": "04 · Licence banner · Grace · Desktop · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2CA4-0",
+      "name": "04 · Licence banner · Grace · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2DYF-0",
+      "name": "04 · Licence banner · Grace · Phone · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2ENS-0",
+      "name": "04 · Licence banner · Grace · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2DCU-0",
+      "name": "05 · Seat banner · Over free limit · Desktop · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2DYG-0",
+      "name": "05 · Seat banner · Over free limit · Phone · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2CVY-0",
+      "name": "05 · Seat banner · Over limit and invite refused · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2D2B-0",
+      "name": "05 · Seat banner · Over limit and invite refused · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2DCV-0",
+      "name": "06 · FeatureGate upsell · Full section · Desktop · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2CYW-0",
+      "name": "06 · FeatureGate upsell · Full section · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2ENU-0",
+      "name": "06 · FeatureGate upsell · Full section · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2ENT-0",
+      "name": "06 · FeatureGate upsell · Inline · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2DYH-0",
+      "name": "06 · FeatureGate upsell · Inline · Phone · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2D2C-0",
+      "name": "06 · FeatureGate upsell · Inline · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2ENV-0",
+      "name": "07 · Organization access · Empty · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2ENY-0",
+      "name": "07 · Organization access · Empty · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2ENX-0",
+      "name": "07 · Organization access · Error · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2EO0-0",
+      "name": "07 · Organization access · Error · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2ENW-0",
+      "name": "07 · Organization access · Loading · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2ENZ-0",
+      "name": "07 · Organization access · Loading · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2DCW-0",
+      "name": "07 · Organization access · Members · Desktop · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2CCD-0",
+      "name": "07 · Organization access · Members · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2DYI-0",
+      "name": "07 · Organization access · Members · Phone · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 912
+    },
+    {
+      "nodeId": "2D2D-0",
+      "name": "07 · Organization access · Members · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 930
+    },
+    {
+      "nodeId": "2EXJ-0",
+      "name": "08 · Custom roles · Create or edit · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2EXP-0",
+      "name": "08 · Custom roles · Create or edit · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2DCX-0",
+      "name": "08 · Custom roles · List · Desktop · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2CGG-0",
+      "name": "08 · Custom roles · List · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2DYJ-0",
+      "name": "08 · Custom roles · List · Phone · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2D2E-0",
+      "name": "08 · Custom roles · List · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2EXK-0",
+      "name": "09 · Audit log · Export dialog · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2EXQ-0",
+      "name": "09 · Audit log · Export dialog · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2DCY-0",
+      "name": "09 · Audit log · List · Desktop · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2CJE-0",
+      "name": "09 · Audit log · List · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2DYK-0",
+      "name": "09 · Audit log · List · Phone · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2D2F-0",
+      "name": "09 · Audit log · List · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2EXL-0",
+      "name": "10 · SSO providers · Add OIDC · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2EXR-0",
+      "name": "10 · SSO providers · Add OIDC · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2EXM-0",
+      "name": "10 · SSO providers · Add SAML and domain verification · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2EXS-0",
+      "name": "10 · SSO providers · Add SAML and domain verification · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2DCZ-0",
+      "name": "10 · SSO providers · List · Desktop · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2CMC-0",
+      "name": "10 · SSO providers · List · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2DYL-0",
+      "name": "10 · SSO providers · List · Phone · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2D2G-0",
+      "name": "10 · SSO providers · List · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2EXO-0",
+      "name": "11 · SCIM connection · Revoke and decommission confirm · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2EXU-0",
+      "name": "11 · SCIM connection · Revoke and decommission confirm · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2EXN-0",
+      "name": "11 · SCIM connection · Rotate confirm · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2EXT-0",
+      "name": "11 · SCIM connection · Rotate confirm · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2DD0-0",
+      "name": "11 · SCIM connection · Token shown once · Desktop · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2CPA-0",
+      "name": "11 · SCIM connection · Token shown once · Desktop · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "nodeId": "2DYM-0",
+      "name": "11 · SCIM connection · Token shown once · Phone · Dark",
+      "theme": "dark",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    },
+    {
+      "nodeId": "2D2H-0",
+      "name": "11 · SCIM connection · Token shown once · Phone · Light",
+      "theme": "light",
+      "stage": "proposed",
+      "device": "phone",
+      "width": 390,
+      "height": 844
+    }
+  ],
+  "tokenRevision": "49fea8f7",
+  "exportedAt": "2026-10-11",
+  "navigation": {
+    "component": "SectionNavigation",
+    "desktopWidth": 224,
+    "token": "--container-section-sidebar",
+    "sections": [
+      {
+        "label": "Settings",
+        "route": "/installation/settings"
+      },
+      {
+        "label": "Administrators",
+        "route": "/installation/administrators"
+      },
+      {
+        "label": "Licence",
+        "route": "/installation/licence"
+      },
+      {
+        "label": "Access",
+        "route": "/organization/access"
+      },
+      {
+        "label": "Custom roles",
+        "route": "/organization/roles"
+      },
+      {
+        "label": "Audit log",
+        "route": "/organization/audit"
+      },
+      {
+        "label": "Single sign-on",
+        "route": "/organization/sso"
+      },
+      {
+        "label": "SCIM",
+        "route": "/organization/scim"
+      }
+    ],
+    "mobile": "Same ordered section index with parent return link"
+  }
+}

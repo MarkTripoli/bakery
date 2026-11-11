@@ -1,0 +1,380 @@
+{
+  "source": "Paper supported Theme tab in the approved file, anonymously visible",
+  "inspectedAt": "2026-10-05T18:30:26.471Z",
+  "displayedTokenCount": "99 tokens",
+  "fontIdentity": {
+    "fontSans": "Geist",
+    "evidence": "Theme row displays “font-sans Geist”; React CSS also contains literal “Geist” and “Geist Mono” families."
+  },
+  "tokens": {
+    "--color-accent": {
+      "displayed": "color-accent",
+      "--color": "#ECF1F8",
+      "--color-solid": "#ECF1F8",
+      "--color-l": "0.956",
+      "--color-c": "0.011",
+      "--color-h": "256.7"
+    },
+    "--color-background": {
+      "displayed": "color-background",
+      "--color": "#F5F6F8",
+      "--color-solid": "#F5F6F8",
+      "--color-l": "0.973",
+      "--color-c": "0.003",
+      "--color-h": "264.5"
+    },
+    "--color-border": {
+      "displayed": "color-border",
+      "--color": "#E3E6EB",
+      "--color-solid": "#E3E6EB",
+      "--color-l": "0.924",
+      "--color-c": "0.008",
+      "--color-h": "260.7"
+    },
+    "--color-control-border": {
+      "displayed": "color-control-border",
+      "--color": "#8A939F",
+      "--color-solid": "#8A939F",
+      "--color-l": "0.66",
+      "--color-c": "0.021",
+      "--color-h": "255.6"
+    },
+    "--color-dark-accent": {
+      "displayed": "color-dark-accent",
+      "--color": "#4A93E6",
+      "--color-solid": "#4A93E6",
+      "--color-l": "0.655",
+      "--color-c": "0.144",
+      "--color-h": "253.4"
+    },
+    "--color-dark-accent-surface": {
+      "displayed": "color-dark-accent-surface",
+      "--color": "#152338",
+      "--color-solid": "#152338",
+      "--color-l": "0.255",
+      "--color-c": "0.044",
+      "--color-h": "258.3"
+    },
+    "--color-dark-border": {
+      "displayed": "color-dark-border",
+      "--color": "#2D3542",
+      "--color-solid": "#2D3542",
+      "--color-l": "0.327",
+      "--color-c": "0.026",
+      "--color-h": "260.1"
+    },
+    "--color-dark-border-strong": {
+      "displayed": "color-dark-border-strong",
+      "--color": "#3D4655",
+      "--color-solid": "#3D4655",
+      "--color-l": "0.392",
+      "--color-c": "0.028",
+      "--color-h": "260.6"
+    },
+    "--color-dark-canvas": {
+      "displayed": "color-dark-canvas",
+      "--color": "#0B0E14",
+      "--color-solid": "#0B0E14",
+      "--color-l": "0.163",
+      "--color-c": "0.014",
+      "--color-h": "264.1"
+    },
+    "--color-dark-control": {
+      "displayed": "color-dark-control",
+      "--color": "#59657A",
+      "--color-solid": "#59657A",
+      "--color-l": "0.505",
+      "--color-c": "0.037",
+      "--color-h": "261.6"
+    },
+    "--color-dark-fg": {
+      "displayed": "color-dark-fg",
+      "--color": "#F2F4F8",
+      "--color-solid": "#F2F4F8",
+      "--color-l": "0.967",
+      "--color-c": "0.006",
+      "--color-h": "264.5"
+    },
+    "--color-dark-fg-secondary": {
+      "displayed": "color-dark-fg-secondary",
+      "--color": "#A3ACBA",
+      "--color-solid": "#A3ACBA",
+      "--color-l": "0.742",
+      "--color-c": "0.023",
+      "--color-h": "259.2"
+    },
+    "--color-dark-primary": {
+      "displayed": "color-dark-primary dark-fg",
+      "--color": "#F2F4F8",
+      "--color-solid": "#F2F4F8",
+      "--color-l": "0.967",
+      "--color-c": "0.006",
+      "--color-h": "264.5"
+    },
+    "--color-dark-success": {
+      "displayed": "color-dark-success",
+      "--color": "#45B37C",
+      "--color-solid": "#45B37C",
+      "--color-l": "0.689",
+      "--color-c": "0.13",
+      "--color-h": "158.2"
+    },
+    "--color-dark-success-surface": {
+      "displayed": "color-dark-success-surface",
+      "--color": "#0F261C",
+      "--color-solid": "#0F261C",
+      "--color-l": "0.246",
+      "--color-c": "0.035",
+      "--color-h": "163.6"
+    },
+    "--color-dark-surface": {
+      "displayed": "color-dark-surface",
+      "--color": "#12161E",
+      "--color-solid": "#12161E",
+      "--color-l": "0.2",
+      "--color-c": "0.017",
+      "--color-h": "264.1"
+    },
+    "--color-dark-warning": {
+      "displayed": "color-dark-warning",
+      "--color": "#E0A83F",
+      "--color-solid": "#E0A83F",
+      "--color-l": "0.766",
+      "--color-c": "0.135",
+      "--color-h": "79.6"
+    },
+    "--color-dark-warning-surface": {
+      "displayed": "color-dark-warning-surface",
+      "--color": "#2A2010",
+      "--color-solid": "#2A2010",
+      "--color-l": "0.251",
+      "--color-c": "0.031",
+      "--color-h": "78.4"
+    },
+    "--color-destructive": {
+      "displayed": "color-destructive",
+      "--color": "#BE3341",
+      "--color-solid": "#BE3341",
+      "--color-l": "0.537",
+      "--color-c": "0.175",
+      "--color-h": "20.1"
+    },
+    "--color-destructive-surface": {
+      "displayed": "color-destructive-surface",
+      "--color": "#FCEEEF",
+      "--color-solid": "#FCEEEF",
+      "--color-l": "0.96",
+      "--color-c": "0.015",
+      "--color-h": "12.4"
+    },
+    "--color-foreground": {
+      "displayed": "color-foreground",
+      "--color": "#141A24",
+      "--color-solid": "#141A24",
+      "--color-l": "0.217",
+      "--color-c": "0.022",
+      "--color-h": "260.5"
+    },
+    "--color-light-accent-surface": {
+      "displayed": "color-light-accent-surface accent",
+      "--color": "#ECF1F8",
+      "--color-solid": "#ECF1F8",
+      "--color-l": "0.956",
+      "--color-c": "0.011",
+      "--color-h": "256.7"
+    },
+    "--color-light-control": {
+      "displayed": "color-light-control control-border",
+      "--color": "#8A939F",
+      "--color-solid": "#8A939F",
+      "--color-l": "0.66",
+      "--color-c": "0.021",
+      "--color-h": "255.6"
+    },
+    "--color-light-fg": {
+      "displayed": "color-light-fg foreground",
+      "--color": "#141A24",
+      "--color-solid": "#141A24",
+      "--color-l": "0.217",
+      "--color-c": "0.022",
+      "--color-h": "260.5"
+    },
+    "--color-light-fg-tertiary": {
+      "displayed": "color-light-fg-tertiary",
+      "--color": "#6B7686",
+      "--color-solid": "#6B7686",
+      "--color-l": "0.562",
+      "--color-c": "0.028",
+      "--color-h": "257.7"
+    },
+    "--color-muted-foreground": {
+      "displayed": "color-muted-foreground",
+      "--color": "#5D6675",
+      "--color-solid": "#5D6675",
+      "--color-l": "0.508",
+      "--color-c": "0.026",
+      "--color-h": "260.7"
+    },
+    "--color-primary": {
+      "displayed": "color-primary",
+      "--color": "#141A24",
+      "--color-solid": "#141A24",
+      "--color-l": "0.217",
+      "--color-c": "0.022",
+      "--color-h": "260.5"
+    },
+    "--color-primary-foreground": {
+      "displayed": "color-primary-foreground",
+      "--color": "#FFFFFF",
+      "--color-solid": "#FFFFFF",
+      "--color-l": "1",
+      "--color-c": "0",
+      "--color-h": "29.2"
+    },
+    "--color-selection": {
+      "displayed": "color-selection",
+      "--color": "#0B63C6",
+      "--color-solid": "#0B63C6",
+      "--color-l": "0.512",
+      "--color-c": "0.172",
+      "--color-h": "256.5"
+    },
+    "--color-success": {
+      "displayed": "color-success",
+      "--color": "#17784B",
+      "--color-solid": "#17784B",
+      "--color-l": "0.508",
+      "--color-c": "0.112",
+      "--color-h": "157.3"
+    },
+    "--color-success-surface": {
+      "displayed": "color-success-surface",
+      "--color": "#E8F5EE",
+      "--color-solid": "#E8F5EE",
+      "--color-l": "0.959",
+      "--color-c": "0.017",
+      "--color-h": "162.7"
+    },
+    "--color-surface": {
+      "displayed": "color-surface",
+      "--color": "#FFFFFF",
+      "--color-solid": "#FFFFFF",
+      "--color-l": "1",
+      "--color-c": "0",
+      "--color-h": "29.2"
+    },
+    "--color-warning": {
+      "displayed": "color-warning",
+      "--color": "#8F5A0B",
+      "--color-solid": "#8F5A0B",
+      "--color-l": "0.515",
+      "--color-c": "0.108",
+      "--color-h": "68.9"
+    },
+    "--color-warning-surface": {
+      "displayed": "color-warning-surface",
+      "--color": "#FBF3E4",
+      "--color-solid": "#FBF3E4",
+      "--color-l": "0.966",
+      "--color-c": "0.022",
+      "--color-h": "83.3"
+    },
+    "--container-inspector": {
+      "displayed": "container-inspector 320"
+    },
+    "--container-sidebar": {
+      "displayed": "container-sidebar 208"
+    },
+    "--font-mono": {
+      "displayed": "font-mono Geist Mono"
+    },
+    "--font-sans": {
+      "displayed": "font-sans Geist"
+    },
+    "--font-weight-medium": {
+      "displayed": "font-weight-medium 500"
+    },
+    "--font-weight-regular": {
+      "displayed": "font-weight-regular 400"
+    },
+    "--font-weight-semibold": {
+      "displayed": "font-weight-semibold 600"
+    },
+    "--leading-12": {
+      "displayed": "leading-12 18"
+    },
+    "--leading-13": {
+      "displayed": "leading-13 20"
+    },
+    "--leading-14": {
+      "displayed": "leading-14 20"
+    },
+    "--leading-16": {
+      "displayed": "leading-16 24"
+    },
+    "--leading-20": {
+      "displayed": "leading-20 28"
+    },
+    "--leading-24": {
+      "displayed": "leading-24 32"
+    },
+    "--radius-4": {
+      "displayed": "radius-4 4"
+    },
+    "--radius-6": {
+      "displayed": "radius-6 6"
+    },
+    "--radius-8": {
+      "displayed": "radius-8 8"
+    },
+    "--radius-round": {
+      "displayed": "radius-round 999"
+    },
+    "--spacing-12": {
+      "displayed": "spacing-12 12"
+    },
+    "--spacing-16": {
+      "displayed": "spacing-16 16"
+    },
+    "--spacing-20": {
+      "displayed": "spacing-20 20"
+    },
+    "--spacing-24": {
+      "displayed": "spacing-24 24"
+    },
+    "--spacing-32": {
+      "displayed": "spacing-32 32"
+    },
+    "--spacing-4": {
+      "displayed": "spacing-4 4"
+    },
+    "--spacing-40": {
+      "displayed": "spacing-40 40"
+    },
+    "--spacing-48": {
+      "displayed": "spacing-48 48"
+    },
+    "--spacing-8": {
+      "displayed": "spacing-8 8"
+    },
+    "--text-12": {
+      "displayed": "text-12 12"
+    },
+    "--text-13": {
+      "displayed": "text-13 13"
+    },
+    "--text-14": {
+      "displayed": "text-14 14"
+    },
+    "--text-16": {
+      "displayed": "text-16 16"
+    },
+    "--text-20": {
+      "displayed": "text-20 20"
+    },
+    "--text-24": {
+      "displayed": "text-24 24"
+    }
+  },
+  "missing": []
+}

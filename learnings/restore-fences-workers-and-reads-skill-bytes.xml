@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="restore-fences-workers-and-reads-skill-bytes" project="bakery">
+  <title>A restore is not done until workers are fenced and restored skill bytes are read back</title>
+  <trigger>Restoring a Bakery backup into a new or running installation, or declaring a backup procedure disaster-recovery ready.</trigger>
+  <mistake>Restored the database dump and restarted every service, trusting live Redis, Inngest state and copied worker journals to match it, or counted a local-only backup or a passing checksum as a working restore.</mistake>
+  <rule>PostgreSQL is the restored authority. Live Redis, Inngest state and worker journals form no common cross-service snapshot with it. Before resuming a business restore: stop the consumers, fence and re-enrol the workers, quarantine old active worker assignments and reconcile Inngest and Redis. Never replay a copied live worker journal against older database truth.</rule>
+  <rule>Logical dumps alone do not prove file and database alignment. The restore drill must read the skill bytes that the restored metadata references, before launch. A backup that never left its host is not disaster recovery: copy the encrypted artifacts off-host, and keep the private age identity off the host that took the backup.</rule>
+  <rule>Preserve the application secrets key and its id with the backup (see secrets-key-id-bound-into-ciphertext). Run restore drills in an isolated network-none container with no write to the production database; a destructive production restore needs a concrete incident plan and fencing of runtime sessions.</rule>
+  <verification>
+    <command>sudo bash scripts/deploy/restore-check.sh &lt;backup directory&gt; &lt;age identity file&gt;</command>
+    <requirement>It verifies hashes, decrypts, restores both databases with fail-on-error, checks user tables, extracts files and validates the release journal. Separately record a read of at least one restored skill object referenced by restored metadata.</requirement>
+  </verification>
+  <boundary>restore-check proves restorability of the encrypted artifacts, not a live recovery. Worker fencing and Inngest/Redis reconciliation are operator steps that no script performs.</boundary>
+</learning>

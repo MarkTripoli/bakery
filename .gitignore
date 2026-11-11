@@ -1,0 +1,28 @@
+.DS_Store
+.idea/
+.impeccable/
+.omo*
+.pi/
+.rpi/
+.backups/
+.reports/
+node_modules/
+.turbo/
+coverage/
+dist/
+artifacts/ui-baseline/
+artifacts/auth-browser/
+packages/ui/storybook-static/
+packages/ui/test-results/
+.env
+.env.*
+!.env.example
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+
+# Agent task sessions (plans, evidence, transcripts) stay local.
+.agents/tasks/
+# Deployment-specific Railway config stays local.
+.railway/
+graphify-out/

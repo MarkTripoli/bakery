@@ -1,0 +1,47 @@
+/* Bakery enterprise v1. Exported from Paper. Runtime component implementation pending. */
+:root {
+  --color-background: #F7F7F8;
+  --color-surface: #FFFFFF;
+  --color-foreground: #18181B;
+  --color-muted-foreground: #60616B;
+  --color-border: #E4E4E7;
+  --color-primary: #18181B;
+  --color-accent: #EEF2FF;
+  --color-success: #18734A;
+  --color-warning: #8A5700;
+  --color-destructive: #B42336;
+  --color-selection: #3158D4;
+  --color-success-surface: #ECFDF3;
+  --color-warning-surface: #FFF7E6;
+  --color-destructive-surface: #FFF1F2;
+  --font-sans: Geist;
+  --font-mono: Geist Mono;
+  --text-14: 14px;
+  --text-16: 16px;
+  --text-20: 20px;
+  --text-13: 13px;
+  --text-24: 24px;
+  --font-weight-regular: 400;
+  --font-weight-semibold: 600;
+  --font-weight-medium: 500;
+  --tracking-tight: -0.02em;
+  --leading-14: 20px;
+  --leading-16: 24px;
+  --leading-20: 28px;
+  --leading-13: 20px;
+  --leading-24: 32px;
+  --breakpoint-pane: 744px;
+  --breakpoint-rail: 1280px;
+  --container-prose: 720px;
+  --container-sidebar: 208px;
+  --container-inspector: 320px;
+  --spacing-4: 4px;
+  --spacing-8: 8px;
+  --spacing-12: 12px;
+  --spacing-16: 16px;
+  --spacing-24: 24px;
+  --spacing-32: 32px;
+  --spacing-48: 48px;
+  --radius-4: 4px;
+  --radius-6: 6px;
+}

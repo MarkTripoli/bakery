@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<learning id="api-key-plugin-not-adopted" project="bakery" issue="315">
+  <title>Keep Bakery-owned access tokens; do not swap storage to @better-auth/api-key</title>
+  <trigger>Revisiting #315, adding `@better-auth/api-key`, or moving personal and service-account tokens off `bakery.access_tokens`.</trigger>
+  <mistake>#315 named `@better-auth/api-key` with `references: "organization"`. Reading the 1.7.3 tarball (peers `better-auth ^1.7.3`, `better-call 1.4.0` match the lockfile; it loads under Deno) shows the plugin cannot own storage or verification without losing required properties. Org-bound create needs the better-auth `organization` plugin, a better-auth `member` row and better-auth access control, a second authority beside `bakery.*`. Rows carry no principal, grantor or scope columns (only unindexed metadata JSON). `expiresIn` is optional and `updateApiKey` can clear it. Expired keys are hard-deleted, with no `revokedAt` or `version`. Last-used is a side effect of rate limiting, written on every request, and the default limit is 10 per day. The plugin writes on its own connection, so mint, anti-escalation and audit cannot commit in one transaction. Its session hook rejects non-user references, and its `/api/auth/api-key/*` routes let any signed-in user mint keys.</mistake>
+  <rule>Tokens stay in Bakery-owned digest-only `bakery.access_tokens`, with authority resolved live in TypeScript. Do not add the plugin, `organization()` or a mirrored `member` table to satisfy ticket wording. If the plugin is ever reconsidered, re-read its source at the target version and re-check each gap above first. The seven-phase hybrid fallback it would need lives in `docs/research/api-key-plugin-evaluation.md`.</rule>
+  <verification>
+    <command>pnpm test:security -- tests/security/scoped-access-tokens_test.ts</command>
+    <requirement>Revoked roles lose power on next use, minting never exceeds the grantor, a scope miss is `INSUFFICIENT_SCOPE` and a permission miss is a plain 403.</requirement>
+  </verification>
+  <boundary>Does not judge later plugin versions. Does not change the E03 OAuth/MCP provider, which is a separate package.</boundary>
+</learning>

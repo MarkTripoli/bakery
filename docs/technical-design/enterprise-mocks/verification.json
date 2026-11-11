@@ -1,0 +1,39 @@
+{
+  "status": "design-review-complete",
+  "paperFrames": 12,
+  "exportedTokens": 44,
+  "readerChecks": {
+    "status": "PASS",
+    "panels": 14,
+    "widths": [
+      320,
+      390,
+      744,
+      1280,
+      1440
+    ],
+    "layoutChecks": 70,
+    "renderedDiagrams": 14,
+    "ERViews": 17,
+    "FKRelationships": 160,
+    "workerRoutes": 9,
+    "javascriptErrors": [],
+    "checks": [
+      "ER views, zoom, fit and SVG download",
+      "entity search",
+      "foreign-key navigation",
+      "operation search",
+      "MCP and worker filters",
+      "empty results",
+      "keyboard focus",
+      "offline embedded diagrams",
+      "bundled Geist font",
+      "12 current Paper exports"
+    ]
+  },
+  "pixelParityMeasured": false,
+  "runtimeImplemented": false,
+  "storybookImplemented": false,
+  "modelCatalogRuntimeContract": "additional backend DTO/resolution fields specified in UI-CONTRACT; runtime implementation pending",
+  "independentReview": "persistence pass; ceiling reached; fixes and exclusions recorded in REVIEW-NOTES.md"
+}

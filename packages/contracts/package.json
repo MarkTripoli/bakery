@@ -1,0 +1,46 @@
+{
+  "name": "@bakery/contracts",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/health.ts",
+    "./contracts": "./src/contracts.ts",
+    "./client-manifest": "./generated/client-manifest.ts",
+    "./client": "./src/client.ts",
+    "./auth-provider-client": "./src/auth-provider-client.ts",
+    "./implemented-actions": "./src/implemented-actions.ts",
+    "./check-evidence": "./src/check-evidence.ts",
+    "./review-evidence": "./src/review-evidence.ts",
+    "./ticket-admission": "./src/ticket-admission.ts",
+    "./installation-settings": "./src/installation-settings.ts",
+    "./repository-profile-config": "./src/repository-profile-config.ts",
+    "./repository-rule-preview": "./src/repository-rule-preview.ts",
+    "./repository-rules": "./src/repository-rules.ts",
+    "./repository-inspection": "./src/repository-inspection.ts",
+    "./coordinator-turn": "./src/coordinator-turn.ts",
+    "./health-app": "./src/health-app.ts",
+    "./shutdown": "./src/shutdown.ts",
+    "./action-registry": "./src/action-registry.ts",
+    "./workflow-action-registry": "./src/workflow-action-registry.ts",
+    "./events": "./src/events.ts",
+    "./http": "./src/http.ts",
+    "./exceptions": "./src/exceptions.ts",
+    "./output": "./src/output.ts",
+    "./secret-identity": "./src/secret-identity.ts",
+    "./workflow-presets": "./src/workflow-presets.ts",
+    "./integrations": "./src/integrations.ts",
+    "./description-quality": "./src/description-quality.ts",
+    "./workflow-compiler": "./src/workflow-compiler/mod.ts",
+    "./workflow-compiler/default-catalog": "./src/workflow-compiler/default-catalog.ts"
+  },
+  "scripts": {
+    "typecheck": "deno check src/health.ts src/health-app.ts src/shutdown.ts src/contracts.ts src/client.ts src/auth-provider-client.ts src/implemented-actions.ts src/check-evidence.ts src/review-evidence.ts src/ticket-admission.ts src/action-registry.ts src/workflow-action-registry.ts src/events.ts src/http.ts src/exceptions.ts src/secret-identity.ts src/workflow-presets.ts src/integrations.ts src/description-quality.ts src/workflow-compiler/mod.ts src/workflow-compiler/expression.ts src/workflow-compiler/default-catalog.ts generated/client-manifest.ts",
+    "build": "deno check src/health.ts src/health-app.ts src/shutdown.ts src/contracts.ts src/client.ts src/auth-provider-client.ts src/implemented-actions.ts src/check-evidence.ts src/review-evidence.ts src/ticket-admission.ts src/action-registry.ts src/workflow-action-registry.ts src/events.ts src/http.ts src/exceptions.ts src/secret-identity.ts src/workflow-presets.ts src/integrations.ts src/description-quality.ts src/workflow-compiler/mod.ts src/workflow-compiler/expression.ts src/workflow-compiler/default-catalog.ts generated/client-manifest.ts"
+  },
+  "dependencies": {
+    "@bakery/i18n": "workspace:*",
+    "hono": "4.13.7",
+    "zod": "4.5.4"
+  }
+}

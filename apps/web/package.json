@@ -1,0 +1,37 @@
+{
+  "name": "@bakery/web",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "vite",
+    "start": "vite build && vite preview",
+    "build": "tsc --noEmit && vite build",
+    "build:theme-bootstrap": "vite build --config vite.theme-bootstrap.config.ts",
+    "check:theme-bootstrap": "deno run --allow-env --allow-read --allow-write --allow-run ../../scripts/check-theme-bootstrap.ts",
+    "typecheck": "tsc --noEmit --pretty false",
+    "test:ui": "playwright test"
+  },
+  "dependencies": {
+    "@bakery/config": "workspace:*",
+    "@bakery/contracts": "workspace:*",
+    "@bakery/i18n": "workspace:*",
+    "@bakery/ui": "workspace:*",
+    "@sentry/react": "11.6.0",
+    "@tanstack/react-query": "5.102.8",
+    "@tanstack/react-router": "1.170.36",
+    "qrcode": "1.5.4",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.63.0",
+    "@sentry/vite-plugin": "5.4.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "typescript": "7.0.2",
+    "vite": "8.2.2"
+  }
+}

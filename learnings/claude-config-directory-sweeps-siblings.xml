@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="claude-config-directory-sweeps-siblings" project="bakery" issue="94">
+  <title>claudeConfigDirectory deletes every other attempt directory, so a new worker mode needs its own config directory</title>
+  <trigger>Adding a worker mode that runs the Claude CLI (a reviewer, a second harness action) in the same worker state directory as the Claude harness.</trigger>
+  <mistake>`claudeConfigDirectory` first removes every entry of `&lt;stateDir&gt;/claude-harness` except `sessions`, then makes `claude-harness/&lt;attemptId&gt;`. It assumes it is the only user of that directory. A second mode that calls it deletes another running attempt's config and isolated HOME, and the failure shows up in the other attempt as a vanished credential copy or a missing session file.</mistake>
+  <rule>Give each worker mode its own attempt root and config directory under its own state subdirectory (the reviewer uses `&lt;stateDir&gt;/reviews`), built from the shared `prepareHarnessHome`, and never call `claudeConfigDirectory` from a mode that can run beside another Claude attempt. Sweep only your own subdirectory at startup, never a sibling.</rule>
+  <verification>
+    <command>pnpm test:unit -- tests/unit/implement-independent-review-and-bounded-repair-loops_test.ts</command>
+    <requirement>Every reviewer case leaves no attempt root under `reviews`, no extra worktree record and an untouched operator repository.</requirement>
+  </verification>
+  <boundary>The coordinator and the harness still share `claudeConfigDirectory`; they rely on never running at the same time on one worker. This learning does not change that.</boundary>
+</learning>

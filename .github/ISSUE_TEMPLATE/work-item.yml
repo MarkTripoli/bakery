@@ -1,0 +1,79 @@
+name: Work item
+description: Plan a focused feature, bug fix, test or CI change.
+labels: ["backlog"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep scope and dependencies in GitHub. Creating an issue does not authorize execution.
+        For bugs, include reproduction and expected/actual behavior in Description.
+        Add bug, test or ci labels when appropriate.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What outcome matters, why, and what is outside this issue?
+    validations:
+      required: true
+  - type: dropdown
+    id: execution
+    attributes:
+      label: Execution classification
+      description: AFK follows the configured workflow; HITL needs a named human decision. Neither grants execution authority.
+      options:
+        - AFK
+        - HITL
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: List prerequisite issue numbers and keep native blocked-by links in sync, or write None. Parent membership is not a dependency.
+      placeholder: "#123 — prerequisite outcome"
+    validations:
+      required: true
+  - type: textarea
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Specific, independently verifiable deliverables using Markdown checkboxes.
+      placeholder: "- [ ] Deliver the concrete outcome."
+    validations:
+      required: true
+  - type: textarea
+    id: technical
+    attributes:
+      label: Technical details
+      description: Existing owners, files, APIs, contracts, environments and constraints to reuse. Distinguish proposed paths from implemented ones.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Observable Given/When/Then scenarios, including important failures.
+      placeholder: "1. Given the starting state, when the action occurs, then the observable result follows."
+    validations:
+      required: true
+  - type: textarea
+    id: design
+    attributes:
+      label: Design and UX
+      description: Approved design references, states, accessibility and responsive needs. For non-UI work, explain why it is not applicable.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification and closure
+      description: Required checks, real versus fixture evidence, review and completion conditions. Do not invent passing checks or commands.
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: Sources
+      description: Pin relevant issue/design/code references. If no external source is needed, state the concrete source of the requirement.
+    validations:
+      required: true

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="railway-config-as-code-deprecated" project="bakery">
+  <title>Describe Railway infrastructure with the IaC program, not railway.json</title>
+  <trigger>A task asks for per-service railway.json or railway.toml config as code for a new Railway service.</trigger>
+  <rule>Railway documents config as code (railway.json) as deprecated: new services cannot opt in and the files stop being read on 2026-12-01. Use the IaC program .railway/railway.ts, evaluated by railway config plan and apply (CLI 5.42.1 or newer), with the pinned railway SDK. Dockerfile paths, health checks, pre-deploy commands, restart policy and replicas are fields of that program.</rule>
+  <rule>Secrets use preserve() so plan output never shows them. Run railway config plan --detailed-exit-code after every manual change (secrets, domain, proxy deletion); a non-zero exit is drift to fix in the program. Never use config apply --confirm-destructive.</rule>
+  <verification>
+    <command>railway config plan --verbose</command>
+    <command>railway config plan --detailed-exit-code</command>
+    <requirement>Record the CLI version, the plan output with no secret values, and the exit code.</requirement>
+  </verification>
+  <boundary>Deprecation dates come from the Railway docs read on 2026-10-21. Re-read them before relying on the date. Do not add watchPatterns when no service has a GitHub source; they gate nothing.</boundary>
+</learning>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="worker-env-two-allow-lists" project="bakery">
+  <title>A worker environment name needs both the config allow-list and the launcher grant</title>
+  <trigger>A new BAKERY_* worker setting is read by readWorkerConfig, or a proof sets the harness model or effort.</trigger>
+  <mistake>BAKERY_CLAUDE_HARNESS_MODEL and _EFFORT were read by readHarnessSettings but missing from CODING_HARNESS_ENVIRONMENT_NAMES, so readWorkerEnvironment never carried them and every harness ran on the CLI default. The existing config test passed an env object directly, which hid it. The launcher apps/worker/scripts/run-worker.sh holds a second list (its --allow-env grant); a name in one list and not the other throws NotCapable at startup.</mistake>
+  <rule>Add a worker setting to CODING_HARNESS_ENVIRONMENT_NAMES in apps/worker/src/config.ts and to the --allow-env list in apps/worker/scripts/run-worker.sh together. Test the setting through readWorkerEnvironment(), not by handing readWorkerConfig a ready-made object. Prove the model in a run from the CLI system/init record, not from the configuration.</rule>
+  <rule>`pnpm --filter @bakery/worker start` and `dev` run `env -i` with a third, shorter list in apps/worker/package.json that carries no `BAKERY_*_HARNESS*` setting (tests/rails/workspace_test.ts pins that wrapper). A proof or run that needs a coding-harness repository, and so a worker that advertises `quality.check`, starts the worker with `bash scripts/run-worker.sh` from apps/worker, the launcher compose and scripts/deploy/runtime.sh use. Through the pnpm wrapper the harness settings are dropped without an error and the worker simply never claims the job.</rule>
+  <verification>
+    <requirement>tests/unit/worker-config_test.ts and tests/unit/worker-launch-environment_test.ts pass; the second fails when the two lists differ.</requirement>
+  </verification>
+</learning>

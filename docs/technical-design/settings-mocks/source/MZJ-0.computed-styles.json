@@ -1,0 +1,16 @@
+{
+  "styles": {
+    "MZJ-0": {
+      "display": "flex",
+      "overflow": "clip",
+      "width": "390px",
+      "height": "fit-content",
+      "flexDirection": "column",
+      "fontFamily": "var(--font-sans)",
+      "left": "1560px",
+      "top": "5003px",
+      "position": "absolute",
+      "backgroundColor": "var(--color-dark-surface)"
+    }
+  }
+}

@@ -1,0 +1,646 @@
+{
+  "tokens": {
+    "contentHash": {
+      "tokens": "b3413cf6"
+    },
+    "tokens": [
+      {
+        "name": "--color-background",
+        "type": "color",
+        "value": "#F7F7F8"
+      },
+      {
+        "name": "--color-surface",
+        "type": "color",
+        "value": "#FFFFFF"
+      },
+      {
+        "name": "--color-foreground",
+        "type": "color",
+        "value": "#18181B"
+      },
+      {
+        "name": "--color-muted-foreground",
+        "type": "color",
+        "value": "#60616B"
+      },
+      {
+        "name": "--color-border",
+        "type": "color",
+        "value": "#E4E4E7"
+      },
+      {
+        "name": "--color-primary",
+        "type": "color",
+        "value": "#18181B"
+      },
+      {
+        "name": "--color-accent",
+        "type": "color",
+        "value": "#EEF2FF"
+      },
+      {
+        "name": "--color-success",
+        "type": "color",
+        "value": "#18734A"
+      },
+      {
+        "name": "--color-warning",
+        "type": "color",
+        "value": "#8A5700"
+      },
+      {
+        "name": "--color-destructive",
+        "type": "color",
+        "value": "#B42336"
+      },
+      {
+        "name": "--color-selection",
+        "type": "color",
+        "value": "#3158D4"
+      },
+      {
+        "name": "--color-success-surface",
+        "type": "color",
+        "value": "#ECFDF3"
+      },
+      {
+        "name": "--color-warning-surface",
+        "type": "color",
+        "value": "#FFF7E6"
+      },
+      {
+        "name": "--color-destructive-surface",
+        "type": "color",
+        "value": "#FFF1F2"
+      },
+      {
+        "name": "--color-control-border",
+        "type": "color",
+        "value": "#8A8A94",
+        "description": "Visible input and selection outlines; decorative separators retain --color-border."
+      },
+      {
+        "name": "--font-sans",
+        "type": "fontFamily",
+        "value": "Geist"
+      },
+      {
+        "name": "--font-mono",
+        "type": "fontFamily",
+        "value": "Geist Mono"
+      },
+      {
+        "name": "--text-14",
+        "type": "fontSize",
+        "value": "14px"
+      },
+      {
+        "name": "--text-16",
+        "type": "fontSize",
+        "value": "16px"
+      },
+      {
+        "name": "--text-20",
+        "type": "fontSize",
+        "value": "20px"
+      },
+      {
+        "name": "--text-28",
+        "type": "fontSize",
+        "value": "28px"
+      },
+      {
+        "name": "--text-40",
+        "type": "fontSize",
+        "value": "40px"
+      },
+      {
+        "name": "--text-13",
+        "type": "fontSize",
+        "value": "13px"
+      },
+      {
+        "name": "--text-24",
+        "type": "fontSize",
+        "value": "24px"
+      },
+      {
+        "name": "--font-weight-regular",
+        "type": "fontWeight",
+        "value": "400"
+      },
+      {
+        "name": "--font-weight-semibold",
+        "type": "fontWeight",
+        "value": "600"
+      },
+      {
+        "name": "--font-weight-bold",
+        "type": "fontWeight",
+        "value": "700"
+      },
+      {
+        "name": "--font-weight-medium",
+        "type": "fontWeight",
+        "value": "500"
+      },
+      {
+        "name": "--tracking-tight",
+        "type": "letterSpacing",
+        "value": "-0.02em"
+      },
+      {
+        "name": "--leading-14",
+        "type": "lineHeight",
+        "value": "20px"
+      },
+      {
+        "name": "--leading-16",
+        "type": "lineHeight",
+        "value": "24px"
+      },
+      {
+        "name": "--leading-20",
+        "type": "lineHeight",
+        "value": "28px"
+      },
+      {
+        "name": "--leading-28",
+        "type": "lineHeight",
+        "value": "36px"
+      },
+      {
+        "name": "--leading-40",
+        "type": "lineHeight",
+        "value": "48px"
+      },
+      {
+        "name": "--leading-13",
+        "type": "lineHeight",
+        "value": "20px"
+      },
+      {
+        "name": "--leading-24",
+        "type": "lineHeight",
+        "value": "32px"
+      },
+      {
+        "name": "--breakpoint-pane",
+        "type": "breakpoint",
+        "value": "744px"
+      },
+      {
+        "name": "--breakpoint-rail",
+        "type": "breakpoint",
+        "value": "1280px"
+      },
+      {
+        "name": "--container-prose",
+        "type": "container",
+        "value": "720px"
+      },
+      {
+        "name": "--container-sidebar",
+        "type": "container",
+        "value": "208px"
+      },
+      {
+        "name": "--container-inspector",
+        "type": "container",
+        "value": "320px"
+      },
+      {
+        "name": "--spacing-4",
+        "type": "spacing",
+        "value": "4px"
+      },
+      {
+        "name": "--spacing-8",
+        "type": "spacing",
+        "value": "8px"
+      },
+      {
+        "name": "--spacing-12",
+        "type": "spacing",
+        "value": "12px"
+      },
+      {
+        "name": "--spacing-16",
+        "type": "spacing",
+        "value": "16px"
+      },
+      {
+        "name": "--spacing-24",
+        "type": "spacing",
+        "value": "24px"
+      },
+      {
+        "name": "--spacing-32",
+        "type": "spacing",
+        "value": "32px"
+      },
+      {
+        "name": "--spacing-48",
+        "type": "spacing",
+        "value": "48px"
+      },
+      {
+        "name": "--radius-8",
+        "type": "radius",
+        "value": "8px"
+      },
+      {
+        "name": "--radius-12",
+        "type": "radius",
+        "value": "12px"
+      },
+      {
+        "name": "--radius-4",
+        "type": "radius",
+        "value": "4px"
+      },
+      {
+        "name": "--radius-6",
+        "type": "radius",
+        "value": "6px"
+      }
+    ]
+  },
+  "styles": {
+    "styles": {
+      "1HI-0": {
+        "display": "flex",
+        "alignItems": "center",
+        "justifyContent": "center",
+        "height": "36px",
+        "fontFamily": "var(--font-sans)",
+        "flexShrink": "0",
+        "paddingInline": "14px",
+        "borderRadius": "var(--radius-4)",
+        "gap": "8px",
+        "backgroundColor": "var(--color-primary)"
+      },
+      "1HL-0": {
+        "display": "flex",
+        "alignItems": "center",
+        "justifyContent": "center",
+        "height": "36px",
+        "fontFamily": "var(--font-sans)",
+        "flexShrink": "0",
+        "paddingInline": "14px",
+        "borderRadius": "var(--radius-4)",
+        "gap": "8px",
+        "backgroundColor": "var(--color-surface)",
+        "borderWidth": "1px",
+        "borderStyle": "solid",
+        "borderColor": "var(--color-control-border)"
+      },
+      "1HO-0": {
+        "display": "flex",
+        "alignItems": "center",
+        "justifyContent": "center",
+        "height": "36px",
+        "fontFamily": "var(--font-sans)",
+        "flexShrink": "0",
+        "paddingInline": "14px",
+        "borderRadius": "var(--radius-4)",
+        "gap": "8px",
+        "backgroundColor": "var(--color-destructive)"
+      },
+      "1HR-0": {
+        "display": "flex",
+        "alignItems": "center",
+        "justifyContent": "center",
+        "height": "36px",
+        "fontFamily": "var(--font-sans)",
+        "flexShrink": "0",
+        "paddingInline": "14px",
+        "borderRadius": "var(--radius-4)",
+        "gap": "8px"
+      },
+      "1HU-0": {
+        "display": "flex",
+        "alignItems": "center",
+        "justifyContent": "center",
+        "height": "36px",
+        "fontFamily": "var(--font-sans)",
+        "flexShrink": "0",
+        "paddingInline": "14px",
+        "borderRadius": "var(--radius-4)",
+        "gap": "8px",
+        "backgroundColor": "var(--color-background)"
+      },
+      "1HX-0": {
+        "display": "flex",
+        "alignItems": "center",
+        "justifyContent": "center",
+        "height": "36px",
+        "fontFamily": "var(--font-sans)",
+        "flexShrink": "0",
+        "paddingInline": "14px",
+        "borderRadius": "var(--radius-4)",
+        "gap": "8px",
+        "backgroundColor": "var(--color-primary)"
+      },
+      "1I0-0": {
+        "display": "flex",
+        "alignItems": "center",
+        "justifyContent": "center",
+        "height": "44px",
+        "fontFamily": "var(--font-sans)",
+        "flexShrink": "0",
+        "paddingInline": "14px",
+        "borderRadius": "var(--radius-4)",
+        "gap": "8px",
+        "backgroundColor": "var(--color-primary)"
+      },
+      "1I3-0": {
+        "display": "flex",
+        "alignItems": "center",
+        "justifyContent": "center",
+        "height": "36px",
+        "fontFamily": "var(--font-sans)",
+        "flexShrink": "0",
+        "paddingInline": "14px",
+        "borderRadius": "var(--radius-4)",
+        "gap": "8px",
+        "backgroundColor": "var(--color-surface)",
+        "borderWidth": "1px",
+        "borderStyle": "solid",
+        "borderColor": "var(--color-control-border)",
+        "outline": "2px solid var(--color-selection)",
+        "outlineOffset": "2px"
+      },
+      "1II-0": {
+        "display": "flex",
+        "flexDirection": "column",
+        "width": "500px",
+        "flexShrink": "0",
+        "gap": "8px"
+      },
+      "1IO-0": {
+        "display": "flex",
+        "flexDirection": "column",
+        "width": "500px",
+        "flexShrink": "0",
+        "gap": "8px"
+      },
+      "1IV-0": {
+        "display": "flex",
+        "flexDirection": "column",
+        "width": "500px",
+        "flexShrink": "0",
+        "gap": "8px"
+      },
+      "1J1-0": {
+        "display": "flex",
+        "flexDirection": "column",
+        "width": "500px",
+        "flexShrink": "0",
+        "gap": "8px"
+      },
+      "1J8-0": {
+        "display": "flex",
+        "flexDirection": "column",
+        "width": "500px",
+        "flexShrink": "0",
+        "gap": "8px"
+      },
+      "1JE-0": {
+        "display": "flex",
+        "flexDirection": "column",
+        "width": "500px",
+        "flexShrink": "0",
+        "gap": "8px"
+      },
+      "1JL-0": {
+        "display": "flex",
+        "flexDirection": "column",
+        "width": "500px",
+        "flexShrink": "0",
+        "gap": "8px"
+      },
+      "1JR-0": {
+        "display": "flex",
+        "flexDirection": "column",
+        "width": "500px",
+        "flexShrink": "0",
+        "gap": "8px"
+      },
+      "1K2-0": {
+        "display": "flex",
+        "alignItems": "start",
+        "width": "100%",
+        "paddingBlock": "12px",
+        "gap": "12px",
+        "borderBottomWidth": "1px",
+        "borderBottomStyle": "solid",
+        "borderBottomColor": "var(--color-border)"
+      },
+      "1KA-0": {
+        "display": "flex",
+        "alignItems": "start",
+        "width": "100%",
+        "paddingBlock": "12px",
+        "gap": "12px",
+        "borderBottomWidth": "1px",
+        "borderBottomStyle": "solid",
+        "borderBottomColor": "var(--color-border)"
+      },
+      "1KG-0": {
+        "display": "flex",
+        "alignItems": "start",
+        "width": "100%",
+        "paddingBlock": "12px",
+        "gap": "12px",
+        "borderBottomWidth": "1px",
+        "borderBottomStyle": "solid",
+        "borderBottomColor": "var(--color-border)"
+      },
+      "1KM-0": {
+        "display": "flex",
+        "alignItems": "center",
+        "alignSelf": "start",
+        "paddingBlock": "3px",
+        "paddingInline": "8px",
+        "borderRadius": "var(--radius-4)",
+        "gap": "6px",
+        "backgroundColor": "var(--color-success-surface)"
+      },
+      "1KP-0": {
+        "display": "flex",
+        "alignItems": "center",
+        "alignSelf": "start",
+        "paddingBlock": "3px",
+        "paddingInline": "8px",
+        "borderRadius": "var(--radius-4)",
+        "gap": "6px",
+        "backgroundColor": "var(--color-warning-surface)"
+      },
+      "1KS-0": {
+        "display": "flex",
+        "alignItems": "center",
+        "alignSelf": "start",
+        "paddingBlock": "3px",
+        "paddingInline": "8px",
+        "borderRadius": "var(--radius-4)",
+        "gap": "6px",
+        "backgroundColor": "var(--color-destructive-surface)"
+      },
+      "1KV-0": {
+        "display": "flex",
+        "alignItems": "center",
+        "alignSelf": "start",
+        "paddingBlock": "3px",
+        "paddingInline": "8px",
+        "borderRadius": "var(--radius-4)",
+        "gap": "6px",
+        "backgroundColor": "var(--color-background)"
+      },
+      "1KY-0": {
+        "display": "flex",
+        "flexDirection": "column",
+        "width": "100%",
+        "paddingBlock": "14px",
+        "paddingInline": "16px",
+        "borderRadius": "var(--radius-6)",
+        "gap": "4px",
+        "backgroundColor": "var(--color-background)",
+        "borderWidth": "1px",
+        "borderStyle": "solid",
+        "borderColor": "var(--color-border)"
+      },
+      "1L2-0": {
+        "display": "flex",
+        "flexDirection": "column",
+        "width": "100%",
+        "paddingBlock": "14px",
+        "paddingInline": "16px",
+        "borderRadius": "var(--radius-6)",
+        "gap": "4px",
+        "backgroundColor": "var(--color-warning-surface)",
+        "borderWidth": "1px",
+        "borderStyle": "solid",
+        "borderColor": "var(--color-border)"
+      },
+      "1L6-0": {
+        "display": "flex",
+        "flexDirection": "column",
+        "width": "100%",
+        "paddingBlock": "14px",
+        "paddingInline": "16px",
+        "borderRadius": "var(--radius-6)",
+        "gap": "4px",
+        "backgroundColor": "var(--color-destructive-surface)",
+        "borderWidth": "1px",
+        "borderStyle": "solid",
+        "borderColor": "var(--color-border)"
+      },
+      "1LA-0": {
+        "display": "flex",
+        "alignItems": "center",
+        "justifyContent": "center",
+        "height": "36px",
+        "flexShrink": "0",
+        "paddingInline": "14px",
+        "borderRadius": "var(--radius-4)",
+        "backgroundColor": "var(--color-muted-foreground)"
+      },
+      "1LD-0": {
+        "display": "flex",
+        "alignItems": "center",
+        "justifyContent": "center",
+        "height": "36px",
+        "flexShrink": "0",
+        "paddingInline": "14px",
+        "borderRadius": "var(--radius-4)",
+        "backgroundColor": "var(--color-foreground)"
+      },
+      "1LG-0": {
+        "display": "flex",
+        "alignItems": "center",
+        "justifyContent": "center",
+        "width": "44px",
+        "height": "44px",
+        "borderRadius": "var(--radius-4)",
+        "flexShrink": "0",
+        "backgroundColor": "var(--color-surface)",
+        "borderWidth": "1px",
+        "borderStyle": "solid",
+        "borderColor": "var(--color-control-border)"
+      },
+      "3Q0-0": {
+        "display": "flex",
+        "alignItems": "center",
+        "alignSelf": "start",
+        "height": "44px",
+        "paddingInline": "16px",
+        "flexShrink": "0",
+        "borderBottomWidth": "2px",
+        "borderBottomStyle": "solid",
+        "borderBottomColor": "var(--color-selection)"
+      },
+      "3Q3-0": {
+        "display": "flex",
+        "alignItems": "center",
+        "alignSelf": "start",
+        "height": "44px",
+        "paddingInline": "16px",
+        "flexShrink": "0",
+        "borderBottomWidth": "2px",
+        "borderBottomStyle": "solid",
+        "borderBottomColor": "#00000000"
+      },
+      "3Q6-0": {
+        "display": "flex",
+        "flexDirection": "column",
+        "width": "480px",
+        "padding": "24px",
+        "borderRadius": "var(--radius-8)",
+        "gap": "20px",
+        "backgroundColor": "var(--color-surface)",
+        "borderWidth": "1px",
+        "borderStyle": "solid",
+        "borderColor": "var(--color-border)"
+      }
+    },
+    "contentHash": {
+      "tokens": "b3413cf6"
+    }
+  },
+  "jsx": {
+    "buttonPrimary": "(\n    <div style={{ alignItems: 'center', backgroundColor: 'var(--color-primary)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', flexShrink: '0', fontFamily: 'var(--font-sans)', fontSize: '12px', fontSynthesis: 'none', gap: '8px', height: '36px', justifyContent: 'center', lineHeight: '16px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', paddingInline: '14px', WebkitFontSmoothing: 'antialiased' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-surface)', display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        Install integration\n      </div>\n    </div>\n  )",
+    "buttonSecondary": "(\n    <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: 'var(--radius-4)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', fontFamily: 'var(--font-sans)', fontSize: '12px', fontSynthesis: 'none', gap: '8px', height: '36px', justifyContent: 'center', lineHeight: '16px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', paddingInline: '14px', WebkitFontSmoothing: 'antialiased' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        Cancel\n      </div>\n    </div>\n  )",
+    "buttonDanger": "(\n    <div style={{ alignItems: 'center', backgroundColor: 'var(--color-destructive)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', flexShrink: '0', fontFamily: 'var(--font-sans)', fontSize: '12px', fontSynthesis: 'none', gap: '8px', height: '36px', justifyContent: 'center', lineHeight: '16px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', paddingInline: '14px', WebkitFontSmoothing: 'antialiased' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-surface)', display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        Remove connection\n      </div>\n    </div>\n  )",
+    "buttonGhost": "(\n    <div style={{ alignItems: 'center', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', flexShrink: '0', fontFamily: 'var(--font-sans)', fontSize: '12px', fontSynthesis: 'none', gap: '8px', height: '36px', justifyContent: 'center', lineHeight: '16px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', paddingInline: '14px', WebkitFontSmoothing: 'antialiased' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        View activity\n      </div>\n    </div>\n  )",
+    "buttonDisabled": "(\n    <div style={{ alignItems: 'center', backgroundColor: 'var(--color-background)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', flexShrink: '0', fontFamily: 'var(--font-sans)', fontSize: '12px', fontSynthesis: 'none', gap: '8px', height: '36px', justifyContent: 'center', lineHeight: '16px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', paddingInline: '14px', WebkitFontSmoothing: 'antialiased' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        Install integration\n      </div>\n    </div>\n  )",
+    "buttonLoading": "(\n    <div style={{ alignItems: 'center', backgroundColor: 'var(--color-primary)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', flexShrink: '0', fontFamily: 'var(--font-sans)', fontSize: '12px', fontSynthesis: 'none', gap: '8px', height: '36px', justifyContent: 'center', lineHeight: '16px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', paddingInline: '14px', WebkitFontSmoothing: 'antialiased' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-surface)', display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        Connecting\u2026\n      </div>\n    </div>\n  )",
+    "buttonTouch": "(\n    <div style={{ alignItems: 'center', backgroundColor: 'var(--color-primary)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', flexShrink: '0', fontFamily: 'var(--font-sans)', fontSize: '12px', fontSynthesis: 'none', gap: '8px', height: '44px', justifyContent: 'center', lineHeight: '16px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', paddingInline: '14px', WebkitFontSmoothing: 'antialiased' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-surface)', display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        Continue\n      </div>\n    </div>\n  )",
+    "buttonFocus": "(\n    <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: 'var(--radius-4)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', fontFamily: 'var(--font-sans)', fontSize: '12px', fontSynthesis: 'none', gap: '8px', height: '36px', justifyContent: 'center', lineHeight: '16px', MozOsxFontSmoothing: 'grayscale', outline: '2px solid var(--color-selection)', outlineOffset: '2px', overflowWrap: 'anywhere', paddingInline: '14px', WebkitFontSmoothing: 'antialiased' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        Save changes\n      </div>\n    </div>\n  )",
+    "field": "(\n    <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', fontSynthesis: 'none', gap: '8px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', WebkitFontSmoothing: 'antialiased', width: '500px' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        Connection name\n      </div>\n      <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: 'var(--radius-4)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '44px', paddingInline: '12px', width: '100%' }}>\n        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '16px', lineHeight: '24px' }}>\n          GitHub \u00b7 MarkTripoli\n        </div>\n      </div>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>\n        Visible to everyone in this organization.\n      </div>\n    </div>\n  )",
+    "fieldFocus": "(\n    <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', fontSynthesis: 'none', gap: '8px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', WebkitFontSmoothing: 'antialiased', width: '500px' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        Connection name\n      </div>\n      <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: 'var(--radius-4)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '44px', outline: '2px solid var(--color-selection)', outlineOffset: '2px', paddingInline: '12px', width: '100%' }}>\n        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '16px', lineHeight: '24px' }}>\n          GitHub \u00b7 MarkTripoli\n        </div>\n      </div>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>\n        Keyboard focus stays visible.\n      </div>\n    </div>\n  )",
+    "fieldError": "(\n    <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', fontSynthesis: 'none', gap: '8px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', WebkitFontSmoothing: 'antialiased', width: '500px' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        Destination URL\n      </div>\n      <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-destructive)', borderRadius: 'var(--radius-4)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '44px', paddingInline: '12px', width: '100%' }}>\n        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '16px', lineHeight: '24px' }}>\n          http://support.example.com\n        </div>\n      </div>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-destructive)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>\n        Use an HTTPS URL.\n      </div>\n    </div>\n  )",
+    "fieldDisabled": "(\n    <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', fontSynthesis: 'none', gap: '8px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', WebkitFontSmoothing: 'antialiased', width: '500px' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        Connected account\n      </div>\n      <div style={{ alignItems: 'center', backgroundColor: 'var(--color-background)', borderColor: 'var(--color-control-border)', borderRadius: 'var(--radius-4)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '44px', paddingInline: '12px', width: '100%' }}>\n        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '16px', lineHeight: '24px' }}>\n          MarkTripoli\n        </div>\n      </div>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>\n        Account identity cannot be edited.\n      </div>\n    </div>\n  )",
+    "select": "(\n    <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', fontSynthesis: 'none', gap: '8px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', WebkitFontSmoothing: 'antialiased', width: '500px' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        Organization\n      </div>\n      <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: 'var(--radius-4)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '44px', paddingInline: '12px', width: '100%' }}>\n        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '16px', lineHeight: '24px' }}>\n          Personal organization \u2304\n        </div>\n      </div>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>\n        Only organizations you administer.\n      </div>\n    </div>\n  )",
+    "search": "(\n    <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', fontSynthesis: 'none', gap: '8px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', WebkitFontSmoothing: 'antialiased', width: '500px' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        Search integrations\n      </div>\n      <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: 'var(--radius-4)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '44px', paddingInline: '12px', width: '100%' }}>\n        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '16px', lineHeight: '24px' }}>\n          Search by name or capability\n        </div>\n      </div>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>\n        Results update as you type.\n      </div>\n    </div>\n  )",
+    "secret": "(\n    <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', fontSynthesis: 'none', gap: '8px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', WebkitFontSmoothing: 'antialiased', width: '500px' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        Signing secret\n      </div>\n      <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: 'var(--radius-4)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '44px', paddingInline: '12px', width: '100%' }}>\n        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '16px', lineHeight: '24px' }}>\n          \u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022\n        </div>\n      </div>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>\n        Stored securely. Never shown to agents.\n      </div>\n    </div>\n  )",
+    "textarea": "(\n    <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', fontSynthesis: 'none', gap: '8px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', WebkitFontSmoothing: 'antialiased', width: '500px' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        Description\n      </div>\n      <div style={{ alignItems: 'start', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: 'var(--radius-4)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '80px', paddingInline: '12px', paddingTop: '10px', width: '100%' }}>\n        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '16px', lineHeight: '24px' }}>\n          Customer support intake for Bakery.\n        </div>\n      </div>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>\n        Optional. Keep credentials out of this field.\n      </div>\n    </div>\n  )",
+    "choiceOn": "(\n    <div style={{ alignItems: 'start', borderBottomColor: 'var(--color-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', fontSynthesis: 'none', gap: '12px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', paddingBlock: '12px', WebkitFontSmoothing: 'antialiased', width: '100%' }}>\n      <div style={{ alignItems: 'center', backgroundColor: 'var(--color-selection)', borderColor: 'var(--color-selection)', borderRadius: '3px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '18px', justifyContent: 'center', marginTop: '2px', width: '18px' }}>\n        <svg width=\"12\" height=\"12\" viewBox=\"0 0 12 12\" xmlns=\"http://www.w3.org/2000/svg\" style={{ flexShrink: '0' }}>\n          <path d=\"m2 6 3 3 5-6\" fill=\"none\" stroke=\"#FFFFFF\" strokeWidth=\"1.5\" />\n        </svg>\n      </div>\n      <div style={{ boxSizing: 'border-box', display: 'flex', flexBasis: '0%', flexDirection: 'column', flexGrow: '1', gap: '4px', minWidth: '0px' }}>\n        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n          Read issues and pull requests\n        </div>\n        <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>\n          Use selected repositories only.\n        </div>\n      </div>\n    </div>\n  )",
+    "choiceOff": "(\n    <div style={{ alignItems: 'start', borderBottomColor: 'var(--color-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', fontSynthesis: 'none', gap: '12px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', paddingBlock: '12px', WebkitFontSmoothing: 'antialiased', width: '100%' }}>\n      <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: '3px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '18px', justifyContent: 'center', marginTop: '2px', width: '18px' }} />\n      <div style={{ boxSizing: 'border-box', display: 'flex', flexBasis: '0%', flexDirection: 'column', flexGrow: '1', gap: '4px', minWidth: '0px' }}>\n        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n          Start work from ready labels\n        </div>\n        <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>\n          Off until a ticket policy is configured.\n        </div>\n      </div>\n    </div>\n  )",
+    "choiceDisabled": "(\n    <div style={{ alignItems: 'start', borderBottomColor: 'var(--color-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', fontSynthesis: 'none', gap: '12px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', paddingBlock: '12px', WebkitFontSmoothing: 'antialiased', width: '100%' }}>\n      <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: '3px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '18px', justifyContent: 'center', marginTop: '2px', width: '18px' }} />\n      <div style={{ boxSizing: 'border-box', display: 'flex', flexBasis: '0%', flexDirection: 'column', flexGrow: '1', gap: '4px', minWidth: '0px' }}>\n        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n          Publish checks\n        </div>\n        <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>\n          Additional provider permission required.\n        </div>\n      </div>\n    </div>\n  )",
+    "badgeHealthy": "(\n    <div style={{ alignItems: 'center', alignSelf: 'start', backgroundColor: 'var(--color-success-surface)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', fontSize: '12px', fontSynthesis: 'none', gap: '6px', lineHeight: '16px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', paddingBlock: '3px', paddingInline: '8px', WebkitFontSmoothing: 'antialiased' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-success)', display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 500, lineHeight: '20px' }}>\n        Healthy\n      </div>\n    </div>\n  )",
+    "badgePending": "(\n    <div style={{ alignItems: 'center', alignSelf: 'start', backgroundColor: 'var(--color-warning-surface)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', fontSize: '12px', fontSynthesis: 'none', gap: '6px', lineHeight: '16px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', paddingBlock: '3px', paddingInline: '8px', WebkitFontSmoothing: 'antialiased' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-warning)', display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 500, lineHeight: '20px' }}>\n        Pending\n      </div>\n    </div>\n  )",
+    "badgeRevoked": "(\n    <div style={{ alignItems: 'center', alignSelf: 'start', backgroundColor: 'var(--color-destructive-surface)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', fontSize: '12px', fontSynthesis: 'none', gap: '6px', lineHeight: '16px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', paddingBlock: '3px', paddingInline: '8px', WebkitFontSmoothing: 'antialiased' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-destructive)', display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 500, lineHeight: '20px' }}>\n        Reconnect needed\n      </div>\n    </div>\n  )",
+    "badgeDisabled": "(\n    <div style={{ alignItems: 'center', alignSelf: 'start', backgroundColor: 'var(--color-background)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', fontSize: '12px', fontSynthesis: 'none', gap: '6px', lineHeight: '16px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', paddingBlock: '3px', paddingInline: '8px', WebkitFontSmoothing: 'antialiased' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 500, lineHeight: '20px' }}>\n        Disabled\n      </div>\n    </div>\n  )",
+    "notice": "(\n    <div style={{ backgroundColor: 'var(--color-background)', borderColor: 'var(--color-border)', borderRadius: 'var(--radius-6)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', fontSynthesis: 'none', gap: '4px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', paddingBlock: '14px', paddingInline: '16px', WebkitFontSmoothing: 'antialiased', width: '100%' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        Access stays within your selection\n      </div>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>\n        Developers share these selected actions. Automations need separate grants.\n      </div>\n    </div>\n  )",
+    "noticeWarning": "(\n    <div style={{ backgroundColor: 'var(--color-warning-surface)', borderColor: 'var(--color-border)', borderRadius: 'var(--radius-6)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', fontSynthesis: 'none', gap: '4px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', paddingBlock: '14px', paddingInline: '16px', WebkitFontSmoothing: 'antialiased', width: '100%' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-warning)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        Some permissions are missing\n      </div>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-warning)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>\n        Reconnect with GitHub to enable publishing checks. Existing reads still work.\n      </div>\n    </div>\n  )",
+    "noticeError": "(\n    <div style={{ backgroundColor: 'var(--color-destructive-surface)', borderColor: 'var(--color-border)', borderRadius: 'var(--radius-6)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', fontSynthesis: 'none', gap: '4px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', paddingBlock: '14px', paddingInline: '16px', WebkitFontSmoothing: 'antialiased', width: '100%' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-destructive)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        Your changes could not be saved\n      </div>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-destructive)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>\n        Another admin updated this connection. Reload the latest version before saving.\n      </div>\n    </div>\n  )",
+    "buttonHover": "(\n    <div style={{ alignItems: 'center', backgroundColor: 'var(--color-muted-foreground)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', flexShrink: '0', fontSize: '12px', fontSynthesis: 'none', height: '36px', justifyContent: 'center', lineHeight: '16px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', paddingInline: '14px', WebkitFontSmoothing: 'antialiased' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-surface)', display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        Hover\n      </div>\n    </div>\n  )",
+    "buttonPressed": "(\n    <div style={{ alignItems: 'center', backgroundColor: 'var(--color-foreground)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', flexShrink: '0', fontSize: '12px', fontSynthesis: 'none', height: '36px', justifyContent: 'center', lineHeight: '16px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', paddingInline: '14px', WebkitFontSmoothing: 'antialiased' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-surface)', display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        Pressed\n      </div>\n    </div>\n  )",
+    "iconButton": "(\n    <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: 'var(--radius-4)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '44px', justifyContent: 'center', width: '44px' }}>\n      <svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\" style={{ flexShrink: '0' }}>\n        <path d=\"M6 6l12 12M18 6 6 18\" fill=\"none\" stroke=\"var(--color-foreground)\" strokeWidth=\"1.5\" />\n      </svg>\n    </div>\n  )",
+    "tabSelected": "(\n    <div style={{ alignItems: 'center', alignSelf: 'start', borderBottomColor: 'var(--color-selection)', borderBottomStyle: 'solid', borderBottomWidth: '2px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', fontSynthesis: 'none', height: '44px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', paddingInline: '16px', WebkitFontSmoothing: 'antialiased' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-selection)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n        Overview\n      </div>\n    </div>\n  )",
+    "tabDefault": "(\n    <div style={{ alignItems: 'center', alignSelf: 'start', borderBottomColor: '#00000000', borderBottomStyle: 'solid', borderBottomWidth: '2px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', fontSynthesis: 'none', height: '44px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', paddingInline: '16px', WebkitFontSmoothing: 'antialiased' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>\n        Activity\n      </div>\n    </div>\n  )",
+    "confirmDialog": "(\n    <div style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', borderRadius: 'var(--radius-8)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', fontSize: '12px', fontSynthesis: 'none', gap: '20px', lineHeight: '16px', MozOsxFontSmoothing: 'grayscale', overflowWrap: 'anywhere', padding: '24px', WebkitFontSmoothing: 'antialiased', width: '480px' }}>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '20px', fontWeight: 600, lineHeight: '28px' }}>\n        Discard unsaved changes?\n      </div>\n      <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>\n        Your saved connection stays unchanged. Discard the edits to leave this page.\n      </div>\n      <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px', justifyContent: 'end' }}>\n        <div style={{ boxSizing: 'border-box', fontFamily: 'var(--font-sans)' }} />\n        <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: 'var(--radius-4)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', fontFamily: 'var(--font-sans)', gap: '8px', height: '36px', justifyContent: 'center', paddingInline: '14px' }}>\n          <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n            Keep editing\n          </div>\n        </div>\n        <div style={{ alignItems: 'center', backgroundColor: 'var(--color-destructive)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', flexShrink: '0', fontFamily: 'var(--font-sans)', gap: '8px', height: '36px', justifyContent: 'center', paddingInline: '14px' }}>\n          <div style={{ boxSizing: 'border-box', color: 'var(--color-surface)', display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>\n            Discard changes\n          </div>\n        </div>\n      </div>\n    </div>\n  )"
+  }
+}

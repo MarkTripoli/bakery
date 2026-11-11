@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="web-playwright-built-preview" project="bakery">
+  <title>Use the built web app when Vite module loading exhausts browser test time</title>
+  <trigger>A web Playwright suite times out during navigation and retained traces show hundreds of Vite source-module requests consuming most of the unchanged test budget.</trigger>
+  <rule>First inspect the failed trace. When source-module transport is the observed cost, run pnpm --filter @bakery/web build and serve that candidate with vite preview on an owned ephemeral strict port. Set BASE_URL to that origin, retain the correct isolated API proxy, and run the full requested suite with its original assertions, timeouts and worker count. Keep the shared verification lock, memory floor and private TMPDIR; stop the owned preview afterward. The apps/web Playwright config does this itself under CI or BAKERY_WEB_PREVIEW=1; it builds with NODE_ENV=development because the specs drive import.meta.env.DEV-only /__fixtures__ routes that a production build drops. vite preview serves no /src or /@fs modules, so a spec must never import('/src/...') in-page; read app data from a DEV-only window hook installed by app code (window.__bakeryRouteCoverage in src/router.tsx). The preview outDir is quoted, never reused (reuseExistingServer false) and removed by tests/helpers/preview-teardown.ts.</rule>
+  <verification>
+    <requirement>Record the failed dev-server trace and the complete built-app result separately. A targeted rerun does not replace a required full suite. Fixture-backed browser success does not prove live API behavior; preserve live-only skips and their prerequisites.</requirement>
+  </verification>
+</learning>

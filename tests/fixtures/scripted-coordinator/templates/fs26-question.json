@@ -1,0 +1,17 @@
+{
+  "effects": [
+    {
+      "type": "reply",
+      "body": "Before I plan, I need one answer from you."
+    },
+    {
+      "type": "question",
+      "prompt": "Which repositories should we import?",
+      "options": [
+        { "id": "bakery", "label": "Bakery only" },
+        { "id": "choose", "label": "Choose repositories" }
+      ],
+      "allowFreeText": false
+    }
+  ]
+}

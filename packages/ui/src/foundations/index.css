@@ -1,0 +1,50 @@
+@import "./tokens.css";
+@import "./theme.css";
+@import "./responsive.css";
+@import "./focus.css";
+@import "./motion.css";
+
+/* The Paper artboards are laid out against a zero-margin body that already
+   carries the body type, foreground and canvas colours
+   (docs/technical-design/auth-mocks/auth.css:6 `:root{font:…;color:…;
+   background:…}` and :8 `body{margin:0}`); the browser default otherwise
+   adds 16px to every page height and renders unstyled text in a serif. */
+body {
+  margin: 0;
+  font: var(--type-body);
+  color: var(--color-fg);
+  background: var(--color-canvas);
+}
+
+@font-face {
+  font-family: Geist;
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../../../../docs/technical-design/enterprise-mocks/fonts/geist-400.ttf")
+    format("truetype");
+}
+@font-face {
+  font-family: Geist;
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../../../../docs/technical-design/enterprise-mocks/fonts/geist-500.ttf")
+    format("truetype");
+}
+@font-face {
+  font-family: Geist;
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../../../../docs/technical-design/enterprise-mocks/fonts/geist-600.ttf")
+    format("truetype");
+}
+@font-face {
+  font-family: "Geist Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../../../../docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf")
+    format("truetype");
+}

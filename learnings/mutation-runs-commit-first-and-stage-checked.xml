@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="mutation-runs-commit-first-and-stage-checked" project="bakery" issue="82">
+  <title>Commit before a mutation run, restore one file at a time, and check what is staged</title>
+  <trigger>A builder or reviewer mutates production files in the worktree to see whether a test fails, then restores them.</trigger>
+  <mistake>Restoring with git checkout of a file discarded uncommitted work in that file, and a broad git checkout of the whole tree reverted the intentionally hidden graft wiring files. Adding one path and then committing also commits files staged earlier, which swallowed unrelated sync files into a build-script commit. A mutant written as a false guard in front of a property access loses TypeScript narrowing and fails to compile, which reads as an environment error and not a kill. A cross-organization end-to-end call cannot prove an inner organization predicate when later predicates return the same error.</mistake>
+  <rule>Commit first, mutate, restore with git checkout of that one file, and prove the restore with git diff --quiet. Never check out the whole tree in a worktree with hidden files. Run git diff --cached --stat before every commit. Write type-correct mutants and count only a failing assertion as a kill. Assert an inner store function with a foreign organization directly when the end-to-end error is the same.</rule>
+  <verification>
+    <requirement>git status --short is empty and the hidden wiring files still match the saved patch after the run.</requirement>
+  </verification>
+</learning>

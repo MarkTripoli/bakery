@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="ephemeral-worktree-stack" project="bakery">
+  <title>Bring up an ephemeral per-worktree stack instead of declaring an environment blocker</title>
+  <trigger>A verification step needs the running API, worker, or PostgreSQL, and the shell has no root .env, the documented local database credentials fail, or the default Docker socket is permission-denied.</trigger>
+  <mistake>Reported the fresh-stack browser smoke and one auth contract test as environment-blocked after one failed `psql` probe and a denied `/var/run/docker.sock`. The environment already provided a rootless container engine on a per-user socket, and infra/compose.yaml publishes every host port through an overridable variable, so the stack could have been created and torn down by the worktree itself.</mistake>
+  <rule>Discover the container engine before concluding it is unavailable: try `docker version`, and when the default socket is denied inspect the user session (`systemctl --user cat &lt;engine&gt;.service`) for a rootless `--host=unix:///run/user/&lt;uid&gt;/&lt;name&gt;.sock` and set DOCKER_HOST to it. Give every worktree its own compose project with `--project-name bakery-&lt;issue&gt;-&lt;short hash&gt;` and free host ports through BAKERY_SERVER_PORT, BAKERY_INNGEST_PORT, and BAKERY_POSTGRES_PORT, start the whole stack with `up -d --wait`, run host processes against those published ports, and treat the stack as ephemeral: `down -v` the project when the work lands. Managing one stack per worktree is expected. Starting, stopping, removing, or reusing a compose project the worktree does not own is forbidden, as is publishing into a port another stack already holds.</rule>
+  <verification>
+    <command>DOCKER_HOST=unix:///run/user/$(id -u)/formation-docker.sock docker compose --project-name bakery-124-&lt;hash&gt; -f infra/compose.yaml up -d --wait postgres redis inngest server worker</command>
+    <command>BAKERY_REAL_API=1 BASE_URL=http://127.0.0.1:&lt;web port&gt; pnpm --dir apps/web test:ui</command>
+    <command>DOCKER_HOST=unix:///run/user/$(id -u)/formation-docker.sock docker compose --project-name bakery-124-&lt;hash&gt; -f infra/compose.yaml down -v</command>
+    <command>deno test --allow-all tests/integration/run-the-persistent-local-stack-with-compose-and-dev-containers_test.ts</command>
+    <requirement>Record the compose project name, the published ports, the command that consumed them, and the teardown result. Leave no container, volume, or network behind, and never report a verification blocker while an owned stack can still be created.</requirement>
+  </verification>
+  <boundary>Missing shell variables are not evidence that the local environment is unavailable; see local-services-before-test-blocker. Ephemeral means created and destroyed by the worktree that needs it, not shared and not reused after merge.</boundary>
+</learning>

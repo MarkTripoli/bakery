@@ -1,0 +1,117 @@
+{
+  "001-logo-refine-3.png": {
+    "pick": true,
+    "label": "Recommended lockup + character master (J3)",
+    "note": "Same mascot, cleaner: round bun head, flat fills, one outline weight, no tiny props. Chunky silhouette survives 24 px; heavy rounded wordmark keeps the original personality. Vectorised into the production SVG set."
+  },
+  "001-logo-refine-7.png": {
+    "pick": true,
+    "label": "Mark face reference (J7)",
+    "note": "Largest pill eyes = best face read at 16\u201332 px. Production mark = J3 head + J7 eyes + J6 belt, rebuilt from geometric primitives."
+  },
+  "001-logo-refine-6.png": {
+    "pick": true,
+    "label": "Mark belt reference (J6)",
+    "note": "Dark belt band with solid terracotta rollers is the only belt that still reads as a conveyor at 16 px."
+  },
+  "001-logo-refine-4.png": {
+    "pick": false,
+    "label": "Runner-up lockup (J4)",
+    "note": "Also strong; taller body and footed belt cost legibility vs J3."
+  },
+  "003-scenes-errors-2.png": {
+    "pick": true,
+    "label": "Pick \u00b7 404 not found",
+    "note": "Breadcrumb trail ends at the blob edge; magnifier + toque scratch. Clearest joke, friendly face."
+  },
+  "003-scenes-errors-16.png": {
+    "pick": true,
+    "label": "Alt \u00b7 404 lost in the pantry",
+    "note": "Upside-down map behind flour sacks. Alternate 404 / missing-route."
+  },
+  "003-scenes-errors-5.png": {
+    "pick": true,
+    "label": "Pick \u00b7 500 server error",
+    "note": "Sooty toque, burnt loaf on the peel, smoking oven, sheepish smile: 'oops', not disaster."
+  },
+  "003-scenes-errors-7.png": {
+    "pick": true,
+    "label": "Pick \u00b7 403 forbidden",
+    "note": "Polite doorman, raised mitten, rolling-pin rope posts. Kind, unambiguous."
+  },
+  "003-scenes-errors-11.png": {
+    "pick": true,
+    "label": "Pick \u00b7 offline",
+    "note": "Holding the unplugged plug, cord back to the stalled belt."
+  },
+  "003-scenes-errors-12.png": {
+    "pick": false,
+    "label": "Replaced \u00b7 reconnecting",
+    "note": "Furrowed brows read as angry; replaced by 006-1."
+  },
+  "003-scenes-errors-14.png": {
+    "pick": true,
+    "label": "Pick \u00b7 maintenance",
+    "note": "On the creeper under the belt with a big wrench, toolbox, flour puff. Reads at 320 px."
+  },
+  "003-scenes-errors-10.png": {
+    "pick": false,
+    "label": "Rejected",
+    "note": "Two mascots in one frame."
+  },
+  "004-scenes-empty-2.png": {
+    "pick": true,
+    "label": "Pick \u00b7 empty: no tasks",
+    "note": "Whole belt inside the blob, mascot on the end with a steaming mug. Calm 'all clear'."
+  },
+  "004-scenes-empty-4.png": {
+    "pick": true,
+    "label": "Pick \u00b7 empty: no sessions",
+    "note": "Waving at the empty golden chair, two cups set. Inviting, not lonely."
+  },
+  "004-scenes-empty-8.png": {
+    "pick": true,
+    "label": "Pick \u00b7 empty: no workers",
+    "note": "Empty toques on hooks, blank clipboard, hopeful."
+  },
+  "004-scenes-empty-10.png": {
+    "pick": true,
+    "label": "Pick \u00b7 empty: no search results",
+    "note": "Empty bowl, flour puff, small 'o' mouth."
+  },
+  "004-scenes-empty-9.png": {
+    "pick": false,
+    "label": "Rejected",
+    "note": "Off-model square face."
+  },
+  "005-scenes-moments-2.png": {
+    "pick": true,
+    "label": "Pick \u00b7 loading / working",
+    "note": "Compact front pose kneading on the logo belt, motion arcs. Loops as a gentle bob."
+  },
+  "005-scenes-moments-4.png": {
+    "pick": true,
+    "label": "Pick \u00b7 success",
+    "note": "Toque toss, sprinkle confetti, sparkling loaf on the belt. Pure joy."
+  },
+  "005-scenes-moments-8.png": {
+    "pick": true,
+    "label": "Pick \u00b7 first-run welcome",
+    "note": "Front-on offering a tray of rolls. Most welcoming of the three."
+  },
+  "005-scenes-moments-11.png": {
+    "pick": true,
+    "label": "Pick \u00b7 sign-in hero (3:2)",
+    "note": "Waving mascot, oven, loaves on the belt; bold enough beside a form."
+  },
+  "005-scenes-moments-12.png": {
+    "pick": false,
+    "label": "Rejected",
+    "note": "Three panels, multiple mascots."
+  },
+  "006-scene-reconnecting-1.png": {
+    "pick": true,
+    "label": "Pick \u00b7 reconnecting",
+    "note": "Happy open smile, circular 'coming back' arrow, motion arcs on the crank."
+  }
+}

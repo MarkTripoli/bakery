@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="migrations-additive-across-rollback-window" project="bakery">
+  <title>A release's migration must stay additive while its predecessor can still be rolled back to</title>
+  <trigger>Writing a migration, or changing a persisted event or data shape, in a release that may be rolled back, or rolling back across a migration.</trigger>
+  <mistake>Assumed a rollback restores the previous schema, or shipped a drop, rename or contract step in the same release as the code that stops using the old shape.</mistake>
+  <rule>Rollback redeploys the previous code; it never downgrades the database. The previous release must keep working against the newer schema, and during blue-green and background handover both generations run side by side. A migration is therefore additive and compatible with both generations. Keep old columns and event contracts through the whole rollback window; contract, drop and rename migrations need separate operator sequencing in a later release, and normal blue-green deployment refuses them.</rule>
+  <rule>Never roll back the api alone past a migration without confirming the older code tolerates the newer schema. Applied migration files must not change or disappear; later additions to the production manifest need exact path and SHA-256 entries in infra/production/migration-policy.json, reviewed as additive. That review is a contract between people: SQL cannot be classified automatically.</rule>
+  <verification>
+    <requirement>State in the PR which release generations the migration supports and which old column or event shape it keeps. An interrupted migration reruns through the existing idempotent runner before schema compatibility is claimed.</requirement>
+  </verification>
+  <boundary>Migrations that need the application database offline are planned downtime, not rolling releases; see railway-qa-migration-drain. Editing an applied file is a separate trap; see applied-migration-edit-breaks-ledger.</boundary>
+</learning>

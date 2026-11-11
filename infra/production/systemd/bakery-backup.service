@@ -1,0 +1,8 @@
+[Unit]
+Description=Consistent logical Bakery backup
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/flock --exclusive --timeout 300 /run/lock/bakery-deploy.lock /opt/bakery/deploy/backup.sh
+TimeoutStartSec=30min

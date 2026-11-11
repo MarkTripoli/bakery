@@ -1,0 +1,8 @@
+packages:
+  - apps/*
+  - packages/*
+
+onlyBuiltDependencies: []
+
+overrides:
+  "@better-auth/oauth-provider": 1.7.3

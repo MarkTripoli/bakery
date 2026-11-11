@@ -1,0 +1,71 @@
+erDiagram
+  direction LR
+  principals {
+    uuid id PK
+  }
+  organizations {
+    uuid id PK
+  }
+  applications {
+    uuid id PK
+  }
+  repositories {
+    uuid id PK
+  }
+  conversations {
+    uuid id PK
+  }
+  tasks {
+    uuid id PK
+    uuid organization_id FK
+    uuid application_id FK
+    uuid repository_id FK "nullable"
+    uuid conversation_id FK
+    uuid parent_task_id FK "nullable"
+    text title
+    text description
+    enum task_type
+    enum status
+    int priority
+    uuid created_by FK
+    uuid current_run_id FK "nullable"
+    timestamp archived_at "nullable"
+  }
+  organizations ||..o{ tasks : "organization_id"
+  applications ||..o{ tasks : "application_id"
+  repositories |o..o{ tasks : "repository_id"
+  conversations ||..o{ tasks : "conversation_id"
+  tasks |o..o{ tasks : "parent_task_id"
+  principals ||..o{ tasks : "created_by"
+  workflow_runs |o..o{ tasks : "current_run_id"
+  task_dependencies {
+    uuid id PK
+    uuid organization_id FK
+    uuid task_id FK
+    uuid depends_on_task_id FK
+    enum condition
+  }
+  organizations ||..o{ task_dependencies : "organization_id"
+  tasks ||..o{ task_dependencies : "task_id"
+  tasks ||..o{ task_dependencies : "depends_on_task_id"
+  questions {
+    uuid id PK
+    uuid organization_id FK
+    uuid task_id FK
+    uuid run_id FK "nullable"
+    uuid conversation_id FK
+    text prompt
+    jsonb response_schema "nullable"
+    enum status
+    jsonb answer "nullable"
+    uuid answered_by FK "nullable"
+    timestamp answered_at "nullable"
+  }
+  organizations ||..o{ questions : "organization_id"
+  tasks ||..o{ questions : "task_id"
+  workflow_runs |o..o{ questions : "run_id"
+  conversations ||..o{ questions : "conversation_id"
+  principals |o..o{ questions : "answered_by"
+  workflow_runs {
+    uuid id PK
+  }

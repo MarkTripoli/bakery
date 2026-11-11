@@ -1,0 +1,21 @@
+{
+  "status": "passed",
+  "layouts": 120,
+  "paperExports": 44,
+  "primitiveVariants": 32,
+  "cloneMappings": 316,
+  "checks": [
+    "local fonts",
+    "image dimensions and uniqueness",
+    "responsive navigation",
+    "deep links and reload",
+    "keyboard focus",
+    "no page errors"
+  ],
+  "boundary": "Design gallery checks; no runtime authorization or production UI validation",
+  "remote": {
+    "status": "passed",
+    "matchingFiles": 48,
+    "url": "https://marks-macbook-pro-2.tail3a2c06.ts.net:8448/integration-mocks/index.html"
+  }
+}

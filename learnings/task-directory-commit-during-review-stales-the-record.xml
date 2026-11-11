@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="task-directory-commit-during-review-stales-the-record" project="bakery">
+  <title>Committing in the task worktree while a reviewer runs makes its record unusable</title>
+  <trigger>The orchestrator commits task.md, a plan successor or any file in the task worktree after assigning a slice or plan reviewer and before the reviewer's record is published.</trigger>
+  <mistake>A review record binds reviewed_commit to HEAD and revision to contract.mjs revision, and phase-complete requires the reviewed commit to equal HEAD. A task.md or plan edit changes the revision and a commit moves HEAD, so the record cannot complete its phase.</mistake>
+  <rule>Do no commit and no task.md or plan edit in the task worktree between assigning a reviewer and running phase-complete on its published record. Record decisions in scratch and apply them after phase-complete. If it happened, reset only the local unpushed commit back to the reviewed commit, confirm HEAD and the revision equal the record's values, and wait.</rule>
+  <verification>
+    <requirement>`git rev-parse HEAD` and `node contract.mjs revision &lt;task-dir&gt;` equal the record's reviewed_commit and revision when phase-complete runs.</requirement>
+  </verification>
+</learning>

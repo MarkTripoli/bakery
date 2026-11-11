@@ -1,0 +1,44 @@
+[
+  {
+    "family": "Geist",
+    "weight": "400",
+    "source": "https://fonts.gstatic.com/s/geist/v5/gyBhhwUxId8gMGYQMKR3pzfaWI_RnOM4nQ.ttf",
+    "file": "geist-400.ttf",
+    "sha256": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455"
+  },
+  {
+    "family": "Geist",
+    "weight": "500",
+    "source": "https://fonts.gstatic.com/s/geist/v5/gyBhhwUxId8gMGYQMKR3pzfaWI_RruM4nQ.ttf",
+    "file": "geist-500.ttf",
+    "sha256": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876"
+  },
+  {
+    "family": "Geist",
+    "weight": "600",
+    "source": "https://fonts.gstatic.com/s/geist/v5/gyBhhwUxId8gMGYQMKR3pzfaWI_RQuQ4nQ.ttf",
+    "file": "geist-600.ttf",
+    "sha256": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d"
+  },
+  {
+    "family": "Geist Mono",
+    "weight": "400",
+    "source": "https://fonts.gstatic.com/s/geistmono/v6/or3yQ6H-1_WfwkMZI_qYPLs1a-t7PU0AbeE9KJ5T.ttf",
+    "file": "geist-mono-400.ttf",
+    "sha256": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f"
+  },
+  {
+    "family": "Geist Mono",
+    "weight": "500",
+    "source": "https://fonts.gstatic.com/s/geistmono/v6/or3yQ6H-1_WfwkMZI_qYPLs1a-t7PU0AbeEPKJ5T.ttf",
+    "file": "geist-mono-500.ttf",
+    "sha256": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30"
+  },
+  {
+    "family": "Geist Mono",
+    "weight": "600",
+    "source": "https://fonts.gstatic.com/s/geistmono/v6/or3yQ6H-1_WfwkMZI_qYPLs1a-t7PU0AbeHjL55T.ttf",
+    "file": "geist-mono-600.ttf",
+    "sha256": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+  }
+]

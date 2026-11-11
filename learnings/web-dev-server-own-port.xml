@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="web-dev-server-own-port" project="bakery">
+  <title>The web Playwright dev server needs its own port and a closed BAKERY_SERVER_PORT; never reuse 5173</title>
+  <trigger>A browser lane or recorder starts apps/web through Vite beside other worktrees or stacks.</trigger>
+  <mistake>Reusing port 5173 attached the lane to another worktree's Vite, and a default BAKERY_SERVER_PORT proxied it to the wrong API.</mistake>
+  <rule>Allocate a free port (listen on port 0, read it back, close it) and start Vite with --strictPort on it. Set BAKERY_SERVER_PORT to the port of the API this lane owns. Point the stack's BAKERY_PUBLIC_BASE_URL at the Vite origin so the origin guard stays on.</rule>
+  <rule>scripts/dev/compose-up.sh writes BAKERY_PUBLIC_BASE_URL into .env.PROJECT as the server URL (http://127.0.0.1:SERVER_PORT). After sourcing that file for a browser lane, set BAKERY_PUBLIC_BASE_URL again to the web origin the browser uses; otherwise sign-in fails AUTH_PROVIDER_ERROR because the origin guard sees a mismatch. Export the same value for compose-up.sh and compose-down.sh.</rule>
+  <verification>
+    <requirement>The lane's browser requests reach only the stack it started, and a concurrent lane in another worktree does not collide.</requirement>
+  </verification>
+</learning>

@@ -1,0 +1,301 @@
+{
+  "surfaces": {
+    "light.surface": {
+      "token": "--color-surface",
+      "theme": "light",
+      "hex": "#FFFFFF",
+      "label": "Surface · light"
+    },
+    "light.canvas": {
+      "token": "--color-canvas",
+      "theme": "light",
+      "hex": "#F5F6F8",
+      "label": "Canvas · light"
+    },
+    "light.surface-subtle": {
+      "token": "--color-surface-subtle",
+      "theme": "light",
+      "hex": "#EEF0F4",
+      "label": "Subtle · light"
+    },
+    "light.primary": {
+      "token": "--color-primary",
+      "theme": "light",
+      "hex": "#141A24",
+      "label": "Primary fill · light"
+    },
+    "light.selection": {
+      "token": "--color-selection",
+      "theme": "light",
+      "hex": "#0B63C6",
+      "label": "Accent · light"
+    },
+    "dark.surface": {
+      "token": "--color-surface",
+      "theme": "dark",
+      "hex": "#12161E",
+      "label": "Surface · dark"
+    },
+    "dark.canvas": {
+      "token": "--color-canvas",
+      "theme": "dark",
+      "hex": "#0B0E14",
+      "label": "Canvas · dark"
+    },
+    "dark.surface-raised": {
+      "token": "--color-surface-raised",
+      "theme": "dark",
+      "hex": "#212733",
+      "label": "Raised · dark"
+    },
+    "dark.primary": {
+      "token": "--color-primary",
+      "theme": "dark",
+      "hex": "#F2F4F8",
+      "label": "Primary fill · dark"
+    },
+    "dark.selection": {
+      "token": "--color-selection",
+      "theme": "dark",
+      "hex": "#4A93E6",
+      "label": "Accent · dark"
+    },
+    "brand.golden": {
+      "token": "brand.golden",
+      "theme": "brand",
+      "hex": "#F7A93B",
+      "label": "Brand orange"
+    }
+  },
+  "recommended": {
+    "light.surface": "color-light",
+    "light.canvas": "color-light",
+    "light.surface-subtle": "color-light",
+    "light.primary": "color-dark",
+    "light.selection": "mono-light",
+    "dark.surface": "color-dark",
+    "dark.canvas": "color-dark",
+    "dark.surface-raised": "color-dark",
+    "dark.primary": "color-light",
+    "dark.selection": "mono-dark",
+    "brand.golden": "on-brand"
+  },
+  "variants": {
+    "color-light": {
+      "files": {
+        "mark": "assets/brand/logo/mark/mark-color-light.svg",
+        "mark32": "assets/brand/logo/mark/mark-32-color-light.svg",
+        "mark16": "assets/brand/logo/mark/mark-16-color-light.svg",
+        "lockup": "assets/brand/logo/lockup/lockup-color-light.svg",
+        "wordmark": "assets/brand/logo/wordmark/wordmark-color-light.svg"
+      },
+      "dimensions": {
+        "mark": {
+          "width": 512,
+          "height": 512
+        },
+        "mark32": {
+          "width": 32,
+          "height": 32
+        },
+        "mark16": {
+          "width": 16,
+          "height": 16
+        },
+        "lockup": {
+          "width": 1008.2,
+          "height": 470.8
+        },
+        "wordmark": {
+          "width": 619.8,
+          "height": 192.6
+        }
+      }
+    },
+    "color-dark": {
+      "files": {
+        "mark": "assets/brand/logo/mark/mark-color-dark.svg",
+        "mark32": "assets/brand/logo/mark/mark-32-color-dark.svg",
+        "mark16": "assets/brand/logo/mark/mark-16-color-dark.svg",
+        "lockup": "assets/brand/logo/lockup/lockup-color-dark.svg",
+        "wordmark": "assets/brand/logo/wordmark/wordmark-color-dark.svg"
+      },
+      "dimensions": {
+        "mark": {
+          "width": 512,
+          "height": 512
+        },
+        "mark32": {
+          "width": 32,
+          "height": 32
+        },
+        "mark16": {
+          "width": 16,
+          "height": 16
+        },
+        "lockup": {
+          "width": 1008.2,
+          "height": 470.8
+        },
+        "wordmark": {
+          "width": 619.8,
+          "height": 192.6
+        }
+      }
+    },
+    "mono-dark": {
+      "files": {
+        "mark": "assets/brand/logo/mark/mark-mono-dark.svg",
+        "mark32": "assets/brand/logo/mark/mark-32-mono-dark.svg",
+        "mark16": "assets/brand/logo/mark/mark-16-mono-dark.svg",
+        "lockup": "assets/brand/logo/lockup/lockup-mono-dark.svg",
+        "wordmark": "assets/brand/logo/wordmark/wordmark-mono-dark.svg"
+      },
+      "dimensions": {
+        "mark": {
+          "width": 512,
+          "height": 512
+        },
+        "mark32": {
+          "width": 32,
+          "height": 32
+        },
+        "mark16": {
+          "width": 16,
+          "height": 16
+        },
+        "lockup": {
+          "width": 1008.2,
+          "height": 470.8
+        },
+        "wordmark": {
+          "width": 619.8,
+          "height": 192.6
+        }
+      }
+    },
+    "mono-light": {
+      "files": {
+        "mark": "assets/brand/logo/mark/mark-mono-light.svg",
+        "mark32": "assets/brand/logo/mark/mark-32-mono-light.svg",
+        "mark16": "assets/brand/logo/mark/mark-16-mono-light.svg",
+        "lockup": "assets/brand/logo/lockup/lockup-mono-light.svg",
+        "wordmark": "assets/brand/logo/wordmark/wordmark-mono-light.svg"
+      },
+      "dimensions": {
+        "mark": {
+          "width": 512,
+          "height": 512
+        },
+        "mark32": {
+          "width": 32,
+          "height": 32
+        },
+        "mark16": {
+          "width": 16,
+          "height": 16
+        },
+        "lockup": {
+          "width": 1008.2,
+          "height": 470.8
+        },
+        "wordmark": {
+          "width": 619.8,
+          "height": 192.6
+        }
+      }
+    },
+    "on-brand": {
+      "files": {
+        "mark": "assets/brand/logo/mark/mark-on-brand.svg",
+        "mark32": "assets/brand/logo/mark/mark-32-on-brand.svg",
+        "mark16": "assets/brand/logo/mark/mark-16-on-brand.svg",
+        "lockup": "assets/brand/logo/lockup/lockup-on-brand.svg",
+        "wordmark": "assets/brand/logo/wordmark/wordmark-color-light.svg"
+      },
+      "dimensions": {
+        "mark": {
+          "width": 512,
+          "height": 512
+        },
+        "mark32": {
+          "width": 32,
+          "height": 32
+        },
+        "mark16": {
+          "width": 16,
+          "height": 16
+        },
+        "lockup": {
+          "width": 1008.2,
+          "height": 470.8
+        },
+        "wordmark": {
+          "width": 619.8,
+          "height": 192.6
+        }
+      }
+    },
+    "tile-light": {
+      "files": {
+        "mark": "assets/brand/logo/mark/mark-tile-light.svg",
+        "mark32": "assets/brand/logo/mark/mark-32-tile-light.svg",
+        "mark16": "assets/brand/logo/mark/mark-16-tile-light.svg"
+      },
+      "dimensions": {
+        "mark": {
+          "width": 512,
+          "height": 512
+        },
+        "mark32": {
+          "width": 32,
+          "height": 32
+        },
+        "mark16": {
+          "width": 16,
+          "height": 16
+        }
+      }
+    },
+    "tile-dark": {
+      "files": {
+        "mark": "assets/brand/logo/mark/mark-tile-dark.svg",
+        "mark32": "assets/brand/logo/mark/mark-32-tile-dark.svg",
+        "mark16": "assets/brand/logo/mark/mark-16-tile-dark.svg"
+      },
+      "dimensions": {
+        "mark": {
+          "width": 512,
+          "height": 512
+        },
+        "mark32": {
+          "width": 32,
+          "height": 32
+        },
+        "mark16": {
+          "width": 16,
+          "height": 16
+        }
+      }
+    }
+  },
+  "minSize": {
+    "mark": 16,
+    "lockupHeight": 24,
+    "wordmarkHeight": 16
+  },
+  "sizeRules": [
+    {
+      "maxPx": 19,
+      "file": "mark16"
+    },
+    {
+      "minPx": 30,
+      "maxPx": 34,
+      "file": "mark32"
+    },
+    {
+      "file": "mark"
+    }
+  ]
+}

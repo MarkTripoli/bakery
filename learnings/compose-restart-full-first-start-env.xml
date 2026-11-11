@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="compose-restart-full-first-start-env" project="bakery">
+  <title>Restart a compose service with the complete first-start environment</title>
+  <trigger>A drill or proof stops and starts the server or Inngest of an ephemeral-port stack.</trigger>
+  <mistake>infra/compose.yaml passes BAKERY_BUDGET_* and several other variables through bare, so a recreate with only the ports and the auth secret renders them null and the server comes back with no budget policy: every funded step after the restart fails. A container id captured at start is also stale after the first recreate, because the compose config hash differs between port 0 and the resolved port.</mistake>
+  <rule>Write the whole first-start compose environment, with the resolved ports and the web-origin public URL, to one file and load it verbatim for every later compose call. Stop then up -d --no-deps --wait, diff the published port before and after, and resolve the container fresh with compose ps -q at check time. Never restart a service on ephemeral ports with compose restart.</rule>
+  <verification>
+    <requirement>The M1 proof logs restartServer and restartInngest with the port unchanged; tests/unit/m1-stack-env_test.ts rejects a stack.env missing a required key.</requirement>
+  </verification>
+</learning>

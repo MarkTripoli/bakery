@@ -1,0 +1,8 @@
+{
+  "cliVersion": "2.1.296 (Claude Code)",
+  "exitCode": 1,
+  "recordedAt": "2026-10-22T02:31:05.461Z",
+  "variant": "rate-limit",
+  "stubMessageMarker": "BAKERY_STUB_MESSAGE",
+  "label": "real CLI output against a loopback 429/400 stub; not a real provider quota"
+}

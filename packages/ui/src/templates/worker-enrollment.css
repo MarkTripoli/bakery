@@ -1,0 +1,341 @@
+/* Enrollment composes AppShell slots; geometry and colors use the shared contract.
+   Source controls are static artwork in a visibly labelled synthetic prototype. */
+.ui-worker-enrollment {
+  color: var(--color-fg);
+  font: var(--type-body);
+  overflow-wrap: anywhere;
+}
+.ui-worker-enrollment *,
+.ui-worker-enrollment *::before,
+.ui-worker-enrollment *::after {
+  box-sizing: border-box;
+}
+.ui-worker-enrollment .bakery-app-shell {
+  grid-template-rows: var(--layout-header) minmax(0, 1fr);
+}
+.ui-worker-enrollment .bakery-app-shell__rail {
+  border-inline-end: var(--border-default) solid var(--color-border);
+}
+.ui-worker-enrollment .bakery-app-shell__header {
+  padding-inline: var(--space-6);
+}
+.ui-worker-enrollment .bakery-app-shell__main {
+  padding: var(--space-8) var(--space-10) var(--space-10);
+}
+.ui-worker-enrollment__rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-3);
+  min-block-size: 100%;
+}
+.ui-worker-enrollment__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-inline: var(--space-2);
+  min-block-size: var(--space-10);
+  font: var(--type-brand-rail);
+}
+/* Reserve the rail mark; expanded labels wrap under the root anywhere policy. */
+.ui-worker-enrollment__brand > .ui-logo-mark {
+  flex-shrink: 0;
+}
+.ui-worker-enrollment__workspace {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-2);
+  font: var(--type-control);
+}
+.ui-worker-enrollment__navigation {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+.ui-worker-enrollment__navigation li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: var(--size-control);
+  padding-inline: var(--space-2-5);
+  border-radius: var(--radius-control);
+}
+.ui-worker-enrollment__navigation [data-selected] {
+  background: var(--color-selection-surface);
+  color: var(--color-selection);
+  font: var(--type-control);
+}
+.ui-worker-enrollment__rail > .ui-text {
+  padding: var(--space-6) var(--space-2) var(--space-2);
+  font: var(--type-hint);
+}
+.ui-worker-enrollment__identity {
+  margin-block-start: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+}
+.ui-worker-enrollment__identity > span {
+  border-radius: var(--radius-circle);
+  background: var(--color-border);
+  padding: var(--space-1);
+  font: var(--type-meta);
+}
+.ui-worker-enrollment__identity > .ui-text {
+  flex: 1;
+  color: var(--color-fg);
+}
+.ui-worker-enrollment__rail > .ui-text:last-child {
+  padding: var(--space-1) var(--space-2);
+  font: var(--type-notification);
+}
+.ui-worker-enrollment__header {
+  inline-size: 100%;
+}
+.ui-worker-enrollment__desktop-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2-5);
+  font: var(--type-hint);
+  color: var(--color-fg-tertiary);
+}
+.ui-worker-enrollment__desktop-header > .ui-text:last-of-type {
+  font: var(--type-label);
+  color: var(--color-fg);
+}
+.ui-worker-enrollment__search {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-fg-muted);
+  font: var(--type-time);
+}
+.ui-worker-enrollment__search kbd {
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-control);
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+}
+.ui-worker-enrollment__breadcrumb-mobile,
+.ui-worker-enrollment__phone-status,
+.ui-worker-enrollment__mobile-header {
+  display: none;
+}
+.ui-worker-enrollment__intro {
+  display: grid;
+  gap: var(--space-3);
+  margin-block-end: var(--space-6);
+}
+.ui-worker-enrollment__title {
+  display: grid;
+  gap: var(--space-2);
+}
+.ui-worker-enrollment__columns {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-12);
+}
+.ui-worker-enrollment__steps {
+  flex: 1;
+  min-inline-size: 0;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.ui-worker-enrollment__step {
+  display: flex;
+  gap: var(--space-4);
+}
+.ui-worker-enrollment__track {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 var(--size-dismiss);
+}
+.ui-worker-enrollment__circle {
+  display: grid;
+  place-items: center;
+  inline-size: var(--size-dismiss);
+  block-size: var(--size-dismiss);
+  flex-shrink: 0;
+  border: var(--border-default) solid var(--color-control-border);
+  border-radius: var(--radius-circle);
+  font: var(--type-hint);
+}
+.ui-worker-enrollment__step:not(:last-child) .ui-worker-enrollment__track::after {
+  content: "";
+  inline-size: var(--border-default);
+  min-block-size: var(--space-4);
+  flex: 1;
+  background: var(--color-border);
+}
+.ui-worker-enrollment__step-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  flex: 1;
+  min-inline-size: 0;
+  padding-block: var(--space-1) var(--space-6);
+}
+
+.ui-worker-enrollment__action {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--target-coarse);
+}
+.ui-worker-enrollment__hint {
+  display: grid;
+  gap: var(--space-1);
+}
+.ui-worker-enrollment__token {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+}
+.ui-worker-enrollment__token-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+  min-block-size: var(--target-coarse);
+}
+.ui-worker-enrollment__token-row > span[aria-label] {
+  font: var(--type-field);
+}
+.ui-worker-enrollment__status {
+  display: grid;
+  gap: var(--space-3);
+}
+.ui-worker-enrollment__status[data-panel="listening"] {
+  background: var(--color-selection-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-overlay);
+  padding: calc(var(--space-3) + var(--space-1) / 2) var(--space-4);
+}
+.ui-worker-enrollment__listening-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-selection);
+}
+.ui-worker-enrollment__listening-title > strong {
+  font: var(--type-status-emphasis);
+}
+.ui-worker-enrollment__status[data-panel="connected"] {
+  background: var(--color-status-success-surface);
+  border-radius: var(--radius-overlay);
+  padding: var(--space-4);
+}
+.ui-worker-enrollment__badge {
+  justify-self: start;
+  border-radius: var(--radius-circle);
+  padding: var(--space-1) var(--space-2);
+  color: var(--color-status-success);
+  font: var(--type-status);
+}
+.ui-worker-enrollment__summary {
+  flex: 0 0 var(--layout-inspector);
+  border-inline-start: var(--border-default) solid var(--color-border);
+  padding-inline-start: var(--space-6);
+  display: grid;
+  gap: var(--space-5);
+}
+.ui-worker-enrollment__summary > div {
+  display: grid;
+  gap: var(--space-2);
+}
+.ui-worker-enrollment__footer {
+  display: none;
+  margin-block-start: var(--space-6);
+}
+.ui-worker-enrollment__sr-only {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@media (max-width: 1279px) {
+  .ui-worker-enrollment__summary {
+    display: none;
+  }
+}
+@media (max-width: 743px) {
+  .ui-worker-enrollment .bakery-app-shell {
+    grid-template-areas: "header" "body";
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .ui-worker-enrollment .bakery-app-shell__rail,
+  .ui-worker-enrollment__desktop-header {
+    display: none;
+  }
+  .ui-worker-enrollment .bakery-app-shell__header {
+    padding: 0;
+    /* The mobile bar owns its rule inside its border-box, not below it. */
+    border-block-end: var(--border-none);
+  }
+  .ui-worker-enrollment .bakery-app-shell__main {
+    padding: var(--space-6) var(--space-4) var(--space-8);
+  }
+  .ui-worker-enrollment__phone-status {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    column-gap: min(50%, var(--layout-device-status-gap));
+    row-gap: var(--space-0);
+    padding: calc(var(--space-5) + var(--border-default)) var(--space-6)
+      calc(var(--space-5) - var(--border-default));
+    min-block-size: calc(var(--layout-header) - 2 * var(--border-default));
+    font: var(--type-device-clock);
+  }
+  .ui-worker-enrollment__mobile-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2-5);
+    min-block-size: calc(var(--space-12) + var(--space-1));
+    border-block-end: var(--border-default) solid var(--color-border);
+    padding-inline: var(--space-4);
+  }
+  .ui-worker-enrollment__mobile-header strong {
+    font: var(--type-heading-subsection);
+  }
+  .ui-worker-enrollment__phone-status > span {
+    display: flex;
+    justify-content: center;
+    flex: 1 1 0%;
+    min-inline-size: max-content;
+  }
+  .ui-worker-enrollment__mobile-header > .ui-text {
+    margin-inline-start: auto;
+  }
+  .ui-worker-enrollment__breadcrumb-desktop {
+    display: none;
+  }
+  .ui-worker-enrollment__breadcrumb-mobile {
+    display: block;
+  }
+  .ui-worker-enrollment__footer {
+    display: block;
+  }
+}
+
+.ui-worker-enrollment__navigation + .ui-text + .ui-worker-enrollment__navigation {
+  font: var(--type-hint);
+}
+
+.ui-worker-enrollment__navigation + .ui-text + .ui-worker-enrollment__navigation li {
+  padding-inline: var(--space-2);
+}
+.ui-worker-enrollment__navigation [data-selected] > .ui-icon {
+  color: var(--color-fg);
+}

@@ -1,0 +1,20 @@
+{
+  "mcp": {
+    "graft": {
+      "type": "local",
+      "command": [
+        "graft",
+        "mcp"
+      ],
+      "enabled": true
+    },
+    "bakery-ui": {
+      "type": "local",
+      "command": [
+        "node",
+        "scripts/ui-catalog-mcp.mjs"
+      ],
+      "enabled": true
+    }
+  }
+}

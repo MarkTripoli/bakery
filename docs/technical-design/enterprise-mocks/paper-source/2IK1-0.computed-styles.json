@@ -1,0 +1,15 @@
+{
+  "styles": {
+    "2IK1-0": {
+      "display": "flex",
+      "overflow": "clip",
+      "width": "1440px",
+      "height": "900px",
+      "fontFamily": "var(--font-sans)",
+      "left": 0,
+      "top": 980,
+      "position": "absolute",
+      "backgroundColor": "var(--color-surface)"
+    }
+  }
+}

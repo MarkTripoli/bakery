@@ -1,0 +1,59 @@
+erDiagram
+  direction LR
+  principals {
+    uuid id PK
+  }
+  organizations {
+    uuid id PK
+  }
+  skill_sources {
+    uuid id PK
+    uuid organization_id FK
+    enum source_type
+    text locator
+    text publisher "nullable"
+    text license "nullable"
+    timestamp last_checked_at "nullable"
+    boolean enabled
+  }
+  organizations ||..o{ skill_sources : "organization_id"
+  skills {
+    uuid id PK
+    uuid organization_id FK
+    uuid source_id FK "nullable"
+    text slug
+    text name
+    uuid active_version_id FK "nullable"
+    boolean enabled
+  }
+  organizations ||..o{ skills : "organization_id"
+  skill_sources |o..o{ skills : "source_id"
+  skill_versions |o..o{ skills : "active_version_id"
+  skill_versions {
+    uuid id PK
+    uuid organization_id FK
+    uuid skill_id FK
+    int revision
+    text source_revision
+    text digest
+    text entry_path
+    jsonb manifest
+    enum status
+    uuid created_by FK
+  }
+  organizations ||..o{ skill_versions : "organization_id"
+  skills ||..o{ skill_versions : "skill_id"
+  principals ||..o{ skill_versions : "created_by"
+  skill_files {
+    uuid id PK
+    uuid organization_id FK
+    uuid skill_version_id FK
+    text path
+    text media_type
+    text object_key
+    int size_bytes
+    text sha256
+    boolean is_executable
+  }
+  organizations ||..o{ skill_files : "organization_id"
+  skill_versions ||..o{ skill_files : "skill_version_id"

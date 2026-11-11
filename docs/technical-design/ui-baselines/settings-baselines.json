@@ -1,0 +1,515 @@
+{
+  "schemaVersion": 2,
+  "source": {
+    "fileId": "01M1X504XVC45FC0VDK857A37D",
+    "pageId": "O-0",
+    "manifestPath": "docs/technical-design/settings-mocks/source-manifest.json",
+    "entry": "docs/technical-design/settings-mocks/site/index.html",
+    "readyGlobal": "bakerySettingsReady",
+    "inputs": [
+      "docs/technical-design/settings-mocks/site/index.html",
+      "docs/technical-design/settings-mocks/site/base.css",
+      "docs/technical-design/settings-mocks/site/site.js",
+      "docs/technical-design/settings-mocks/site/tokens.css",
+      "docs/technical-design/settings-mocks/site/fonts.css",
+      "docs/technical-design/settings-mocks/site/fragments/profile--default--light--desktop.html",
+      "docs/technical-design/settings-mocks/site/fragments/profile--default--light--phone.html",
+      "docs/technical-design/settings-mocks/site/fragments/appearance--default--light--desktop.html",
+      "docs/technical-design/settings-mocks/site/fragments/appearance--default--light--phone.html",
+      "docs/technical-design/settings-mocks/site/fragments/appearance--default--dark--desktop.html",
+      "docs/technical-design/settings-mocks/site/fragments/appearance--default--dark--phone.html",
+      "docs/technical-design/settings-mocks/site/fragments/your-access--developer--dark--desktop.html",
+      "docs/technical-design/settings-mocks/site/fragments/your-access--developer--dark--phone.html",
+      "docs/technical-design/settings-mocks/site/fragments/section-index--default--light--phone.html",
+      "docs/technical-design/settings-mocks/source/assets/31Q0XHM9CWZXZBJC5KE8YZ9DZP.png",
+      "docs/technical-design/settings-mocks/source-manifest.json",
+      "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf",
+      "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf",
+      "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf",
+      "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf",
+      "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf",
+      "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf",
+      "docs/technical-design/enterprise-mocks/fonts-provenance.json",
+      "packages/ui/scripts/fontconfig/fonts.conf",
+      "packages/ui/scripts/render-settings-references.mjs",
+      "packages/ui/scripts/render-enterprise-references.mjs"
+    ],
+    "revision": "paper:9778f06e; mock:3f2e4e8e; rendered:2026-11-10",
+    "digest": "3f2e4e8e79dc7e3188fcb9c7ab0a602e6699bae61ba07ad51fa4c84ac73ec304"
+  },
+  "reference": {
+    "hidden": [],
+    "overrides": {}
+  },
+  "cases": [
+    {
+      "id": "profile.default.light.desktop",
+      "reference": "design",
+      "frameId": "HJE-0",
+      "pageId": "O-0",
+      "design": {
+        "screen": "profile",
+        "state": "default",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/settings/profile--default--light--desktop.png",
+      "imageSha256": "5f5cfb447ff50aeb604a0d22917a0624ebf9ca7dd03b64f12205b47c6ac14b57",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/__fixtures__/auth/profile-default",
+        "session": "authenticated"
+      },
+      "comparisonRegion": {
+        "candidateOrigin": "main",
+        "x": 433,
+        "y": 64,
+        "width": 1007,
+        "height": 836
+      }
+    },
+    {
+      "id": "profile.default.light.phone",
+      "reference": "design",
+      "frameId": "IG3-0",
+      "pageId": "O-0",
+      "design": {
+        "screen": "profile",
+        "state": "default",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/settings/profile--default--light--phone.png",
+      "imageSha256": "4e27acacd1f925b9aae734124fe5fb5050a657a0e24a996c643a2dcbfaf372e0",
+      "viewport": {
+        "width": 390,
+        "height": 958
+      },
+      "artboard": {
+        "width": 390,
+        "height": 958
+      },
+      "image": {
+        "width": 390,
+        "height": 958
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/__fixtures__/auth/profile-default",
+        "session": "authenticated"
+      },
+      "comparisonRegion": {
+        "candidateOrigin": "main",
+        "x": 0,
+        "y": 120,
+        "width": 390,
+        "height": 788
+      }
+    },
+    {
+      "id": "appearance.default.light.desktop",
+      "reference": "design",
+      "frameId": "N1T-0",
+      "pageId": "O-0",
+      "design": {
+        "screen": "appearance",
+        "state": "default",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/settings/appearance--default--light--desktop.png",
+      "imageSha256": "bddbe8c0e85003dbebb55ed5dd729fc41e0a5ed1e2a1c37ca3d8a201e1bb56c5",
+      "viewport": {
+        "width": 1440,
+        "height": 1297
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 1297
+      },
+      "image": {
+        "width": 1440,
+        "height": 1297
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/__fixtures__/auth/appearance-default",
+        "session": "authenticated"
+      },
+      "comparisonRegion": {
+        "candidateOrigin": "main",
+        "x": 433,
+        "y": 64,
+        "width": 1007,
+        "height": 1233
+      }
+    },
+    {
+      "id": "appearance.default.light.phone",
+      "reference": "design",
+      "frameId": "N6E-0",
+      "pageId": "O-0",
+      "design": {
+        "screen": "appearance",
+        "state": "default",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/settings/appearance--default--light--phone.png",
+      "imageSha256": "615b7b69abe6783c242c120c0039d4f50b7e4929c62a4bbca30dcaa9543451ef",
+      "viewport": {
+        "width": 390,
+        "height": 1588
+      },
+      "artboard": {
+        "width": 390,
+        "height": 1588
+      },
+      "image": {
+        "width": 390,
+        "height": 1588
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/__fixtures__/auth/appearance-default",
+        "session": "authenticated"
+      },
+      "comparisonRegion": {
+        "candidateOrigin": "main",
+        "x": 0,
+        "y": 118,
+        "width": 390,
+        "height": 1397
+      }
+    },
+    {
+      "id": "appearance.default.dark.desktop",
+      "reference": "design",
+      "frameId": "SGB-0",
+      "pageId": "O-0",
+      "design": {
+        "screen": "appearance",
+        "state": "default",
+        "theme": "dark",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/settings/appearance--default--dark--desktop.png",
+      "imageSha256": "76702a1e6520087a38b7659a7f72f7e2a9ea9c7a3ad252ec5e48391ef156af57",
+      "viewport": {
+        "width": 1440,
+        "height": 1297
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 1297
+      },
+      "image": {
+        "width": 1440,
+        "height": 1297
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/__fixtures__/auth/appearance-default",
+        "session": "authenticated"
+      },
+      "comparisonRegion": {
+        "candidateOrigin": "main",
+        "x": 433,
+        "y": 64,
+        "width": 1007,
+        "height": 1233
+      }
+    },
+    {
+      "id": "appearance.default.dark.phone",
+      "reference": "design",
+      "frameId": "SLW-0",
+      "pageId": "O-0",
+      "design": {
+        "screen": "appearance",
+        "state": "default",
+        "theme": "dark",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/settings/appearance--default--dark--phone.png",
+      "imageSha256": "f0f565f3a028be83036140c36e71c8cd44b99aa8d91a7deb7263cd737a494082",
+      "viewport": {
+        "width": 390,
+        "height": 1588
+      },
+      "artboard": {
+        "width": 390,
+        "height": 1588
+      },
+      "image": {
+        "width": 390,
+        "height": 1588
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/__fixtures__/auth/appearance-default",
+        "session": "authenticated"
+      },
+      "comparisonRegion": {
+        "candidateOrigin": "main",
+        "x": 0,
+        "y": 118,
+        "width": 390,
+        "height": 1397
+      }
+    },
+    {
+      "id": "your-access.developer.dark.desktop",
+      "reference": "design",
+      "frameId": "KHJ-0",
+      "pageId": "O-0",
+      "design": {
+        "screen": "your-access",
+        "state": "developer",
+        "theme": "dark",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/settings/your-access--developer--dark--desktop.png",
+      "imageSha256": "d28cb2ffc74ff81366d304c5eab185b08d54e4e7e3258bbcaf1ba9a8daa6d66a",
+      "viewport": {
+        "width": 1440,
+        "height": 1100
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 1100
+      },
+      "image": {
+        "width": 1440,
+        "height": 1100
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/__fixtures__/auth/your-access-default",
+        "session": "authenticated"
+      },
+      "comparisonRegion": {
+        "candidateOrigin": "main",
+        "x": 433,
+        "y": 64,
+        "width": 1007,
+        "height": 1036
+      }
+    },
+    {
+      "id": "your-access.developer.dark.phone",
+      "reference": "design",
+      "frameId": "MZJ-0",
+      "pageId": "O-0",
+      "design": {
+        "screen": "your-access",
+        "state": "developer",
+        "theme": "dark",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/settings/your-access--developer--dark--phone.png",
+      "imageSha256": "f590c49c18333b009b48c339e94911e64742d205d11d936aab6c3fb566ee3795",
+      "viewport": {
+        "width": 390,
+        "height": 1136
+      },
+      "artboard": {
+        "width": 390,
+        "height": 1136
+      },
+      "image": {
+        "width": 390,
+        "height": 1136
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/__fixtures__/auth/your-access-default",
+        "session": "authenticated"
+      },
+      "comparisonRegion": {
+        "candidateOrigin": "main",
+        "x": 0,
+        "y": 120,
+        "width": 390,
+        "height": 966
+      }
+    },
+    {
+      "id": "section-index.default.light.phone",
+      "reference": "design",
+      "frameId": "QM9-0",
+      "pageId": "O-0",
+      "design": {
+        "screen": "section-index",
+        "state": "default",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/settings/section-index--default--light--phone.png",
+      "imageSha256": "89e0950cfe9ec0f98b0fa3115eabf3bb47388766c581d77120d7c72b290fa0f5",
+      "viewport": {
+        "width": 390,
+        "height": 1038
+      },
+      "artboard": {
+        "width": 390,
+        "height": 1038
+      },
+      "image": {
+        "width": 390,
+        "height": 1038
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/__fixtures__/auth/section-index-default",
+        "session": "authenticated"
+      },
+      "comparisonRegion": {
+        "candidateOrigin": "main",
+        "x": 0,
+        "y": 118,
+        "width": 390,
+        "height": 847
+      }
+    }
+  ],
+  "excluded": []
+}

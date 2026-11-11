@@ -1,0 +1,1313 @@
+{
+  "file": {
+    "id": "01M1X504XVC45FC0VDK857A37D",
+    "name": "Bakery"
+  },
+  "contentHash": {
+    "tokens": "49fea8f7"
+  },
+  "fileName": "Bakery",
+  "pageName": "16 · Product · Access, licence & entitlements",
+  "pageId": "p-17-0",
+  "url": "https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/p-17-0",
+  "rootNodeId": "root_node_p-17-0",
+  "nodeCount": 6233,
+  "artboardCount": 84,
+  "artboards": [
+    {
+      "id": "2C24-0",
+      "name": "01 · Installation settings · Default · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 0,
+      "worldY": 0
+    },
+    {
+      "id": "2C4V-0",
+      "name": "02 · Installation administrators · List · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 1520,
+      "worldY": 0
+    },
+    {
+      "id": "2CCD-0",
+      "name": "07 · Organization access · Members · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 1520,
+      "worldY": 980
+    },
+    {
+      "id": "2CGG-0",
+      "name": "08 · Custom roles · List · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 3040,
+      "worldY": 980
+    },
+    {
+      "id": "2CVY-0",
+      "name": "05 · Seat banner · Over limit and invite refused · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 9120,
+      "worldY": 0
+    },
+    {
+      "id": "2CYW-0",
+      "name": "06 · FeatureGate upsell · Full section · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 4560,
+      "worldY": 980
+    },
+    {
+      "id": "2CJE-0",
+      "name": "09 · Audit log · List · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 1520,
+      "worldY": 1960
+    },
+    {
+      "id": "2CMC-0",
+      "name": "10 · SSO providers · List · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 6080,
+      "worldY": 0
+    },
+    {
+      "id": "2CPA-0",
+      "name": "11 · SCIM connection · Token shown once · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 7600,
+      "worldY": 0
+    },
+    {
+      "id": "2C74-0",
+      "name": "03 · Licence page · Active · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 3040,
+      "worldY": 0
+    },
+    {
+      "id": "2CA4-0",
+      "name": "04 · Licence banner · Grace · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 4560,
+      "worldY": 0
+    },
+    {
+      "id": "2D27-0",
+      "name": "01 · Installation settings · Default · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 10639.999,
+      "worldY": 0
+    },
+    {
+      "id": "2D28-0",
+      "name": "02 · Installation administrators · List · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 11110,
+      "worldY": 0
+    },
+    {
+      "id": "2D29-0",
+      "name": "03 · Licence page · Active · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 11579.999,
+      "worldY": 0
+    },
+    {
+      "id": "2D2A-0",
+      "name": "04 · Licence banner · Expired · Phone · Light",
+      "childCount": 3,
+      "width": 390,
+      "height": 844,
+      "worldX": 12050,
+      "worldY": 0
+    },
+    {
+      "id": "2D2B-0",
+      "name": "05 · Seat banner · Over limit and invite refused · Phone · Light",
+      "childCount": 3,
+      "width": 390,
+      "height": 844,
+      "worldX": 12520.001,
+      "worldY": 0
+    },
+    {
+      "id": "2D2C-0",
+      "name": "06 · FeatureGate upsell · Inline · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 12990,
+      "worldY": 0
+    },
+    {
+      "id": "2D2D-0",
+      "name": "07 · Organization access · Members · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 930,
+      "worldX": 13460.001,
+      "worldY": 0
+    },
+    {
+      "id": "2D2E-0",
+      "name": "08 · Custom roles · List · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 13930,
+      "worldY": 0
+    },
+    {
+      "id": "2D2F-0",
+      "name": "09 · Audit log · List · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 14400.001,
+      "worldY": 0
+    },
+    {
+      "id": "2D2G-0",
+      "name": "10 · SSO providers · List · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 14870,
+      "worldY": 0
+    },
+    {
+      "id": "2D2H-0",
+      "name": "11 · SCIM connection · Token shown once · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 15340,
+      "worldY": 0
+    },
+    {
+      "id": "2DA1-0",
+      "name": "01 · Installation settings · Default · Desktop · Dark",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 15809.999,
+      "worldY": 0
+    },
+    {
+      "id": "2DCR-0",
+      "name": "02 · Installation administrators · List · Desktop · Dark",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 17329.999,
+      "worldY": 0
+    },
+    {
+      "id": "2DCS-0",
+      "name": "03 · Licence page · Active · Desktop · Dark",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 18849.999,
+      "worldY": 0
+    },
+    {
+      "id": "2DCT-0",
+      "name": "04 · Licence banner · Grace · Desktop · Dark",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 20369.999,
+      "worldY": 0
+    },
+    {
+      "id": "2DCU-0",
+      "name": "05 · Seat banner · Over free limit · Desktop · Dark",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 21890.001,
+      "worldY": 0
+    },
+    {
+      "id": "2DCV-0",
+      "name": "06 · FeatureGate upsell · Full section · Desktop · Dark",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 23410.001,
+      "worldY": 0
+    },
+    {
+      "id": "2DCW-0",
+      "name": "07 · Organization access · Members · Desktop · Dark",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 24930,
+      "worldY": 0
+    },
+    {
+      "id": "2DCX-0",
+      "name": "08 · Custom roles · List · Desktop · Dark",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 26450,
+      "worldY": 0
+    },
+    {
+      "id": "2DCY-0",
+      "name": "09 · Audit log · List · Desktop · Dark",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 27970,
+      "worldY": 0
+    },
+    {
+      "id": "2DCZ-0",
+      "name": "10 · SSO providers · List · Desktop · Dark",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 29490,
+      "worldY": 0
+    },
+    {
+      "id": "2DD0-0",
+      "name": "11 · SCIM connection · Token shown once · Desktop · Dark",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 31010,
+      "worldY": 0
+    },
+    {
+      "id": "2DYC-0",
+      "name": "01 · Installation settings · Default · Phone · Dark",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 32530,
+      "worldY": 0
+    },
+    {
+      "id": "2DYD-0",
+      "name": "02 · Installation administrators · List · Phone · Dark",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 33000,
+      "worldY": 0
+    },
+    {
+      "id": "2DYE-0",
+      "name": "03 · Licence page · Active · Phone · Dark",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 33470,
+      "worldY": 0
+    },
+    {
+      "id": "2DYF-0",
+      "name": "04 · Licence banner · Grace · Phone · Dark",
+      "childCount": 3,
+      "width": 390,
+      "height": 844,
+      "worldX": 33940,
+      "worldY": 0
+    },
+    {
+      "id": "2DYG-0",
+      "name": "05 · Seat banner · Over free limit · Phone · Dark",
+      "childCount": 3,
+      "width": 390,
+      "height": 844,
+      "worldX": 34410,
+      "worldY": 0
+    },
+    {
+      "id": "2DYH-0",
+      "name": "06 · FeatureGate upsell · Inline · Phone · Dark",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 34880,
+      "worldY": 0
+    },
+    {
+      "id": "2DYI-0",
+      "name": "07 · Organization access · Members · Phone · Dark",
+      "childCount": 2,
+      "width": 390,
+      "height": 912,
+      "worldX": 35350,
+      "worldY": 0
+    },
+    {
+      "id": "2DYJ-0",
+      "name": "08 · Custom roles · List · Phone · Dark",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 35820,
+      "worldY": 0
+    },
+    {
+      "id": "2DYK-0",
+      "name": "09 · Audit log · List · Phone · Dark",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 36290,
+      "worldY": 0
+    },
+    {
+      "id": "2DYL-0",
+      "name": "10 · SSO providers · List · Phone · Dark",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 36760,
+      "worldY": 0
+    },
+    {
+      "id": "2DYM-0",
+      "name": "11 · SCIM connection · Token shown once · Phone · Dark",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 37230,
+      "worldY": 0
+    },
+    {
+      "id": "2E5Y-0",
+      "name": "01 · Installation settings · Save conflict · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 37700,
+      "worldY": 0
+    },
+    {
+      "id": "2E5Z-0",
+      "name": "01 · Installation settings · Save error · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 39220,
+      "worldY": 0
+    },
+    {
+      "id": "2E60-0",
+      "name": "02 · Installation administrators · Revoke confirm · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 40740,
+      "worldY": 0
+    },
+    {
+      "id": "2E61-0",
+      "name": "02 · Installation administrators · Denied non-admin · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 42260,
+      "worldY": 0
+    },
+    {
+      "id": "2E62-0",
+      "name": "01 · Installation settings · Save conflict · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 43780,
+      "worldY": 0
+    },
+    {
+      "id": "2E63-0",
+      "name": "01 · Installation settings · Save error · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 44250,
+      "worldY": 0
+    },
+    {
+      "id": "2E64-0",
+      "name": "02 · Installation administrators · Revoke confirm · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 44720,
+      "worldY": 0
+    },
+    {
+      "id": "2E65-0",
+      "name": "02 · Installation administrators · Denied non-admin · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 45190,
+      "worldY": 0
+    },
+    {
+      "id": "2EDM-0",
+      "name": "03 · Licence page · No key (Community) · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 45660,
+      "worldY": 0
+    },
+    {
+      "id": "2EDN-0",
+      "name": "03 · Licence page · Grace · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 47180,
+      "worldY": 0
+    },
+    {
+      "id": "2EDO-0",
+      "name": "03 · Licence page · Expired · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 48700,
+      "worldY": 0
+    },
+    {
+      "id": "2EDP-0",
+      "name": "03 · Licence page · Invalid key · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 50220,
+      "worldY": 0
+    },
+    {
+      "id": "2EDQ-0",
+      "name": "03 · Licence page · Paste and update · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 51740,
+      "worldY": 0
+    },
+    {
+      "id": "2EDR-0",
+      "name": "03 · Licence page · No key (Community) · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 53260,
+      "worldY": 0
+    },
+    {
+      "id": "2EDS-0",
+      "name": "03 · Licence page · Grace · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 53730,
+      "worldY": 0
+    },
+    {
+      "id": "2EDT-0",
+      "name": "03 · Licence page · Expired · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 54200.001,
+      "worldY": 0
+    },
+    {
+      "id": "2EDU-0",
+      "name": "03 · Licence page · Invalid key · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 54670,
+      "worldY": 0
+    },
+    {
+      "id": "2EDV-0",
+      "name": "03 · Licence page · Paste and update · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 55140.001,
+      "worldY": 0
+    },
+    {
+      "id": "2ENR-0",
+      "name": "04 · Licence banner · Expired · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 55610,
+      "worldY": 0
+    },
+    {
+      "id": "2ENS-0",
+      "name": "04 · Licence banner · Grace · Phone · Light",
+      "childCount": 3,
+      "width": 390,
+      "height": 844,
+      "worldX": 57129.999,
+      "worldY": 0
+    },
+    {
+      "id": "2ENT-0",
+      "name": "06 · FeatureGate upsell · Inline · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 57600,
+      "worldY": 0
+    },
+    {
+      "id": "2ENU-0",
+      "name": "06 · FeatureGate upsell · Full section · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 59120,
+      "worldY": 0
+    },
+    {
+      "id": "2ENV-0",
+      "name": "07 · Organization access · Empty · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 59589.999,
+      "worldY": 0
+    },
+    {
+      "id": "2ENW-0",
+      "name": "07 · Organization access · Loading · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 61109.999,
+      "worldY": 0
+    },
+    {
+      "id": "2ENX-0",
+      "name": "07 · Organization access · Error · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 62630.001,
+      "worldY": 0
+    },
+    {
+      "id": "2ENY-0",
+      "name": "07 · Organization access · Empty · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 64150.001,
+      "worldY": 0
+    },
+    {
+      "id": "2ENZ-0",
+      "name": "07 · Organization access · Loading · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 64620,
+      "worldY": 0
+    },
+    {
+      "id": "2EO0-0",
+      "name": "07 · Organization access · Error · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 65090.001,
+      "worldY": 0
+    },
+    {
+      "id": "2EXJ-0",
+      "name": "08 · Custom roles · Create or edit · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 65560,
+      "worldY": 0
+    },
+    {
+      "id": "2EXK-0",
+      "name": "09 · Audit log · Export dialog · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 67080,
+      "worldY": 0
+    },
+    {
+      "id": "2EXL-0",
+      "name": "10 · SSO providers · Add OIDC · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 68600.001,
+      "worldY": 0
+    },
+    {
+      "id": "2EXM-0",
+      "name": "10 · SSO providers · Add SAML and domain verification · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 70120.001,
+      "worldY": 0
+    },
+    {
+      "id": "2EXN-0",
+      "name": "11 · SCIM connection · Rotate confirm · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 71640.001,
+      "worldY": 0
+    },
+    {
+      "id": "2EXO-0",
+      "name": "11 · SCIM connection · Revoke and decommission confirm · Desktop · Light",
+      "childCount": 2,
+      "width": 1440,
+      "height": 900,
+      "worldX": 73160.001,
+      "worldY": 0
+    },
+    {
+      "id": "2EXP-0",
+      "name": "08 · Custom roles · Create or edit · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 74680.001,
+      "worldY": 0
+    },
+    {
+      "id": "2EXQ-0",
+      "name": "09 · Audit log · Export dialog · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 75150.002,
+      "worldY": 0
+    },
+    {
+      "id": "2EXR-0",
+      "name": "10 · SSO providers · Add OIDC · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 75619.999,
+      "worldY": 0
+    },
+    {
+      "id": "2EXS-0",
+      "name": "10 · SSO providers · Add SAML and domain verification · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 76090,
+      "worldY": 0
+    },
+    {
+      "id": "2EXT-0",
+      "name": "11 · SCIM connection · Rotate confirm · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 76560.001,
+      "worldY": 0
+    },
+    {
+      "id": "2EXU-0",
+      "name": "11 · SCIM connection · Revoke and decommission confirm · Phone · Light",
+      "childCount": 2,
+      "width": 390,
+      "height": 844,
+      "worldX": 77030.001,
+      "worldY": 0
+    }
+  ],
+  "pages": [
+    {
+      "id": "9-0",
+      "name": "00 · Design system · Index",
+      "isActive": false
+    },
+    {
+      "id": "p-17-0",
+      "name": "16 · Product · Access, licence & entitlements",
+      "isActive": true
+    },
+    {
+      "id": "C-0",
+      "name": "01 · Design system · Foundations",
+      "isActive": false
+    },
+    {
+      "id": "D-0",
+      "name": "02 · Design system · Components",
+      "isActive": false
+    },
+    {
+      "id": "14-0",
+      "name": "02a · UI baselines A · Primitives, actions & inputs",
+      "isActive": false
+    },
+    {
+      "id": "15-0",
+      "name": "02b · UI baselines B · Controls, navigation & data",
+      "isActive": false
+    },
+    {
+      "id": "16-0",
+      "name": "02c · UI baselines C · Feedback, overlays & templates",
+      "isActive": false
+    },
+    {
+      "id": "A-0",
+      "name": "03 · Design system · Patterns",
+      "isActive": false
+    },
+    {
+      "id": "B-0",
+      "name": "04 · Design system · Documentation",
+      "isActive": false
+    },
+    {
+      "id": "E-0",
+      "name": "10 · Product · Core screens",
+      "isActive": false
+    },
+    {
+      "id": "V-0",
+      "name": "11 · Product · Authentication & invitations",
+      "isActive": false
+    },
+    {
+      "id": "O-0",
+      "name": "12 · Product · Settings & account",
+      "isActive": false
+    },
+    {
+      "id": "F-0",
+      "name": "20 · Integrations · Core screens",
+      "isActive": false
+    },
+    {
+      "id": "G-0",
+      "name": "21 · Integrations · Extended states",
+      "isActive": false
+    },
+    {
+      "id": "H-0",
+      "name": "30 · Sessions · Runtime states",
+      "isActive": false
+    },
+    {
+      "id": "I-0",
+      "name": "31 · Desktop · Settings & extensions",
+      "isActive": false
+    },
+    {
+      "id": "N-0",
+      "name": "32 · Chat · Workspace, messages & composer",
+      "isActive": false
+    },
+    {
+      "id": "11-0",
+      "name": "33 · Notifications · Inbox, bell & recovery",
+      "isActive": false
+    },
+    {
+      "id": "13-0",
+      "name": "34 · Artifacts · Review loop",
+      "isActive": false
+    },
+    {
+      "id": "K-0",
+      "name": "40 · Machines · Organization workers",
+      "isActive": false
+    },
+    {
+      "id": "L-0",
+      "name": "50 · Work · Issues & live delivery",
+      "isActive": false
+    },
+    {
+      "id": "P-0",
+      "name": "60 · Organization · Members & access",
+      "isActive": false
+    },
+    {
+      "id": "Z-0",
+      "name": "61 · Organization · Repository rules & overrides",
+      "isActive": false
+    },
+    {
+      "id": "X-0",
+      "name": "80 · Workflows & Skills · Skill-driven studio",
+      "isActive": false
+    },
+    {
+      "id": "10-0",
+      "name": "81 · Workflows & Skills · Revised studio",
+      "isActive": false
+    },
+    {
+      "id": "12-0",
+      "name": "82 · Workflows & Skills · Current app shell",
+      "isActive": false
+    }
+  ],
+  "fontFamilies": [
+    "Geist",
+    "Geist Mono",
+    "System Sans-Serif",
+    "System Monospace",
+    "Arial"
+  ],
+  "tokens": {
+    "items": [
+      {
+        "name": "--color-background",
+        "value": "#F5F6F8"
+      },
+      {
+        "name": "--color-surface",
+        "value": "#FFFFFF"
+      },
+      {
+        "name": "--color-foreground",
+        "value": "#141A24"
+      },
+      {
+        "name": "--color-muted-foreground",
+        "value": "#5D6675"
+      },
+      {
+        "name": "--color-border",
+        "value": "#E3E6EB"
+      },
+      {
+        "name": "--color-primary",
+        "value": "#141A24"
+      },
+      {
+        "name": "--color-accent",
+        "value": "#ECF1F8"
+      },
+      {
+        "name": "--color-success",
+        "value": "#17784B"
+      },
+      {
+        "name": "--color-warning",
+        "value": "#8F5A0B"
+      },
+      {
+        "name": "--color-destructive",
+        "value": "#BE3341"
+      },
+      {
+        "name": "--color-selection",
+        "value": "#0B63C6"
+      },
+      {
+        "name": "--color-success-surface",
+        "value": "#E8F5EE"
+      },
+      {
+        "name": "--color-warning-surface",
+        "value": "#FBF3E4"
+      },
+      {
+        "name": "--color-destructive-surface",
+        "value": "#FCEEEF"
+      },
+      {
+        "name": "--color-control-border",
+        "value": "#8A939F"
+      },
+      {
+        "name": "--color-light-canvas",
+        "value": "var(--color-background)"
+      },
+      {
+        "name": "--color-light-surface",
+        "value": "var(--color-surface)"
+      },
+      {
+        "name": "--color-light-subtle",
+        "value": "#EEF0F4"
+      },
+      {
+        "name": "--color-light-raised",
+        "value": "#FFFFFF"
+      },
+      {
+        "name": "--color-light-fg",
+        "value": "var(--color-foreground)"
+      },
+      {
+        "name": "--color-light-fg-secondary",
+        "value": "var(--color-muted-foreground)"
+      },
+      {
+        "name": "--color-light-fg-tertiary",
+        "value": "#6B7686"
+      },
+      {
+        "name": "--color-light-fg-disabled",
+        "value": "#9AA3B1"
+      },
+      {
+        "name": "--color-light-border",
+        "value": "var(--color-border)"
+      },
+      {
+        "name": "--color-light-border-strong",
+        "value": "#CBD0D8"
+      },
+      {
+        "name": "--color-light-control",
+        "value": "var(--color-control-border)"
+      },
+      {
+        "name": "--color-light-accent",
+        "value": "var(--color-selection)"
+      },
+      {
+        "name": "--color-light-accent-hover",
+        "value": "#0A56AD"
+      },
+      {
+        "name": "--color-light-accent-surface",
+        "value": "var(--color-accent)"
+      },
+      {
+        "name": "--color-dark-canvas",
+        "value": "#0B0E14"
+      },
+      {
+        "name": "--color-dark-surface",
+        "value": "#12161E"
+      },
+      {
+        "name": "--color-dark-subtle",
+        "value": "#191E28"
+      },
+      {
+        "name": "--color-dark-raised",
+        "value": "#212733"
+      },
+      {
+        "name": "--color-dark-fg",
+        "value": "#F2F4F8"
+      },
+      {
+        "name": "--color-dark-fg-secondary",
+        "value": "#A3ACBA"
+      },
+      {
+        "name": "--color-dark-fg-tertiary",
+        "value": "#7D879A"
+      },
+      {
+        "name": "--color-dark-fg-disabled",
+        "value": "#566173"
+      },
+      {
+        "name": "--color-dark-border",
+        "value": "#2D3542"
+      },
+      {
+        "name": "--color-dark-border-strong",
+        "value": "#3D4655"
+      },
+      {
+        "name": "--color-dark-control",
+        "value": "#59657A"
+      },
+      {
+        "name": "--color-dark-accent",
+        "value": "#4A93E6"
+      },
+      {
+        "name": "--color-dark-accent-hover",
+        "value": "#6EAAF0"
+      },
+      {
+        "name": "--color-dark-accent-surface",
+        "value": "#152338"
+      },
+      {
+        "name": "--color-dark-success",
+        "value": "#45B37C"
+      },
+      {
+        "name": "--color-dark-success-surface",
+        "value": "#0F261C"
+      },
+      {
+        "name": "--color-dark-warning",
+        "value": "#E0A83F"
+      },
+      {
+        "name": "--color-dark-warning-surface",
+        "value": "#2A2010"
+      },
+      {
+        "name": "--color-dark-critical",
+        "value": "#EE6A79"
+      },
+      {
+        "name": "--color-dark-critical-surface",
+        "value": "#331820"
+      },
+      {
+        "name": "--color-dark-primary",
+        "value": "var(--color-dark-fg)"
+      },
+      {
+        "name": "--color-dark-primary-hover",
+        "value": "#DCE0E7"
+      },
+      {
+        "name": "--color-dark-destructive",
+        "value": "#C7394C"
+      },
+      {
+        "name": "--color-primary-hover",
+        "value": "#262E3B"
+      },
+      {
+        "name": "--color-primary-foreground",
+        "value": "#FFFFFF"
+      },
+      {
+        "name": "--color-destructive-hover",
+        "value": "#A72C3A"
+      },
+      {
+        "name": "--font-sans",
+        "value": "Geist"
+      },
+      {
+        "name": "--font-mono",
+        "value": "Geist Mono"
+      },
+      {
+        "name": "--text-14",
+        "value": "14px"
+      },
+      {
+        "name": "--text-16",
+        "value": "16px"
+      },
+      {
+        "name": "--text-20",
+        "value": "20px"
+      },
+      {
+        "name": "--text-28",
+        "value": "28px"
+      },
+      {
+        "name": "--text-40",
+        "value": "40px"
+      },
+      {
+        "name": "--text-13",
+        "value": "13px"
+      },
+      {
+        "name": "--text-24",
+        "value": "24px"
+      },
+      {
+        "name": "--text-12",
+        "value": "12px"
+      },
+      {
+        "name": "--font-weight-regular",
+        "value": "400"
+      },
+      {
+        "name": "--font-weight-semibold",
+        "value": "600"
+      },
+      {
+        "name": "--font-weight-bold",
+        "value": "700"
+      },
+      {
+        "name": "--font-weight-medium",
+        "value": "500"
+      },
+      {
+        "name": "--tracking-tight",
+        "value": "-0.02em"
+      },
+      {
+        "name": "--leading-14",
+        "value": "20px"
+      },
+      {
+        "name": "--leading-16",
+        "value": "24px"
+      },
+      {
+        "name": "--leading-20",
+        "value": "28px"
+      },
+      {
+        "name": "--leading-28",
+        "value": "36px"
+      },
+      {
+        "name": "--leading-40",
+        "value": "48px"
+      },
+      {
+        "name": "--leading-13",
+        "value": "20px"
+      },
+      {
+        "name": "--leading-24",
+        "value": "32px"
+      },
+      {
+        "name": "--leading-12",
+        "value": "18px"
+      },
+      {
+        "name": "--breakpoint-pane",
+        "value": "744px"
+      },
+      {
+        "name": "--breakpoint-rail",
+        "value": "1280px"
+      },
+      {
+        "name": "--container-prose",
+        "value": "720px"
+      },
+      {
+        "name": "--container-sidebar",
+        "value": "208px"
+      },
+      {
+        "name": "--container-inspector",
+        "value": "320px"
+      },
+      {
+        "name": "--container-section-sidebar",
+        "value": "224px"
+      },
+      {
+        "name": "--spacing-4",
+        "value": "4px"
+      },
+      {
+        "name": "--spacing-8",
+        "value": "8px"
+      },
+      {
+        "name": "--spacing-12",
+        "value": "12px"
+      },
+      {
+        "name": "--spacing-16",
+        "value": "16px"
+      },
+      {
+        "name": "--spacing-24",
+        "value": "24px"
+      },
+      {
+        "name": "--spacing-32",
+        "value": "32px"
+      },
+      {
+        "name": "--spacing-48",
+        "value": "48px"
+      },
+      {
+        "name": "--spacing-20",
+        "value": "20px"
+      },
+      {
+        "name": "--spacing-40",
+        "value": "40px"
+      },
+      {
+        "name": "--spacing-64",
+        "value": "64px"
+      },
+      {
+        "name": "--radius-8",
+        "value": "8px"
+      },
+      {
+        "name": "--radius-12",
+        "value": "12px"
+      },
+      {
+        "name": "--radius-4",
+        "value": "4px"
+      },
+      {
+        "name": "--radius-6",
+        "value": "6px"
+      },
+      {
+        "name": "--radius-round",
+        "value": "999px"
+      }
+    ]
+  }
+}

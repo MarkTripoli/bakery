@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="worker-tools-spawn-through-setsid" project="bakery" issue="83">
+  <title>Worker child tools run behind /usr/bin/setsid, so --allow-run does not cover them and a missing tool exits 127</title>
+  <trigger>A worker executor spawns a candidate or harness tool, or must tell a missing tool from a failing one.</trigger>
+  <mistake>Assumed Deno would throw NotFound for a tool that is not installed, and that the worker's --allow-run list would have to name each tool. Both are wrong for children started through spawnHarnessProcess: Deno spawns only `/usr/bin/setsid`, which is on the grant, and setsid execs the tool. A missing tool is a normal exit 127, and a file lookup from the worker (`Deno.stat` of a tool path) throws NotCapable because the read grant is an exact list.</mistake>
+  <rule>Do not grant tools in --allow-run for setsid-launched children and do not look tools up with file APIs. Resolve the executable by running `/bin/sh -c 'command -v ...'` through the same launcher, in the worktree, with the child environment, and report `tool_missing` before running the command. Add a path to the read and run grants (apps/worker/src/config.ts and apps/worker/scripts/run-worker.sh together) only when the worker itself must touch it.</rule>
+  <verification>
+    <command>pnpm test:unit -- tests/unit/run-deterministic-checks-bound-to-candidate-and-metadata_test.ts</command>
+    <requirement>A command whose executable does not exist is unavailable with reason tool_missing under the deployed grants.</requirement>
+  </verification>
+</learning>

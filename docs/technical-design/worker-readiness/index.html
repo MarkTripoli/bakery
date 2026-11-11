@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><title>Published K-0 reference</title></head>
+  <body>
+    <div id="app" inert></div>
+    <script type="module">
+      const [screen, state = "default"] = location.hash.slice(1).split("/");
+      const theme = new URLSearchParams(location.search).get("theme");
+      const manifest = await (await fetch("paper-manifest.json")).json();
+      const frame = manifest.screens.find((entry) => entry.id === screen && entry.state === state && entry.theme === theme && entry.width === innerWidth);
+      if (!frame) throw new Error("No admitted K-0 artboard matches this route");
+      const response = await fetch(`reference.html?frame=${encodeURIComponent(frame.nodeId)}`);
+      if (!response.ok) throw new Error(await response.text());
+      const app = document.querySelector("#app");
+      app.innerHTML = await response.text();
+      app.dataset.screen = screen;
+      app.dataset.state = state;
+      // Background images are dependencies too; fonts and img decoding are also awaited by the renderer.
+      await Promise.all(manifest.publicImages.map(({ path }) => {
+        const image = new Image(); image.src = path; return image.decode();
+      }));
+      globalThis.bakeryWorkerReadinessReady = true;
+    </script>
+  </body>
+</html>

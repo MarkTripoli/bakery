@@ -1,0 +1,42 @@
+{
+  "name": "@bakery/server",
+  "private": true,
+  "version": "0.0.0",
+  "exports": {
+    "./outbox-dispatch-task": "./src/platform/outbox-dispatch-task.ts"
+  },
+  "scripts": {
+    "dev": "bash scripts/run-main.sh",
+    "start": "bash scripts/run-main.sh",
+    "startup": "deno run --allow-env --allow-net --allow-read=src/platform/migrations,src/modules/auth/migrations,src/modules/work/migrations,src/modules/projects/migrations,src/modules/agents/migrations,src/modules/repository-rules/migrations,src/modules/integrations/migrations,src/modules/delivery/migrations src/tasks.ts startup",
+    "migrate": "deno run --allow-env --allow-net --allow-read=src/platform/migrations,src/modules/auth/migrations,src/modules/work/migrations,src/modules/projects/migrations,src/modules/agents/migrations,src/modules/repository-rules/migrations,src/modules/integrations/migrations,src/modules/delivery/migrations src/tasks.ts migrate",
+    "auth:migrations:generate": "deno run --allow-env=DATABASE_URL,NODE_ENV,FORCE_COLOR,PGUSER,PGDATABASE,PGPORT,PGHOST,PGPASSWORD,PGBINARY,PGOPTIONS,PGSSLMODE,PGSSLNEGOTIATION,PGCLIENT_ENCODING,PGREPLICATION,PGAPPNAME,PGCONNECT_TIMEOUT --allow-net --allow-read=src/modules/auth/migrations --allow-write=src/modules/auth/migrations/provider src/tasks.ts auth:migrations:generate",
+    "createsuperuser": "FORCE_COLOR=0 deno run --allow-env=DATABASE_URL,BAKERY_APP_DATABASE_URL,BAKERY_CONTAINER_BASE_URL,INNGEST_URL,INNGEST_SIGNING_KEY,INNGEST_EVENT_KEY,BAKERY_INNGEST_LOCAL_COMPOSE,BAKERY_INNGEST_PRIVATE_HOST_SUFFIX,NODE_ENV,TEST,FORCE_COLOR,BAKERY_ENV,BAKERY_PUBLIC_BASE_URL,BETTER_AUTH_SECRET,BETTER_AUTH_SECRETS,BETTER_AUTH_TELEMETRY_DEBUG,BETTER_AUTH_TELEMETRY_ENDPOINT,BETTER_AUTH_TELEMETRY,BETTER_AUTH_TRUSTED_ORIGINS,GITHUB_CLIENT_ID,GITHUB_CLIENT_SECRET,USER,NODE_PG_FORCE_NATIVE,PGSSL,PGMAX_LIFETIME,PGMAX_PIPELINE,PGBACKOFF,PGKEEP_ALIVE,PGPREPARE,PGDEBUG,PGFETCH_TYPES,PGPUBLICATIONS,PGTARGET_SESSION_ATTRS,PGTARGETSESSIONATTRS,PGUSER,PGDATABASE,PGPORT,PGHOST,PGPASSWORD,PGBINARY,PGOPTIONS,PGSSLMODE,PGSSLNEGOTIATION,PGCLIENT_ENCODING,PGREPLICATION,PGAPPNAME,PGCONNECT_TIMEOUT --allow-net --allow-read=src/platform/migrations,src/modules/auth/migrations,src/modules/work/migrations,src/modules/projects/migrations,src/modules/agents/migrations,src/modules/repository-rules/migrations,src/modules/integrations/migrations,src/modules/delivery/migrations src/tasks.ts createsuperuser",
+    "bootstrap:database": "deno run --allow-env=BAKERY_BOOTSTRAP_DATABASE_URL,BAKERY_OWNER_PASSWORD,BAKERY_APP_PASSWORD,BAKERY_INNGEST_DATABASE_PASSWORD,USER,NODE_PG_FORCE_NATIVE,PGSSL,PGMAX_LIFETIME,PGMAX_PIPELINE,PGBACKOFF,PGKEEP_ALIVE,PGPREPARE,PGDEBUG,PGFETCH_TYPES,PGPUBLICATIONS,PGTARGET_SESSION_ATTRS,PGTARGETSESSIONATTRS,PGUSER,PGDATABASE,PGPORT,PGHOST,PGPASSWORD,PGBINARY,PGOPTIONS,PGSSLMODE,PGSSLNEGOTIATION,PGCLIENT_ENCODING,PGREPLICATION,PGAPPNAME,PGCONNECT_TIMEOUT --allow-net scripts/bootstrap-database.ts",
+    "reset": "deno run --allow-env --allow-net --allow-read=src/platform/migrations src/tasks.ts reset",
+    "dispatch": "deno run --allow-env=DENO_DIR,BAKERY_PUBLIC_BASE_URL,BAKERY_SERVER_SENTRY_DSN,BAKERY_SENTRY_ENABLED,BAKERY_SENTRY_ENVIRONMENT,BAKERY_SENTRY_RELEASE,BAKERY_SENTRY_TRACES_SAMPLE_RATE,BAKERY_APP_DATABASE_URL,BAKERY_ENV,INNGEST_URL,INNGEST_EVENT_KEY,BAKERY_INNGEST_LOCAL_COMPOSE,BAKERY_INNGEST_PRIVATE_HOST_SUFFIX,USER,NODE_PG_FORCE_NATIVE,PGSSL,PGMAX_LIFETIME,PGMAX_PIPELINE,PGBACKOFF,PGKEEP_ALIVE,PGPREPARE,PGDEBUG,PGFETCH_TYPES,PGPUBLICATIONS,PGTARGET_SESSION_ATTRS,PGTARGETSESSIONATTRS,PGUSER,PGDATABASE,PGPORT,PGHOST,PGPASSWORD,PGBINARY,PGOPTIONS,PGSSLMODE,PGSSLNEGOTIATION,PGCLIENT_ENCODING,PGREPLICATION,PGAPPNAME,PGCONNECT_TIMEOUT,PATH --allow-run scripts/run-dispatch.ts src/dispatch.ts",
+    "typecheck": "deno check src/main.ts src/tasks.ts src/dispatch.ts src/modules/effects/index.ts scripts/bootstrap-database.ts",
+    "build": "deno check src/main.ts src/tasks.ts src/dispatch.ts src/modules/effects/index.ts scripts/bootstrap-database.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.888.0",
+    "@bakery/config": "workspace:*",
+    "@bakery/contracts": "workspace:*",
+    "@bakery/i18n": "workspace:*",
+    "@bakery/integration-sdk": "workspace:*",
+    "@bakery/persistence": "workspace:*",
+    "@better-auth/mcp": "1.7.3",
+    "@better-auth/passkey": "1.7.3",
+    "@better-auth/scim": "1.7.3",
+    "@better-auth/sso": "1.7.3",
+    "@modelcontextprotocol/server": "2.0.0",
+    "@sentry/deno": "11.6.0",
+    "better-auth": "1.7.3",
+    "hono": "4.13.7",
+    "inngest": "4.20.0",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1"
+  }
+}

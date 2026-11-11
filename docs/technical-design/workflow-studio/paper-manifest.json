@@ -1,0 +1,256 @@
+{
+  "fileId": "01M1X504XVC45FC0VDK857A37D",
+  "pageId": "X-0",
+  "pageName": "80 · Workflows · Skill-driven studio",
+  "url": "https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/X-0",
+  "reviewedOn": "2026-09-08",
+  "scope": "Workflow authoring, immutable Bakery presets, organization copies and multi-repository task/routing design; illustrative data. Production execution, integrations and publishing are not implemented.",
+  "tokenSource": "Live Paper design tokens exported to paper-tokens.css",
+  "boards": [
+    {
+      "key": "studio",
+      "name": "02 · Workflow studio · Desktop",
+      "nodeId": "ZTC-0",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "key": "library",
+      "name": "01 · Workflow library · Desktop",
+      "nodeId": "137T-0",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "key": "skill",
+      "name": "03 · Find or create a skill · Desktop",
+      "nodeId": "13K2-0",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "key": "control",
+      "name": "04 · Connections and bounded loops · Desktop",
+      "nodeId": "16Z5-0",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "key": "designer",
+      "name": "05 · Cloud designer and draft changes · Desktop",
+      "nodeId": "14ID-0",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "key": "json",
+      "name": "06 · Canvas and live JSON · Desktop",
+      "nodeId": "176A-0",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "key": "exchange",
+      "name": "07 · Import validation and export · Desktop",
+      "nodeId": "17AY-0",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "key": "services",
+      "name": "08 · Connections and webhook setup · Desktop",
+      "nodeId": "17GW-0",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "key": "publish",
+      "name": "09 · Publish and activate · Desktop",
+      "nodeId": "17NC-0",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "key": "run",
+      "name": "10 · Pinned run and recovery · Desktop",
+      "nodeId": "17RX-0",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "key": "states",
+      "name": "11 · Draft and validation states · Desktop",
+      "nodeId": "17XR-0",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "key": "studio-phone",
+      "name": "02 · Workflow studio · Phone",
+      "nodeId": "182B-0",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "key": "library-phone",
+      "name": "01 · Workflow library · Phone",
+      "nodeId": "187W-0",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "key": "skill-phone",
+      "name": "03 · Find or create a skill · Phone",
+      "nodeId": "18A4-0",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "key": "control-phone",
+      "name": "04 · Connections and bounded loops · Phone",
+      "nodeId": "1C3Z-0",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "key": "designer-phone",
+      "name": "05 · Cloud designer and draft changes · Phone",
+      "nodeId": "18C7-0",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "key": "json-phone",
+      "name": "06 · Canvas and live JSON · Phone",
+      "nodeId": "1C6H-0",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "key": "exchange-phone",
+      "name": "07 · Import validation and export · Phone",
+      "nodeId": "1C8C-0",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "key": "services-phone",
+      "name": "08 · Connections and webhook setup · Phone",
+      "nodeId": "1CAO-0",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "key": "publish-phone",
+      "name": "09 · Publish and activate · Phone",
+      "nodeId": "1CDB-0",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "key": "run-phone",
+      "name": "10 · Pinned run and recovery · Phone",
+      "nodeId": "1CFJ-0",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "key": "states-phone",
+      "name": "11 · Draft and validation states · Phone",
+      "nodeId": "1CHT-0",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "key": "inspector-phone",
+      "name": "02b · Skill and agent inspector · Phone",
+      "nodeId": "1856-0",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "key": "json-live",
+      "name": "06a · Live canvas and JSON · Desktop",
+      "nodeId": "1CK1-0",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "key": "json-live-phone",
+      "name": "06a · Live canvas and JSON · Phone",
+      "nodeId": "1CPQ-0",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "key": "packaged",
+      "name": "12 · Bakery workflow and organization copy · Desktop",
+      "nodeId": "1MN3-0",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "key": "packaged-phone",
+      "name": "12 · Bakery workflow and organization copy · Phone",
+      "nodeId": "1MRQ-0",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "key": "repositories",
+      "name": "13 · Repository lanes and dependencies · Desktop",
+      "nodeId": "1MU4-0",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "key": "repositories-phone",
+      "name": "13 · Repository lanes and dependencies · Phone",
+      "nodeId": "1MZZ-0",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "key": "coordination",
+      "name": "14 · Agent coordination without a saved workflow · Desktop",
+      "nodeId": "1N8S-0",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "key": "coordination-phone",
+      "name": "14 · Agent coordination without a saved workflow · Phone",
+      "nodeId": "1NDD-0",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "key": "routing",
+      "name": "15 · Issue labels and repository routing · Desktop",
+      "nodeId": "1NHZ-0",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "key": "routing-phone",
+      "name": "15 · Issue labels and repository routing · Phone",
+      "nodeId": "1NMR-0",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "key": "studio-dark",
+      "name": "02 · Workflow studio · Desktop · Dark",
+      "nodeId": "1CRI-0",
+      "width": 1440,
+      "theme": "dark"
+    },
+    {
+      "key": "studio-phone-dark",
+      "name": "02 · Workflow studio · Phone · Dark",
+      "nodeId": "1D0H-0",
+      "width": 390,
+      "theme": "dark"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+erDiagram
+  direction LR
+  principals {
+    uuid id PK
+  }
+  organizations {
+    uuid id PK
+  }
+  workflow_definitions {
+    uuid id PK
+    uuid organization_id FK
+    text slug
+    text name
+    uuid active_version_id FK "nullable"
+    boolean enabled
+  }
+  organizations ||..o{ workflow_definitions : "organization_id"
+  workflow_versions |o..o{ workflow_definitions : "active_version_id"
+  workflow_versions {
+    uuid id PK
+    uuid organization_id FK
+    uuid workflow_id FK
+    int revision
+    text source_yaml
+    jsonb normalized_spec
+    text digest
+    enum status
+    uuid created_by FK
+  }
+  organizations ||..o{ workflow_versions : "organization_id"
+  workflow_definitions ||..o{ workflow_versions : "workflow_id"
+  principals ||..o{ workflow_versions : "created_by"
+  agent_definitions {
+    uuid id PK
+    uuid organization_id FK
+    text slug
+    text name
+    uuid active_version_id FK "nullable"
+    boolean enabled
+  }
+  organizations ||..o{ agent_definitions : "organization_id"
+  agent_versions |o..o{ agent_definitions : "active_version_id"
+  agent_versions {
+    uuid id PK
+    uuid organization_id FK
+    uuid agent_id FK
+    int revision
+    jsonb config
+    text digest
+    uuid created_by FK
+  }
+  organizations ||..o{ agent_versions : "organization_id"
+  agent_definitions ||..o{ agent_versions : "agent_id"
+  principals ||..o{ agent_versions : "created_by"

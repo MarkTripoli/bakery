@@ -1,0 +1,48 @@
+erDiagram
+  direction LR
+  principals {
+    uuid id PK
+  }
+  organizations {
+    uuid id PK
+  }
+  applications {
+    uuid id PK
+    uuid organization_id FK
+    text slug
+    text name
+    text description
+    timestamp archived_at "nullable"
+  }
+  organizations ||..o{ applications : "organization_id"
+  repositories {
+    uuid id PK
+    uuid organization_id FK
+    uuid application_id FK
+    uuid integration_connection_id FK
+    text provider_repo_id
+    text owner
+    text name
+    text default_branch
+    uuid active_profile_id FK "nullable"
+    timestamp archived_at "nullable"
+  }
+  organizations ||..o{ repositories : "organization_id"
+  applications ||..o{ repositories : "application_id"
+  integration_connections ||..o{ repositories : "integration_connection_id"
+  repository_profiles |o..o{ repositories : "active_profile_id"
+  repository_profiles {
+    uuid id PK
+    uuid organization_id FK
+    uuid repository_id FK
+    int revision
+    jsonb config
+    text digest
+    uuid created_by FK
+  }
+  organizations ||..o{ repository_profiles : "organization_id"
+  repositories ||..o{ repository_profiles : "repository_id"
+  principals ||..o{ repository_profiles : "created_by"
+  integration_connections {
+    uuid id PK
+  }

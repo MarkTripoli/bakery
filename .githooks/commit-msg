@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+# Git-generated merge messages are not authored commit subjects.
+if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
+  exit 0
+fi
+
+repo_root=$(git rev-parse --show-toplevel)
+exec deno run --allow-read "$repo_root/scripts/ci/validate-semantic.ts" \
+  --commit-message-file "$1"

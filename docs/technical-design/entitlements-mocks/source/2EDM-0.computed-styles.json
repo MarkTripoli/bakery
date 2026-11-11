@@ -1,0 +1,16 @@
+{
+  "styles": {
+    "2EDM-0": {
+      "display": "flex",
+      "overflow": "clip",
+      "width": "1440px",
+      "height": "fit-content",
+      "fontFamily": "var(--font-sans)",
+      "left": "45660px",
+      "top": "0px",
+      "minHeight": "900px",
+      "position": "absolute",
+      "backgroundColor": "var(--color-surface)"
+    }
+  }
+}

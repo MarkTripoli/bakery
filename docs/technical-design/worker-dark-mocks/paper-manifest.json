@@ -1,0 +1,28 @@
+{
+  "fileId": "bakery-repo-worker-dark",
+  "pageId": "worker-dark-derived",
+  "note": "Renderer manifest for a DERIVED artboard; not a Paper export. See source-manifest.json.",
+  "screens": [
+    {
+      "id": "detail",
+      "state": "default",
+      "theme": "dark",
+      "device": "phone",
+      "nodeId": "derived-90D-0-dark",
+      "width": 390,
+      "height": 1483,
+      "sourcePath": "source/detail-dark-phone-90D-0-derived.react-css.txt"
+    }
+  ],
+  "inputs": [
+    {
+      "path": "source/detail-dark-phone-90D-0-derived.react-css.txt",
+      "sha256": "f57cc5c95e740b6c7dd0c38dff3aa5abf4a9f2214d24eeb74c31a4018da736c7"
+    },
+    {
+      "path": "theme-values.json",
+      "sha256": "a28d02101d28163ad7059df6542b3360bf44d4e1fcdb27da747a4b99959c2775"
+    }
+  ],
+  "publicImages": []
+}

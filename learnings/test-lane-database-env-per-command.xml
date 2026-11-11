@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="test-lane-database-env-per-command" project="bakery">
+  <title>Pass database settings per lane command and resolve npm packages from the owning package</title>
+  <trigger>A rails, unit or helper run fails with AUTH_BOOTSTRAP_CONFLICT, an unexpected migration attempt, or "Could not find a matching package for 'npm:hono'" from a file under tests/.</trigger>
+  <mistake>Exported DATABASE_URL globally for a verification session, so tests/rails/workspace_test.ts "migration task fails closed" inherited it and migrated the real database instead of asserting DATABASE_URL_REQUIRED; a test helper imported "hono" from tests/, where the root node_modules has no such package; killed lane runs left fixture superusers behind and every later fixture failed with AUTH_BOOTSTRAP_CONFLICT.</mistake>
+  <rule>Run pnpm test:rails with no DATABASE_URL in the environment and pass DATABASE_URL, BAKERY_APP_DATABASE_URL (and BAKERY_ADMIN_DATABASE_URL where a lane needs it) per command to contract, integration, security and browser lanes. Deno resolves npm: specifiers from the nearest node_modules, so code under tests/ may import only @bakery/* and packages listed at the workspace root; server-only dependencies such as hono stay under apps/server. Test-only server variants go through createApp options, never a hand-built Hono app in tests/. Wrap lanes in timeout and, after an interrupted run, remove leftover fixture users before retrying; fixtures must release their lease in finally so one test cannot deadlock the lane.</rule>
+  <boundary>Admin connections used for table assertions or lock observation must target the same isolated database as owner and application connections. Database-allocation helpers may connect to a maintenance database; reuse that maintenance URL only for create/drop, not tenant-table assertions or current_database()-scoped waiter probes.</boundary>
+  <verification>
+    <command>pnpm test:rails</command>
+    <command>DATABASE_URL=... BAKERY_APP_DATABASE_URL=... pnpm test:integration -- tests/integration/deliver-bounded-authorized-websocket-events-and-replay_test.ts</command>
+    <requirement>Record which lanes ran with which database identity and that rails ran without one.</requirement>
+  </verification>
+  <boundary>An exported variable that makes a lane green locally can still make CI red: CI passes settings per job. Match CI's environment shape, not the shell's convenience.</boundary>
+</learning>

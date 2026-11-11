@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="contract-sources-two-generators" project="bakery">
+  <title>Contract source edits need both generators, and commit subjects stay short</title>
+  <trigger>docs/technical-design/api-catalog.json or transport-schemas.json changes, or a commit hook rejects a subject.</trigger>
+  <mistake>Running only pnpm contracts:generate left packages/contracts/generated/transport-schemas.ts and catalog-literals.ts stale, so a changed schema enum never reached the typed client. Long conventional-commit subjects were rejected by the commit hook.</mistake>
+  <rule>After editing either contract source run pnpm catalog:literals (writes catalog-literals.ts and transport-schemas.ts), then pnpm contracts:generate (writes contracts.json and client-manifest.ts), and commit all four. Keep commit subjects at or under 72 characters. A deno-fmt'd transport-schemas.json is not byte-stable through json.dumps, so edit it as text.</rule>
+  <verification>
+    <command>pnpm catalog:literals:check</command>
+    <command>pnpm contracts:check</command>
+  </verification>
+</learning>

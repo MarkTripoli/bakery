@@ -1,0 +1,30 @@
+{
+  "title": "Bakery \u00b7 Enterprise composition review",
+  "question": "What should carry forward? These views can coexist. Approve a starting point, combine them, or describe what should change before the editable desktop and mobile designs.",
+  "options": [
+    {
+      "id": "work-queue",
+      "label": "A \u00b7 Work queue",
+      "kicker": "Triage across applications",
+      "body": "A compact work list with a task inspector. Best for choosing what needs attention and keeping the queue moving. Generated composition study; example data is synthetic.",
+      "hero": "~/Documents/Codex/2026-09-07/bakery-technical-design/enterprise-mocks/a-work-queue.png"
+    },
+    {
+      "id": "shared-session",
+      "label": "B \u00b7 Shared session",
+      "kicker": "Recommended foundation",
+      "body": "Codex-like session navigation, shared conversation, and a plan with comments. The strongest foundation for working with agents and other people. Generated composition study; controls are illustrative.",
+      "hero": "~/Documents/Codex/2026-09-07/bakery-technical-design/enterprise-mocks/b-session-workspace.png"
+    },
+    {
+      "id": "application-operations",
+      "label": "C \u00b7 Applications",
+      "kicker": "Delivery and worker oversight",
+      "body": "Application status, active work, release evidence, and worker health in one operational view. A companion to the queue and session workspace. Generated composition study; example data is synthetic.",
+      "hero": "~/Documents/Codex/2026-09-07/bakery-technical-design/enterprise-mocks/c-application-operations.png"
+    }
+  ],
+  "reroll": false,
+  "canon": false,
+  "steer": true
+}

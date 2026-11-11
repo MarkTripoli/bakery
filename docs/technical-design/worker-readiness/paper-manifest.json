@@ -1,0 +1,341 @@
+{
+  "fileId": "01M1X504XVC45FC0VDK857A37D",
+  "pageId": "K-0",
+  "bundleManifestSha256": "5887ba185182a3506c53fc4ecbcac0220be1ebf50cca2d28ac0d9871d95b703f",
+  "successorManifestSha256": "b6f313b302b2cf6de49dade2306e67fe0762a6d9fe42a38c7619decf13623196",
+  "inputs": [
+    {
+      "path": "source/list-light-desktop-8SD-0.react-css.txt",
+      "originalPath": "/tmp/bakery-294-approved-inputs/visuals/list-light-desktop-8SD-0.react-css.txt",
+      "sha256": "085163150328eabcee56e57baeb74071192a0959b38fdda31643c9c4c2fdc5dc"
+    },
+    {
+      "path": "source/list-light-desktop-8SD-0.png",
+      "originalPath": "/tmp/bakery-294-approved-inputs/visuals/list-light-desktop-8SD-0.png",
+      "sha256": "9673c25481d1e59e2e68f26c0977e44630c0333321f3c84d96e4b9a2a93c3e37"
+    },
+    {
+      "path": "source/list-light-mobile-8SE-0.react-css.txt",
+      "originalPath": "/tmp/bakery-294-approved-inputs/visuals/list-light-mobile-8SE-0.react-css.txt",
+      "sha256": "ef333be42838cb36a9ca998c1d92bef1733afd921961dbd94d9ced0554495fa6"
+    },
+    {
+      "path": "source/list-light-mobile-8SE-0.png",
+      "originalPath": "/tmp/bakery-294-approved-inputs/visuals/list-light-mobile-8SE-0.png",
+      "sha256": "f8d5bb77953da08df4962d2c24ee5b1e4fadcfbeca05fc087cdf04e74f4b95ea"
+    },
+    {
+      "path": "source/list-dark-desktop-A8Y-0.react-css.txt",
+      "originalPath": "/tmp/bakery-294-approved-inputs/visuals/list-dark-desktop-A8Y-0.react-css.txt",
+      "sha256": "b09624c242e4f7e754e54efafb21bdec17c5c5207f06f45d9932648a8e1b35a2"
+    },
+    {
+      "path": "source/list-dark-desktop-A8Y-0.png",
+      "originalPath": "/tmp/bakery-294-approved-inputs/visuals/list-dark-desktop-A8Y-0.png",
+      "sha256": "398f57b0a5fee8db66e573dba797f9fca9c199f89c5480d8919c1e035e4a7157"
+    },
+    {
+      "path": "source/list-dark-mobile-AD7-0.react-css.txt",
+      "originalPath": "/tmp/bakery-294-approved-inputs/visuals/list-dark-mobile-AD7-0.react-css.txt",
+      "sha256": "877fb50e0925a76266937e9400b7971448f07dcc7312426f9eda7fa91056290c"
+    },
+    {
+      "path": "source/list-dark-mobile-AD7-0.png",
+      "originalPath": "/tmp/bakery-294-approved-inputs/visuals/list-dark-mobile-AD7-0.png",
+      "sha256": "496f94c249ce703d537610446da9e77111f6c1ef5e86aa3c8f7bf3a4e546b6dd"
+    },
+    {
+      "path": "source/onboarding-start-light-desktop-9VJ-0.react-css.txt",
+      "originalPath": "/tmp/bakery-294-approved-inputs/visuals/onboarding-start-light-desktop-9VJ-0.react-css.txt",
+      "sha256": "4e5a8a5a762c7c83985490ddcd1ff5c139dc9041fbb28d521a3c681cd4264c8e"
+    },
+    {
+      "path": "source/onboarding-start-light-desktop-9VJ-0.png",
+      "originalPath": "/tmp/bakery-294-approved-inputs/visuals/onboarding-start-light-desktop-9VJ-0.png",
+      "sha256": "964168d498328d82468b7ec89e4374ca948ad34e15466097751fe7382976b365"
+    },
+    {
+      "path": "source/onboarding-start-light-mobile-9ZB-0.react-css.txt",
+      "originalPath": "/tmp/bakery-294-approved-inputs/visuals/onboarding-start-light-mobile-9ZB-0.react-css.txt",
+      "sha256": "bb75b3adfcf0df990cb76533a1c0f8ed8afcc0ea7ede9d3df8eea3013aa7de16"
+    },
+    {
+      "path": "source/onboarding-start-light-mobile-9ZB-0.png",
+      "originalPath": "/tmp/bakery-294-approved-inputs/visuals/onboarding-start-light-mobile-9ZB-0.png",
+      "sha256": "816ca036dcc52c2490d2f239c3d93fac43618c4b423b722ee7c57df1b0458021"
+    },
+    {
+      "path": "source/onboarding-listening-light-desktop-AMY-0.react-css.txt",
+      "originalPath": "/tmp/bakery-294-approved-inputs/visuals/onboarding-listening-light-desktop-AMY-0.react-css.txt",
+      "sha256": "9be190d0784dc9e74001d74c325b17f99fda938791393c6df92ab45e132b5f0e"
+    },
+    {
+      "path": "source/onboarding-listening-light-desktop-AMY-0.png",
+      "originalPath": "/tmp/bakery-294-approved-inputs/visuals/onboarding-listening-light-desktop-AMY-0.png",
+      "sha256": "4e068c8c34c7d4cea6ac70fabb56fe851df066f99a46d5b2554b50d6fffbfecc"
+    },
+    {
+      "path": "source/onboarding-listening-light-mobile-AR1-0.react-css.txt",
+      "originalPath": "/tmp/bakery-294-approved-inputs/visuals/onboarding-listening-light-mobile-AR1-0.react-css.txt",
+      "sha256": "174ff0f687a73d4e7fd710c581b83c941d85d9a82850a7eb75104c69a104d479"
+    },
+    {
+      "path": "source/onboarding-listening-light-mobile-AR1-0.png",
+      "originalPath": "/tmp/bakery-294-approved-inputs/visuals/onboarding-listening-light-mobile-AR1-0.png",
+      "sha256": "e49d7e24752676260998bbdd744117078fafde4f3f146b22001ef86dad7b3a3f"
+    },
+    {
+      "path": "source/onboarding-connected-light-desktop-ATN-0.react-css.txt",
+      "originalPath": "/tmp/bakery-294-approved-inputs/visuals/onboarding-connected-light-desktop-ATN-0.react-css.txt",
+      "sha256": "39a30de42460ca0820dfc0cea19928f7f6fa46ea3cd6ba3714e000f659611d8a"
+    },
+    {
+      "path": "source/onboarding-connected-light-desktop-ATN-0.png",
+      "originalPath": "/tmp/bakery-294-approved-inputs/visuals/onboarding-connected-light-desktop-ATN-0.png",
+      "sha256": "525209f0cf058239ef9c61379a841c26321c9cfe4d8e0a0cabe3e2748113e29b"
+    },
+    {
+      "path": "source/onboarding-connected-light-mobile-AXQ-0.react-css.txt",
+      "originalPath": "/tmp/bakery-294-approved-inputs/visuals/onboarding-connected-light-mobile-AXQ-0.react-css.txt",
+      "sha256": "b5ebcd2538079e7c77e460e9879d3a40778b2451c3caccaa8db85bc358bc9c1f"
+    },
+    {
+      "path": "source/onboarding-connected-light-mobile-AXQ-0.png",
+      "originalPath": "/tmp/bakery-294-approved-inputs/visuals/onboarding-connected-light-mobile-AXQ-0.png",
+      "sha256": "50ae1ae4dc666a83145dd3b239996f63e72211ebcdac68f94dfe6ea6e4c88926"
+    },
+    {
+      "path": "source/02e-onboarding-realtime-motion-contract-B0C-0.react-css.txt",
+      "originalPath": "/tmp/bakery-294-approved-inputs/presentation-sources/02e-onboarding-realtime-motion-contract-B0C-0.react-css.txt",
+      "sha256": "4c8c8d39c88199591998171024ba642589e763297d5f25a2b719e41cee4d9cb4"
+    },
+    {
+      "path": "source/00-machines-scope-states-components-A5P-0.react-css.txt",
+      "originalPath": "/tmp/bakery-294-approved-inputs/presentation-sources/00-machines-scope-states-components-A5P-0.react-css.txt",
+      "sha256": "aff8cbd35578b004941aa22973f5615598dcce8bc3566ddd878b2735c39336a5"
+    },
+    {
+      "path": "theme-values.json",
+      "originalPath": "/tmp/bakery-294-approved-inputs/theme-values.json",
+      "sha256": "a28d02101d28163ad7059df6542b3360bf44d4e1fcdb27da747a4b99959c2775"
+    },
+    {
+      "path": "source/assets/31Q0XHM9CWZXZBJC5KE8YZ9DZP.png",
+      "originalPath": "/tmp/bakery-294-approved-inputs/assets/31Q0XHM9CWZXZBJC5KE8YZ9DZP.png",
+      "sha256": "acfbad4b08dc1e7b4f7fa929b4138c59ddf644c181cbb5f698a2a37c462a3baa"
+    },
+    {
+      "path": "fonts/fonts-provenance.json",
+      "originalPath": "/tmp/bakery-294-approved-inputs-successor/fonts/fonts-provenance.json",
+      "sha256": "ef8c5719b9a6e06dbf0875d970f2937beba463789a8f156f60559b4df1da0392"
+    },
+    {
+      "path": "fonts/geist-mono-600.ttf",
+      "originalPath": "/tmp/bakery-294-approved-inputs-successor/fonts/geist-mono-600.ttf",
+      "sha256": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+    },
+    {
+      "path": "fonts/geist-mono-500.ttf",
+      "originalPath": "/tmp/bakery-294-approved-inputs-successor/fonts/geist-mono-500.ttf",
+      "sha256": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30"
+    },
+    {
+      "path": "fonts/geist-mono-400.ttf",
+      "originalPath": "/tmp/bakery-294-approved-inputs-successor/fonts/geist-mono-400.ttf",
+      "sha256": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f"
+    },
+    {
+      "path": "fonts/geist-600.ttf",
+      "originalPath": "/tmp/bakery-294-approved-inputs-successor/fonts/geist-600.ttf",
+      "sha256": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d"
+    },
+    {
+      "path": "fonts/geist-500.ttf",
+      "originalPath": "/tmp/bakery-294-approved-inputs-successor/fonts/geist-500.ttf",
+      "sha256": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876"
+    },
+    {
+      "path": "fonts/geist-400.ttf",
+      "originalPath": "/tmp/bakery-294-approved-inputs-successor/fonts/geist-400.ttf",
+      "sha256": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455"
+    },
+    {
+      "path": "source/detail-light-desktop-8Y2-0.png",
+      "originalPath": "~/.agents/worktrees/bakery/worker-readiness-fixtures/.agents/tasks/build-worker-readiness-presentation/tmp/detail-approved-inputs/8Y2-0.png",
+      "sha256": "2d16a4ed1817f0c6f4559684ff59cce253977b4b0284f4472e8c16f7d1a36550"
+    },
+    {
+      "path": "source/detail-light-desktop-8Y2-0.react-css.txt",
+      "originalPath": "~/.agents/worktrees/bakery/worker-readiness-fixtures/.agents/tasks/build-worker-readiness-presentation/tmp/detail-approved-inputs/8Y2-0.react-css.txt",
+      "sha256": "c6c9975a8fbc02f45725f8a00b315773b4a0824474feb6abc29137b4f21442a2"
+    },
+    {
+      "path": "source/detail-light-phone-90D-0.png",
+      "originalPath": "~/.agents/worktrees/bakery/worker-readiness-fixtures/.agents/tasks/build-worker-readiness-presentation/tmp/detail-approved-inputs/90D-0.png",
+      "sha256": "32161bd8d66677c63161376bca62d176db16db462d4103c0c0ba057c58e7b937"
+    },
+    {
+      "path": "source/detail-light-phone-90D-0.react-css.txt",
+      "originalPath": "~/.agents/worktrees/bakery/worker-readiness-fixtures/.agents/tasks/build-worker-readiness-presentation/tmp/detail-approved-inputs/90D-0.react-css.txt",
+      "sha256": "9a12b215049ae345ca49cad6710e00c93101e7bdd1be674930735346195d8982"
+    }
+  ],
+  "screens": [
+    {
+      "id": "list",
+      "state": "default",
+      "theme": "light",
+      "device": "desktop",
+      "nodeId": "8SD-0",
+      "width": 1440,
+      "height": 960,
+      "sourcePath": "source/list-light-desktop-8SD-0.react-css.txt",
+      "imagePath": "source/list-light-desktop-8SD-0.png",
+      "exactFrameEligible": true
+    },
+    {
+      "id": "list",
+      "state": "default",
+      "theme": "light",
+      "device": "phone",
+      "nodeId": "8SE-0",
+      "width": 390,
+      "height": 1129,
+      "sourcePath": "source/list-light-mobile-8SE-0.react-css.txt",
+      "imagePath": "source/list-light-mobile-8SE-0.png",
+      "exactFrameEligible": true
+    },
+    {
+      "id": "list",
+      "state": "default",
+      "theme": "dark",
+      "device": "desktop",
+      "nodeId": "A8Y-0",
+      "width": 1440,
+      "height": 960,
+      "sourcePath": "source/list-dark-desktop-A8Y-0.react-css.txt",
+      "imagePath": "source/list-dark-desktop-A8Y-0.png",
+      "exactFrameEligible": true
+    },
+    {
+      "id": "list",
+      "state": "default",
+      "theme": "dark",
+      "device": "phone",
+      "nodeId": "AD7-0",
+      "width": 390,
+      "height": 1129,
+      "sourcePath": "source/list-dark-mobile-AD7-0.react-css.txt",
+      "imagePath": "source/list-dark-mobile-AD7-0.png",
+      "exactFrameEligible": true
+    },
+    {
+      "id": "enrollment",
+      "state": "start",
+      "theme": "light",
+      "device": "desktop",
+      "nodeId": "9VJ-0",
+      "width": 1440,
+      "height": 960,
+      "sourcePath": "source/onboarding-start-light-desktop-9VJ-0.react-css.txt",
+      "imagePath": "source/onboarding-start-light-desktop-9VJ-0.png",
+      "exactFrameEligible": true
+    },
+    {
+      "id": "enrollment",
+      "state": "start",
+      "theme": "light",
+      "device": "phone",
+      "nodeId": "9ZB-0",
+      "width": 390,
+      "height": 1132,
+      "sourcePath": "source/onboarding-start-light-mobile-9ZB-0.react-css.txt",
+      "imagePath": "source/onboarding-start-light-mobile-9ZB-0.png",
+      "exactFrameEligible": true
+    },
+    {
+      "id": "enrollment",
+      "state": "listening",
+      "theme": "light",
+      "device": "desktop",
+      "nodeId": "AMY-0",
+      "width": 1440,
+      "height": 1050,
+      "sourcePath": "source/onboarding-listening-light-desktop-AMY-0.react-css.txt",
+      "imagePath": "source/onboarding-listening-light-desktop-AMY-0.png",
+      "exactFrameEligible": true
+    },
+    {
+      "id": "enrollment",
+      "state": "listening",
+      "theme": "light",
+      "device": "phone",
+      "nodeId": "AR1-0",
+      "width": 390,
+      "height": 1246,
+      "sourcePath": "source/onboarding-listening-light-mobile-AR1-0.react-css.txt",
+      "imagePath": "source/onboarding-listening-light-mobile-AR1-0.png",
+      "exactFrameEligible": true
+    },
+    {
+      "id": "enrollment",
+      "state": "connected",
+      "theme": "light",
+      "device": "desktop",
+      "nodeId": "ATN-0",
+      "width": 1440,
+      "height": 1130,
+      "sourcePath": "source/onboarding-connected-light-desktop-ATN-0.react-css.txt",
+      "imagePath": "source/onboarding-connected-light-desktop-ATN-0.png",
+      "exactFrameEligible": true
+    },
+    {
+      "id": "enrollment",
+      "state": "connected",
+      "theme": "light",
+      "device": "phone",
+      "nodeId": "AXQ-0",
+      "width": 390,
+      "height": 1306,
+      "sourcePath": "source/onboarding-connected-light-mobile-AXQ-0.react-css.txt",
+      "imagePath": "source/onboarding-connected-light-mobile-AXQ-0.png",
+      "exactFrameEligible": true
+    },
+    {
+      "id": "detail",
+      "state": "default",
+      "theme": "light",
+      "device": "desktop",
+      "nodeId": "8Y2-0",
+      "width": 1440,
+      "height": 960,
+      "sourcePath": "source/detail-light-desktop-8Y2-0.react-css.txt",
+      "imagePath": "source/detail-light-desktop-8Y2-0.png",
+      "exactFrameEligible": true
+    },
+    {
+      "id": "detail",
+      "state": "default",
+      "theme": "light",
+      "device": "phone",
+      "nodeId": "90D-0",
+      "width": 390,
+      "height": 1483,
+      "sourcePath": "source/detail-light-phone-90D-0.react-css.txt",
+      "imagePath": "source/detail-light-phone-90D-0.png",
+      "exactFrameEligible": true
+    }
+  ],
+  "publicImages": [
+    {
+      "url": "https://app.paper.design/file-assets/01M1X504XVC45FC0VDK857A37D/31Q0XHM9CWZXZBJC5KE8YZ9DZP.png",
+      "path": "source/assets/31Q0XHM9CWZXZBJC5KE8YZ9DZP.png"
+    }
+  ],
+  "detailManifestSha256": "59a7b9e2a75d17ffad64b5dba494960f380130b75df69f7916d2ca049e1d23ad",
+  "raster": {
+    "version": "paper-k0-centered-canvas-v1",
+    "helperVersion": "paper-k0-export-reconciliation-v1",
+    "implementationDigest": "898199f16350abeaac591c93b58b5607b2fc7bbac6041ebc4c1839fb83e5ebdb"
+  }
+}

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="queue-selection-must-not-pin-to-a-failing-head" project="bakery">
+  <title>Sweeps and claim selectors must not order by a key that a failure never advances</title>
+  <trigger>Writing or changing a periodic sweep, reconciler or claim selector that takes the next N rows and can fail on individual rows (provider read errors, rejected jobs, invalid payloads).</trigger>
+  <mistake>Ordered by the oldest observation clock, or restarted every pass at a fixed queue prefix. A row whose read or write fails never moves its clock, so it stays the oldest and is retried first forever, starving every row behind it.</mistake>
+  <rule>Rotate by a keyset cursor over a stable key (the row id) that advances whether or not the row succeeded: persist the cursor, wrap at the end, and skip a failing row until the next rotation so the rows after it run in the next step. Never use offset pagination for this. Claim selection likewise walks one finite queue snapshot forward (a no-scroll cursor, each candidate in its own savepoint), advances past rejected candidates in bounded batches, does not rewrite or quarantine the rejected jobs, and releases batch locks before it continues.</rule>
+  <rule>Distinguish a row fault from a blocked stream. A rate limit, a refused permission or a lost authority does not skip a row: it parks or blocks the whole checkpoint and resumes after the row it stopped at. Never infer absence from a list; nothing is marked closed, gone or absent because a list did not show it.</rule>
+  <verification>
+    <requirement>A test where the first row in order always fails must still read the rows behind it within one rotation, and a stream blocked part-way must resume after the row it stopped at.</requirement>
+  </verification>
+  <boundary>The issue stream legitimately lists by update order with a high-water mark; this rule is about row selection for per-row work, not time-window scans.</boundary>
+</learning>

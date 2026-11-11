@@ -1,0 +1,22 @@
+[
+  {
+    "antipattern": "side-tab",
+    "name": "Side-tab accent border",
+    "description": "Thick colored border on one side of a card — the most recognizable tell of AI-generated UIs. Use a subtler accent or remove it entirely.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "~/Documents/Codex/2026-09-07/bakery-technical-design/show-me-bakery.html",
+    "line": 5,
+    "snippet": "border-left:2px solid var(--line)"
+  },
+  {
+    "antipattern": "aphoristic-cadence",
+    "name": "Aphoristic-cadence copy",
+    "description": "Three or more sections landing on a short rebuttal sentence (\"X. No Y.\" / \"X. Just Y.\") or a manufactured-contrast aphorism (\"Not a feature. A platform.\") reads as AI cadence, not voice. Once is fine; the pattern is the tell.",
+    "severity": "warning",
+    "category": "slop",
+    "file": "~/Documents/Codex/2026-09-07/bakery-technical-design/show-me-bakery.html",
+    "line": 0,
+    "snippet": "6 aphoristic constructions: \"Evidence &amp; next steps Paper specimens Source-backed proposal. No infrastruct\""
+  }
+]

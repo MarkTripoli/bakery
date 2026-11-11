@@ -1,0 +1,1635 @@
+{
+  "palette": {
+    "cocoa": "#3A1E0E",
+    "golden": "#F7A93B",
+    "cream": "#FFF1D6",
+    "terracotta": "#CF5A2E",
+    "blush": "#F2906C",
+    "creamOnDark": "#FBEFDB",
+    "doughOnDark": "#E6992F",
+    "plateOnDark": "#F0E0C4"
+  },
+  "surfaces": {
+    "light.surface": {
+      "token": "--color-surface",
+      "theme": "light",
+      "hex": "#FFFFFF",
+      "label": "Surface · light"
+    },
+    "light.canvas": {
+      "token": "--color-canvas",
+      "theme": "light",
+      "hex": "#F5F6F8",
+      "label": "Canvas · light"
+    },
+    "light.surface-subtle": {
+      "token": "--color-surface-subtle",
+      "theme": "light",
+      "hex": "#EEF0F4",
+      "label": "Subtle · light"
+    },
+    "light.primary": {
+      "token": "--color-primary",
+      "theme": "light",
+      "hex": "#141A24",
+      "label": "Primary fill · light"
+    },
+    "light.selection": {
+      "token": "--color-selection",
+      "theme": "light",
+      "hex": "#0B63C6",
+      "label": "Accent · light"
+    },
+    "dark.surface": {
+      "token": "--color-surface",
+      "theme": "dark",
+      "hex": "#12161E",
+      "label": "Surface · dark"
+    },
+    "dark.canvas": {
+      "token": "--color-canvas",
+      "theme": "dark",
+      "hex": "#0B0E14",
+      "label": "Canvas · dark"
+    },
+    "dark.surface-raised": {
+      "token": "--color-surface-raised",
+      "theme": "dark",
+      "hex": "#212733",
+      "label": "Raised · dark"
+    },
+    "dark.primary": {
+      "token": "--color-primary",
+      "theme": "dark",
+      "hex": "#F2F4F8",
+      "label": "Primary fill · dark"
+    },
+    "dark.selection": {
+      "token": "--color-selection",
+      "theme": "dark",
+      "hex": "#4A93E6",
+      "label": "Accent · dark"
+    },
+    "brand.golden": {
+      "token": "brand.golden",
+      "theme": "brand",
+      "hex": "#F7A93B",
+      "label": "Brand orange"
+    }
+  },
+  "variants": {
+    "color-light": {
+      "label": "Full colour · light surfaces",
+      "use": "Default. Light surfaces and canvases, documents, web headers.",
+      "colors": {
+        "outline": "#3A1E0E",
+        "line": "#3A1E0E",
+        "feature": "#3A1E0E",
+        "dough": "#F7A93B",
+        "plate": "#FFF1D6",
+        "belt": "#3A1E0E",
+        "roller": "#CF5A2E",
+        "blush": "#F2906C",
+        "type": "#3A1E0E",
+        "tile": null
+      },
+      "files": {
+        "mark": "assets/brand/logo/mark/mark-color-light.svg",
+        "mark32": "assets/brand/logo/mark/mark-32-color-light.svg",
+        "mark16": "assets/brand/logo/mark/mark-16-color-light.svg",
+        "lockup": "assets/brand/logo/lockup/lockup-color-light.svg",
+        "wordmark": "assets/brand/logo/wordmark/wordmark-color-light.svg"
+      },
+      "dimensions": {
+        "mark": {
+          "width": 512,
+          "height": 512
+        },
+        "mark32": {
+          "width": 32,
+          "height": 32
+        },
+        "mark16": {
+          "width": 16,
+          "height": 16
+        },
+        "lockup": {
+          "width": 1008.2,
+          "height": 470.8
+        },
+        "wordmark": {
+          "width": 619.8,
+          "height": 192.6
+        }
+      },
+      "png": {
+        "mark": {
+          "16": "assets/brand/logo/png/mark-color-light-16.png",
+          "32": "assets/brand/logo/png/mark-color-light-32.png",
+          "48": "assets/brand/logo/png/mark-color-light-48.png",
+          "64": "assets/brand/logo/png/mark-color-light-64.png",
+          "128": "assets/brand/logo/png/mark-color-light-128.png",
+          "180": "assets/brand/logo/png/mark-color-light-180.png",
+          "192": "assets/brand/logo/png/mark-color-light-192.png",
+          "256": "assets/brand/logo/png/mark-color-light-256.png",
+          "512": "assets/brand/logo/png/mark-color-light-512.png",
+          "1024": "assets/brand/logo/png/mark-color-light-1024.png"
+        },
+        "lockup": {
+          "h64": "assets/brand/logo/png/lockup-color-light-h64.png",
+          "h128": "assets/brand/logo/png/lockup-color-light-h128.png",
+          "h256": "assets/brand/logo/png/lockup-color-light-h256.png",
+          "h512": "assets/brand/logo/png/lockup-color-light-h512.png"
+        },
+        "wordmark": {
+          "h64": "assets/brand/logo/png/wordmark-color-light-h64.png",
+          "h128": "assets/brand/logo/png/wordmark-color-light-h128.png",
+          "h256": "assets/brand/logo/png/wordmark-color-light-h256.png"
+        }
+      }
+    },
+    "color-dark": {
+      "label": "Full colour · dark surfaces",
+      "use": "Dark surfaces. Outer outline and wordmark turn warm cream; fills are toned down.",
+      "colors": {
+        "outline": "#FBEFDB",
+        "line": "#3A1E0E",
+        "feature": "#3A1E0E",
+        "dough": "#E6992F",
+        "plate": "#F0E0C4",
+        "belt": "#3A1E0E",
+        "roller": "#CF5A2E",
+        "blush": "#F2906C",
+        "type": "#FBEFDB",
+        "tile": null
+      },
+      "files": {
+        "mark": "assets/brand/logo/mark/mark-color-dark.svg",
+        "mark32": "assets/brand/logo/mark/mark-32-color-dark.svg",
+        "mark16": "assets/brand/logo/mark/mark-16-color-dark.svg",
+        "lockup": "assets/brand/logo/lockup/lockup-color-dark.svg",
+        "wordmark": "assets/brand/logo/wordmark/wordmark-color-dark.svg"
+      },
+      "dimensions": {
+        "mark": {
+          "width": 512,
+          "height": 512
+        },
+        "mark32": {
+          "width": 32,
+          "height": 32
+        },
+        "mark16": {
+          "width": 16,
+          "height": 16
+        },
+        "lockup": {
+          "width": 1008.2,
+          "height": 470.8
+        },
+        "wordmark": {
+          "width": 619.8,
+          "height": 192.6
+        }
+      },
+      "png": {
+        "mark": {
+          "16": "assets/brand/logo/png/mark-color-dark-16.png",
+          "32": "assets/brand/logo/png/mark-color-dark-32.png",
+          "48": "assets/brand/logo/png/mark-color-dark-48.png",
+          "64": "assets/brand/logo/png/mark-color-dark-64.png",
+          "128": "assets/brand/logo/png/mark-color-dark-128.png",
+          "180": "assets/brand/logo/png/mark-color-dark-180.png",
+          "192": "assets/brand/logo/png/mark-color-dark-192.png",
+          "256": "assets/brand/logo/png/mark-color-dark-256.png",
+          "512": "assets/brand/logo/png/mark-color-dark-512.png",
+          "1024": "assets/brand/logo/png/mark-color-dark-1024.png"
+        },
+        "lockup": {
+          "h64": "assets/brand/logo/png/lockup-color-dark-h64.png",
+          "h128": "assets/brand/logo/png/lockup-color-dark-h128.png",
+          "h256": "assets/brand/logo/png/lockup-color-dark-h256.png",
+          "h512": "assets/brand/logo/png/lockup-color-dark-h512.png"
+        },
+        "wordmark": {
+          "h64": "assets/brand/logo/png/wordmark-color-dark-h64.png",
+          "h128": "assets/brand/logo/png/wordmark-color-dark-h128.png",
+          "h256": "assets/brand/logo/png/wordmark-color-dark-h256.png"
+        }
+      }
+    },
+    "mono-dark": {
+      "label": "Mono · dark ink",
+      "use": "Single ink for print, embossing and light accent fills. Foundation foreground ink.",
+      "colors": {
+        "outline": "#141A24",
+        "line": "#141A24",
+        "feature": "#141A24",
+        "dough": null,
+        "plate": null,
+        "belt": "#141A24",
+        "roller": "knockout",
+        "blush": null,
+        "type": "#141A24",
+        "tile": null
+      },
+      "files": {
+        "mark": "assets/brand/logo/mark/mark-mono-dark.svg",
+        "mark32": "assets/brand/logo/mark/mark-32-mono-dark.svg",
+        "mark16": "assets/brand/logo/mark/mark-16-mono-dark.svg",
+        "lockup": "assets/brand/logo/lockup/lockup-mono-dark.svg",
+        "wordmark": "assets/brand/logo/wordmark/wordmark-mono-dark.svg"
+      },
+      "dimensions": {
+        "mark": {
+          "width": 512,
+          "height": 512
+        },
+        "mark32": {
+          "width": 32,
+          "height": 32
+        },
+        "mark16": {
+          "width": 16,
+          "height": 16
+        },
+        "lockup": {
+          "width": 1008.2,
+          "height": 470.8
+        },
+        "wordmark": {
+          "width": 619.8,
+          "height": 192.6
+        }
+      },
+      "png": {
+        "mark": {
+          "64": "assets/brand/logo/png/mark-mono-dark-64.png",
+          "256": "assets/brand/logo/png/mark-mono-dark-256.png",
+          "1024": "assets/brand/logo/png/mark-mono-dark-1024.png"
+        },
+        "lockup": {
+          "h64": "assets/brand/logo/png/lockup-mono-dark-h64.png",
+          "h128": "assets/brand/logo/png/lockup-mono-dark-h128.png",
+          "h256": "assets/brand/logo/png/lockup-mono-dark-h256.png",
+          "h512": "assets/brand/logo/png/lockup-mono-dark-h512.png"
+        },
+        "wordmark": {
+          "h64": "assets/brand/logo/png/wordmark-mono-dark-h64.png",
+          "h128": "assets/brand/logo/png/wordmark-mono-dark-h128.png",
+          "h256": "assets/brand/logo/png/wordmark-mono-dark-h256.png"
+        }
+      }
+    },
+    "mono-light": {
+      "label": "Mono · light ink (reversed)",
+      "use": "Single light ink on dark or saturated fills. Foundation dark-theme foreground.",
+      "colors": {
+        "outline": "#F2F4F8",
+        "line": "#F2F4F8",
+        "feature": "#F2F4F8",
+        "dough": null,
+        "plate": null,
+        "belt": "#F2F4F8",
+        "roller": "knockout",
+        "blush": null,
+        "type": "#F2F4F8",
+        "tile": null
+      },
+      "files": {
+        "mark": "assets/brand/logo/mark/mark-mono-light.svg",
+        "mark32": "assets/brand/logo/mark/mark-32-mono-light.svg",
+        "mark16": "assets/brand/logo/mark/mark-16-mono-light.svg",
+        "lockup": "assets/brand/logo/lockup/lockup-mono-light.svg",
+        "wordmark": "assets/brand/logo/wordmark/wordmark-mono-light.svg"
+      },
+      "dimensions": {
+        "mark": {
+          "width": 512,
+          "height": 512
+        },
+        "mark32": {
+          "width": 32,
+          "height": 32
+        },
+        "mark16": {
+          "width": 16,
+          "height": 16
+        },
+        "lockup": {
+          "width": 1008.2,
+          "height": 470.8
+        },
+        "wordmark": {
+          "width": 619.8,
+          "height": 192.6
+        }
+      },
+      "png": {
+        "mark": {
+          "64": "assets/brand/logo/png/mark-mono-light-64.png",
+          "256": "assets/brand/logo/png/mark-mono-light-256.png",
+          "1024": "assets/brand/logo/png/mark-mono-light-1024.png"
+        },
+        "lockup": {
+          "h64": "assets/brand/logo/png/lockup-mono-light-h64.png",
+          "h128": "assets/brand/logo/png/lockup-mono-light-h128.png",
+          "h256": "assets/brand/logo/png/lockup-mono-light-h256.png",
+          "h512": "assets/brand/logo/png/lockup-mono-light-h512.png"
+        },
+        "wordmark": {
+          "h64": "assets/brand/logo/png/wordmark-mono-light-h64.png",
+          "h128": "assets/brand/logo/png/wordmark-mono-light-h128.png",
+          "h256": "assets/brand/logo/png/wordmark-mono-light-h256.png"
+        }
+      }
+    },
+    "on-brand": {
+      "label": "On brand orange",
+      "use": "Brand orange fills. Dough drops out so the surface shows through.",
+      "colors": {
+        "outline": "#3A1E0E",
+        "line": "#3A1E0E",
+        "feature": "#3A1E0E",
+        "dough": null,
+        "plate": "#FFF1D6",
+        "belt": "#3A1E0E",
+        "roller": "#CF5A2E",
+        "blush": "#F2906C",
+        "type": "#3A1E0E",
+        "tile": null
+      },
+      "files": {
+        "mark": "assets/brand/logo/mark/mark-on-brand.svg",
+        "mark32": "assets/brand/logo/mark/mark-32-on-brand.svg",
+        "mark16": "assets/brand/logo/mark/mark-16-on-brand.svg",
+        "lockup": "assets/brand/logo/lockup/lockup-on-brand.svg",
+        "wordmark": "assets/brand/logo/wordmark/wordmark-color-light.svg"
+      },
+      "dimensions": {
+        "mark": {
+          "width": 512,
+          "height": 512
+        },
+        "mark32": {
+          "width": 32,
+          "height": 32
+        },
+        "mark16": {
+          "width": 16,
+          "height": 16
+        },
+        "lockup": {
+          "width": 1008.2,
+          "height": 470.8
+        },
+        "wordmark": {
+          "width": 619.8,
+          "height": 192.6
+        }
+      },
+      "png": {
+        "mark": {
+          "64": "assets/brand/logo/png/mark-on-brand-64.png",
+          "256": "assets/brand/logo/png/mark-on-brand-256.png",
+          "1024": "assets/brand/logo/png/mark-on-brand-1024.png"
+        },
+        "lockup": {
+          "h64": "assets/brand/logo/png/lockup-on-brand-h64.png",
+          "h128": "assets/brand/logo/png/lockup-on-brand-h128.png",
+          "h256": "assets/brand/logo/png/lockup-on-brand-h256.png",
+          "h512": "assets/brand/logo/png/lockup-on-brand-h512.png"
+        },
+        "wordmark": {
+          "h64": "assets/brand/logo/png/wordmark-color-light-h64.png",
+          "h128": "assets/brand/logo/png/wordmark-color-light-h128.png",
+          "h256": "assets/brand/logo/png/wordmark-color-light-h256.png"
+        }
+      }
+    },
+    "tile-light": {
+      "label": "Tile · light",
+      "use": "App icon, favicon and home-screen tile for light contexts. Mark on a cream rounded tile.",
+      "colors": {
+        "outline": "#3A1E0E",
+        "line": "#3A1E0E",
+        "feature": "#3A1E0E",
+        "dough": "#F7A93B",
+        "plate": "#FFF1D6",
+        "belt": "#3A1E0E",
+        "roller": "#CF5A2E",
+        "blush": "#F2906C",
+        "type": null,
+        "tile": "#FFF1D6"
+      },
+      "files": {
+        "mark": "assets/brand/logo/mark/mark-tile-light.svg",
+        "mark32": "assets/brand/logo/mark/mark-32-tile-light.svg",
+        "mark16": "assets/brand/logo/mark/mark-16-tile-light.svg"
+      },
+      "dimensions": {
+        "mark": {
+          "width": 512,
+          "height": 512
+        },
+        "mark32": {
+          "width": 32,
+          "height": 32
+        },
+        "mark16": {
+          "width": 16,
+          "height": 16
+        }
+      },
+      "png": {
+        "mark": {
+          "16": "assets/brand/logo/png/mark-tile-light-16.png",
+          "32": "assets/brand/logo/png/mark-tile-light-32.png",
+          "48": "assets/brand/logo/png/mark-tile-light-48.png",
+          "64": "assets/brand/logo/png/mark-tile-light-64.png",
+          "128": "assets/brand/logo/png/mark-tile-light-128.png",
+          "180": "assets/brand/logo/png/mark-tile-light-180.png",
+          "192": "assets/brand/logo/png/mark-tile-light-192.png",
+          "256": "assets/brand/logo/png/mark-tile-light-256.png",
+          "512": "assets/brand/logo/png/mark-tile-light-512.png",
+          "1024": "assets/brand/logo/png/mark-tile-light-1024.png"
+        }
+      }
+    },
+    "tile-dark": {
+      "label": "Tile · dark",
+      "use": "App icon and favicon tile for dark contexts. Mark on a dark-surface rounded tile.",
+      "colors": {
+        "outline": "#FBEFDB",
+        "line": "#3A1E0E",
+        "feature": "#3A1E0E",
+        "dough": "#E6992F",
+        "plate": "#F0E0C4",
+        "belt": "#3A1E0E",
+        "roller": "#CF5A2E",
+        "blush": "#F2906C",
+        "type": null,
+        "tile": "#12161E"
+      },
+      "files": {
+        "mark": "assets/brand/logo/mark/mark-tile-dark.svg",
+        "mark32": "assets/brand/logo/mark/mark-32-tile-dark.svg",
+        "mark16": "assets/brand/logo/mark/mark-16-tile-dark.svg"
+      },
+      "dimensions": {
+        "mark": {
+          "width": 512,
+          "height": 512
+        },
+        "mark32": {
+          "width": 32,
+          "height": 32
+        },
+        "mark16": {
+          "width": 16,
+          "height": 16
+        }
+      },
+      "png": {
+        "mark": {
+          "16": "assets/brand/logo/png/mark-tile-dark-16.png",
+          "32": "assets/brand/logo/png/mark-tile-dark-32.png",
+          "48": "assets/brand/logo/png/mark-tile-dark-48.png",
+          "64": "assets/brand/logo/png/mark-tile-dark-64.png",
+          "128": "assets/brand/logo/png/mark-tile-dark-128.png",
+          "180": "assets/brand/logo/png/mark-tile-dark-180.png",
+          "192": "assets/brand/logo/png/mark-tile-dark-192.png",
+          "256": "assets/brand/logo/png/mark-tile-dark-256.png",
+          "512": "assets/brand/logo/png/mark-tile-dark-512.png",
+          "1024": "assets/brand/logo/png/mark-tile-dark-1024.png"
+        }
+      }
+    }
+  },
+  "matrix": [
+    {
+      "surface": "light.surface",
+      "variant": "color-light",
+      "recommended": true,
+      "contrast": {
+        "mark": 15.31,
+        "wordmark": 15.31
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "light.surface",
+      "variant": "color-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.14,
+        "wordmark": 1.14
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "light.surface",
+      "variant": "mono-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 17.46,
+        "wordmark": 17.46
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "light.surface",
+      "variant": "mono-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.1,
+        "wordmark": 1.1
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "light.surface",
+      "variant": "on-brand",
+      "recommended": false,
+      "contrast": {
+        "mark": 15.31,
+        "wordmark": 15.31
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "light.surface",
+      "variant": "tile-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.12,
+        "wordmark": null,
+        "tile": 1.12,
+        "inner": 13.71
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": null
+      }
+    },
+    {
+      "surface": "light.surface",
+      "variant": "tile-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 18.12,
+        "wordmark": null,
+        "tile": 18.12,
+        "inner": 15.93
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": null
+      }
+    },
+    {
+      "surface": "light.canvas",
+      "variant": "color-light",
+      "recommended": true,
+      "contrast": {
+        "mark": 14.16,
+        "wordmark": 14.16
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "light.canvas",
+      "variant": "color-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.05,
+        "wordmark": 1.05
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "light.canvas",
+      "variant": "mono-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 16.14,
+        "wordmark": 16.14
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "light.canvas",
+      "variant": "mono-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.02,
+        "wordmark": 1.02
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "light.canvas",
+      "variant": "on-brand",
+      "recommended": false,
+      "contrast": {
+        "mark": 14.16,
+        "wordmark": 14.16
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "light.canvas",
+      "variant": "tile-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.03,
+        "wordmark": null,
+        "tile": 1.03,
+        "inner": 13.71
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": null
+      }
+    },
+    {
+      "surface": "light.canvas",
+      "variant": "tile-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 16.75,
+        "wordmark": null,
+        "tile": 16.75,
+        "inner": 15.93
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": null
+      }
+    },
+    {
+      "surface": "light.surface-subtle",
+      "variant": "color-light",
+      "recommended": true,
+      "contrast": {
+        "mark": 13.42,
+        "wordmark": 13.42
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "light.surface-subtle",
+      "variant": "color-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 1,
+        "wordmark": 1
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "light.surface-subtle",
+      "variant": "mono-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 15.3,
+        "wordmark": 15.3
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "light.surface-subtle",
+      "variant": "mono-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.04,
+        "wordmark": 1.04
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "light.surface-subtle",
+      "variant": "on-brand",
+      "recommended": false,
+      "contrast": {
+        "mark": 13.42,
+        "wordmark": 13.42
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "light.surface-subtle",
+      "variant": "tile-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.02,
+        "wordmark": null,
+        "tile": 1.02,
+        "inner": 13.71
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": null
+      }
+    },
+    {
+      "surface": "light.surface-subtle",
+      "variant": "tile-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 15.88,
+        "wordmark": null,
+        "tile": 15.88,
+        "inner": 15.93
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": null
+      }
+    },
+    {
+      "surface": "light.primary",
+      "variant": "color-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.14,
+        "wordmark": 1.14
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "light.primary",
+      "variant": "color-dark",
+      "recommended": true,
+      "contrast": {
+        "mark": 15.35,
+        "wordmark": 15.35
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "light.primary",
+      "variant": "mono-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 1,
+        "wordmark": 1
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "light.primary",
+      "variant": "mono-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 15.85,
+        "wordmark": 15.85
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "light.primary",
+      "variant": "on-brand",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.14,
+        "wordmark": 1.14
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "light.primary",
+      "variant": "tile-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 15.63,
+        "wordmark": null,
+        "tile": 15.63,
+        "inner": 13.71
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": null
+      }
+    },
+    {
+      "surface": "light.primary",
+      "variant": "tile-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.04,
+        "wordmark": null,
+        "tile": 1.04,
+        "inner": 15.93
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": null
+      }
+    },
+    {
+      "surface": "light.selection",
+      "variant": "color-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 2.63,
+        "wordmark": 2.63
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "light.selection",
+      "variant": "color-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 5.11,
+        "wordmark": 5.11
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "light.selection",
+      "variant": "mono-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 3,
+        "wordmark": 3
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": false,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "light.selection",
+      "variant": "mono-light",
+      "recommended": true,
+      "contrast": {
+        "mark": 5.28,
+        "wordmark": 5.28
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "light.selection",
+      "variant": "on-brand",
+      "recommended": false,
+      "contrast": {
+        "mark": 2.63,
+        "wordmark": 2.63
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "light.selection",
+      "variant": "tile-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 5.2,
+        "wordmark": null,
+        "tile": 5.2,
+        "inner": 13.71
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": null
+      }
+    },
+    {
+      "surface": "light.selection",
+      "variant": "tile-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 3.12,
+        "wordmark": null,
+        "tile": 3.12,
+        "inner": 15.93
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": null
+      }
+    },
+    {
+      "surface": "dark.surface",
+      "variant": "color-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.18,
+        "wordmark": 1.18
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "dark.surface",
+      "variant": "color-dark",
+      "recommended": true,
+      "contrast": {
+        "mark": 15.93,
+        "wordmark": 15.93
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "dark.surface",
+      "variant": "mono-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.04,
+        "wordmark": 1.04
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "dark.surface",
+      "variant": "mono-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 16.45,
+        "wordmark": 16.45
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "dark.surface",
+      "variant": "on-brand",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.18,
+        "wordmark": 1.18
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "dark.surface",
+      "variant": "tile-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 16.22,
+        "wordmark": null,
+        "tile": 16.22,
+        "inner": 13.71
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": null
+      }
+    },
+    {
+      "surface": "dark.surface",
+      "variant": "tile-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 1,
+        "wordmark": null,
+        "tile": 1,
+        "inner": 15.93
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": null
+      }
+    },
+    {
+      "surface": "dark.canvas",
+      "variant": "color-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.26,
+        "wordmark": 1.26
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "dark.canvas",
+      "variant": "color-dark",
+      "recommended": true,
+      "contrast": {
+        "mark": 16.99,
+        "wordmark": 16.99
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "dark.canvas",
+      "variant": "mono-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.11,
+        "wordmark": 1.11
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "dark.canvas",
+      "variant": "mono-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 17.54,
+        "wordmark": 17.54
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "dark.canvas",
+      "variant": "on-brand",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.26,
+        "wordmark": 1.26
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "dark.canvas",
+      "variant": "tile-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 17.3,
+        "wordmark": null,
+        "tile": 17.3,
+        "inner": 13.71
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": null
+      }
+    },
+    {
+      "surface": "dark.canvas",
+      "variant": "tile-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.07,
+        "wordmark": null,
+        "tile": 1.07,
+        "inner": 15.93
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": null
+      }
+    },
+    {
+      "surface": "dark.surface-raised",
+      "variant": "color-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.02,
+        "wordmark": 1.02
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "dark.surface-raised",
+      "variant": "color-dark",
+      "recommended": true,
+      "contrast": {
+        "mark": 13.17,
+        "wordmark": 13.17
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "dark.surface-raised",
+      "variant": "mono-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.17,
+        "wordmark": 1.17
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "dark.surface-raised",
+      "variant": "mono-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 13.6,
+        "wordmark": 13.6
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "dark.surface-raised",
+      "variant": "on-brand",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.02,
+        "wordmark": 1.02
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "dark.surface-raised",
+      "variant": "tile-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 13.41,
+        "wordmark": null,
+        "tile": 13.41,
+        "inner": 13.71
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": null
+      }
+    },
+    {
+      "surface": "dark.surface-raised",
+      "variant": "tile-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.21,
+        "wordmark": null,
+        "tile": 1.21,
+        "inner": 15.93
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": null
+      }
+    },
+    {
+      "surface": "dark.primary",
+      "variant": "color-light",
+      "recommended": true,
+      "contrast": {
+        "mark": 13.9,
+        "wordmark": 13.9
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "dark.primary",
+      "variant": "color-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.03,
+        "wordmark": 1.03
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "dark.primary",
+      "variant": "mono-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 15.85,
+        "wordmark": 15.85
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "dark.primary",
+      "variant": "mono-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 1,
+        "wordmark": 1
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "dark.primary",
+      "variant": "on-brand",
+      "recommended": false,
+      "contrast": {
+        "mark": 13.9,
+        "wordmark": 13.9
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "dark.primary",
+      "variant": "tile-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.01,
+        "wordmark": null,
+        "tile": 1.01,
+        "inner": 13.71
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": null
+      }
+    },
+    {
+      "surface": "dark.primary",
+      "variant": "tile-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 16.45,
+        "wordmark": null,
+        "tile": 16.45,
+        "inner": 15.93
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": null
+      }
+    },
+    {
+      "surface": "dark.selection",
+      "variant": "color-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 4.82,
+        "wordmark": 4.82
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "dark.selection",
+      "variant": "color-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 2.8,
+        "wordmark": 2.8
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "dark.selection",
+      "variant": "mono-dark",
+      "recommended": true,
+      "contrast": {
+        "mark": 5.49,
+        "wordmark": 5.49
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "dark.selection",
+      "variant": "mono-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 2.89,
+        "wordmark": 2.89
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "dark.selection",
+      "variant": "on-brand",
+      "recommended": false,
+      "contrast": {
+        "mark": 4.82,
+        "wordmark": 4.82
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "dark.selection",
+      "variant": "tile-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 2.85,
+        "wordmark": null,
+        "tile": 2.85,
+        "inner": 13.71
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": null
+      }
+    },
+    {
+      "surface": "dark.selection",
+      "variant": "tile-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 5.7,
+        "wordmark": null,
+        "tile": 5.7,
+        "inner": 15.93
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": null
+      }
+    },
+    {
+      "surface": "brand.golden",
+      "variant": "color-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 7.79,
+        "wordmark": 7.79
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "brand.golden",
+      "variant": "color-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.73,
+        "wordmark": 1.73
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "brand.golden",
+      "variant": "mono-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 8.89,
+        "wordmark": 8.89
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "brand.golden",
+      "variant": "mono-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.78,
+        "wordmark": 1.78
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": false,
+        "wordmarkLarge": false
+      }
+    },
+    {
+      "surface": "brand.golden",
+      "variant": "on-brand",
+      "recommended": true,
+      "contrast": {
+        "mark": 7.79,
+        "wordmark": 7.79
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": true,
+        "wordmarkLarge": true
+      }
+    },
+    {
+      "surface": "brand.golden",
+      "variant": "tile-light",
+      "recommended": false,
+      "contrast": {
+        "mark": 1.76,
+        "wordmark": null,
+        "tile": 1.76,
+        "inner": 13.71
+      },
+      "pass": {
+        "mark": false,
+        "wordmark": null
+      }
+    },
+    {
+      "surface": "brand.golden",
+      "variant": "tile-dark",
+      "recommended": false,
+      "contrast": {
+        "mark": 9.22,
+        "wordmark": null,
+        "tile": 9.22,
+        "inner": 15.93
+      },
+      "pass": {
+        "mark": true,
+        "wordmark": null
+      }
+    }
+  ],
+  "minSize": {
+    "mark": 16,
+    "lockupHeight": 24,
+    "wordmarkHeight": 16
+  },
+  "sizeRules": [
+    {
+      "maxPx": 19,
+      "file": "mark16"
+    },
+    {
+      "minPx": 30,
+      "maxPx": 34,
+      "file": "mark32"
+    },
+    {
+      "file": "mark"
+    }
+  ],
+  "clearSpace": {
+    "unit": "x",
+    "definition": "x = 0.25 × mark height",
+    "minimum": "1x on every side"
+  }
+}

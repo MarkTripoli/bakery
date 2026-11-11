@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="restored-heartbeat-must-not-rename-the-process" project="bakery">
+  <title>A heartbeat body restored from a killed worker never renames the restarted process</title>
+  <trigger>A worker is killed after it saved a pending heartbeat body and before the server committed it, then restarts from the same state directory.</trigger>
+  <mistake>The restarted process sent the restored body first. The server never committed that key, accepted the body from the host's current session and answered that session as a new one, and runHeartbeatLoop took the answer as the process session. The worker claimed under the killed worker's session and its new attempt kept it (main push run 41401773074; 1 of 12 runs on main).</mistake>
+  <rule>In runHeartbeatLoop a response to a body whose workerSessionId differs from state.processSessionId is handled as a replay: no rename, no ready signal, an immediate takeover heartbeat. Do not drop the restored body at startup: a committed-but-unacknowledged first heartbeat would then be fenced.</rule>
+  <verification>
+    <requirement>tests/helpers/worker-execution/recovery-locks.ts restart sends an uncommitted heartbeat first without adopting its process session fails at 6097629f and passes after the fix.</requirement>
+    <requirement>Injecting a never-sent pending body into the killed worker's registration.json makes the fixed-coding-preset recovery child fail at the base with the same session id on both sides, and pass with the fix.</requirement>
+  </verification>
+</learning>

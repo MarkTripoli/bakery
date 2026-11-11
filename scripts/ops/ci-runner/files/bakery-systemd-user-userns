@@ -1,0 +1,5 @@
+abi <abi/4.0>,
+include <tunables/global>
+profile bakery-systemd-user-userns /usr/lib/systemd/systemd flags=(unconfined) {
+  userns,
+}

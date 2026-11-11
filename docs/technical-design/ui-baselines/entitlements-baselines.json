@@ -1,0 +1,2552 @@
+{
+  "schemaVersion": 2,
+  "source": {
+    "fileId": "01M1X504XVC45FC0VDK857A37D",
+    "pageId": "p-17-0",
+    "manifestPath": "docs/technical-design/entitlements-mocks/source-manifest.json",
+    "entry": "docs/technical-design/entitlements-mocks/site/index.html",
+    "readyGlobal": "bakeryEntitlementsReady",
+    "inputs": [
+      "docs/technical-design/entitlements-mocks/site/index.html",
+      "docs/technical-design/entitlements-mocks/site/base.css",
+      "docs/technical-design/entitlements-mocks/site/site.js",
+      "docs/technical-design/entitlements-mocks/site/tokens.css",
+      "docs/technical-design/entitlements-mocks/site/fonts.css",
+      "docs/technical-design/entitlements-mocks/site/fragments/installation-settings--default--dark--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/installation-settings--default--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/installation-settings--default--dark--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/installation-settings--default--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/installation-settings--save-conflict--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/installation-settings--save-conflict--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/installation-settings--save-error--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/installation-settings--save-error--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/installation-administrators--denied-non-admin--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/installation-administrators--denied-non-admin--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/installation-administrators--list--dark--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/installation-administrators--list--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/installation-administrators--list--dark--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/installation-administrators--list--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/installation-administrators--revoke-confirm--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/installation-administrators--revoke-confirm--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/licence-page--active--dark--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/licence-page--active--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/licence-page--active--dark--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/licence-page--active--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/licence-page--expired--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/licence-page--expired--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/licence-page--grace--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/licence-page--grace--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/licence-page--invalid-key--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/licence-page--invalid-key--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/licence-page--no-key-community--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/licence-page--no-key-community--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/licence-page--paste-and-update--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/licence-page--paste-and-update--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/licence-banners--expired--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/licence-banners--expired--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/licence-banners--grace--dark--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/licence-banners--grace--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/licence-banners--grace--dark--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/licence-banners--grace--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/seat-banner--over-free-limit--dark--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/seat-banner--over-free-limit--dark--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/seat-banner--over-limit-and-invite-refused--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/seat-banner--over-limit-and-invite-refused--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/featuregate-upsell--full-section--dark--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/featuregate-upsell--full-section--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/featuregate-upsell--full-section--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/featuregate-upsell--inline--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/featuregate-upsell--inline--dark--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/featuregate-upsell--inline--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/access-page--empty--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/access-page--empty--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/access-page--error--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/access-page--error--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/access-page--loading--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/access-page--loading--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/access-page--members--dark--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/access-page--members--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/access-page--members--dark--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/access-page--members--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/custom-roles--create-or-edit--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/custom-roles--create-or-edit--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/custom-roles--list--dark--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/custom-roles--list--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/custom-roles--list--dark--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/custom-roles--list--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/audit-log--export-dialog--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/audit-log--export-dialog--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/audit-log--list--dark--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/audit-log--list--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/audit-log--list--dark--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/audit-log--list--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/sso--add-oidc--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/sso--add-oidc--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/sso--add-saml-and-domain-verification--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/sso--add-saml-and-domain-verification--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/sso--list--dark--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/sso--list--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/sso--list--dark--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/sso--list--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/scim--revoke-and-decommission-confirm--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/scim--revoke-and-decommission-confirm--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/scim--rotate-confirm--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/scim--rotate-confirm--light--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/scim--token-shown-once--dark--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/scim--token-shown-once--light--desktop.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/scim--token-shown-once--dark--phone.html",
+      "docs/technical-design/entitlements-mocks/site/fragments/scim--token-shown-once--light--phone.html",
+      "docs/technical-design/entitlements-mocks/source/assets/31Q0XHM9CWZXZBJC5KE8YZ9DZP.png",
+      "docs/technical-design/entitlements-mocks/source-manifest.json",
+      "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf",
+      "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf",
+      "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf",
+      "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf",
+      "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf",
+      "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf",
+      "docs/technical-design/enterprise-mocks/fonts-provenance.json",
+      "packages/ui/scripts/fontconfig/fonts.conf",
+      "packages/ui/scripts/render-entitlements-references.mjs",
+      "packages/ui/scripts/render-enterprise-references.mjs"
+    ],
+    "revision": "paper:d622c901; mock:d9593bd6; rendered:2026-10-14",
+    "digest": "d9593bd65267d28e0440a56b4eff3e504faa7afca1a6b6e333b145fa3583d6d3"
+  },
+  "reference": {
+    "hidden": [],
+    "overrides": {}
+  },
+  "cases": [
+    {
+      "id": "installation-settings.default.dark.desktop",
+      "reference": "design",
+      "frameId": "2DA1-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "installation-settings",
+        "state": "default",
+        "theme": "dark",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v3/installation-settings--default--dark--desktop.png",
+      "imageSha256": "f542436d5890664bc48f7034c0af867b55e39f33c99a09c153a91fdd0888e466",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/__fixtures__/installation/settings",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "installation-settings.default.dark.phone",
+      "reference": "design",
+      "frameId": "2DYC-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "installation-settings",
+        "state": "default",
+        "theme": "dark",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v2/installation-settings--default--dark--phone.png",
+      "imageSha256": "78f94315d4c2aac00cae68455e35b7e7da8506036ead022c1fb6290fdaf25a7c",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/__fixtures__/installation/settings",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "installation-settings.default.light.desktop",
+      "reference": "design",
+      "frameId": "2C24-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "installation-settings",
+        "state": "default",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v3/installation-settings--default--light--desktop.png",
+      "imageSha256": "d8e43448607be7e7cd204757906ff9c3f86bf34bd03cf851e35d25ab6c46c5c0",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/__fixtures__/installation/settings",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "installation-settings.default.light.phone",
+      "reference": "design",
+      "frameId": "2D27-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "installation-settings",
+        "state": "default",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v2/installation-settings--default--light--phone.png",
+      "imageSha256": "baea3b90958d2fe410a068fa8b725483c16f320ab67e488b40edfdbf03764cca",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/__fixtures__/installation/settings",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "installation-settings.save-conflict.light.desktop",
+      "reference": "design",
+      "frameId": "2E5Y-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "installation-settings",
+        "state": "save-conflict",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v3/installation-settings--save-conflict--light--desktop.png",
+      "imageSha256": "419d12bbd90d704e4de704bd1afe4735fc1f14b7c3b7524bbf9a18578975086f",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/__fixtures__/installation/settings",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "installation-settings.save-conflict.light.phone",
+      "reference": "design",
+      "frameId": "2E62-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "installation-settings",
+        "state": "save-conflict",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v2/installation-settings--save-conflict--light--phone.png",
+      "imageSha256": "5e57584a5d99ace7a6ea0b5989c5c9ca3927a3657bf2c8d354d53feba279f3f2",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/__fixtures__/installation/settings",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "installation-settings.save-error.light.desktop",
+      "reference": "design",
+      "frameId": "2E5Z-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "installation-settings",
+        "state": "save-error",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v3/installation-settings--save-error--light--desktop.png",
+      "imageSha256": "82a11d549e3f2eec0c91a5052fea11ad7a134fa8ed80c28d3ca8285172066274",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/__fixtures__/installation/settings",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "installation-settings.save-error.light.phone",
+      "reference": "design",
+      "frameId": "2E63-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "installation-settings",
+        "state": "save-error",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v2/installation-settings--save-error--light--phone.png",
+      "imageSha256": "d96c3e956820629c696866416d9db8ff20f9c0463558a4373d7a1c45c37dd3a7",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/__fixtures__/installation/settings",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "installation-administrators.denied-non-admin.light.desktop",
+      "reference": "design",
+      "frameId": "2E61-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "installation-administrators",
+        "state": "denied-non-admin",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-administrators--denied-non-admin--light--desktop.png",
+      "imageSha256": "91bfb734d37f96cb4bc14d358f0024f3dbbfa919d48814cdbf244706ec346272",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/installation/administrators",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "installation-administrators.denied-non-admin.light.phone",
+      "reference": "design",
+      "frameId": "2E65-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "installation-administrators",
+        "state": "denied-non-admin",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-administrators--denied-non-admin--light--phone.png",
+      "imageSha256": "0bfe0e4b47cd7b03e2d7e63c51186259e8625962eaabcc84d99524e4b830725b",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/installation/administrators",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "installation-administrators.list.dark.desktop",
+      "reference": "design",
+      "frameId": "2DCR-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "installation-administrators",
+        "state": "list",
+        "theme": "dark",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-administrators--list--dark--desktop.png",
+      "imageSha256": "c805f63b60e07b1cda82a48c227e7c9280f496e26053ebea38b3bb9462a1fc94",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/installation/administrators",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "installation-administrators.list.dark.phone",
+      "reference": "design",
+      "frameId": "2DYD-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "installation-administrators",
+        "state": "list",
+        "theme": "dark",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-administrators--list--dark--phone.png",
+      "imageSha256": "57b585244fe830ed802ae23f93c8a41c49647fd024d05166920098012961df7f",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/installation/administrators",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "installation-administrators.list.light.desktop",
+      "reference": "design",
+      "frameId": "2C4V-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "installation-administrators",
+        "state": "list",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-administrators--list--light--desktop.png",
+      "imageSha256": "0b982a8da750dbccd57e95e07f033e8bab508f80ca9f533874ebc0755ad22074",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/installation/administrators",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "installation-administrators.list.light.phone",
+      "reference": "design",
+      "frameId": "2D28-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "installation-administrators",
+        "state": "list",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-administrators--list--light--phone.png",
+      "imageSha256": "ae678570d1546cc0c8ce74ae5d9666079850dfd5077b9b7231f0f1339caf1b2c",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/installation/administrators",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "installation-administrators.revoke-confirm.light.desktop",
+      "reference": "design",
+      "frameId": "2E60-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "installation-administrators",
+        "state": "revoke-confirm",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-administrators--revoke-confirm--light--desktop.png",
+      "imageSha256": "ece4e762f46dd2b412ec3e1ab68873013f5264298e1551c64b3fcfb09a0c319f",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/installation/administrators",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "installation-administrators.revoke-confirm.light.phone",
+      "reference": "design",
+      "frameId": "2E64-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "installation-administrators",
+        "state": "revoke-confirm",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-administrators--revoke-confirm--light--phone.png",
+      "imageSha256": "e2c61cd6af2d81f5abfe991f433e71c18dee75bb3f283a8b879324f9cc9d7059",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/installation/administrators",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "access-page.empty.light.desktop",
+      "reference": "design",
+      "frameId": "2ENV-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "access-page",
+        "state": "empty",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/access-page--empty--light--desktop.png",
+      "imageSha256": "a052d5661d032eb44b70ef28cb478683085b5f84d892022e37c29adf804e1b17",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/access",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "access-page.empty.light.phone",
+      "reference": "design",
+      "frameId": "2ENY-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "access-page",
+        "state": "empty",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/access-page--empty--light--phone.png",
+      "imageSha256": "41703bc3dbb51daeeebbbd7ca066ca3062262b650efef7784df43dfd7aafa983",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/access",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "access-page.error.light.desktop",
+      "reference": "design",
+      "frameId": "2ENX-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "access-page",
+        "state": "error",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/access-page--error--light--desktop.png",
+      "imageSha256": "65a57918ce0e00f528fe080530aaca2b8a285a61202bb8f4b00245f24ef644c9",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/access",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "access-page.error.light.phone",
+      "reference": "design",
+      "frameId": "2EO0-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "access-page",
+        "state": "error",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/access-page--error--light--phone.png",
+      "imageSha256": "8c1fd362901c93c4fed593dac15afca1f5eca256fc1c39067f111779bd0bc5e4",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/access",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "access-page.loading.light.desktop",
+      "reference": "design",
+      "frameId": "2ENW-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "access-page",
+        "state": "loading",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/access-page--loading--light--desktop.png",
+      "imageSha256": "c36a50c00d54059cb76464d82873ea4931af99bde06c1d19e532e6330ed1670e",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/access",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "access-page.loading.light.phone",
+      "reference": "design",
+      "frameId": "2ENZ-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "access-page",
+        "state": "loading",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/access-page--loading--light--phone.png",
+      "imageSha256": "cbc9a694d41344da3c2fb31e98f97103eb5c5efe48a1b720c9ff10e93a7789b2",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/access",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "access-page.members.dark.desktop",
+      "reference": "design",
+      "frameId": "2DCW-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "access-page",
+        "state": "members",
+        "theme": "dark",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/access-page--members--dark--desktop.png",
+      "imageSha256": "bdd33ed12b23be3850a678ebfc05add392fc4afd258194da0917eaf4a4b77e64",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/access",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "access-page.members.dark.phone",
+      "reference": "design",
+      "frameId": "2DYI-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "access-page",
+        "state": "members",
+        "theme": "dark",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/access-page--members--dark--phone.png",
+      "imageSha256": "081eec9ab36df1719ca1791c0516f54daae22a26b33176f7cd1c64e75d2f696e",
+      "viewport": {
+        "width": 390,
+        "height": 912
+      },
+      "artboard": {
+        "width": 390,
+        "height": 912
+      },
+      "image": {
+        "width": 390,
+        "height": 912
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/access",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "access-page.members.light.desktop",
+      "reference": "design",
+      "frameId": "2CCD-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "access-page",
+        "state": "members",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/access-page--members--light--desktop.png",
+      "imageSha256": "06390efe465117f13a1b8c922ceba8f45ae8889443573da119427aef64cebd55",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/access",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "access-page.members.light.phone",
+      "reference": "design",
+      "frameId": "2D2D-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "access-page",
+        "state": "members",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/access-page--members--light--phone.png",
+      "imageSha256": "3ce5d33072bb2145139569c600f29f83edb3773f0980929718be4b8adab22270",
+      "viewport": {
+        "width": 390,
+        "height": 930
+      },
+      "artboard": {
+        "width": 390,
+        "height": 930
+      },
+      "image": {
+        "width": 390,
+        "height": 930
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/access",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "custom-roles.create-or-edit.light.desktop",
+      "reference": "design",
+      "frameId": "2EXJ-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "custom-roles",
+        "state": "create-or-edit",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/custom-roles--create-or-edit--light--desktop.png",
+      "imageSha256": "5ed7b9744cd78fb73c8affd0b431176ca9076c500ad9d1a1a0321b71bb3282c9",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/roles",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "custom-roles.create-or-edit.light.phone",
+      "reference": "design",
+      "frameId": "2EXP-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "custom-roles",
+        "state": "create-or-edit",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/custom-roles--create-or-edit--light--phone.png",
+      "imageSha256": "6ec823d7b291b0ac6052fed1572b8623e8e346817a5633761b1832a4a6c6db5a",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/roles",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "custom-roles.list.dark.desktop",
+      "reference": "design",
+      "frameId": "2DCX-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "custom-roles",
+        "state": "list",
+        "theme": "dark",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/custom-roles--list--dark--desktop.png",
+      "imageSha256": "1ed9ecb7f19016f2e0d321cc4e0b43a7071cf1d5506ddad4c6e59029909fe228",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/roles",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "custom-roles.list.dark.phone",
+      "reference": "design",
+      "frameId": "2DYJ-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "custom-roles",
+        "state": "list",
+        "theme": "dark",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/custom-roles--list--dark--phone.png",
+      "imageSha256": "4922f4723dab657168985d375b589cdade9c3116be7d55b64c8d6802975b2097",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/roles",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "custom-roles.list.light.desktop",
+      "reference": "design",
+      "frameId": "2CGG-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "custom-roles",
+        "state": "list",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/custom-roles--list--light--desktop.png",
+      "imageSha256": "4b8a041e9e670164071d42ab0b624fc6071fa58dc78642c69c2451205d96811f",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/roles",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "custom-roles.list.light.phone",
+      "reference": "design",
+      "frameId": "2D2E-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "custom-roles",
+        "state": "list",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/custom-roles--list--light--phone.png",
+      "imageSha256": "bec4dfbfc2119ada24b48625ec6c9862c8c5db2c12722f8abcb2b573498b2c9a",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/roles",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "audit-log.export-dialog.light.desktop",
+      "reference": "design",
+      "frameId": "2EXK-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "audit-log",
+        "state": "export-dialog",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/audit-log--export-dialog--light--desktop.png",
+      "imageSha256": "289b3c896430c0d0b742a33a024fdc6c05ae13800991b2302a90e04eb7521502",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/audit",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "audit-log.export-dialog.light.phone",
+      "reference": "design",
+      "frameId": "2EXQ-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "audit-log",
+        "state": "export-dialog",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/audit-log--export-dialog--light--phone.png",
+      "imageSha256": "8b636a62c289a8b232ad1e4b276c330026c06046f5904a5c1738f5c84c246fec",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/audit",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "audit-log.list.dark.desktop",
+      "reference": "design",
+      "frameId": "2DCY-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "audit-log",
+        "state": "list",
+        "theme": "dark",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/audit-log--list--dark--desktop.png",
+      "imageSha256": "252e45d9562a783d76519547245dcfcfd1d726c44acb347602aaec0b289a27e4",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/audit",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "audit-log.list.dark.phone",
+      "reference": "design",
+      "frameId": "2DYK-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "audit-log",
+        "state": "list",
+        "theme": "dark",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/audit-log--list--dark--phone.png",
+      "imageSha256": "2ed1f4764a84b7ff03cf03010148c07e2015d8516ee5c1b4eca7bf776506311b",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/audit",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "audit-log.list.light.desktop",
+      "reference": "design",
+      "frameId": "2CJE-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "audit-log",
+        "state": "list",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/audit-log--list--light--desktop.png",
+      "imageSha256": "ab779d94e7d15d175c4f3d151fe0b43d4a03bc6fcb48d3b59f5a25cc75e16a32",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/audit",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "audit-log.list.light.phone",
+      "reference": "design",
+      "frameId": "2D2F-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "audit-log",
+        "state": "list",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/audit-log--list--light--phone.png",
+      "imageSha256": "3c474197e29ee6bd16538ccf776fc6c8cd4e66c0f80f4ca32a6f5809c9730881",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/audit",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "sso.add-oidc.light.desktop",
+      "reference": "design",
+      "frameId": "2EXL-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "sso",
+        "state": "add-oidc",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/sso--add-oidc--light--desktop.png",
+      "imageSha256": "3d06edebc5438d4814959a11fbd209fde3cc17a34eef55528579f7a93bbe4117",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/sso",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "sso.add-oidc.light.phone",
+      "reference": "design",
+      "frameId": "2EXR-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "sso",
+        "state": "add-oidc",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/sso--add-oidc--light--phone.png",
+      "imageSha256": "39bd6df3fdc3d2d9ce91c98a96bd0b7c7796e8dc94478d3d586e6b97d2232cec",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/sso",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "sso.add-saml-and-domain-verification.light.desktop",
+      "reference": "design",
+      "frameId": "2EXM-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "sso",
+        "state": "add-saml-and-domain-verification",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/sso--add-saml-and-domain-verification--light--desktop.png",
+      "imageSha256": "02d498003967907d9da32f78abc56e5d7c7e3e205b117ea66b11857fe690c555",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/sso",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "sso.add-saml-and-domain-verification.light.phone",
+      "reference": "design",
+      "frameId": "2EXS-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "sso",
+        "state": "add-saml-and-domain-verification",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/sso--add-saml-and-domain-verification--light--phone.png",
+      "imageSha256": "92d22cc7332dba59361354ef6a7dd5a2c623fdd75c5616c85ff2b0d46812a643",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/sso",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "sso.list.dark.desktop",
+      "reference": "design",
+      "frameId": "2DCZ-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "sso",
+        "state": "list",
+        "theme": "dark",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/sso--list--dark--desktop.png",
+      "imageSha256": "0f7e5522635823d1bf30ce012bf353c5516aaf8f30c2b581a80eb5c8797a8506",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/sso",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "sso.list.dark.phone",
+      "reference": "design",
+      "frameId": "2DYL-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "sso",
+        "state": "list",
+        "theme": "dark",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/sso--list--dark--phone.png",
+      "imageSha256": "88a9298f73499afe9e3b90000ff5254f01ea4038c9fd6fc2e448ff3ac03aa58a",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/sso",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "sso.list.light.desktop",
+      "reference": "design",
+      "frameId": "2CMC-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "sso",
+        "state": "list",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/sso--list--light--desktop.png",
+      "imageSha256": "a6d47dc3e55acd90f2fc44e40e89aa1e0ba256c994e983196bc70bd76de3b325",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/sso",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "sso.list.light.phone",
+      "reference": "design",
+      "frameId": "2D2G-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "sso",
+        "state": "list",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/sso--list--light--phone.png",
+      "imageSha256": "638fc77d185574c4af1d0187354ca47d5ad4f2df1c9f6bfc03ec646d49ec15bb",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/sso",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "scim.revoke-and-decommission-confirm.light.desktop",
+      "reference": "design",
+      "frameId": "2EXO-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "scim",
+        "state": "revoke-and-decommission-confirm",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/scim--revoke-and-decommission-confirm--light--desktop.png",
+      "imageSha256": "2a51d364cf20506e2a2c6c15fb282acca7300a7ec39105e572807c95a5b2265b",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/scim",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "scim.revoke-and-decommission-confirm.light.phone",
+      "reference": "design",
+      "frameId": "2EXU-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "scim",
+        "state": "revoke-and-decommission-confirm",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/scim--revoke-and-decommission-confirm--light--phone.png",
+      "imageSha256": "5a19915646c89007fecefe097d960ec38f053470972d99b80c92efd0a0b01989",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/scim",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "scim.rotate-confirm.light.desktop",
+      "reference": "design",
+      "frameId": "2EXN-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "scim",
+        "state": "rotate-confirm",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/scim--rotate-confirm--light--desktop.png",
+      "imageSha256": "0dd06b4eb5e985ad870fdc9233764ed4f1766f0080676e2f0535ca908a2bfc5c",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/scim",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "scim.rotate-confirm.light.phone",
+      "reference": "design",
+      "frameId": "2EXT-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "scim",
+        "state": "rotate-confirm",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/scim--rotate-confirm--light--phone.png",
+      "imageSha256": "770e8cc1e9c2918b7d7edce8d06378297eb0b6b8b2ab2282b8a7c84368feb6e7",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/scim",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "scim.token-shown-once.dark.desktop",
+      "reference": "design",
+      "frameId": "2DD0-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "scim",
+        "state": "token-shown-once",
+        "theme": "dark",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/scim--token-shown-once--dark--desktop.png",
+      "imageSha256": "0bf5ece6cc711d69133beb921285c7d948b91c3fd93bf66058009184a0964861",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/scim",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "scim.token-shown-once.dark.phone",
+      "reference": "design",
+      "frameId": "2DYM-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "scim",
+        "state": "token-shown-once",
+        "theme": "dark",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/scim--token-shown-once--dark--phone.png",
+      "imageSha256": "2e1f1ba09ab3bb4a2011cb47ae3b4824b8b276703f614b412082548a92fa0ccf",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/scim",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "scim.token-shown-once.light.desktop",
+      "reference": "design",
+      "frameId": "2CPA-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "scim",
+        "state": "token-shown-once",
+        "theme": "light",
+        "device": "desktop"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/scim--token-shown-once--light--desktop.png",
+      "imageSha256": "273d7fddc67a77aac57223b7ca63d74f440da32a3fe2e77c385f7cd5d5d618f1",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "artboard": {
+        "width": 1440,
+        "height": 900
+      },
+      "image": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/scim",
+        "session": "authenticated"
+      }
+    },
+    {
+      "id": "scim.token-shown-once.light.phone",
+      "reference": "design",
+      "frameId": "2D2H-0",
+      "pageId": "p-17-0",
+      "design": {
+        "screen": "scim",
+        "state": "token-shown-once",
+        "theme": "light",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/entitlements/scim--token-shown-once--light--phone.png",
+      "imageSha256": "10122fa5901cb50dcfc121c5875cf46a8d8e3f998567ece1df75730f657d2d7a",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "artboard": {
+        "width": 390,
+        "height": 844
+      },
+      "image": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "route": "/organization/scim",
+        "session": "authenticated"
+      }
+    }
+  ],
+  "excluded": []
+}

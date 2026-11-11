@@ -1,0 +1,48 @@
+erDiagram
+  direction LR
+  applications {
+    uuid id PK
+  }
+  repositories {
+    uuid id PK
+    uuid application_id FK
+  }
+  applications ||..o{ repositories : "application_id"
+  tasks {
+    uuid id PK
+    uuid application_id FK
+    uuid repository_id FK "nullable"
+    uuid parent_task_id FK "nullable"
+    uuid current_run_id FK "nullable"
+  }
+  applications ||..o{ tasks : "application_id"
+  repositories |o..o{ tasks : "repository_id"
+  tasks |o..o{ tasks : "parent_task_id"
+  workflow_runs |o..o{ tasks : "current_run_id"
+  workflow_runs {
+    uuid id PK
+    uuid task_id FK
+  }
+  tasks ||..o{ workflow_runs : "task_id"
+  run_steps {
+    uuid id PK
+    uuid run_id FK
+  }
+  workflow_runs ||..o{ run_steps : "run_id"
+  jobs {
+    uuid id PK
+    uuid run_step_id FK
+    uuid repository_id FK "nullable"
+  }
+  run_steps ||..o{ jobs : "run_step_id"
+  repositories |o..o{ jobs : "repository_id"
+  worker_hosts {
+    uuid id PK
+  }
+  job_attempts {
+    uuid id PK
+    uuid job_id FK
+    uuid worker_host_id FK
+  }
+  jobs ||..o{ job_attempts : "job_id"
+  worker_hosts ||..o{ job_attempts : "worker_host_id"

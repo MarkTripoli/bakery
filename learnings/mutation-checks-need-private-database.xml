@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="mutation-checks-need-private-database" project="bakery">
+  <title>Mutation checks of database lanes need a private database and a real install</title>
+  <trigger>A reviewer or builder alters production code in a scratch copy to see whether a database test fails.</trigger>
+  <mistake>A mutant that makes Deno exit before a fixture's finish() leaves its organization and principal in the shared database, and every later fixture fails with AUTH_BOOTSTRAP_CONFLICT, so surviving and killed mutants cannot be told apart. A scratch copy whose node_modules is a symlink loads StandardError from two module paths and fails unrelated tests.</mistake>
+  <rule>Create a private database from the admin URL (owner bakery, connect granted to bakery_app) for mutant runs and drop it by its literal name afterwards. Install dependencies in the scratch copy for real. Count a mutant as killed only when a test fails, not when the run reports an environment error such as AUTH_BOOTSTRAP_CONFLICT, and rebuild the private database after one. If the shared database was touched, remove exactly the fixture rows with the repository's own cleanup helper in tests/helpers/auth.ts and verify the counts are zero.</rule>
+  <how>The owner role has no CREATEDB. Create the database as the container superuser: docker exec the stack's postgres container with psql -U postgres -c "create database NAME owner bakery", then grant connect on it to bakery_app and run pnpm migrate against it (DATABASE_URL and BAKERY_APP_DATABASE_URL pointing at NAME). Mutate the worktree files in place, run deno test directly with --fail-fast and the lane's permissions plus --allow-write for the temporary directory, restore each file with git checkout, and drop and recreate the database for every mutant.</how>
+  <verification>
+    <requirement>The baseline run of the scratch copy passes before any mutant, and a mutant that kills the process is reported as an environment error, not as killed.</requirement>
+  </verification>
+</learning>

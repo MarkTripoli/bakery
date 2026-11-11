@@ -1,0 +1,664 @@
+@import "./foundations/index.css";
+
+.ui-link,
+.ui-checkbox,
+.ui-radio,
+.ui-switch,
+.ui-segmented-control__item,
+.ui-tabs__tab,
+.ui-search-field__input,
+select,
+textarea,
+input:not([type="hidden"]) {
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+}
+
+.ui-link {
+  align-items: center;
+  display: inline-flex;
+}
+
+.ui-segmented-control__item {
+  align-items: center;
+  display: inline-flex;
+}
+
+.ui-button,
+.ui-icon-button,
+.ui-link,
+.ui-checkbox,
+.ui-radio,
+.ui-switch,
+.ui-segmented-control__item,
+.ui-tabs__tab {
+  font: inherit;
+}
+
+.ui-button,
+.ui-icon-button {
+  align-items: center;
+  border: var(--border-default) solid transparent;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  display: inline-flex;
+  font: var(--type-control);
+  gap: var(--space-2);
+  justify-content: center;
+  min-block-size: max(var(--size-control), var(--target-min));
+}
+
+.ui-button {
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+  padding: var(--space-2) var(--space-3);
+}
+.ui-icon-button {
+  inline-size: max(var(--size-control), var(--target-min));
+  padding: var(--space-2);
+}
+.ui-icon-button--compact {
+  padding: var(--space-1);
+}
+.ui-icon-button--destructive {
+  background: var(--color-destructive);
+  color: var(--color-surface);
+}
+.ui-button--primary {
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+}
+.ui-button--preview.ui-button--primary {
+  border-color: var(--color-primary);
+}
+.ui-button--secondary {
+  background: var(--color-surface);
+  border-color: var(--color-control-border);
+  color: var(--color-fg);
+}
+.ui-button--outline {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-fg);
+  padding-block: var(--space-0);
+}
+.ui-button--outline .ui-icon {
+  stroke-width: var(--icon-stroke-compact);
+}
+.ui-button--quiet,
+.ui-icon-button {
+  background: transparent;
+  color: var(--color-fg);
+}
+.ui-button--destructive {
+  background: var(--color-destructive);
+  color: var(--color-surface);
+}
+.ui-button--destructive-outline {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-destructive);
+  padding-block: var(--space-0);
+  padding-inline: var(--space-3-5);
+}
+.ui-button:disabled,
+.ui-icon-button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+.ui-link {
+  color: var(--color-selection);
+  text-underline-offset: var(--underline-offset); /* auth.css:8 a{text-underline-offset:3px} */
+}
+.ui-link--quiet {
+  color: var(--color-fg-muted);
+}
+.ui-link[data-state="visited"] {
+  color: var(--color-fg-muted);
+}
+.ui-link--external::after {
+  content: " ↗";
+}
+.ui-search-field__message {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+}
+.ui-search-field[data-state="error"] .ui-search-field__message {
+  color: var(--color-destructive);
+}
+.ui-field {
+  display: grid;
+  gap: var(--space-1);
+}
+.ui-field--inline {
+  align-items: center;
+  column-gap: var(--space-6);
+  grid-template-columns: var(--layout-field-label) minmax(0, 1fr);
+}
+.ui-field__heading {
+  display: grid;
+  gap: var(--space-0-5);
+}
+.ui-field__note {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+}
+.ui-field__body {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  .ui-field--inline {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--space-1);
+  }
+}
+.ui-field__hint {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+}
+.ui-field__error {
+  color: var(--color-destructive);
+  font: var(--type-hint);
+}
+.ui-search-field {
+  position: relative;
+}
+.ui-search-field__input {
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-control-border);
+  border-radius: var(--radius-control);
+  box-sizing: border-box;
+  color: var(--color-fg);
+  font: var(--type-body);
+  min-block-size: max(var(--size-control), var(--target-min));
+  padding: var(--space-2) var(--space-3);
+  inline-size: 100%;
+}
+.ui-checkbox,
+.ui-radio,
+.ui-switch {
+  align-items: center;
+  color: var(--color-fg);
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  font: var(--type-body);
+  max-inline-size: 100%;
+}
+.ui-checkbox input,
+.ui-radio input,
+.ui-switch input {
+  accent-color: var(--color-selection);
+  block-size: var(--size-checkbox);
+  inline-size: var(--size-checkbox);
+  margin: var(--space-0);
+}
+.ui-switch input {
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  flex: none;
+  inline-size: max(var(--size-switch), var(--target-min));
+  position: relative;
+}
+.ui-switch input::before,
+.ui-switch input::after {
+  content: "";
+  inset-block-start: 50%;
+  position: absolute;
+  translate: 0 -50%;
+}
+.ui-switch input::before {
+  background: var(--color-control-border);
+  block-size: var(--size-checkbox);
+  border-radius: var(--radius-pill);
+  inline-size: var(--size-switch);
+  inset-inline-start: 50%;
+  margin-inline-start: calc(var(--size-switch) / -2);
+}
+.ui-switch input::after {
+  background: var(--color-surface);
+  block-size: calc(var(--size-checkbox) - var(--space-1));
+  border-radius: var(--radius-circle);
+  inline-size: calc(var(--size-checkbox) - var(--space-1));
+  inset-inline-start: 50%;
+  margin-inline-start: calc(var(--size-switch) / -2 + var(--space-0-5));
+}
+.ui-switch input:checked::before {
+  background: var(--color-selection);
+}
+.ui-switch input:checked::after {
+  translate: calc(var(--size-switch) - var(--size-checkbox)) -50%;
+}
+:dir(rtl) .ui-switch input:checked::after {
+  translate: calc(var(--size-checkbox) - var(--size-switch)) -50%;
+}
+.ui-switch input:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+.ui-segmented-control {
+  border: var(--border-none);
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: var(--space-0);
+  max-inline-size: 100%;
+  padding: var(--space-0);
+}
+.ui-segmented-control__item {
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-control-border);
+  border-radius: var(--radius-control);
+  color: var(--color-fg);
+  cursor: pointer;
+  padding: var(--space-2) var(--space-3);
+}
+.ui-segmented-control__input {
+  position: absolute;
+  opacity: 0;
+}
+.ui-segmented-control__input:checked + .ui-segmented-control__item {
+  background: var(--color-selection-surface);
+  border-color: var(--color-selection);
+  color: var(--color-selection);
+}
+.ui-tabs {
+  border-block-end: var(--border-default) solid var(--color-border);
+}
+.ui-tabs__bar {
+  align-items: center;
+  display: flex;
+  gap: var(--space-6);
+}
+.ui-tabs__list {
+  display: flex;
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  gap: var(--space-1);
+  max-inline-size: 100%;
+  overflow-x: auto;
+}
+.ui-tabs__tab {
+  background: transparent;
+  border: var(--border-none);
+  border-block-end: var(--border-emphasis) solid transparent;
+  color: var(--color-fg-muted);
+  cursor: pointer;
+  flex: 0 0 auto;
+  padding: var(--space-2) var(--space-3);
+}
+.ui-tabs__tab[aria-selected="true"] {
+  border-block-end-color: var(--color-selection);
+  color: var(--color-fg);
+}
+.ui-tabs__panel {
+  padding-block: var(--space-4);
+}
+input.ui-text-input,
+textarea.ui-text-input,
+input.ui-password-input__field,
+input.ui-one-time-code-input {
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-control-border);
+  border-radius: var(--radius-control);
+  box-sizing: border-box;
+  color: var(--color-fg);
+  font: var(--type-field);
+  min-block-size: max(var(--size-control), var(--target-coarse));
+  inline-size: 100%;
+  padding: var(--space-2) var(--space-3);
+}
+/* A bare textarea inside a textarea Field gets the same recipe, so app code
+   needs no class. */
+.ui-field--textarea textarea:not(.ui-text-input) {
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-control-border);
+  border-radius: var(--radius-control);
+  box-sizing: border-box;
+  color: var(--color-fg);
+  font: var(--type-field);
+  inline-size: 100%;
+  min-block-size: max(var(--size-control), var(--target-coarse));
+  padding: var(--space-2) var(--space-3);
+  resize: vertical;
+}
+input.ui-text-input::placeholder,
+textarea.ui-text-input::placeholder,
+input.ui-password-input__field::placeholder,
+input.ui-one-time-code-input::placeholder {
+  color: var(--color-fg-muted); /* auth.css:8 input::placeholder */
+  opacity: 1;
+}
+.ui-text-input[aria-invalid="true"],
+.ui-password-input[data-state="invalid"] .ui-password-input__field,
+.ui-one-time-code-input[aria-invalid="true"] {
+  border-color: var(--color-destructive);
+}
+/* auth.css:21 .otp-input: the six-digit authenticator field is a wider,
+   monospaced, letter-spaced box; the backup-code kind keeps the plain
+   text-input recipe (auth.js `field()`). */
+input.ui-one-time-code-input[data-kind="totp"] {
+  block-size: 52px; /* auth.css:21 .otp-input */
+  font: var(--type-otp);
+  letter-spacing: var(--tracking-otp);
+  max-inline-size: 280px; /* auth.css:21 .otp-input */
+}
+.ui-text-input:disabled,
+.ui-password-input[data-state="disabled"] .ui-password-input__field,
+.ui-one-time-code-input:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+/* auth.css:8 `input[readonly]` — the attribute, not `:read-only`, which
+   would also tint a disabled input Paper leaves on the plain surface. */
+.ui-text-input[readonly] {
+  background: var(--color-surface-subtle);
+}
+.ui-password-input {
+  align-items: center;
+  display: flex;
+  position: relative;
+}
+input.ui-password-input__field {
+  padding-inline-end: calc(var(--target-min) + var(--space-4));
+}
+.ui-password-input > .ui-icon-button {
+  position: absolute;
+  inset-inline-end: var(--space-1);
+}
+.ui-recovery-codes {
+  display: grid;
+  gap: var(--space-4);
+}
+.ui-recovery-codes__list {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-0);
+  padding-inline-start: var(--space-6);
+}
+.ui-recovery-codes__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.ui-recovery-codes__status {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+}
+/* Navigation with a secondary-button frame (Paper 5J-0 "Open session"). The
+   frame is 36px; the anchor overhangs it to keep a 44px target where the
+   surrounding surface sets --target-min. */
+.ui-link--button,
+.ui-link--primaryButton {
+  align-items: center;
+  color: var(--color-fg);
+  display: flex;
+  font: var(--type-control);
+  gap: var(--space-2);
+  isolation: isolate;
+  justify-content: center;
+  margin-block: calc((var(--size-control) - max(var(--size-control),
+    var(--target-min))) / 2);
+  min-block-size: max(var(--size-control), var(--target-min));
+  padding-inline: var(--space-3);
+  position: relative;
+  text-decoration: none;
+}
+.ui-link--button::before,
+.ui-link--primaryButton::before {
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-control);
+  content: "";
+  inset: calc((max(var(--size-control), var(--target-min)) -
+    var(--size-control)) / 2) var(--space-0);
+  position: absolute;
+  z-index: var(--layer-behind);
+}
+/* The primary frame is the anchor's own background (not a pseudo-element) so
+   the fill is a real, measurable background, and axe resolves the label contrast
+   against it instead of the surface behind the pseudo-element. Like
+   `.ui-button`, the frame is as tall as the target (36px fine, 44px coarse). */
+.ui-link--primaryButton {
+  background: var(--color-primary);
+  border: var(--border-default) solid var(--color-primary);
+  border-radius: var(--radius-control);
+  color: var(--color-primary-foreground);
+  margin-block: var(--space-0);
+}
+.ui-link--primaryButton::before {
+  content: none;
+}
+.ui-link--button:focus-visible,
+.ui-link--primaryButton:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+}
+.ui-link--button .ui-icon,
+.ui-link--primaryButton .ui-icon {
+  stroke-width: var(--icon-stroke-compact);
+}
+/* Paper E8-0 phone primary action: 44px ink square, 4px radius. */
+.ui-link--primaryIcon {
+  align-items: center;
+  background: var(--color-primary);
+  block-size: var(--target-coarse);
+  border-radius: var(--radius-control);
+  color: var(--color-primary-foreground);
+  display: inline-flex;
+  inline-size: var(--target-coarse);
+  justify-content: center;
+}
+.ui-link--primaryIcon:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+}
+.ui-link--primaryIcon .ui-icon {
+  stroke-width: var(--icon-stroke-compact);
+}
+
+/* Static prototype artwork. No pointer, focus, disabled or action semantics. */
+.ui-button--preview {
+  box-sizing: border-box;
+  cursor: default;
+  min-block-size: var(--target-coarse);
+  padding-inline: calc(var(--space-4) + var(--space-1) / 2);
+  font: var(--type-control-preview);
+  flex-shrink: 0;
+}
+
+/* Source desktop artwork is compact; phone and coarse contexts stay 44px. */
+@media (min-width: 744px) {
+  @media (pointer: fine) {
+    .ui-button--preview {
+      min-block-size: var(--size-control);
+      padding-inline: calc(var(--space-3) + var(--space-1) / 2);
+      font: var(--type-control-preview-compact);
+    }
+  }
+}
+
+/* Full-size static control artwork. Opt-in: existing compact previews unchanged. */
+.ui-button--preview[data-density="standard"] {
+  font: var(--type-control);
+  border-radius: var(--radius-surface);
+  padding-inline: calc(var(--space-3) + var(--space-1) / 2);
+}
+
+@container (max-width: 743px) {
+  .ui-button--preview[data-density="standard"] {
+    min-block-size: var(--target-coarse);
+  }
+}
+
+/* Static source artwork only; operational controls retain their hit areas. */
+.ui-button--preview[data-density="static-compact"] {
+  min-block-size: var(--size-control);
+  font: var(--type-control);
+  padding-block: var(--space-2);
+  padding-inline: calc(var(--space-3) + var(--space-1) / 2);
+  border-radius: var(--radius-surface);
+}
+
+/* New-task composer: one column on every viewport (full screen on phone, the
+   inspector region on desktop). The description reuses the TextInput recipe. */
+.ui-task-composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-inline-size: 0;
+}
+.ui-task-composer :is(h1, h2, h3) {
+  font: var(--type-heading-subsection);
+  margin: var(--space-0);
+  overflow-wrap: anywhere;
+}
+.ui-task-composer textarea.ui-text-input {
+  resize: vertical;
+}
+.ui-task-composer__plan-first {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+.ui-task-composer__presets {
+  border: var(--border-none);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-0);
+  min-inline-size: 0;
+  padding: var(--space-0);
+}
+.ui-task-composer__presets legend {
+  font: var(--type-control);
+  margin-block-end: var(--space-2);
+  overflow-wrap: anywhere;
+  padding: var(--space-0);
+}
+.ui-task-composer__setup {
+  background: var(--color-status-warning-surface);
+  border-radius: var(--radius-control);
+  color: var(--color-status-warning);
+  font: var(--type-hint);
+  margin: var(--space-0);
+  overflow-wrap: anywhere;
+  padding: var(--space-3) var(--space-4);
+}
+.ui-task-composer__setup p {
+  font: var(--type-control);
+  margin: var(--space-0);
+}
+.ui-task-composer__setup ul {
+  margin: var(--space-2) var(--space-0) var(--space-0);
+  padding-inline-start: var(--space-5);
+}
+.ui-task-composer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* Paper p-18-0 inline mode switch: a 6px subtle plate with 2px padding; the
+   chosen mode is a raised 4px chip. */
+.ui-segmented-control--inline {
+  background: var(--color-surface-subtle);
+  border-radius: var(--radius-surface);
+  flex-wrap: nowrap;
+  gap: var(--space-0);
+  padding: var(--space-0-5);
+}
+.ui-segmented-control--inline .ui-segmented-control__item {
+  background: transparent;
+  border: var(--border-none);
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+  min-block-size: var(--space-0);
+  min-inline-size: var(--space-0);
+  padding: var(--space-1) var(--space-2-5);
+}
+.ui-segmented-control--inline .ui-segmented-control__input:checked + .ui-segmented-control__item {
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  color: var(--color-fg);
+  font-weight: var(--weight-medium);
+}
+
+/* Quiet 44px icon link, such as the phone back control. */
+.ui-link--icon {
+  block-size: var(--target-coarse);
+  color: var(--color-fg);
+  inline-size: var(--target-coarse);
+  justify-content: center;
+}
+
+/* Phone back control: chevron and label in the link colour on a 44px target. */
+.ui-link--back {
+  align-items: center;
+  block-size: var(--target-coarse);
+  box-sizing: border-box;
+  display: inline-flex;
+  gap: var(--space-0-5);
+  padding-inline: var(--space-2);
+  text-decoration: none;
+}
+/* Text-only destructive action, such as the phone "Cancel plan". */
+.ui-button--destructive-quiet {
+  background: transparent;
+  border: var(--border-none);
+  color: var(--color-destructive);
+  min-block-size: var(--target-coarse);
+  padding-inline: var(--space-0);
+}
+.ui-link--back {
+  gap: var(--space-1);
+}
+
+@media (pointer: coarse) {
+  /* Touch: each mode is a 44px target; the subtle plate stays 34px tall
+     and centered behind them, as in the phone frame. */
+  .ui-segmented-control--inline {
+    background: transparent;
+    padding: var(--space-0) var(--space-0-5);
+    position: relative;
+  }
+  .ui-segmented-control--inline::before {
+    background: var(--color-surface-subtle);
+    border-radius: var(--radius-surface);
+    content: "";
+    inset-block: calc((var(--target-coarse) - var(--space-8) - var(--space-0-5))
+      / 2);
+    inset-inline: var(--space-0);
+    position: absolute;
+  }
+  .ui-segmented-control--inline label {
+    align-items: center;
+    display: inline-flex;
+    min-block-size: var(--target-coarse);
+    position: relative;
+  }
+}
+@media (max-width: 420px) {
+  .ui-segmented-control--inline {
+    flex-wrap: wrap;
+    min-inline-size: var(--space-0);
+  }
+}
+.ui-button--text {
+  background: transparent;
+  color: var(--color-selection);
+  font: var(--type-label);
+  justify-content: flex-start;
+  /* The 20px label line keeps its Paper box; the hit area grows to the
+     pointer's target around it without moving layout. */
+  margin-block: calc(
+    (var(--space-5) + 2 * var(--border-default) - var(--target-min)) / 2
+  );
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+  padding: var(--space-0);
+}

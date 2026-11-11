@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="paper-pinned-k0-inputs" project="bakery">
+  <title>packages/ui/scripts/* are pinned Paper K-0 inputs; never edit them, even temporarily</title>
+  <trigger>Any change under packages/ui/scripts/ appears in a commit between the merge base and HEAD.</trigger>
+  <mistake>A phase edited a pinned K-0 input in one commit and restored it in a later one. The Paper comparator checks every commit in merge-base..HEAD, so the edit failed the gate although the final tree was clean, and unpushed history had to be rewritten.</mistake>
+  <rule>Treat packages/ui/scripts/* as read-only: no edits, not even temporary ones restored by a later commit. Never re-pin the digest. Fix the consumer (component or story) instead. The one sanctioned re-pin is the value-only repin after a comment or wording cleanup of a digested input; see the learning paper-identity-repin-after-wording-edit. If an edit already landed in an unpushed commit, take a backup ref and rewrite that history with git update-ref.</rule>
+  <verification>
+    <requirement>git diff --name-only $(git merge-base origin/main HEAD)..HEAD -- packages/ui/scripts prints nothing, and every commit in the range passes the Paper comparator.</requirement>
+  </verification>
+</learning>

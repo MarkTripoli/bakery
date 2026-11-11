@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="verification-memory-floor" project="bakery">
+  <title>Verification memory admission is an available-memory floor, not a virtual-memory cap</title>
+  <trigger>Heavy checks require at least 3145728 KiB of MemAvailable.</trigger>
+  <mistake>Using ulimit -v 3145728 prevented Deno Oilpan from reserving its cage and caused WebAssembly reservation failures. A private lock also failed to serialize against other verification owners.</mistake>
+  <rule>Use one internal flock -w 900 on /run/user/1000/bakery-verification.lock. While holding it, read numeric MemAvailable from /proc/meminfo before every heavy command and require at least 3145728 KiB. Preserve normal virtual-memory limits and existing browser/test timeouts. Tool timeout must cover the queue plus the finite job. Never use nested locks or an unguarded check after a free-slot probe.</rule>
+  <verification>
+    <requirement>Ordered pnpm fmt starts successfully with normal unlimited virtual memory after numeric floor admission; no Oilpan reservation failure. Record the available-memory value and command exit, not an inferred pass.</requirement>
+  </verification>
+</learning>

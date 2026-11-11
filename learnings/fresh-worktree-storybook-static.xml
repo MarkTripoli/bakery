@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="fresh-worktree-storybook-static" project="bakery">
+  <title>A fresh worktree needs an install and a Storybook build before the rails and story checks</title>
+  <trigger>pnpm test:rails or pnpm ui:stories:check fails in a new worktree on a missing packages/ui/storybook-static/index.json.</trigger>
+  <mistake>Reported the rails suite as blocked by a pre-existing missing fixture instead of building the artifact the worktree lacks.</mistake>
+  <rule>A fresh worktree has no installed dependencies and no built artifacts. packages/ui/storybook-static is gitignored, and tests/rails/ui-foundations_test.ts and scripts/verify-ui-stories.ts read its index.json. Run pnpm install --frozen-lockfile and pnpm --dir packages/ui build-storybook once per worktree before them, and rebuild after a story or component change so the index is not stale.</rule>
+  <verification>
+    <command>pnpm install --frozen-lockfile</command>
+    <command>pnpm --dir packages/ui build-storybook</command>
+    <command>pnpm test:rails</command>
+    <command>pnpm ui:stories:check</command>
+    <requirement>Record the exit codes. A missing storybook-static index is an unbuilt artifact, not an environment blocker; see local-services-before-test-blocker.</requirement>
+  </verification>
+</learning>

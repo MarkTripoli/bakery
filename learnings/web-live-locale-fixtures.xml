@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="web-live-locale-fixtures" project="bakery">
+  <title>Live browser locale fixtures must set the saved user preference</title>
+  <trigger>Authenticated RTL browser case remains English after navigator.languages selects ar-XB.</trigger>
+  <rule>Saved user preferences override browser language after sign-in. Configure the isolated fixture through the real userPreferences GET/PATCH API with current casVersion before reloading. Serialize cases that mutate the same principal's account-wide locale; each case sets its own locale. Preserve RTL assertions and existing timeouts.</rule>
+  <verification>Run the live artifact retrieval and review cases through tests/e2e/task-artifact-linked-read_test.ts. Both desktop and mobile must pass against the owned PostgreSQL-backed API.</verification>
+</learning>

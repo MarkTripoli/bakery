@@ -1,0 +1,52 @@
+{
+  "name": "@bakery/ui",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "storybook": "storybook dev --port 6006",
+    "build-storybook": "storybook build",
+    "serve:storybook-static": "node scripts/serve-storybook-static.mjs",
+    "check:exports": "node scripts/check-exports.mjs",
+    "test:storybook": "playwright test",
+    "test:exports": "node --test tests/ui-exports.node.mjs tests/brand-assets.node.mjs",
+    "capture:stories": "node scripts/capture-stories.mjs",
+    "compare:paper": "node scripts/compare-paper.mjs",
+    "render:paper": "node scripts/render-paper-references.mjs",
+    "render:paper:v0": "node scripts/render-v0-references.mjs",
+    "render:paper:enterprise": "node scripts/render-enterprise-references.mjs",
+    "render:paper:settings": "node scripts/render-settings-references.mjs",
+    "render:paper:entitlements": "node scripts/render-entitlements-references.mjs",
+    "capture:enterprise": "node scripts/capture-enterprise.mjs",
+    "capture:settings": "node scripts/capture-settings.mjs",
+    "capture:entitlements": "node scripts/capture-entitlements.mjs",
+    "capture:artifacts": "node scripts/capture-artifacts.mjs",
+    "capture:worker-dark": "node scripts/capture-worker-dark.mjs",
+    "render:paper:artifacts": "node scripts/render-artifacts-references.mjs",
+    "render:paper:worker-dark": "node scripts/render-worker-dark-references.mjs",
+    "paper:site:check": "node scripts/paper-jsx-to-html.mjs --check",
+    "typecheck": "tsc --noEmit --pretty false"
+  },
+  "dependencies": {
+    "@bakery/i18n": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "19.3.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@bakery/contracts": "workspace:*",
+    "@playwright/test": "1.63.0",
+    "@storybook/addon-a11y": "10.6.0",
+    "@storybook/react-vite": "10.6.0",
+    "@types/react": "19.3.0",
+    "esbuild": "0.28.2",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "storybook": "10.6.0",
+    "typescript": "7.0.2"
+  }
+}

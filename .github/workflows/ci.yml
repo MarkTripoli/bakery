@@ -1,0 +1,2701 @@
+name: Bakery CI
+
+# Candidate lanes emit identity-bound bounded evidence archives to ordinary job
+# logs. The candidate-side aggregate checks direct results; the external private
+# controller, not this workflow, owns authoritative backend status.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+
+concurrency:
+  group: bakery-ci-${{ (github.event_name == 'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
+  # A newer pull-request or main push supersedes the older run on the same ref; scheduled and manual runs keep their own group.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+
+env:
+  PNPM_VERSION: 10.33.0
+  NODE_VERSION: 22.22.0
+  CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+  RUN_ID: ${{ github.run_id }}
+  RUN_ATTEMPT: ${{ github.run_attempt }}
+  WORKFLOW_SHA: ${{ github.workflow_sha }}
+  BAKERY_BROWSER_COVERAGE: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'full' || 'affected' }}
+  # runner.temp is unavailable in workflow-level env, so every job's first step
+  # exports HANDOFF_ROOT/HANDOFF_DIR/EVIDENCE_DIR/ARTIFACT_DIR under its own
+  # runner's temp dir; runner users sharing a host never touch each other's files.
+
+jobs:
+  changes:
+    name: route / changed files
+    # Fork PRs never reach self-hosted runners; a maintainer re-pushes them to a branch.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    outputs:
+      route: ${{ steps.classify.outputs.route }}
+      lanes: ${{ steps.classify.outputs.lanes }}
+      base_sha: ${{ steps.base.outputs.base_sha }}
+    runs-on: [self-hosted, hetzner, linux, x64]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - name: Resolve the comparison base
+        id: base
+        shell: bash
+        env:
+          EVENT_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          # Routing keeps its guarantee: the classifier below still compares the
+          # event head with itself when there is no event base, so a dispatch and
+          # the schedule reach `full` rather than a content route. Lanes that
+          # need a commit to compare against — the UI architecture contraction
+          # ratchet — take one from here, because `github.event.before` is empty
+          # on those events and an empty `--base ''` fails the whole route.
+          base="$EVENT_BASE"
+          if [ -z "$base" ]; then
+            base="$(git rev-parse --verify --quiet "origin/$DEFAULT_BRANCH^{commit}" || git merge-base HEAD "origin/$DEFAULT_BRANCH" || true)"
+          fi
+          if [ -z "$base" ]; then
+            echo "cannot resolve a comparison base for $GITHUB_EVENT_NAME" >&2
+            exit 1
+          fi
+          echo "base_sha=$base" >> "$GITHUB_OUTPUT"
+      - name: Classify the complete PR diff
+        id: classify
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: deno run --allow-env --allow-read --allow-write --allow-run=git scripts/ci/classify-changes.ts
+  rails:
+    name: fast / backend rails
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
+    needs: [changes]
+    runs-on: [self-hosted, hetzner, linux, x64]
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}" }
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - run: pnpm --dir packages/ui build-storybook
+      - run: pnpm test:rails
+      - name: Write rails evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts rails "pnpm test:rails" "backend rails"
+      - name: Emit rails evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log rails
+  git_diff_check:
+    name: fast / git diff check
+    # Fork PRs never reach self-hosted runners; a maintainer re-pushes them to a branch.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, hetzner, linux, x64]
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - name: Run git diff check
+        run: git diff --check "${{ github.event.pull_request.base.sha || github.sha }}...${{ env.CANDIDATE_SHA }}"
+      - name: Write git diff check evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts git_diff_check "git diff --check" "whitespace errors in candidate diff"
+      - name: Emit git diff check evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log git_diff_check
+  semantic_metadata:
+    name: fast / semantic metadata
+    # Fork PRs never reach self-hosted runners; a maintainer re-pushes them to a branch.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, hetzner, linux, x64]
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - name: Validate pull request title
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: >-
+          deno run --allow-read scripts/ci/validate-semantic.ts --title
+          "$PR_TITLE" --pull-request-number "$PR_NUMBER"
+      - name: Validate pull request commit subjects
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: deno run --allow-run scripts/ci/validate-semantic.ts --commit-range "$BASE_SHA" "$CANDIDATE_SHA"
+      - name: Validate pushed commit subjects
+        if: github.event_name == 'push'
+        env:
+          BASE_SHA: ${{ github.event.before }}
+          CANDIDATE_SHA: ${{ github.sha }}
+        run: deno run --allow-run scripts/ci/validate-semantic.ts --commit-range "$BASE_SHA" "$CANDIDATE_SHA"
+      - name: "TypeSafe advisory: commit subjects"
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        continue-on-error: true
+        env:
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: >-
+          deno run --allow-net=api.typesafe.ai
+          --allow-env=TYPESAFE_API_KEY,GITHUB_STEP_SUMMARY
+          --allow-run=git --allow-read
+          --allow-write="$GITHUB_STEP_SUMMARY"
+          scripts/ci/annotate-semantic.ts --title "$PR_TITLE" --commit-range
+          "$BASE_SHA" "$CANDIDATE_SHA" --pull-request-number "$PR_NUMBER"
+      - name: "TypeSafe advisory: migration boundary"
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        continue-on-error: true
+        env:
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: >-
+          deno run --allow-net=api.typesafe.ai
+          --allow-env=TYPESAFE_API_KEY,GITHUB_STEP_SUMMARY
+          --allow-run=git --allow-read
+          --allow-write="$GITHUB_STEP_SUMMARY"
+          scripts/ci/annotate-migration-boundary.ts --commit-range "$BASE_SHA"
+          "$CANDIDATE_SHA"
+      - name: Write semantic metadata evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts semantic_metadata "PR title and commit subjects" "semantic metadata"
+      - name: Emit semantic metadata evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log semantic_metadata
+  format:
+    name: fast / format
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
+    needs: [changes]
+    runs-on: [self-hosted, hetzner, linux, x64]
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - run: pnpm lint
+      - name: Write format evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts format "pnpm lint" "formatter, linter, and suppression guard"
+      - name: Emit format evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log format
+  typecheck:
+    name: fast / typecheck
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
+    needs: [changes]
+    runs-on: [self-hosted, hetzner, linux, x64]
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - run: pnpm typecheck
+      - name: Write typecheck evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts typecheck "pnpm typecheck" "all backend packages"
+      - name: Emit typecheck evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log typecheck
+  contract:
+    name: fast / contract descriptions
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
+    needs: [changes]
+    runs-on: [self-hosted, hetzner, linux, x64]
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: bakery-ci-postgres
+          POSTGRES_DB: postgres
+        ports:
+          - "127.0.0.1:20000-20999:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - name: Ensure psql client
+        shell: bash
+        run: |
+          # The self-hosted runner image does not preinstall the PostgreSQL
+          # client that hosted runners ship by default; install it once per
+          # job only when missing.
+          command -v psql >/dev/null 2>&1 || {
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends postgresql-client
+          }
+      - name: Configure PostgreSQL connection
+        env:
+          POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
+        run: |
+          {
+            echo "BAKERY_POSTGRES_PORT=$POSTGRES_PORT"
+            echo "DATABASE_URL=postgres://bakery:bakery-ci-bakery@127.0.0.1:$POSTGRES_PORT/bakery"
+            echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
+          } >> "$GITHUB_ENV"
+      - name: Provision contract test roles and database
+        env:
+          PGPASSWORD: bakery-ci-postgres
+        run: |
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery LOGIN PASSWORD 'bakery-ci-bakery'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery_app LOGIN PASSWORD 'bakery-ci-app'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE DATABASE bakery OWNER bakery"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "GRANT CONNECT ON DATABASE bakery TO bakery_app"
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - name: Select this shard of the contract suite
+        id: shard
+        run: |
+          set -euo pipefail
+          files="$(deno run --allow-read scripts/ci/test-shard.ts tests/contract 0 3)"
+          test -n "$files"
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+      - run: pnpm test:contract -- ${{ steps.shard.outputs.files }}
+      - name: "TypeSafe advisory: contract descriptions"
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        continue-on-error: true
+        env:
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CANDIDATE_SHA: ${{ github.event.pull_request.head.sha }}
+        run: >-
+          deno run --allow-net=api.typesafe.ai
+          --allow-env=TYPESAFE_API_KEY,GITHUB_STEP_SUMMARY
+          --allow-run=git --allow-read
+          --allow-write="$GITHUB_STEP_SUMMARY"
+          scripts/ci/annotate-contract-descriptions.ts --commit-range "$BASE_SHA" "$CANDIDATE_SHA"
+      - run: >-
+          pnpm contracts:generate -- --base-ref "${{ github.event.pull_request.base.sha || github.sha }}"
+          ${{ github.event_name == 'pull_request' && '--compatibility-migration docs/technical-design/contract-migrations/v1-unreleased-principal-organization-contracts.json' || '' }}
+      - run: git diff --exit-code -- packages/contracts/generated/
+      - run: pnpm catalog:literals:check
+      - name: Write contract_description_gate evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts contract_description_gate "pnpm test:contract -- shard 0 of 3" "contract schemas, generated client manifest and catalog literals for the first shard of the contract suite, plus generation and catalog literal checks"
+      - name: Emit contract description gate evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log contract_description_gate
+  contract_shard_b:
+    name: fast / contract descriptions b
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
+    needs: [changes]
+    runs-on: [self-hosted, hetzner, linux, x64]
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: bakery-ci-postgres
+          POSTGRES_DB: postgres
+        ports:
+          - "127.0.0.1:20000-20999:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - name: Ensure psql client
+        shell: bash
+        run: |
+          # The self-hosted runner image does not preinstall the PostgreSQL
+          # client that hosted runners ship by default; install it once per
+          # job only when missing.
+          command -v psql >/dev/null 2>&1 || {
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends postgresql-client
+          }
+      - name: Configure PostgreSQL connection
+        env:
+          POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
+        run: |
+          {
+            echo "BAKERY_POSTGRES_PORT=$POSTGRES_PORT"
+            echo "DATABASE_URL=postgres://bakery:bakery-ci-bakery@127.0.0.1:$POSTGRES_PORT/bakery"
+            echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
+          } >> "$GITHUB_ENV"
+      - name: Provision contract test roles and database
+        env:
+          PGPASSWORD: bakery-ci-postgres
+        run: |
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery LOGIN PASSWORD 'bakery-ci-bakery'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery_app LOGIN PASSWORD 'bakery-ci-app'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE DATABASE bakery OWNER bakery"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "GRANT CONNECT ON DATABASE bakery TO bakery_app"
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - name: Select this shard of the contract suite
+        id: shard
+        run: |
+          set -euo pipefail
+          files="$(deno run --allow-read scripts/ci/test-shard.ts tests/contract 1 3)"
+          test -n "$files"
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+      - run: pnpm test:contract -- ${{ steps.shard.outputs.files }}
+      - name: Write contract_description_gate_b evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts contract_description_gate_b "pnpm test:contract -- shard 1 of 3" "contract schemas and generated client manifest for the second shard of the contract suite"
+      - name: Emit contract description shard b evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log contract_description_gate_b
+  contract_shard_c:
+    name: fast / contract descriptions c
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
+    needs: [changes]
+    runs-on: [self-hosted, hetzner, linux, x64]
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: bakery-ci-postgres
+          POSTGRES_DB: postgres
+        ports:
+          - "127.0.0.1:20000-20999:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - name: Ensure psql client
+        shell: bash
+        run: |
+          # The self-hosted runner image does not preinstall the PostgreSQL
+          # client that hosted runners ship by default; install it once per
+          # job only when missing.
+          command -v psql >/dev/null 2>&1 || {
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends postgresql-client
+          }
+      - name: Configure PostgreSQL connection
+        env:
+          POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
+        run: |
+          {
+            echo "BAKERY_POSTGRES_PORT=$POSTGRES_PORT"
+            echo "DATABASE_URL=postgres://bakery:bakery-ci-bakery@127.0.0.1:$POSTGRES_PORT/bakery"
+            echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
+          } >> "$GITHUB_ENV"
+      - name: Provision contract test roles and database
+        env:
+          PGPASSWORD: bakery-ci-postgres
+        run: |
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery LOGIN PASSWORD 'bakery-ci-bakery'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery_app LOGIN PASSWORD 'bakery-ci-app'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE DATABASE bakery OWNER bakery"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "GRANT CONNECT ON DATABASE bakery TO bakery_app"
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - name: Select this shard of the contract suite
+        id: shard
+        run: |
+          set -euo pipefail
+          files="$(deno run --allow-read scripts/ci/test-shard.ts tests/contract 2 3)"
+          test -n "$files"
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+      - run: pnpm test:contract -- ${{ steps.shard.outputs.files }}
+      - name: Write contract_description_gate_c evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts contract_description_gate_c "pnpm test:contract -- shard 2 of 3" "contract schemas and generated client manifest for the third shard of the contract suite"
+      - name: Emit contract description shard c evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log contract_description_gate_c
+  unit:
+    name: fast / focused unit
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
+    needs: [changes]
+    runs-on: [self-hosted, hetzner, linux, x64]
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - name: Select this shard of the unit lane
+        id: shard
+        run: |
+          set -euo pipefail
+          files="$(deno run --allow-read scripts/ci/test-shard.ts tests/unit 0 2)"
+          test -n "$files"
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+      - run: pnpm test:unit -- ${{ steps.shard.outputs.files }}
+      - name: Write focused_unit_tests evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts focused_unit_tests "pnpm test:unit -- shard 0 of 2" "unit lane, first shard of a size-balanced split"
+      - name: Emit focused unit tests evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log focused_unit_tests
+  provider:
+    name: fast / provider conformance
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
+    needs: [changes]
+    runs-on: [self-hosted, hetzner, linux, x64]
+    timeout-minutes: 5
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - run: pnpm test:provider
+      - name: Write provider_tests evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts provider_tests "pnpm test:provider" "provider conformance corpus across codex, claude and pi with fixtures"
+      - name: Emit provider tests evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log provider_tests
+  unit_shard_b:
+    name: fast / focused unit b
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
+    needs: [changes]
+    runs-on: [self-hosted, hetzner, linux, x64]
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - name: Select this shard of the unit lane
+        id: shard
+        run: |
+          set -euo pipefail
+          files="$(deno run --allow-read scripts/ci/test-shard.ts tests/unit 1 2)"
+          test -n "$files"
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+      - run: pnpm test:unit -- ${{ steps.shard.outputs.files }}
+      - name: Write focused_unit_tests_b evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts focused_unit_tests_b "pnpm test:unit -- shard 1 of 2" "unit lane, second shard of a size-balanced split"
+      - name: Emit focused unit shard b evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log focused_unit_tests_b
+  integration:
+    name: full / integration
+    needs: [changes, format, typecheck, contract, unit]
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'integration_tests'))) && needs.format.result == 'success' && needs.typecheck.result == 'success' && needs.contract.result == 'success' && needs.unit.result == 'success' }}
+    runs-on: [self-hosted, hetzner, amd, linux, x64]
+    env:
+      BAKERY_TEST_DATABASE_RESET_CONFIRMATION: RESET_BAKERY_TEST_DATABASE
+      BAKERY_TEST_DATABASE_ALLOW_REMOTE_RESET: "1"
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: bakery-ci-postgres
+          POSTGRES_DB: postgres
+        ports:
+          - "127.0.0.1:20000-20999:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - name: Configure PostgreSQL connection
+        env:
+          POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
+        run: |
+          {
+            echo "BAKERY_POSTGRES_PORT=$POSTGRES_PORT"
+            echo "DATABASE_URL=postgres://bakery:bakery-ci-bakery@127.0.0.1:$POSTGRES_PORT/bakery"
+            echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
+            echo "BAKERY_ADMIN_DATABASE_URL=postgres://postgres:bakery-ci-postgres@127.0.0.1:$POSTGRES_PORT/bakery"
+          } >> "$GITHUB_ENV"
+      - name: Ensure psql client
+        shell: bash
+        run: |
+          # The self-hosted runner image does not preinstall the PostgreSQL
+          # client that hosted runners ship by default; install it once per
+          # job only when missing.
+          command -v psql >/dev/null 2>&1 || {
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends postgresql-client
+          }
+      - name: Provision migration test roles and database
+        env:
+          PGPASSWORD: bakery-ci-postgres
+        run: |
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery LOGIN PASSWORD 'bakery-ci-bakery'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery_app LOGIN PASSWORD 'bakery-ci-app'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE DATABASE bakery OWNER bakery"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "GRANT CONNECT ON DATABASE bakery TO bakery_app"
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - run: pnpm test:integration
+      - name: Write integration_tests evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts integration_tests "pnpm test:integration" "integration lane"
+      - name: Emit integration tests evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log integration_tests
+  security:
+    name: full / security
+    needs: [changes, format, typecheck, contract, unit]
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'security_tests'))) && needs.format.result == 'success' && needs.typecheck.result == 'success' && needs.contract.result == 'success' && needs.unit.result == 'success' }}
+    runs-on: [self-hosted, hetzner, linux, x64]
+    env:
+      BAKERY_TEST_DATABASE_RESET_CONFIRMATION: RESET_BAKERY_TEST_DATABASE
+      BAKERY_TEST_DATABASE_ALLOW_REMOTE_RESET: "1"
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: bakery-ci-postgres
+          POSTGRES_DB: postgres
+        ports:
+          - "127.0.0.1:20000-20999:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - name: Configure PostgreSQL connection
+        env:
+          POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
+        run: |
+          {
+            echo "BAKERY_POSTGRES_PORT=$POSTGRES_PORT"
+            echo "DATABASE_URL=postgres://bakery:bakery-ci-bakery@127.0.0.1:$POSTGRES_PORT/bakery"
+            echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
+            echo "BAKERY_ADMIN_DATABASE_URL=postgres://postgres:bakery-ci-postgres@127.0.0.1:$POSTGRES_PORT/bakery"
+          } >> "$GITHUB_ENV"
+      - name: Ensure psql client
+        shell: bash
+        run: |
+          # The self-hosted runner image does not preinstall the PostgreSQL
+          # client that hosted runners ship by default; install it once per
+          # job only when missing.
+          command -v psql >/dev/null 2>&1 || {
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends postgresql-client
+          }
+      - name: Provision migration test roles and database
+        env:
+          PGPASSWORD: bakery-ci-postgres
+        run: |
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery LOGIN PASSWORD 'bakery-ci-bakery'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery_app LOGIN PASSWORD 'bakery-ci-app'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE DATABASE bakery OWNER bakery"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "GRANT CONNECT ON DATABASE bakery TO bakery_app"
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - run: pnpm test:security
+      - name: Observe bounded runner namespace policy
+        if: always()
+        timeout-minutes: 1
+        run: node scripts/ci/runner-policy-diagnostic.mjs
+      - name: Write security_tests evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts security_tests "pnpm test:security" "security lane"
+      - name: Emit security tests evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log security_tests
+  recovery:
+    name: full / recovery
+    needs: [changes, format, typecheck, contract, unit]
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'recovery_tests'))) && needs.format.result == 'success' && needs.typecheck.result == 'success' && needs.contract.result == 'success' && needs.unit.result == 'success' }}
+    runs-on: [self-hosted, hetzner, linux, x64]
+    env:
+      BAKERY_TEST_DATABASE_RESET_CONFIRMATION: RESET_BAKERY_TEST_DATABASE
+      BAKERY_TEST_DATABASE_ALLOW_REMOTE_RESET: "1"
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: bakery-ci-postgres
+          POSTGRES_DB: postgres
+        ports:
+          - "127.0.0.1:20000-20999:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - name: Configure PostgreSQL connection
+        env:
+          POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
+        run: |
+          {
+            echo "BAKERY_POSTGRES_PORT=$POSTGRES_PORT"
+            echo "DATABASE_URL=postgres://bakery:bakery-ci-bakery@127.0.0.1:$POSTGRES_PORT/bakery"
+            echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
+            echo "BAKERY_ADMIN_DATABASE_URL=postgres://postgres:bakery-ci-postgres@127.0.0.1:$POSTGRES_PORT/bakery"
+          } >> "$GITHUB_ENV"
+      - name: Ensure psql client
+        shell: bash
+        run: |
+          # The self-hosted runner image does not preinstall the PostgreSQL
+          # client that hosted runners ship by default; install it once per
+          # job only when missing.
+          command -v psql >/dev/null 2>&1 || {
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends postgresql-client
+          }
+      - name: Provision migration test roles and database
+        env:
+          PGPASSWORD: bakery-ci-postgres
+        run: |
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery LOGIN PASSWORD 'bakery-ci-bakery'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery_app LOGIN PASSWORD 'bakery-ci-app'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE DATABASE bakery OWNER bakery"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "GRANT CONNECT ON DATABASE bakery TO bakery_app"
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - name: Verify native bubblewrap namespace prerequisite
+        run: |
+          command -v bwrap
+          bwrap --version
+          deno eval \
+            'import { probeNativeSandboxCapability } from "./apps/worker/src/executor.ts"; await probeNativeSandboxCapability();'
+      - name: Verify delegated systemd user scope
+        run: systemd-run --user --scope --quiet --property=Delegate=yes true
+      - run: pnpm test:recovery
+      - name: Write recovery_tests evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts recovery_tests "pnpm test:recovery" "recovery lane"
+      - name: Emit recovery tests evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log recovery_tests
+  browser:
+    name: full / auth browser
+    needs: [changes, format, typecheck, contract, unit]
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'browser_tests'))) && needs.format.result == 'success' && needs.typecheck.result == 'success' && needs.contract.result == 'success' && needs.unit.result == 'success' }}
+    runs-on: [self-hosted, hetzner, linux, x64]
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: bakery-ci-postgres
+          POSTGRES_DB: postgres
+        ports:
+          - "127.0.0.1:20000-20999:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - name: Configure PostgreSQL connection
+        env:
+          POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
+        run: |
+          {
+            echo "BAKERY_POSTGRES_PORT=$POSTGRES_PORT"
+            echo "DATABASE_URL=postgres://bakery:bakery-ci-bakery@127.0.0.1:$POSTGRES_PORT/bakery"
+            echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
+          } >> "$GITHUB_ENV"
+      - name: Ensure psql client
+        shell: bash
+        run: |
+          # The self-hosted runner image does not preinstall the PostgreSQL
+          # client that hosted runners ship by default; install it once per
+          # job only when missing.
+          command -v psql >/dev/null 2>&1 || {
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends postgresql-client
+          }
+      - name: Provision browser test roles and database
+        env:
+          PGPASSWORD: bakery-ci-postgres
+        run: |
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery LOGIN PASSWORD 'bakery-ci-bakery'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery_app LOGIN PASSWORD 'bakery-ci-app'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE DATABASE bakery OWNER bakery"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "GRANT CONNECT ON DATABASE bakery TO bakery_app"
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - run: pnpm exec playwright install chromium
+      - run: pnpm test:browser -- tests/browser/bootstrap-better-auth-and-invite-only-organization-identity.spec.ts tests/browser/require-totp-assurance-and-safe-single-use-recovery.spec.ts tests/browser/implement-and-prove-passkey-server-ceremonies.spec.ts
+      - name: Write browser_tests evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts browser_tests "pnpm test:browser" "auth browser journey"
+      - name: Emit browser tests evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log browser_tests
+  e2e:
+    name: full / backend e2e
+    needs: [changes, integration, security]
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'e2e_tests'))) && needs.integration.result == 'success' && needs.security.result == 'success' }}
+    runs-on: [self-hosted, hetzner, linux, x64]
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - run: pnpm exec playwright install chromium
+      - name: Verify native bubblewrap namespace prerequisite
+        run: |
+          command -v bwrap
+          bwrap --version
+      - name: Verify delegated systemd user scope
+        run: systemd-run --user --scope --quiet --property=Delegate=yes true
+      - run: pnpm test:e2e
+      - name: Write e2e_tests evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts e2e_tests "pnpm test:e2e" "backend e2e"
+      - name: Emit e2e tests evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log e2e_tests
+  ui_catalog:
+    name: ui / catalog and storybook
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
+    needs: [changes]
+    runs-on: [self-hosted, hetzner, linux, x64]
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - run: pnpm --dir apps/web build
+      - run: pnpm --dir packages/ui build-storybook
+      - run: pnpm ui:stories:check
+      - run: pnpm --dir packages/ui check:exports
+      - run: pnpm --dir packages/ui test:exports
+      - name: Write ui_catalog evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts ui_catalog "pnpm ui:stories:check && check:exports && test:exports" "catalog entries, Storybook bindings, public exports"
+      - name: Emit UI catalog evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log ui_catalog
+  ui_quality:
+    name: ui / tokens and architecture
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
+    needs: [changes]
+    runs-on: [self-hosted, hetzner, linux, x64]
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - run: pnpm ui:tokens:check
+      - run: pnpm --dir apps/web check:theme-bootstrap
+      - name: Check UI architecture contraction
+        env:
+          UI_ARCHITECTURE_BASE: ${{ github.event.pull_request.base.sha || github.event.before || needs.changes.outputs.base_sha }}
+        run: pnpm ui:architecture:check -- --base "$UI_ARCHITECTURE_BASE"
+      - run: pnpm build
+      - name: Write ui_quality evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts ui_quality "pnpm ui:tokens:check && check:theme-bootstrap && ui:architecture:check && build" "token drift, theme bootstrap, UI architecture contraction, web build; the architecture rules and debt ratchet suite runs in the post-merge ui_architecture lane"
+      - name: Emit UI quality evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log ui_quality
+  ui_architecture:
+    name: ui / architecture rules and debt
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_architecture'))) }}
+    needs: [changes]
+    runs-on: [self-hosted, hetzner, linux, x64]
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      # One 2400-line Node test file dominates this suite (~8 minutes on a gate
+      # runner), so it cannot fit a five-minute pull-request gate: the gate keeps
+      # the architecture contraction check and this rules/debt ratchet runs on
+      # every main push, nightly and manual run.
+      - name: Test UI architecture rules and debt ratchet
+        run: pnpm ui:architecture:test
+      - name: Write ui_architecture evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts ui_architecture "pnpm ui:architecture:test" "UI architecture rules and debt ratchet"
+      - name: Emit ui architecture evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log ui_architecture
+  ui_storybook_browser:
+    name: ui / storybook browser
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_storybook_browser'))) }}
+    needs: [changes]
+    runs-on: [self-hosted, hetzner, amd, linux, x64]
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - name: Pick a free Storybook port
+        shell: bash
+        run: |
+          # Shared hosts run several runner users; a fixed port collides.
+          port="$(node -e 'const net=require("net");const s=net.createServer();s.listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})')"
+          case "$port" in ''|*[!0-9]*) echo "no free port: $port" >&2; exit 1 ;; esac
+          echo "STORYBOOK_PORT=$port" >> "$GITHUB_ENV"
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - run: pnpm --dir packages/ui exec playwright install chromium
+      - run: pnpm --dir packages/ui build-storybook
+      - name: Serve the built Storybook
+        # The suites sweep every story; against the dev server each first
+        # request compiles on demand and, with three sweeps in flight, loses
+        # the visibility timeout on whichever story it lands on. The static
+        # build has nothing left to compile.
+        run: |
+          pnpm --dir packages/ui serve:storybook-static -- --port "$STORYBOOK_PORT" > "$RUNNER_TEMP/storybook-static.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/storybook-static.pid"
+          for i in $(seq 1 30); do curl -fsS "http://127.0.0.1:$STORYBOOK_PORT/index.json" >/dev/null 2>&1 && break; sleep 1; done
+          curl -fsS "http://127.0.0.1:$STORYBOOK_PORT/index.json" >/dev/null || { cat "$RUNNER_TEMP/storybook-static.log"; exit 1; }
+          # Fail if our server died and another process answered on the port.
+          kill -0 "$(cat "$RUNNER_TEMP/storybook-static.pid")"
+      - env:
+          BASE_URL: http://127.0.0.1:${{ env.STORYBOOK_PORT }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+        run: node scripts/ci/run-browser-checks.mjs storybook
+      - name: Stop the Storybook server
+        if: always()
+        run: kill "$(cat "$RUNNER_TEMP/storybook-static.pid")" || true
+      - name: Write ui_storybook_browser evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts ui_storybook_browser "pnpm --dir packages/ui build-storybook && BASE_URL=http://127.0.0.1:$STORYBOOK_PORT node scripts/ci/run-browser-checks.mjs storybook" "full Storybook consumers for shared/unknown inputs or scheduled/manual coverage; explicit non-UI no-op otherwise"
+      - name: Emit Storybook browser evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log ui_storybook_browser
+  ui_web:
+    name: full / web shell browser
+    needs: [changes, format, typecheck, contract, unit]
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_web_browser'))) && needs.format.result == 'success' && needs.typecheck.result == 'success' && needs.contract.result == 'success' && needs.unit.result == 'success' }}
+    runs-on: [self-hosted, hetzner, amd, linux, x64]
+    env:
+      BAKERY_ENV: test
+      BAKERY_SERVER_HOST: 127.0.0.1
+      # Shard 1 of 4. Shard 3 also owns the serial auth chain (it carries the
+      # least fixture work); the other shards seed the same bootstrap admin.
+      BAKERY_BROWSER_SHARD: "1/4"
+      BAKERY_BROWSER_STATEFUL_SHARD: "3"
+      BETTER_AUTH_SECRET: bakery-ci-web-shell-better-auth-secret-0123456789
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: bakery-ci-postgres
+          POSTGRES_DB: postgres
+        ports:
+          - "127.0.0.1:20000-20999:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - name: Plan this shard's browser work
+        id: plan
+        # Full selections slice the suite across the shards; core and affected
+        # selections are small and belong to shard 1, so the other shards skip
+        # their database, API and browser setup instead of holding a runner.
+        env:
+          CI: "1"
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          BAKERY_BROWSER_MAX_MODE: ${{ github.event_name == 'push' && 'core' || 'unlimited' }}
+        run: node scripts/ci/run-browser-checks.mjs web --plan
+      - name: Pick free web and API ports
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        shell: bash
+        run: |
+          # Shared hosts run several runner users; fixed 5173/8000 collide.
+          # Both sockets stay open until both ports are read, so they differ.
+          ports="$(node -e 'const net=require("net");const a=net.createServer(),b=net.createServer();a.listen(0,"127.0.0.1",()=>b.listen(0,"127.0.0.1",()=>{console.log(a.address().port,b.address().port);a.close();b.close()}))')"
+          web_port="${ports%% *}"
+          server_port="${ports##* }"
+          {
+            echo "BAKERY_WEB_PORT=$web_port"
+            echo "BAKERY_PUBLIC_BASE_URL=http://127.0.0.1:$web_port"
+            echo "BAKERY_SERVER_PORT=$server_port"
+          } >> "$GITHUB_ENV"
+      - name: Configure PostgreSQL connection
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        env:
+          POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
+        run: |
+          {
+            echo "BAKERY_POSTGRES_PORT=$POSTGRES_PORT"
+            echo "DATABASE_URL=postgres://bakery:bakery-ci-bakery@127.0.0.1:$POSTGRES_PORT/bakery"
+            echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
+          } >> "$GITHUB_ENV"
+      - name: Ensure psql client
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        shell: bash
+        run: |
+          # The self-hosted runner image does not preinstall the PostgreSQL
+          # client that hosted runners ship by default; install it once per
+          # job only when missing.
+          command -v psql >/dev/null 2>&1 || {
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends postgresql-client
+          }
+      - name: Provision migration test roles and database
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        env:
+          PGPASSWORD: bakery-ci-postgres
+        run: |
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery LOGIN PASSWORD 'bakery-ci-bakery'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery_app LOGIN PASSWORD 'bakery-ci-app'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE DATABASE bakery OWNER bakery"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "GRANT CONNECT ON DATABASE bakery TO bakery_app"
+      - if: ${{ steps.plan.outputs.work == 'true' }}
+        run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - if: ${{ steps.plan.outputs.work == 'true' }}
+        run: pnpm migrate
+      - name: Start API
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        # run-main.sh execs `deno run ... src/main.ts`, a cwd-relative path, so
+        # it must run from the server package exactly as apps/server's own
+        # dev/start scripts invoke it.
+        working-directory: apps/server
+        run: |
+          bash scripts/run-main.sh > "$RUNNER_TEMP/server.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/server.pid"
+      - name: Wait for API health
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        run: |
+          for i in $(seq 1 60); do curl -fsS "http://127.0.0.1:$BAKERY_SERVER_PORT/health/ready" && break; sleep 1; done
+          curl -fsS "http://127.0.0.1:$BAKERY_SERVER_PORT/health/ready"
+      - if: ${{ steps.plan.outputs.work == 'true' }}
+        run: pnpm exec playwright install chromium
+      - name: Run required core and affected web consumers
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        env:
+          CI: "1"
+          BAKERY_REAL_API: "1"
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          # Nightly schedule and manual dispatch keep the exhaustive oracle;
+          # every main push caps the web matrix at the required core consumers
+          # so push CI stays bounded in minutes (see browser-selection.mjs).
+          BAKERY_BROWSER_MAX_MODE: ${{ github.event_name == 'push' && 'core' || 'unlimited' }}
+        run: node scripts/ci/run-browser-checks.mjs web
+      - name: Stop API
+        if: ${{ always() && steps.plan.outputs.work == 'true' }}
+        run: kill "$(cat "$RUNNER_TEMP/server.pid")" || true
+      - name: Write ui_web_browser evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts ui_web_browser "pnpm migrate && run-main.sh && BAKERY_REAL_API=1 node scripts/ci/run-browser-checks.mjs web" "shard 1 of 4 (first slice) present core consumers must execute/pass on fresh owned DB, all 22 must be listed once; affected whole specs; main pushes cap the web oracle at the required core consumers; full matrices on scheduled/manual coverage"
+      - name: Emit web browser evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log ui_web_browser
+  ui_web_b:
+    name: full / web shell browser b
+    needs: [changes, format, typecheck, contract, unit]
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_web_browser_b'))) && needs.format.result == 'success' && needs.typecheck.result == 'success' && needs.contract.result == 'success' && needs.unit.result == 'success' }}
+    runs-on: [self-hosted, hetzner, amd, linux, x64]
+    env:
+      BAKERY_ENV: test
+      BAKERY_SERVER_HOST: 127.0.0.1
+      # Shard 2 of 4. Shard 3 also owns the serial auth chain (it carries the
+      # least fixture work); the other shards seed the same bootstrap admin.
+      BAKERY_BROWSER_SHARD: "2/4"
+      BAKERY_BROWSER_STATEFUL_SHARD: "3"
+      BETTER_AUTH_SECRET: bakery-ci-web-shell-better-auth-secret-0123456789
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: bakery-ci-postgres
+          POSTGRES_DB: postgres
+        ports:
+          - "127.0.0.1:20000-20999:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - name: Plan this shard's browser work
+        id: plan
+        # Full selections slice the suite across the shards; core and affected
+        # selections are small and belong to shard 1, so the other shards skip
+        # their database, API and browser setup instead of holding a runner.
+        env:
+          CI: "1"
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          BAKERY_BROWSER_MAX_MODE: ${{ github.event_name == 'push' && 'core' || 'unlimited' }}
+        run: node scripts/ci/run-browser-checks.mjs web --plan
+      - name: Pick free web and API ports
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        shell: bash
+        run: |
+          # Shared hosts run several runner users; fixed 5173/8000 collide.
+          # Both sockets stay open until both ports are read, so they differ.
+          ports="$(node -e 'const net=require("net");const a=net.createServer(),b=net.createServer();a.listen(0,"127.0.0.1",()=>b.listen(0,"127.0.0.1",()=>{console.log(a.address().port,b.address().port);a.close();b.close()}))')"
+          web_port="${ports%% *}"
+          server_port="${ports##* }"
+          {
+            echo "BAKERY_WEB_PORT=$web_port"
+            echo "BAKERY_PUBLIC_BASE_URL=http://127.0.0.1:$web_port"
+            echo "BAKERY_SERVER_PORT=$server_port"
+          } >> "$GITHUB_ENV"
+      - name: Configure PostgreSQL connection
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        env:
+          POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
+        run: |
+          {
+            echo "BAKERY_POSTGRES_PORT=$POSTGRES_PORT"
+            echo "DATABASE_URL=postgres://bakery:bakery-ci-bakery@127.0.0.1:$POSTGRES_PORT/bakery"
+            echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
+          } >> "$GITHUB_ENV"
+      - name: Ensure psql client
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        shell: bash
+        run: |
+          # The self-hosted runner image does not preinstall the PostgreSQL
+          # client that hosted runners ship by default; install it once per
+          # job only when missing.
+          command -v psql >/dev/null 2>&1 || {
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends postgresql-client
+          }
+      - name: Provision migration test roles and database
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        env:
+          PGPASSWORD: bakery-ci-postgres
+        run: |
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery LOGIN PASSWORD 'bakery-ci-bakery'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery_app LOGIN PASSWORD 'bakery-ci-app'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE DATABASE bakery OWNER bakery"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "GRANT CONNECT ON DATABASE bakery TO bakery_app"
+      - if: ${{ steps.plan.outputs.work == 'true' }}
+        run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - if: ${{ steps.plan.outputs.work == 'true' }}
+        run: pnpm migrate
+      - name: Start API
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        # run-main.sh execs `deno run ... src/main.ts`, a cwd-relative path, so
+        # it must run from the server package exactly as apps/server's own
+        # dev/start scripts invoke it.
+        working-directory: apps/server
+        run: |
+          bash scripts/run-main.sh > "$RUNNER_TEMP/server.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/server.pid"
+      - name: Wait for API health
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        run: |
+          for i in $(seq 1 60); do curl -fsS "http://127.0.0.1:$BAKERY_SERVER_PORT/health/ready" && break; sleep 1; done
+          curl -fsS "http://127.0.0.1:$BAKERY_SERVER_PORT/health/ready"
+      - if: ${{ steps.plan.outputs.work == 'true' }}
+        run: pnpm exec playwright install chromium
+      - name: Run required core and affected web consumers
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        env:
+          CI: "1"
+          BAKERY_REAL_API: "1"
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          # Nightly schedule and manual dispatch keep the exhaustive oracle;
+          # every main push caps the web matrix at the required core consumers
+          # so push CI stays bounded in minutes (see browser-selection.mjs).
+          BAKERY_BROWSER_MAX_MODE: ${{ github.event_name == 'push' && 'core' || 'unlimited' }}
+        run: node scripts/ci/run-browser-checks.mjs web
+      - name: Stop API
+        if: ${{ always() && steps.plan.outputs.work == 'true' }}
+        run: kill "$(cat "$RUNNER_TEMP/server.pid")" || true
+      - name: Write ui_web_browser_b evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts ui_web_browser_b "pnpm migrate && run-main.sh && BAKERY_REAL_API=1 node scripts/ci/run-browser-checks.mjs web" "shard 2 of 4 (second slice) present core consumers must execute/pass on fresh owned DB, all 22 must be listed once; affected whole specs; main pushes cap the web oracle at the required core consumers; full matrices on scheduled/manual coverage"
+      - name: Emit web browser evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log ui_web_browser_b
+  ui_web_c:
+    name: full / web shell browser c
+    needs: [changes, format, typecheck, contract, unit]
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_web_browser_c'))) && needs.format.result == 'success' && needs.typecheck.result == 'success' && needs.contract.result == 'success' && needs.unit.result == 'success' }}
+    runs-on: [self-hosted, hetzner, amd, linux, x64]
+    env:
+      BAKERY_ENV: test
+      BAKERY_SERVER_HOST: 127.0.0.1
+      # Shard 3 of 4. Shard 3 also owns the serial auth chain (it carries the
+      # least fixture work); the other shards seed the same bootstrap admin.
+      BAKERY_BROWSER_SHARD: "3/4"
+      BAKERY_BROWSER_STATEFUL_SHARD: "3"
+      BETTER_AUTH_SECRET: bakery-ci-web-shell-better-auth-secret-0123456789
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: bakery-ci-postgres
+          POSTGRES_DB: postgres
+        ports:
+          - "127.0.0.1:20000-20999:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - name: Plan this shard's browser work
+        id: plan
+        # Full selections slice the suite across the shards; core and affected
+        # selections are small and belong to shard 1, so the other shards skip
+        # their database, API and browser setup instead of holding a runner.
+        env:
+          CI: "1"
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          BAKERY_BROWSER_MAX_MODE: ${{ github.event_name == 'push' && 'core' || 'unlimited' }}
+        run: node scripts/ci/run-browser-checks.mjs web --plan
+      - name: Pick free web and API ports
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        shell: bash
+        run: |
+          # Shared hosts run several runner users; fixed 5173/8000 collide.
+          # Both sockets stay open until both ports are read, so they differ.
+          ports="$(node -e 'const net=require("net");const a=net.createServer(),b=net.createServer();a.listen(0,"127.0.0.1",()=>b.listen(0,"127.0.0.1",()=>{console.log(a.address().port,b.address().port);a.close();b.close()}))')"
+          web_port="${ports%% *}"
+          server_port="${ports##* }"
+          {
+            echo "BAKERY_WEB_PORT=$web_port"
+            echo "BAKERY_PUBLIC_BASE_URL=http://127.0.0.1:$web_port"
+            echo "BAKERY_SERVER_PORT=$server_port"
+          } >> "$GITHUB_ENV"
+      - name: Configure PostgreSQL connection
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        env:
+          POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
+        run: |
+          {
+            echo "BAKERY_POSTGRES_PORT=$POSTGRES_PORT"
+            echo "DATABASE_URL=postgres://bakery:bakery-ci-bakery@127.0.0.1:$POSTGRES_PORT/bakery"
+            echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
+          } >> "$GITHUB_ENV"
+      - name: Ensure psql client
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        shell: bash
+        run: |
+          # The self-hosted runner image does not preinstall the PostgreSQL
+          # client that hosted runners ship by default; install it once per
+          # job only when missing.
+          command -v psql >/dev/null 2>&1 || {
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends postgresql-client
+          }
+      - name: Provision migration test roles and database
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        env:
+          PGPASSWORD: bakery-ci-postgres
+        run: |
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery LOGIN PASSWORD 'bakery-ci-bakery'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery_app LOGIN PASSWORD 'bakery-ci-app'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE DATABASE bakery OWNER bakery"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "GRANT CONNECT ON DATABASE bakery TO bakery_app"
+      - if: ${{ steps.plan.outputs.work == 'true' }}
+        run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - if: ${{ steps.plan.outputs.work == 'true' }}
+        run: pnpm migrate
+      - name: Start API
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        # run-main.sh execs `deno run ... src/main.ts`, a cwd-relative path, so
+        # it must run from the server package exactly as apps/server's own
+        # dev/start scripts invoke it.
+        working-directory: apps/server
+        run: |
+          bash scripts/run-main.sh > "$RUNNER_TEMP/server.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/server.pid"
+      - name: Wait for API health
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        run: |
+          for i in $(seq 1 60); do curl -fsS "http://127.0.0.1:$BAKERY_SERVER_PORT/health/ready" && break; sleep 1; done
+          curl -fsS "http://127.0.0.1:$BAKERY_SERVER_PORT/health/ready"
+      - if: ${{ steps.plan.outputs.work == 'true' }}
+        run: pnpm exec playwright install chromium
+      - name: Run required core and affected web consumers
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        env:
+          CI: "1"
+          BAKERY_REAL_API: "1"
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          # Nightly schedule and manual dispatch keep the exhaustive oracle;
+          # every main push caps the web matrix at the required core consumers
+          # so push CI stays bounded in minutes (see browser-selection.mjs).
+          BAKERY_BROWSER_MAX_MODE: ${{ github.event_name == 'push' && 'core' || 'unlimited' }}
+        run: node scripts/ci/run-browser-checks.mjs web
+      - name: Stop API
+        if: ${{ always() && steps.plan.outputs.work == 'true' }}
+        run: kill "$(cat "$RUNNER_TEMP/server.pid")" || true
+      - name: Write ui_web_browser_c evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts ui_web_browser_c "pnpm migrate && run-main.sh && BAKERY_REAL_API=1 node scripts/ci/run-browser-checks.mjs web" "shard 3 of 4 (third slice) present core consumers must execute/pass on fresh owned DB, all 22 must be listed once; affected whole specs; main pushes cap the web oracle at the required core consumers; full matrices on scheduled/manual coverage"
+      - name: Emit web browser evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log ui_web_browser_c
+  ui_web_d:
+    name: full / web shell browser d
+    needs: [changes, format, typecheck, contract, unit]
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_web_browser_d'))) && needs.format.result == 'success' && needs.typecheck.result == 'success' && needs.contract.result == 'success' && needs.unit.result == 'success' }}
+    runs-on: [self-hosted, hetzner, amd, linux, x64]
+    env:
+      BAKERY_ENV: test
+      BAKERY_SERVER_HOST: 127.0.0.1
+      # Shard 4 of 4. Shard 3 also owns the serial auth chain (it carries the
+      # least fixture work); the other shards seed the same bootstrap admin.
+      BAKERY_BROWSER_SHARD: "4/4"
+      BAKERY_BROWSER_STATEFUL_SHARD: "3"
+      BETTER_AUTH_SECRET: bakery-ci-web-shell-better-auth-secret-0123456789
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: bakery-ci-postgres
+          POSTGRES_DB: postgres
+        ports:
+          - "127.0.0.1:20000-20999:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - name: Plan this shard's browser work
+        id: plan
+        # Full selections slice the suite across the shards; core and affected
+        # selections are small and belong to shard 1, so the other shards skip
+        # their database, API and browser setup instead of holding a runner.
+        env:
+          CI: "1"
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          BAKERY_BROWSER_MAX_MODE: ${{ github.event_name == 'push' && 'core' || 'unlimited' }}
+        run: node scripts/ci/run-browser-checks.mjs web --plan
+      - name: Pick free web and API ports
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        shell: bash
+        run: |
+          # Shared hosts run several runner users; fixed 5173/8000 collide.
+          # Both sockets stay open until both ports are read, so they differ.
+          ports="$(node -e 'const net=require("net");const a=net.createServer(),b=net.createServer();a.listen(0,"127.0.0.1",()=>b.listen(0,"127.0.0.1",()=>{console.log(a.address().port,b.address().port);a.close();b.close()}))')"
+          web_port="${ports%% *}"
+          server_port="${ports##* }"
+          {
+            echo "BAKERY_WEB_PORT=$web_port"
+            echo "BAKERY_PUBLIC_BASE_URL=http://127.0.0.1:$web_port"
+            echo "BAKERY_SERVER_PORT=$server_port"
+          } >> "$GITHUB_ENV"
+      - name: Configure PostgreSQL connection
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        env:
+          POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
+        run: |
+          {
+            echo "BAKERY_POSTGRES_PORT=$POSTGRES_PORT"
+            echo "DATABASE_URL=postgres://bakery:bakery-ci-bakery@127.0.0.1:$POSTGRES_PORT/bakery"
+            echo "BAKERY_APP_DATABASE_URL=postgres://bakery_app:bakery-ci-app@127.0.0.1:$POSTGRES_PORT/bakery"
+          } >> "$GITHUB_ENV"
+      - name: Ensure psql client
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        shell: bash
+        run: |
+          # The self-hosted runner image does not preinstall the PostgreSQL
+          # client that hosted runners ship by default; install it once per
+          # job only when missing.
+          command -v psql >/dev/null 2>&1 || {
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends postgresql-client
+          }
+      - name: Provision migration test roles and database
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        env:
+          PGPASSWORD: bakery-ci-postgres
+        run: |
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery LOGIN PASSWORD 'bakery-ci-bakery'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE ROLE bakery_app LOGIN PASSWORD 'bakery-ci-app'"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "CREATE DATABASE bakery OWNER bakery"
+          psql --host 127.0.0.1 --port "$BAKERY_POSTGRES_PORT" --username postgres --dbname postgres --command "GRANT CONNECT ON DATABASE bakery TO bakery_app"
+      - if: ${{ steps.plan.outputs.work == 'true' }}
+        run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - if: ${{ steps.plan.outputs.work == 'true' }}
+        run: pnpm migrate
+      - name: Start API
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        # run-main.sh execs `deno run ... src/main.ts`, a cwd-relative path, so
+        # it must run from the server package exactly as apps/server's own
+        # dev/start scripts invoke it.
+        working-directory: apps/server
+        run: |
+          bash scripts/run-main.sh > "$RUNNER_TEMP/server.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/server.pid"
+      - name: Wait for API health
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        run: |
+          for i in $(seq 1 60); do curl -fsS "http://127.0.0.1:$BAKERY_SERVER_PORT/health/ready" && break; sleep 1; done
+          curl -fsS "http://127.0.0.1:$BAKERY_SERVER_PORT/health/ready"
+      - if: ${{ steps.plan.outputs.work == 'true' }}
+        run: pnpm exec playwright install chromium
+      - name: Run required core and affected web consumers
+        if: ${{ steps.plan.outputs.work == 'true' }}
+        env:
+          CI: "1"
+          BAKERY_REAL_API: "1"
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          # Nightly schedule and manual dispatch keep the exhaustive oracle;
+          # every main push caps the web matrix at the required core consumers
+          # so push CI stays bounded in minutes (see browser-selection.mjs).
+          BAKERY_BROWSER_MAX_MODE: ${{ github.event_name == 'push' && 'core' || 'unlimited' }}
+        run: node scripts/ci/run-browser-checks.mjs web
+      - name: Stop API
+        if: ${{ always() && steps.plan.outputs.work == 'true' }}
+        run: kill "$(cat "$RUNNER_TEMP/server.pid")" || true
+      - name: Write ui_web_browser_d evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts ui_web_browser_d "pnpm migrate && run-main.sh && BAKERY_REAL_API=1 node scripts/ci/run-browser-checks.mjs web" "shard 4 of 4 (fourth slice) present core consumers must execute/pass on fresh owned DB, all 22 must be listed once; affected whole specs; main pushes cap the web oracle at the required core consumers; full matrices on scheduled/manual coverage"
+      - name: Emit web browser evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log ui_web_browser_d
+  ui_paper_runtime:
+    name: ui / paper parity runtime
+    needs: [changes, ui_catalog, ui_quality, ui_storybook_browser]
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_paper_runtime'))) && needs.ui_catalog.result == 'success' && needs.ui_quality.result == 'success' && needs.ui_storybook_browser.result == 'success' }}
+    runs-on: [self-hosted, hetzner, amd, linux, x64]
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - name: Pick a free web port
+        run: |
+          port="$(node scripts/ci/pick-free-port.mjs 2>/dev/null || echo 5173)"
+          {
+            echo "BAKERY_WEB_PORT=$port"
+            echo "BAKERY_PUBLIC_BASE_URL=http://127.0.0.1:$port"
+          } >> "$GITHUB_ENV"
+      - name: Sweep persistent-runner leftovers
+        shell: bash
+        run: |
+          # Persistent self-hosted-runner hygiene: the checkout does not remove
+          # untracked paths, so a crash in a previous run could leave a stale
+          # runtime capture that the comparator would treat as fresh input.
+          rm -rf artifacts/ui-baseline/runtime artifacts/ui-baseline/paper
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - run: pnpm --dir packages/ui build-storybook
+      - run: pnpm --dir packages/ui exec playwright install chromium
+      - name: Pin Paper-lane fontconfig
+        # The persistent runner's fontconfig (subpixel antialiasing, system
+        # fallback fonts) shifts glyph ink enough to drop fresh renders below
+        # the reference floor. FONTCONFIG_FILE replaces host font config for
+        # this job's browsers with a repo-owned, grayscale, Geist-only one.
+        run: echo "FONTCONFIG_FILE=$(scripts/ci/paper-fontconfig.sh "$RUNNER_TEMP/paper-fontconfig")" >> "$GITHUB_ENV"
+      - name: Set the capture base for changed runs
+        if: github.event_name == 'pull_request'
+        run: echo "BAKERY_CAPTURE_BASE_SHA=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_ENV"
+      - name: Start web dev server for fixture routes
+        # Design route candidates compare against the app's real fixture
+        # routes (`/__fixtures__/...`), which only exist under the Vite dev
+        # server (`import.meta.env.DEV`) — a production build 404s them, and
+        # no API/DB is needed since capture-stories.mjs stubs every request.
+        run: |
+          pnpm --dir apps/web dev --host 127.0.0.1 --port "$BAKERY_WEB_PORT" > "$RUNNER_TEMP/web-dev.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/web-dev.pid"
+          for i in $(seq 1 60); do curl -fsS "http://127.0.0.1:$BAKERY_WEB_PORT/" >/dev/null 2>&1 && break; sleep 1; done
+          curl -fsS "http://127.0.0.1:$BAKERY_WEB_PORT/" >/dev/null
+      - name: Capture owned matrices
+        # BAKERY_CAPTURE_JOBS=4 uses the supported context-pool workers; the
+        # cap stays at four so the Vite module graph cache stays warm and the
+        # dev server keeps up with concurrent page loads.
+        env:
+          BAKERY_CAPTURE_JOBS: "4"
+        run: |
+          set -euo pipefail
+          mode=${{ github.event_name == 'pull_request' && 'changed' || 'all' }}
+          for site in stories; do
+            pnpm --dir packages/ui capture:$site -- --$mode --web-base-url "http://127.0.0.1:$BAKERY_WEB_PORT"
+          done
+      - name: Stop web dev server
+        if: always()
+        run: kill "$(cat "$RUNNER_TEMP/web-dev.pid")" || true
+      - name: Compare owned Paper references
+        # On a pull request the base SHA lets compare-paper.mjs skip
+        # re-rendering references that no changed path produces or pins (the
+        # base's own run proved them); a main push always re-renders.
+        # Read-only bounded diagnostics in the existing comparison JSON.
+        # Does not alter rendering, scoring or trusted archive authority.
+        env:
+          BAKERY_CAPTURE_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BAKERY_PAPER_RASTER_DIAGNOSTICS: "1"
+        run: |
+          set -euo pipefail
+          for manifest in auth; do
+            if [ "$manifest" = auth ]; then
+              pnpm --dir packages/ui compare:paper -- --cycle 1
+            else
+              pnpm --dir packages/ui compare:paper -- --manifest "$manifest" --cycle 1
+            fi
+          done
+      - name: Summarize failure
+        if: failure()
+        run: |
+          if [ -f artifacts/ui-baseline/runtime/manifest.json ]; then
+            jq -c '.cases[] | select(.kind == "route" and (.status != "passed" or .contentBox == null)) | {id, status, reason, observed: .description.observed}' artifacts/ui-baseline/runtime/manifest.json | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f artifacts/ui-baseline/paper/comparison.txt ]; then
+            grep -vE '^PASSED ' artifacts/ui-baseline/paper/comparison.txt | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          tail -n 40 "$RUNNER_TEMP/web-dev.log" || true
+      - name: Write ui_paper_runtime evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts ui_paper_runtime "pnpm --dir packages/ui capture:stories -- --changed|--all --web-base-url http://127.0.0.1:<free-port> && pnpm --dir packages/ui compare:paper -- --cycle 1" "runtime cases with axe, containment, focus, and target-size assertions; trusted verifier independently scores bounded candidate PNGs against reference bytes from the immutable base SHA; producer score fields are checked only for consistency" artifacts/ui-baseline/runtime/manifest.json,artifacts/ui-baseline/paper/comparison.json
+      - name: Emit evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log ui_paper_runtime
+  ui_paper_entitlements:
+    name: ui / paper parity entitlements
+    needs: [changes, ui_catalog, ui_quality, ui_storybook_browser]
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_paper_entitlements'))) && needs.ui_catalog.result == 'success' && needs.ui_quality.result == 'success' && needs.ui_storybook_browser.result == 'success' }}
+    runs-on: [self-hosted, hetzner, amd, linux, x64]
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - name: Pick a free web port
+        run: |
+          port="$(node scripts/ci/pick-free-port.mjs 2>/dev/null || echo 5173)"
+          {
+            echo "BAKERY_WEB_PORT=$port"
+            echo "BAKERY_PUBLIC_BASE_URL=http://127.0.0.1:$port"
+          } >> "$GITHUB_ENV"
+      - name: Sweep persistent-runner leftovers
+        shell: bash
+        run: |
+          # Persistent self-hosted-runner hygiene: the checkout does not remove
+          # untracked paths, so a crash in a previous run could leave a stale
+          # runtime capture that the comparator would treat as fresh input.
+          rm -rf artifacts/ui-baseline/entitlements artifacts/ui-baseline/settings
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - run: pnpm --dir packages/ui build-storybook
+      - run: pnpm --dir packages/ui exec playwright install chromium
+      - name: Check the generated entitlements mock site is current
+        run: node packages/ui/scripts/paper-jsx-to-html.mjs --site entitlements --check
+      - name: Pin Paper-lane fontconfig
+        # The persistent runner's fontconfig (subpixel antialiasing, system
+        # fallback fonts) shifts glyph ink enough to drop fresh renders below
+        # the reference floor. FONTCONFIG_FILE replaces host font config for
+        # this job's browsers with a repo-owned, grayscale, Geist-only one.
+        run: echo "FONTCONFIG_FILE=$(scripts/ci/paper-fontconfig.sh "$RUNNER_TEMP/paper-fontconfig")" >> "$GITHUB_ENV"
+      - name: Set the capture base for changed runs
+        if: github.event_name == 'pull_request'
+        run: echo "BAKERY_CAPTURE_BASE_SHA=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_ENV"
+      - name: Start web dev server for fixture routes
+        # Design route candidates compare against the app's real fixture
+        # routes (`/__fixtures__/...`), which only exist under the Vite dev
+        # server (`import.meta.env.DEV`) — a production build 404s them, and
+        # no API/DB is needed since capture-stories.mjs stubs every request.
+        run: |
+          pnpm --dir apps/web dev --host 127.0.0.1 --port "$BAKERY_WEB_PORT" > "$RUNNER_TEMP/web-dev.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/web-dev.pid"
+          for i in $(seq 1 60); do curl -fsS "http://127.0.0.1:$BAKERY_WEB_PORT/" >/dev/null 2>&1 && break; sleep 1; done
+          curl -fsS "http://127.0.0.1:$BAKERY_WEB_PORT/" >/dev/null
+      - name: Capture owned matrices
+        # BAKERY_CAPTURE_JOBS=4 uses the supported context-pool workers; the
+        # cap stays at four so the Vite module graph cache stays warm and the
+        # dev server keeps up with concurrent page loads.
+        env:
+          BAKERY_CAPTURE_JOBS: "4"
+        run: |
+          set -euo pipefail
+          mode=${{ github.event_name == 'pull_request' && 'changed' || 'all' }}
+          for site in entitlements settings; do
+            pnpm --dir packages/ui capture:$site -- --$mode --web-base-url "http://127.0.0.1:$BAKERY_WEB_PORT"
+          done
+      - name: Stop web dev server
+        if: always()
+        run: kill "$(cat "$RUNNER_TEMP/web-dev.pid")" || true
+      - name: Compare owned Paper references
+        # On a pull request the base SHA lets compare-paper.mjs skip
+        # re-rendering references that no changed path produces or pins (the
+        # base's own run proved them); a main push always re-renders.
+        # Read-only bounded diagnostics in the existing comparison JSON.
+        # Does not alter rendering, scoring or trusted archive authority.
+        env:
+          BAKERY_CAPTURE_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BAKERY_PAPER_RASTER_DIAGNOSTICS: "1"
+        run: |
+          set -euo pipefail
+          for manifest in entitlements settings; do
+            if [ "$manifest" = auth ]; then
+              pnpm --dir packages/ui compare:paper -- --cycle 1
+            else
+              pnpm --dir packages/ui compare:paper -- --manifest "$manifest" --cycle 1
+            fi
+          done
+      - name: Summarize failure
+        if: failure()
+        run: |
+          if [ -f artifacts/ui-baseline/entitlements/runtime/manifest.json ]; then
+            jq -c '.cases[] | select(.kind == "route" and (.status != "passed" or .contentBox == null)) | {id, status, reason, observed: .description.observed}' artifacts/ui-baseline/entitlements/runtime/manifest.json | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f artifacts/ui-baseline/entitlements/paper/comparison.txt ]; then
+            grep -vE '^PASSED ' artifacts/ui-baseline/entitlements/paper/comparison.txt | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f artifacts/ui-baseline/settings/runtime/manifest.json ]; then
+            jq -c '.cases[] | select(.kind == "route" and (.status != "passed" or .contentBox == null)) | {id, status, reason, observed: .description.observed}' artifacts/ui-baseline/settings/runtime/manifest.json | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f artifacts/ui-baseline/settings/paper/comparison.txt ]; then
+            grep -vE '^(PASSED|PLANNED) ' artifacts/ui-baseline/settings/paper/comparison.txt | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          tail -n 40 "$RUNNER_TEMP/web-dev.log" || true
+      - name: Write ui_paper_entitlements evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts ui_paper_entitlements "pnpm --dir packages/ui capture:entitlements && capture:settings -- --changed|--all --web-base-url http://127.0.0.1:<free-port> and their compare:paper -- --manifest cycles" "per-shard Paper parity for the entitlements and settings manifests with the same assertions as the single previous ui_paper job"
+      - name: Emit evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log ui_paper_entitlements
+  ui_paper_artifacts:
+    name: ui / paper parity artifacts
+    needs: [changes, ui_catalog, ui_quality, ui_storybook_browser]
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_paper_artifacts'))) && needs.ui_catalog.result == 'success' && needs.ui_quality.result == 'success' && needs.ui_storybook_browser.result == 'success' }}
+    runs-on: [self-hosted, hetzner, amd, linux, x64]
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - name: Pick a free web port
+        run: |
+          port="$(node scripts/ci/pick-free-port.mjs 2>/dev/null || echo 5173)"
+          {
+            echo "BAKERY_WEB_PORT=$port"
+            echo "BAKERY_PUBLIC_BASE_URL=http://127.0.0.1:$port"
+          } >> "$GITHUB_ENV"
+      - name: Sweep persistent-runner leftovers
+        shell: bash
+        run: |
+          # Persistent self-hosted-runner hygiene: the checkout does not remove
+          # untracked paths, so a crash in a previous run could leave a stale
+          # runtime capture that the comparator would treat as fresh input.
+          rm -rf artifacts/ui-baseline/artifacts artifacts/ui-baseline/enterprise artifacts/ui-baseline/worker-dark
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - run: pnpm --dir packages/ui build-storybook
+      - run: pnpm --dir packages/ui exec playwright install chromium
+      - name: Check the generated enterprise mock site is current
+        # The committed site under docs/technical-design/enterprise-mocks/site
+        # must be exactly what the committed Paper JSX generates.
+        run: pnpm --dir packages/ui paper:site:check
+      - name: Check the generated artifacts mock site is current
+        run: pnpm --dir packages/ui paper:site:check -- --site artifacts
+      - name: Check the derived worker-dark reference is current
+        # Re-derives the dark detail source from the pinned K-0 pairs, checks
+        # every generated byte, and re-renders the reference against its PNG.
+        run: pnpm --dir packages/ui render:paper:worker-dark -- --check
+      - name: Pin Paper-lane fontconfig
+        # The persistent runner's fontconfig (subpixel antialiasing, system
+        # fallback fonts) shifts glyph ink enough to drop fresh renders below
+        # the reference floor. FONTCONFIG_FILE replaces host font config for
+        # this job's browsers with a repo-owned, grayscale, Geist-only one.
+        run: echo "FONTCONFIG_FILE=$(scripts/ci/paper-fontconfig.sh "$RUNNER_TEMP/paper-fontconfig")" >> "$GITHUB_ENV"
+      - name: Set the capture base for changed runs
+        if: github.event_name == 'pull_request'
+        run: echo "BAKERY_CAPTURE_BASE_SHA=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_ENV"
+      - name: Start web dev server for fixture routes
+        # Design route candidates compare against the app's real fixture
+        # routes (`/__fixtures__/...`), which only exist under the Vite dev
+        # server (`import.meta.env.DEV`) — a production build 404s them, and
+        # no API/DB is needed since capture-stories.mjs stubs every request.
+        run: |
+          pnpm --dir apps/web dev --host 127.0.0.1 --port "$BAKERY_WEB_PORT" > "$RUNNER_TEMP/web-dev.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/web-dev.pid"
+          for i in $(seq 1 60); do curl -fsS "http://127.0.0.1:$BAKERY_WEB_PORT/" >/dev/null 2>&1 && break; sleep 1; done
+          curl -fsS "http://127.0.0.1:$BAKERY_WEB_PORT/" >/dev/null
+      - name: Capture owned matrices
+        # BAKERY_CAPTURE_JOBS=4 uses the supported context-pool workers; the
+        # cap stays at four so the Vite module graph cache stays warm and the
+        # dev server keeps up with concurrent page loads.
+        env:
+          BAKERY_CAPTURE_JOBS: "4"
+        run: |
+          set -euo pipefail
+          mode=${{ github.event_name == 'pull_request' && 'changed' || 'all' }}
+          for site in artifacts enterprise worker-dark; do
+            pnpm --dir packages/ui capture:$site -- --$mode --web-base-url "http://127.0.0.1:$BAKERY_WEB_PORT"
+          done
+      - name: Stop web dev server
+        if: always()
+        run: kill "$(cat "$RUNNER_TEMP/web-dev.pid")" || true
+      - name: Compare owned Paper references
+        # On a pull request the base SHA lets compare-paper.mjs skip
+        # re-rendering references that no changed path produces or pins (the
+        # base's own run proved them); a main push always re-renders.
+        # Read-only bounded diagnostics in the existing comparison JSON.
+        # Does not alter rendering, scoring or trusted archive authority.
+        env:
+          BAKERY_CAPTURE_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BAKERY_PAPER_RASTER_DIAGNOSTICS: "1"
+        run: |
+          set -euo pipefail
+          for manifest in artifacts enterprise worker-dark; do
+            if [ "$manifest" = auth ]; then
+              pnpm --dir packages/ui compare:paper -- --cycle 1
+            else
+              pnpm --dir packages/ui compare:paper -- --manifest "$manifest" --cycle 1
+            fi
+          done
+      - name: Summarize failure
+        if: failure()
+        run: |
+          if [ -f artifacts/ui-baseline/artifacts/runtime/manifest.json ]; then
+            jq -c '.cases[] | select(.kind == "route" and (.status != "passed" or .contentBox == null)) | {id, status, reason, observed: .description.observed}' artifacts/ui-baseline/artifacts/runtime/manifest.json | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f artifacts/ui-baseline/artifacts/paper/comparison.txt ]; then
+            grep -vE '^PASSED ' artifacts/ui-baseline/artifacts/paper/comparison.txt | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f artifacts/ui-baseline/enterprise/runtime/manifest.json ]; then
+            jq -c '.cases[] | select(.kind == "route" and (.status != "passed" or .contentBox == null)) | {id, status, reason, observed: .description.observed}' artifacts/ui-baseline/enterprise/runtime/manifest.json | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f artifacts/ui-baseline/enterprise/paper/comparison.txt ]; then
+            grep -vE '^(PASSED|PLANNED) ' artifacts/ui-baseline/enterprise/paper/comparison.txt | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f artifacts/ui-baseline/worker-dark/runtime/manifest.json ]; then
+            jq -c '.cases[] | select(.status != "passed") | {id, status, reason, observed: .description.observed}' artifacts/ui-baseline/worker-dark/runtime/manifest.json | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f artifacts/ui-baseline/worker-dark/paper/comparison.txt ]; then
+            grep -vE '^PASSED ' artifacts/ui-baseline/worker-dark/paper/comparison.txt | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          tail -n 40 "$RUNNER_TEMP/web-dev.log" || true
+      - name: Write ui_paper_artifacts evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts ui_paper_artifacts "pnpm --dir packages/ui capture:artifacts && capture:enterprise && capture:worker-dark -- --changed|--all --web-base-url http://127.0.0.1:<free-port> and their compare:paper -- --manifest cycles" "per-shard Paper parity for the artifacts, enterprise and worker-dark manifests with the same assertions as the single previous ui_paper job"
+      - name: Emit evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log ui_paper_artifacts
+  native_worker:
+    name: native / cgroup worker smoke
+    if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'native_worker'))) }}
+    needs: [changes]
+    runs-on: [self-hosted, hetzner, linux, x64]
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with: { persist-credentials: false }
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        with: { version: "${{ env.PNPM_VERSION }}" }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
+      - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - name: Verify native bubblewrap namespace prerequisite
+        run: |
+          command -v bwrap
+          bwrap --version
+          deno eval \
+            'import { probeNativeSandboxCapability } from "./apps/worker/src/executor.ts"; await probeNativeSandboxCapability();'
+      - name: Start production worker inside a delegated cgroup
+        run: |
+          systemd-run --user --scope --send-sighup \
+            --property=Delegate=yes \
+            --unit="bakery-native-worker-${RUN_ID}-${RUN_ATTEMPT}" \
+            --setenv=BAKERY_ENV=test \
+            --setenv=BAKERY_WORKER_STARTUP_MARKER=1 \
+            deno run \
+            --no-prompt \
+            --preload=apps/worker/src/cgroup-permission-preload.ts \
+            --allow-env=HOME,BAKERY_ENV,BAKERY_SERVER_URL,BAKERY_VERSION,BAKERY_WORKER_STARTUP_MARKER,BAKERY_WORKER_NATIVE_SMOKE,BAKERY_WORKER_CGROUP_ROOT,BAKERY_WORKER_ENROLLMENT_TOKEN_FILE,BAKERY_WORKER_STATE_DIR,BAKERY_WORKER_CAPABILITIES \
+            --allow-read=/tmp,apps/worker,packages/config,packages/contracts,docs/technical-design/api-catalog.json,deno.json,deno.lock,node_modules/zod \
+            --allow-write=/tmp \
+            --allow-run="$(command -v deno)",/usr/bin/bwrap,/usr/bin/ldd,/usr/bin/cat,/usr/bin/test,/usr/bin/tee,/usr/bin/mkdir,/usr/bin/rmdir,/usr/bin/stat,/bin/sh \
+            --allow-net=127.0.0.1 \
+            scripts/ci/native-worker-launch-smoke.ts
+      - name: Run adversarial native boundary tests
+        run: |
+          tmp="$(mktemp -d "$RUNNER_TEMP/bakery-native-test-XXXXXX")"
+          chmod 700 "$tmp"
+          trap 'rm -rf "$tmp"' EXIT
+          systemd-run --user --scope --send-sighup \
+            --property=Delegate=yes \
+            --property=DelegateSubgroup=runner \
+            --unit="bakery-native-boundary-tests-${RUN_ID}-${RUN_ATTEMPT}" \
+            env TMPDIR="$tmp" \
+            deno eval 'import { provisionDelegatedCgroupV2 } from "./scripts/lib/cgroup-v2.ts"; const lease = await provisionDelegatedCgroupV2("bakery-native-boundary-tests-"); const child = new Deno.Command(Deno.execPath(), { args: ["test", "--allow-all", "tests/native/native-worker-executor_test.ts"], env: { ...Deno.env.toObject(), BAKERY_TEST_CGROUP_ROOT: lease.root }, stdout: "inherit", stderr: "inherit" }).spawn(); const status = await child.status; await lease.release(); Deno.exit(status.success ? 0 : (status.code ?? 1));'
+      - name: Write native worker evidence
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts native_worker "bwrap --version && deno eval probeNativeSandboxCapability && systemd-run production native worker smoke && systemd-run deno test tests/native/native-worker-executor_test.ts" "bwrap capability, production action/cancellation cleanup, and adversarial same-UID procfs descriptor isolation all pass; separate low-level child smoke also passes" artifacts/native-worker
+      - name: Emit native worker evidence handoff to job log
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+          ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+          SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+        run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log native_worker
+  docs_validation:
+    name: docs / validation
+    needs: [changes, git_diff_check, semantic_metadata]
+    if: ${{ needs.changes.result == 'success' && needs.changes.outputs.route == 'docs' && needs.git_diff_check.result == 'success' && needs.semantic_metadata.result == 'success' }}
+    runs-on: [self-hosted, hetzner, linux, x64]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
+      - name: Validate documentation XML and metadata
+        run: deno run --allow-read --allow-run=python3 scripts/ci/validate-docs.ts
+      - name: Test documentation routing classifier
+        run: deno test --allow-read --allow-run --allow-env tests/unit/ci-docs-routing_test.ts
+
+  aggregate:
+    name: required / full-stack aggregate
+    # Fork PRs never reach self-hosted runners; a maintainer re-pushes them to a branch.
+    if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    needs: [
+      changes,
+      docs_validation,
+      rails,
+      git_diff_check,
+      semantic_metadata,
+      format,
+      typecheck,
+      contract,
+      contract_shard_b,
+      contract_shard_c,
+      unit,
+      unit_shard_b,
+      provider,
+      integration,
+      security,
+      recovery,
+      browser,
+      e2e,
+      ui_catalog,
+      ui_quality,
+      ui_architecture,
+      ui_storybook_browser,
+      ui_web,
+      ui_web_b,
+      ui_web_c,
+      ui_web_d,
+      ui_paper_runtime,
+      ui_paper_entitlements,
+      ui_paper_artifacts,
+      native_worker,
+    ]
+    runs-on: [self-hosted, hetzner, linux, x64]
+    permissions:
+      contents: read
+    steps:
+      - name: Select per-runner handoff directories
+        shell: bash
+        run: |
+          root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+          {
+            echo "HANDOFF_ROOT=$root"
+            echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+            echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+            echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+          } >> "$GITHUB_ENV"
+      - name: Reject invalid direct lane results
+        if: always()
+        env:
+          ROUTE: "${{ needs.changes.outputs.route }}"
+          LANE_DOCS_VALIDATION: "${{ needs.docs_validation.result }}"
+          LANE_RAILS: "${{ needs.rails.result }}"
+          LANE_GIT_DIFF_CHECK: "${{ needs.git_diff_check.result }}"
+          LANE_SEMANTIC_METADATA: "${{ needs.semantic_metadata.result }}"
+          LANE_FORMAT: "${{ needs.format.result }}"
+          LANE_TYPECHECK: "${{ needs.typecheck.result }}"
+          LANE_CONTRACT_DESCRIPTION_GATE: "${{ needs.contract.result }}"
+          LANE_CONTRACT_DESCRIPTION_GATE_B: "${{ needs.contract_shard_b.result }}"
+          LANE_CONTRACT_DESCRIPTION_GATE_C: "${{ needs.contract_shard_c.result }}"
+          LANE_FOCUSED_UNIT_TESTS: "${{ needs.unit.result }}"
+          LANE_FOCUSED_UNIT_TESTS_B: "${{ needs.unit_shard_b.result }}"
+          LANE_PROVIDER_TESTS: "${{ needs.provider.result }}"
+          LANE_UI_CATALOG: "${{ needs.ui_catalog.result }}"
+          LANE_UI_QUALITY: "${{ needs.ui_quality.result }}"
+          LANE_UI_ARCHITECTURE: "${{ needs.ui_architecture.result }}"
+          LANE_UI_STORYBOOK_BROWSER: "${{ needs.ui_storybook_browser.result }}"
+          LANE_INTEGRATION_TESTS: "${{ needs.integration.result }}"
+          LANE_SECURITY_TESTS: "${{ needs.security.result }}"
+          LANE_RECOVERY_TESTS: "${{ needs.recovery.result }}"
+          LANE_BROWSER_TESTS: "${{ needs.browser.result }}"
+          LANE_UI_WEB_BROWSER: "${{ needs.ui_web.result }}"
+          LANE_UI_WEB_BROWSER_B: "${{ needs.ui_web_b.result }}"
+          LANE_UI_WEB_BROWSER_C: "${{ needs.ui_web_c.result }}"
+          LANE_UI_WEB_BROWSER_D: "${{ needs.ui_web_d.result }}"
+          LANE_E2E_TESTS: "${{ needs.e2e.result }}"
+          LANE_UI_PAPER_RUNTIME: "${{ needs.ui_paper_runtime.result }}"
+          LANE_UI_PAPER_ENTITLEMENTS: "${{ needs.ui_paper_entitlements.result }}"
+          LANE_UI_PAPER_ARTIFACTS: "${{ needs.ui_paper_artifacts.result }}"
+          LANE_NATIVE_WORKER: "${{ needs.native_worker.result }}"
+          AFFECTED_LANES: "${{ needs.changes.outputs.lanes }}"
+        run: |
+          set -euo pipefail
+          if [[ "$ROUTE" == docs ]]; then
+            [[ "$LANE_DOCS_VALIDATION" == success ]] || {
+              echo "documentation lane did not succeed: $LANE_DOCS_VALIDATION" >&2
+              exit 1
+            }
+            exit 0
+          fi
+          if [[ "$ROUTE" == gate ]]; then
+            for lane_result in \
+              "$LANE_RAILS" \
+              "$LANE_GIT_DIFF_CHECK" \
+              "$LANE_SEMANTIC_METADATA" \
+              "$LANE_FORMAT" \
+              "$LANE_TYPECHECK" \
+              "$LANE_CONTRACT_DESCRIPTION_GATE" \
+              "$LANE_CONTRACT_DESCRIPTION_GATE_B" \
+              "$LANE_CONTRACT_DESCRIPTION_GATE_C" \
+              "$LANE_FOCUSED_UNIT_TESTS" \
+              "$LANE_FOCUSED_UNIT_TESTS_B" \
+              "$LANE_PROVIDER_TESTS" \
+              "$LANE_UI_CATALOG" \
+              "$LANE_UI_QUALITY"
+            do
+              if [[ "$lane_result" != success ]]; then
+                echo "gate lane did not succeed: $lane_result" >&2
+                exit 1
+              fi
+            done
+            for heavy_lane in \
+              "$LANE_UI_ARCHITECTURE" \
+              "$LANE_UI_STORYBOOK_BROWSER" \
+              "$LANE_INTEGRATION_TESTS" \
+              "$LANE_SECURITY_TESTS" \
+              "$LANE_RECOVERY_TESTS" \
+              "$LANE_BROWSER_TESTS" \
+              "$LANE_UI_WEB_BROWSER" \
+              "$LANE_UI_WEB_BROWSER_B" \
+              "$LANE_UI_WEB_BROWSER_C" \
+              "$LANE_UI_WEB_BROWSER_D" \
+              "$LANE_E2E_TESTS" \
+              "$LANE_UI_PAPER_RUNTIME" \
+              "$LANE_UI_PAPER_ENTITLEMENTS" \
+              "$LANE_UI_PAPER_ARTIFACTS" \
+              "$LANE_NATIVE_WORKER"
+            do
+              if [[ "$heavy_lane" != skipped ]]; then
+                echo "post-merge lane ran on a pull request: $heavy_lane" >&2
+                exit 1
+              fi
+            done
+            exit 0
+          fi
+          if [[ "$ROUTE" == affected ]]; then
+            # The fast lanes run on every non-pr route, so they always owe a
+            # success here. Each heavy lane only ran when its key was selected
+            # in the classifier's lane union (`lanes=<json array>` from the
+            # changes job): selected lanes must succeed and unselected lanes
+            # must be skipped, mirroring the gate branch's fail-closed checks.
+            for lane_result in \
+              "$LANE_RAILS" \
+              "$LANE_GIT_DIFF_CHECK" \
+              "$LANE_SEMANTIC_METADATA" \
+              "$LANE_FORMAT" \
+              "$LANE_TYPECHECK" \
+              "$LANE_CONTRACT_DESCRIPTION_GATE" \
+              "$LANE_CONTRACT_DESCRIPTION_GATE_B" \
+              "$LANE_CONTRACT_DESCRIPTION_GATE_C" \
+              "$LANE_FOCUSED_UNIT_TESTS" \
+              "$LANE_FOCUSED_UNIT_TESTS_B" \
+              "$LANE_PROVIDER_TESTS" \
+              "$LANE_UI_CATALOG" \
+              "$LANE_UI_QUALITY"
+            do
+              if [[ "$lane_result" != success ]]; then
+                echo "affected fast lane did not succeed: $lane_result" >&2
+                exit 1
+              fi
+            done
+            for lane_key in \
+              integration_tests \
+              security_tests \
+              recovery_tests \
+              browser_tests \
+              ui_web_browser \
+              ui_web_browser_b \
+              ui_web_browser_c \
+              ui_web_browser_d \
+              e2e_tests \
+              ui_architecture \
+              ui_storybook_browser \
+              ui_paper_runtime \
+              ui_paper_entitlements \
+              ui_paper_artifacts \
+              native_worker
+            do
+              lane_env="LANE_${lane_key^^}"
+              lane_result="${!lane_env}"
+              if [[ "$AFFECTED_LANES" == *"\"${lane_key}\""* ]]; then
+                if [[ "$lane_result" != success ]]; then
+                  echo "affected lane did not succeed: ${lane_key} ($lane_result)" >&2
+                  exit 1
+                fi
+              elif [[ "$lane_result" != skipped ]]; then
+                echo "unselected lane ran on the affected route: ${lane_key} ($lane_result)" >&2
+                exit 1
+              fi
+            done
+            if [[ "$LANE_DOCS_VALIDATION" != skipped ]]; then
+              echo "documentation lane ran on the affected route: $LANE_DOCS_VALIDATION" >&2
+              exit 1
+            fi
+            exit 0
+          fi
+          [[ "$ROUTE" == full ]] || { echo "unknown CI route: $ROUTE" >&2; exit 1; }
+          for lane_result in \
+            "$LANE_RAILS" \
+            "$LANE_GIT_DIFF_CHECK" \
+            "$LANE_SEMANTIC_METADATA" \
+            "$LANE_FORMAT" \
+            "$LANE_TYPECHECK" \
+            "$LANE_CONTRACT_DESCRIPTION_GATE" \
+            "$LANE_CONTRACT_DESCRIPTION_GATE_B" \
+            "$LANE_CONTRACT_DESCRIPTION_GATE_C" \
+            "$LANE_FOCUSED_UNIT_TESTS" \
+            "$LANE_FOCUSED_UNIT_TESTS_B" \
+            "$LANE_PROVIDER_TESTS" \
+            "$LANE_UI_CATALOG" \
+            "$LANE_UI_QUALITY" \
+            "$LANE_UI_ARCHITECTURE" \
+            "$LANE_UI_STORYBOOK_BROWSER" \
+            "$LANE_INTEGRATION_TESTS" \
+            "$LANE_SECURITY_TESTS" \
+            "$LANE_RECOVERY_TESTS" \
+            "$LANE_BROWSER_TESTS" \
+            "$LANE_UI_WEB_BROWSER" \
+            "$LANE_UI_WEB_BROWSER_B" \
+            "$LANE_UI_WEB_BROWSER_C" \
+            "$LANE_UI_WEB_BROWSER_D" \
+            "$LANE_E2E_TESTS" \
+            "$LANE_UI_PAPER_RUNTIME" \
+            "$LANE_UI_PAPER_ENTITLEMENTS" \
+            "$LANE_UI_PAPER_ARTIFACTS" \
+            "$LANE_NATIVE_WORKER"
+          do
+            if [[ "$lane_result" != success ]]; then
+              echo "required lane did not succeed: $lane_result" >&2
+              exit 1
+            fi
+          done
+      # On pull_request, github.workflow_sha is the candidate merge commit. This
+      # checkout is only host-local cleanup; it is not trusted policy execution.
+      - name: Check out cleanup script
+        if: always()
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: trusted-policy
+          persist-credentials: false
+      - name: Cleanup bounded handoff directories
+        if: always()
+        run: |
+          set -euo pipefail
+          rm -rf -- "$HANDOFF_ROOT"
+          find /tmp -xdev -maxdepth 1 -mindepth 1 -type d \
+            \( -name 'bakery-ci-*' -o -name 'bakery-connected-native-*' \) \
+            -mmin +360 -exec rm -rf -- {} +
+          bash trusted-policy/scripts/ci/reap-dangling-volumes.sh

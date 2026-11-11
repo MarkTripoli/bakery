@@ -1,0 +1,83 @@
+/* Generated from Paper 01M1X504XVC45FC0VDK857A37D revision paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17; digest be0870041ec57a152f5982d9121f8aaa495d7dc7af5a16164ae82a26cf087877. */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  --color-border: #E3E6EB;
+  --color-border-strong: #CBD0D8;
+  --color-canvas: #F5F6F8;
+  --color-control-border: #8A939F;
+  --color-destructive: #BE3341;
+  --color-destructive-hover: #A72C3A;
+  --color-destructive-surface: #FCEEEF;
+  --color-fg: #141A24;
+  --color-fg-disabled: #9AA3B1;
+  --color-fg-muted: #5D6675;
+  --color-fg-tertiary: #6B7686;
+  --color-focus: #0B63C6;
+  --color-logo-plate: #F5F6F8;
+  --color-preview-ink: #000000;
+  --color-primary: #141A24;
+  --color-primary-foreground: #FFFFFF;
+  --color-primary-hover: #262E3B;
+  --color-qr-plate: #FFFFFF;
+  --color-selection: #0B63C6;
+  --color-selection-hover: #0A56AD;
+  --color-selection-surface: #ECF1F8;
+  --color-status-disabled: #6B7280;
+  --color-status-disabled-surface: #F3F4F6;
+  --color-status-neutral: #374151;
+  --color-status-neutral-surface: #E5E7EB;
+  --color-status-success: #17784B;
+  --color-status-success-surface: #E8F5EE;
+  --color-status-warning: #8F5A0B;
+  --color-status-warning-surface: #FBF3E4;
+  --color-surface: #FFFFFF;
+  --color-surface-raised: #FFFFFF;
+  --color-surface-subtle: #EEF0F4;
+  --color-syntax-foreground: #F9FAFB;
+  --color-syntax-success: #BBF7D0;
+  --color-syntax-surface: #111827;
+  --color-theme-preview-dark-accent: #102948;
+  --color-theme-preview-light-accent: #E7EFF9;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-border: #2D3542;
+  --color-border-strong: #3D4655;
+  --color-canvas: #0B0E14;
+  --color-control-border: #59657A;
+  --color-destructive: #EE6A79;
+  --color-destructive-hover: #C7394C;
+  --color-destructive-surface: #331820;
+  --color-fg: #F2F4F8;
+  --color-fg-disabled: #566173;
+  --color-fg-muted: #A3ACBA;
+  --color-fg-tertiary: #7D879A;
+  --color-focus: #4A93E6;
+  --color-logo-plate: #F5F6F8;
+  --color-preview-ink: #F2F4F8;
+  --color-primary: #F2F4F8;
+  --color-primary-foreground: #0B0E14;
+  --color-primary-hover: #DCE0E7;
+  --color-qr-plate: #FFFFFF;
+  --color-selection: #4A93E6;
+  --color-selection-hover: #6EAAF0;
+  --color-selection-surface: #152338;
+  --color-status-disabled: #98A2B3;
+  --color-status-disabled-surface: #252B36;
+  --color-status-neutral: #D1D5DB;
+  --color-status-neutral-surface: #2B303A;
+  --color-status-success: #45B37C;
+  --color-status-success-surface: #0F261C;
+  --color-status-warning: #E0A83F;
+  --color-status-warning-surface: #2A2010;
+  --color-surface: #12161E;
+  --color-surface-raised: #212733;
+  --color-surface-subtle: #191E28;
+  --color-syntax-foreground: #F2F4F8;
+  --color-syntax-success: #A6F4C5;
+  --color-syntax-surface: #0B0E14;
+  --color-theme-preview-dark-accent: #203550;
+  --color-theme-preview-light-accent: #EDF4FD;
+}

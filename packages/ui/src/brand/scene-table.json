@@ -1,0 +1,319 @@
+{
+  "scenes": {
+    "not-found": {
+      "alt": "The chef mascot peers through a magnifying glass at a trail of crumbs.",
+      "exports": {
+        "not-found-light.webp": {
+          "width": 1200,
+          "height": 895
+        },
+        "not-found-light-600.webp": {
+          "width": 600,
+          "height": 447
+        },
+        "not-found-dark.webp": {
+          "width": 1200,
+          "height": 895
+        },
+        "not-found-dark-600.webp": {
+          "width": 600,
+          "height": 447
+        }
+      }
+    },
+    "not-found-pantry": {
+      "alt": "The chef mascot reads a map beside a stack of flour sacks.",
+      "exports": {
+        "not-found-pantry-light.webp": {
+          "width": 1200,
+          "height": 1021
+        },
+        "not-found-pantry-light-600.webp": {
+          "width": 600,
+          "height": 510
+        },
+        "not-found-pantry-dark.webp": {
+          "width": 1200,
+          "height": 1021
+        },
+        "not-found-pantry-dark-600.webp": {
+          "width": 600,
+          "height": 510
+        }
+      }
+    },
+    "server-error": {
+      "alt": "The chef mascot looks worried next to a smoking oven and a burnt loaf.",
+      "exports": {
+        "server-error-light.webp": {
+          "width": 1200,
+          "height": 983
+        },
+        "server-error-light-600.webp": {
+          "width": 600,
+          "height": 492
+        },
+        "server-error-dark.webp": {
+          "width": 1200,
+          "height": 983
+        },
+        "server-error-dark-600.webp": {
+          "width": 600,
+          "height": 492
+        }
+      }
+    },
+    "forbidden": {
+      "alt": "The chef mascot raises a hand in front of a closed door and a velvet rope.",
+      "exports": {
+        "forbidden-light.webp": {
+          "width": 1200,
+          "height": 899
+        },
+        "forbidden-light-600.webp": {
+          "width": 600,
+          "height": 450
+        },
+        "forbidden-dark.webp": {
+          "width": 1200,
+          "height": 899
+        },
+        "forbidden-dark-600.webp": {
+          "width": 600,
+          "height": 450
+        }
+      }
+    },
+    "offline": {
+      "alt": "The chef mascot holds an unplugged power cord beside a stopped conveyor belt.",
+      "exports": {
+        "offline-light.webp": {
+          "width": 1200,
+          "height": 869
+        },
+        "offline-light-600.webp": {
+          "width": 600,
+          "height": 435
+        },
+        "offline-dark.webp": {
+          "width": 1200,
+          "height": 869
+        },
+        "offline-dark-600.webp": {
+          "width": 600,
+          "height": 435
+        }
+      }
+    },
+    "reconnecting": {
+      "alt": "The chef mascot happily turns a hand crank to get a conveyor belt moving again.",
+      "exports": {
+        "reconnecting-light.webp": {
+          "width": 1200,
+          "height": 999
+        },
+        "reconnecting-light-600.webp": {
+          "width": 600,
+          "height": 499
+        },
+        "reconnecting-dark.webp": {
+          "width": 1200,
+          "height": 999
+        },
+        "reconnecting-dark-600.webp": {
+          "width": 600,
+          "height": 499
+        }
+      }
+    },
+    "maintenance": {
+      "alt": "The chef mascot sits on a conveyor belt with a big wrench and an open toolbox.",
+      "exports": {
+        "maintenance-light.webp": {
+          "width": 1200,
+          "height": 914
+        },
+        "maintenance-light-600.webp": {
+          "width": 600,
+          "height": 457
+        },
+        "maintenance-dark.webp": {
+          "width": 1200,
+          "height": 914
+        },
+        "maintenance-dark-600.webp": {
+          "width": 600,
+          "height": 457
+        }
+      }
+    },
+    "empty-tasks": {
+      "alt": "The chef mascot relaxes on a conveyor belt with a cup of coffee.",
+      "exports": {
+        "empty-tasks-light.webp": {
+          "width": 1200,
+          "height": 960
+        },
+        "empty-tasks-light-600.webp": {
+          "width": 600,
+          "height": 480
+        },
+        "empty-tasks-dark.webp": {
+          "width": 1200,
+          "height": 960
+        },
+        "empty-tasks-dark-600.webp": {
+          "width": 600,
+          "height": 480
+        }
+      }
+    },
+    "empty-sessions": {
+      "alt": "The chef mascot waves from a small cafe table with two empty chairs.",
+      "exports": {
+        "empty-sessions-light.webp": {
+          "width": 1200,
+          "height": 960
+        },
+        "empty-sessions-light-600.webp": {
+          "width": 600,
+          "height": 480
+        },
+        "empty-sessions-dark.webp": {
+          "width": 1200,
+          "height": 960
+        },
+        "empty-sessions-dark-600.webp": {
+          "width": 600,
+          "height": 480
+        }
+      }
+    },
+    "empty-workers": {
+      "alt": "The chef mascot holds a clipboard while spare hats and mitts hang nearby.",
+      "exports": {
+        "empty-workers-light.webp": {
+          "width": 1200,
+          "height": 961
+        },
+        "empty-workers-light-600.webp": {
+          "width": 600,
+          "height": 481
+        },
+        "empty-workers-dark.webp": {
+          "width": 1200,
+          "height": 961
+        },
+        "empty-workers-dark-600.webp": {
+          "width": 600,
+          "height": 481
+        }
+      }
+    },
+    "empty-search": {
+      "alt": "The chef mascot holds a whisk over an empty mixing bowl.",
+      "exports": {
+        "empty-search-light.webp": {
+          "width": 1200,
+          "height": 1009
+        },
+        "empty-search-light-600.webp": {
+          "width": 600,
+          "height": 504
+        },
+        "empty-search-dark.webp": {
+          "width": 1200,
+          "height": 1009
+        },
+        "empty-search-dark-600.webp": {
+          "width": 600,
+          "height": 504
+        }
+      }
+    },
+    "loading": {
+      "alt": "The chef mascot kneads dough on a conveyor belt.",
+      "exports": {
+        "loading-light.webp": {
+          "width": 1200,
+          "height": 1215
+        },
+        "loading-light-600.webp": {
+          "width": 600,
+          "height": 607
+        },
+        "loading-dark.webp": {
+          "width": 1200,
+          "height": 1215
+        },
+        "loading-dark-600.webp": {
+          "width": 600,
+          "height": 607
+        }
+      }
+    },
+    "success": {
+      "alt": "The chef mascot cheers with confetti beside a fresh loaf of bread.",
+      "exports": {
+        "success-light.webp": {
+          "width": 1200,
+          "height": 1043
+        },
+        "success-light-600.webp": {
+          "width": 600,
+          "height": 521
+        },
+        "success-dark.webp": {
+          "width": 1200,
+          "height": 1043
+        },
+        "success-dark-600.webp": {
+          "width": 600,
+          "height": 521
+        }
+      }
+    },
+    "welcome": {
+      "alt": "The chef mascot proudly holds a tray of fresh rolls.",
+      "exports": {
+        "welcome-light.webp": {
+          "width": 1200,
+          "height": 1181
+        },
+        "welcome-light-600.webp": {
+          "width": 600,
+          "height": 591
+        },
+        "welcome-dark.webp": {
+          "width": 1200,
+          "height": 1181
+        },
+        "welcome-dark-600.webp": {
+          "width": 600,
+          "height": 591
+        }
+      }
+    },
+    "sign-in-hero": {
+      "alt": "The chef mascot waves beside a brick oven and a row of baked loaves.",
+      "exports": {
+        "sign-in-hero-light.webp": {
+          "width": 1600,
+          "height": 1009
+        },
+        "sign-in-hero-light-600.webp": {
+          "width": 600,
+          "height": 379
+        },
+        "sign-in-hero-dark.webp": {
+          "width": 1600,
+          "height": 1009
+        },
+        "sign-in-hero-dark-600.webp": {
+          "width": 600,
+          "height": 379
+        }
+      }
+    }
+  }
+}

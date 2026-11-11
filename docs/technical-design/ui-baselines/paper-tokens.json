@@ -1,0 +1,553 @@
+{
+  "source": {
+    "fileId": "01M1X504XVC45FC0VDK857A37D",
+    "tool": "paper-desktop MCP get_tokens",
+    "accessed": "2026-09-17"
+  },
+  "contentHash": {
+    "tokens": "49fea8f7"
+  },
+  "tokens": [
+    {
+      "name": "--color-background",
+      "type": "color",
+      "value": "#F5F6F8"
+    },
+    {
+      "name": "--color-surface",
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "--color-foreground",
+      "type": "color",
+      "value": "#141A24"
+    },
+    {
+      "name": "--color-muted-foreground",
+      "type": "color",
+      "value": "#5D6675"
+    },
+    {
+      "name": "--color-border",
+      "type": "color",
+      "value": "#E3E6EB"
+    },
+    {
+      "name": "--color-primary",
+      "type": "color",
+      "value": "#141A24",
+      "description": "Primary action fill. Same ink as foreground; white label."
+    },
+    {
+      "name": "--color-accent",
+      "type": "color",
+      "value": "#ECF1F8"
+    },
+    {
+      "name": "--color-success",
+      "type": "color",
+      "value": "#17784B"
+    },
+    {
+      "name": "--color-warning",
+      "type": "color",
+      "value": "#8F5A0B"
+    },
+    {
+      "name": "--color-destructive",
+      "type": "color",
+      "value": "#BE3341"
+    },
+    {
+      "name": "--color-selection",
+      "type": "color",
+      "value": "#0B63C6",
+      "description": "Links, focus ring, selected indicators, checkbox and radio fills. Never a button fill."
+    },
+    {
+      "name": "--color-success-surface",
+      "type": "color",
+      "value": "#E8F5EE"
+    },
+    {
+      "name": "--color-warning-surface",
+      "type": "color",
+      "value": "#FBF3E4"
+    },
+    {
+      "name": "--color-destructive-surface",
+      "type": "color",
+      "value": "#FCEEEF"
+    },
+    {
+      "name": "--color-control-border",
+      "type": "color",
+      "value": "#8A939F",
+      "description": "Visible input and selection outlines; decorative separators retain --color-border."
+    },
+    {
+      "name": "--color-light-canvas",
+      "type": "color",
+      "value": "var(--color-background)",
+      "description": "Light theme application canvas."
+    },
+    {
+      "name": "--color-light-surface",
+      "type": "color",
+      "value": "var(--color-surface)",
+      "description": "Light theme primary surface."
+    },
+    {
+      "name": "--color-light-subtle",
+      "type": "color",
+      "value": "#EEF0F4",
+      "description": "Light theme inset or quiet surface."
+    },
+    {
+      "name": "--color-light-raised",
+      "type": "color",
+      "value": "#FFFFFF",
+      "description": "Light theme raised surface."
+    },
+    {
+      "name": "--color-light-fg",
+      "type": "color",
+      "value": "var(--color-foreground)",
+      "description": "Light theme primary text."
+    },
+    {
+      "name": "--color-light-fg-secondary",
+      "type": "color",
+      "value": "var(--color-muted-foreground)",
+      "description": "Light theme supporting text."
+    },
+    {
+      "name": "--color-light-fg-tertiary",
+      "type": "color",
+      "value": "#6B7686",
+      "description": "Light theme tertiary text."
+    },
+    {
+      "name": "--color-light-fg-disabled",
+      "type": "color",
+      "value": "#9AA3B1",
+      "description": "Light theme disabled text."
+    },
+    {
+      "name": "--color-light-border",
+      "type": "color",
+      "value": "var(--color-border)",
+      "description": "Light theme structural border."
+    },
+    {
+      "name": "--color-light-border-strong",
+      "type": "color",
+      "value": "#CBD0D8",
+      "description": "Light theme strong separator."
+    },
+    {
+      "name": "--color-light-control",
+      "type": "color",
+      "value": "var(--color-control-border)",
+      "description": "Light theme interactive border."
+    },
+    {
+      "name": "--color-light-accent",
+      "type": "color",
+      "value": "var(--color-selection)",
+      "description": "Light theme selection and focus."
+    },
+    {
+      "name": "--color-light-accent-hover",
+      "type": "color",
+      "value": "#0A56AD",
+      "description": "Light theme accent hover."
+    },
+    {
+      "name": "--color-light-accent-surface",
+      "type": "color",
+      "value": "var(--color-accent)",
+      "description": "Light theme selected surface."
+    },
+    {
+      "name": "--color-dark-canvas",
+      "type": "color",
+      "value": "#0B0E14",
+      "description": "Dark theme application canvas."
+    },
+    {
+      "name": "--color-dark-surface",
+      "type": "color",
+      "value": "#12161E",
+      "description": "Dark theme primary surface."
+    },
+    {
+      "name": "--color-dark-subtle",
+      "type": "color",
+      "value": "#191E28",
+      "description": "Dark theme inset or quiet surface."
+    },
+    {
+      "name": "--color-dark-raised",
+      "type": "color",
+      "value": "#212733",
+      "description": "Dark theme raised surface."
+    },
+    {
+      "name": "--color-dark-fg",
+      "type": "color",
+      "value": "#F2F4F8",
+      "description": "Dark theme primary text."
+    },
+    {
+      "name": "--color-dark-fg-secondary",
+      "type": "color",
+      "value": "#A3ACBA",
+      "description": "Dark theme supporting text."
+    },
+    {
+      "name": "--color-dark-fg-tertiary",
+      "type": "color",
+      "value": "#7D879A",
+      "description": "Dark theme tertiary text."
+    },
+    {
+      "name": "--color-dark-fg-disabled",
+      "type": "color",
+      "value": "#566173",
+      "description": "Dark theme disabled text."
+    },
+    {
+      "name": "--color-dark-border",
+      "type": "color",
+      "value": "#2D3542",
+      "description": "Dark theme structural border."
+    },
+    {
+      "name": "--color-dark-border-strong",
+      "type": "color",
+      "value": "#3D4655",
+      "description": "Dark theme strong separator."
+    },
+    {
+      "name": "--color-dark-control",
+      "type": "color",
+      "value": "#59657A",
+      "description": "Dark theme interactive border."
+    },
+    {
+      "name": "--color-dark-accent",
+      "type": "color",
+      "value": "#4A93E6",
+      "description": "Dark theme selection and focus."
+    },
+    {
+      "name": "--color-dark-accent-hover",
+      "type": "color",
+      "value": "#6EAAF0",
+      "description": "Dark theme accent hover."
+    },
+    {
+      "name": "--color-dark-accent-surface",
+      "type": "color",
+      "value": "#152338",
+      "description": "Dark theme selected surface."
+    },
+    {
+      "name": "--color-dark-success",
+      "type": "color",
+      "value": "#45B37C",
+      "description": "Dark theme success foreground."
+    },
+    {
+      "name": "--color-dark-success-surface",
+      "type": "color",
+      "value": "#0F261C",
+      "description": "Dark theme success surface."
+    },
+    {
+      "name": "--color-dark-warning",
+      "type": "color",
+      "value": "#E0A83F",
+      "description": "Dark theme warning foreground."
+    },
+    {
+      "name": "--color-dark-warning-surface",
+      "type": "color",
+      "value": "#2A2010",
+      "description": "Dark theme warning surface."
+    },
+    {
+      "name": "--color-dark-critical",
+      "type": "color",
+      "value": "#EE6A79",
+      "description": "Dark theme critical foreground."
+    },
+    {
+      "name": "--color-dark-critical-surface",
+      "type": "color",
+      "value": "#331820",
+      "description": "Dark theme critical surface."
+    },
+    {
+      "name": "--color-dark-primary",
+      "type": "color",
+      "value": "var(--color-dark-fg)",
+      "description": "Dark theme primary button fill. Off-white with ink label."
+    },
+    {
+      "name": "--color-dark-primary-hover",
+      "type": "color",
+      "value": "#DCE0E7",
+      "description": "Dark theme primary button hover fill."
+    },
+    {
+      "name": "--color-dark-destructive",
+      "type": "color",
+      "value": "#C7394C",
+      "description": "Dark theme destructive button fill. White label."
+    },
+    {
+      "name": "--color-primary-hover",
+      "type": "color",
+      "value": "#262E3B",
+      "description": "Primary button hover fill."
+    },
+    {
+      "name": "--color-primary-foreground",
+      "type": "color",
+      "value": "#FFFFFF",
+      "description": "Label and glyph color on primary, destructive, and status fills. Dark theme primary buttons use --color-dark-canvas instead."
+    },
+    {
+      "name": "--color-destructive-hover",
+      "type": "color",
+      "value": "#A72C3A",
+      "description": "Destructive button hover fill."
+    },
+    {
+      "name": "--font-sans",
+      "type": "fontFamily",
+      "value": "Geist"
+    },
+    {
+      "name": "--font-mono",
+      "type": "fontFamily",
+      "value": "Geist Mono"
+    },
+    {
+      "name": "--text-14",
+      "type": "fontSize",
+      "value": "14px"
+    },
+    {
+      "name": "--text-16",
+      "type": "fontSize",
+      "value": "16px"
+    },
+    {
+      "name": "--text-20",
+      "type": "fontSize",
+      "value": "20px"
+    },
+    {
+      "name": "--text-28",
+      "type": "fontSize",
+      "value": "28px"
+    },
+    {
+      "name": "--text-40",
+      "type": "fontSize",
+      "value": "40px"
+    },
+    {
+      "name": "--text-13",
+      "type": "fontSize",
+      "value": "13px"
+    },
+    {
+      "name": "--text-24",
+      "type": "fontSize",
+      "value": "24px"
+    },
+    {
+      "name": "--text-12",
+      "type": "fontSize",
+      "value": "12px",
+      "description": "Caption and metadata size."
+    },
+    {
+      "name": "--font-weight-regular",
+      "type": "fontWeight",
+      "value": "400"
+    },
+    {
+      "name": "--font-weight-semibold",
+      "type": "fontWeight",
+      "value": "600"
+    },
+    {
+      "name": "--font-weight-bold",
+      "type": "fontWeight",
+      "value": "700"
+    },
+    {
+      "name": "--font-weight-medium",
+      "type": "fontWeight",
+      "value": "500"
+    },
+    {
+      "name": "--tracking-tight",
+      "type": "letterSpacing",
+      "value": "-0.02em"
+    },
+    {
+      "name": "--leading-14",
+      "type": "lineHeight",
+      "value": "20px"
+    },
+    {
+      "name": "--leading-16",
+      "type": "lineHeight",
+      "value": "24px"
+    },
+    {
+      "name": "--leading-20",
+      "type": "lineHeight",
+      "value": "28px"
+    },
+    {
+      "name": "--leading-28",
+      "type": "lineHeight",
+      "value": "36px"
+    },
+    {
+      "name": "--leading-40",
+      "type": "lineHeight",
+      "value": "48px"
+    },
+    {
+      "name": "--leading-13",
+      "type": "lineHeight",
+      "value": "20px"
+    },
+    {
+      "name": "--leading-24",
+      "type": "lineHeight",
+      "value": "32px"
+    },
+    {
+      "name": "--leading-12",
+      "type": "lineHeight",
+      "value": "18px",
+      "description": "Caption line height."
+    },
+    {
+      "name": "--breakpoint-pane",
+      "type": "breakpoint",
+      "value": "744px"
+    },
+    {
+      "name": "--breakpoint-rail",
+      "type": "breakpoint",
+      "value": "1280px"
+    },
+    {
+      "name": "--container-prose",
+      "type": "container",
+      "value": "720px"
+    },
+    {
+      "name": "--container-sidebar",
+      "type": "container",
+      "value": "208px"
+    },
+    {
+      "name": "--container-inspector",
+      "type": "container",
+      "value": "320px"
+    },
+    {
+      "name": "--container-section-sidebar",
+      "type": "container",
+      "value": "224px",
+      "description": "Shared secondary navigation width for sibling sections inside a Bakery area; collapses to a section index when content cannot fit."
+    },
+    {
+      "name": "--spacing-4",
+      "type": "spacing",
+      "value": "4px"
+    },
+    {
+      "name": "--spacing-8",
+      "type": "spacing",
+      "value": "8px"
+    },
+    {
+      "name": "--spacing-12",
+      "type": "spacing",
+      "value": "12px"
+    },
+    {
+      "name": "--spacing-16",
+      "type": "spacing",
+      "value": "16px"
+    },
+    {
+      "name": "--spacing-24",
+      "type": "spacing",
+      "value": "24px"
+    },
+    {
+      "name": "--spacing-32",
+      "type": "spacing",
+      "value": "32px"
+    },
+    {
+      "name": "--spacing-48",
+      "type": "spacing",
+      "value": "48px"
+    },
+    {
+      "name": "--spacing-20",
+      "type": "spacing",
+      "value": "20px"
+    },
+    {
+      "name": "--spacing-40",
+      "type": "spacing",
+      "value": "40px"
+    },
+    {
+      "name": "--spacing-64",
+      "type": "spacing",
+      "value": "64px"
+    },
+    {
+      "name": "--radius-8",
+      "type": "radius",
+      "value": "8px"
+    },
+    {
+      "name": "--radius-12",
+      "type": "radius",
+      "value": "12px"
+    },
+    {
+      "name": "--radius-4",
+      "type": "radius",
+      "value": "4px"
+    },
+    {
+      "name": "--radius-6",
+      "type": "radius",
+      "value": "6px"
+    },
+    {
+      "name": "--radius-round",
+      "type": "radius",
+      "value": "999px"
+    }
+  ]
+}

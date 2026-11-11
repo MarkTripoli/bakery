@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "specimens": [
+    {
+      "id": "ui.themeProvider.paper",
+      "paper": {
+        "fileId": "01M1X504XVC45FC0VDK857A37D",
+        "pageId": "14-0",
+        "frameId": "27Y8-0"
+      }
+    },
+    {
+      "id": "ui.sectionNavigation.paper",
+      "paper": {
+        "fileId": "01M1X504XVC45FC0VDK857A37D",
+        "pageId": "15-0",
+        "frameId": "28DS-0"
+      }
+    },
+    {
+      "id": "ui.sectionNavigationWide.paper",
+      "paper": {
+        "fileId": "01M1X504XVC45FC0VDK857A37D",
+        "pageId": "15-0",
+        "frameId": "2C15-0",
+        "name": "B exact · ui.sectionNavigationWide · 1440×960"
+      },
+      "export": {
+        "mechanism": "paper/get_jsx",
+        "format": "inline-styles",
+        "contentHash": "49fea8f7",
+        "exported": "2026-09-22"
+      },
+      "representation": {
+        "type": "jsx",
+        "content": "(<div style={{ backgroundColor: '#F5F6F8', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-sans)', fontSynthesis: 'none', gap: '16px', MozOsxFontSmoothing: 'grayscale', overflow: 'clip', overflowWrap: 'anywhere', padding: '24px', WebkitFontSmoothing: 'antialiased' }}> <div style={{ backgroundColor: '#FFFFFF', borderColor: '#E3E6EB', borderRadius: '9px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', height: '194px', padding: '24px', width: '1392px' }}> <div style={{ boxSizing: 'border-box', color: '#5D6675', fontFamily: 'var(--font-mono)', fontSize: '12px', lineHeight: '18px' }}>ui.sectionNavigationWide / contract / light / rail / fine / token 49fea8f7</div> <div style={{ boxSizing: 'border-box', fontFamily: 'var(--font-sans)', paddingTop: '12px' }}><div style={{ boxSizing: 'border-box', color: '#141A24', fontFamily: 'var(--font-sans)', fontSize: '28px', fontWeight: 600, letterSpacing: '0.015em', lineHeight: '36px' }}>SectionNavigation · wide</div></div> <div style={{ boxSizing: 'border-box', fontFamily: 'var(--font-sans)', paddingTop: '8px' }}><div style={{ boxSizing: 'border-box', color: '#5D6675', fontFamily: 'var(--font-sans)', fontSize: '16px', lineHeight: '24px' }}>Component-scoped reference for the ≥1280px sidebar rule.</div></div> </div> <div style={{ alignItems: 'start', backgroundColor: '#FFFFFF', borderColor: '#E3E6EB', borderRadius: '11px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', gap: '16px', height: '470px', padding: '24px', width: '1392px' }}> <div style={{ boxSizing: 'border-box', color: '#141A24', fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 600, lineHeight: '18px' }}>Sidebar · selected · wide ≥1280px</div> <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '4px', width: '224px' }}> <div style={{ boxSizing: 'border-box', color: '#141A24', fontFamily: 'var(--font-sans)', fontSize: '16px', fontWeight: 600, lineHeight: '24px' }}>GitHub</div> <div style={{ backgroundColor: '#EEF0F4', borderRightColor: '#E3E6EB', borderRightStyle: 'solid', borderRightWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', gap: '4px', height: '132px', paddingBlock: '32px', paddingInline: '16px', width: '224px' }}> <div style={{ alignItems: 'center', borderRadius: '8px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', fontFamily: 'var(--font-sans)', height: '32px', paddingBlock: '6px', paddingInline: '12px', width: '191px' }}><div style={{ boxSizing: 'border-box', color: '#141A24', display: 'flex', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>Overview</div></div> <div style={{ alignItems: 'center', backgroundColor: '#ECF1F8', borderRadius: '8px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', fontFamily: 'var(--font-sans)', height: '32px', paddingBlock: '6px', paddingInline: '12px', width: '191px' }}><div style={{ boxSizing: 'border-box', color: '#0B63C6', display: 'flex', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 600, lineHeight: '20px' }}>Repositories · selected</div></div> </div> </div> </div> </div>)"
+      },
+      "approval": "https://github.com/MarkTripoli/bakery/issues/208#issuecomment-5770523815"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="trusted-proxy-lists-need-a-spoof-test" project="bakery">
+  <title>Enable client-address trust only after a live spoof test, and never beside a public path to the api</title>
+  <trigger>Setting or widening BAKERY_TRUSTED_PROXY_CIDRS on the api or BAKERY_WEB_TRUSTED_PROXIES and BAKERY_WEB_CLIENT_IP_HEADER on the web tier, or adding a public domain, TCP proxy or CDN in front of either.</trigger>
+  <mistake>Trusted 0.0.0.0/0 or a CDN-specific header on the assumption that the edge overwrites client-sent forwarding headers, or exposed the api publicly while its trust list covers private ranges.</mistake>
+  <rule>Auth rate limits key on the client address. The api trusts X-Forwarded-For only when the immediate peer is inside BAKERY_TRUSTED_PROXY_CIDRS. Private ranges only is sound solely because the api has no public domain and no TCP proxy, so every peer is a project-internal address. Adding either lets any client forge the header; remove the setting first.</rule>
+  <rule>The web Caddy tier ships with both variables unset: it trusts only 127.0.0.1/32 and ignores client-sent forwarding headers. Every sign-in attempt then shares one rate-limit bucket keyed on the peer address Caddy sees: coarse, never spoofable. Behind a CDN or proxy that peer is the CDN's address, so the bucket stays shared and the variables stay unset; do not add a CDN header such as CF-Connecting-IP untested. Whether a given edge overwrites a client-sent X-Real-IP is something to prove, not assume.</rule>
+  <rule>Spoof test, only for a record that reaches the platform edge directly, with the candidate values set on a throwaway redeploy: (1) a wrong-password sign-in for a probe address from a known host over IPv4 creates exactly one new rateLimit key (select key, count from "rateLimit" over ssh) holding a public address, never a private, fd or CGNAT one. (2) The same request with -H 'X-Real-IP: 203.0.113.77' -H 'X-Forwarded-For: 203.0.113.77' creates no key containing 203.0.113.77 and raises the first key's count. Pass: keep the variables, declare them in the IaC program in the same change, replace the absence assertions in tests/rails/railway-iac_test.ts with the proven values and record date and evidence. Fail or not run: unset them and redeploy.</rule>
+  <verification>
+    <requirement>Record both rateLimit key reads (key names only, no probe credentials) and the redeploy that set or removed the values.</requirement>
+  </verification>
+  <boundary>The spoof test does not apply while a CDN proxies the record; there the answer is to leave the variables unset.</boundary>
+</learning>

@@ -1,0 +1,59 @@
+/**
+ * from Paper
+ * https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/K-0/B0C-0
+ * on Oct 5, 2026
+ */
+export default function () {
+  return (
+    <div style={{ backgroundColor: 'var(--color-surface)', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-sans)', fontSynthesis: 'none', gap: '24px', height: 'fit-content', MozOsxFontSmoothing: 'grayscale', overflow: 'clip', overflowWrap: 'anywhere', padding: '40px', WebkitFontSmoothing: 'antialiased', width: '1440px' }}>
+      <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '1100px' }}>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '18px', fontWeight: 600, lineHeight: '20px' }}>
+          Onboarding that responds
+        </div>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
+          Source of truth: 01 · Foundations and 02 · Components. Use the existing Button density variants, Code and log block, feedback colors, Geist type scale and shell tokens. Compose the vertical stepper from these primitives. No onboarding-specific palette or component styling. Desktop and mobile share the same contracts; the companion prototype demonstrates motion.
+        </div>
+      </div>
+      <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '1100px' }}>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '18px', fontWeight: 600, lineHeight: '20px' }}>
+          Start Listening
+        </div>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
+          First load this organization’s enrollment status, then follow its event stream from the returned cursor. Buffer concurrent events or use snapshot-plus-subscription so fast registrations are not missed. Start Listening observes status; it does not authorize a different machine.
+        </div>
+      </div>
+      <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '1100px' }}>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '18px', fontWeight: 600, lineHeight: '20px' }}>
+          Connection is not readiness
+        </div>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
+          Idle → Listening → Connected, verifying → Ready. Only server-confirmed identity and readiness can produce success. A local timer never marks a real worker connected. Duplicate or older events are ignored.
+        </div>
+      </div>
+      <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '1100px' }}>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '18px', fontWeight: 600, lineHeight: '20px' }}>
+          Motion with a purpose
+        </div>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
+          Copied label: 160 ms fade. Listening signal: gentle opacity pulse while subscribed. Confirmed connection: one 220 ms fade and 4 px rise; the numbered marker becomes a check. Keep focus and scroll position. Announce status with aria-live polite. Reduced motion: immediate swaps and a still indicator.
+        </div>
+      </div>
+      <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '1100px' }}>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '18px', fontWeight: 600, lineHeight: '20px' }}>
+          Recovery
+        </div>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
+          Lost stream → Reconnecting, then reload current status. No response → Keep listening or view guidance. Expired token → Generate a new token. Verification failure → Connected, needs attention. Stop listening closes the view subscription; Cancel enrollment is a separate operation.
+        </div>
+      </div>
+      <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '1100px' }}>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '18px', fontWeight: 600, lineHeight: '20px' }}>
+          Organization and credentials
+        </div>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
+          Watch only the enrollment attached to the current organization and authorized user. Tokens remain one use and expire. The command carries the server URL, not bearer credentials. The token is entered at the terminal’s hidden prompt.
+        </div>
+      </div>
+    </div>
+  );
+}

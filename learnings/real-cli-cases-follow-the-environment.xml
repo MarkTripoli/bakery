@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="real-cli-cases-follow-the-environment" project="bakery">
+  <title>Real-API specs skip silently, and real-Codex cases run whenever codex is on PATH</title>
+  <trigger>A lane is green but real-API or real-harness specs reported skipped, or a local security, integration or e2e run starts on a machine that has codex installed and logged in.</trigger>
+  <mistake>Counted a skipped real-API spec as a pass, or ran a local lane with codex on PATH and unknowingly ran a real Codex case against the operator's own login and billing.</mistake>
+  <rule>Real-API Playwright projects are selected by environment only: BAKERY_REAL_API=1, plus BAKERY_REAL_API_COORDINATOR=1 (desktop-real-api), BAKERY_REAL_API_HARNESS=1 (real harness) or BAKERY_REAL_API_M1=1 (M1 proof). Without them the specs are skipped and the run still exits 0. A skipped real-API spec is a failed check: require zero skipped. Real-CLI conformance cases name their skip as [skipped: reason] and warn; a skip is never a pass.</rule>
+  <rule>The security, integration and e2e lanes run the real-Codex harness cases whenever a codex executable resolves (they are ignored only when it is missing or not runnable), and they bill the operator's account. To keep a local run on fixtures, point the executable at a path that does not exist: BAKERY_CODEX_HARNESS_EXECUTABLE=/nonexistent/codex. Setting BAKERY_PROVIDER_REAL_CLI makes scripts/run-tests.ts add bare --allow-run and --allow-net to the provider lane, so pass the single file path and never set it in CI.</rule>
+  <verification>
+    <command>BAKERY_CODEX_HARNESS_EXECUTABLE=/nonexistent/codex pnpm test:unit</command>
+    <requirement>Report passed and skipped counts together. Real-API or real-harness evidence needs the opt-in variables set and zero skipped; fixture runs must show the "executable is missing" skip reason for the real-Codex cases.</requirement>
+  </verification>
+  <boundary>Real runs spend the operator's quota and are maintainer-gated evidence; fixtures never prove them. See pr-ci-never-runs-full-lanes for lanes that CI skips by routing.</boundary>
+</learning>

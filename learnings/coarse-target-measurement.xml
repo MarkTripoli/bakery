@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="coarse-target-measurement" project="bakery">
+  <title>Measure 44 px coarse targets in the mobile Playwright project, not a resized desktop browser</title>
+  <trigger>A check or evidence run measures phone touch targets against the 44 px coarse-pointer requirement.</trigger>
+  <mistake>#406 measured a desktop Chromium resized to 390 px. That is a fine pointer, so the shared --target-min token resolved to 28 px. The shell toggle read 36 px and the select 38 px, and #408 was filed to fix shared parts that were already correct on a coarse pointer.</mistake>
+  <rule>Run target measurements in the apps/web `mobile` project (iPhone 13 on Chromium; `(pointer: coarse)` matches) and assert `matchMedia("(pointer: coarse)").matches` in the spec. A resized desktop context is valid evidence only for fine-pointer sizing.</rule>
+  <verification>
+    <requirement>apps/web/tests/machines-touch-targets.spec.ts asserts a 390 px coarse pointer before it measures, and fails if any visible target is under 44 by 44.</requirement>
+  </verification>
+</learning>

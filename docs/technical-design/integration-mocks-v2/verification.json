@@ -1,0 +1,18 @@
+{
+  "status": "passed",
+  "layouts": 55,
+  "paperExports": 22,
+  "routeFamilies": 11,
+  "checks": [
+    "local fonts",
+    "image dimensions and uniqueness",
+    "responsive gallery",
+    "44px controls",
+    "bounded copy measure",
+    "deep links",
+    "keyboard focus",
+    "safe external links",
+    "no page errors"
+  ],
+  "boundary": "Design gallery checks only; no runtime authorization or production UI validation"
+}

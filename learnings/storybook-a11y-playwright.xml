@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="storybook-a11y-playwright" project="bakery">
+  <title>Keep one axe runner per Storybook preview frame</title>
+  <trigger>A Playwright Storybook accessibility test fails with Axe is already running.</trigger>
+  <mistake>Enabled Storybook's automatic addon-a11y axe test while the Playwright suite independently ran AxeBuilder against the same preview frame.</mistake>
+  <rule>Choose one authoritative axe execution for a given preview frame. If Playwright owns the canonical sweep, disable the addon's automatic run and keep the explicit Playwright assertion as the CI gate.</rule>
+  <verification>
+    <command>pnpm --dir packages/ui exec playwright test tests/storybook.spec.ts tests/visual-parity.spec.ts --project=chromium</command>
+    <requirement>All Storybook and visual-parity cases pass without concurrent axe execution.</requirement>
+  </verification>
+</learning>

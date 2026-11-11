@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="approval-expiry-read-through-vs-sweep" project="bakery">
+  <title>An approved approval expires by read-through; the sweep stores expired only for open rows</title>
+  <trigger>A test or proof asserts that a past-due approval or question is expired.</trigger>
+  <rule>expireDueQuestions selects and updates rows with status 'open' only. An approved, unconsumed approval keeps stored status 'answered' and reads as expired through EFFECTIVE_STATUS in the API and UI; starting a run with it is refused with approval_unavailable. A decision on an open past-due approval is refused, and the cron sweep (every minute) stores 'expired' for it. Assert the stored status with an owner read-only query, because an API read returns the read-through value at once and proves nothing about the sweep. A pending approval is refused for lack of approval, not for expiry, so approve before moving the clock when the point is expiry.</rule>
+  <verification>
+    <requirement>The M1 journey P10 records both mechanisms; tests/integration/persist-scoped-workflow-approvals_test.ts covers the server side.</requirement>
+  </verification>
+</learning>

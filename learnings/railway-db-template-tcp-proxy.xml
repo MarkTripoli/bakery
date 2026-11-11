@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="railway-db-template-tcp-proxy" project="bakery">
+  <title>Delete the public TCP proxy that Railway database templates create</title>
+  <trigger>Provisioning a Railway Postgres or Redis service from the template.</trigger>
+  <rule>The database templates create a public TCP proxy for external access. For Postgres that exposes the postgres superuser to the internet. Delete the proxy on both Postgres and Redis (railway tcp-proxy list then delete with the id, service and --yes), confirm both lists are empty and that RAILWAY_TCP_PROXY_DOMAIN is absent from the service variables, and re-check with railway config plan --detailed-exit-code so the program does not re-add it.</rule>
+  <rule>Reach the database only through railway ssh -s Postgres -- psql -U postgres, or railway connect Postgres --ssh. Needs a registered SSH key. Never print railway variable list output without jq keys or has(), because it prints values.</rule>
+  <verification>
+    <command>railway tcp-proxy list --service Postgres --json</command>
+    <command>railway tcp-proxy list --service Redis --json</command>
+    <requirement>Record both empty lists and the has(RAILWAY_TCP_PROXY_DOMAIN) result false.</requirement>
+  </verification>
+  <boundary>The api service must also have no public domain or TCP proxy: its trusted-proxy CIDR list is private-only and is sound only while that holds.</boundary>
+</learning>

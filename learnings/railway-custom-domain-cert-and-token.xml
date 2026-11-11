@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="railway-custom-domain-cert-and-token" project="bakery">
+  <title>Railway custom domain certificate can hit a Let's Encrypt limit; project tokens need the dashboard</title>
+  <trigger>A Railway custom domain is verified but https fails with a certificate name mismatch, or railway api projectTokenCreate answers Not Authorized.</trigger>
+  <rule>Domain status can show verified:true with certificateStatus ISSUE_FAILED, "Let's Encrypt rate limit reached", retryable false; railway domain certificate retry then refuses. With the record DNS-only the edge serves the *.up.railway.app cert. If the Cloudflare zone SSL mode is already Full (check the zone setting, not the dashboard), proxy the record: Cloudflare serves its Universal cert and reaches Railway over TLS. Never use Strict. Local resolvers keep the grey answer for the TTL; test with curl --resolve.</rule>
+  <rule>The Railway CLI login session cannot create project tokens (projectTokenCreate: Not Authorized on 2026-10-25). Create the single-environment token in the dashboard, then pipe it into gh secret set RAILWAY_QA_TOKEN. Do not hunt for other credentials to work around this.</rule>
+  <rule>Attaching a domain has CLI and DNS traps. Run railway domain HOSTNAME --service web --port 8080 --json from a directory linked to the project and environment; in this subcommand -p means --port, not project, so pass no -p or -e. Never run railway domain without a hostname: it generates a *.up.railway.app domain. Create both records the output names: the CNAME (requiredValue) and the TXT at verificationDnsHost (railway-verify=HEX, a public DNS value). Without the TXT the domain stays unverified and requests answer 404 even when the CNAME resolves. Take names and values from railway domain output or railway domain status, never from memory. In Cloudflare set the proxy state explicitly on each record: the dashboard defaults a new CNAME to proxied, it is per record and never inherited from a wildcard, and a TXT record cannot be proxied.</rule>
+  <verification>
+    <command>railway domain status HOSTNAME --service web</command>
+    <requirement>Record verified, certificate status and the Cloudflare proxy state; then curl /health/ready and compare version with the deployed SHA.</requirement>
+  </verification>
+  <boundary>Rate-limit reset time is unknown. Re-check the certificate later; when it issues, DNS-only is preferable because the client address reaches Railway directly.</boundary>
+</learning>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="local-services-before-test-blocker" project="bakery">
+  <title>Use the local dev environment before reporting a test blocker</title>
+  <trigger>A repository integration or security test reports missing DATABASE_URL or another local service setting.</trigger>
+  <mistake>Stopped at DATABASE_URL_REQUIRED even though the repository includes a local Docker development stack and the test configuration supplies CI defaults for an isolated PostgreSQL harness.</mistake>
+  <rule>Inspect the repository's compose and test configuration first. Start or reuse the local dev services, select an isolated database and project or volume when destructive tests are involved, and pass configuration through the repository's centralized config reader.</rule>
+  <verification>
+    <command>pnpm test:integration</command>
+    <command>pnpm test:security</command>
+    <command>pnpm test:rails</command>
+    <requirement>Record the exact database identity, isolation boundary, command, and exit code.</requirement>
+  </verification>
+  <boundary>Missing shell variables are not evidence that the local environment is unavailable. They are a prompt to inspect infra/compose.yaml, the test config defaults, and the repository's documented startup path.</boundary>
+</learning>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="native-output-child-failure-reproduce-directly" project="bakery">
+  <title>Reproduce a native-output child failure by running the child itself in a loop</title>
+  <trigger>CI reports `NATIVE_OUTPUT_CHILD_FAILED:1;phase=cancellation;class=assertion` and no `detail=`.</trigger>
+  <mistake>The parent test relays only the phase and the failure class, so any assertion in that phase reads the same. #527 closed the signature by counting the cleanup call before its response returned; it came back because the worker could post the same cleanup twice (a heartbeat retry and the execution each confirmed it), which made `cleanupCalls` 2.</mistake>
+  <rule>Run `deno test --allow-all tests/e2e/capture-bounded-native-output.child.ts` directly under `systemd-run --user --scope --property=Delegate=yes` with `BAKERY_NATIVE_OUTPUT_REPORT` set, in a loop with CPU hogs, and read the child's own stderr. The child now relays the settled cancellation values as a `NATIVE_OUTPUT_DETAIL` line when one of its assertions fails; read that first. Count `termination_cleanup_confirmed` events per attempt: more than one is the double post.</rule>
+  <verification>
+    <requirement>A 60-iteration cancellation loop under CPU load shows `cleanupCalls` 1 in every iteration.</requirement>
+  </verification>
+</learning>

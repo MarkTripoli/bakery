@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="live-proof-agent-activation-operator-step" project="bakery">
+  <title>Activate an agent version through POST /v1/agents/:id/activations; only the pricing snapshot is an operator step</title>
+  <trigger>A real-host proof or a production organization needs a `coordinator` or coding agent with an active version and a trusted pricing snapshot.</trigger>
+  <mistake>The original task-conversation instructions said to activate a version with `PATCH /v1/agents/:id`. `DefinitionUpdate` accepts only name, description and enabled, so the call fails 400 `unrecognized_keys`; the E06 live proof then set `agent_definitions.active_version_id` with database-owner SQL because no route existed. A turn with no active version fails `coordinator_unconfigured`.</mistake>
+  <rule>Create the agent and version with `POST /v1/agents` and `POST /v1/agents/:id/versions`, then activate with `POST /v1/agents/:id/activations` (Admin, `Idempotency-Key` and `If-Match` with the definition's current version, body `{versionId}`). Never write `active_version_id` as the database owner. `provider_pricing_snapshots` stays server authority that `bakery_app` only reads, so the pricing row is the one operator step; do it only on the per-worktree stack in a proof, and record it.</rule>
+  <verification>
+    <requirement>tests/integration/manage-immutable-agent-definitions_test.ts covers the activation route. The coordinator agent version config needs harness claude_code, allowedCapabilities [model] and a billing object with billingRoute subscription, backed by an installation budget policy and the operator-inserted pricing snapshot whose provider, billingAccountId, model, pricing_metadata_snapshot and billing_type match that config. Without them the turn fails coordinator_budget_unconfigured or coordinator_unconfigured.</requirement>
+  </verification>
+</learning>

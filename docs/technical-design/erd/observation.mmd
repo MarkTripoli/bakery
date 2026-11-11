@@ -1,0 +1,131 @@
+erDiagram
+  direction LR
+  organizations {
+    uuid id PK
+  }
+  repositories {
+    uuid id PK
+  }
+  workflow_runs {
+    uuid id PK
+  }
+  run_steps {
+    uuid id PK
+  }
+  agent_sessions {
+    uuid id PK
+  }
+  job_attempts {
+    uuid id PK
+  }
+  artifact_versions {
+    uuid id PK
+  }
+  external_effects {
+    uuid id PK
+  }
+  usage_records {
+    uuid id PK
+    uuid organization_id FK
+    uuid run_id FK "nullable"
+    uuid agent_session_id FK "nullable"
+    uuid attempt_id FK "nullable"
+    text provider
+    text model "nullable"
+    enum billing_type
+    bigint input_tokens "nullable"
+    bigint output_tokens "nullable"
+    numeric cost_usd "nullable"
+    enum measurement
+    text dedupe_key
+    timestamp occurred_at
+    uuid budget_reservation_id FK "nullable"
+  }
+  organizations ||..o{ usage_records : "organization_id"
+  workflow_runs |o..o{ usage_records : "run_id"
+  agent_sessions |o..o{ usage_records : "agent_session_id"
+  job_attempts |o..o{ usage_records : "attempt_id"
+  budget_reservations |o..o{ usage_records : "budget_reservation_id"
+  evaluation_definitions {
+    uuid id PK
+    uuid organization_id FK
+    text slug
+    int revision
+    enum evaluator_type
+    jsonb config
+    text digest
+    boolean enabled
+  }
+  organizations ||..o{ evaluation_definitions : "organization_id"
+  evaluation_cases {
+    uuid id PK
+    uuid organization_id FK
+    uuid repository_id FK "nullable"
+    text name
+    uuid input_artifact_version_id FK
+    jsonb expected
+    jsonb tags
+    int revision
+  }
+  organizations ||..o{ evaluation_cases : "organization_id"
+  repositories |o..o{ evaluation_cases : "repository_id"
+  artifact_versions ||..o{ evaluation_cases : "input_artifact_version_id"
+  evaluation_runs {
+    uuid id PK
+    uuid organization_id FK
+    uuid definition_id FK
+    uuid subject_run_id FK "nullable"
+    enum mode
+    text config_digest
+    enum status
+    numeric budget_limit_usd
+  }
+  organizations ||..o{ evaluation_runs : "organization_id"
+  evaluation_definitions ||..o{ evaluation_runs : "definition_id"
+  workflow_runs |o..o{ evaluation_runs : "subject_run_id"
+  evaluation_results {
+    uuid id PK
+    uuid organization_id FK
+    uuid evaluation_run_id FK
+    uuid case_id FK "nullable"
+    uuid subject_artifact_version_id FK "nullable"
+    numeric score "nullable"
+    boolean passed "nullable"
+    text explanation
+    jsonb error "nullable"
+    uuid usage_record_id FK "nullable"
+  }
+  organizations ||..o{ evaluation_results : "organization_id"
+  evaluation_runs ||..o{ evaluation_results : "evaluation_run_id"
+  evaluation_cases |o..o{ evaluation_results : "case_id"
+  artifact_versions |o..o{ evaluation_results : "subject_artifact_version_id"
+  usage_records |o..o{ evaluation_results : "usage_record_id"
+  budget_accounts {
+    uuid id PK
+    uuid organization_id FK "nullable"
+    enum scope
+    uuid run_id FK "nullable"
+    timestamp period_start
+    timestamp period_end
+    numeric limit_usd
+    numeric reserved_usd
+    numeric settled_usd
+  }
+  organizations |o..o{ budget_accounts : "organization_id"
+  workflow_runs |o..o{ budget_accounts : "run_id"
+  budget_reservations {
+    uuid id PK
+    uuid organization_id FK
+    uuid budget_account_id FK
+    uuid run_step_id FK "nullable"
+    text dedupe_key
+    numeric reserved_usd
+    numeric settled_usd "nullable"
+    enum status
+    timestamp expires_at
+    uuid external_effect_id FK "nullable"
+  }
+  organizations ||..o{ budget_reservations : "organization_id"
+  budget_accounts ||..o{ budget_reservations : "budget_account_id"
+  run_steps |o..o{ budget_reservations : "run_step_id"
+  external_effects |o..o{ budget_reservations : "external_effect_id"

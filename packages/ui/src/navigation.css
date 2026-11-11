@@ -1,0 +1,2207 @@
+/* App shell, after the Paper enterprise frames 5J-0 (desktop work queue,
+   1440) and E8-0 (phone work queue, 390). Paper `--color-background` is
+   `--color-canvas`; Paper `--color-accent` is `--color-selection-surface`. */
+
+.bakery-visually-hidden,
+.bakery-application-rail--compact .bakery-application-rail__link[data-icon-only="true"] .bakery-application-rail__label,
+.bakery-application-rail--compact .bakery-application-rail__hint,
+.bakery-sidebar--compact .bakery-sidebar__product,
+.bakery-page-header--tabsOnly .ui-heading,
+.bakery-user-menu--compact .bakery-user-menu__name,
+.bakery-workspace-switcher--compact .bakery-workspace-switcher__name {
+  block-size: 1px;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  inline-size: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+}
+
+/* Primary destinations: 36px rows, 18px icon, 12px gap, 10px inline padding
+   (5J-0 nav items); the selected row is the accent tint with selection ink. */
+.bakery-application-rail {
+  color: var(--color-fg);
+}
+
+.bakery-application-rail__list,
+.bakery-section-navigation__list {
+  display: grid;
+  gap: var(--space-1);
+  list-style: none;
+  margin: var(--space-0);
+  padding: var(--space-0);
+}
+
+.bakery-application-rail__link {
+  align-items: center;
+  border-radius: var(--radius-control);
+  box-sizing: border-box;
+  color: inherit;
+  display: flex;
+  font: var(--type-body);
+  gap: var(--space-3);
+  min-block-size: var(--size-control);
+  padding-block: var(--space-1-5);
+  padding-inline: var(--space-2-5);
+  text-decoration: none;
+}
+
+.bakery-section-navigation__link {
+  align-items: center;
+  border-radius: var(--radius-surface);
+  color: inherit;
+  display: flex;
+  gap: var(--space-2);
+  min-block-size: var(--size-control);
+  padding-block: var(--space-1-5);
+  padding-inline: var(--space-3);
+  text-decoration: none;
+}
+
+.bakery-application-rail__link .ui-icon {
+  flex: none;
+}
+
+.bakery-application-rail__label {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+a.bakery-application-rail__link:hover {
+  background: var(--color-surface-subtle);
+}
+
+.bakery-application-rail__link[aria-disabled="true"] {
+  color: var(--color-fg-muted);
+  cursor: default;
+}
+
+.bakery-application-rail__hint {
+  color: var(--color-fg-muted);
+  flex: none;
+  font: var(--type-meta);
+}
+
+.bakery-application-rail__link[aria-current="page"] {
+  background: var(--color-selection-surface);
+  color: var(--color-selection);
+  font: var(--type-control);
+}
+
+.bakery-section-navigation__link[aria-current="page"] {
+  background: var(--color-selection-surface);
+  color: var(--color-selection);
+  font-weight: var(--weight-semibold);
+}
+
+.bakery-application-rail__link:focus-visible,
+.bakery-section-navigation__link:focus-visible,
+.bakery-section-navigation__summary:focus-visible,
+.bakery-sidebar a:focus-visible,
+.bakery-bottom-nav__link:focus-visible,
+.bakery-app-shell__skip-link:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+}
+
+.bakery-application-rail--compact .bakery-application-rail__link {
+  justify-content: center;
+}
+
+/* Sidebar column: 208px, 16px block / 12px inline padding, 4px gap. */
+.bakery-sidebar {
+  background: var(--color-canvas);
+  border-inline-end: var(--border-default) solid var(--color-border);
+  box-sizing: border-box;
+  color: var(--color-fg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  inline-size: var(--layout-application-rail);
+  max-inline-size: 100%;
+  min-block-size: 100%;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  padding: var(--space-4) var(--space-3);
+}
+
+.bakery-sidebar--compact {
+  align-items: stretch;
+  inline-size: auto;
+  padding-inline: var(--space-2);
+}
+
+.bakery-sidebar--drawer {
+  background: transparent;
+  border-inline-end: var(--border-none);
+  inline-size: auto;
+  padding: var(--space-0);
+}
+
+.bakery-sidebar__brand {
+  align-items: center;
+  border-radius: var(--radius-control);
+  color: var(--color-fg);
+  display: flex;
+  flex: none;
+  gap: var(--space-3);
+  min-block-size: var(--space-10);
+  padding-inline: var(--space-2);
+  text-decoration: none;
+}
+
+.bakery-sidebar--compact .bakery-sidebar__brand {
+  justify-content: center;
+}
+
+.bakery-sidebar__brand .ui-logo-mark--compact {
+  flex: none;
+}
+
+.bakery-sidebar__brand .ui-logo-mark--compact img {
+  block-size: 28px; /* 5J-0 brand mark */
+  inline-size: 28px;
+}
+
+.bakery-sidebar__product {
+  font: var(--type-brand-small);
+}
+
+.bakery-sidebar__workspace {
+  padding-block: var(--space-1);
+}
+
+.bakery-sidebar__spacer {
+  flex: 1 1 auto;
+}
+
+.bakery-sidebar__recent {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.bakery-sidebar__section-label {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+  margin: var(--space-0);
+  padding: var(--space-6) var(--space-2) var(--space-2);
+}
+
+.bakery-sidebar__recent-list {
+  display: grid;
+  gap: var(--space-1); /* 5J-0 sidebar rows share the column's 4px gap */
+  list-style: none;
+  margin: var(--space-0);
+  padding: var(--space-0);
+}
+
+.bakery-sidebar__recent-link {
+  align-items: center;
+  box-sizing: border-box;
+  border-radius: var(--radius-control);
+  color: var(--color-fg);
+  display: flex;
+  font: var(--type-hint);
+  gap: var(--space-3);
+  min-block-size: var(--target-min);
+  padding: var(--space-2);
+  text-decoration: none;
+}
+
+.bakery-sidebar__recent-link:hover {
+  background: var(--color-surface-subtle);
+}
+
+.bakery-sidebar__note {
+  color: var(--color-fg-muted);
+  font: var(--type-notification);
+  margin: var(--space-0);
+  padding: var(--space-1) var(--space-2);
+}
+
+/* Workspace switcher and account footer share one trigger anatomy. */
+.bakery-workspace-switcher .ui-popover,
+.bakery-user-menu .ui-popover {
+  display: block;
+}
+
+.bakery-workspace-switcher .ui-popover__trigger,
+.bakery-user-menu .ui-popover__trigger {
+  inline-size: 100%;
+  text-align: start;
+}
+
+.bakery-workspace-switcher__trigger,
+.bakery-user-menu__trigger {
+  align-items: center;
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap; /* the name drops below the avatar when zoom leaves no room */
+  gap: var(--space-3);
+  inline-size: 100%;
+  min-block-size: var(--target-min);
+  padding: var(--space-2);
+}
+
+.bakery-workspace-switcher__name {
+  flex: 1 1 auto;
+  font: var(--type-control);
+  min-inline-size: 0;
+}
+
+/* 5J-0 footer avatar: neutral initials disc, not the selection tint. */
+.bakery-user-menu .ui-avatar {
+  background: var(--color-border);
+  block-size: calc(var(--space-6) + var(--space-1)); /* 28px disc */
+  color: var(--color-fg);
+  flex: none;
+  inline-size: calc(var(--space-6) + var(--space-1));
+}
+
+.bakery-user-menu__name {
+  flex: 1 1 auto;
+  font: var(--type-hint);
+  min-inline-size: 0;
+}
+
+.bakery-workspace-switcher--compact .bakery-workspace-switcher__trigger,
+.bakery-user-menu--compact .bakery-user-menu__trigger {
+  justify-content: center;
+}
+
+.bakery-sidebar--drawer .ui-popover__content {
+  inline-size: 100%;
+}
+
+.bakery-user-menu .ui-popover__content {
+  inset-block-end: 100%;
+  inset-block-start: auto;
+}
+
+/* Top bar: 64px, 24px inline padding, 12px gap (5J-0); phone title row is
+   44px controls around a 20/28 title with 12px below (E8-0). */
+.bakery-top-bar {
+  align-items: center;
+  block-size: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+  gap: var(--space-3);
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.bakery-top-bar__context {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.bakery-top-bar__leading,
+.bakery-top-bar__actions {
+  align-items: center;
+  display: flex;
+  flex: none;
+  gap: var(--space-3);
+  max-inline-size: 100%;
+}
+
+.bakery-top-bar__actions {
+  flex-wrap: wrap;
+}
+
+.bakery-top-bar .ui-breadcrumbs {
+  font: var(--type-body);
+}
+
+.bakery-top-bar .ui-breadcrumbs li {
+  color: var(--color-fg-muted);
+}
+
+.bakery-top-bar .ui-breadcrumbs li:last-child {
+  color: var(--color-fg);
+}
+
+.bakery-top-bar .ui-breadcrumbs li:not(:last-child)::after {
+  color: var(--color-border-strong);
+  margin-inline-start: var(--space-3);
+}
+
+.bakery-top-bar .ui-breadcrumbs ol {
+  gap: var(--space-3);
+}
+
+.bakery-top-bar__title {
+  color: var(--color-fg);
+  font: var(--type-heading-section);
+  margin: var(--space-0);
+}
+
+.bakery-top-bar__subtitle {
+  color: var(--color-fg-muted);
+  font: var(--type-meta);
+  margin: var(--space-0);
+}
+
+/* Page header: 24/32 title with 13/20 meta, 24px top / 12px bottom, then a
+   tab row ruled underneath (5J-0). */
+.bakery-page-header {
+  border-block-end: var(--border-default) solid var(--color-border);
+  display: grid;
+  margin-block-end: var(--space-4);
+}
+
+.bakery-page-header__row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding-block: var(--space-0) var(--space-3);
+}
+
+.bakery-page-header__row .ui-heading {
+  flex: 1 1 auto;
+  margin: var(--space-0);
+  min-inline-size: 0;
+}
+
+.bakery-page-header__meta {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+  margin: var(--space-0);
+}
+
+.bakery-page-header__actions {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.bakery-page-header--tabsOnly .bakery-page-header__row {
+  padding: var(--space-0);
+}
+
+.bakery-page-header__tabs {
+  min-inline-size: 0;
+}
+
+/* Inspector: 320px, 24px block / 20px inline padding, 20px gap (5J-0). */
+.bakery-inspector-panel {
+  background: var(--color-surface);
+  box-sizing: border-box;
+  color: var(--color-fg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-block-size: 100%;
+  padding: var(--space-6) var(--space-5);
+}
+
+.bakery-inspector-panel--stacked {
+  min-block-size: auto;
+  padding: var(--space-5);
+}
+
+.bakery-inspector-panel__body {
+  display: grid;
+  flex: 1 1 auto;
+  gap: var(--space-5);
+  min-inline-size: 0;
+}
+
+.bakery-inspector-panel__footer {
+  display: grid;
+  gap: var(--space-3);
+}
+
+/* Status strip: 48px including its top rule, 24px inline padding, 12px gap
+   (5J-0). */
+.bakery-status-strip {
+  align-items: center;
+  border-block-start: var(--border-default) solid var(--color-border);
+  box-sizing: border-box;
+  color: var(--color-fg-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font: var(--type-hint);
+  gap: var(--space-3);
+  min-block-size: 48px; /* 5J-0 footer row */
+  padding: var(--space-2) var(--space-6);
+}
+
+.bakery-status-strip--compact {
+  min-block-size: var(--target-min);
+  padding: var(--space-2) var(--space-5);
+}
+
+/* Bottom tab bar: ruled above, 4px/12px padding, 52px items with an 18px
+   icon over an 11/20 label (E8-0). */
+.bakery-bottom-nav {
+  background: var(--color-surface);
+  border-block-start: var(--border-default) solid var(--color-border);
+  box-sizing: border-box;
+  min-inline-size: 0;
+  padding: var(--space-1) var(--space-3);
+  padding-block-end: max(var(--space-1), env(safe-area-inset-bottom));
+  padding-inline: max(var(--space-3), env(safe-area-inset-left))
+    max(var(--space-3), env(safe-area-inset-right));
+}
+
+.bakery-bottom-nav__list {
+  display: flex;
+  gap: var(--space-1);
+  list-style: none;
+  margin: var(--space-0);
+  padding: var(--space-0);
+}
+
+.bakery-bottom-nav__list > li {
+  display: flex;
+  flex: 1 1 0;
+  min-inline-size: 0;
+}
+
+.bakery-bottom-nav__link {
+  align-items: center;
+  background: transparent;
+  border: var(--border-none);
+  cursor: pointer;
+  font: inherit;
+  border-radius: var(--radius-control);
+  color: var(--color-fg-muted);
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-1);
+  justify-content: center;
+  min-block-size: 52px; /* E8-0 tab item */
+  min-inline-size: 0;
+  padding: var(--space-0);
+  text-decoration: none;
+}
+
+/* E8-0 fixture notice under the tabs: 11/16 muted, centred. */
+.bakery-bottom-nav__note {
+  color: var(--color-fg-muted);
+  font: var(--type-fine-print);
+  margin: var(--space-0);
+  text-align: center;
+}
+
+.bakery-bottom-nav__link[aria-current="page"] {
+  color: var(--color-selection);
+}
+
+.bakery-bottom-nav__link[aria-disabled="true"] {
+  color: var(--color-fg-disabled);
+  cursor: default;
+}
+
+.bakery-bottom-nav__label {
+  font: var(--type-notification);
+}
+
+/* Reflow: when four tabs cannot fit their labels (320px at 200% zoom) the
+   labels truncate; the full label stays the link's accessible name. */
+.bakery-bottom-nav__label {
+  max-inline-size: 100%;
+  overflow-x: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bakery-section-navigation {
+  background: var(--color-surface-subtle);
+  border-inline-end: var(--border-default) solid var(--color-border);
+  inline-size: var(--layout-section-rail);
+  min-inline-size: var(--layout-section-rail);
+}
+
+.bakery-section-navigation__list {
+  padding: var(--space-8) var(--space-4);
+}
+
+.bakery-section-navigation__mobile {
+  display: none;
+}
+
+.bakery-section-navigation__narrow-index {
+  display: none;
+}
+
+.bakery-section-navigation__summary {
+  cursor: pointer;
+  list-style: none;
+  min-block-size: var(--target-coarse);
+  padding: var(--space-2-5) var(--space-4);
+}
+
+/* Shell frame: a wrapping row of sidebar, work column, and inspector.
+   rail (>=1280): 208px sidebar | work | 320px full-height inspector.
+   pane (744-1279): compact icon sidebar | work; inspector wraps below.
+   sheet (<=743): work only (sidebar in the drawer); inspector, then the
+   bottom tab bar, below it. A frame narrower than its profile (200% zoom)
+   wraps the work column under the sidebar instead of overflowing. */
+.bakery-app-shell {
+  /* The work surface is the surface colour and only the sidebar is canvas
+     (UI-CONTRACT.md: white work surface, subtle navigation). */
+  background: var(--color-surface);
+  color: var(--color-fg);
+  min-block-size: 100dvh;
+  min-inline-size: 0;
+  position: relative;
+}
+
+.bakery-app-shell__frame {
+  align-items: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  min-block-size: inherit;
+}
+
+.bakery-app-shell[data-appearance="installation"],
+.bakery-app-shell[data-appearance="installation"] .bakery-section-navigation,
+.bakery-app-shell[data-appearance="installation"] .bakery-app-shell__header {
+  background: var(--color-surface);
+}
+
+[data-theme="dark"] .bakery-app-shell[data-appearance="installation"],
+[data-theme="dark"] .bakery-app-shell[data-appearance="installation"] .bakery-section-navigation,
+[data-theme="dark"] .bakery-app-shell[data-appearance="installation"] .bakery-app-shell__header {
+  background: var(--color-canvas);
+}
+
+.bakery-app-shell[data-appearance="installation"] .bakery-sidebar,
+.bakery-app-shell[data-appearance="installation"] .bakery-application-rail__list {
+  gap: var(--space-0);
+}
+
+.bakery-app-shell[data-appearance="installation"] .bakery-section-navigation {
+  box-sizing: border-box;
+}
+
+.bakery-app-shell[data-appearance="installation"] .bakery-app-shell__header {
+  padding-inline: var(--space-8);
+}
+
+.bakery-app-shell[data-appearance="installation"] .bakery-section-navigation__heading {
+  padding: var(--space-8) calc(var(--space-6) + var(--space-1)) var(--space-3);
+  color: var(--color-fg-muted);
+  font: var(--type-label);
+}
+
+.bakery-app-shell[data-appearance="installation"] .bakery-section-navigation__list {
+  padding-block-start: var(--space-0);
+}
+
+.bakery-app-shell[data-appearance="installation"] .bakery-app-shell__main {
+  padding-block-start: calc(var(--space-8) + var(--space-1));
+}
+
+.bakery-app-shell[data-appearance="installation"] .ui-settings-content {
+  padding-block: var(--space-0);
+}
+
+.bakery-app-shell[data-appearance="installation"] .bakery-application-rail__link {
+  min-block-size: var(--target-coarse);
+}
+
+@media (max-width: 743px) {
+  .bakery-app-shell[data-appearance="installation"].bakery-app-shell--sheet .bakery-app-shell__header {
+    min-block-size: calc(var(--target-coarse) + var(--space-3));
+    padding-block: var(--space-0);
+    padding-inline: max(var(--space-3), env(safe-area-inset-left))
+      max(var(--space-3), env(safe-area-inset-right));
+  }
+  .bakery-app-shell[data-appearance="installation"] .bakery-top-bar {
+    gap: var(--space-2);
+  }
+  .bakery-app-shell[data-appearance="installation"] .bakery-top-bar__title {
+    align-items: center;
+    display: flex;
+    gap: var(--space-2);
+    font: var(--type-control);
+  }
+  .bakery-app-shell[data-appearance="installation"] .bakery-top-bar__leading .ui-icon-button {
+    block-size: var(--target-coarse);
+    inline-size: var(--target-coarse);
+  }
+  .bakery-app-shell[data-appearance="installation"] .bakery-top-bar__leading .ui-icon path {
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: var(--icon-stroke-compact);
+  }
+  .bakery-app-shell[data-appearance="installation"] .bakery-section-navigation__summary {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    min-block-size: var(--target-coarse);
+    padding: var(--space-0) var(--space-4);
+  }
+  .bakery-app-shell[data-appearance="installation"] .bakery-top-bar__title .ui-logo-mark img {
+    block-size: 28px;
+    inline-size: 28px;
+  }
+  .bakery-app-shell[data-appearance="installation"] .bakery-app-shell__main {
+    padding-block-start: var(--space-8);
+  }
+}
+
+/* Organization routes (E16 single sign-on, Paper 2CMC-0 and phone frames) share
+   the installation page chrome: a white work area, white section navigation,
+   the header gutter and the compact phone header. The application rail keeps
+   its own 36px rows, so none of the installation rail rules are repeated. */
+.bakery-app-shell[data-appearance="organization"],
+.bakery-app-shell[data-appearance="organization"] .bakery-section-navigation,
+.bakery-app-shell[data-appearance="organization"] .bakery-app-shell__header {
+  background: var(--color-surface);
+}
+
+[data-theme="dark"] .bakery-app-shell[data-appearance="organization"],
+[data-theme="dark"] .bakery-app-shell[data-appearance="organization"] .bakery-section-navigation,
+[data-theme="dark"] .bakery-app-shell[data-appearance="organization"] .bakery-app-shell__header {
+  background: var(--color-canvas);
+}
+
+.bakery-app-shell[data-appearance="organization"] .bakery-section-navigation {
+  box-sizing: border-box;
+}
+
+.bakery-app-shell[data-appearance="organization"] .bakery-app-shell__header {
+  padding-inline: var(--space-8);
+}
+
+.bakery-app-shell[data-appearance="organization"] .bakery-section-navigation__heading {
+  padding: var(--space-8) calc(var(--space-6) + var(--space-1)) var(--space-3);
+  color: var(--color-fg-muted);
+  font: var(--type-label);
+}
+
+.bakery-app-shell[data-appearance="organization"] .bakery-section-navigation__list {
+  padding-block-start: var(--space-0);
+}
+
+.bakery-app-shell[data-appearance="organization"] .bakery-app-shell__main {
+  padding-block-start: calc(var(--space-8) + var(--space-1));
+}
+
+/* Paper's organization section navigation (access and single sign-on frames):
+   36px rows with 8px block padding, 4px radius, 14/20 labels and a medium
+   selected label. */
+.bakery-app-shell[data-appearance="organization"] .bakery-section-navigation__link {
+  box-sizing: border-box;
+  padding-block: var(--space-2);
+  border-radius: var(--radius-control);
+  font: var(--type-body);
+  font-family: system-ui, sans-serif;
+}
+
+.bakery-app-shell[data-appearance="organization"] .bakery-section-navigation__link[aria-current="page"] {
+  font: var(--type-control);
+  font-family: system-ui, sans-serif;
+}
+
+/* Top bar account: the role in 13/20 muted, then a 32px initials circle on the
+   border tone, 8px apart. */
+.bakery-app-shell[data-appearance="organization"] .bakery-top-bar__actions .ui-inline {
+  gap: var(--space-2);
+}
+
+.bakery-app-shell[data-appearance="organization"] .bakery-top-bar__actions .ui-text {
+  font: var(--type-hint);
+}
+
+.bakery-app-shell[data-appearance="organization"] .bakery-top-bar__actions .ui-popover__trigger {
+  min-block-size: var(--size-avatar-medium);
+  min-inline-size: var(--size-avatar-medium);
+  padding: var(--space-0);
+}
+
+.bakery-app-shell[data-appearance="organization"] .bakery-top-bar__actions .bakery-user-menu__trigger {
+  min-block-size: var(--size-avatar-medium);
+  min-inline-size: var(--size-avatar-medium);
+  padding: var(--space-0);
+}
+
+.bakery-app-shell[data-appearance="organization"] .bakery-top-bar__actions .ui-avatar {
+  background: var(--color-border);
+  block-size: var(--size-avatar-medium);
+  inline-size: var(--size-avatar-medium);
+  color: var(--color-fg);
+  font: var(--type-status);
+  line-height: var(--space-4);
+}
+
+@media (max-width: 743px) {
+  .bakery-app-shell[data-appearance="organization"].bakery-app-shell--sheet .bakery-app-shell__header {
+    min-block-size: calc(var(--target-coarse) + var(--space-3));
+    padding-block: var(--space-0);
+    padding-inline: max(var(--space-3), env(safe-area-inset-left))
+      max(var(--space-3), env(safe-area-inset-right));
+  }
+  .bakery-app-shell[data-appearance="organization"] .bakery-top-bar {
+    gap: var(--space-2);
+  }
+  .bakery-app-shell[data-appearance="organization"] .bakery-top-bar__title {
+    align-items: center;
+    display: flex;
+    gap: var(--space-2);
+    font: var(--type-control);
+  }
+  .bakery-app-shell[data-appearance="organization"] .bakery-top-bar__leading .ui-icon-button {
+    block-size: var(--target-coarse);
+    inline-size: var(--target-coarse);
+  }
+  .bakery-app-shell[data-appearance="organization"] .bakery-top-bar__leading .ui-icon path {
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: var(--icon-stroke-compact);
+  }
+  .bakery-app-shell[data-appearance="organization"] .bakery-section-navigation__summary {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    min-block-size: var(--target-coarse);
+    padding: var(--space-0) var(--space-4);
+  }
+  .bakery-app-shell[data-appearance="organization"] .bakery-top-bar__title .ui-logo-mark img {
+    block-size: 28px;
+    inline-size: 28px;
+  }
+  .bakery-app-shell[data-appearance="organization"] .bakery-app-shell__main {
+    padding-block-start: var(--space-8);
+  }
+}
+
+.bakery-app-shell__sidebar {
+  flex: 0 1 auto;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.bakery-app-shell--rail .bakery-app-shell__sidebar,
+.bakery-app-shell--pane .bakery-app-shell__sidebar {
+  align-self: flex-start;
+  block-size: 100dvb;
+  inset-block-start: 0;
+  /* No overflow clipping: the workspace and account popovers open out of
+     the sidebar over the work column. */
+  position: sticky;
+}
+
+.bakery-app-shell__sidebar > .bakery-sidebar {
+  min-block-size: 100%;
+}
+
+.bakery-app-shell__column {
+  display: flex;
+  flex: 1 1 var(--layout-dialog);
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+/* Phones stack one column: a wrapping row frame would share leftover height
+   between flex lines, so the closed drawer wrapper took a line of its own
+   above the header. The work column fills the viewport above the tab bar. */
+.bakery-app-shell--sheet > .bakery-app-shell__frame {
+  flex-direction: column;
+  flex-wrap: nowrap;
+}
+.bakery-app-shell--sheet .bakery-app-shell__column {
+  flex: 1 0 auto;
+}
+.bakery-app-shell--sheet .bakery-app-shell__bottom {
+  flex: none;
+}
+
+.bakery-app-shell__skip-link {
+  align-items: center;
+  background: var(--color-surface-raised);
+  border-radius: var(--radius-control);
+  color: var(--color-selection);
+  display: inline-flex;
+  inset-block-start: var(--space-2);
+  inset-inline-start: var(--space-2);
+  min-block-size: var(--target-min);
+  padding: var(--space-2) var(--space-3);
+  position: absolute;
+  transform: translateY(-200%);
+  z-index: var(--layer-popover);
+}
+
+.bakery-app-shell__skip-link:focus {
+  transform: none;
+}
+
+.bakery-app-shell__header {
+  align-items: center;
+  border-block-end: var(--border-default) solid var(--color-border);
+  /* border-box: the header is --layout-header tall including its rule. */
+  box-sizing: border-box;
+  display: flex;
+  min-block-size: var(--layout-header);
+  min-inline-size: 0;
+  /* --gutter, not the Paper queue's 24px: Settings pages inherit the shell
+     inset their Paper baselines were approved against. */
+  padding-inline: var(--gutter);
+}
+
+.bakery-app-shell--sheet .bakery-app-shell__header {
+  min-block-size: auto;
+  /* E8-0/P6-0: the 44px header row sits directly under the device status
+     bar, so only the safe area pads its top. */
+  padding: var(--space-0) var(--gutter) var(--space-3);
+  padding-block-start: env(safe-area-inset-top);
+  padding-inline: max(var(--gutter), env(safe-area-inset-left))
+    max(var(--gutter), env(safe-area-inset-right));
+}
+
+.bakery-app-shell__body {
+  display: flex;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.bakery-app-shell__main {
+  box-sizing: border-box;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  padding: var(--gutter);
+}
+
+.bakery-app-shell[data-main-inset="flush"] .bakery-app-shell__main,
+.bakery-app-shell[data-main-inset="page"] .bakery-app-shell__main,
+.bakery-app-shell[data-main-inset="pageWide"] .bakery-app-shell__main {
+  padding: var(--space-0);
+}
+
+.bakery-app-shell--sheet .bakery-app-shell__main {
+  padding-inline: max(var(--gutter), env(safe-area-inset-left))
+    max(var(--gutter), env(safe-area-inset-right));
+}
+
+.bakery-app-shell__status {
+  min-inline-size: 0;
+}
+
+.bakery-app-shell__inspector {
+  border-block-start: var(--border-default) solid var(--color-border);
+  flex: 1 1 100%;
+  min-inline-size: 0;
+}
+
+.bakery-app-shell--rail .bakery-app-shell__inspector {
+  align-self: flex-start;
+  block-size: 100dvb;
+  border-block-start: var(--border-none);
+  border-inline-start: var(--border-default) solid var(--color-border);
+  /* Grid so a page-supplied panel (and any wrapper) stretches full height. */
+  display: grid;
+  flex: 0 1 var(--layout-inspector);
+  inset-block-start: 0;
+  overflow-y: auto; /* intentional: a long inspector scrolls in its column */
+  position: sticky;
+}
+
+.bakery-app-shell--rail[data-inspector-size="wide"] .bakery-app-shell__inspector {
+  flex-basis: var(--layout-session-pane);
+}
+
+/* The wide inspector holds the task session pane (run state and controls),
+   a task surface that keeps full touch targets like `.ui-task-detail`. */
+.bakery-app-shell[data-inspector-size="wide"] .bakery-app-shell__inspector {
+  --target-min: var(--target-coarse);
+}
+
+.bakery-app-shell__bottom {
+  flex: 1 1 100%;
+  inset-block-end: 0;
+  min-inline-size: 0;
+  position: sticky;
+}
+
+.bakery-app-shell__drawer .ui-dialog__header {
+  /* The drawer title is short; keep its dismiss control on the same row. */
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.bakery-app-shell__drawer .ui-dialog__title {
+  flex-basis: 0;
+}
+
+.bakery-app-shell__drawer .ui-sheet--side {
+  inline-size: calc(var(--layout-application-rail) + var(--space-16));
+  inset-inline-end: auto;
+  inset-inline-start: 0;
+  max-inline-size: 100%;
+}
+
+/* ArtboardShell: the pre-Paper-shell grid kept for synthetic artboard
+   templates whose approved baselines were scored against it. */
+.bakery-app-shell--artboard {
+  /* Exactly the pre-shell computed frame: no positioning context (the
+     worker K-0 raster proof rejects one) and no shrink override. */
+  display: grid;
+  min-inline-size: auto;
+  position: static;
+  grid-template-areas:
+    "rail header"
+    "rail body";
+  grid-template-columns: var(--layout-application-rail) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.bakery-app-shell--artboard > .bakery-app-shell__rail {
+  background: var(--color-canvas);
+  grid-area: rail;
+}
+
+.bakery-app-shell--artboard > .bakery-app-shell__header {
+  grid-area: header;
+}
+
+.bakery-app-shell--artboard > .bakery-app-shell__body {
+  grid-area: body;
+}
+
+@media (max-width: 743px) {
+  .bakery-app-shell--artboard {
+    grid-template-areas:
+      "header"
+      "rail"
+      "body";
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+  .bakery-app-shell--artboard > .bakery-app-shell__body {
+    display: block;
+  }
+}
+
+@media (max-width: 1279px) {
+  .bakery-section-navigation {
+    display: none;
+  }
+  .bakery-section-navigation__mobile {
+    display: block;
+  }
+  .bakery-section-navigation__narrow-index {
+    background: var(--color-surface-subtle);
+    color: var(--color-fg);
+    display: block;
+    inline-size: 100%;
+    min-inline-size: 0;
+  }
+  .bakery-app-shell__body {
+    display: block;
+  }
+  .bakery-section-navigation__mobile .bakery-section-navigation__list {
+    padding: var(--space-2) var(--space-4) var(--space-4);
+  }
+  .bakery-section-navigation__narrow-index .bakery-section-navigation__list {
+    padding: var(--space-2) var(--space-4) var(--space-4);
+  }
+}
+
+@media (pointer: coarse) {
+  .bakery-application-rail__link,
+  .bakery-section-navigation__link,
+  .bakery-section-navigation__summary,
+  .bakery-sidebar__brand {
+    min-block-size: var(--target-min);
+    min-inline-size: var(--target-min);
+  }
+}
+
+.ui-auth-entry {
+  background: var(--color-surface); /* auth.css:9 .auth-layout */
+  box-sizing: border-box;
+  font: var(--type-auth-body); /* auth.css:6 :root body font */
+  min-block-size: 100dvb;
+}
+.ui-auth-entry--brand {
+  display: grid;
+  grid-template-columns: 44% 56%; /* auth.css:9 .auth-layout */
+}
+.ui-auth-entry--context {
+  align-items: center;
+  background: var(--color-canvas); /* auth.css:10 .context-layout */
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8); /* auth.css:10 .context-layout 32px */
+  justify-content: center;
+  padding: 56px 40px; /* auth.css:10 .context-layout */
+}
+.ui-auth-entry__brand-pane {
+  align-items: center;
+  background: var(--color-canvas); /* auth.css:9 .brand-pane */
+  border-inline-end: var(--border-default) solid var(--color-border);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  padding: var(--space-16)
+    var(--space-10); /* auth.css:9 .brand-pane 64px 40px */
+  position: relative;
+}
+.ui-auth-entry__brand-content {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 36px; /* auth.css:9 .brand-content */
+  inline-size: 100%;
+  max-inline-size: 340px; /* auth.css:9 .brand-content */
+  text-align: center;
+}
+.ui-auth-entry__brand-content .ui-logo-mark--wordmark img {
+  /* Preserve the measured legacy raster box; new art letterboxes inside it. */
+  block-size: var(--size-logo-auth-desktop-block);
+  inline-size: var(--size-logo-auth-desktop-inline);
+  max-inline-size: 100%;
+}
+.ui-auth-entry__tagline {
+  color: var(--color-fg);
+  font: var(--type-heading-page); /* auth.css:10 .context-summary h2 24/32 */
+  letter-spacing: var(--tracking-heading-page);
+  margin: var(--space-0);
+}
+.ui-auth-entry--brand .ui-auth-entry__tagline {
+  font: var(--type-heading-hero); /* auth.css:9 .brand-content h2 30/38 */
+  max-inline-size: 330px; /* auth.css:9 .brand-content h2 */
+}
+.ui-auth-entry__steps {
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  list-style: none;
+  margin: var(--space-0);
+  max-inline-size: 296px; /* auth.css:9 .brand-steps */
+  padding: var(--space-0);
+  text-align: start;
+}
+.ui-auth-entry__step {
+  align-items: center;
+  border-block-end: var(--border-default) solid var(--color-border);
+  color: var(--color-fg);
+  display: flex;
+  font: var(--type-field); /* auth.css:9 .brand-steps item text 16/24 */
+  gap: 18px; /* auth.css:9 .brand-steps .item */
+  padding-block: var(--space-5); /* auth.css:9 .brand-steps .item 20px */
+}
+.ui-auth-entry__step:last-child {
+  border-block-end: var(--border-none);
+}
+.ui-auth-entry__step .ui-icon {
+  flex: none;
+}
+.ui-auth-entry__step > span {
+  flex: 1;
+  margin-block-end: 3px; /* auth.css:8 .item h3 bottom margin */
+  min-inline-size: 0;
+}
+.ui-auth-entry__brand-footer {
+  color: var(--color-fg-muted);
+  font: var(--type-auth-hint); /* auth.css:9 .brand-footer 13px */
+  inset-block-end: 28px; /* auth.css:9 .brand-footer */
+  inset-inline: 32px; /* auth.css:9 .brand-footer */
+  margin: var(--space-0);
+  position: absolute;
+}
+.ui-auth-entry__form-pane {
+  align-items: center;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-inline-size: 0;
+  padding: 56px 48px; /* auth.css:9 .form-pane */
+  position: relative;
+}
+.ui-auth-entry__mobile-logo {
+  display: none; /* auth.css:9 .form-pane>.mobile-logo{display:none} */
+}
+.ui-auth-entry__context-shell {
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface); /* auth.css:10 .context-box */
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 300px 440px; /* auth.css:10 .context-box */
+  inline-size: 740px; /* auth.css:10 .context-box */
+  max-inline-size: 100%;
+}
+.ui-auth-entry__context-summary {
+  border-inline-end: var(--border-default) solid var(--color-border);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6); /* auth.css:10 .context-summary 24px */
+  overflow-wrap: anywhere;
+  padding: 40px 28px; /* auth.css:10 .context-summary */
+}
+/* Paper's `contextShell` summary column (auth.css:10 `.context-summary`):
+   the `context` node supplies the aside's children directly, so the
+   artboard's own direct-child rules apply here — a 40px org glyph, a 24/32
+   `<h2>` (NOT the form column's 28/36 `<h1>`), and a closing `.context-extra`
+   hint the phone artboard drops. */
+.ui-auth-entry__context-summary > .ui-icon {
+  block-size: var(--space-10); /* auth.css:10 .context-summary>.icon 40px */
+  inline-size: var(--space-10);
+}
+.ui-auth-entry__context-summary > .ui-heading {
+  font: var(--type-heading-page); /* auth.css:10 .context-summary h2 24/32 */
+  letter-spacing: var(--tracking-heading-page);
+}
+.ui-auth-entry__content {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 28px; /* auth.css:9 .form-content */
+  inline-size: 100%;
+  max-inline-size: 380px; /* auth.css:9 .form-content */
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+.ui-auth-entry--context .ui-auth-entry__content {
+  max-inline-size: none; /* auth.css:10 .context-box .form-content */
+  padding: var(--space-10)
+    var(--space-8); /* auth.css:10 .context-box .form-content 40px 32px */
+}
+.ui-auth-entry__status {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+}
+.ui-auth-entry__status:empty {
+  display: none;
+}
+.ui-auth-entry__form-bottom {
+  display: flex;
+  inline-size: 100%;
+  justify-content: flex-end;
+  margin-block-start: 40px; /* auth.css:9 .form-bottom */
+  max-inline-size: 380px; /* auth.css:9 .form-bottom */
+}
+.ui-auth-entry--context {
+  position: relative;
+}
+.ui-auth-entry__small-brand {
+  align-items: center;
+  align-self: flex-start; /* auth.css:10 .small-brand */
+  color: var(--color-fg);
+  display: flex;
+  /* At 200% zoom on a 320px viewport the mark and wordmark no longer share a
+     line; wrapping keeps the row inside the column (no effect at >= 390px). */
+  flex-wrap: wrap;
+  max-inline-size: 100%;
+  font: var(--type-brand-small); /* auth.css:10 .small-brand 18px/600 */
+  gap: var(--space-2-5); /* auth.css:10 .small-brand gap 10px */
+  inset-block-start: var(--space-6); /* auth.css:10 .context-layout>.small-brand top 24px */
+  inset-inline-start: var(--space-8); /* auth.css:10 inset-inline-start 32px */
+  position: absolute;
+}
+.ui-auth-entry__small-brand .ui-logo-mark--compact img {
+  block-size: 28px; /* auth.css:10 .small-brand img */
+  inline-size: 28px;
+}
+/* auth.css:10 `.context-footer`: a 740px row under the card. Paper puts the
+   prototype mark at its start and the theme button at its end; the product
+   has no prototype mark, so only the trailing control remains. */
+.ui-auth-entry__context-footer {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3); /* auth.css:10 .context-footer 12px */
+  inline-size: 740px; /* auth.css:10 .context-footer */
+  justify-content: flex-end;
+  max-inline-size: 100%;
+}
+
+/* Auth screens keep 44px controls regardless of pointer type (auth.css:8
+   .btn/.text-link min-height:44px); the shared atoms otherwise shrink on
+   fine-pointer desktops via --target-min. */
+.ui-auth-entry .ui-button,
+.ui-auth-entry .ui-link,
+.ui-auth-entry .ui-icon-button {
+  min-block-size: var(--target-coarse);
+}
+.ui-auth-entry .ui-icon-button {
+  inline-size: var(--target-coarse);
+}
+.ui-auth-entry .ui-button {
+  inline-size: 100%; /* auth.css:8 .btn.full */
+}
+
+/* Paper's auth form column (auth.css:8): the `.stack` wrapping a form is
+   20px, each `.field` stacks label and control 8px apart, and the label is
+   500 14px on the mock root's 1.5 line-height. */
+.ui-auth-entry form > .ui-stack {
+  gap: var(--space-5); /* auth.css:8 .stack */
+}
+.ui-auth-entry .ui-field {
+  gap: var(--space-2); /* auth.css:8 .field */
+}
+.ui-auth-entry .ui-field > label {
+  font: var(--type-auth-label); /* auth.css:8 .field>label */
+}
+.ui-auth-entry .ui-field__hint,
+.ui-auth-entry .ui-field__error {
+  font: var(--type-auth-hint); /* auth.css:8 .hint / .field-error */
+}
+.ui-auth-entry .ui-link {
+  font: inherit; /* auth.css:8 .text-link */
+}
+.ui-auth-entry .ui-text--hint {
+  font: var(--type-auth-hint); /* auth.css:8 .hint */
+}
+.ui-auth-entry .ui-text--body,
+.ui-auth-entry .ui-text--muted {
+  font: var(--type-auth-body); /* auth.css:8 .muted at the mock root 1.5 */
+}
+.ui-auth-entry .ui-password-input > .ui-icon-button {
+  inset-inline-end: 2px; /* auth.css:8 .reveal */
+}
+
+@media (min-width: 744px) {
+  .ui-auth-entry .ui-heading--page {
+    /* auth.css:8 h1 28/36 (>=744px; phone keeps the existing 24/32 default
+       via auth.css:13, which already equals --type-heading-page). */
+    font: var(--type-heading-auth);
+  }
+}
+
+@media (min-width: 744px) and (max-width: 1100px) {
+  .ui-auth-entry__brand-pane {
+    padding-inline: 28px; /* auth.css:12 .brand-pane */
+  }
+  .ui-auth-entry__brand-content {
+    gap: 28px; /* auth.css:12 .brand-content */
+  }
+  .ui-auth-entry__brand-content .ui-logo-mark--wordmark img {
+    block-size: var(--size-logo-auth-tablet-block);
+    inline-size: var(--size-logo-auth-tablet-inline);
+  }
+  .ui-auth-entry--brand .ui-auth-entry__tagline {
+    font: var(--type-heading-hero-compact); /* auth.css:12 .brand-content h2 26/34 */
+  }
+  .ui-auth-entry__form-pane {
+    padding-inline: var(--space-8); /* auth.css:12 .form-pane 32px */
+  }
+  .ui-auth-entry__context-shell {
+    grid-template-columns: 260px minmax(0, 1fr); /* auth.css:12 .context-box */
+  }
+}
+
+@media (max-width: 743px) {
+  .ui-auth-entry--brand {
+    display: block;
+  }
+  .ui-auth-entry__brand-pane {
+    display: none; /* auth.css:13 .brand-pane */
+  }
+  .ui-auth-entry__form-pane {
+    justify-content: flex-start;
+    padding-block-end: max(24px, env(safe-area-inset-bottom));
+    padding-block-start: 28px; /* auth.css:13 .form-pane */
+    padding-inline: var(--space-5); /* auth.css:13 .form-pane 20px */
+  }
+  .ui-auth-entry__mobile-logo {
+    display: flex; /* auth.css:13 .form-pane>.mobile-logo */
+    margin-block-end: var(--space-10); /* 40px */
+  }
+  .ui-auth-entry__mobile-logo .ui-logo-mark--wordmark img {
+    block-size: var(--size-logo-auth-phone-block);
+    inline-size: var(--size-logo-auth-phone-inline);
+    max-inline-size: 100%;
+  }
+  .ui-auth-entry__content {
+    gap: var(--space-6); /* auth.css:13 .form-content 24px */
+    max-inline-size: 420px; /* auth.css:13 .form-content */
+  }
+  .ui-auth-entry__form-bottom {
+    margin-block-start: var(--space-8); /* auth.css:13 .form-bottom 32px */
+    max-inline-size: 420px; /* auth.css:13 .form-bottom */
+  }
+  .ui-auth-entry--context {
+    gap: var(--space-6); /* auth.css:13 .context-layout 24px */
+    justify-content: flex-start; /* auth.css:13 .context-layout */
+    padding: var(--space-6)
+      var(--space-4); /* auth.css:13 .context-layout 24px 16px */
+  }
+  .ui-auth-entry__small-brand {
+    position: static; /* auth.css:13 .context-layout>.small-brand */
+  }
+  .ui-auth-entry__context-shell {
+    background: transparent;
+    border: var(--border-none);
+    display: flex;
+    flex-direction: column;
+    inline-size: 100%;
+  }
+  .ui-auth-entry__context-summary {
+    border-block-end: var(--border-default) solid var(--color-border);
+    border-inline-end: var(--border-none);
+    gap: var(--space-4); /* auth.css:13 .context-summary 16px */
+    padding: var(--space-0);
+    padding-block-end: var(--space-6); /* auth.css:13 .context-summary 24px */
+  }
+  .ui-auth-entry--context .ui-auth-entry__content {
+    padding: var(--space-0);
+    padding-block-start: var(--space-6); /* auth.css:13 .context-box .form-content 24px */
+  }
+  .ui-auth-entry__context-summary > .ui-icon {
+    block-size: 28px; /* auth.css:13 .context-summary>.icon */
+    inline-size: 28px;
+  }
+  .ui-auth-entry__context-summary > .ui-text--hint {
+    display: none; /* auth.css:13 .context-summary .context-extra */
+  }
+  /* auth.css:13 `.context-summary > .consent-lede`: the summary's lede needs
+     361px of 14px/21px advance and the phone column is 358px, so the line
+     takes those 3px from the column's right inset rather than wrapping
+     (issue 333). The `join` lede is shorter than the column either way, so
+     widening its box moves no pixels. */
+  .ui-auth-entry__context-summary > .ui-text--muted {
+    margin-inline-end: -3px;
+  }
+  /* auth.css:13 `.context-summary .identity-rows`: on phone the two
+     identity rows sit side by side as a wrapping row, rule-less and
+     content-sized, instead of the desktop column of full-width rules. */
+  .ui-auth-entry__context-summary .ui-description-list {
+    column-gap: var(--space-5); /* auth.css:13 .identity-rows 20px */
+    flex-direction: row;
+    flex-wrap: wrap;
+    row-gap: var(--space-0);
+  }
+  .ui-auth-entry__context-summary .ui-description-item {
+    padding-block: var(--space-3); /* auth.css:13 .context-summary .item 12px */
+  }
+  .ui-auth-entry__context-summary .ui-description-list .ui-description-item {
+    border-block-end: var(--border-none);
+    gap: var(--space-2-5); /* auth.css:13 .identity-rows .item 10px */
+  }
+}
+
+/* V-0 `consent` request column (auth.css:8 `.field`, `.consent-scopes`): the
+   organization select is a plain 44px field with a 14/500 label and the scope
+   rows are top-aligned 12px-padded items with a 16/600 title, not the
+   bordered card the shared combobox and the Your-access rows draw. */
+.ui-auth-entry--context .ui-auth-entry__content .ui-combobox {
+  background: transparent;
+  border: var(--border-none);
+  border-radius: var(--radius-none);
+  font: var(--type-auth-label); /* auth.css:8 .field>label 14/500 on the root's 1.5 line */
+  gap: var(--space-2); /* auth.css:8 .field 8px */
+  max-inline-size: none;
+  padding: var(--space-0);
+}
+.ui-auth-entry--context .ui-auth-entry__content .ui-combobox select {
+  font: var(--type-field); /* auth.css:8 select 16px */
+  block-size: var(--target-coarse); /* auth.css:8 select height 44px */
+  padding: var(--space-2-5) var(--space-3); /* auth.css:8 select 10px 12px */
+}
+.ui-auth-entry--context .ui-capability-list__item {
+  align-items: flex-start;
+  gap: var(--space-4); /* auth.css:8 .item 16px */
+  padding-block: var(--space-3); /* auth.css:10 .consent-scopes .item 12px */
+}
+.ui-auth-entry--context .ui-capability-list__icon {
+  inline-size: var(--size-consent-scope-icon); /* auth.css:10 .consent-scopes .item>.icon */
+  margin-block-start: 2px;
+}
+.ui-auth-entry--context .ui-capability-list__body {
+  gap: 3px; /* auth.css:8 .item h3 margin-bottom */
+}
+.ui-auth-entry--context .ui-capability-list__title {
+  font: var(--type-heading-subsection); /* auth.css:8 .item h3 16/24/600 */
+}
+
+/* V-0 `reauth` invalid (auth.js `reauth`): the error lives in the notice above
+   the form; the mock leaves the password box on its neutral border. The input
+   keeps `aria-invalid`, so assistive technology still hears the failure. */
+.ui-auth-entry form[data-form="reauth"] .ui-password-input[data-state="invalid"] .ui-password-input__field {
+  border-color: var(--color-control-border);
+}
+
+/* Paper's `heading(title, description)` helper — the title/description pair
+   that opens every authentication and account screen (auth.css:9
+   `.form-heading`). Owned by `AuthHeading`, not by the auth shell: the
+   settings artboards use the same block outside `.ui-auth-entry`. */
+.ui-auth-heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2); /* auth.css:9 .form-heading */
+}
+.ui-auth-heading .ui-heading--page {
+  text-wrap: balance; /* auth.css:8 h1 */
+}
+.ui-auth-heading__description {
+  max-inline-size: var(--layout-measure-prose); /* auth.css:8 p{max-width:68ch} */
+  color: var(--color-fg-muted);
+  font: var(--type-auth-lead); /* auth.css:9 .form-heading p 16px/1.5 */
+  margin: var(--space-0);
+  overflow-wrap: anywhere;
+}
+@media (min-width: 744px) {
+  .ui-auth-heading .ui-heading--page {
+    /* auth.css:8 h1 28/36; auth.css:13 keeps 24/32 on phone, which already
+       equals --type-heading-page. */
+    font: var(--type-heading-auth);
+  }
+}
+
+/* Paper's settings pages (auth.css:10 `.settings-content`, auth.css:13 on
+   phone). The artboard's 40px page padding (24px/16px on phone) is the app
+   shell's `<main>` gutter, so the column only carries the measure, the gaps,
+   and the 8px of block padding the phone artboards have over the shell's
+   16px gutter. */
+.ui-settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 28px; /* auth.css:10 .settings-content */
+  max-inline-size: 760px; /* auth.css:10 .settings-content max-width:840px less its 40px padding */
+  min-inline-size: 0;
+}
+/* Paper keeps 44px controls on these pages regardless of pointer type
+   (auth.css:8 .btn/.text-link min-height:44px). Buttons take their width
+   from the flex column they sit in (`.btn.full` in a column, `.two-actions>*`
+   in a row), so no blanket inline-size here. */
+.ui-settings-content .ui-button,
+.ui-settings-content .ui-link {
+  min-block-size: var(--target-coarse);
+}
+.ui-settings-content .ui-link {
+  font: inherit; /* auth.css:8 .text-link */
+  gap: var(--space-1-5); /* auth.css:8 .text-link 6px */
+}
+/* auth.css:8 `.btn` as a link: 44px including its border, 14/500/22 label; the
+   shared `font: inherit` above is the text-link recipe, not the button's. */
+.ui-settings-content .ui-link--primaryButton {
+  box-sizing: border-box;
+  font: var(--type-auth-button);
+}
+/* auth.css:8 `p{max-width:68ch}`: hint paragraphs wrap at the mock's measure. */
+.ui-settings-content .ui-text--hint {
+  max-inline-size: var(--layout-measure-prose);
+}
+/* auth.js `accountForm`: heading, notices and form share one 520px
+   `.form-content` column, so the heading's description wraps at that measure. */
+.ui-settings-content:has(> .ui-form-content) > .ui-auth-heading {
+  max-inline-size: 520px; /* auth.css:10 .settings-content>.form-content */
+}
+/* auth.css:8 `.btn.secondary` as a link: the frame is the full 44px target,
+   control-border stroke, 14/500/22 label (the shared Paper E-0 frame is 36px). */
+.ui-settings-content .ui-link--button {
+  font: var(--type-auth-button);
+  margin-block: var(--space-0); /* the frame is already the 44px target */
+}
+.ui-settings-content .ui-link--button::before {
+  border-color: var(--color-control-border);
+  inset: var(--space-0);
+}
+.ui-settings-content .ui-description-item .ui-link {
+  min-inline-size: 0; /* auth.css:8 .text-link has no minimum width */
+}
+/* The same Paper form primitives the auth shell corrects for (auth.css:8
+   .stack/.field/.hint/.muted), for the account pages outside it. */
+.ui-settings-content form > .ui-stack {
+  gap: var(--space-5); /* auth.css:8 .stack */
+}
+.ui-settings-content .ui-field {
+  gap: var(--space-2); /* auth.css:8 .field */
+}
+.ui-settings-content .ui-field > label {
+  font: var(--type-auth-label); /* auth.css:8 .field>label */
+}
+.ui-settings-content .ui-field__hint,
+.ui-settings-content .ui-field__error,
+.ui-settings-content .ui-text--hint {
+  font: var(--type-auth-hint); /* auth.css:8 .hint / .field-error */
+}
+.ui-settings-content .ui-text--body,
+.ui-settings-content .ui-text--muted {
+  font: var(--type-auth-body); /* auth.css:8 .muted at the mock root 1.5 */
+}
+.ui-settings-section > .ui-heading--section {
+  font: var(--type-heading-page); /* auth.css:8 h2 24px/32px */
+  letter-spacing: var(--tracking-heading-page); /* auth.css:8 h2 -.02em */
+}
+.ui-settings-section--stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5); /* auth.css:8 .stack 20px */
+}
+.ui-settings-section dd code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.ui-form-content {
+  display: flex;
+  flex-direction: column;
+  gap: 28px; /* auth.css:9 .form-content */
+  inline-size: 100%;
+  max-inline-size: 520px; /* auth.css:10 .settings-content>.form-content */
+}
+@media (max-width: 743px) {
+  .ui-settings-content {
+    gap: var(--space-6); /* auth.css:13 .settings-content 24px */
+    padding-block: var(--space-2); /* auth.css:13 .settings-content 24px 16px over the shell's 16px gutter */
+  }
+  .ui-settings-content .ui-description-item {
+    gap: var(--space-3); /* auth.css:13 .settings-content .item 12px */
+  }
+  .ui-form-content {
+    gap: var(--space-6); /* auth.css:13 .form-content 24px */
+  }
+  .ui-settings-content .ui-description-item__action:has(.ui-inline) {
+    max-inline-size: var(--layout-item-action); /* auth.css:13 .settings-content .item-action */
+  }
+  .ui-settings-content .ui-description-item__action .ui-inline {
+    flex-wrap: wrap;
+    justify-content: flex-end; /* auth.css:8 .row in the right-aligned item action */
+    row-gap: var(--space-0);
+  }
+}
+
+/* Paper O-0 personal settings pages (Profile, Appearance, Your access): a 24px
+   title over a 14px muted subtitle, the form column capped at 720px, and
+   content-sized buttons. The page padding is the shell's. */
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) {
+  max-inline-size: none;
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-auth-heading .ui-heading--page {
+  font: var(--type-heading-page);
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-auth-heading__description {
+  font: var(--type-body);
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) form {
+  max-inline-size: var(--layout-content);
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field > label,
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field__heading > label {
+  font: var(--type-control);
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field__hint,
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field__error,
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field__note {
+  font: var(--type-hint);
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-text--body,
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-text--muted {
+  font: var(--type-body);
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-button,
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-link {
+  min-block-size: 0;
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field--inline {
+  column-gap: var(--space-6);
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field--inline[data-has-hint] {
+  align-items: start;
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field--inline[data-has-hint] .ui-field__heading {
+  padding-block-start: var(--space-3);
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) form .ui-avatar {
+  background: var(--color-canvas);
+  color: var(--color-fg);
+  font: var(--type-field);
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-identity {
+  gap: var(--space-4);
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-identity > span:last-child {
+  gap: var(--space-1);
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-identity__name {
+  font: var(--type-heading-subsection);
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-identity__detail {
+  font: var(--type-hint);
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field__body > .ui-inline > .ui-button {
+  margin-inline-start: auto;
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) form > .ui-stack > .ui-inline:last-child {
+  justify-content: flex-end;
+}
+/* The O-0 content column sits 4px higher and 1px further left than the shell's
+   main gutter gives (frame padding 36px 40px against the shell's 40px/41px). */
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) {
+  margin-block-start: -4px;
+  margin-inline-start: -1px;
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-button {
+  font: var(--type-label);
+  padding-inline: var(--space-3-5);
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field__body > .ui-inline:not(.ui-inline--split) {
+  gap: var(--space-2-5);
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field__body .ui-badge {
+  background: transparent;
+  padding: var(--space-0);
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) form > .ui-stack > .ui-inline:last-child {
+  padding-block-start: var(--space-1);
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field__body {
+  gap: var(--space-2);
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field__heading {
+  gap: var(--space-0);
+}
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-button--primary {
+  border-width: 0;
+  padding-inline: var(--space-3-5);
+}
+/* Paper O-0 sets the page title, subtitle, person block, Display name label,
+   email row and buttons in the platform UI font (`system-ui`) while every other
+   label stays in Geist; the parity gate scores glyph shapes, so the same
+   elements use the same family. */
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-auth-heading .ui-heading--page,
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-auth-heading__description,
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-avatar,
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-identity__name,
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-identity__detail,
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) form > .ui-stack > .ui-field:first-of-type > label,
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field__heading > label:not([for]),
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field__body > .ui-inline > .ui-text,
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field__body > .ui-inline > .ui-badge,
+.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-button {
+  font-family: system-ui, sans-serif;
+}
+@media (max-width: 743px) {
+  .ui-settings-content:is([data-variant="personal"], [data-variant="access"]) {
+    margin-block-start: var(--space-0);
+    margin-inline-start: var(--space-0);
+  }
+  .ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field__body > .ui-inline:not(.ui-inline--split) {
+    gap: var(--space-2);
+  }
+  .ui-settings-content:is([data-variant="personal"], [data-variant="access"]) form > .ui-stack > .ui-inline:last-child {
+    justify-content: stretch;
+    padding-block-start: var(--space-0);
+  }
+  .ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field--inline {
+    row-gap: var(--space-2);
+  }
+  .ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field--inline[data-has-hint] .ui-field__heading {
+    padding-block-start: var(--space-0);
+  }
+  .ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field__heading {
+    display: flex;
+    gap: var(--space-1);
+  }
+  .ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field__note {
+    color: var(--color-fg);
+    font: var(--type-control);
+  }
+  .ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field__note::before {
+    content: "·";
+    margin-inline-end: var(--space-0-5);
+  }
+  .ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field--inline:has(> .ui-field__body > .ui-inline--split) .ui-field__heading,
+  .ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field--inline:has(> .ui-field__body > .ui-inline--split) .ui-field__heading > label,
+  .ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field--inline:has(> .ui-field__body > .ui-inline--split) .ui-field__note {
+    color: var(--color-fg-muted);
+    font: var(--type-hint);
+  }
+  .ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-identity {
+    gap: var(--space-3);
+  }
+  .ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-button {
+    min-block-size: var(--target-coarse);
+  }
+  .ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field__body > .ui-inline > .ui-button,
+  .ui-settings-content:is([data-variant="personal"], [data-variant="access"]) form > .ui-stack > .ui-inline:last-child .ui-button {
+    inline-size: 100%;
+  }
+}
+
+/* Paper O-0 Appearance (`preferences`): the personal column with no flow gap;
+   each block carries the mock's own 4/8/20/24/28px rhythm. */
+.ui-settings-content[data-variant="preferences"] {
+  gap: var(--space-0);
+  margin-inline-start: -1px;
+  max-inline-size: var(--layout-content);
+}
+.ui-settings-content[data-variant="preferences"] > .ui-auth-heading {
+  padding-block-end: var(--space-6);
+}
+.ui-settings-content[data-variant="preferences"] > .ui-auth-heading .ui-heading--page {
+  font: var(--type-heading-page);
+}
+.ui-settings-content[data-variant="preferences"] > .ui-auth-heading .ui-auth-heading__description {
+  font: var(--type-body);
+}
+.ui-settings-content[data-variant="preferences"] .ui-settings-section {
+  display: flex;
+  flex-direction: column;
+  padding-block-start: var(--space-6);
+}
+.ui-settings-content[data-variant="preferences"] .ui-settings-section > .ui-heading--section {
+  font: var(--type-heading-subsection);
+  letter-spacing: var(--tracking-normal);
+  margin-block-end: var(--space-1);
+}
+.ui-settings-content[data-variant="preferences"] .ui-text--hint {
+  font: var(--type-hint);
+}
+.ui-settings-content[data-variant="preferences"] .ui-text--muted {
+  font: var(--type-body);
+  margin-block-start: var(--space-1);
+}
+.ui-settings-content[data-variant="preferences"] .ui-inline--thirds {
+  margin-block-start: var(--space-5);
+}
+.ui-settings-content[data-variant="preferences"] .ui-inline[role="status"] {
+  color: var(--color-status-success);
+  margin-block-start: var(--space-5);
+  padding-block-end: calc(var(--space-6) + var(--space-1));
+}
+.ui-settings-content[data-variant="preferences"] .ui-inline[role="status"] .ui-badge {
+  background: transparent;
+  color: inherit;
+  font: var(--type-label);
+  padding: var(--space-0);
+}
+.ui-settings-content[data-variant="preferences"] .ui-settings-section .ui-inline:not([role]) {
+  gap: var(--space-2-5);
+  margin-block-start: var(--space-6);
+}
+.ui-settings-content[data-variant="preferences"] .ui-settings-section .ui-inline:not([role]) + .ui-text--hint {
+  margin-block-start: var(--space-8);
+}
+.ui-settings-content[data-variant="preferences"] form {
+  margin-block-start: var(--space-6);
+}
+.ui-settings-content[data-variant="preferences"] form > .ui-stack {
+  gap: var(--space-2);
+}
+.ui-settings-content[data-variant="preferences"] .ui-combobox {
+  background: transparent;
+  border: var(--border-none);
+  border-radius: var(--radius-none);
+  font: var(--type-control);
+  gap: var(--space-2);
+  margin-block-start: var(--space-6);
+  max-inline-size: none;
+  padding: var(--space-0);
+  position: relative;
+}
+.ui-settings-content[data-variant="preferences"] form > .ui-stack > .ui-combobox:first-child,
+.ui-settings-content[data-variant="preferences"] form > .ui-stack > .ui-inline + .ui-combobox {
+  margin-block-start: var(--space-0);
+}
+.ui-settings-content[data-variant="preferences"] .ui-combobox select {
+  appearance: none;
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-control-border);
+  border-radius: var(--radius-control);
+  font: var(--type-field);
+  min-block-size: var(--target-coarse);
+  padding: var(--space-0) var(--space-3);
+}
+.ui-settings-content[data-variant="preferences"] .ui-combobox > .ui-icon {
+  display: block;
+  inset-block-end: var(--space-3);
+  inset-inline-end: var(--space-3);
+  pointer-events: none;
+  position: absolute;
+}
+.ui-settings-content[data-variant="preferences"] form > .ui-stack > .ui-inline:last-child {
+  gap: var(--space-3);
+  margin-block-start: var(--space-8);
+}
+.ui-settings-content[data-variant="preferences"] .ui-button {
+  min-block-size: var(--target-coarse);
+  padding-inline: var(--space-3-5);
+}
+@media (max-width: 743px) {
+  .ui-settings-content[data-variant="preferences"] {
+    margin-inline-start: var(--space-0);
+    padding-block: var(--space-3) var(--space-2);
+  }
+  .ui-settings-content[data-variant="preferences"] form > .ui-stack > .ui-inline:last-child {
+    margin-block-start: var(--space-6);
+  }
+  .ui-settings-content[data-variant="preferences"] .ui-settings-section:has(> form) > .ui-heading--section {
+    margin-block-end: var(--space-0);
+  }
+}
+
+/* Paper O-0 Your access (`access`): the personal column in the platform UI
+   font, with section headings over rows and bordered cards. */
+/* The repeated :not() only raises specificity above the component `font`
+   shorthands, which would otherwise reset the family back to Geist. */
+.ui-settings-content[data-variant="access"] *:not([hidden]):not([hidden]):not([hidden]) {
+  font-family: system-ui, sans-serif;
+}
+.ui-settings-content[data-variant="access"] .ui-settings-section {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.ui-settings-content[data-variant="access"] .ui-settings-section > * {
+  grid-column: 1 / -1;
+}
+.ui-settings-content[data-variant="access"] .ui-settings-section > .ui-heading--section {
+  font: var(--type-heading-subsection);
+  grid-column: 1;
+  letter-spacing: var(--tracking-normal);
+}
+.ui-settings-content[data-variant="access"] .ui-settings-section > .ui-link {
+  align-self: center;
+  font: var(--type-hint);
+  grid-column: 2;
+  grid-row: 1;
+  text-decoration: none;
+}
+.ui-settings-content[data-variant="access"] .ui-access-card {
+  background: transparent;
+  border-color: var(--color-border);
+  border-radius: var(--radius-surface);
+}
+.ui-settings-content[data-variant="access"] .ui-access-card__title {
+  font: var(--type-control);
+}
+.ui-settings-content[data-variant="access"] > .ui-access-card .ui-access-card__title {
+  font: var(--type-heading-subsection);
+}
+.ui-settings-content[data-variant="access"] .ui-access-card .ui-badge {
+  font: var(--type-hint);
+}
+.ui-settings-content[data-variant="access"] .ui-capability-list {
+  border-block-start: var(--border-default) solid var(--color-border);
+}
+.ui-settings-content[data-variant="access"] .ui-capability-list__item {
+  align-items: center;
+  padding-block: var(--space-4) calc(var(--space-4) - var(--border-default));
+  padding-inline: var(--space-0);
+}
+.ui-settings-content[data-variant="access"] .ui-capability-list__description,
+.ui-settings-content[data-variant="access"] .ui-capability-list__value {
+  font: var(--type-hint);
+}
+.ui-settings-content[data-variant="access"] .ui-capability-list__title {
+  font: var(--type-control);
+}
+@media (pointer: coarse) {
+  /* The "View in Integrations" link keeps its mock height (the parity region is measured from it) but its tap target grows to the coarse minimum through an invisible, layout-free extension. */
+  .ui-settings-content[data-variant="access"] > .ui-settings-section .ui-link {
+    min-block-size: 0;
+    position: relative;
+  }
+  .ui-settings-content[data-variant="access"] > .ui-settings-section .ui-link::before {
+    content: "";
+    inset-block: calc((1lh - var(--target-coarse)) / 2);
+    inset-inline: 0;
+    position: absolute;
+  }
+}
+.ui-settings-content[data-variant="access"] .ui-access-card .ui-avatar {
+  background: var(--color-canvas);
+  block-size: var(--space-10);
+  inline-size: var(--space-10);
+}
+.ui-settings-content[data-variant="access"] .ui-access-card .ui-inline .ui-badge {
+  background: var(--color-canvas);
+  border-radius: var(--radius-control);
+  font: var(--type-hint);
+  padding: var(--space-1) var(--space-2);
+}
+.ui-settings-content[data-variant="access"] .ui-description-item {
+  align-items: flex-start;
+  background: var(--color-canvas);
+  border: var(--border-none);
+  border-radius: var(--radius-surface);
+  gap: var(--space-3-5);
+  padding: var(--space-4);
+}
+.ui-settings-content[data-variant="access"] .ui-description-item__body {
+  gap: var(--space-1-5);
+}
+.ui-settings-content[data-variant="access"] .ui-description-item__title {
+  font: var(--type-control);
+}
+.ui-settings-content[data-variant="access"] .ui-description-item__description {
+  font: var(--type-hint);
+}
+.ui-settings-content[data-variant="access"] .ui-description-item__icon {
+  flex: none;
+  inline-size: var(--space-4);
+  min-inline-size: 0;
+}
+.ui-settings-content[data-variant="access"] .ui-capability-list__value {
+  inline-size: calc(var(--space-16) + var(--space-6));
+  max-inline-size: none;
+  text-align: end;
+}
+@media (max-width: 743px) {
+  .ui-settings-content[data-variant="access"] > .ui-access-card {
+    padding: var(--space-4);
+  }
+  .ui-settings-content[data-variant="access"] .ui-access-card .ui-avatar {
+    block-size: var(--space-8);
+    inline-size: var(--space-8);
+  }
+  .ui-settings-content[data-variant="access"] .ui-capability-list__item {
+    padding-block: var(--space-3);
+  }
+  .ui-settings-content[data-variant="access"] .ui-settings-section {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--space-4);
+  }
+  .ui-settings-content[data-variant="access"] .ui-settings-section > .ui-heading--section,
+  .ui-settings-content[data-variant="access"] .ui-settings-section > .ui-link {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: start;
+  }
+  .ui-settings-content[data-variant="access"] .ui-settings-section > .ui-link {
+    margin-block-start: calc(-1 * var(--space-2));
+  }
+}
+.ui-settings-content[data-variant="preferences"] > .ui-identity {
+  border-block-end: var(--border-default) solid var(--color-border);
+  gap: var(--space-3);
+  padding-block: var(--space-1) var(--space-6);
+}
+.ui-settings-content[data-variant="preferences"] > .ui-identity .ui-identity__name {
+  font: var(--type-heading-subsection);
+}
+.ui-settings-content[data-variant="preferences"] > .ui-identity .ui-identity__detail {
+  color: var(--color-fg-muted);
+  font: var(--type-body);
+}
+.ui-settings-content[data-variant="preferences"] > .ui-identity > span:last-child {
+  gap: var(--space-1);
+}
+.ui-settings-content[data-variant="preferences"] .ui-settings-index-row {
+  padding-block: var(--space-5);
+}
+.ui-settings-content[data-variant="preferences"] .ui-settings-index-row__title {
+  font: var(--type-control);
+}
+.ui-settings-content[data-variant="preferences"] .ui-settings-index-row__description {
+  font: var(--type-hint);
+}
+.ui-settings-content[data-variant="preferences"] > .ui-button {
+  margin-block-start: var(--space-6);
+}
+.ui-settings-content[data-variant="preferences"] .ui-settings-section > .ui-heading--section:has(+ .ui-settings-index-row) {
+  margin-block-end: var(--space-2);
+}
+
+.bakery-app-shell--rail[data-inspector-size="medium"] .bakery-app-shell__inspector {
+  flex-basis: calc(var(--layout-inspector) + var(--space-16) + var(--space-4));
+}
+
+.bakery-app-shell--rail[data-inspector-size="medium"] .bakery-app-shell__inspector {
+  box-sizing: border-box;
+}
+
+.bakery-app-shell--rail[data-main-inset="page"] .bakery-app-shell__header {
+  padding-inline: var(--space-6);
+}
+
+.bakery-top-bar .ui-breadcrumbs a:not(.ui-link) {
+  color: var(--color-fg-muted);
+  min-block-size: var(--space-0);
+  text-decoration: none;
+}
+.bakery-top-bar .ui-breadcrumbs li {
+  align-items: center;
+  display: flex;
+}
+
+/* p-18-0 frames: quiet rail glyphs, 14px account name, subtle initials disc. */
+.bakery-app-shell:is([data-main-inset="page"], [data-main-inset="pageWide"]) .bakery-application-rail__link:not([aria-current="page"]) .ui-icon {
+  color: var(--color-fg-muted);
+}
+.bakery-app-shell:is([data-main-inset="page"], [data-main-inset="pageWide"]) .bakery-user-menu__name {
+  font: var(--type-body);
+}
+.bakery-app-shell:is([data-main-inset="page"], [data-main-inset="pageWide"]) .bakery-user-menu .ui-avatar {
+  background: var(--color-surface-subtle);
+}
+
+/* Split page header (p-18-0 coordination): a title and meta line on the
+   left, a right-aligned summary, 28/32 above and 20px below. */
+.bakery-page-header--split {
+  align-items: flex-end;
+  border-block-end: var(--border-none);
+  display: flex;
+  gap: var(--space-6);
+  margin-block-end: var(--space-0);
+  padding: calc(var(--space-6) + var(--space-1)) var(--space-8) var(--space-5);
+}
+.bakery-page-header--split .bakery-page-header__lead {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-1-5);
+  min-inline-size: 0;
+}
+.bakery-page-header--split .ui-heading {
+  margin: var(--space-0);
+}
+.bakery-page-header__subtitle {
+  align-items: center;
+  color: var(--color-fg-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font: var(--type-body);
+  gap: var(--space-2-5);
+  margin: var(--space-0);
+}
+.bakery-page-header--split .bakery-page-header__summary {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  gap: var(--space-1-5);
+}
+.bakery-app-shell--rail[data-main-inset="pageWide"] .bakery-app-shell__header {
+  padding-inline: var(--space-8);
+}
+.bakery-app-shell[data-main-inset="pageWide"] .bakery-app-shell__main {
+  padding: var(--space-0);
+}
+.bakery-page-header__subtitle > :last-child:not(:first-child) {
+  color: var(--color-fg);
+}
+.bakery-top-bar .ui-breadcrumbs .ui-link {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--space-3);
+  min-block-size: var(--space-5);
+  text-decoration: none;
+}
+
+/* Compact phone bar (p-18-0): 52px, ruled below, 4/16 inset. */
+.bakery-top-bar--compact {
+  align-items: center;
+  block-size: calc(var(--space-12) + var(--space-1));
+  border-block-end: var(--border-default) solid var(--color-border);
+  box-sizing: border-box;
+  display: flex;
+  gap: var(--space-1);
+  padding: var(--space-0) var(--space-4) var(--space-0) var(--space-1);
+}
+.bakery-top-bar--compact .bakery-top-bar__context {
+  flex: 1 1 0%;
+}
+
+@media (max-width: 743px) {
+  .bakery-page-header--split {
+    align-items: stretch;
+    flex-direction: column;
+    gap: var(--space-1-5);
+    padding: var(--space-4) var(--space-4)
+      calc(var(--space-3) + var(--space-0-5) / 2);
+  }
+  .bakery-page-header--split .ui-heading,
+  .bakery-page-header--list .ui-heading {
+    font: var(--type-heading-section);
+    /* The phone title is 22px, between the 20px and 24px heading roles;
+       zoom the section role instead of minting a one-off type role. */
+    zoom: 1.1;
+    margin-block-end: calc(var(--space-0-5) * -1.4);
+  }
+  .bakery-page-header--split .bakery-page-header__subtitle {
+    font: var(--type-hint);
+    gap: var(--space-1-5);
+  }
+  .bakery-page-header--split .bakery-page-header__summary {
+    align-items: flex-start;
+    gap: var(--space-1-5);
+  }
+}
+.bakery-inspector-panel--sections {
+  gap: var(--space-0);
+  padding: var(--space-0);
+}
+.bakery-inspector-panel--sections .bakery-inspector-panel__header {
+  align-items: center;
+  border-block-end: var(--border-default) solid var(--color-border);
+  box-sizing: border-box;
+  display: flex;
+  gap: var(--space-3);
+  min-block-size: var(--layout-header);
+  padding-inline: var(--space-6);
+}
+.bakery-inspector-panel--sections .bakery-inspector-panel__body {
+  gap: var(--space-0);
+}
+.bakery-app-shell--sheet .bakery-inspector-panel--sections {
+  min-block-size: auto;
+}
+
+/* List page head (p-18-0 onboarding): 24/24/16 inset, 4px between lines. */
+.bakery-page-header--list {
+  border-block-end: var(--border-none);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-block-end: var(--space-0);
+  padding: var(--space-6) var(--space-6) var(--space-4);
+}
+.bakery-page-header--list .bakery-page-header__lead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.bakery-page-header--list .bakery-page-header__subtitle {
+  color: var(--color-fg-muted);
+  font: var(--type-body);
+  margin: var(--space-0);
+}
+.bakery-page-header--list .bakery-page-header__subtitle p {
+  margin: var(--space-0);
+}
+.bakery-page-header--list .bakery-page-header__actions {
+  display: none;
+}
+@media (max-width: 743px) {
+  .bakery-page-header--list {
+    border-block-end: var(--border-default) solid var(--color-border);
+    padding: var(--space-3) var(--space-4) var(--space-4);
+  }
+  .bakery-page-header--list .bakery-page-header__subtitle {
+    font: var(--type-hint);
+  }
+  .bakery-page-header--list .bakery-page-header__actions {
+    display: block;
+    margin-block-start: var(--space-2);
+  }
+  .bakery-page-header--list .bakery-page-header__actions .ui-button {
+    inline-size: 100%;
+    min-block-size: var(--target-coarse);
+  }
+}
+.bakery-inspector-panel--sections .bakery-inspector-panel__header > :first-child {
+  flex: 1 1 auto;
+  margin: var(--space-0);
+}
+.bakery-inspector-panel--sections .bakery-inspector-panel__body {
+  align-content: start;
+}
+/* p-18-0 primary page action: 36px, 6px corner, 14px inset. */
+.bakery-top-bar__actions .ui-button--primary {
+  border-radius: var(--radius-surface);
+  margin-block: calc(
+    (var(--space-3) * 3 - max(var(--space-3) * 3, var(--target-min))) / 2
+  );
+  min-block-size: max(var(--space-3) * 3, var(--target-min));
+  padding: var(--space-0) var(--space-3-5);
+}
+/* A shell given no top bar (a page that draws its own phone header) drops
+   the empty header; any other header content keeps it. */
+.bakery-app-shell__header:not(:has(> :not(.bakery-app-shell__skip-link))) {
+  display: none;
+}

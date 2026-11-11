@@ -1,0 +1,154 @@
+{
+  "allow": [
+    "MIT",
+    "ISC",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "0BSD",
+    "BlueOak-1.0.0",
+    "CC0-1.0",
+    "Unlicense",
+    "Python-2.0",
+    "CC-BY-4.0"
+  ],
+  "exceptions": [],
+  "pendingOwnerDecision": [
+    {
+      "name": "axe-core",
+      "versions": ["4.13.0"],
+      "licence": "MPL-2.0",
+      "reason": "weak copyleft, used unmodified as a test-time dependency"
+    },
+    {
+      "name": "@axe-core/playwright",
+      "versions": ["4.13.0"],
+      "licence": "MPL-2.0",
+      "reason": "weak copyleft, used unmodified as a test-time dependency"
+    },
+    {
+      "name": "lightningcss",
+      "versions": ["1.33.0"],
+      "licence": "MPL-2.0",
+      "reason": "weak copyleft, used unmodified as a build-time CSS tool"
+    },
+    {
+      "namePrefix": "lightningcss-",
+      "versions": ["1.33.0"],
+      "licence": "MPL-2.0",
+      "reason": "platform binary of lightningcss, same MPL-2.0 licence, used unmodified at build time"
+    },
+    {
+      "name": "@sentry/cli",
+      "versions": ["2.58.6"],
+      "licence": "FSL-1.1-MIT",
+      "reason": "Functional Source License converting to MIT, used as a build-time CLI"
+    },
+    {
+      "namePrefix": "@sentry/cli-",
+      "versions": ["2.58.6"],
+      "licence": "FSL-1.1-MIT",
+      "reason": "platform binary of @sentry/cli, same FSL-1.1-MIT licence, build-time only"
+    },
+    {
+      "name": "xml-escape",
+      "versions": ["1.1.0"],
+      "licence": "MIT License",
+      "reason": "package metadata declares the non-SPDX string MIT License"
+    }
+  ],
+  "families": [
+    {
+      "prefix": "@esbuild/",
+      "reference": "esbuild",
+      "note": "platform binaries published by the esbuild project"
+    },
+    {
+      "prefix": "@oxc-parser/",
+      "reference": "oxc-parser",
+      "note": "platform bindings published by the oxc-parser project"
+    },
+    {
+      "prefix": "@oxc-resolver/",
+      "reference": "oxc-resolver",
+      "note": "platform bindings published by the oxc-resolver project"
+    },
+    {
+      "prefix": "@rolldown/binding-",
+      "reference": "rolldown",
+      "note": "platform bindings published by the rolldown project"
+    },
+    {
+      "prefix": "@sentry/cli-",
+      "reference": "@sentry/cli",
+      "note": "platform binaries published by the Sentry CLI project"
+    },
+    {
+      "prefix": "@turbo/",
+      "reference": "turbo",
+      "note": "platform binaries published by the turbo project"
+    },
+    {
+      "prefix": "@typescript/typescript-",
+      "reference": "typescript",
+      "note": "platform binaries published by the TypeScript project"
+    },
+    {
+      "prefix": "lightningcss-",
+      "reference": "lightningcss",
+      "note": "platform binaries published by the lightningcss project"
+    }
+  ],
+  "npmOverrides": [
+    {
+      "name": "@emnapi/core",
+      "versions": ["1.9.2", "1.11.0"],
+      "licence": "MIT",
+      "source": "https://github.com/toyobayashi/emnapi/blob/main/LICENSE"
+    },
+    {
+      "name": "@emnapi/runtime",
+      "versions": ["1.9.2", "1.11.0"],
+      "licence": "MIT",
+      "source": "https://github.com/toyobayashi/emnapi/blob/main/LICENSE"
+    },
+    {
+      "name": "@emnapi/wasi-threads",
+      "versions": ["1.2.1", "1.2.2"],
+      "licence": "MIT",
+      "source": "https://github.com/toyobayashi/emnapi/blob/main/LICENSE"
+    },
+    {
+      "name": "@napi-rs/wasm-runtime",
+      "versions": ["1.2.4"],
+      "licence": "MIT",
+      "source": "https://github.com/napi-rs/napi-rs/blob/main/LICENSE"
+    },
+    {
+      "name": "@tybys/wasm-util",
+      "versions": ["0.10.3", "0.10.4"],
+      "licence": "MIT",
+      "source": "https://github.com/toyobayashi/wasm-util/blob/main/LICENSE"
+    },
+    {
+      "name": "fsevents",
+      "versions": ["2.3.3"],
+      "licence": "MIT",
+      "source": "https://github.com/fsevents/fsevents/blob/master/LICENSE"
+    }
+  ],
+  "jsrOverrides": [
+    {
+      "name": "@std/assert",
+      "version": "1.0.14",
+      "licence": "MIT",
+      "source": "https://github.com/denoland/std/blob/main/LICENSE"
+    },
+    {
+      "name": "@std/internal",
+      "version": "1.0.14",
+      "licence": "MIT",
+      "source": "https://github.com/denoland/std/blob/main/LICENSE"
+    }
+  ]
+}

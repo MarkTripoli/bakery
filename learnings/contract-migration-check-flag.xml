@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="contract-migration-check-flag" project="bakery">
+  <title>Pass the approved migration explicitly when checking breaking contracts</title>
+  <trigger>A maintainer-approved contract delta is checked against a base ref.</trigger>
+  <mistake>Expecting --base-ref alone to load the compatibility approval JSON.</mistake>
+  <rule>scripts/generate-contracts.ts reads the approval only when --compatibility-migration names the supported file. Without it, strict compatibility still rejects breaking changes. Use the same explicit migration path as PR CI after verifying maintainer authorization, exact base and exact generated digest. Preserve strict-check failures; never change the guard to accept them.</rule>
+  <verification>
+    <command>deno test -A tests/unit/generate-described-contracts-and-reject-contract-drift_test.ts</command>
+    <command>deno run --allow-read --allow-run=git scripts/generate-contracts.ts --check --base-ref origin/main --compatibility-migration docs/technical-design/contract-migrations/v1-unreleased-principal-organization-contracts.json</command>
+  </verification>
+</learning>

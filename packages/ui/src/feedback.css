@@ -1,0 +1,466 @@
+@import "./foundations/index.css";
+
+.ui-feedback-dismiss,
+.ui-popover__trigger {
+  min-block-size: var(--target-min);
+  min-inline-size: var(--target-min);
+}
+
+.ui-alert-banner,
+.ui-toast,
+.ui-empty-state,
+.ui-error-state {
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  color: var(--color-fg);
+  font: var(--type-body);
+}
+
+/* Paper's `notice(text, tone)` helper (auth.css:8 `.notice`): a borderless
+   tinted block — 12px/14px padding, 4px radius, 10px gap, 14px/22px copy —
+   with the tone icon nudged 1px onto the first line's cap height. Every
+   authentication and account artboard states conditions with this one
+   element; AlertBanner and Toast keep the bordered surface treatment. */
+.ui-inline-notice {
+  align-items: flex-start;
+  background: var(--color-selection-surface);
+  border: var(--border-none);
+  border-radius: var(--radius-control); /* auth.css:8 .notice 4px */
+  color: var(--color-fg);
+  display: flex;
+  font: var(--type-notice); /* auth.css:8 .notice 14px/22px */
+  gap: var(--space-2-5); /* auth.css:8 .notice 10px */
+  padding-block: var(--space-3); /* auth.css:8 .notice 12px */
+  padding-inline: 14px; /* auth.css:8 .notice */
+}
+
+.ui-alert-banner,
+.ui-toast {
+  align-items: start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+}
+
+.ui-inline-notice__content,
+.ui-alert-banner__content,
+.ui-toast__content {
+  flex: 1;
+  flex-basis: min(12rem, 100%);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.ui-alert-banner__content h2 {
+  margin: var(--space-0);
+  font: var(--type-heading-subsection);
+}
+
+.ui-inline-notice__action,
+.ui-alert-banner__action,
+.ui-toast__action,
+.ui-feedback-action {
+  flex: none;
+}
+
+.ui-inline-notice__icon,
+.ui-alert-banner__icon {
+  flex: none;
+}
+
+.ui-inline-notice__icon {
+  /* auth.css:8 `.icon` is inline-flex, so the box is exactly the glyph: an
+     inline box would add the line's descender space and make a one-line
+     notice 5px taller than the artboard. */
+  display: flex;
+  margin-block-start: 1px; /* auth.css:8 .notice>.icon */
+}
+
+.ui-alert-banner--information,
+.ui-toast--information {
+  background: var(--color-selection-surface);
+  border-color: var(--color-selection);
+}
+
+.ui-alert-banner--success,
+.ui-toast--success {
+  background: var(--color-status-success-surface);
+  border-color: var(--color-status-success);
+  color: var(--color-status-success);
+}
+
+.ui-alert-banner--warning,
+.ui-toast--warning {
+  background: var(--color-status-warning-surface);
+  border-color: var(--color-status-warning);
+  color: var(--color-status-warning);
+}
+
+.ui-alert-banner--error,
+.ui-toast--error,
+.ui-error-state {
+  background: var(--color-destructive-surface);
+  border-color: var(--color-destructive);
+  color: var(--color-destructive);
+}
+
+.ui-inline-notice--success {
+  background: var(--color-status-success-surface); /* auth.css:8 .notice.success */
+  color: var(--color-status-success);
+}
+
+.ui-inline-notice--warning {
+  background: var(--color-status-warning-surface); /* auth.css:8 .notice.warning */
+  color: var(--color-status-warning);
+}
+
+.ui-inline-notice--error {
+  background: var(--color-destructive-surface); /* auth.css:8 .notice.error */
+  color: var(--color-destructive);
+}
+
+.ui-toast {
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-subtle);
+}
+
+.ui-feedback-dismiss,
+.ui-popover__trigger {
+  background: transparent;
+  border: var(--border-none);
+  border-radius: var(--radius-control);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+
+.ui-feedback-dismiss {
+  block-size: max(var(--size-dismiss), var(--target-min));
+  font: var(--type-dismiss);
+  padding: var(--space-0);
+  text-align: center;
+  inline-size: max(var(--size-dismiss), var(--target-min));
+}
+
+.ui-feedback-dismiss:hover,
+/* Paper 5J-0 toolbar filter button: 36px secondary frame, 12px inset. */ .ui-popover__trigger.ui-popover__trigger--toolbar {
+  align-items: center;
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  display: inline-flex;
+  font: var(--type-control);
+  gap: var(--space-2);
+  justify-content: center;
+  padding: var(--space-0) var(--space-3);
+}
+.ui-popover__trigger--toolbar .ui-icon {
+  stroke-width: var(--icon-stroke-compact);
+}
+.ui-popover__trigger:hover {
+  background: var(--color-surface-subtle);
+}
+
+.ui-empty-state,
+.ui-error-state {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  max-inline-size: var(--layout-content);
+  padding: var(--space-6);
+}
+
+.ui-empty-state--page,
+.ui-error-state--page {
+  min-block-size: 240px;
+  place-content: center start;
+}
+
+.ui-feedback-title,
+.ui-dialog__title {
+  color: var(--color-fg);
+  font: var(--type-heading-subsection);
+  margin: var(--space-0);
+}
+
+.ui-feedback-description {
+  color: var(--color-fg-muted);
+  max-inline-size: 65ch;
+}
+
+.ui-skeleton {
+  animation: ui-skeleton-pulse var(--duration-disclosure) var(--ease-standard)
+    infinite alternate;
+  background: var(--color-surface-subtle);
+  border-radius: var(--radius-control);
+}
+
+.ui-skeleton--text {
+  block-size: 20px;
+  inline-size: min(100%, 32ch);
+}
+.ui-skeleton--control {
+  block-size: var(--size-control);
+  max-inline-size: 100%;
+  inline-size: 120px;
+}
+.ui-skeleton--row {
+  block-size: var(--target-coarse);
+  inline-size: 100%;
+}
+.ui-skeleton--surface {
+  block-size: 160px;
+  inline-size: 100%;
+}
+
+.ui-tooltip {
+  display: inline-flex;
+  position: relative;
+}
+
+.ui-tooltip__content {
+  background: var(--color-surface-raised);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-overlay);
+  box-shadow: var(--shadow-subtle);
+  color: var(--color-fg);
+  display: none;
+  font: var(--type-caption);
+  inset-block-end: calc(100% + var(--space-2));
+  inset-inline-start: 50%;
+  max-inline-size: 32ch;
+  padding: var(--space-2) var(--space-3);
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: normal;
+  z-index: var(--layer-tooltip);
+}
+
+.ui-tooltip:hover .ui-tooltip__content,
+.ui-tooltip:focus-within .ui-tooltip__content,
+.ui-tooltip:focus .ui-tooltip__content {
+  display: block;
+}
+.ui-tooltip[data-dismissed="true"] .ui-tooltip__content {
+  display: none;
+}
+
+.ui-popover {
+  display: inline-block;
+  max-inline-size: 100%;
+  position: relative;
+}
+
+.ui-popover__trigger {
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+  padding: var(--space-0);
+}
+
+.ui-popover__content {
+  background: var(--color-surface-raised);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-overlay);
+  box-shadow: var(--shadow-subtle);
+  inset-block-start: calc(100% + var(--space-2));
+  inset-inline-start: 0;
+  box-sizing: border-box;
+  inline-size: var(--layout-inspector);
+  max-inline-size: min(360px, calc(100vw - var(--space-8)));
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  padding: var(--space-4);
+  position: absolute;
+  z-index: var(--layer-popover);
+}
+
+.ui-dialog,
+.ui-alert-dialog,
+.ui-sheet {
+  background: var(--color-surface-raised);
+  border: var(--border-default) solid var(--color-border);
+  box-sizing: border-box;
+  border-radius: var(--radius-overlay);
+  box-shadow: var(--shadow-overlay);
+  color: var(--color-fg);
+  max-block-size: calc(100dvb - var(--space-8));
+  max-inline-size: min(var(--layout-dialog), calc(100dvi - var(--space-8)));
+  padding: var(--space-6);
+}
+
+.ui-dialog::backdrop,
+.ui-alert-dialog::backdrop,
+.ui-sheet::backdrop {
+  background: var(--color-overlay-backdrop);
+}
+
+.ui-dialog__header {
+  align-items: start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  justify-content: space-between;
+  min-inline-size: 0;
+}
+
+.ui-dialog__title {
+  flex: 1 1 min(12rem, 100%);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.ui-dialog__content {
+  margin-block-start: var(--space-4);
+}
+
+.ui-alert-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: end;
+  margin-block-start: var(--space-6);
+}
+
+.ui-alert-dialog__safe-action {
+  margin-inline-end: auto;
+}
+
+.ui-sheet {
+  margin: var(--space-0);
+}
+.ui-sheet--side {
+  block-size: 100dvb;
+  border-radius: var(--radius-none);
+  inset-inline-end: 0;
+  max-block-size: none;
+}
+.ui-sheet--bottom {
+  inset-block-start: auto;
+  inset-block-end: 0;
+  max-inline-size: none;
+  inline-size: min(var(--layout-content), 100dvi);
+}
+
+@keyframes ui-skeleton-pulse {
+  to {
+    opacity: 0.56;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-skeleton {
+    animation: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .ui-feedback-dismiss {
+    block-size: var(--target-coarse);
+    inline-size: var(--target-coarse);
+  }
+}
+
+/* Paper p-18-0 notice bar: a 6px strip, 8/12 inset, 13/20 copy, a 16px glyph
+   and an optional trailing action. */
+.ui-inline-notice--bar {
+  align-items: center;
+  border-radius: var(--radius-surface);
+  font: var(--type-hint);
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+}
+.ui-inline-notice--bar .ui-inline-notice__icon {
+  margin-block-start: var(--space-0);
+}
+.ui-inline-notice--bar.ui-inline-notice--neutral {
+  background: var(--color-surface-subtle);
+  color: var(--color-fg);
+}
+.ui-inline-notice--bar.ui-inline-notice--neutral .ui-inline-notice__icon {
+  color: var(--color-fg-muted);
+}
+.ui-inline-notice--bar.ui-inline-notice--warning {
+  color: var(--color-fg);
+}
+.ui-inline-notice--bar.ui-inline-notice--warning .ui-inline-notice__icon {
+  color: var(--color-status-warning);
+}
+.ui-inline-notice--bar .ui-inline-notice__action {
+  font: var(--type-label);
+}
+
+/* Paper p-18-0 empty transcript: a frameless centered message, a 32px glyph
+   over 14/22 muted copy capped at 360px. */
+.ui-empty-state--centered {
+  align-content: center;
+  border: var(--border-none);
+  flex: 1 1 auto;
+  justify-items: center;
+  max-inline-size: none;
+  padding: var(--space-0);
+  text-align: center;
+}
+.ui-empty-state--centered .ui-empty-state__icon {
+  color: var(--color-fg-muted);
+  display: flex;
+}
+.ui-empty-state--centered .ui-empty-state__icon .ui-icon {
+  block-size: var(--space-8);
+  inline-size: var(--space-8);
+  stroke-width: var(--icon-stroke-compact);
+}
+.ui-empty-state--centered .ui-feedback-title {
+  color: var(--color-fg-muted);
+  font: var(--type-notice);
+  max-inline-size: calc(var(--layout-inspector) + var(--space-10));
+}
+.ui-inline-notice--bar {
+  align-items: flex-start;
+}
+.ui-inline-notice--bar .ui-inline-notice__icon {
+  margin-block-start: var(--space-0-5);
+}
+.ui-inline-notice--bar .ui-inline-notice__action .ui-button--quiet {
+  border: var(--border-none);
+  color: var(--color-selection);
+  font: var(--type-label);
+  min-block-size: var(--space-0);
+  min-inline-size: var(--space-0);
+  padding: var(--space-0);
+}
+
+/* p-18-0 coordination empty state: a 720px, 8px-radius frame on the page inset. */
+.ui-empty-state[data-inset="page"] {
+  border-radius: var(--radius-overlay);
+  gap: var(--space-2);
+  justify-items: start;
+  margin: var(--space-1) var(--space-8) var(--space-8);
+  max-inline-size: var(--layout-content);
+}
+.ui-empty-state[data-inset="page"] .ui-empty-state__icon {
+  color: var(--color-fg-muted);
+  display: flex;
+}
+.ui-empty-state[data-inset="page"] .ui-feedback-description {
+  font: var(--type-notice);
+}
+.ui-empty-state[data-inset="page"] .ui-empty-state__icon .ui-icon {
+  block-size: var(--space-6);
+  inline-size: var(--space-6);
+}
+.ui-inline-notice--bar[data-inset="page"] {
+  gap: var(--space-2-5);
+  margin: var(--space-1) var(--space-8) var(--space-3);
+  padding: var(--space-2-5) var(--space-3-5);
+}
+@media (pointer: coarse) {
+  .ui-inline-notice--bar .ui-inline-notice__action .ui-button--quiet {
+    min-block-size: var(--target-coarse);
+    min-inline-size: var(--target-coarse);
+  }
+}
+@media (max-width: 420px) {
+  .ui-inline-notice--bar {
+    flex-wrap: wrap;
+  }
+}

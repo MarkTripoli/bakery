@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Bakery two-factor fixture</title>
+  </head>
+  <body>
+    <main>
+      <h1>Two-factor fixture</h1>
+
+      <form id="sign-in-form">
+        <p>
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="email"
+            required>
+        </p>
+        <p>
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password"
+            autocomplete="current-password" required>
+        </p>
+        <button type="submit">Sign in</button>
+      </form>
+
+      <p id="status" role="status" aria-live="polite"></p>
+
+      <form id="challenge-form" hidden>
+        <p>
+          <label for="challenge-code">Authenticator code</label>
+          <input id="challenge-code" name="code" type="text"
+            inputmode="numeric" autocomplete="one-time-code" required>
+        </p>
+        <button type="submit">Verify</button>
+      </form>
+      <p id="challenge-error" role="alert" hidden>
+        Incorrect or expired code. Try again.
+      </p>
+
+      <section id="enrollment" aria-labelledby="enrollment-heading" hidden>
+        <h2 id="enrollment-heading">Enable authenticator</h2>
+        <form id="enable-form">
+          <p>
+            <label for="enable-password">Confirm your password</label>
+            <input id="enable-password" name="password" type="password"
+              autocomplete="current-password" required>
+          </p>
+          <button type="submit">Enable authenticator</button>
+        </form>
+
+        <div id="enrollment-details" hidden>
+          <p>Setup key</p>
+          <p data-testid="totp-uri"></p>
+          <p>Backup codes</p>
+          <ul data-testid="backup-codes"></ul>
+
+          <form id="verify-form">
+            <p>
+              <label for="verify-code">Authenticator code</label>
+              <input id="verify-code" name="code" type="text"
+                inputmode="numeric" autocomplete="one-time-code" required>
+            </p>
+            <button type="submit">Verify</button>
+          </form>
+        </div>
+      </section>
+
+      <section id="identity" aria-labelledby="identity-heading" hidden>
+        <h2 id="identity-heading">Identity</h2>
+        <dl>
+          <dt>Principal ID</dt>
+          <dd data-testid="principal-id"></dd>
+        </dl>
+      </section>
+
+      <button id="sign-out" type="button" disabled>Sign out</button>
+    </main>
+
+    <script type="module">
+    const signInForm = document.querySelector("#sign-in-form");
+    const passwordInput = document.querySelector("#password");
+    const status = document.querySelector("#status");
+    const challengeForm = document.querySelector("#challenge-form");
+    const challengeCodeInput = document.querySelector("#challenge-code");
+    const challengeError = document.querySelector("#challenge-error");
+    const enrollment = document.querySelector("#enrollment");
+    const enableForm = document.querySelector("#enable-form");
+    const enablePasswordInput = document.querySelector("#enable-password");
+    const enrollmentDetails = document.querySelector("#enrollment-details");
+    const totpUriEl = document.querySelector('[data-testid="totp-uri"]');
+    const backupCodesEl = document.querySelector('[data-testid="backup-codes"]');
+    const verifyForm = document.querySelector("#verify-form");
+    const verifyCodeInput = document.querySelector("#verify-code");
+    const identity = document.querySelector("#identity");
+    const signOut = document.querySelector("#sign-out");
+
+    function resetToSignedOut() {
+      challengeForm.hidden = true;
+      challengeError.hidden = true;
+      enrollment.hidden = true;
+      enrollmentDetails.hidden = true;
+      identity.hidden = true;
+      signOut.disabled = true;
+    }
+
+    async function showIdentity() {
+      const response = await fetch("/v1/me", {
+        headers: { accept: "application/json" },
+      });
+      if (!response.ok) return false;
+      const current = await response.json();
+      identity.querySelector('[data-testid="principal-id"]').textContent =
+        current.principalId;
+      identity.hidden = false;
+      signOut.disabled = false;
+      return true;
+    }
+
+    signInForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      status.textContent = "Signing in…";
+      resetToSignedOut();
+      const email = signInForm.elements.email.value;
+      const password = passwordInput.value;
+      passwordInput.value = "";
+      try {
+        const response = await fetch("/api/auth/sign-in/email", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        if (!response.ok) throw new Error("SIGN_IN_FAILED");
+        const body = await response.json();
+        if (body.twoFactorRedirect) {
+          status.textContent = "Enter your authenticator code.";
+          challengeForm.hidden = false;
+          return;
+        }
+        if (!await showIdentity()) throw new Error("IDENTITY_FAILED");
+        enrollment.hidden = false;
+        status.textContent = "Signed in.";
+      } catch {
+        resetToSignedOut();
+        status.textContent = "Sign in failed.";
+      }
+    });
+
+    challengeForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      challengeError.hidden = true;
+      const code = challengeCodeInput.value;
+      challengeCodeInput.value = "";
+      const response = await fetch("/api/auth/two-factor/verify-totp", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      if (!response.ok || !await showIdentity()) {
+        challengeError.hidden = false;
+        return;
+      }
+      challengeForm.hidden = true;
+      status.textContent = "Signed in.";
+    });
+
+    enableForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const password = enablePasswordInput.value;
+      enablePasswordInput.value = "";
+      try {
+        const response = await fetch("/api/auth/two-factor/enable", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ password }),
+        });
+        if (!response.ok) throw new Error("ENABLE_FAILED");
+        const body = await response.json();
+        totpUriEl.textContent = body.totpURI;
+        backupCodesEl.replaceChildren(
+          ...body.backupCodes.map((code) => {
+            const item = document.createElement("li");
+            item.textContent = code;
+            return item;
+          }),
+        );
+        enrollmentDetails.hidden = false;
+        status.textContent = "Verify your authenticator to finish enrollment.";
+      } catch {
+        status.textContent = "Enable authenticator failed.";
+      }
+    });
+
+    verifyForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const code = verifyCodeInput.value;
+      verifyCodeInput.value = "";
+      try {
+        const response = await fetch("/api/auth/two-factor/verify-totp", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ code }),
+        });
+        if (!response.ok) throw new Error("VERIFY_FAILED");
+        enrollment.hidden = true;
+        status.textContent = "Authenticator enabled.";
+      } catch {
+        status.textContent = "Verification failed.";
+      }
+    });
+
+    signOut.addEventListener("click", async () => {
+      status.textContent = "Signing out…";
+      try {
+        const response = await fetch("/api/auth/sign-out", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: "{}",
+        });
+        if (!response.ok) throw new Error("SIGN_OUT_FAILED");
+        resetToSignedOut();
+        status.textContent = "Signed out.";
+      } catch {
+        status.textContent = "Sign out failed.";
+      }
+    });
+    </script>
+  </body>
+</html>

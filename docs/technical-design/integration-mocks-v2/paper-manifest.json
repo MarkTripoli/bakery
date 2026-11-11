@@ -1,0 +1,29 @@
+{
+  "fileId": "01M1X504XVC45FC0VDK857A37D",
+  "screenPage": "6-0",
+  "componentPage": "4-0",
+  "screens": [
+    {"id":"43W-0","key":"home","title":"Integrations","route":"/integrations","mobile":false,"width":1440,"height":960,"image":"home-desktop.png"},
+    {"id":"43X-0","key":"home","title":"Integrations","route":"/integrations","mobile":true,"width":390,"height":844,"image":"home-phone.png"},
+    {"id":"43Y-0","key":"github-provider","title":"GitHub","route":"/integrations/github","mobile":false,"width":1440,"height":960,"image":"github-provider-desktop.png"},
+    {"id":"43Z-0","key":"github-provider","title":"GitHub","route":"/integrations/github","mobile":true,"width":390,"height":959,"image":"github-provider-phone.png"},
+    {"id":"440-0","key":"github-handoff","title":"Connect GitHub","route":"/integrations/github/connect","mobile":false,"width":1440,"height":960,"image":"github-handoff-desktop.png"},
+    {"id":"441-0","key":"github-handoff","title":"Connect GitHub","route":"/integrations/github/connect","mobile":true,"width":390,"height":844,"image":"github-handoff-phone.png"},
+    {"id":"442-0","key":"github-repositories","title":"Select repositories","route":"/integrations/github/connect/repositories","mobile":false,"width":1440,"height":960,"image":"github-repositories-desktop.png"},
+    {"id":"443-0","key":"github-repositories","title":"Select repositories","route":"/integrations/github/connect/repositories","mobile":true,"width":390,"height":944,"image":"github-repositories-phone.png"},
+    {"id":"444-0","key":"github-access","title":"Review GitHub access","route":"/integrations/github/connect/review","mobile":false,"width":1440,"height":960,"image":"github-access-desktop.png"},
+    {"id":"445-0","key":"github-access","title":"Review GitHub access","route":"/integrations/github/connect/review","mobile":true,"width":390,"height":916,"image":"github-access-phone.png"},
+    {"id":"446-0","key":"slack-provider","title":"Slack","route":"/integrations/slack","mobile":false,"width":1440,"height":960,"image":"slack-provider-desktop.png"},
+    {"id":"447-0","key":"slack-provider","title":"Slack","route":"/integrations/slack","mobile":true,"width":390,"height":999,"image":"slack-provider-phone.png"},
+    {"id":"448-0","key":"slack-handoff","title":"Connect Slack","route":"/integrations/slack/connect","mobile":false,"width":1440,"height":960,"image":"slack-handoff-desktop.png"},
+    {"id":"449-0","key":"slack-handoff","title":"Connect Slack","route":"/integrations/slack/connect","mobile":true,"width":390,"height":844,"image":"slack-handoff-phone.png"},
+    {"id":"44A-0","key":"slack-routing","title":"Configure Slack","route":"/integrations/slack/connect/configure","mobile":false,"width":1440,"height":960,"image":"slack-routing-desktop.png"},
+    {"id":"44B-0","key":"slack-routing","title":"Configure Slack","route":"/integrations/slack/connect/configure","mobile":true,"width":390,"height":1587,"image":"slack-routing-phone.png"},
+    {"id":"44C-0","key":"connection-detail","title":"GitHub · MarkTripoli","route":"/integrations/connections/con_github_01","mobile":false,"width":1440,"height":960,"image":"connection-detail-desktop.png"},
+    {"id":"44D-0","key":"connection-detail","title":"GitHub · MarkTripoli","route":"/integrations/connections/con_github_01","mobile":true,"width":390,"height":935,"image":"connection-detail-phone.png"},
+    {"id":"44E-0","key":"connection-settings","title":"Connection settings","route":"/integrations/connections/con_github_01/settings","mobile":false,"width":1440,"height":960,"image":"connection-settings-desktop.png"},
+    {"id":"44F-0","key":"connection-settings","title":"Connection settings","route":"/integrations/connections/con_github_01/settings","mobile":true,"width":390,"height":1376,"image":"connection-settings-phone.png"},
+    {"id":"6DG-0","key":"connection-recovery","title":"Connection recovery","route":"/integrations/connections/states","mobile":false,"width":1440,"height":960,"image":"connection-recovery-desktop.png"},
+    {"id":"6HM-0","key":"connection-recovery","title":"Connection recovery","route":"/integrations/connections/states","mobile":true,"width":390,"height":2018,"image":"connection-recovery-phone.png"}
+  ]
+}

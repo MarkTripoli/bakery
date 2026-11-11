@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="passkey-rp-id-is-the-public-hostname" project="bakery">
+  <title>The passkey RP ID is the public hostname; changing it orphans every registered passkey</title>
+  <trigger>Choosing or changing the hostname of BAKERY_PUBLIC_BASE_URL (new domain, rebrand, moving to another host name) on an installation that has or will have registered passkeys.</trigger>
+  <mistake>Treated the public hostname as a free deployment detail and moved the installation to another hostname after users had enrolled passkeys.</mistake>
+  <rule>passkeyRpId (apps/server/src/modules/auth/adapters/passkey-policy.ts) is the hostname of the public origin. A WebAuthn credential is bound to its RP ID, so any other hostname makes every registered passkey unusable and every user must enrol again. Choose the final hostname before the first enrolment and keep it as one reviewed constant so a change shows up as a diff. Putting a CDN or proxy in front of the same hostname does not change the RP ID; a different domain, subdomain or port-free hostname does.</rule>
+  <rule>localhost is its own realm. A local stack on 127.0.0.1 and one on localhost have different RP IDs, so passkeys enrolled on one do not work on the other.</rule>
+  <verification>
+    <requirement>Before any hostname change, record how many passkeys exist and plan re-enrolment for those users. After a move, a passkey sign-in on the new hostname must succeed for a freshly enrolled credential.</requirement>
+  </verification>
+  <boundary>Trusted origins count toward passkey ceremonies only when their host is the RP ID or a subdomain of it; wildcard and foreign hosts are dropped silently.</boundary>
+</learning>

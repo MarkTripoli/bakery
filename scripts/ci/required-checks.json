@@ -1,0 +1,185 @@
+{
+  "workflow": "Bakery CI",
+  "workflowPath": ".github/workflows/ci.yml",
+  "aggregateJob": "required / full-stack aggregate",
+  "dependencies": "deno:2.9.1,node:22.22.0,pnpm:10.33.0",
+  "lanes": [
+    {
+      "lane": "rails",
+      "job": "fast / backend rails",
+      "pullRequestRequired": true,
+      "artifacts": []
+    },
+    {
+      "lane": "git_diff_check",
+      "job": "fast / git diff check",
+      "pullRequestRequired": true,
+      "artifacts": []
+    },
+    {
+      "lane": "semantic_metadata",
+      "job": "fast / semantic metadata",
+      "pullRequestRequired": true,
+      "artifacts": []
+    },
+    {
+      "lane": "format",
+      "job": "fast / format",
+      "pullRequestRequired": true,
+      "artifacts": []
+    },
+    {
+      "lane": "typecheck",
+      "job": "fast / typecheck",
+      "pullRequestRequired": true,
+      "artifacts": []
+    },
+    {
+      "lane": "contract_description_gate",
+      "job": "fast / contract descriptions",
+      "pullRequestRequired": true,
+      "artifacts": []
+    },
+    {
+      "lane": "contract_description_gate_b",
+      "job": "fast / contract descriptions b",
+      "pullRequestRequired": true,
+      "artifacts": []
+    },
+    {
+      "lane": "contract_description_gate_c",
+      "job": "fast / contract descriptions c",
+      "pullRequestRequired": true,
+      "artifacts": []
+    },
+    {
+      "lane": "focused_unit_tests",
+      "job": "fast / focused unit",
+      "pullRequestRequired": true,
+      "artifacts": []
+    },
+    {
+      "lane": "focused_unit_tests_b",
+      "job": "fast / focused unit b",
+      "pullRequestRequired": true,
+      "artifacts": []
+    },
+    {
+      "lane": "provider_tests",
+      "job": "fast / provider conformance",
+      "pullRequestRequired": true,
+      "artifacts": []
+    },
+    {
+      "lane": "ui_catalog",
+      "job": "ui / catalog and storybook",
+      "pullRequestRequired": true,
+      "artifacts": []
+    },
+    {
+      "lane": "ui_quality",
+      "job": "ui / tokens and architecture",
+      "pullRequestRequired": true,
+      "artifacts": []
+    },
+    {
+      "lane": "ui_architecture",
+      "job": "ui / architecture rules and debt",
+      "pullRequestRequired": false,
+      "artifacts": []
+    },
+    {
+      "lane": "ui_storybook_browser",
+      "job": "ui / storybook browser",
+      "pullRequestRequired": false,
+      "artifacts": []
+    },
+    {
+      "lane": "integration_tests",
+      "job": "full / integration",
+      "pullRequestRequired": false,
+      "artifacts": []
+    },
+    {
+      "lane": "security_tests",
+      "job": "full / security",
+      "pullRequestRequired": false,
+      "artifacts": []
+    },
+    {
+      "lane": "recovery_tests",
+      "job": "full / recovery",
+      "pullRequestRequired": false,
+      "artifacts": []
+    },
+    {
+      "lane": "browser_tests",
+      "job": "full / auth browser",
+      "pullRequestRequired": false,
+      "artifacts": []
+    },
+    {
+      "lane": "ui_web_browser",
+      "job": "full / web shell browser",
+      "pullRequestRequired": false,
+      "artifacts": []
+    },
+    {
+      "lane": "ui_web_browser_b",
+      "job": "full / web shell browser b",
+      "pullRequestRequired": false,
+      "artifacts": []
+    },
+    {
+      "lane": "ui_web_browser_c",
+      "job": "full / web shell browser c",
+      "pullRequestRequired": false,
+      "artifacts": []
+    },
+    {
+      "lane": "ui_web_browser_d",
+      "job": "full / web shell browser d",
+      "pullRequestRequired": false,
+      "artifacts": []
+    },
+    {
+      "lane": "e2e_tests",
+      "job": "full / backend e2e",
+      "pullRequestRequired": false,
+      "artifacts": []
+    },
+    {
+      "lane": "ui_paper_runtime",
+      "job": "ui / paper parity runtime",
+      "pullRequestRequired": false,
+      "artifacts": [
+        {
+          "path": "artifacts/ui-baseline/runtime/manifest.json",
+          "verify": "runtime-manifest"
+        },
+        {
+          "path": "artifacts/ui-baseline/paper/comparison.json",
+          "verify": "paper-comparison"
+        }
+      ]
+    },
+    {
+      "lane": "ui_paper_entitlements",
+      "job": "ui / paper parity entitlements",
+      "pullRequestRequired": false,
+      "artifacts": []
+    },
+    {
+      "lane": "ui_paper_artifacts",
+      "job": "ui / paper parity artifacts",
+      "pullRequestRequired": false,
+      "artifacts": []
+    },
+    {
+      "lane": "native_worker",
+      "job": "native / cgroup worker smoke",
+      "pullRequestRequired": false,
+      "artifacts": []
+    }
+  ]
+}

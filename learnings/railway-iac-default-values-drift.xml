@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="railway-iac-default-values-drift" project="bakery">
+  <title>Do not declare Railway platform defaults in the IaC program</title>
+  <trigger>railway config plan --detailed-exit-code exits 2 right after a clean apply, listing a field that moved from null to a value the program set.</trigger>
+  <rule>Railway stores a platform default as null. Declaring it in .railway/railway.ts (restartPolicyType ON_FAILURE with restartPolicyMaxRetries 10, the default) makes plan report drift forever and the apply never clears it. Leave the field out of the program. Only non-default values (ALWAYS for daemons) belong there.</rule>
+  <rule>The first apply of a new project leaves the database image (source.image, source.type) pending, and a second apply then pins it. That second apply breaks Postgres when the pinned major differs from the template default; see railway-postgres-default-major-volume-reset before applying twice.</rule>
+  <verification>
+    <command>railway config plan --detailed-exit-code</command>
+    <requirement>Record exit 0 and the CLI version. Observed 2026-10-25 on CLI 5.71.0: digest-pinned postgres-ssl:17 image, memoryBytes limits and ${{...}} text were all accepted on a Hobby workspace.</requirement>
+  </verification>
+  <boundary>Defaults come from the Railway docs read on 2026-10-25 (restart policy page). Re-read them if the drift names another field.</boundary>
+</learning>

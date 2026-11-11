@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="idle-workspace-consumers" project="bakery">
+  <title>Verify shared-service consumers before retiring an idle workspace</title>
+  <trigger>An idle workspace is being closed and its checkout is being archived or removed.</trigger>
+  <mistake>Assumed closing the workspace released every consumer of its checkout, then removed the checkout or stopped shared services to complete cleanup.</mistake>
+  <rule>Use this as a procedural safety rule, not as a shipped retirement utility: before normal removal, create and restore an archive in a separate temporary verification location, then run ownership-scoped <command>git worktree</command>, <command>/proc</command> cwd/fd, and container mount/consumer inspections. If any shared or uncertain consumer remains, preserve the checkout; never force-delete it or kill, restart, or reconfigure the shared service.</rule>
+  <verification>
+    <requirement>Verify archive and restore bytes, hashes, modes, symlinks, and bundle contents, then perform fresh cwd, entrypoint, and mount-consumer checks before removal. Record the evidence and retention condition; never overwrite the live checkout during archive/restore verification.</requirement>
+  </verification>
+  <boundary>Workspace-session state is not sufficient proof that shared service consumers are gone. Preserve the checkout and continue unrelated work when consumer ownership cannot be safely retired.</boundary>
+</learning>

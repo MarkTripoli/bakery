@@ -1,0 +1,72 @@
+name: bakery-production
+services:
+  postgres:
+    image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      BAKERY_OWNER_PASSWORD: ${BAKERY_OWNER_PASSWORD:?required}
+      BAKERY_APP_PASSWORD: ${BAKERY_APP_PASSWORD:?required}
+      BAKERY_INNGEST_DATABASE_PASSWORD: ${BAKERY_INNGEST_DATABASE_PASSWORD:?required}
+    ports: ["127.0.0.1:5432:5432"]
+    volumes:
+      - /var/lib/bakery/postgres:/var/lib/postgresql/data
+      - /opt/bakery/production/001-roles.sh:/docker-entrypoint-initdb.d/001-roles.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  redis:
+    image: redis:7.4-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    restart: unless-stopped
+    command: [
+      "sh",
+      "-eu",
+      "-c",
+      "exec redis-server --appendonly yes --appendfsync everysec --maxmemory-policy noeviction --requirepass \"$$REDIS_PASSWORD\"",
+    ]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?required}
+    volumes: ["/var/lib/bakery/redis:/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  inngest:
+    image: inngest/inngest:v1.44.0@sha256:d5365a31f8bf504dc2d54ddd114fcdc1a0413f8b57a450365c095ab6234ad8c2
+    restart: unless-stopped
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    command:
+      - sh
+      - -eu
+      - -c
+      - >-
+          exec inngest start --host=0.0.0.0 --port=8288
+          --postgres-uri="postgres://inngest:$$INNGEST_DB_PASSWORD@postgres:5432/inngest"
+          --redis-uri="redis://:$$REDIS_PASSWORD@redis:6379/0"
+          --event-key="$$INNGEST_EVENT_KEY" --signing-key="$$INNGEST_SIGNING_KEY"
+          --sdk-url="$$INNGEST_SDK_URL"
+    environment:
+      INNGEST_DB_PASSWORD: ${BAKERY_INNGEST_DATABASE_PASSWORD:?required}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?required}
+      INNGEST_EVENT_KEY: ${INNGEST_EVENT_KEY:?required}
+      INNGEST_SIGNING_KEY: ${INNGEST_SIGNING_KEY:?required}
+      INNGEST_SDK_URL: ${INNGEST_SDK_URL:?required}
+    ports: ["127.0.0.1:8288:8288"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    healthcheck:
+      test: [
+        "CMD",
+        "bash",
+        "-c",
+        "exec 3<>/dev/tcp/127.0.0.1/8288 && printf 'GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && head -1 <&3 | grep -q '200 OK'",
+      ]
+      interval: 5s
+      timeout: 3s
+      retries: 30

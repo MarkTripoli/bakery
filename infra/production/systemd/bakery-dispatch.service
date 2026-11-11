@@ -1,0 +1,19 @@
+[Unit]
+Description=Bakery outbox and execution coordinator
+After=network-online.target docker.service
+
+[Service]
+User=bakery-api
+Group=bakery-api
+EnvironmentFile=/etc/bakery/server.env
+EnvironmentFile=/etc/bakery/background.env
+ExecStart=/opt/bakery/deploy/runtime.sh dispatch
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=30
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

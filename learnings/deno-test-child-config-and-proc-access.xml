@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="deno-test-child-config-and-proc-access" project="bakery" issue="83">
+  <title>Test children spawned with `deno run` need the root config, and process checks must not read /proc</title>
+  <trigger>A test under tests/ spawns a child under narrow grants with `deno run`, or checks whether a process is still alive.</trigger>
+  <mistake>A child script under tests/helpers started with `deno run` did not pick up the root deno.json import map, so its bare @bakery/* and npm specifiers failed to resolve. A liveness check with `Deno.lstat("/proc/PID")` raised NotCapable under the lane's grants.</mistake>
+  <rule>Pass `--config` with the path of the root deno.json to every `deno run` child and set its cwd to the repository root. Check that a process exists with `/usr/bin/kill -0 PID` (exit 0 means alive), which needs no file read; `Deno.lstat("/proc/...")` needs `--allow-all`, which the test lanes do not grant. Use the exact grants the deployed process uses for the child, so a lookup the real process cannot make fails in the test.</rule>
+  <verification>
+    <command>pnpm test:unit -- tests/unit/run-deterministic-checks-bound-to-candidate-and-metadata_test.ts</command>
+    <requirement>The restricted-grants runner case passes and reports its grants as narrow.</requirement>
+  </verification>
+</learning>

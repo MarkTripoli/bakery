@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="native-artifact-formatting" project="bakery">
+  <title>Validate native artifact metadata and section boundaries before publication</title>
+  <trigger>A native record rejects a non-verdict status, a passed evidence table, or an index metadata mirror that disagrees with its artifact.</trigger>
+  <mistake>Inherited status complete from a fixes template and placed a second table beneath Items using a level-three heading. The strict helper requires null for non-verdict artifacts and parses every table inside the Items section as acceptance evidence. Separately, matching artifact bytes and an archived failed index were wrongly treated as permission to manually correct an index summary mirror.</mistake>
+  <rule>Check the installed helper's allowed status for the exact artifact type. Use null for code-review-fixes and other non-verdict types. In verification receipts, keep only the acceptance verdict table inside Items; place retained-attempt tables under a separate level-two heading. Validate exact staging metadata and semantics before recording. Preserve rejected staging bytes and historical records. Formatting corrections do not earn behavioral verification or independent approval.</rule>
+  <verification>
+    <command>node TASK_ARTIFACT_HELPER current TASK TYPE</command>
+    <requirement>Strict current selection validates the entire ledger and every mirrored field/digest. An invalid index never permits a fallback directory scan or an incomplete earlier checkpoint.</requirement>
+    <requirement>contract status may exit zero while reporting problems. Check its structured problems and prerequisite fields; do not treat the exit code alone as readiness.</requirement>
+  </verification>
+  <boundary>Never repair incompatible immutable history by rewriting status, frontmatter, or index metadata mirrors without a supported recovery operation. Archiving the failed bytes does not authorize a manual repair. If no supported operation exists, preserve both states and stop the affected artifact operation; report the provenance defect separately from independently established source or hosted outcomes. A separate format-only transcription of unpublished builder output must retain the rejected original and describe its provenance. Fresh reviewers own any new approval or passed verification.</boundary>
+</learning>

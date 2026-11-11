@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "description": "Ratchet ledger for guardrail findings that predate the rule. Counts may only shrink versus the merge base; stale (too high) counts fail the check. Rule, module path and subject (element tag or composition id) key each record.",
+  "entries": [
+    {
+      "rule": "ui/raw-element-in-app",
+      "file": "apps/web/src/pages/projects-onboarding/ApplicationSection.tsx",
+      "subject": "p",
+      "count": 1
+    },
+    {
+      "rule": "ui/raw-element-in-app",
+      "file": "apps/web/src/pages/projects-onboarding/BindingSection.tsx",
+      "subject": "p",
+      "count": 6
+    },
+    {
+      "rule": "ui/raw-element-in-app",
+      "file": "apps/web/src/pages/projects-onboarding/ProfileSection.tsx",
+      "subject": "p",
+      "count": 1
+    },
+    {
+      "rule": "ui/raw-element-in-app",
+      "file": "apps/web/src/pages/projects-onboarding/ProjectsOnboardingScreen.tsx",
+      "subject": "p",
+      "count": 1
+    },
+    {
+      "rule": "ui/raw-element-in-app",
+      "file": "apps/web/src/pages/projects-onboarding/RepositoryInspectionSection.tsx",
+      "subject": "p",
+      "count": 2
+    },
+    {
+      "rule": "ui/raw-element-in-app",
+      "file": "apps/web/src/pages/projects-onboarding/RepositoryObservation.tsx",
+      "subject": "p",
+      "count": 4
+    },
+    {
+      "rule": "ui/raw-element-in-app",
+      "file": "apps/web/src/pages/projects-onboarding/RepositorySection.tsx",
+      "subject": "p",
+      "count": 3
+    },
+    {
+      "rule": "ui/raw-element-in-app",
+      "file": "apps/web/src/pages/ProjectsOnboardingPage.tsx",
+      "subject": "p",
+      "count": 1
+    }
+  ]
+}

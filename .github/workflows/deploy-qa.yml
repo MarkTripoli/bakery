@@ -1,0 +1,158 @@
+name: Deploy QA
+
+# Deploys main to the hosted QA project on Railway after Bakery CI is green.
+# Railway has no GitHub source for this project (the Railway GitHub App is not
+# installed on the org), so this workflow is the only deploy path: it uploads
+# the checked-out SHA with `railway up --detach --json`, polls that exact
+# deployment, and fails unless QA ends up serving the SHA.
+#
+# All logic lives in scripts/deploy/railway-deploy.ts (unit-tested).
+
+on:
+  workflow_run:
+    workflows: ["Bakery CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full commit SHA on main to deploy (default is the dispatched main head)
+        type: string
+        required: false
+      include_inngest:
+        description: Also redeploy the Inngest service first (implies force); it is also included automatically when infra/railway/inngest* changed since the deployed version
+        type: boolean
+        default: false
+      force:
+        description: Deploy even when QA already runs this SHA or a descendant
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-qa
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy / hosted QA
+    # Only a green Bakery CI push run on main of this repository, or a manual
+    # dispatch from main. A newer pending run replaces an older pending one, and
+    # the containment guard keeps an older SHA from regressing QA.
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: [self-hosted, hetzner, linux, x64]
+    # Must stay above railway-deploy.ts's own rollout cap (120 min) so a stuck
+    # rollout reports its failure instead of being killed without diagnostics.
+    timeout-minutes: 150
+    env:
+      RAILWAY_CLI_VERSION: "5.71.0"
+      RAILWAY_CLI_SHA256: 2e682fd2ddf8d6fdf9e46d9d99d99646ff0022a6abb0c2bca93011348a269fb9
+    steps:
+      - name: Resolve the candidate SHA
+        id: candidate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          INPUT_SHA: ${{ inputs.sha }}
+          DISPATCH_SHA: ${{ github.sha }}
+          INCLUDE_INNGEST: ${{ inputs.include_inngest }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          if [ "$EVENT_NAME" = workflow_run ]; then
+            sha="$RUN_SHA"
+          else
+            sha="${INPUT_SHA:-$DISPATCH_SHA}"
+          fi
+          if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::candidate SHA must be a full lowercase 40-hex commit"
+            exit 1
+          fi
+          flags=""
+          if [ "$INCLUDE_INNGEST" = true ]; then flags="$flags --include-inngest --force"; fi
+          if [ "$FORCE" = true ]; then flags="$flags --force"; fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "flags=${flags# }" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ steps.candidate.outputs.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+      # A green Bakery CI run for a main commit older than this workflow can
+      # finish after the workflow lands (the runner queue is long). That commit
+      # has no deploy script, and QA already serves a newer one, so there is
+      # nothing to do. Deleting the script from main is caught by the rails
+      # tests, which read it.
+      - name: Find the deploy script in the candidate
+        id: script
+        env:
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [ -f scripts/deploy/railway-deploy.ts ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT_NAME" = workflow_dispatch ]; then
+            # An operator asked for this SHA, so a green run that deploys
+            # nothing would mislead.
+            echo "::error::$CANDIDATE_SHA has no scripts/deploy/railway-deploy.ts"
+            exit 1
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$CANDIDATE_SHA has no scripts/deploy/railway-deploy.ts; it predates this workflow, so QA is not deployed from it"
+          fi
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        if: steps.script.outputs.present == 'true'
+        with: { deno-version: v2.9.1 }
+      - name: Stamp the release SHA
+        if: steps.script.outputs.present == 'true'
+        env:
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          # The Dockerfiles COPY this file and fail the build when it is empty;
+          # /health/ready reports it as the deployed version.
+          printf '%s\n' "$CANDIDATE_SHA" > .bakery-release-sha
+      - name: Install the pinned Railway CLI
+        if: steps.script.outputs.present == 'true'
+        run: |
+          set -euo pipefail
+          archive="railway-v${RAILWAY_CLI_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          install -d -m 0755 "$RUNNER_TEMP/railway-cli" "$RUNNER_TEMP/bin"
+          curl --fail --location --silent --show-error --max-time 120 \
+            "https://github.com/railwayapp/cli/releases/download/v${RAILWAY_CLI_VERSION}/${archive}" \
+            -o "$RUNNER_TEMP/railway-cli/$archive"
+          printf '%s  %s\n' "$RAILWAY_CLI_SHA256" "$RUNNER_TEMP/railway-cli/$archive" | sha256sum --check --status
+          tar -xzf "$RUNNER_TEMP/railway-cli/$archive" -C "$RUNNER_TEMP/bin" railway
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/bin/railway" --version | grep -F "$RAILWAY_CLI_VERSION"
+      - name: Deploy and verify QA
+        if: steps.script.outputs.present == 'true'
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_QA_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          QA_URL: ${{ vars.QA_URL }}
+          RAILWAY_QA_PROJECT_ID: ${{ vars.RAILWAY_QA_PROJECT_ID }}
+          RAILWAY_QA_ENVIRONMENT_ID: ${{ vars.RAILWAY_QA_ENVIRONMENT_ID }}
+          RAILWAY_QA_API_SERVICE_ID: ${{ vars.RAILWAY_QA_API_SERVICE_ID }}
+          RAILWAY_QA_DISPATCHER_SERVICE_ID: ${{ vars.RAILWAY_QA_DISPATCHER_SERVICE_ID }}
+          RAILWAY_QA_WEB_SERVICE_ID: ${{ vars.RAILWAY_QA_WEB_SERVICE_ID }}
+          RAILWAY_QA_INNGEST_SERVICE_ID: ${{ vars.RAILWAY_QA_INNGEST_SERVICE_ID }}
+          CANDIDATE_SHA: ${{ steps.candidate.outputs.sha }}
+          DEPLOY_FLAGS: ${{ steps.candidate.outputs.flags }}
+          CI: "true"
+          RAILWAY_NO_AUTO_UPDATE: "1"
+        run: |
+          # DEPLOY_FLAGS is built from fixed literals by the first step.
+          # shellcheck disable=SC2086
+          deno run --no-prompt \
+            --allow-run=railway,curl \
+            --allow-env=RAILWAY_TOKEN,GITHUB_TOKEN,GITHUB_REPOSITORY,QA_URL,RAILWAY_QA_PROJECT_ID,RAILWAY_QA_ENVIRONMENT_ID,RAILWAY_QA_API_SERVICE_ID,RAILWAY_QA_DISPATCHER_SERVICE_ID,RAILWAY_QA_WEB_SERVICE_ID,RAILWAY_QA_INNGEST_SERVICE_ID \
+            scripts/deploy/railway-deploy.ts --sha "$CANDIDATE_SHA" $DEPLOY_FLAGS

@@ -1,0 +1,15 @@
+{
+  "styles": {
+    "2IFZ-0": {
+      "display": "flex",
+      "overflow": "clip",
+      "width": "1440px",
+      "height": "900px",
+      "fontFamily": "var(--font-sans)",
+      "left": 1520,
+      "top": 0,
+      "position": "absolute",
+      "backgroundColor": "var(--color-dark-surface)"
+    }
+  }
+}

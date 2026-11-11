@@ -1,0 +1,108 @@
+erDiagram
+  direction LR
+  principals {
+    uuid id PK
+  }
+  organizations {
+    uuid id PK
+  }
+  applications {
+    uuid id PK
+  }
+  repositories {
+    uuid id PK
+  }
+  tasks {
+    uuid id PK
+  }
+  integration_connections {
+    uuid id PK
+  }
+  ticket_requests {
+    uuid id PK
+    uuid organization_id FK
+    uuid ticket_task_link_id FK
+    uuid external_ticket_id FK
+    enum intent
+    int generation
+    uuid authority_principal_id FK "nullable"
+    jsonb authority_evidence
+    uuid inbound_event_route_id FK "nullable"
+    int source_policy_revision
+    text requirements_digest
+    jsonb readiness_report
+    uuid plan_artifact_version_id FK "nullable"
+    enum disposition
+    uuid workflow_run_id FK "nullable"
+  }
+  organizations ||..o{ ticket_requests : "organization_id"
+  ticket_task_links ||..o{ ticket_requests : "ticket_task_link_id"
+  external_tickets ||..o{ ticket_requests : "external_ticket_id"
+  principals |o..o{ ticket_requests : "authority_principal_id"
+  inbound_event_routes |o..o{ ticket_requests : "inbound_event_route_id"
+  artifact_versions |o..o{ ticket_requests : "plan_artifact_version_id"
+  workflow_runs |o..o{ ticket_requests : "workflow_run_id"
+  ticket_task_links {
+    uuid id PK
+    uuid organization_id FK
+    uuid external_ticket_id FK
+    uuid task_id FK
+    enum role
+    text status_comment_external_id "nullable"
+    int last_synced_run_revision "nullable"
+    enum sync_health
+    text last_problem_code "nullable"
+  }
+  organizations ||..o{ ticket_task_links : "organization_id"
+  external_tickets ||..o{ ticket_task_links : "external_ticket_id"
+  tasks ||..o{ ticket_task_links : "task_id"
+  external_tickets {
+    uuid id PK
+    uuid organization_id FK
+    uuid ticket_source_id FK
+    text external_ticket_id
+    text key
+    text number "nullable"
+    text safe_url
+    jsonb snapshot
+    text requirements_digest
+    text provider_update_marker
+    enum visibility
+    text state
+    timestamp last_observed_at
+  }
+  organizations ||..o{ external_tickets : "organization_id"
+  ticket_sources ||..o{ external_tickets : "ticket_source_id"
+  ticket_sources {
+    uuid id PK
+    uuid organization_id FK
+    uuid integration_connection_id FK
+    uuid integration_resource_id FK
+    uuid application_id FK
+    uuid repository_id FK "nullable"
+    text external_container_id
+    boolean enabled
+    jsonb policy
+    int policy_revision
+    jsonb sync_checkpoint "nullable"
+    enum sync_health
+    timestamp last_synced_at "nullable"
+    text last_problem_code "nullable"
+  }
+  organizations ||..o{ ticket_sources : "organization_id"
+  integration_connections ||..o{ ticket_sources : "integration_connection_id"
+  integration_resources ||..o{ ticket_sources : "integration_resource_id"
+  applications ||..o{ ticket_sources : "application_id"
+  repositories |o..o{ ticket_sources : "repository_id"
+  inbound_event_routes {
+    uuid id PK
+  }
+  integration_resources {
+    uuid id PK
+  }
+  workflow_runs {
+    uuid id PK
+  }
+  artifact_versions {
+    uuid id PK
+  }

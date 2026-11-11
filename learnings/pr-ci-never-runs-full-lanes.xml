@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="pr-ci-never-runs-full-lanes" project="bakery">
+  <title>PR CI never runs the full lanes; prove them with a workflow dispatch</title>
+  <trigger>A change touches worker, security, recovery or native cgroup behavior, or a PR is green while main's full security, recovery or backend e2e lanes are red.</trigger>
+  <mistake>Main went red in full / security, full / recovery and the native cgroup worker smoke because PR runs always route to the gate lane. The full lanes, and backend e2e behind security, run only on push, schedule or workflow_dispatch, so a green PR said nothing about them and the breakage landed unseen.</mistake>
+  <rule>Do not treat a green PR as proof for the full lanes. Run the narrow lane locally under the verification lock, then dispatch the full workflow on the branch with `gh workflow run "Bakery CI" --ref &lt;branch&gt;` and confirm full / security, full / recovery, full / backend e2e, native / cgroup worker smoke and required / full-stack aggregate concluded success (not skipped) on the PR head SHA.</rule>
+  <rule>A green main push is not a full-lane proof either. scripts/ci/classify-changes.ts routes a main push to the affected route: it maps each changed path onto the heavy lanes its content touches and runs only that union, falling back to the full route when a path cannot be mapped or the diff is empty. Only the nightly schedule and a manual dispatch always run every lane. Evidence that cites "checked-green exact-head CI" therefore means the affected lanes at that head plus the most recent nightly full run, not every lane at that head.</rule>
+  <verification>
+    <requirement>gh run view &lt;id&gt; --json headSha,jobs shows every named full job with conclusion success and headSha equal to the PR head.</requirement>
+  </verification>
+</learning>

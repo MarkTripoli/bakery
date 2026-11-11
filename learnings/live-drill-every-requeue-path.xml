@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="live-drill-every-requeue-path" project="bakery">
+  <title>Drill every retry and requeue path live, with a fake that answers the harness probes</title>
+  <trigger>A change requeues a job, adds a harness probe such as --version, or changes what a failed attempt leaves behind.</trigger>
+  <mistake>Requeue tests never opened an output binding, so a retried attempt failed at output-bindings (closed stream) until a live timeout drill hit it. Proof fakes had no --version branch, so every fake run failed once the harness probed the CLI, and an older closeout proved nothing about the new candidate.</mistake>
+  <rule>Give every fake executable an early --version branch before it reads stdin or its config. For each requeue path, run a live drill that reaches the second attempt and assert its output binding and run completion; add an integration case that opens the binding on both attempts. Re-run the closeout at the final code SHA and commit raw captures for every id the record names.</rule>
+  <verification>
+    <command>pnpm test:integration tests/integration/retry-retryable-worker-faults_test.ts</command>
+    <requirement>Record the drill task and attempt ids with a committed DB capture, and the SHA the drill ran at.</requirement>
+  </verification>
+  <boundary>Applies to harness runs on ephemeral per-worktree stacks; real funded runs stay maintainer-gated.</boundary>
+</learning>

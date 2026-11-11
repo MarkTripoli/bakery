@@ -1,0 +1,18 @@
+{
+  "name": "@bakery/integration-sdk",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./mod.ts",
+    "./testing": "./testing.ts"
+  },
+  "scripts": {
+    "build": "deno check mod.ts testing.ts",
+    "typecheck": "deno check mod.ts testing.ts"
+  },
+  "dependencies": {
+    "@bakery/contracts": "workspace:*",
+    "zod": "4.5.4"
+  }
+}

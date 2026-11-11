@@ -1,0 +1,16 @@
+{
+  "styles": {
+    "KHJ-0": {
+      "display": "flex",
+      "overflow": "clip",
+      "width": "1440px",
+      "height": "fit-content",
+      "fontFamily": "var(--font-sans)",
+      "left": "0px",
+      "top": "5003px",
+      "minHeight": "1100px",
+      "position": "absolute",
+      "backgroundColor": "var(--color-dark-surface)"
+    }
+  }
+}

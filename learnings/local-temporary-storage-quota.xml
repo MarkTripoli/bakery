@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="local-temporary-storage-quota" project="bakery">
+  <title>Distinguish temporary-filesystem capacity from per-user quota</title>
+  <trigger>A tool cannot create temporary output even though filesystem capacity and inode checks show free space.</trigger>
+  <rule>Check disk capacity, inode availability, and per-user quota as separate limits. A read-only Q_GETQUOTA result whose used space equals the hard limit, together with an owned 4 KiB write that fails with EDQUOT, proves quota exhaustion for that user at that observation. Ordinary filesystem-wide capacity does not disprove it.</rule>
+  <rule>For child processes, tests, and scratch output, create a private disk-backed temporary directory and set TMPDIR on each invocation. An export performed in a separate shell does not prove the parent or a later invocation inherited it. Verify the selected directory is writable and on the intended backing filesystem.</rule>
+  <rule>A tmpfs /tmp can run out of inodes with plenty of bytes free. Scratch copies of the repository with installed node_modules hold tens of thousands of inodes each. Put scratch copies and TMPDIR under a disk-backed directory in the home cache, remove only the copies you created, by absolute path, and never wipe a shared temporary directory.</rule>
+  <boundary>Preserve unrelated live evidence and process output. Do not prescribe broad deletion, neighbor cleanup, global quota changes, or removal of retained evidence as a quota repair.</boundary>
+</learning>

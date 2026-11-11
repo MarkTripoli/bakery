@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="lock-race-tests-assert-after-the-race" project="bakery" issue="82">
+  <title>A lock-race test asserts after the race returns, and checks 500s and pg_locks, not only assertNoDeadlock</title>
+  <trigger>A test races two ticket operations with holdRow and raceInOrder to prove a lock order, or to prove that a lock is taken before an insert.</trigger>
+  <mistake>An assertion thrown inside a racer left the holdRow hold open, so fixture teardown waited on it and the run hung instead of failing. assertNoDeadlock on a fulfilled Response passes when Postgres killed one side as a deadlock victim, because the victim answers an HTTP 500. A missing lock whose later insert takes a key-share on the same row through a foreign key cannot cause a deadlock at all, so a race never shows it missing.</mistake>
+  <rule>Record observations inside the racer and assert after raceInOrder returns. For HTTP operations install the problem-error reporter for the race and assert it saw no 5xx. To pin a lock that a foreign key would otherwise hide, read pg_locks of the session queued behind the hold and assert it holds no non-AccessShare lock on the later tables, then pair that with assertNoDeadlock.</rule>
+  <verification>
+    <requirement>Removing the lock, or taking the task row before the ticket row, fails the case with a deadlock or a lock assertion, not a hang.</requirement>
+  </verification>
+</learning>

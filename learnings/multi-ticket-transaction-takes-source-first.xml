@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="multi-ticket-transaction-takes-source-first" project="bakery" issue="82">
+  <title>An operation that holds the application row across several tickets takes the source row for update first</title>
+  <trigger>A ticket operation (preview, sync, automation step) handles many tickets in one transaction, each through admission code that takes the application row for update.</trigger>
+  <mistake>Ticket source preview took the source only for share. After its first ticket it held the application row and waited for a later ticket, while a single-ticket writer held that ticket and waited for the application row: a lock-order cycle that Postgres broke with a deadlock victim and an HTTP 500. Sync already avoided it by taking the source for update first, and no test raced preview against another ticket writer.</mistake>
+  <rule>Any transaction that processes more than one ticket takes the source row for update before anything else (single-ticket writers take it for share, so they wait). Race each such operation against every single-ticket writer in both orders. A write transaction that overwrites a checkpoint also takes the source for update, re-reads and merges.</rule>
+  <verification>
+    <requirement>Each multi-ticket operation has a raceInOrder case against the single-ticket writers, and removing its first source lock fails that case.</requirement>
+  </verification>
+</learning>

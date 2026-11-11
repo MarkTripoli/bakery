@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="railway-postgres-default-major-volume-reset" project="bakery">
+  <title>Pinning a Postgres major after the first Railway apply needs an empty-volume reset</title>
+  <trigger>A railway config apply pins a Postgres image whose major version differs from the template default, or api pre-deploy fails with BOOTSTRAP_FAILED CONNECT_TIMEOUT to postgres.railway.internal:5432 while the Postgres deployment shows SUCCESS.</trigger>
+  <rule>The first apply starts Railway's default Postgres template (major 18 on 2026-10-25) and initialises the data directory. Pinning postgres-ssl:17 afterwards crash-loops with "This image runs PostgreSQL 17 but the data directory holds major version 18", yet the deployment status stays SUCCESS. Judge Postgres from its logs ("starting PostgreSQL 17.x", "ready to accept connections"), never from the status.</rule>
+  <rule>Recover only while the cluster holds no data: railway volume delete the Postgres volume, railway volume -s POSTGRES_ID -e ENV_ID -p PROJECT_ID add --mount-path /var/lib/postgresql/data, wait until the staged patch stops APPLYING, railway redeploy -s Postgres --yes, re-read the logs. The IaC does not declare the volume, so plan stays at exit 0. Do this right after the second apply, before secrets or data exist.</rule>
+  <verification>
+    <command>railway deployment list -s Postgres --json --limit 1</command>
+    <requirement>Record the Postgres log lines for the pinned major and "ready to accept connections", then the api pre-deploy bootstrap event listing role and database creation.</requirement>
+  </verification>
+  <boundary>Never delete a volume that has held application data. Default major comes from the template read on 2026-10-25; recheck before assuming 18.</boundary>
+</learning>

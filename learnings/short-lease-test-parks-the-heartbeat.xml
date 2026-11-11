@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="short-lease-test-parks-the-heartbeat" project="bakery">
+  <title>A test with a tiny lease parks the executor's heartbeat instead of sleeping past it</title>
+  <trigger>A coordinator-turn test gives a claim a 1 ms lease and a running heartbeat, then sleeps and claims the same turn again.</trigger>
+  <mistake>The (f2) takeover test slept 100 ms and reclaimed. A renewal that began within a millisecond of the reclaim kept the lease alive, so `claimNextTurn` answered busy. It failed in Bakery CI and in 2 of 30 local runs under CPU load; a sleep only moves the window.</mistake>
+  <rule>Wrap the pool with `holdLeaseRenewals` (tests/helpers/live-coordinator.ts) and pass it to `startTurn`, wait until `leaseExpired` is true on the database clock, claim, then `release()` so the parked renewal finds the bumped version and aborts the executor. Wait on state; never sleep past a lease a timer can renew.</rule>
+  <verification>
+    <requirement>The (f2) test passes in every run of a 40-run loop under CPU load, and has no `sleep` between the first claim and the reclaim.</requirement>
+  </verification>
+</learning>

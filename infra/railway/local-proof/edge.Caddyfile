@@ -1,0 +1,20 @@
+# Railway edge emulator for the local proof stack. Terminates TLS with a local
+# CA and forwards to the web tier over the private network. Like Railway's edge
+# it sets X-Real-IP to the connecting address (replacing any client-supplied
+# value) and X-Forwarded-Proto: https. Caddy replaces, not appends, a
+# client-supplied X-Forwarded-For from an untrusted peer.
+{
+	admin off
+	local_certs
+	skip_install_trust
+	persist_config off
+	grace_period 2s
+}
+
+https://bakery-qa.localhost:{$EDGE_PORT} {
+	tls internal
+	reverse_proxy web.railway.internal:8080 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Proto https
+	}
+}

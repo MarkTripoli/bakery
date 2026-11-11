@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="playwright-string-evaluate-returns-undefined" project="bakery">
+  <title>Do not pass a function as a string to locator.evaluate in a spec</title>
+  <trigger>A Playwright spec reads a value from the page with locator.evaluate and the code runs only against a live stack, so no fixture run exercises it.</trigger>
+  <mistake>The M1 journey called target.evaluate("(element) => element.closest('label')?.textContent ?? ''"). A string is evaluated as an expression, so the arrow function was never called and the result was undefined; the first live run died on undefined.trim() after a paid coordinator turn.</mistake>
+  <rule>Read page values with locators (for example locator("xpath=ancestor::label").textContent()) or pass a real function. A static unit test over the spec source rejects the string-function form, because a live-only spec cannot be run by the rails.</rule>
+  <verification>
+    <requirement>tests/unit/m1-journey-spec_test.ts fails when a spec or helper passes an arrow function to evaluate as a string.</requirement>
+  </verification>
+</learning>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="applied-migration-edit-breaks-ledger" project="bakery">
+  <title>Editing an applied migration file, even a comment, breaks every database lane on that stack</title>
+  <trigger>A migration file that a stack's database has already applied is edited again in the same branch.</trigger>
+  <mistake>A comment-only edit of an applied migration changes its checksum. The ledger still holds the old one, so every database lane on that stack fails with MIGRATION_CHECKSUM_MISMATCH:&lt;version&gt;, and the failure reads like a code defect in whichever lane runs first.</mistake>
+  <rule>Finish the migration text before the first apply, and make any later edit its own step. After one, reset only the stack you own with `pnpm --dir apps/server reset` (confirmation variables come from that stack's env file; a Docker-hosted stack also needs `BAKERY_TEST_DATABASE_ALLOW_REMOTE_RESET=1` because the server sees a container address, so first confirm the published port maps to your own project's container, and take the verification flock) before rerunning lanes. A reviewer who meets the mismatch stops and reports the ledger evidence instead of resetting a database it does not own.</rule>
+  <verification>
+    <requirement>After the reset, a database lane that applies the migration starts and reports no checksum mismatch.</requirement>
+  </verification>
+</learning>

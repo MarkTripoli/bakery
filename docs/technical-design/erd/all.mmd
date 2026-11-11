@@ -1,0 +1,870 @@
+erDiagram
+  direction LR
+  principals {
+    uuid id PK
+    uuid auth_user_id FK "nullable"
+  }
+  auth_users |o..o{ principals : "auth_user_id"
+  auth_users {
+    uuid id PK
+  }
+  organizations {
+    uuid id PK
+  }
+  organization_memberships {
+    uuid id PK
+    uuid organization_id FK
+    uuid principal_id FK
+  }
+  organizations ||..o{ organization_memberships : "organization_id"
+  principals ||..o{ organization_memberships : "principal_id"
+  organization_invitations {
+    uuid id PK
+    uuid organization_id FK
+    uuid inviter_principal_id FK
+  }
+  organizations ||..o{ organization_invitations : "organization_id"
+  principals ||..o{ organization_invitations : "inviter_principal_id"
+  installation_administrators {
+    uuid id PK
+    uuid principal_id FK
+    uuid granted_by_principal_id FK
+  }
+  principals ||..o{ installation_administrators : "principal_id"
+  principals ||..o{ installation_administrators : "granted_by_principal_id"
+  permission_grants {
+    uuid id PK
+    uuid organization_id FK
+    uuid subject_principal_id FK "nullable"
+    uuid automation_definition_id FK "nullable"
+    uuid integration_connection_id FK "nullable"
+    uuid integration_resource_id FK "nullable"
+    uuid application_id FK "nullable"
+    uuid repository_id FK "nullable"
+    uuid granted_by_principal_id FK
+  }
+  organizations ||..o{ permission_grants : "organization_id"
+  principals |o..o{ permission_grants : "subject_principal_id"
+  automation_definitions |o..o{ permission_grants : "automation_definition_id"
+  integration_connections |o..o{ permission_grants : "integration_connection_id"
+  integration_resources |o..o{ permission_grants : "integration_resource_id"
+  applications |o..o{ permission_grants : "application_id"
+  repositories |o..o{ permission_grants : "repository_id"
+  principals ||..o{ permission_grants : "granted_by_principal_id"
+  applications {
+    uuid id PK
+    uuid organization_id FK
+  }
+  organizations ||..o{ applications : "organization_id"
+  repositories {
+    uuid id PK
+    uuid organization_id FK
+    uuid application_id FK
+    uuid integration_connection_id FK
+    uuid active_profile_id FK "nullable"
+  }
+  organizations ||..o{ repositories : "organization_id"
+  applications ||..o{ repositories : "application_id"
+  integration_connections ||..o{ repositories : "integration_connection_id"
+  repository_profiles |o..o{ repositories : "active_profile_id"
+  repository_profiles {
+    uuid id PK
+    uuid organization_id FK
+    uuid repository_id FK
+    uuid created_by FK
+  }
+  organizations ||..o{ repository_profiles : "organization_id"
+  repositories ||..o{ repository_profiles : "repository_id"
+  principals ||..o{ repository_profiles : "created_by"
+  conversations {
+    uuid id PK
+    uuid organization_id FK
+    uuid application_id FK "nullable"
+    uuid repository_id FK "nullable"
+    uuid created_by FK
+  }
+  organizations ||..o{ conversations : "organization_id"
+  applications |o..o{ conversations : "application_id"
+  repositories |o..o{ conversations : "repository_id"
+  principals ||..o{ conversations : "created_by"
+  messages {
+    uuid id PK
+    uuid organization_id FK
+    uuid conversation_id FK
+    uuid author_id FK "nullable"
+    uuid agent_session_id FK "nullable"
+    uuid reply_to_id FK "nullable"
+  }
+  organizations ||..o{ messages : "organization_id"
+  conversations ||..o{ messages : "conversation_id"
+  principals |o..o{ messages : "author_id"
+  agent_sessions |o..o{ messages : "agent_session_id"
+  messages |o..o{ messages : "reply_to_id"
+  conversation_turns {
+    uuid id PK
+    uuid organization_id FK
+    uuid conversation_id FK
+    uuid trigger_message_id FK
+    uuid agent_session_id FK "nullable"
+  }
+  organizations ||..o{ conversation_turns : "organization_id"
+  conversations ||..o{ conversation_turns : "conversation_id"
+  messages ||..o| conversation_turns : "trigger_message_id"
+  agent_sessions |o..o| conversation_turns : "agent_session_id"
+  channel_links {
+    uuid id PK
+    uuid organization_id FK
+    uuid conversation_id FK
+    uuid integration_connection_id FK
+  }
+  organizations ||..o{ channel_links : "organization_id"
+  conversations ||..o{ channel_links : "conversation_id"
+  integration_connections ||..o{ channel_links : "integration_connection_id"
+  tasks {
+    uuid id PK
+    uuid organization_id FK
+    uuid application_id FK
+    uuid repository_id FK "nullable"
+    uuid conversation_id FK
+    uuid parent_task_id FK "nullable"
+    uuid created_by FK
+    uuid current_run_id FK "nullable"
+  }
+  organizations ||..o{ tasks : "organization_id"
+  applications ||..o{ tasks : "application_id"
+  repositories |o..o{ tasks : "repository_id"
+  conversations ||..o{ tasks : "conversation_id"
+  tasks |o..o{ tasks : "parent_task_id"
+  principals ||..o{ tasks : "created_by"
+  workflow_runs |o..o{ tasks : "current_run_id"
+  task_dependencies {
+    uuid id PK
+    uuid organization_id FK
+    uuid task_id FK
+    uuid depends_on_task_id FK
+  }
+  organizations ||..o{ task_dependencies : "organization_id"
+  tasks ||..o{ task_dependencies : "task_id"
+  tasks ||..o{ task_dependencies : "depends_on_task_id"
+  inbound_events {
+    uuid id PK
+    uuid provider_id FK
+  }
+  integration_providers ||..o{ inbound_events : "provider_id"
+  questions {
+    uuid id PK
+    uuid organization_id FK
+    uuid task_id FK
+    uuid run_id FK "nullable"
+    uuid conversation_id FK
+    uuid answered_by FK "nullable"
+  }
+  organizations ||..o{ questions : "organization_id"
+  tasks ||..o{ questions : "task_id"
+  workflow_runs |o..o{ questions : "run_id"
+  conversations ||..o{ questions : "conversation_id"
+  principals |o..o{ questions : "answered_by"
+  workflow_definitions {
+    uuid id PK
+    uuid organization_id FK
+    uuid active_version_id FK "nullable"
+  }
+  organizations ||..o{ workflow_definitions : "organization_id"
+  workflow_versions |o..o{ workflow_definitions : "active_version_id"
+  workflow_versions {
+    uuid id PK
+    uuid organization_id FK
+    uuid workflow_id FK
+    uuid created_by FK
+  }
+  organizations ||..o{ workflow_versions : "organization_id"
+  workflow_definitions ||..o{ workflow_versions : "workflow_id"
+  principals ||..o{ workflow_versions : "created_by"
+  agent_definitions {
+    uuid id PK
+    uuid organization_id FK
+    uuid active_version_id FK "nullable"
+  }
+  organizations ||..o{ agent_definitions : "organization_id"
+  agent_versions |o..o{ agent_definitions : "active_version_id"
+  agent_versions {
+    uuid id PK
+    uuid organization_id FK
+    uuid agent_id FK
+    uuid created_by FK
+  }
+  organizations ||..o{ agent_versions : "organization_id"
+  agent_definitions ||..o{ agent_versions : "agent_id"
+  principals ||..o{ agent_versions : "created_by"
+  skill_sources {
+    uuid id PK
+    uuid organization_id FK
+  }
+  organizations ||..o{ skill_sources : "organization_id"
+  skills {
+    uuid id PK
+    uuid organization_id FK
+    uuid source_id FK "nullable"
+    uuid active_version_id FK "nullable"
+  }
+  organizations ||..o{ skills : "organization_id"
+  skill_sources |o..o{ skills : "source_id"
+  skill_versions |o..o{ skills : "active_version_id"
+  skill_versions {
+    uuid id PK
+    uuid organization_id FK
+    uuid skill_id FK
+    uuid created_by FK
+  }
+  organizations ||..o{ skill_versions : "organization_id"
+  skills ||..o{ skill_versions : "skill_id"
+  principals ||..o{ skill_versions : "created_by"
+  skill_files {
+    uuid id PK
+    uuid organization_id FK
+    uuid skill_version_id FK
+  }
+  organizations ||..o{ skill_files : "organization_id"
+  skill_versions ||..o{ skill_files : "skill_version_id"
+  integration_providers {
+    uuid id PK
+  }
+  integration_connections {
+    uuid id PK
+    uuid organization_id FK
+    uuid provider_id FK
+    uuid installation_id FK
+    uuid secret_id FK "nullable"
+  }
+  organizations ||..o{ integration_connections : "organization_id"
+  integration_providers ||..o{ integration_connections : "provider_id"
+  integration_installations ||..o{ integration_connections : "installation_id"
+  secrets |o..o{ integration_connections : "secret_id"
+  ticket_requests {
+    uuid id PK
+    uuid organization_id FK
+    uuid ticket_task_link_id FK
+    uuid external_ticket_id FK
+    uuid authority_principal_id FK "nullable"
+    uuid inbound_event_route_id FK "nullable"
+    uuid plan_artifact_version_id FK "nullable"
+    uuid workflow_run_id FK "nullable"
+  }
+  organizations ||..o{ ticket_requests : "organization_id"
+  ticket_task_links ||..o{ ticket_requests : "ticket_task_link_id"
+  external_tickets ||..o{ ticket_requests : "external_ticket_id"
+  principals |o..o{ ticket_requests : "authority_principal_id"
+  inbound_event_routes |o..o{ ticket_requests : "inbound_event_route_id"
+  artifact_versions |o..o{ ticket_requests : "plan_artifact_version_id"
+  workflow_runs |o..o{ ticket_requests : "workflow_run_id"
+  ticket_task_links {
+    uuid id PK
+    uuid organization_id FK
+    uuid external_ticket_id FK
+    uuid task_id FK
+  }
+  organizations ||..o{ ticket_task_links : "organization_id"
+  external_tickets ||..o{ ticket_task_links : "external_ticket_id"
+  tasks ||..o{ ticket_task_links : "task_id"
+  external_tickets {
+    uuid id PK
+    uuid organization_id FK
+    uuid ticket_source_id FK
+  }
+  organizations ||..o{ external_tickets : "organization_id"
+  ticket_sources ||..o{ external_tickets : "ticket_source_id"
+  ticket_sources {
+    uuid id PK
+    uuid organization_id FK
+    uuid integration_connection_id FK
+    uuid integration_resource_id FK
+    uuid application_id FK
+    uuid repository_id FK "nullable"
+  }
+  organizations ||..o{ ticket_sources : "organization_id"
+  integration_connections ||..o{ ticket_sources : "integration_connection_id"
+  integration_resources ||..o{ ticket_sources : "integration_resource_id"
+  applications ||..o{ ticket_sources : "application_id"
+  repositories |o..o{ ticket_sources : "repository_id"
+  external_identity_links {
+    uuid id PK
+    uuid organization_id FK
+    uuid principal_id FK
+    uuid provider_id FK
+  }
+  organizations ||..o{ external_identity_links : "organization_id"
+  principals ||..o{ external_identity_links : "principal_id"
+  integration_providers ||..o{ external_identity_links : "provider_id"
+  integration_event_subscriptions {
+    uuid id PK
+    uuid organization_id FK
+    uuid integration_connection_id FK
+    uuid destination_resource_id FK
+    uuid sender_principal_id FK
+  }
+  organizations ||..o{ integration_event_subscriptions : "organization_id"
+  integration_connections ||..o{ integration_event_subscriptions : "integration_connection_id"
+  integration_resources ||..o{ integration_event_subscriptions : "destination_resource_id"
+  principals ||..o{ integration_event_subscriptions : "sender_principal_id"
+  inbound_event_routes {
+    uuid id PK
+    uuid organization_id FK
+    uuid inbound_event_id FK
+    uuid integration_connection_id FK
+    uuid integration_resource_id FK "nullable"
+  }
+  organizations ||..o{ inbound_event_routes : "organization_id"
+  inbound_events ||..o{ inbound_event_routes : "inbound_event_id"
+  integration_connections ||..o{ inbound_event_routes : "integration_connection_id"
+  integration_resources |o..o{ inbound_event_routes : "integration_resource_id"
+  integration_resources {
+    uuid id PK
+    uuid organization_id FK
+    uuid connection_id FK
+    uuid installation_id FK
+    uuid secret_id FK "nullable"
+  }
+  organizations ||..o{ integration_resources : "organization_id"
+  integration_connections ||..o{ integration_resources : "connection_id"
+  integration_installations ||..o{ integration_resources : "installation_id"
+  secrets |o..o{ integration_resources : "secret_id"
+  integration_auth_attempts {
+    uuid id PK
+    uuid organization_id FK
+    uuid initiating_principal_id FK
+    uuid provider_id FK
+    uuid reconnect_connection_id FK "nullable"
+    uuid pkce_verifier_secret_id FK "nullable"
+    uuid result_connection_id FK "nullable"
+  }
+  organizations ||..o{ integration_auth_attempts : "organization_id"
+  principals ||..o{ integration_auth_attempts : "initiating_principal_id"
+  integration_providers ||..o{ integration_auth_attempts : "provider_id"
+  integration_connections |o..o{ integration_auth_attempts : "reconnect_connection_id"
+  secrets |o..o{ integration_auth_attempts : "pkce_verifier_secret_id"
+  integration_connections |o..o{ integration_auth_attempts : "result_connection_id"
+  integration_installations {
+    uuid id PK
+    uuid provider_id FK
+    uuid credential_secret_id FK "nullable"
+  }
+  integration_providers ||..o{ integration_installations : "provider_id"
+  secrets |o..o{ integration_installations : "credential_secret_id"
+  mcp_servers {
+    uuid id PK
+    uuid organization_id FK
+  }
+  organizations ||..o{ mcp_servers : "organization_id"
+  mcp_connections {
+    uuid id PK
+    uuid organization_id FK
+    uuid server_id FK
+    uuid integration_connection_id FK "nullable"
+    uuid worker_host_id FK "nullable"
+    uuid secret_id FK "nullable"
+    uuid current_snapshot_id FK "nullable"
+  }
+  organizations ||..o{ mcp_connections : "organization_id"
+  mcp_servers ||..o{ mcp_connections : "server_id"
+  integration_connections |o..o{ mcp_connections : "integration_connection_id"
+  worker_hosts |o..o{ mcp_connections : "worker_host_id"
+  secrets |o..o{ mcp_connections : "secret_id"
+  mcp_capability_snapshots |o..o{ mcp_connections : "current_snapshot_id"
+  mcp_capability_snapshots {
+    uuid id PK
+    uuid organization_id FK
+    uuid connection_id FK
+  }
+  organizations ||..o{ mcp_capability_snapshots : "organization_id"
+  mcp_connections ||..o{ mcp_capability_snapshots : "connection_id"
+  capability_bindings {
+    uuid id PK
+    uuid organization_id FK
+    uuid repository_id FK "nullable"
+    uuid agent_version_id FK "nullable"
+    uuid workflow_version_id FK "nullable"
+    uuid skill_version_owner_id FK "nullable"
+    uuid automation_version_id FK "nullable"
+    uuid mcp_connection_id FK "nullable"
+    uuid integration_connection_id FK "nullable"
+    uuid skill_version_id FK "nullable"
+  }
+  organizations ||..o{ capability_bindings : "organization_id"
+  repositories |o..o{ capability_bindings : "repository_id"
+  agent_versions |o..o{ capability_bindings : "agent_version_id"
+  workflow_versions |o..o{ capability_bindings : "workflow_version_id"
+  skill_versions |o..o{ capability_bindings : "skill_version_owner_id"
+  automation_versions |o..o{ capability_bindings : "automation_version_id"
+  mcp_connections |o..o{ capability_bindings : "mcp_connection_id"
+  integration_connections |o..o{ capability_bindings : "integration_connection_id"
+  skill_versions |o..o{ capability_bindings : "skill_version_id"
+  secrets {
+    uuid id PK
+    uuid organization_id FK "nullable"
+    uuid active_version_id FK "nullable"
+    uuid integration_installation_id FK "nullable"
+  }
+  organizations |o..o{ secrets : "organization_id"
+  secret_versions |o..o{ secrets : "active_version_id"
+  integration_installations |o..o{ secrets : "integration_installation_id"
+  secret_versions {
+    uuid id PK
+    uuid organization_id FK "nullable"
+    uuid secret_id FK
+    uuid created_by FK
+    uuid integration_installation_id FK "nullable"
+  }
+  organizations |o..o{ secret_versions : "organization_id"
+  secrets ||..o{ secret_versions : "secret_id"
+  principals ||..o{ secret_versions : "created_by"
+  integration_installations |o..o{ secret_versions : "integration_installation_id"
+  automation_definitions {
+    uuid id PK
+    uuid organization_id FK
+    uuid active_version_id FK "nullable"
+  }
+  organizations ||..o{ automation_definitions : "organization_id"
+  automation_versions |o..o{ automation_definitions : "active_version_id"
+  automation_versions {
+    uuid id PK
+    uuid organization_id FK
+    uuid automation_id FK
+    uuid workflow_version_id FK
+    uuid actor_id FK
+  }
+  organizations ||..o{ automation_versions : "organization_id"
+  automation_definitions ||..o{ automation_versions : "automation_id"
+  workflow_versions ||..o{ automation_versions : "workflow_version_id"
+  principals ||..o{ automation_versions : "actor_id"
+  automation_firings {
+    uuid id PK
+    uuid organization_id FK
+    uuid automation_version_id FK
+    uuid trigger_event_id FK "nullable"
+    uuid run_id FK "nullable"
+  }
+  organizations ||..o{ automation_firings : "organization_id"
+  automation_versions ||..o{ automation_firings : "automation_version_id"
+  inbound_events |o..o{ automation_firings : "trigger_event_id"
+  workflow_runs |o..o{ automation_firings : "run_id"
+  workflow_runs {
+    uuid id PK
+    uuid organization_id FK
+    uuid task_id FK
+    uuid workflow_version_id FK
+    uuid repository_profile_id FK "nullable"
+    uuid requested_by FK
+  }
+  organizations ||..o{ workflow_runs : "organization_id"
+  tasks ||..o{ workflow_runs : "task_id"
+  workflow_versions ||..o{ workflow_runs : "workflow_version_id"
+  repository_profiles |o..o{ workflow_runs : "repository_profile_id"
+  principals ||..o{ workflow_runs : "requested_by"
+  run_steps {
+    uuid id PK
+    uuid organization_id FK
+    uuid run_id FK
+  }
+  organizations ||..o{ run_steps : "organization_id"
+  workflow_runs ||..o{ run_steps : "run_id"
+  agent_sessions {
+    uuid id PK
+    uuid organization_id FK
+    uuid run_step_id FK "nullable"
+    uuid conversation_id FK
+    uuid agent_version_id FK
+    uuid parent_session_id FK "nullable"
+  }
+  organizations ||..o{ agent_sessions : "organization_id"
+  run_steps |o..o{ agent_sessions : "run_step_id"
+  conversations ||..o{ agent_sessions : "conversation_id"
+  agent_versions ||..o{ agent_sessions : "agent_version_id"
+  agent_sessions |o..o{ agent_sessions : "parent_session_id"
+  jobs {
+    uuid id PK
+    uuid organization_id FK
+    uuid run_step_id FK
+    uuid repository_id FK "nullable"
+  }
+  organizations ||..o{ jobs : "organization_id"
+  run_steps ||..o{ jobs : "run_step_id"
+  repositories |o..o{ jobs : "repository_id"
+  worker_hosts {
+    uuid id PK
+    uuid organization_id FK
+    uuid principal_id FK
+  }
+  organizations ||..o{ worker_hosts : "organization_id"
+  principals ||..o| worker_hosts : "principal_id"
+  job_attempts {
+    uuid id PK
+    uuid organization_id FK
+    uuid job_id FK
+    uuid worker_host_id FK
+  }
+  organizations ||..o{ job_attempts : "organization_id"
+  jobs ||..o{ job_attempts : "job_id"
+  worker_hosts ||..o{ job_attempts : "worker_host_id"
+  attempt_events {
+    uuid id PK
+    uuid organization_id FK
+    uuid attempt_id FK
+  }
+  organizations ||..o{ attempt_events : "organization_id"
+  job_attempts ||..o{ attempt_events : "attempt_id"
+  workspaces {
+    uuid id PK
+    uuid organization_id FK
+    uuid attempt_id FK
+    uuid repository_id FK
+    uuid worker_host_id FK
+  }
+  organizations ||..o{ workspaces : "organization_id"
+  job_attempts ||..o{ workspaces : "attempt_id"
+  repositories ||..o{ workspaces : "repository_id"
+  worker_hosts ||..o{ workspaces : "worker_host_id"
+  previews {
+    uuid id PK
+    uuid organization_id FK
+    uuid workspace_id FK
+  }
+  organizations ||..o{ previews : "organization_id"
+  workspaces ||..o{ previews : "workspace_id"
+  artifacts {
+    uuid id PK
+    uuid organization_id FK
+    uuid task_id FK
+    uuid current_version_id FK "nullable"
+    uuid pinned_by FK "nullable"
+  }
+  organizations ||..o{ artifacts : "organization_id"
+  tasks ||..o{ artifacts : "task_id"
+  artifact_versions |o..o{ artifacts : "current_version_id"
+  principals |o..o{ artifacts : "pinned_by"
+  artifact_versions {
+    uuid id PK
+    uuid organization_id FK
+    uuid artifact_id FK
+    uuid run_step_id FK "nullable"
+    uuid author_id FK
+  }
+  organizations ||..o{ artifact_versions : "organization_id"
+  artifacts ||..o{ artifact_versions : "artifact_id"
+  run_steps |o..o{ artifact_versions : "run_step_id"
+  principals ||..o{ artifact_versions : "author_id"
+  artifact_comments {
+    uuid id PK
+    uuid organization_id FK
+    uuid artifact_version_id FK
+    uuid author_id FK
+    uuid resolved_by FK "nullable"
+    uuid root_id FK "nullable"
+  }
+  organizations ||..o{ artifact_comments : "organization_id"
+  artifact_versions ||..o{ artifact_comments : "artifact_version_id"
+  principals ||..o{ artifact_comments : "author_id"
+  principals |o..o{ artifact_comments : "resolved_by"
+  artifact_comments |o..o{ artifact_comments : "root_id"
+  memory_entries {
+    uuid id PK
+    uuid organization_id FK
+    uuid repository_id FK
+    uuid current_revision_id FK "nullable"
+  }
+  organizations ||..o{ memory_entries : "organization_id"
+  repositories ||..o{ memory_entries : "repository_id"
+  memory_revisions |o..o{ memory_entries : "current_revision_id"
+  memory_revisions {
+    uuid id PK
+    uuid organization_id FK
+    uuid memory_id FK
+    uuid source_artifact_version_id FK
+    uuid supersedes_id FK "nullable"
+    uuid created_by FK
+  }
+  organizations ||..o{ memory_revisions : "organization_id"
+  memory_entries ||..o{ memory_revisions : "memory_id"
+  artifact_versions ||..o{ memory_revisions : "source_artifact_version_id"
+  memory_revisions |o..o{ memory_revisions : "supersedes_id"
+  principals ||..o{ memory_revisions : "created_by"
+  pull_requests {
+    uuid id PK
+    uuid organization_id FK
+    uuid task_id FK
+    uuid repository_id FK
+  }
+  organizations ||..o{ pull_requests : "organization_id"
+  tasks ||..o{ pull_requests : "task_id"
+  repositories ||..o{ pull_requests : "repository_id"
+  review_cycles {
+    uuid id PK
+    uuid organization_id FK
+    uuid pull_request_id FK
+    uuid run_id FK
+    uuid reviewer_session_id FK
+    uuid artifact_version_id FK "nullable"
+  }
+  organizations ||..o{ review_cycles : "organization_id"
+  pull_requests ||..o{ review_cycles : "pull_request_id"
+  workflow_runs ||..o{ review_cycles : "run_id"
+  agent_sessions ||..o{ review_cycles : "reviewer_session_id"
+  artifact_versions |o..o{ review_cycles : "artifact_version_id"
+  review_findings {
+    uuid id PK
+    uuid organization_id FK
+    uuid review_cycle_id FK
+    uuid resolution_artifact_id FK "nullable"
+  }
+  organizations ||..o{ review_findings : "organization_id"
+  review_cycles ||..o{ review_findings : "review_cycle_id"
+  artifact_versions |o..o{ review_findings : "resolution_artifact_id"
+  check_runs {
+    uuid id PK
+    uuid organization_id FK
+    uuid run_id FK
+    uuid pull_request_id FK "nullable"
+    uuid evidence_version_id FK "nullable"
+  }
+  organizations ||..o{ check_runs : "organization_id"
+  workflow_runs ||..o{ check_runs : "run_id"
+  pull_requests |o..o{ check_runs : "pull_request_id"
+  artifact_versions |o..o{ check_runs : "evidence_version_id"
+  merge_entries {
+    uuid id PK
+    uuid organization_id FK
+    uuid pull_request_id FK
+    uuid repository_id FK
+    uuid external_effect_id FK "nullable"
+    uuid run_id FK
+    uuid review_cycle_id FK
+  }
+  organizations ||..o{ merge_entries : "organization_id"
+  pull_requests ||..o{ merge_entries : "pull_request_id"
+  repositories ||..o{ merge_entries : "repository_id"
+  external_effects |o..o{ merge_entries : "external_effect_id"
+  workflow_runs ||..o{ merge_entries : "run_id"
+  review_cycles ||..o{ merge_entries : "review_cycle_id"
+  merge_entry_checks {
+    uuid id PK
+    uuid organization_id FK
+    uuid merge_entry_id FK
+    uuid check_run_id FK
+  }
+  organizations ||..o{ merge_entry_checks : "organization_id"
+  merge_entries ||..o{ merge_entry_checks : "merge_entry_id"
+  check_runs ||..o{ merge_entry_checks : "check_run_id"
+  deployments {
+    uuid id PK
+    uuid organization_id FK
+    uuid repository_id FK
+    uuid run_id FK
+    uuid previous_deployment_id FK "nullable"
+    uuid external_effect_id FK "nullable"
+    uuid health_evidence_id FK "nullable"
+  }
+  organizations ||..o{ deployments : "organization_id"
+  repositories ||..o{ deployments : "repository_id"
+  workflow_runs ||..o{ deployments : "run_id"
+  deployments |o..o{ deployments : "previous_deployment_id"
+  external_effects |o..o{ deployments : "external_effect_id"
+  artifact_versions |o..o{ deployments : "health_evidence_id"
+  event_clock {
+    uuid organization_id PK, FK
+    text stream PK
+  }
+  organizations ||..o{ event_clock : "organization_id"
+  application_migration_drain {
+    text id PK
+  }
+  domain_events {
+    uuid id PK
+    uuid organization_id FK
+    uuid application_id FK "nullable"
+    uuid repository_id FK "nullable"
+    uuid task_id FK "nullable"
+    uuid conversation_id FK "nullable"
+  }
+  organizations ||..o{ domain_events : "organization_id"
+  applications |o..o{ domain_events : "application_id"
+  repositories |o..o{ domain_events : "repository_id"
+  tasks |o..o{ domain_events : "task_id"
+  conversations |o..o{ domain_events : "conversation_id"
+  outbox {
+    uuid id PK
+    uuid organization_id FK
+    uuid event_id FK
+  }
+  organizations ||..o{ outbox : "organization_id"
+  domain_events ||..o{ outbox : "event_id"
+  idempotency_records {
+    uuid id PK
+    uuid organization_id FK "nullable"
+    uuid principal_id FK
+  }
+  organizations |o..o{ idempotency_records : "organization_id"
+  principals ||..o{ idempotency_records : "principal_id"
+  external_effects {
+    uuid id PK
+    uuid organization_id FK
+    uuid run_step_id FK "nullable"
+    uuid automation_definition_id FK "nullable"
+    uuid subscription_id FK "nullable"
+    uuid integration_connection_id FK "nullable"
+    uuid integration_resource_id FK "nullable"
+    uuid mcp_connection_id FK "nullable"
+    uuid repository_profile_id FK "nullable"
+    uuid requesting_principal_id FK
+    uuid argument_artifact_version_id FK "nullable"
+    uuid credential_version_id FK "nullable"
+    uuid budget_reservation_id FK "nullable"
+  }
+  organizations ||..o{ external_effects : "organization_id"
+  run_steps |o..o{ external_effects : "run_step_id"
+  automation_definitions |o..o{ external_effects : "automation_definition_id"
+  integration_event_subscriptions |o..o{ external_effects : "subscription_id"
+  integration_connections |o..o{ external_effects : "integration_connection_id"
+  integration_resources |o..o{ external_effects : "integration_resource_id"
+  mcp_connections |o..o{ external_effects : "mcp_connection_id"
+  repository_profiles |o..o{ external_effects : "repository_profile_id"
+  principals ||..o{ external_effects : "requesting_principal_id"
+  artifact_versions |o..o{ external_effects : "argument_artifact_version_id"
+  secret_versions |o..o{ external_effects : "credential_version_id"
+  budget_reservations |o..o{ external_effects : "budget_reservation_id"
+  audit_events {
+    uuid id PK
+    uuid organization_id FK
+    uuid principal_id FK "nullable"
+  }
+  organizations ||..o{ audit_events : "organization_id"
+  principals |o..o{ audit_events : "principal_id"
+  usage_records {
+    uuid id PK
+    uuid organization_id FK
+    uuid run_id FK "nullable"
+    uuid agent_session_id FK "nullable"
+    uuid attempt_id FK "nullable"
+    uuid budget_reservation_id FK "nullable"
+  }
+  organizations ||..o{ usage_records : "organization_id"
+  workflow_runs |o..o{ usage_records : "run_id"
+  agent_sessions |o..o{ usage_records : "agent_session_id"
+  job_attempts |o..o{ usage_records : "attempt_id"
+  budget_reservations |o..o{ usage_records : "budget_reservation_id"
+  evaluation_definitions {
+    uuid id PK
+    uuid organization_id FK
+  }
+  organizations ||..o{ evaluation_definitions : "organization_id"
+  evaluation_cases {
+    uuid id PK
+    uuid organization_id FK
+    uuid repository_id FK "nullable"
+    uuid input_artifact_version_id FK
+  }
+  organizations ||..o{ evaluation_cases : "organization_id"
+  repositories |o..o{ evaluation_cases : "repository_id"
+  artifact_versions ||..o{ evaluation_cases : "input_artifact_version_id"
+  evaluation_runs {
+    uuid id PK
+    uuid organization_id FK
+    uuid definition_id FK
+    uuid subject_run_id FK "nullable"
+  }
+  organizations ||..o{ evaluation_runs : "organization_id"
+  evaluation_definitions ||..o{ evaluation_runs : "definition_id"
+  workflow_runs |o..o{ evaluation_runs : "subject_run_id"
+  evaluation_results {
+    uuid id PK
+    uuid organization_id FK
+    uuid evaluation_run_id FK
+    uuid case_id FK "nullable"
+    uuid subject_artifact_version_id FK "nullable"
+    uuid usage_record_id FK "nullable"
+  }
+  organizations ||..o{ evaluation_results : "organization_id"
+  evaluation_runs ||..o{ evaluation_results : "evaluation_run_id"
+  evaluation_cases |o..o{ evaluation_results : "case_id"
+  artifact_versions |o..o{ evaluation_results : "subject_artifact_version_id"
+  usage_records |o..o{ evaluation_results : "usage_record_id"
+  worker_enrollments {
+    uuid id PK
+    uuid organization_id FK
+    uuid principal_id FK
+  }
+  organizations ||..o{ worker_enrollments : "organization_id"
+  principals ||..o{ worker_enrollments : "principal_id"
+  worker_commands {
+    uuid id PK
+    uuid organization_id FK
+    uuid attempt_id FK
+    uuid message_id FK "nullable"
+  }
+  organizations ||..o{ worker_commands : "organization_id"
+  job_attempts ||..o{ worker_commands : "attempt_id"
+  messages |o..o{ worker_commands : "message_id"
+  preview_grants {
+    uuid id PK
+    uuid organization_id FK
+    uuid preview_id FK
+    uuid principal_id FK
+  }
+  organizations ||..o{ preview_grants : "organization_id"
+  previews ||..o{ preview_grants : "preview_id"
+  principals ||..o{ preview_grants : "principal_id"
+  budget_accounts {
+    uuid id PK
+    uuid organization_id FK "nullable"
+    uuid run_id FK "nullable"
+  }
+  organizations |o..o{ budget_accounts : "organization_id"
+  workflow_runs |o..o{ budget_accounts : "run_id"
+  budget_reservations {
+    uuid id PK
+    uuid organization_id FK
+    uuid budget_account_id FK
+    uuid run_step_id FK "nullable"
+    uuid external_effect_id FK "nullable"
+  }
+  organizations ||..o{ budget_reservations : "organization_id"
+  budget_accounts ||..o{ budget_reservations : "budget_account_id"
+  run_steps |o..o{ budget_reservations : "run_step_id"
+  external_effects |o..o{ budget_reservations : "external_effect_id"
+  user_preferences {
+    uuid id PK
+    uuid organization_id FK
+    uuid principal_id FK
+  }
+  organizations ||..o{ user_preferences : "organization_id"
+  principals ||..o{ user_preferences : "principal_id"
+  plugin_state {
+    uuid id PK
+    uuid organization_id FK
+    uuid plugin_install_id FK
+    uuid owner_principal_id FK "nullable"
+  }
+  organizations ||..o{ plugin_state : "organization_id"
+  plugin_installs ||..o{ plugin_state : "plugin_install_id"
+  principals |o..o{ plugin_state : "owner_principal_id"
+  plugin_installs {
+    uuid id PK
+    uuid organization_id FK
+    uuid plugin_package_id FK
+    uuid plugin_version_id FK
+    uuid owner_principal_id FK "nullable"
+  }
+  organizations ||..o{ plugin_installs : "organization_id"
+  plugin_packages ||..o{ plugin_installs : "plugin_package_id"
+  plugin_versions ||..o{ plugin_installs : "plugin_version_id"
+  principals |o..o{ plugin_installs : "owner_principal_id"
+  plugin_versions {
+    uuid id PK
+    uuid organization_id FK
+    uuid plugin_package_id FK
+  }
+  organizations ||..o{ plugin_versions : "organization_id"
+  plugin_packages ||..o{ plugin_versions : "plugin_package_id"
+  plugin_packages {
+    uuid id PK
+    uuid organization_id FK
+  }
+  organizations ||..o{ plugin_packages : "organization_id"

@@ -1,0 +1,22 @@
+{
+  "name": "@bakery/config",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "exports": {
+    ".": "./src/env.ts",
+    "./sentry": "./src/sentry.ts",
+    "./sentry-build": "./src/sentry-build.ts",
+    "./sentry-privacy": "./src/sentry-privacy.ts",
+    "./sentry-deno": "./src/sentry-deno.ts"
+  },
+  "scripts": {
+    "typecheck": "deno check src/env.ts",
+    "build": "deno check src/env.ts"
+  },
+  "dependencies": {
+    "@sentry/core": "11.6.0",
+    "@sentry/deno": "11.6.0",
+    "zod": "4.5.4"
+  }
+}

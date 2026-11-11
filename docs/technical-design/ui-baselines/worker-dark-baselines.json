@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 2,
+  "source": {
+    "fileId": "bakery-repo-worker-dark",
+    "pageId": "worker-dark-derived",
+    "manifestPath": "docs/technical-design/worker-dark-mocks/paper-manifest.json",
+    "entry": "docs/technical-design/worker-dark-mocks/site/index.html",
+    "readyGlobal": "bakeryWorkerDarkReady",
+    "inputs": [
+      "docs/technical-design/worker-dark-mocks/paper-manifest.json",
+      "docs/technical-design/worker-dark-mocks/source-manifest.json",
+      "docs/technical-design/worker-dark-mocks/source/detail-dark-phone-90D-0-derived.react-css.txt",
+      "docs/technical-design/worker-dark-mocks/theme-values.json",
+      "docs/technical-design/worker-dark-mocks/site/index.html",
+      "docs/technical-design/worker-dark-mocks/site/site.js",
+      "docs/technical-design/worker-dark-mocks/site/fragments/detail--default--dark--phone.html",
+      "docs/technical-design/worker-readiness/source/list-light-mobile-8SE-0.react-css.txt",
+      "docs/technical-design/worker-readiness/source/list-dark-mobile-AD7-0.react-css.txt",
+      "docs/technical-design/worker-readiness/source/list-light-desktop-8SD-0.react-css.txt",
+      "docs/technical-design/worker-readiness/source/list-dark-desktop-A8Y-0.react-css.txt",
+      "docs/technical-design/worker-readiness/source/detail-light-phone-90D-0.react-css.txt",
+      "docs/technical-design/worker-readiness/theme-values.json",
+      "docs/technical-design/worker-readiness/paper-manifest.json",
+      "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf",
+      "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf",
+      "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf",
+      "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf",
+      "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf",
+      "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf",
+      "docs/technical-design/ui-baselines/runtime-cases.json",
+      "packages/ui/scripts/fontconfig/fonts.conf",
+      "packages/ui/scripts/derive-worker-dark-source.mjs",
+      "packages/ui/scripts/render-worker-dark-references.mjs",
+      "packages/ui/scripts/render-enterprise-references.mjs",
+      "packages/ui/scripts/worker-readiness-reference.mjs"
+    ],
+    "revision": "paper:ebf667e2; mock:f929e4ca; rendered:2026-11-10",
+    "digest": "f929e4ca43bf60c83b0b8de50011398002dd06ceb3158333f7354c9fd5bcbeb3"
+  },
+  "reference": {
+    "hidden": [],
+    "overrides": {}
+  },
+  "cases": [
+    {
+      "id": "detail.default.dark.phone",
+      "reference": "design",
+      "frameId": "derived-90D-0-dark",
+      "pageId": "worker-dark-derived",
+      "design": {
+        "screen": "detail",
+        "state": "default",
+        "theme": "dark",
+        "device": "phone"
+      },
+      "imagePath": "docs/technical-design/ui-baselines/paper/worker-dark/detail--default--dark--phone.png",
+      "imageSha256": "c9de4bbb199ca6b1b0a79b32b58aa390fc7ae4636bc29761f79da099cf31c2f3",
+      "viewport": {
+        "width": 390,
+        "height": 1483
+      },
+      "artboard": {
+        "width": 390,
+        "height": 1483
+      },
+      "image": {
+        "width": 390,
+        "height": 1483
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "browser": "chromium",
+      "os": "linux-x64",
+      "fontDigests": {
+        "docs/technical-design/enterprise-mocks/fonts/geist-400.ttf": "ccce59465ae5c61930ada5453834f60500fbd95084d85db63e0e65fad0125455",
+        "docs/technical-design/enterprise-mocks/fonts/geist-500.ttf": "a8eefb873ba9c9020665f8a98302697ce1f3b79ab2deef6ee508c0ca6a82e876",
+        "docs/technical-design/enterprise-mocks/fonts/geist-600.ttf": "7171f481b121803d007f5c6c76cd9988c0d41cce4202db9a18dff9945505d36d",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf": "7022da390e9b401ea35b722f8ed2376948e70add10954bc798839b4bfe17ef3f",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf": "5c1b7b77c2d6132460f03b60c175adc80da1ebd0b418c785135b1aed27a28b30",
+        "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
+      },
+      "candidate": {
+        "storyId": "bakery-templates-workerreadonlydetail--contract",
+        "args": {
+          "state": "ready"
+        },
+        "reducedMotion": "no-preference",
+        "wholeArtboard": {
+          "targetSelector": "[data-paper-whole-artboard=\"worker-detail\"]",
+          "qualificationSelector": ".ui-worker-detail__boundary"
+        }
+      }
+    }
+  ],
+  "excluded": []
+}

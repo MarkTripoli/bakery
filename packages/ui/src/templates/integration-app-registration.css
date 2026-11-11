@@ -1,0 +1,13 @@
+.ui-integration-app-registration {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-inline-size: 45rem;
+  min-inline-size: 0;
+  color: var(--color-fg);
+}
+.ui-integration-app-registration__heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}

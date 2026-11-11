@@ -1,0 +1,43 @@
+erDiagram
+  direction LR
+  principals {
+    uuid id PK
+  }
+  organizations {
+    uuid id PK
+  }
+  repositories {
+    uuid id PK
+  }
+  artifact_versions {
+    uuid id PK
+  }
+  memory_entries {
+    uuid id PK
+    uuid organization_id FK
+    uuid repository_id FK
+    text topic
+    jsonb tags
+    uuid current_revision_id FK "nullable"
+    enum status
+  }
+  organizations ||..o{ memory_entries : "organization_id"
+  repositories ||..o{ memory_entries : "repository_id"
+  memory_revisions |o..o{ memory_entries : "current_revision_id"
+  memory_revisions {
+    uuid id PK
+    uuid organization_id FK
+    uuid memory_id FK
+    int revision
+    text body
+    uuid source_artifact_version_id FK
+    uuid supersedes_id FK "nullable"
+    numeric confidence
+    timestamp expires_at "nullable"
+    uuid created_by FK
+  }
+  organizations ||..o{ memory_revisions : "organization_id"
+  memory_entries ||..o{ memory_revisions : "memory_id"
+  artifact_versions ||..o{ memory_revisions : "source_artifact_version_id"
+  memory_revisions |o..o{ memory_revisions : "supersedes_id"
+  principals ||..o{ memory_revisions : "created_by"

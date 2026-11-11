@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="persistent-preview-engine-ownership" project="bakery">
+  <title>Refresh a persistent preview through its existing container engine</title>
+  <trigger>Updating the long-lived operator preview after a merge while ephemeral verification uses another Docker daemon.</trigger>
+  <mistake>Forced the verification daemon into the preview refresh environment. The same Compose project name created a second stack with empty volumes and collided with the existing preview's fixed ports.</mistake>
+  <rule>Before refresh, inspect the preview supervisor's engine environment and confirm its existing project containers and data volumes on that engine. Compose project names are daemon-local identities. Do not infer the preview engine from an unrelated verification stack or replace its persistent data with a fresh project.</rule>
+  <rule>Use the existing refresh command with the supervisor's engine context. If an attempt creates duplicate resources on another engine, identify the exact resources and their creation before removing only that attempt's resources. Preserve the original daemon's volumes and services. An explicit access denial remains a stop boundary; it does not authorize another access path.</rule>
+  <verification>
+    <command>systemctl --user cat bakery-operator-preview-stack.service</command>
+    <command>docker context ls</command>
+    <requirement>Read only relevant engine and ownership metadata; do not print resolved secret environments.</requirement>
+    <requirement>After refresh, verify the worktree SHA, the serving container's source mount and restart, HTTPS readiness, and served HTML against the current build.</requirement>
+    <requirement>If duplicate resources were created, verify none remain on that engine while the persistent preview stays healthy.</requirement>
+  </verification>
+  <boundary>A persistent operator preview is not an ephemeral test stack. Its volumes must not be removed during refresh or ordinary merged-worktree cleanup.</boundary>
+</learning>

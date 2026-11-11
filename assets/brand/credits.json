@@ -1,0 +1,492 @@
+{
+  "description": "Provenance of shipped Bakery brand art. Generated with Higgsfield through its MCP server, driven by an OMP worker from the request files named here; art direction, picks and post-processing by the brand lead. Raw originals are not committed; generationId + sha256 identify them.",
+  "legacy": {
+    "files": [
+      "assets/brand/bakery-logo-v1.png",
+      "assets/brand/bakery-logo-v2.png",
+      "assets/brand/bakery-favicon-master.png"
+    ],
+    "tool": "built-in image generation (pre-Higgsfield); see bakery-logo-prompt.md and bakery-conveyor-prompts.md"
+  },
+  "images": [
+    {
+      "file": "brand/raw/001-logo-refine/001-logo-refine-3.png",
+      "shippedAs": [
+        "assets/brand/logo/lockup/",
+        "assets/brand/logo/wordmark/",
+        "assets/brand/logo/png/lockup-",
+        "assets/brand/logo/png/wordmark-",
+        "assets/brand/social/",
+        "brand/refs/mascot-j3.png"
+      ],
+      "pick": "Recommended lockup + character master (J3)",
+      "tool": "Higgsfield",
+      "model": "Nano Banana Pro (nano_banana_pro)",
+      "generationId": "1f39958e-7513-4edd-ba45-2a392a6d024b",
+      "seed": null,
+      "request": "brand/requests/001-logo-refine.md",
+      "prompt": "Same lockup layout and wordmark rules as J1–J2, but simplify the mascot for small-size\nlegibility: bigger head relative to body (head about 55% of mascot height), no bread loaf,\nno tablet, no buttons; one stubby arm raised in a cheerful wave, the other relaxed. Conveyor\nbelt shortened to just under the feet with three rollers. Bold, chunky silhouette that stays\nreadable when the whole lockup is 24px tall. Exactly \"bakery\", lowercase, spelled\ncorrectly.\n\nSame mascot as the reference: a plump golden bread-bun robot with a large cream face\nplate, two tall oval cocoa eyes, a tiny curved smile, soft blush cheeks, and a puffy cream\nchef's toque with three rounded puffs, standing on a small friendly factory conveyor belt.\nEvolve it, do not replace it. Professional flat vector brand mark: perfectly flat solid\nfills, no gradients, no shading, no highlights, no texture, no grain, no drop shadow, no\n3D. One uniform, confident dark cocoa outline weight everywhere, smooth geometric curves,\nrounded joins, very few shapes, generous negative space. Strict palette only: cocoa\n#3A1E0E (outlines, wordmark, belt), golden dough #F7A93B, cream #FFF1D6 (face, toque),\nterracotta #CF5A2E (belt trim and rollers), blush #F2906C (cheeks only). Solid flat pure\nwhite #FFFFFF background filling the whole canvas, no checkerboard, no transparency\npattern, no backdrop shapes, no badge, no frame, no mockup, no watermark, no signature,\nno extra text.\n\nReference strength: high for character identity (keep it the same mascot), low for rendering style (cleaner, flatter art than the references).",
+      "references": [
+        "assets/brand/bakery-logo-v2.png",
+        "assets/brand/bakery-favicon-master.png"
+      ],
+      "aspectRatio": "16:9",
+      "resolution": "4k",
+      "size": [
+        5504,
+        3072
+      ],
+      "sha256": "8aaca1adece70d604e338e8ea231aa095b25b25cbf37763453b11c384cb17015",
+      "createdAt": "2026-10-09T14:41:43.860Z"
+    },
+    {
+      "file": "brand/raw/001-logo-refine/001-logo-refine-6.png",
+      "shippedAs": [
+        "assets/brand/logo/mark/",
+        "assets/brand/logo/png/mark-",
+        "assets/brand/favicon/"
+      ],
+      "pick": "Mark belt reference (J6)",
+      "tool": "Higgsfield",
+      "model": "Nano Banana Pro (nano_banana_pro)",
+      "generationId": "d2dce357-9b85-4b60-ad14-640d3bbca0c1",
+      "seed": null,
+      "request": "brand/requests/001-logo-refine.md",
+      "prompt": "Square app icon mark, NO text, NO letters, NO code symbols. Only the mascot's head\n(golden bun dome + big cream face plate + two oval eyes + tiny smile + blush) wearing the\npuffy three-puff cream toque, sitting directly on a short capsule conveyor belt with exactly\nthree large terracotta rollers. No arms, no body detail, no props. Centred, filling about\n80% of the canvas with even margins. Extra-thick outline (about 6% of the icon width) and\noversized eyes so it still reads at 16×16 and 32×32 pixels. Each of the three images should\ntry a slightly different proportion: J5 toque large and tall, J6 toque compact and wide,\nJ7 head wider and lower, belt slimmer.\nThis image is J6: toque compact and wide.\n\nSame mascot as the reference: a plump golden bread-bun robot with a large cream face\nplate, two tall oval cocoa eyes, a tiny curved smile, soft blush cheeks, and a puffy cream\nchef's toque with three rounded puffs, standing on a small friendly factory conveyor belt.\nEvolve it, do not replace it. Professional flat vector brand mark: perfectly flat solid\nfills, no gradients, no shading, no highlights, no texture, no grain, no drop shadow, no\n3D. One uniform, confident dark cocoa outline weight everywhere, smooth geometric curves,\nrounded joins, very few shapes, generous negative space. Strict palette only: cocoa\n#3A1E0E (outlines, wordmark, belt), golden dough #F7A93B, cream #FFF1D6 (face, toque),\nterracotta #CF5A2E (belt trim and rollers), blush #F2906C (cheeks only). Solid flat pure\nwhite #FFFFFF background filling the whole canvas, no checkerboard, no transparency\npattern, no backdrop shapes, no badge, no frame, no mockup, no watermark, no signature,\nno extra text.\n\nReference strength: high for character identity (keep it the same mascot), low for rendering style (cleaner, flatter art than the references).",
+      "references": [
+        "assets/brand/bakery-logo-v2.png",
+        "assets/brand/bakery-favicon-master.png"
+      ],
+      "aspectRatio": "1:1",
+      "resolution": "4k",
+      "size": [
+        4096,
+        4096
+      ],
+      "sha256": "8e02b21942370e1dde12c15023e0d5654994927054467cd4514b854c17a1b13e",
+      "createdAt": "2026-10-09T14:41:49.102Z"
+    },
+    {
+      "file": "brand/raw/001-logo-refine/001-logo-refine-7.png",
+      "shippedAs": [
+        "assets/brand/logo/mark/",
+        "assets/brand/logo/png/mark-",
+        "assets/brand/favicon/",
+        "brand/refs/mark-j7.png"
+      ],
+      "pick": "Mark face reference (J7)",
+      "tool": "Higgsfield",
+      "model": "Nano Banana Pro (nano_banana_pro)",
+      "generationId": "fcdc9f82-1bac-4431-ab1b-972fb3a8a4cb",
+      "seed": null,
+      "request": "brand/requests/001-logo-refine.md",
+      "prompt": "Square app icon mark, NO text, NO letters, NO code symbols. Only the mascot's head\n(golden bun dome + big cream face plate + two oval eyes + tiny smile + blush) wearing the\npuffy three-puff cream toque, sitting directly on a short capsule conveyor belt with exactly\nthree large terracotta rollers. No arms, no body detail, no props. Centred, filling about\n80% of the canvas with even margins. Extra-thick outline (about 6% of the icon width) and\noversized eyes so it still reads at 16×16 and 32×32 pixels. Each of the three images should\ntry a slightly different proportion: J5 toque large and tall, J6 toque compact and wide,\nJ7 head wider and lower, belt slimmer.\nThis image is J7: head wider and lower, belt slimmer.\n\nSame mascot as the reference: a plump golden bread-bun robot with a large cream face\nplate, two tall oval cocoa eyes, a tiny curved smile, soft blush cheeks, and a puffy cream\nchef's toque with three rounded puffs, standing on a small friendly factory conveyor belt.\nEvolve it, do not replace it. Professional flat vector brand mark: perfectly flat solid\nfills, no gradients, no shading, no highlights, no texture, no grain, no drop shadow, no\n3D. One uniform, confident dark cocoa outline weight everywhere, smooth geometric curves,\nrounded joins, very few shapes, generous negative space. Strict palette only: cocoa\n#3A1E0E (outlines, wordmark, belt), golden dough #F7A93B, cream #FFF1D6 (face, toque),\nterracotta #CF5A2E (belt trim and rollers), blush #F2906C (cheeks only). Solid flat pure\nwhite #FFFFFF background filling the whole canvas, no checkerboard, no transparency\npattern, no backdrop shapes, no badge, no frame, no mockup, no watermark, no signature,\nno extra text.\n\nReference strength: high for character identity (keep it the same mascot), low for rendering style (cleaner, flatter art than the references).",
+      "references": [
+        "assets/brand/bakery-logo-v2.png",
+        "assets/brand/bakery-favicon-master.png"
+      ],
+      "aspectRatio": "1:1",
+      "resolution": "4k",
+      "size": [
+        4096,
+        4096
+      ],
+      "sha256": "b2123b6344c81422d56f5793e992523a6c76ac32551955e02cb96dd2701a9bba",
+      "createdAt": "2026-10-09T14:41:54.293Z"
+    },
+    {
+      "file": "brand/raw/003-scenes-errors/003-scenes-errors-2.png",
+      "shippedAs": [
+        "assets/brand/scenes/not-found/"
+      ],
+      "pick": "Pick · 404 not found",
+      "tool": "Higgsfield",
+      "model": "Nano Banana Pro (nano_banana_pro)",
+      "generationId": "8d42aa74-553b-4366-8ba4-16b2dd0ab9d8",
+      "seed": null,
+      "request": "brand/requests/003-scenes-errors.md",
+      "prompt": "The mascot follows a little trail of breadcrumbs that simply stops at the edge of the blob,\nholding an oversized magnifying glass, head tilted, puzzled squint, a single crumb resting\non its toque. A tiny question-mark-free hint of confusion: one mitten scratching its toque.\n\nFun, playful, warm spot illustration for a software app's status screen, starring the exact\nmascot from the reference: a plump golden bread-bun robot with a round bun head, large\ncream face plate, two tall pill-shaped cocoa eyes, tiny smile, blush cheeks, puffy\nthree-puff cream chef's toque, stubby golden arms with mitten hands and short legs. Keep\nits proportions, outline weight and colours identical to the reference. Gentle humour,\nnever scary, never sad. The scene sits on ONE soft rounded organic cream blob #FFF1D6\nbehind the character and props, centred, filling about 75% of the canvas; everything\noutside the blob is solid flat pure white #FFFFFF, with no other background. Flat vector\nillustration: perfectly flat solid fills, no gradients, no shading, no highlights, no\ntexture, no grain, no cast shadows, no 3D. One uniform dark cocoa outline weight on every\nshape. Palette: cocoa #3A1E0E, golden dough #F7A93B, cream #FFF1D6, terracotta #CF5A2E,\nblush #F2906C; props may also use sky #9CC3E6, sage #9DB58A, warm grey #CBBBA6, soot\n#5A4A40. Simple, few shapes, readable at 320 px wide. Absolutely no text, letters, numbers,\ndigits, \"404\", \"500\", logos, signage or UI chrome anywhere — the app renders its own text.\nNo watermark, no frame, no border.\n\nVary composition between variants, keep the character identical.",
+      "references": [
+        "brand/refs/mascot-j3.png",
+        "brand/refs/mark-j7.png"
+      ],
+      "aspectRatio": "4:3",
+      "resolution": "2k",
+      "size": [
+        2400,
+        1792
+      ],
+      "sha256": "c37fb1381f5ec37dc8c938d73d4844c76124fec859a4557093387b41cd362c41",
+      "createdAt": "2026-10-09T14:56:18.665Z"
+    },
+    {
+      "file": "brand/raw/003-scenes-errors/003-scenes-errors-5.png",
+      "shippedAs": [
+        "assets/brand/scenes/server-error/"
+      ],
+      "pick": "Pick · 500 server error",
+      "tool": "Higgsfield",
+      "model": "Nano Banana Pro (nano_banana_pro)",
+      "generationId": "9f59ecdc-1dfd-4cf1-99c7-b184a1e25fdf",
+      "seed": null,
+      "request": "brand/requests/003-scenes-errors.md",
+      "prompt": "A small round terracotta bakery oven puffs one big cartoon smoke cloud in soot grey; the\nmascot holds a wooden peel with one charcoal-black overbaked loaf, toque slightly smudged\nwith soot, sheepish smile with one light-blue sweat drop. Funny \"oops\", not disaster.\n\nFun, playful, warm spot illustration for a software app's status screen, starring the exact\nmascot from the reference: a plump golden bread-bun robot with a round bun head, large\ncream face plate, two tall pill-shaped cocoa eyes, tiny smile, blush cheeks, puffy\nthree-puff cream chef's toque, stubby golden arms with mitten hands and short legs. Keep\nits proportions, outline weight and colours identical to the reference. Gentle humour,\nnever scary, never sad. The scene sits on ONE soft rounded organic cream blob #FFF1D6\nbehind the character and props, centred, filling about 75% of the canvas; everything\noutside the blob is solid flat pure white #FFFFFF, with no other background. Flat vector\nillustration: perfectly flat solid fills, no gradients, no shading, no highlights, no\ntexture, no grain, no cast shadows, no 3D. One uniform dark cocoa outline weight on every\nshape. Palette: cocoa #3A1E0E, golden dough #F7A93B, cream #FFF1D6, terracotta #CF5A2E,\nblush #F2906C; props may also use sky #9CC3E6, sage #9DB58A, warm grey #CBBBA6, soot\n#5A4A40. Simple, few shapes, readable at 320 px wide. Absolutely no text, letters, numbers,\ndigits, \"404\", \"500\", logos, signage or UI chrome anywhere — the app renders its own text.\nNo watermark, no frame, no border.\n\nVary composition between variants, keep the character identical.",
+      "references": [
+        "brand/refs/mascot-j3.png",
+        "brand/refs/mark-j7.png"
+      ],
+      "aspectRatio": "4:3",
+      "resolution": "2k",
+      "size": [
+        2400,
+        1792
+      ],
+      "sha256": "62b25129558ec07cbc053102254dc307e00e3a2c7795ccdf01461246de7f1baf",
+      "createdAt": "2026-10-09T14:56:26.444Z"
+    },
+    {
+      "file": "brand/raw/003-scenes-errors/003-scenes-errors-7.png",
+      "shippedAs": [
+        "assets/brand/scenes/forbidden/"
+      ],
+      "pick": "Pick · 403 forbidden",
+      "tool": "Higgsfield",
+      "model": "Nano Banana Pro (nano_banana_pro)",
+      "generationId": "33dde68f-d8f7-41c8-816d-c221b0963620",
+      "seed": null,
+      "request": "brand/requests/003-scenes-errors.md",
+      "prompt": "The mascot stands as a polite little doorman in front of a rounded cream kitchen door, one\nmitten raised in a friendly \"stop\", a velvet rope made of two rolling pins on short posts\nwith a terracotta rope between them. Kind, apologetic smile.\n\nFun, playful, warm spot illustration for a software app's status screen, starring the exact\nmascot from the reference: a plump golden bread-bun robot with a round bun head, large\ncream face plate, two tall pill-shaped cocoa eyes, tiny smile, blush cheeks, puffy\nthree-puff cream chef's toque, stubby golden arms with mitten hands and short legs. Keep\nits proportions, outline weight and colours identical to the reference. Gentle humour,\nnever scary, never sad. The scene sits on ONE soft rounded organic cream blob #FFF1D6\nbehind the character and props, centred, filling about 75% of the canvas; everything\noutside the blob is solid flat pure white #FFFFFF, with no other background. Flat vector\nillustration: perfectly flat solid fills, no gradients, no shading, no highlights, no\ntexture, no grain, no cast shadows, no 3D. One uniform dark cocoa outline weight on every\nshape. Palette: cocoa #3A1E0E, golden dough #F7A93B, cream #FFF1D6, terracotta #CF5A2E,\nblush #F2906C; props may also use sky #9CC3E6, sage #9DB58A, warm grey #CBBBA6, soot\n#5A4A40. Simple, few shapes, readable at 320 px wide. Absolutely no text, letters, numbers,\ndigits, \"404\", \"500\", logos, signage or UI chrome anywhere — the app renders its own text.\nNo watermark, no frame, no border.\n\nVary composition between variants, keep the character identical.",
+      "references": [
+        "brand/refs/mascot-j3.png",
+        "brand/refs/mark-j7.png"
+      ],
+      "aspectRatio": "4:3",
+      "resolution": "2k",
+      "size": [
+        2400,
+        1792
+      ],
+      "sha256": "a35625bbfdae41b19bf3774ff9f4a5636479248d1b2efa9b4d4f8dec4448c9e1",
+      "createdAt": "2026-10-09T14:56:30.041Z"
+    },
+    {
+      "file": "brand/raw/003-scenes-errors/003-scenes-errors-11.png",
+      "shippedAs": [
+        "assets/brand/scenes/offline/"
+      ],
+      "pick": "Pick · offline",
+      "tool": "Higgsfield",
+      "model": "Nano Banana Pro (nano_banana_pro)",
+      "generationId": "b6922bab-d669-492a-bcdd-0652e2970b62",
+      "seed": null,
+      "request": "brand/requests/003-scenes-errors.md",
+      "prompt": "The mascot holds an unplugged cocoa power plug with a curly cord trailing back to a short\nstalled conveyor belt (same belt style as the logo: cocoa band, terracotta rollers), looking\naround hopefully for the socket. For k 12 instead: the mascot turns a little hand crank on\nthe conveyor with small motion arcs, determined smile (reconnecting).\nThese images are k10 and k11: unplugged plug scene only, not the k12 hand-crank alternative.\n\nFun, playful, warm spot illustration for a software app's status screen, starring the exact\nmascot from the reference: a plump golden bread-bun robot with a round bun head, large\ncream face plate, two tall pill-shaped cocoa eyes, tiny smile, blush cheeks, puffy\nthree-puff cream chef's toque, stubby golden arms with mitten hands and short legs. Keep\nits proportions, outline weight and colours identical to the reference. Gentle humour,\nnever scary, never sad. The scene sits on ONE soft rounded organic cream blob #FFF1D6\nbehind the character and props, centred, filling about 75% of the canvas; everything\noutside the blob is solid flat pure white #FFFFFF, with no other background. Flat vector\nillustration: perfectly flat solid fills, no gradients, no shading, no highlights, no\ntexture, no grain, no cast shadows, no 3D. One uniform dark cocoa outline weight on every\nshape. Palette: cocoa #3A1E0E, golden dough #F7A93B, cream #FFF1D6, terracotta #CF5A2E,\nblush #F2906C; props may also use sky #9CC3E6, sage #9DB58A, warm grey #CBBBA6, soot\n#5A4A40. Simple, few shapes, readable at 320 px wide. Absolutely no text, letters, numbers,\ndigits, \"404\", \"500\", logos, signage or UI chrome anywhere — the app renders its own text.\nNo watermark, no frame, no border.\n\nVary composition between variants, keep the character identical.",
+      "references": [
+        "brand/refs/mascot-j3.png",
+        "brand/refs/mark-j7.png"
+      ],
+      "aspectRatio": "4:3",
+      "resolution": "2k",
+      "size": [
+        2400,
+        1792
+      ],
+      "sha256": "77b63690824495d13f004881e8ac5bab161dd0a9d57268975ee82fd7a99fd006",
+      "createdAt": "2026-10-09T14:56:33.997Z"
+    },
+    {
+      "file": "brand/raw/003-scenes-errors/003-scenes-errors-14.png",
+      "shippedAs": [
+        "assets/brand/scenes/maintenance/"
+      ],
+      "pick": "Pick · maintenance",
+      "tool": "Higgsfield",
+      "model": "Nano Banana Pro (nano_banana_pro)",
+      "generationId": "7dafc087-772a-4c57-84f7-77384d04513d",
+      "seed": null,
+      "request": "brand/requests/003-scenes-errors.md",
+      "prompt": "The mascot lies on a little rolling creeper under the conveyor belt (logo style) tightening\na bolt with a big friendly wrench, legs sticking out, a small open toolbox and two bolts\nbeside it, a soft puff of flour dust. Content, busy.\n\nFun, playful, warm spot illustration for a software app's status screen, starring the exact\nmascot from the reference: a plump golden bread-bun robot with a round bun head, large\ncream face plate, two tall pill-shaped cocoa eyes, tiny smile, blush cheeks, puffy\nthree-puff cream chef's toque, stubby golden arms with mitten hands and short legs. Keep\nits proportions, outline weight and colours identical to the reference. Gentle humour,\nnever scary, never sad. The scene sits on ONE soft rounded organic cream blob #FFF1D6\nbehind the character and props, centred, filling about 75% of the canvas; everything\noutside the blob is solid flat pure white #FFFFFF, with no other background. Flat vector\nillustration: perfectly flat solid fills, no gradients, no shading, no highlights, no\ntexture, no grain, no cast shadows, no 3D. One uniform dark cocoa outline weight on every\nshape. Palette: cocoa #3A1E0E, golden dough #F7A93B, cream #FFF1D6, terracotta #CF5A2E,\nblush #F2906C; props may also use sky #9CC3E6, sage #9DB58A, warm grey #CBBBA6, soot\n#5A4A40. Simple, few shapes, readable at 320 px wide. Absolutely no text, letters, numbers,\ndigits, \"404\", \"500\", logos, signage or UI chrome anywhere — the app renders its own text.\nNo watermark, no frame, no border.\n\nVary composition between variants, keep the character identical.",
+      "references": [
+        "brand/refs/mascot-j3.png",
+        "brand/refs/mark-j7.png"
+      ],
+      "aspectRatio": "4:3",
+      "resolution": "2k",
+      "size": [
+        2400,
+        1792
+      ],
+      "sha256": "778243ddc48205fc3087f7efc2554cf1a609e08ea10aace49041d8818a747a39",
+      "createdAt": "2026-10-09T14:56:56.836Z"
+    },
+    {
+      "file": "brand/raw/003-scenes-errors/003-scenes-errors-16.png",
+      "shippedAs": [
+        "assets/brand/scenes/not-found-pantry/"
+      ],
+      "pick": "Alt · 404 lost in the pantry",
+      "tool": "Higgsfield",
+      "model": "Nano Banana Pro (nano_banana_pro)",
+      "generationId": "6240543c-be56-457e-912f-9459600d8720",
+      "seed": null,
+      "request": "brand/requests/003-scenes-errors.md",
+      "prompt": "The mascot peeks out from behind a tall stack of three flour sacks (plain, no lettering)\nholding a paper map upside down, one eyebrow raised, playful.\n\nFun, playful, warm spot illustration for a software app's status screen, starring the exact\nmascot from the reference: a plump golden bread-bun robot with a round bun head, large\ncream face plate, two tall pill-shaped cocoa eyes, tiny smile, blush cheeks, puffy\nthree-puff cream chef's toque, stubby golden arms with mitten hands and short legs. Keep\nits proportions, outline weight and colours identical to the reference. Gentle humour,\nnever scary, never sad. The scene sits on ONE soft rounded organic cream blob #FFF1D6\nbehind the character and props, centred, filling about 75% of the canvas; everything\noutside the blob is solid flat pure white #FFFFFF, with no other background. Flat vector\nillustration: perfectly flat solid fills, no gradients, no shading, no highlights, no\ntexture, no grain, no cast shadows, no 3D. One uniform dark cocoa outline weight on every\nshape. Palette: cocoa #3A1E0E, golden dough #F7A93B, cream #FFF1D6, terracotta #CF5A2E,\nblush #F2906C; props may also use sky #9CC3E6, sage #9DB58A, warm grey #CBBBA6, soot\n#5A4A40. Simple, few shapes, readable at 320 px wide. Absolutely no text, letters, numbers,\ndigits, \"404\", \"500\", logos, signage or UI chrome anywhere — the app renders its own text.\nNo watermark, no frame, no border.\n\nVary composition between variants, keep the character identical.",
+      "references": [
+        "brand/refs/mascot-j3.png",
+        "brand/refs/mark-j7.png"
+      ],
+      "aspectRatio": "4:3",
+      "resolution": "2k",
+      "size": [
+        2400,
+        1792
+      ],
+      "sha256": "fdfe818e8b1a747c21412732bf89a17835e29aaa0095df03a9c2f5e2f921547a",
+      "createdAt": "2026-10-09T14:57:00.573Z"
+    },
+    {
+      "file": "brand/raw/004-scenes-empty/004-scenes-empty-2.png",
+      "shippedAs": [
+        "assets/brand/scenes/empty-tasks/"
+      ],
+      "pick": "Pick · empty: no tasks",
+      "tool": "Higgsfield",
+      "model": "Nano Banana Pro (nano_banana_pro)",
+      "generationId": "1d1befbb-edd5-40d8-a7d9-c19529b430e8",
+      "seed": null,
+      "request": "brand/requests/004-scenes-empty.md",
+      "prompt": "An empty conveyor belt (logo style: cocoa band, terracotta rollers) with nothing on it; the\nmascot sits on the end of the belt with its legs dangling, sipping from a small terracotta\nmug with a curl of steam, relaxed and content. Calm \"all clear\" feeling.\n\nFun, playful, warm spot illustration for a software app's status screen, starring the exact\nmascot from the reference: a plump golden bread-bun robot with a round bun head, large\ncream face plate, two tall pill-shaped cocoa eyes, tiny smile, blush cheeks, puffy\nthree-puff cream chef's toque, stubby golden arms with mitten hands and short legs. Keep\nits proportions, outline weight and colours identical to the reference. Gentle humour,\nnever scary, never sad. The scene sits on ONE soft rounded organic cream blob #FFF1D6\nbehind the character and props, centred, filling about 75% of the canvas; everything\noutside the blob is solid flat pure white #FFFFFF, with no other background. Flat vector\nillustration: perfectly flat solid fills, no gradients, no shading, no highlights, no\ntexture, no grain, no cast shadows, no 3D. One uniform dark cocoa outline weight on every\nshape. Palette: cocoa #3A1E0E, golden dough #F7A93B, cream #FFF1D6, terracotta #CF5A2E,\nblush #F2906C; props may also use sky #9CC3E6, sage #9DB58A, warm grey #CBBBA6, soot\n#5A4A40. Simple, few shapes, readable at 320 px wide. Absolutely no text, letters, numbers,\ndigits, \"404\", \"500\", logos, signage or UI chrome anywhere — the app renders its own text.\nNo watermark, no frame, no border.\nExactly ONE mascot in the image, never duplicated. Friendly face only: no angry or \nfrowning brows; mild surprise or a sheepish smile is the furthest it goes.\n\nVary composition between the three variants, keep the character identical.",
+      "references": [
+        "brand/refs/mascot-j3.png",
+        "brand/refs/mark-j7.png",
+        "brand/raw/002-mascot-sheet/002-mascot-sheet-3.png",
+        "brand/raw/003-scenes-errors/003-scenes-errors-5.png"
+      ],
+      "aspectRatio": "4:3",
+      "resolution": "2k",
+      "size": [
+        2400,
+        1792
+      ],
+      "sha256": "2f9aaa51656a9d0daf06c8e027198678b6f81eacd02fdc372d0f4c70eb818f5f",
+      "createdAt": "2026-10-09T15:04:53.137Z"
+    },
+    {
+      "file": "brand/raw/004-scenes-empty/004-scenes-empty-4.png",
+      "shippedAs": [
+        "assets/brand/scenes/empty-sessions/"
+      ],
+      "pick": "Pick · empty: no sessions",
+      "tool": "Higgsfield",
+      "model": "Nano Banana Pro (nano_banana_pro)",
+      "generationId": "ace6c688-238d-46b5-b4ef-0b4c65396765",
+      "seed": null,
+      "request": "brand/requests/004-scenes-empty.md",
+      "prompt": "The mascot sits at a tiny round café table set with two small cups; the second little chair\nis empty and pulled out invitingly; the mascot gives a gentle welcoming wave toward the empty\nchair. Friendly, inviting, not lonely.\n\nFun, playful, warm spot illustration for a software app's status screen, starring the exact\nmascot from the reference: a plump golden bread-bun robot with a round bun head, large\ncream face plate, two tall pill-shaped cocoa eyes, tiny smile, blush cheeks, puffy\nthree-puff cream chef's toque, stubby golden arms with mitten hands and short legs. Keep\nits proportions, outline weight and colours identical to the reference. Gentle humour,\nnever scary, never sad. The scene sits on ONE soft rounded organic cream blob #FFF1D6\nbehind the character and props, centred, filling about 75% of the canvas; everything\noutside the blob is solid flat pure white #FFFFFF, with no other background. Flat vector\nillustration: perfectly flat solid fills, no gradients, no shading, no highlights, no\ntexture, no grain, no cast shadows, no 3D. One uniform dark cocoa outline weight on every\nshape. Palette: cocoa #3A1E0E, golden dough #F7A93B, cream #FFF1D6, terracotta #CF5A2E,\nblush #F2906C; props may also use sky #9CC3E6, sage #9DB58A, warm grey #CBBBA6, soot\n#5A4A40. Simple, few shapes, readable at 320 px wide. Absolutely no text, letters, numbers,\ndigits, \"404\", \"500\", logos, signage or UI chrome anywhere — the app renders its own text.\nNo watermark, no frame, no border.\nExactly ONE mascot in the image, never duplicated. Friendly face only: no angry or \nfrowning brows; mild surprise or a sheepish smile is the furthest it goes.\n\nVary composition between the three variants, keep the character identical.",
+      "references": [
+        "brand/refs/mascot-j3.png",
+        "brand/refs/mark-j7.png",
+        "brand/raw/002-mascot-sheet/002-mascot-sheet-3.png",
+        "brand/raw/003-scenes-errors/003-scenes-errors-5.png"
+      ],
+      "aspectRatio": "4:3",
+      "resolution": "2k",
+      "size": [
+        2400,
+        1792
+      ],
+      "sha256": "c299f32bddc612f71d274fbd2a78de8eeeb1b619c8ae30b53f9b9635e984daf8",
+      "createdAt": "2026-10-09T15:04:57.537Z"
+    },
+    {
+      "file": "brand/raw/004-scenes-empty/004-scenes-empty-8.png",
+      "shippedAs": [
+        "assets/brand/scenes/empty-workers/"
+      ],
+      "pick": "Pick · empty: no workers",
+      "tool": "Higgsfield",
+      "model": "Nano Banana Pro (nano_banana_pro)",
+      "generationId": "f9ca962a-f726-4e05-a34b-6444648b1889",
+      "seed": null,
+      "request": "brand/requests/004-scenes-empty.md",
+      "prompt": "A short row of three small wall hooks, each holding an empty little chef's toque; the mascot\nstands beside them holding a blank clipboard (no writing), looking hopeful with a small\nsmile, as if waiting for teammates to clock in.\n\nFun, playful, warm spot illustration for a software app's status screen, starring the exact\nmascot from the reference: a plump golden bread-bun robot with a round bun head, large\ncream face plate, two tall pill-shaped cocoa eyes, tiny smile, blush cheeks, puffy\nthree-puff cream chef's toque, stubby golden arms with mitten hands and short legs. Keep\nits proportions, outline weight and colours identical to the reference. Gentle humour,\nnever scary, never sad. The scene sits on ONE soft rounded organic cream blob #FFF1D6\nbehind the character and props, centred, filling about 75% of the canvas; everything\noutside the blob is solid flat pure white #FFFFFF, with no other background. Flat vector\nillustration: perfectly flat solid fills, no gradients, no shading, no highlights, no\ntexture, no grain, no cast shadows, no 3D. One uniform dark cocoa outline weight on every\nshape. Palette: cocoa #3A1E0E, golden dough #F7A93B, cream #FFF1D6, terracotta #CF5A2E,\nblush #F2906C; props may also use sky #9CC3E6, sage #9DB58A, warm grey #CBBBA6, soot\n#5A4A40. Simple, few shapes, readable at 320 px wide. Absolutely no text, letters, numbers,\ndigits, \"404\", \"500\", logos, signage or UI chrome anywhere — the app renders its own text.\nNo watermark, no frame, no border.\nExactly ONE mascot in the image, never duplicated. Friendly face only: no angry or \nfrowning brows; mild surprise or a sheepish smile is the furthest it goes.\n\nVary composition between the three variants, keep the character identical.",
+      "references": [
+        "brand/refs/mascot-j3.png",
+        "brand/refs/mark-j7.png",
+        "brand/raw/002-mascot-sheet/002-mascot-sheet-3.png",
+        "brand/raw/003-scenes-errors/003-scenes-errors-5.png"
+      ],
+      "aspectRatio": "4:3",
+      "resolution": "2k",
+      "size": [
+        2400,
+        1792
+      ],
+      "sha256": "521d14ed2506af205b2087bee49a2e6049d71c7969604e025b3b0676c9af071c",
+      "createdAt": "2026-10-09T15:05:02.731Z"
+    },
+    {
+      "file": "brand/raw/004-scenes-empty/004-scenes-empty-10.png",
+      "shippedAs": [
+        "assets/brand/scenes/empty-search/"
+      ],
+      "pick": "Pick · empty: no search results",
+      "tool": "Higgsfield",
+      "model": "Nano Banana Pro (nano_banana_pro)",
+      "generationId": "793d9754-aa55-4efc-aa34-5e97de7d6510",
+      "seed": null,
+      "request": "brand/requests/004-scenes-empty.md",
+      "prompt": "The mascot leans over a large empty terracotta mixing bowl, peering inside, a small puff of\nflour on its face plate, one mitten holding a whisk. Curious, mildly surprised \"o\" mouth.\n\nFun, playful, warm spot illustration for a software app's status screen, starring the exact\nmascot from the reference: a plump golden bread-bun robot with a round bun head, large\ncream face plate, two tall pill-shaped cocoa eyes, tiny smile, blush cheeks, puffy\nthree-puff cream chef's toque, stubby golden arms with mitten hands and short legs. Keep\nits proportions, outline weight and colours identical to the reference. Gentle humour,\nnever scary, never sad. The scene sits on ONE soft rounded organic cream blob #FFF1D6\nbehind the character and props, centred, filling about 75% of the canvas; everything\noutside the blob is solid flat pure white #FFFFFF, with no other background. Flat vector\nillustration: perfectly flat solid fills, no gradients, no shading, no highlights, no\ntexture, no grain, no cast shadows, no 3D. One uniform dark cocoa outline weight on every\nshape. Palette: cocoa #3A1E0E, golden dough #F7A93B, cream #FFF1D6, terracotta #CF5A2E,\nblush #F2906C; props may also use sky #9CC3E6, sage #9DB58A, warm grey #CBBBA6, soot\n#5A4A40. Simple, few shapes, readable at 320 px wide. Absolutely no text, letters, numbers,\ndigits, \"404\", \"500\", logos, signage or UI chrome anywhere — the app renders its own text.\nNo watermark, no frame, no border.\nExactly ONE mascot in the image, never duplicated. Friendly face only: no angry or \nfrowning brows; mild surprise or a sheepish smile is the furthest it goes.\n\nVary composition between the three variants, keep the character identical.",
+      "references": [
+        "brand/refs/mascot-j3.png",
+        "brand/refs/mark-j7.png",
+        "brand/raw/002-mascot-sheet/002-mascot-sheet-3.png",
+        "brand/raw/003-scenes-errors/003-scenes-errors-5.png"
+      ],
+      "aspectRatio": "4:3",
+      "resolution": "2k",
+      "size": [
+        2400,
+        1792
+      ],
+      "sha256": "26bf10296e66800655f1578f973815f671895b8ea81c8cb1792ef254ef99e787",
+      "createdAt": "2026-10-09T15:05:07.608Z"
+    },
+    {
+      "file": "brand/raw/005-scenes-moments/005-scenes-moments-2.png",
+      "shippedAs": [
+        "assets/brand/scenes/loading/"
+      ],
+      "pick": "Pick · loading / working",
+      "tool": "Higgsfield",
+      "model": "Nano Banana Pro (nano_banana_pro)",
+      "generationId": "19f80764-08d3-4394-98c0-4e2fb7770b0b",
+      "seed": null,
+      "request": "brand/requests/005-scenes-moments.md",
+      "prompt": "The mascot kneads a round ball of cream dough on a short conveyor belt (logo style), small\ncocoa motion arcs beside its mittens, focused happy face with tongue-free tiny smile. A\ncompact, centred pose that would loop well as a gentle bob animation.\n\nFun, playful, warm spot illustration for a software app's status screen, starring the exact\nmascot from the reference: a plump golden bread-bun robot with a round bun head, large\ncream face plate, two tall pill-shaped cocoa eyes, tiny smile, blush cheeks, puffy\nthree-puff cream chef's toque, stubby golden arms with mitten hands and short legs. Keep\nits proportions, outline weight and colours identical to the reference. Gentle humour,\nnever scary, never sad. The scene sits on ONE soft rounded organic cream blob #FFF1D6\nbehind the character and props, centred, filling about 75% of the canvas; everything\noutside the blob is solid flat pure white #FFFFFF, with no other background. Flat vector\nillustration: perfectly flat solid fills, no gradients, no shading, no highlights, no\ntexture, no grain, no cast shadows, no 3D. One uniform dark cocoa outline weight on every\nshape. Palette: cocoa #3A1E0E, golden dough #F7A93B, cream #FFF1D6, terracotta #CF5A2E,\nblush #F2906C; props may also use sky #9CC3E6, sage #9DB58A, warm grey #CBBBA6, soot\n#5A4A40. Simple, few shapes, readable at 320 px wide. Absolutely no text, letters, numbers,\ndigits, \"404\", \"500\", logos, signage or UI chrome anywhere — the app renders its own text.\nNo watermark, no frame, no border.\nExactly ONE mascot in the image, never duplicated. Friendly face only: no angry or \nfrowning brows; mild surprise or a sheepish smile is the furthest it goes.\n\nVary composition between the three variants, keep the character identical.",
+      "references": [
+        "brand/refs/mascot-j3.png",
+        "brand/refs/mark-j7.png",
+        "brand/raw/002-mascot-sheet/002-mascot-sheet-3.png",
+        "brand/raw/003-scenes-errors/003-scenes-errors-5.png"
+      ],
+      "aspectRatio": "4:3",
+      "resolution": "2k",
+      "size": [
+        2400,
+        1792
+      ],
+      "sha256": "20181b362c701701e4e3377ea4cfb3a6878ae9fbece49d1e392a14867cd9d3ab",
+      "createdAt": "2026-10-09T15:07:47.694Z"
+    },
+    {
+      "file": "brand/raw/005-scenes-moments/005-scenes-moments-4.png",
+      "shippedAs": [
+        "assets/brand/scenes/success/"
+      ],
+      "pick": "Pick · success",
+      "tool": "Higgsfield",
+      "model": "Nano Banana Pro (nano_banana_pro)",
+      "generationId": "bf56582b-0083-4215-9928-5f52c703e08f",
+      "seed": null,
+      "request": "brand/requests/005-scenes-moments.md",
+      "prompt": "The mascot leaps with both arms up, tossing its toque into the air, small confetti of\nsprinkles in palette colours around it, and one perfect golden loaf with a little sparkle on\nthe conveyor belt beside it. Joyful.\n\nFun, playful, warm spot illustration for a software app's status screen, starring the exact\nmascot from the reference: a plump golden bread-bun robot with a round bun head, large\ncream face plate, two tall pill-shaped cocoa eyes, tiny smile, blush cheeks, puffy\nthree-puff cream chef's toque, stubby golden arms with mitten hands and short legs. Keep\nits proportions, outline weight and colours identical to the reference. Gentle humour,\nnever scary, never sad. The scene sits on ONE soft rounded organic cream blob #FFF1D6\nbehind the character and props, centred, filling about 75% of the canvas; everything\noutside the blob is solid flat pure white #FFFFFF, with no other background. Flat vector\nillustration: perfectly flat solid fills, no gradients, no shading, no highlights, no\ntexture, no grain, no cast shadows, no 3D. One uniform dark cocoa outline weight on every\nshape. Palette: cocoa #3A1E0E, golden dough #F7A93B, cream #FFF1D6, terracotta #CF5A2E,\nblush #F2906C; props may also use sky #9CC3E6, sage #9DB58A, warm grey #CBBBA6, soot\n#5A4A40. Simple, few shapes, readable at 320 px wide. Absolutely no text, letters, numbers,\ndigits, \"404\", \"500\", logos, signage or UI chrome anywhere — the app renders its own text.\nNo watermark, no frame, no border.\nExactly ONE mascot in the image, never duplicated. Friendly face only: no angry or \nfrowning brows; mild surprise or a sheepish smile is the furthest it goes.\n\nVary composition between the three variants, keep the character identical.",
+      "references": [
+        "brand/refs/mascot-j3.png",
+        "brand/refs/mark-j7.png",
+        "brand/raw/002-mascot-sheet/002-mascot-sheet-3.png",
+        "brand/raw/003-scenes-errors/003-scenes-errors-5.png"
+      ],
+      "aspectRatio": "4:3",
+      "resolution": "2k",
+      "size": [
+        2400,
+        1792
+      ],
+      "sha256": "c0b2569e654f32e1c4c0ad1a132b5c98a95cda470b959f9b1064d518f7080f19",
+      "createdAt": "2026-10-09T15:07:51.069Z"
+    },
+    {
+      "file": "brand/raw/005-scenes-moments/005-scenes-moments-8.png",
+      "shippedAs": [
+        "assets/brand/scenes/welcome/"
+      ],
+      "pick": "Pick · first-run welcome",
+      "tool": "Higgsfield",
+      "model": "Nano Banana Pro (nano_banana_pro)",
+      "generationId": "8d083a43-f4dc-4e59-a96a-18d67bd902a2",
+      "seed": null,
+      "request": "brand/requests/005-scenes-moments.md",
+      "prompt": "The mascot holds out a wooden tray of three fresh golden rolls toward the viewer with a big\nwarm smile, slight bow, as if welcoming a new guest into the bakery.\n\nFun, playful, warm spot illustration for a software app's status screen, starring the exact\nmascot from the reference: a plump golden bread-bun robot with a round bun head, large\ncream face plate, two tall pill-shaped cocoa eyes, tiny smile, blush cheeks, puffy\nthree-puff cream chef's toque, stubby golden arms with mitten hands and short legs. Keep\nits proportions, outline weight and colours identical to the reference. Gentle humour,\nnever scary, never sad. The scene sits on ONE soft rounded organic cream blob #FFF1D6\nbehind the character and props, centred, filling about 75% of the canvas; everything\noutside the blob is solid flat pure white #FFFFFF, with no other background. Flat vector\nillustration: perfectly flat solid fills, no gradients, no shading, no highlights, no\ntexture, no grain, no cast shadows, no 3D. One uniform dark cocoa outline weight on every\nshape. Palette: cocoa #3A1E0E, golden dough #F7A93B, cream #FFF1D6, terracotta #CF5A2E,\nblush #F2906C; props may also use sky #9CC3E6, sage #9DB58A, warm grey #CBBBA6, soot\n#5A4A40. Simple, few shapes, readable at 320 px wide. Absolutely no text, letters, numbers,\ndigits, \"404\", \"500\", logos, signage or UI chrome anywhere — the app renders its own text.\nNo watermark, no frame, no border.\nExactly ONE mascot in the image, never duplicated. Friendly face only: no angry or \nfrowning brows; mild surprise or a sheepish smile is the furthest it goes.\n\nVary composition between the three variants, keep the character identical.",
+      "references": [
+        "brand/refs/mascot-j3.png",
+        "brand/refs/mark-j7.png",
+        "brand/raw/002-mascot-sheet/002-mascot-sheet-3.png",
+        "brand/raw/003-scenes-errors/003-scenes-errors-5.png"
+      ],
+      "aspectRatio": "4:3",
+      "resolution": "2k",
+      "size": [
+        2400,
+        1792
+      ],
+      "sha256": "957c6bc8e2d49d280b823ad72b049c4896b93a168512c07598bd525ffdee0ee9",
+      "createdAt": "2026-10-09T15:07:53.707Z"
+    },
+    {
+      "file": "brand/raw/005-scenes-moments/005-scenes-moments-11.png",
+      "shippedAs": [
+        "assets/brand/scenes/sign-in-hero/"
+      ],
+      "pick": "Pick · sign-in hero (3:2)",
+      "tool": "Higgsfield",
+      "model": "Nano Banana Pro (nano_banana_pro)",
+      "generationId": "8b18eeec-f085-47ee-b937-61984bfc65f7",
+      "seed": null,
+      "request": "brand/requests/005-scenes-moments.md",
+      "prompt": "A slightly wider, calm scene: the mascot stands at the end of a short factory conveyor belt\n(logo style) on which three golden loaves ride toward it, two gentle steam curls rising from\na small round terracotta oven in the background, the mascot waving at the viewer. More\nenvironment than the other scenes but still flat, simple and quiet; keep the composition\nweighted to the centre-left so UI can sit on the right. Still on the single cream blob over\npure white.\n\nFun, playful, warm spot illustration for a software app's status screen, starring the exact\nmascot from the reference: a plump golden bread-bun robot with a round bun head, large\ncream face plate, two tall pill-shaped cocoa eyes, tiny smile, blush cheeks, puffy\nthree-puff cream chef's toque, stubby golden arms with mitten hands and short legs. Keep\nits proportions, outline weight and colours identical to the reference. Gentle humour,\nnever scary, never sad. The scene sits on ONE soft rounded organic cream blob #FFF1D6\nbehind the character and props, centred, filling about 75% of the canvas; everything\noutside the blob is solid flat pure white #FFFFFF, with no other background. Flat vector\nillustration: perfectly flat solid fills, no gradients, no shading, no highlights, no\ntexture, no grain, no cast shadows, no 3D. One uniform dark cocoa outline weight on every\nshape. Palette: cocoa #3A1E0E, golden dough #F7A93B, cream #FFF1D6, terracotta #CF5A2E,\nblush #F2906C; props may also use sky #9CC3E6, sage #9DB58A, warm grey #CBBBA6, soot\n#5A4A40. Simple, few shapes, readable at 320 px wide. Absolutely no text, letters, numbers,\ndigits, \"404\", \"500\", logos, signage or UI chrome anywhere — the app renders its own text.\nNo watermark, no frame, no border.\nExactly ONE mascot in the image, never duplicated. Friendly face only: no angry or \nfrowning brows; mild surprise or a sheepish smile is the furthest it goes.\n\nVary composition between the three variants, keep the character identical.",
+      "references": [
+        "brand/refs/mascot-j3.png",
+        "brand/refs/mark-j7.png",
+        "brand/raw/002-mascot-sheet/002-mascot-sheet-3.png",
+        "brand/raw/003-scenes-errors/003-scenes-errors-5.png"
+      ],
+      "aspectRatio": "3:2",
+      "resolution": "2k",
+      "size": [
+        2528,
+        1696
+      ],
+      "sha256": "412a815487636b33f126c569c337cae01540386399e07e1b7568151cf50a1dd1",
+      "createdAt": "2026-10-09T15:07:56.410Z"
+    },
+    {
+      "file": "brand/raw/006-scene-reconnecting/006-scene-reconnecting-1.png",
+      "shippedAs": [
+        "assets/brand/scenes/reconnecting/"
+      ],
+      "pick": "Pick · reconnecting",
+      "tool": "Higgsfield",
+      "model": "Nano Banana Pro (nano_banana_pro)",
+      "generationId": "7f12cec2-d2d3-4e79-8a9a-dbf514228cfe",
+      "seed": null,
+      "request": "brand/requests/006-scene-reconnecting.md",
+      "prompt": "The mascot cheerfully turns a little hand crank on the side of a short conveyor belt (logo\nstyle: cocoa band, terracotta rollers), small cocoa motion arcs around the crank, a tiny\ncurved arrow loop above the belt suggesting \"coming back\", and the mascot's face is happy\nand encouraging: big pill eyes, small open smile, NO eyebrows at all. Optimistic,\n\"almost there\".\n\nFun, playful, warm spot illustration for a software app's status screen, starring the exact\nmascot from the reference: a plump golden bread-bun robot with a round bun head, large\ncream face plate, two tall pill-shaped cocoa eyes, tiny smile, blush cheeks, puffy\nthree-puff cream chef's toque, stubby golden arms with mitten hands and short legs. Keep\nits proportions, outline weight and colours identical to the reference. Gentle humour,\nnever scary, never sad. The scene sits on ONE soft rounded organic cream blob #FFF1D6\nbehind the character and props, centred, filling about 75% of the canvas; everything\noutside the blob is solid flat pure white #FFFFFF, with no other background. Flat vector\nillustration: perfectly flat solid fills, no gradients, no shading, no highlights, no\ntexture, no grain, no cast shadows, no 3D. One uniform dark cocoa outline weight on every\nshape. Palette: cocoa #3A1E0E, golden dough #F7A93B, cream #FFF1D6, terracotta #CF5A2E,\nblush #F2906C; props may also use sky #9CC3E6, sage #9DB58A, warm grey #CBBBA6, soot\n#5A4A40. Simple, few shapes, readable at 320 px wide. Absolutely no text, letters, numbers,\ndigits, \"404\", \"500\", logos, signage or UI chrome anywhere — the app renders its own text.\nNo watermark, no frame, no border.\nExactly ONE mascot in the image, never duplicated. Friendly face only: no angry or \nfrowning brows; mild surprise or a sheepish smile is the furthest it goes.\n\nReference R5 is composition only: crank and conveyor belt; do NOT copy frowning brows. Vary composition between variants; character identity stays identical.",
+      "references": [
+        "brand/refs/mascot-j3.png",
+        "brand/refs/mark-j7.png",
+        "brand/raw/002-mascot-sheet/002-mascot-sheet-3.png",
+        "brand/raw/003-scenes-errors/003-scenes-errors-5.png",
+        "brand/raw/003-scenes-errors/003-scenes-errors-12.png"
+      ],
+      "aspectRatio": "4:3",
+      "resolution": "2k",
+      "size": [
+        2400,
+        1792
+      ],
+      "sha256": "cb7e013cf32d792f259f9c98041dba6dd55879fe2321f491542ac5097d0b20f6",
+      "createdAt": "2026-10-09T15:30:13.040Z"
+    }
+  ]
+}

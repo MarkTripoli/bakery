@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="github-closing-keywords" project="bakery">
+  <title>Negated closing keywords still link unfinished issues for closure</title>
+  <trigger>A partial delivery PR explains that its parent must remain open.</trigger>
+  <mistake>Used negated closing phrases in PR prose. GitHub still populated closingIssuesReferences with unfinished parents. Correcting only the hosted body let a publisher restore the unsafe phrase from its older local input.</mistake>
+  <rule>Write "keeps #N open", not "does not close #N" or "must not close #N". Bind partial delivery to a genuinely scoped child issue with native parent and real dependency relationships. Reserve positive closing-keyword syntax for the completed intended child.</rule>
+  <verification>
+    <requirement>Correct both the hosted body and local publication input or template. Read back the final body and actual closingIssuesReferences; intended meaning alone is not proof of GitHub linkage.</requirement>
+    <requirement>Check closure references again during final merge admission. Unfinished parents must be absent. Diagnose persistent linkage rather than assuming a body edit removed it immediately.</requirement>
+    <requirement>Refresh publication hashes and body/comment readback after prose changes. Preserve unchanged-source review, tests, captures and running CI; do not fabricate a new source run for metadata-only work.</requirement>
+  </verification>
+  <boundary>A child issue does not waive a real dependency or remove the parent's remaining acceptance criteria. Record the actual dependency reasoning and retain incomplete parent requirements. Serialize publication ownership so stale writers cannot undo the correction.</boundary>
+</learning>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="worker-check-report-is-a-claim" project="bakery" issue="83">
+  <title>A worker-reported check pass is a claim the server recomputes, never evidence by itself</title>
+  <trigger>A worker action returns a verdict, identities or evidence references that a delivery gate will rely on.</trigger>
+  <mistake>Storing the worker's `allRequired`, head, base and policy digest as the step output would let any forged or buggy report pass the gate. A report can also hide a nested evidence reference from the generic reference validator, which looks only at `result.artifacts` and `result.artifact`.</mistake>
+  <rule>Follow the repository.inspect precedent: verify inside the result transaction against the job's own admission pins, derive the verdict on the server, require the worker's echo to equal it, validate every nested reference with the shared predicate (assertArtifactReference), and reject any difference with VALIDATION_FAILED so nothing is written. Take identities for stored rows from the pins, never from the report. Output text and harness or agent claims are never inputs to the verdict.</rule>
+  <verification>
+    <command>pnpm test:security -- tests/security/run-deterministic-checks-bound-to-candidate-and-metadata_test.ts</command>
+    <requirement>An echoed allRequired true over a failed observation, a foreign head, base or policy digest, and a foreign evidence reference are each rejected with no row written.</requirement>
+  </verification>
+  <boundary>The worker stays the trust root: a command running as the worker user can read its credentials and post its own result. The recomputation defends against forged output and reports, not against a compromised worker.</boundary>
+</learning>

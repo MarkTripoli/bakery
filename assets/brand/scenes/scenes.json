@@ -1,0 +1,605 @@
+{
+  "darkBlob": "#3F3934",
+  "scenes": [
+    {
+      "id": "not-found",
+      "title": "Page not found",
+      "alt": "The chef mascot peers through a magnifying glass at a trail of crumbs.",
+      "source": "brand/raw/003-scenes-errors/003-scenes-errors-2.png",
+      "blobDark": "#3F3934",
+      "exports": {
+        "not-found-light.webp": {
+          "width": 1200,
+          "height": 895,
+          "kb": 61.8
+        },
+        "not-found-light.png": {
+          "width": 1200,
+          "height": 895,
+          "kb": 112.1
+        },
+        "not-found-light-600.webp": {
+          "width": 600,
+          "height": 447,
+          "kb": 29.6
+        },
+        "not-found-dark.webp": {
+          "width": 1200,
+          "height": 895,
+          "kb": 60.7
+        },
+        "not-found-dark.png": {
+          "width": 1200,
+          "height": 895,
+          "kb": 61.3
+        },
+        "not-found-dark-600.webp": {
+          "width": 600,
+          "height": 447,
+          "kb": 28.7
+        }
+      },
+      "svg": null
+    },
+    {
+      "id": "not-found-pantry",
+      "title": "Page not found, pantry",
+      "alt": "The chef mascot reads a map beside a stack of flour sacks.",
+      "source": "brand/raw/003-scenes-errors/003-scenes-errors-16.png",
+      "blobDark": "#3F3934",
+      "exports": {
+        "not-found-pantry-light.webp": {
+          "width": 1200,
+          "height": 1021,
+          "kb": 80.1
+        },
+        "not-found-pantry-light.png": {
+          "width": 1200,
+          "height": 1021,
+          "kb": 159.9
+        },
+        "not-found-pantry-light-600.webp": {
+          "width": 600,
+          "height": 510,
+          "kb": 37.1
+        },
+        "not-found-pantry-dark.webp": {
+          "width": 1200,
+          "height": 1021,
+          "kb": 79
+        },
+        "not-found-pantry-dark.png": {
+          "width": 1200,
+          "height": 1021,
+          "kb": 114
+        },
+        "not-found-pantry-dark-600.webp": {
+          "width": 600,
+          "height": 510,
+          "kb": 35.9
+        }
+      },
+      "svg": null
+    },
+    {
+      "id": "server-error",
+      "title": "Server error",
+      "alt": "The chef mascot looks worried next to a smoking oven and a burnt loaf.",
+      "source": "brand/raw/003-scenes-errors/003-scenes-errors-5.png",
+      "blobDark": "#3F3934",
+      "exports": {
+        "server-error-light.webp": {
+          "width": 1200,
+          "height": 983,
+          "kb": 69.6
+        },
+        "server-error-light.png": {
+          "width": 1200,
+          "height": 983,
+          "kb": 92.3
+        },
+        "server-error-light-600.webp": {
+          "width": 600,
+          "height": 492,
+          "kb": 33.5
+        },
+        "server-error-dark.webp": {
+          "width": 1200,
+          "height": 983,
+          "kb": 70.3
+        },
+        "server-error-dark.png": {
+          "width": 1200,
+          "height": 983,
+          "kb": 76.3
+        },
+        "server-error-dark-600.webp": {
+          "width": 600,
+          "height": 492,
+          "kb": 33.2
+        }
+      },
+      "svg": null
+    },
+    {
+      "id": "forbidden",
+      "title": "Access denied",
+      "alt": "The chef mascot raises a hand in front of a closed door and a velvet rope.",
+      "source": "brand/raw/003-scenes-errors/003-scenes-errors-7.png",
+      "blobDark": "#3F3934",
+      "exports": {
+        "forbidden-light.webp": {
+          "width": 1200,
+          "height": 899,
+          "kb": 56.9
+        },
+        "forbidden-light.png": {
+          "width": 1200,
+          "height": 899,
+          "kb": 120.2
+        },
+        "forbidden-light-600.webp": {
+          "width": 600,
+          "height": 450,
+          "kb": 27.1
+        },
+        "forbidden-dark.webp": {
+          "width": 1200,
+          "height": 899,
+          "kb": 57.1
+        },
+        "forbidden-dark.png": {
+          "width": 1200,
+          "height": 899,
+          "kb": 72.4
+        },
+        "forbidden-dark-600.webp": {
+          "width": 600,
+          "height": 450,
+          "kb": 26.9
+        }
+      },
+      "svg": null
+    },
+    {
+      "id": "offline",
+      "title": "Offline",
+      "alt": "The chef mascot holds an unplugged power cord beside a stopped conveyor belt.",
+      "source": "brand/raw/003-scenes-errors/003-scenes-errors-11.png",
+      "blobDark": "#3F3934",
+      "exports": {
+        "offline-light.webp": {
+          "width": 1200,
+          "height": 869,
+          "kb": 51.3
+        },
+        "offline-light.png": {
+          "width": 1200,
+          "height": 869,
+          "kb": 91.3
+        },
+        "offline-light-600.webp": {
+          "width": 600,
+          "height": 435,
+          "kb": 25.6
+        },
+        "offline-dark.webp": {
+          "width": 1200,
+          "height": 869,
+          "kb": 51.5
+        },
+        "offline-dark.png": {
+          "width": 1200,
+          "height": 869,
+          "kb": 50.4
+        },
+        "offline-dark-600.webp": {
+          "width": 600,
+          "height": 435,
+          "kb": 24.9
+        }
+      },
+      "svg": null
+    },
+    {
+      "id": "reconnecting",
+      "title": "Reconnecting",
+      "alt": "The chef mascot happily turns a hand crank to get a conveyor belt moving again.",
+      "source": "brand/raw/006-scene-reconnecting/006-scene-reconnecting-1.png",
+      "blobDark": "#3F3934",
+      "exports": {
+        "reconnecting-light.webp": {
+          "width": 1200,
+          "height": 999,
+          "kb": 60.4
+        },
+        "reconnecting-light.png": {
+          "width": 1200,
+          "height": 999,
+          "kb": 155.2
+        },
+        "reconnecting-light-600.webp": {
+          "width": 600,
+          "height": 499,
+          "kb": 28.9
+        },
+        "reconnecting-dark.webp": {
+          "width": 1200,
+          "height": 999,
+          "kb": 59.1
+        },
+        "reconnecting-dark.png": {
+          "width": 1200,
+          "height": 999,
+          "kb": 76.7
+        },
+        "reconnecting-dark-600.webp": {
+          "width": 600,
+          "height": 499,
+          "kb": 27.6
+        }
+      },
+      "svg": null
+    },
+    {
+      "id": "maintenance",
+      "title": "Maintenance",
+      "alt": "The chef mascot sits on a conveyor belt with a big wrench and an open toolbox.",
+      "source": "brand/raw/003-scenes-errors/003-scenes-errors-14.png",
+      "blobDark": "#3F3934",
+      "exports": {
+        "maintenance-light.webp": {
+          "width": 1200,
+          "height": 914,
+          "kb": 77.7
+        },
+        "maintenance-light.png": {
+          "width": 1200,
+          "height": 914,
+          "kb": 159.7
+        },
+        "maintenance-light-600.webp": {
+          "width": 600,
+          "height": 457,
+          "kb": 35.3
+        },
+        "maintenance-dark.webp": {
+          "width": 1200,
+          "height": 914,
+          "kb": 77.9
+        },
+        "maintenance-dark.png": {
+          "width": 1200,
+          "height": 914,
+          "kb": 83.6
+        },
+        "maintenance-dark-600.webp": {
+          "width": 600,
+          "height": 457,
+          "kb": 35.2
+        }
+      },
+      "svg": null
+    },
+    {
+      "id": "empty-tasks",
+      "title": "No tasks yet",
+      "alt": "The chef mascot relaxes on a conveyor belt with a cup of coffee.",
+      "source": "brand/raw/004-scenes-empty/004-scenes-empty-2.png",
+      "blobDark": "#3F3934",
+      "exports": {
+        "empty-tasks-light.webp": {
+          "width": 1200,
+          "height": 960,
+          "kb": 57.7
+        },
+        "empty-tasks-light.png": {
+          "width": 1200,
+          "height": 960,
+          "kb": 131.3
+        },
+        "empty-tasks-light-600.webp": {
+          "width": 600,
+          "height": 480,
+          "kb": 28.1
+        },
+        "empty-tasks-dark.webp": {
+          "width": 1200,
+          "height": 960,
+          "kb": 58.1
+        },
+        "empty-tasks-dark.png": {
+          "width": 1200,
+          "height": 960,
+          "kb": 69
+        },
+        "empty-tasks-dark-600.webp": {
+          "width": 600,
+          "height": 480,
+          "kb": 27.5
+        }
+      },
+      "svg": null
+    },
+    {
+      "id": "empty-sessions",
+      "title": "No sessions yet",
+      "alt": "The chef mascot waves from a small cafe table with two empty chairs.",
+      "source": "brand/raw/004-scenes-empty/004-scenes-empty-4.png",
+      "blobDark": "#3F3934",
+      "exports": {
+        "empty-sessions-light.webp": {
+          "width": 1200,
+          "height": 960,
+          "kb": 67.8
+        },
+        "empty-sessions-light.png": {
+          "width": 1200,
+          "height": 960,
+          "kb": 166.1
+        },
+        "empty-sessions-light-600.webp": {
+          "width": 600,
+          "height": 480,
+          "kb": 33.2
+        },
+        "empty-sessions-dark.webp": {
+          "width": 1200,
+          "height": 960,
+          "kb": 67
+        },
+        "empty-sessions-dark.png": {
+          "width": 1200,
+          "height": 960,
+          "kb": 90.8
+        },
+        "empty-sessions-dark-600.webp": {
+          "width": 600,
+          "height": 480,
+          "kb": 32.2
+        }
+      },
+      "svg": null
+    },
+    {
+      "id": "empty-workers",
+      "title": "No workers yet",
+      "alt": "The chef mascot holds a clipboard while spare hats and mitts hang nearby.",
+      "source": "brand/raw/004-scenes-empty/004-scenes-empty-8.png",
+      "blobDark": "#3F3934",
+      "exports": {
+        "empty-workers-light.webp": {
+          "width": 1200,
+          "height": 961,
+          "kb": 58
+        },
+        "empty-workers-light.png": {
+          "width": 1200,
+          "height": 961,
+          "kb": 154.9
+        },
+        "empty-workers-light-600.webp": {
+          "width": 600,
+          "height": 481,
+          "kb": 28.3
+        },
+        "empty-workers-dark.webp": {
+          "width": 1200,
+          "height": 961,
+          "kb": 57.2
+        },
+        "empty-workers-dark.png": {
+          "width": 1200,
+          "height": 961,
+          "kb": 84.1
+        },
+        "empty-workers-dark-600.webp": {
+          "width": 600,
+          "height": 481,
+          "kb": 26.9
+        }
+      },
+      "svg": null
+    },
+    {
+      "id": "empty-search",
+      "title": "No results",
+      "alt": "The chef mascot holds a whisk over an empty mixing bowl.",
+      "source": "brand/raw/004-scenes-empty/004-scenes-empty-10.png",
+      "blobDark": "#3F3934",
+      "exports": {
+        "empty-search-light.webp": {
+          "width": 1200,
+          "height": 1009,
+          "kb": 64
+        },
+        "empty-search-light.png": {
+          "width": 1200,
+          "height": 1009,
+          "kb": 117.1
+        },
+        "empty-search-light-600.webp": {
+          "width": 600,
+          "height": 504,
+          "kb": 30.9
+        },
+        "empty-search-dark.webp": {
+          "width": 1200,
+          "height": 1009,
+          "kb": 64.6
+        },
+        "empty-search-dark.png": {
+          "width": 1200,
+          "height": 1009,
+          "kb": 74.8
+        },
+        "empty-search-dark-600.webp": {
+          "width": 600,
+          "height": 504,
+          "kb": 30.6
+        }
+      },
+      "svg": null
+    },
+    {
+      "id": "loading",
+      "title": "Loading",
+      "alt": "The chef mascot kneads dough on a conveyor belt.",
+      "source": "brand/raw/005-scenes-moments/005-scenes-moments-2.png",
+      "blobDark": "#3F3934",
+      "exports": {
+        "loading-light.webp": {
+          "width": 1200,
+          "height": 1215,
+          "kb": 62.1
+        },
+        "loading-light.png": {
+          "width": 1200,
+          "height": 1215,
+          "kb": 203.8
+        },
+        "loading-light-600.webp": {
+          "width": 600,
+          "height": 607,
+          "kb": 29.8
+        },
+        "loading-dark.webp": {
+          "width": 1200,
+          "height": 1215,
+          "kb": 59.5
+        },
+        "loading-dark.png": {
+          "width": 1200,
+          "height": 1215,
+          "kb": 78.4
+        },
+        "loading-dark-600.webp": {
+          "width": 600,
+          "height": 607,
+          "kb": 28.5
+        }
+      },
+      "svg": null
+    },
+    {
+      "id": "success",
+      "title": "Success",
+      "alt": "The chef mascot cheers with confetti beside a fresh loaf of bread.",
+      "source": "brand/raw/005-scenes-moments/005-scenes-moments-4.png",
+      "blobDark": "#3F3934",
+      "exports": {
+        "success-light.webp": {
+          "width": 1200,
+          "height": 1043,
+          "kb": 64
+        },
+        "success-light.png": {
+          "width": 1200,
+          "height": 1043,
+          "kb": 127.3
+        },
+        "success-light-600.webp": {
+          "width": 600,
+          "height": 521,
+          "kb": 30.4
+        },
+        "success-dark.webp": {
+          "width": 1200,
+          "height": 1043,
+          "kb": 63.4
+        },
+        "success-dark.png": {
+          "width": 1200,
+          "height": 1043,
+          "kb": 73
+        },
+        "success-dark-600.webp": {
+          "width": 600,
+          "height": 521,
+          "kb": 30.1
+        }
+      },
+      "svg": null
+    },
+    {
+      "id": "welcome",
+      "title": "Welcome",
+      "alt": "The chef mascot proudly holds a tray of fresh rolls.",
+      "source": "brand/raw/005-scenes-moments/005-scenes-moments-8.png",
+      "blobDark": "#3F3934",
+      "exports": {
+        "welcome-light.webp": {
+          "width": 1200,
+          "height": 1181,
+          "kb": 62.2
+        },
+        "welcome-light.png": {
+          "width": 1200,
+          "height": 1181,
+          "kb": 134.5
+        },
+        "welcome-light-600.webp": {
+          "width": 600,
+          "height": 591,
+          "kb": 29.7
+        },
+        "welcome-dark.webp": {
+          "width": 1200,
+          "height": 1181,
+          "kb": 61.4
+        },
+        "welcome-dark.png": {
+          "width": 1200,
+          "height": 1181,
+          "kb": 41.3
+        },
+        "welcome-dark-600.webp": {
+          "width": 600,
+          "height": 591,
+          "kb": 29.5
+        }
+      },
+      "svg": null
+    },
+    {
+      "id": "sign-in-hero",
+      "title": "Sign in",
+      "alt": "The chef mascot waves beside a brick oven and a row of baked loaves.",
+      "source": "brand/raw/005-scenes-moments/005-scenes-moments-11.png",
+      "blobDark": "#3F3934",
+      "exports": {
+        "sign-in-hero-light.webp": {
+          "width": 1600,
+          "height": 1009,
+          "kb": 70.6
+        },
+        "sign-in-hero-light.png": {
+          "width": 1600,
+          "height": 1009,
+          "kb": 180.1
+        },
+        "sign-in-hero-light-600.webp": {
+          "width": 600,
+          "height": 379,
+          "kb": 25.3
+        },
+        "sign-in-hero-dark.webp": {
+          "width": 1600,
+          "height": 1009,
+          "kb": 69.9
+        },
+        "sign-in-hero-dark.png": {
+          "width": 1600,
+          "height": 1009,
+          "kb": 107.6
+        },
+        "sign-in-hero-dark-600.webp": {
+          "width": 600,
+          "height": 379,
+          "kb": 24.8
+        }
+      },
+      "svg": null
+    }
+  ]
+}

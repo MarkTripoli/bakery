@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="real-inngest-lease-margin" project="bakery">
+  <title>A real-Inngest test that counts engine invocations needs a lease margin, not a short completion timeout</title>
+  <trigger>A test on createRealInngestStack asserts an exact engine invocation count while the fixture's jobCompletionTimeout is 1s to 3s.</trigger>
+  <mistake>The engine-owner lease is max(3s, 2 x jobCompletionTimeout), so a 3s timeout leaves a 6s lease and a 1s timeout the 3s minimum. A run stalled past its lease is rearmed by the once-a-minute recovery cron, and the rearm is a legitimate extra invocation whose event id is a ULID, not a Bakery delivery key; a loaded runner is the presumed cause of the stall, which was not observed directly. The handoff test counted 3 for 2 (run 41383326556), the retry exhaustion test 2 for 1; at the base 2 of 12 and 1 of 10 loaded runs failed.</mistake>
+  <rule>Give such a test a timeout that makes the lease wide enough (10s for the handoff test, 5s for retry exhaustion) and keep the count assertions. setStepAvailableAt refuses a delay over 60s. A margin is not a proof of impossibility: read the restart lineage diagnostic (invocations labelled by source, owner lease against the database clock) when a count is off.</rule>
+  <verification>
+    <requirement>The forced lapse (expire engine_owner_lease_expires_at, then send bakery/workflow.reconcile.v1) gives count 3 and the control gives 2.</requirement>
+  </verification>
+  <boundary>The mechanism was shown by forcing a lapse; a natural lapse was never observed directly.</boundary>
+</learning>

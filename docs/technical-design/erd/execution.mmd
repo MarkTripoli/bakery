@@ -1,0 +1,197 @@
+erDiagram
+  direction LR
+  principals {
+    uuid id PK
+  }
+  organizations {
+    uuid id PK
+  }
+  repositories {
+    uuid id PK
+  }
+  repository_profiles {
+    uuid id PK
+  }
+  conversations {
+    uuid id PK
+  }
+  messages {
+    uuid id PK
+  }
+  tasks {
+    uuid id PK
+  }
+  workflow_versions {
+    uuid id PK
+  }
+  agent_versions {
+    uuid id PK
+  }
+  workflow_runs {
+    uuid id PK
+    uuid organization_id FK
+    uuid task_id FK
+    uuid workflow_version_id FK
+    uuid repository_profile_id FK "nullable"
+    uuid requested_by FK
+    text inngest_run_id "nullable"
+    enum status
+    jsonb snapshot
+    numeric budget_limit_usd
+    timestamp started_at "nullable"
+    timestamp finished_at "nullable"
+  }
+  organizations ||..o{ workflow_runs : "organization_id"
+  tasks ||..o{ workflow_runs : "task_id"
+  workflow_versions ||..o{ workflow_runs : "workflow_version_id"
+  repository_profiles |o..o{ workflow_runs : "repository_profile_id"
+  principals ||..o{ workflow_runs : "requested_by"
+  run_steps {
+    uuid id PK
+    uuid organization_id FK
+    uuid run_id FK
+    text step_key
+    int iteration
+    enum status
+    jsonb input
+    jsonb output "nullable"
+    jsonb error "nullable"
+    timestamp started_at "nullable"
+    timestamp finished_at "nullable"
+  }
+  organizations ||..o{ run_steps : "organization_id"
+  workflow_runs ||..o{ run_steps : "run_id"
+  agent_sessions {
+    uuid id PK
+    uuid organization_id FK
+    uuid run_step_id FK "nullable"
+    uuid conversation_id FK
+    uuid agent_version_id FK
+    enum harness
+    enum status
+    jsonb resume_ref "nullable"
+    uuid parent_session_id FK "nullable"
+  }
+  organizations ||..o{ agent_sessions : "organization_id"
+  run_steps |o..o{ agent_sessions : "run_step_id"
+  conversations ||..o{ agent_sessions : "conversation_id"
+  agent_versions ||..o{ agent_sessions : "agent_version_id"
+  agent_sessions |o..o{ agent_sessions : "parent_session_id"
+  jobs {
+    uuid id PK
+    uuid organization_id FK
+    uuid run_step_id FK
+    uuid repository_id FK "nullable"
+    text action
+    jsonb requirements
+    enum status
+    timestamp available_at
+    int priority
+    bigint current_fence
+    timestamp cancel_requested_at "nullable"
+  }
+  organizations ||..o{ jobs : "organization_id"
+  run_steps ||..o{ jobs : "run_step_id"
+  repositories |o..o{ jobs : "repository_id"
+  worker_hosts {
+    uuid id PK
+    uuid organization_id FK
+    uuid principal_id FK
+    text name
+    enum os
+    text architecture
+    jsonb capabilities
+    jsonb toolchain_versions
+    int slots
+    enum status
+    timestamp last_heartbeat_at "nullable"
+    text credential_hash
+    integer credential_generation
+  }
+  organizations ||..o{ worker_hosts : "organization_id"
+  principals ||..o| worker_hosts : "principal_id"
+  job_attempts {
+    uuid id PK
+    uuid organization_id FK
+    uuid job_id FK
+    uuid worker_host_id FK
+    int attempt_no
+    bigint fence
+    text lease_token_hash
+    timestamp lease_expires_at
+    enum status
+    bigint last_event_seq
+    jsonb result "nullable"
+    timestamp started_at "nullable"
+    timestamp ended_at "nullable"
+  }
+  organizations ||..o{ job_attempts : "organization_id"
+  jobs ||..o{ job_attempts : "job_id"
+  worker_hosts ||..o{ job_attempts : "worker_host_id"
+  attempt_events {
+    uuid id PK
+    uuid organization_id FK
+    uuid attempt_id FK
+    bigint local_seq
+    text event_type
+    jsonb payload
+    text payload_digest
+    timestamp occurred_at
+    jsonb saved_ack
+  }
+  organizations ||..o{ attempt_events : "organization_id"
+  job_attempts ||..o{ attempt_events : "attempt_id"
+  workspaces {
+    uuid id PK
+    uuid organization_id FK
+    uuid attempt_id FK
+    uuid repository_id FK
+    uuid worker_host_id FK
+    text base_sha
+    text branch_name
+    text path
+    enum status
+    timestamp cleanup_after "nullable"
+  }
+  organizations ||..o{ workspaces : "organization_id"
+  job_attempts ||..o{ workspaces : "attempt_id"
+  repositories ||..o{ workspaces : "repository_id"
+  worker_hosts ||..o{ workspaces : "worker_host_id"
+  previews {
+    uuid id PK
+    uuid organization_id FK
+    uuid workspace_id FK
+    text head_sha
+    text route_key
+    int upstream_port
+    enum status
+    timestamp expires_at
+  }
+  organizations ||..o{ previews : "organization_id"
+  workspaces ||..o{ previews : "workspace_id"
+  worker_commands {
+    uuid id PK
+    uuid organization_id FK
+    uuid attempt_id FK
+    uuid message_id FK "nullable"
+    enum command_type
+    jsonb payload
+    enum status
+    timestamp acknowledged_at "nullable"
+  }
+  organizations ||..o{ worker_commands : "organization_id"
+  job_attempts ||..o{ worker_commands : "attempt_id"
+  messages |o..o{ worker_commands : "message_id"
+  preview_grants {
+    uuid id PK
+    uuid organization_id FK
+    uuid preview_id FK
+    uuid principal_id FK
+    text token_hash
+    timestamp expires_at
+    timestamp consumed_at "nullable"
+    timestamp revoked_at "nullable"
+  }
+  organizations ||..o{ preview_grants : "organization_id"
+  previews ||..o{ preview_grants : "preview_id"
+  principals ||..o{ preview_grants : "principal_id"

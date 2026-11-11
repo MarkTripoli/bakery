@@ -1,0 +1,68 @@
+erDiagram
+  direction LR
+  principals {
+    uuid id PK
+  }
+  organizations {
+    uuid id PK
+  }
+  tasks {
+    uuid id PK
+  }
+  run_steps {
+    uuid id PK
+  }
+  artifacts {
+    uuid id PK
+    uuid organization_id FK
+    uuid task_id FK
+    enum artifact_type
+    text name
+    uuid current_version_id FK "nullable"
+    timestamp pinned_at "nullable"
+    uuid pinned_by FK "nullable"
+  }
+  organizations ||..o{ artifacts : "organization_id"
+  tasks ||..o{ artifacts : "task_id"
+  artifact_versions |o..o{ artifacts : "current_version_id"
+  principals |o..o{ artifacts : "pinned_by"
+  artifact_versions {
+    uuid id PK
+    uuid organization_id FK
+    uuid artifact_id FK
+    int revision
+    uuid run_step_id FK "nullable"
+    uuid author_id FK
+    text media_type
+    bytea content "nullable"
+    int size_bytes
+    text sha256
+    text subject_head_sha "nullable"
+    text subject_base_sha "nullable"
+    jsonb metadata
+    enum retention_class
+    timestamp expires_at "nullable"
+    timestamp purged_at "nullable"
+  }
+  organizations ||..o{ artifact_versions : "organization_id"
+  artifacts ||..o{ artifact_versions : "artifact_id"
+  run_steps |o..o{ artifact_versions : "run_step_id"
+  principals ||..o{ artifact_versions : "author_id"
+  artifact_comments {
+    uuid id PK
+    uuid organization_id FK
+    uuid artifact_version_id FK
+    uuid author_id FK
+    text body
+    jsonb anchor "nullable"
+    enum status "nullable"
+    uuid resolved_by FK "nullable"
+    uuid root_id FK "nullable"
+    timestamp resolved_at "nullable"
+    timestamp deleted_at "nullable"
+  }
+  organizations ||..o{ artifact_comments : "organization_id"
+  artifact_versions ||..o{ artifact_comments : "artifact_version_id"
+  principals ||..o{ artifact_comments : "author_id"
+  principals |o..o{ artifact_comments : "resolved_by"
+  artifact_comments |o..o{ artifact_comments : "root_id"

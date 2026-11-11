@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="artifact-name-unique-per-attempt" project="bakery">
+  <title>Artifact names must be unique per attempt or a retried attempt gets 428 PRECONDITION_REQUIRED</title>
+  <trigger>A worker step publishes an artifact and the step can be claimed again after a lease loss or restart.</trigger>
+  <mistake>Artifact names are unique per task, type and name, and a second version of an existing name needs a parent version. A reclaimed attempt that republished the same name hit 428 PRECONDITION_REQUIRED.</mistake>
+  <rule>Derive each attempt's artifact name from stable attempt identity, for example task-brief-&lt;jobId&gt;-&lt;fence&gt;.json, so a retry publishes a fresh name without a parent. Do not hide the 428 by adding a parent the attempt never read.</rule>
+  <verification>
+    <requirement>A forced restart mid-step completes once, and the task lists one artifact per attempt with distinct names.</requirement>
+  </verification>
+</learning>

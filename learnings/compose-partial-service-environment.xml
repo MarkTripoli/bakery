@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="compose-partial-service-environment" project="bakery">
+  <title>Keep required Compose environment available for partial service startup and cleanup</title>
+  <trigger>A postgres-only Compose up or down fails because BETTER_AUTH_SECRET is unset.</trigger>
+  <rule>`scripts/dev/compose-up.sh` and `scripts/dev/compose-down.sh` hit the same failure for a postgres-only project: export a `BETTER_AUTH_SECRET` of at least 32 bytes for both, even though no server starts.</rule>
+  <rule>Compose interpolates required variables for unstarted services before selecting services. Generate the required secret privately in the outer launcher environment and retain that same environment for both up and down. Never print secret values. Setting the variable does not imply that the server service started.</rule>
+  <verification>
+    <requirement>Record the selected services and actual project resources. Verify down exits zero and no owned containers, networks, volumes or private environment file remain.</requirement>
+  </verification>
+</learning>

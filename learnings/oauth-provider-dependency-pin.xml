@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<learning id="oauth-provider-dependency-pin" project="bakery" issue="E03">
+  <title>Pin the transitive OAuth provider and register clients through the adapter</title>
+  <trigger>Adding or upgrading `@better-auth/mcp`, or creating a pre-registered OAuth client from a server task.</trigger>
+  <mistake>`@better-auth/mcp@1.7.3` depends on `@better-auth/oauth-provider@^1.7.3`, so a plain `pnpm add` resolved 1.7.7 next to `better-auth@1.7.3` with unmet peers; the Deno compatibility spike resolves 1.7.3. Separately, the provider's `create-client` and `admin/oauth2/create-client` endpoints both require a signed-in session and a truthy `clientPrivileges` hook, so a server task cannot use them while every HTTP caller is denied.</mistake>
+  <rule>Keep `@better-auth/oauth-provider` pinned to the exact `better-auth` patch with a `pnpm-workspace.yaml` override and bump both together. Deny `clientPrivileges` and `resourcePrivileges` for every caller, and let the `register-oauth-client` task write the `oauthClient` and `oauthClientResource` rows through the provider adapter (`auth.$context.adapter`). The provider only issues tokens for resources a client is linked to.</rule>
+  <verification>
+    <command>pnpm --dir apps/server why @better-auth/oauth-provider</command>
+    <command>pnpm test:security -- tests/security/implement-oauth-protected-mcp-server-and-transport-parity_test.ts</command>
+    <requirement>The resolved provider version equals the `better-auth` version, and signed-in people cannot create, change or delete clients or resources over HTTP.</requirement>
+  </verification>
+  <boundary>Does not cover CIMD or dynamic registration, which stay off until a tested DNS-pinned fetch transport exists.</boundary>
+</learning>

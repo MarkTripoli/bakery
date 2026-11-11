@@ -1,0 +1,4603 @@
+{
+  "schemaVersion": 1,
+  "contexts": {
+    "paper-theme-light-fine": {
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "paper-desktop-light-fine": {
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "paper-section-navigation-phone-coarse": {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "paper-auth-entry-light-fine": {
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "desktop-light-fine": {
+      "viewport": {
+        "width": 1280,
+        "height": 960
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "desktop-dark-fine": {
+      "viewport": {
+        "width": 1280,
+        "height": 960
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "storedPreference": "dark",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "desktop-coarse": {
+      "viewport": {
+        "width": 1280,
+        "height": 960
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "phone-light-fine": {
+      "viewport": {
+        "width": 320,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "phone-light-coarse": {
+      "viewport": {
+        "width": 320,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "pane-light-fine": {
+      "viewport": {
+        "width": 744,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "keyboard-focus": {
+      "viewport": {
+        "width": 1280,
+        "height": 960
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "keyboard-focus"
+    },
+    "zoom-200": {
+      "viewport": {
+        "width": 320,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 2,
+      "interaction": "load"
+    },
+    "reduced-motion": {
+      "viewport": {
+        "width": 744,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "reduce",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "pseudo-locale": {
+      "viewport": {
+        "width": 744,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "fine",
+      "locale": "en-XA",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "rtl": {
+      "viewport": {
+        "width": 744,
+        "height": 900
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "storedPreference": "dark",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "rtl",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "system-dark": {
+      "viewport": {
+        "width": 1280,
+        "height": 960
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "storedPreference": "system",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "worker-system-light": {
+      "viewport": {
+        "width": 1280,
+        "height": 960
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "system",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "worker-screen-reader": {
+      "viewport": {
+        "width": 1280,
+        "height": 960
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "phone-dark-coarse": {
+      "viewport": {
+        "width": 320,
+        "height": 844
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "storedPreference": "dark",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "paper-enrollment-start-desktop": {
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "paper-enrollment-start-phone": {
+      "viewport": {
+        "width": 390,
+        "height": 1132
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "paper-enrollment-listening-desktop": {
+      "viewport": {
+        "width": 1440,
+        "height": 1050
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "paper-enrollment-listening-phone": {
+      "viewport": {
+        "width": 390,
+        "height": 1246
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "paper-enrollment-connected-desktop": {
+      "viewport": {
+        "width": 1440,
+        "height": 1130
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "paper-enrollment-connected-phone": {
+      "viewport": {
+        "width": 390,
+        "height": 1306
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "paper-list-light-desktop": {
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "paper-list-light-phone": {
+      "viewport": {
+        "width": 390,
+        "height": 1129
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "paper-list-dark-desktop": {
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "storedPreference": "dark",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "paper-list-dark-phone": {
+      "viewport": {
+        "width": 390,
+        "height": 1129
+      },
+      "dpr": 1,
+      "theme": "dark",
+      "storedPreference": "dark",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "paper-detail-light-desktop": {
+      "viewport": {
+        "width": 1440,
+        "height": 960
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "fine",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    },
+    "paper-detail-light-phone": {
+      "viewport": {
+        "width": 390,
+        "height": 1483
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    }
+  },
+  "cases": [
+    {
+      "id": "template.installationSettingsForm.contract.desktop-light-fine",
+      "catalogId": "template.installationSettingsForm",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-templates-installationsettingsform--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "template.ssoSettings.contract.desktop-light-fine",
+      "catalogId": "template.ssoSettings",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-templates-ssosettings--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "template.accessSettings.contract.desktop-light-fine",
+      "catalogId": "template.accessSettings",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-templates-accesssettings--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.text.contract.desktop-light-fine",
+      "catalogId": "ui.text",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-text--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.heading.contract.desktop-light-fine",
+      "catalogId": "ui.heading",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-heading--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.label.contract.desktop-light-fine",
+      "catalogId": "ui.label",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-label--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.dataText.contract.desktop-light-fine",
+      "catalogId": "ui.dataText",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-datatext--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.stack.contract.desktop-light-fine",
+      "catalogId": "ui.stack",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-stack--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.inline.contract.desktop-light-fine",
+      "catalogId": "ui.inline",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-inline--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.divider.contract.desktop-light-fine",
+      "catalogId": "ui.divider",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-divider--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.spacer.contract.desktop-light-fine",
+      "catalogId": "ui.spacer",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-spacer--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.icon.contract.desktop-light-fine",
+      "catalogId": "ui.icon",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-icon--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.logoMark.contract.desktop-light-fine",
+      "catalogId": "ui.logoMark",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-logomark--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.themeProvider.contract.desktop-light-fine",
+      "catalogId": "ui.themeProvider",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-themeprovider--contract",
+      "context": "paper-theme-light-fine",
+      "paperBaselineId": "ui.themeProvider.paper"
+    },
+    {
+      "id": "ui.button.contract.desktop-light-fine",
+      "catalogId": "ui.button",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-button--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ]
+    },
+    {
+      "id": "ui.iconButton.contract.desktop-light-fine",
+      "catalogId": "ui.iconButton",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-iconbutton--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.themeToggle.contract.desktop-light-fine",
+      "catalogId": "ui.themeToggle",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-themetoggle--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.link.contract.desktop-light-fine",
+      "catalogId": "ui.link",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-link--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.menu.contract.desktop-light-fine",
+      "catalogId": "ui.menu",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-menu--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.command.contract.desktop-light-fine",
+      "catalogId": "ui.command",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-command--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.field.contract.desktop-light-fine",
+      "catalogId": "ui.field",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-field--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.searchField.contract.desktop-light-fine",
+      "catalogId": "ui.searchField",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-searchfield--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.combobox.contract.desktop-light-fine",
+      "catalogId": "ui.combobox",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-combobox--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.checkbox.contract.desktop-light-fine",
+      "catalogId": "ui.checkbox",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-checkbox--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.radio.contract.desktop-light-fine",
+      "catalogId": "ui.radio",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-radio--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.switch.contract.desktop-light-fine",
+      "catalogId": "ui.switch",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-switch--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.resourcePicker.contract.desktop-light-fine",
+      "catalogId": "ui.resourcePicker",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-resourcepicker--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.applicationRail.contract.desktop-light-fine",
+      "catalogId": "ui.applicationRail",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-applicationrail--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.sectionNavigation.contract.desktop-light-fine",
+      "catalogId": "ui.sectionNavigation",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-sectionnavigation--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.sectionNavigationWide.contract.desktop-light-fine",
+      "catalogId": "ui.sectionNavigation",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-sectionnavigation--contract",
+      "context": "paper-desktop-light-fine",
+      "paperBaselineId": "ui.sectionNavigationWide.paper",
+      "semanticCoverage": {
+        "variants": [
+          "sidebar"
+        ],
+        "states": [
+          "default"
+        ]
+      }
+    },
+    {
+      "id": "ui.breadcrumbs.contract.desktop-light-fine",
+      "catalogId": "ui.breadcrumbs",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-breadcrumbs--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.notificationBell.contract.desktop-light-fine",
+      "catalogId": "ui.notificationBell",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-notificationbell--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.tabs.contract.desktop-light-fine",
+      "catalogId": "ui.tabs",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-tabs--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.segmentedControl.contract.desktop-light-fine",
+      "catalogId": "ui.segmentedControl",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-segmentedcontrol--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.cursorControls.contract.desktop-light-fine",
+      "catalogId": "ui.cursorControls",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-cursorcontrols--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.objectRow.contract.desktop-light-fine",
+      "catalogId": "ui.objectRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-objectrow--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.dataTable.contract.desktop-light-fine",
+      "catalogId": "ui.dataTable",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-datatable--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.statusBadge.contract.desktop-light-fine",
+      "catalogId": "ui.statusBadge",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-statusbadge--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.statusLabel.contract.desktop-light-fine",
+      "catalogId": "ui.statusLabel",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-statuslabel--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.codeBlock.contract.desktop-light-fine",
+      "catalogId": "ui.codeBlock",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-codeblock--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.logViewer.contract.desktop-light-fine",
+      "catalogId": "ui.logViewer",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-logviewer--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.avatar.contract.desktop-light-fine",
+      "catalogId": "ui.avatar",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-avatar--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.identity.contract.desktop-light-fine",
+      "catalogId": "ui.identity",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-identity--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.inlineNotice.contract.desktop-light-fine",
+      "catalogId": "ui.inlineNotice",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-inlinenotice--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.alertBanner.contract.desktop-light-fine",
+      "catalogId": "ui.alertBanner",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-alertbanner--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.toast.contract.desktop-light-fine",
+      "catalogId": "ui.toast",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-toast--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.skeleton.contract.desktop-light-fine",
+      "catalogId": "ui.skeleton",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-skeleton--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.emptyState.contract.desktop-light-fine",
+      "catalogId": "ui.emptyState",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-emptystate--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.errorState.contract.desktop-light-fine",
+      "catalogId": "ui.errorState",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-errorstate--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.tooltip.contract.desktop-light-fine",
+      "catalogId": "ui.tooltip",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-tooltip--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.popover.contract.desktop-light-fine",
+      "catalogId": "ui.popover",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-popover--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.dialog.contract.desktop-light-fine",
+      "catalogId": "ui.dialog",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-dialog--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.alertDialog.contract.desktop-light-fine",
+      "catalogId": "ui.alertDialog",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-alertdialog--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.sheet.contract.desktop-light-fine",
+      "catalogId": "ui.sheet",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-sheet--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.conversationMessage.contract.desktop-light-fine",
+      "catalogId": "ui.conversationMessage",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-conversationmessage--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.questionCard.contract.desktop-light-fine",
+      "catalogId": "ui.questionCard",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-questioncard--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.artifactComment.contract.desktop-light-fine",
+      "catalogId": "ui.artifactComment",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-artifactcomment--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.runTimeline.contract.desktop-light-fine",
+      "catalogId": "ui.runTimeline",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-runtimeline--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.modelResolution.contract.desktop-light-fine",
+      "catalogId": "ui.modelResolution",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-modelresolution--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "template.appShell.contract.desktop-light-fine",
+      "catalogId": "template.appShell",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-templates-appshell--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "template.taskDetail.contract.desktop-light-fine",
+      "catalogId": "template.taskDetail",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-templates-taskdetail--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "page.authSignIn.defaultDesktop.desktop-light-fine",
+      "catalogId": "page.authSignIn",
+      "requiredCaseId": "defaultDesktop",
+      "storyId": "bakery-pages-authsignin--default-desktop",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "page.authInvitation.defaultDesktop.desktop-light-fine",
+      "catalogId": "page.authInvitation",
+      "requiredCaseId": "defaultDesktop",
+      "storyId": "bakery-pages-authinvitation--default-desktop",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "page.workQueue.reviewedDesktop.desktop-light-fine",
+      "catalogId": "page.workQueue",
+      "requiredCaseId": "reviewedDesktop",
+      "storyId": "bakery-pages-workqueue--reviewed-desktop",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.themeProvider.contract.dark",
+      "catalogId": "ui.themeProvider",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-themeprovider--contract",
+      "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.themeProvider.contract.system",
+      "catalogId": "ui.themeProvider",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-themeprovider--contract",
+      "context": "system-dark"
+    },
+    {
+      "id": "ui.sectionNavigation.contract.phone-coarse",
+      "catalogId": "ui.sectionNavigation",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-sectionnavigation--contract",
+      "context": "paper-section-navigation-phone-coarse",
+      "paperBaselineId": "ui.sectionNavigation.paper",
+      "assertions": [
+        "containment",
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.sectionNavigation.contract.phone-fine",
+      "catalogId": "ui.sectionNavigation",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-sectionnavigation--contract",
+      "context": "phone-light-fine"
+    },
+    {
+      "id": "ui.sectionNavigation.contract.phone-light-coarse",
+      "catalogId": "ui.sectionNavigation",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-sectionnavigation--contract",
+      "context": "phone-light-coarse"
+    },
+    {
+      "id": "ui.sectionNavigation.contract.pane",
+      "catalogId": "ui.sectionNavigation",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-sectionnavigation--contract",
+      "context": "pane-light-fine"
+    },
+    {
+      "id": "ui.sectionNavigation.contract.keyboard-focus",
+      "catalogId": "ui.sectionNavigation",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-sectionnavigation--contract",
+      "context": "keyboard-focus",
+      "assertions": [
+        "focus"
+      ]
+    },
+    {
+      "id": "ui.sectionNavigation.contract.rtl",
+      "catalogId": "ui.sectionNavigation",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-sectionnavigation--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.button.contract.desktop-coarse",
+      "catalogId": "ui.button",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-button--contract",
+      "context": "desktop-coarse",
+      "assertions": [
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.text.contract.pseudo-locale",
+      "catalogId": "ui.text",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-text--contract",
+      "context": "pseudo-locale"
+    },
+    {
+      "id": "ui.dialog.contract.reduced-motion",
+      "catalogId": "ui.dialog",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-dialog--contract",
+      "context": "reduced-motion"
+    },
+    {
+      "id": "template.appShell.contract.zoom-200",
+      "catalogId": "template.appShell",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-templates-appshell--contract",
+      "context": "zoom-200",
+      "assertions": [
+        "containment"
+      ]
+    },
+    {
+      "id": "ui.textInput.contract.desktop-light-fine",
+      "catalogId": "ui.textInput",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-textinput--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.textInput.contract.rtl",
+      "catalogId": "ui.textInput",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-textinput--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.textInput.contract.pseudo-locale",
+      "catalogId": "ui.textInput",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-textinput--contract",
+      "context": "pseudo-locale"
+    },
+    {
+      "id": "ui.passwordInput.contract.desktop-light-fine",
+      "catalogId": "ui.passwordInput",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-passwordinput--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.passwordInput.contract.rtl",
+      "catalogId": "ui.passwordInput",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-passwordinput--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.passwordInput.contract.pseudo-locale",
+      "catalogId": "ui.passwordInput",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-passwordinput--contract",
+      "context": "pseudo-locale"
+    },
+    {
+      "id": "ui.oneTimeCodeInput.contract.desktop-light-fine",
+      "catalogId": "ui.oneTimeCodeInput",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-onetimecodeinput--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.oneTimeCodeInput.contract.rtl",
+      "catalogId": "ui.oneTimeCodeInput",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-onetimecodeinput--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.oneTimeCodeInput.contract.pseudo-locale",
+      "catalogId": "ui.oneTimeCodeInput",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-onetimecodeinput--contract",
+      "context": "pseudo-locale"
+    },
+    {
+      "id": "ui.recoveryCodes.contract.desktop-light-fine",
+      "catalogId": "ui.recoveryCodes",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-recoverycodes--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.recoveryCodes.contract.rtl",
+      "catalogId": "ui.recoveryCodes",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-recoverycodes--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.recoveryCodes.contract.pseudo-locale",
+      "catalogId": "ui.recoveryCodes",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-recoverycodes--contract",
+      "context": "pseudo-locale"
+    },
+    {
+      "id": "template.authEntry.contract.paper-auth-entry-light-fine",
+      "catalogId": "template.authEntry",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-templates-authentry--contract",
+      "context": "paper-auth-entry-light-fine"
+    },
+    {
+      "id": "template.authEntry.contract.rtl",
+      "catalogId": "template.authEntry",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-templates-authentry--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "template.authEntry.contract.pseudo-locale",
+      "catalogId": "template.authEntry",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-templates-authentry--contract",
+      "context": "pseudo-locale"
+    },
+    {
+      "id": "template.authEntry.contract.phone-light-coarse",
+      "catalogId": "template.authEntry",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-templates-authentry--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "containment",
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.iconGlyph.contract.desktop-light-fine",
+      "catalogId": "ui.iconGlyph",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-iconglyph--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.badge.contract.desktop-light-fine",
+      "catalogId": "ui.badge",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-badge--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.authHeading.contract.desktop-light-fine",
+      "catalogId": "ui.authHeading",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-authheading--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.descriptionItem.contract.desktop-light-fine",
+      "catalogId": "ui.descriptionItem",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-descriptionitem--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.descriptionList.contract.desktop-light-fine",
+      "catalogId": "ui.descriptionList",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-descriptionlist--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.qrCode.contract.desktop-light-fine",
+      "catalogId": "ui.qrCode",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-qrcode--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.qrSetup.contract.desktop-light-fine",
+      "catalogId": "ui.qrSetup",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-qrsetup--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.setupKey.contract.desktop-light-fine",
+      "catalogId": "ui.setupKey",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-setupkey--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.backupCodeList.contract.desktop-light-fine",
+      "catalogId": "ui.backupCodeList",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-backupcodelist--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "template.settingsContent.contract.desktop-light-fine",
+      "catalogId": "template.settingsContent",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-templates-settingscontent--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "template.settingsSection.contract.desktop-light-fine",
+      "catalogId": "template.settingsSection",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-templates-settingssection--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "template.formContent.contract.desktop-light-fine",
+      "catalogId": "template.formContent",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-templates-formcontent--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "wr.enrollment.ready.desktop-light-fine",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.ready.desktop-light-fine",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.enrollment.ready.desktop-dark-fine",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.ready.desktop-dark-fine",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "desktop-dark-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.enrollment.ready.worker-system-light",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.ready.worker-system-light",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "worker-system-light",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.enrollment.ready.system-dark",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.ready.system-dark",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "system-dark",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.enrollment.ready.phone-light-fine",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.ready.phone-light-fine",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "phone-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "AXQ-0"
+      },
+      "fixtureId": "worker-enrollment-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.enrollment.ready.phone-light-coarse",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.ready.phone-light-coarse",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "axe",
+        "containment",
+        "target-size"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "AXQ-0"
+      },
+      "fixtureId": "worker-enrollment-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.enrollment.ready.phone-dark-coarse",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.ready.phone-dark-coarse",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "phone-dark-coarse",
+      "assertions": [
+        "axe",
+        "containment",
+        "target-size"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "AXQ-0"
+      },
+      "fixtureId": "worker-enrollment-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.enrollment.ready.zoom-200",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.ready.zoom-200",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "zoom-200",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.enrollment.ready.reduced-motion",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.ready.reduced-motion",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "reduced-motion",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.enrollment.ready.pseudo-locale",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.ready.pseudo-locale",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "pseudo-locale",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.enrollment.ready.rtl",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.ready.rtl",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "rtl",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.enrollment.ready.keyboard-focus",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.ready.keyboard-focus",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "keyboard-focus",
+      "assertions": [
+        "axe",
+        "containment",
+        "focus"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.enrollment.ready.worker-screen-reader",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.ready.worker-screen-reader",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "worker-screen-reader",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.enrollment.loading.desktop-light-fine",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.loading.desktop-light-fine",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "9VJ-0"
+      },
+      "fixtureId": "worker-enrollment-loading",
+      "args": {
+        "state": "loading"
+      }
+    },
+    {
+      "id": "wr.enrollment.empty.desktop-light-fine",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.empty.desktop-light-fine",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "9VJ-0"
+      },
+      "fixtureId": "worker-enrollment-empty",
+      "args": {
+        "state": "empty"
+      }
+    },
+    {
+      "id": "wr.enrollment.error.desktop-light-fine",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.error.desktop-light-fine",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-error",
+      "args": {
+        "state": "error"
+      }
+    },
+    {
+      "id": "wr.enrollment.forbidden.desktop-light-fine",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.forbidden.desktop-light-fine",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "9VJ-0"
+      },
+      "fixtureId": "worker-enrollment-forbidden",
+      "args": {
+        "state": "forbidden"
+      }
+    },
+    {
+      "id": "wr.enrollment.conflict.desktop-light-fine",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.conflict.desktop-light-fine",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-conflict",
+      "args": {
+        "state": "conflict"
+      }
+    },
+    {
+      "id": "wr.enrollment.stale.desktop-light-fine",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.stale.desktop-light-fine",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-stale",
+      "args": {
+        "state": "stale"
+      }
+    },
+    {
+      "id": "wr.enrollment.offline.desktop-light-fine",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.offline.desktop-light-fine",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "AMY-0"
+      },
+      "fixtureId": "worker-enrollment-offline",
+      "args": {
+        "state": "offline"
+      }
+    },
+    {
+      "id": "wr.enrollment.reconnecting.desktop-light-fine",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.reconnecting.desktop-light-fine",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "AMY-0"
+      },
+      "fixtureId": "worker-enrollment-reconnecting",
+      "args": {
+        "state": "reconnecting"
+      }
+    },
+    {
+      "id": "wr.enrollment.expired.desktop-light-fine",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.expired.desktop-light-fine",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "9VJ-0"
+      },
+      "fixtureId": "worker-enrollment-expired",
+      "args": {
+        "state": "expired"
+      }
+    },
+    {
+      "id": "wr.enrollment.revoked.desktop-light-fine",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.revoked.desktop-light-fine",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "9VJ-0"
+      },
+      "fixtureId": "worker-enrollment-revoked",
+      "args": {
+        "state": "revoked"
+      }
+    },
+    {
+      "id": "wr.enrollment.unavailable.desktop-light-fine",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.unavailable.desktop-light-fine",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "9VJ-0"
+      },
+      "fixtureId": "worker-enrollment-unavailable",
+      "args": {
+        "state": "unavailable"
+      }
+    },
+    {
+      "id": "wr.enrollment.unproved.desktop-light-fine",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.unproved.desktop-light-fine",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "9VJ-0"
+      },
+      "fixtureId": "worker-enrollment-unproved",
+      "args": {
+        "state": "unproved"
+      }
+    },
+    {
+      "id": "wr.enrollment.worstcase.desktop-light-fine",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.worstcase.desktop-light-fine",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.enrollment.worstcase.desktop-dark-fine",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.worstcase.desktop-dark-fine",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "desktop-dark-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.enrollment.worstcase.worker-system-light",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.worstcase.worker-system-light",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "worker-system-light",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.enrollment.worstcase.system-dark",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.worstcase.system-dark",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "system-dark",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.enrollment.worstcase.phone-light-fine",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.worstcase.phone-light-fine",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "phone-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "AXQ-0"
+      },
+      "fixtureId": "worker-enrollment-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.enrollment.worstcase.phone-light-coarse",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.worstcase.phone-light-coarse",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "axe",
+        "containment",
+        "target-size"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "AXQ-0"
+      },
+      "fixtureId": "worker-enrollment-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.enrollment.worstcase.phone-dark-coarse",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.worstcase.phone-dark-coarse",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "phone-dark-coarse",
+      "assertions": [
+        "axe",
+        "containment",
+        "target-size"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "AXQ-0"
+      },
+      "fixtureId": "worker-enrollment-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.enrollment.worstcase.zoom-200",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.worstcase.zoom-200",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "zoom-200",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.enrollment.worstcase.reduced-motion",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.worstcase.reduced-motion",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "reduced-motion",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.enrollment.worstcase.pseudo-locale",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.worstcase.pseudo-locale",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "pseudo-locale",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.enrollment.worstcase.rtl",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.worstcase.rtl",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "rtl",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.enrollment.worstcase.keyboard-focus",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.worstcase.keyboard-focus",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "keyboard-focus",
+      "assertions": [
+        "axe",
+        "containment",
+        "focus"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.enrollment.worstcase.worker-screen-reader",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.worstcase.worker-screen-reader",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "worker-screen-reader",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.enrollment.start.paper-enrollment-start-desktop",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.start.paper-enrollment-start-desktop",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "paper-enrollment-start-desktop",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "9VJ-0"
+      },
+      "fixtureId": "worker-enrollment-start",
+      "args": {
+        "state": "start"
+      },
+      "paperBaselineId": "enrollment.start.light.desktop"
+    },
+    {
+      "id": "wr.enrollment.start.paper-enrollment-start-phone",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.start.paper-enrollment-start-phone",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "paper-enrollment-start-phone",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "9ZB-0"
+      },
+      "fixtureId": "worker-enrollment-start",
+      "args": {
+        "state": "start"
+      },
+      "paperBaselineId": "enrollment.start.light.phone"
+    },
+    {
+      "id": "wr.enrollment.listening.paper-enrollment-listening-desktop",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.listening.paper-enrollment-listening-desktop",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "paper-enrollment-listening-desktop",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "AMY-0"
+      },
+      "fixtureId": "worker-enrollment-listening",
+      "args": {
+        "state": "listening"
+      },
+      "paperBaselineId": "enrollment.listening.light.desktop"
+    },
+    {
+      "id": "wr.enrollment.listening.paper-enrollment-listening-phone",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.listening.paper-enrollment-listening-phone",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "paper-enrollment-listening-phone",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "AR1-0"
+      },
+      "fixtureId": "worker-enrollment-listening",
+      "args": {
+        "state": "listening"
+      },
+      "paperBaselineId": "enrollment.listening.light.phone"
+    },
+    {
+      "id": "wr.enrollment.connected.paper-enrollment-connected-desktop",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.connected.paper-enrollment-connected-desktop",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "paper-enrollment-connected-desktop",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "ATN-0"
+      },
+      "fixtureId": "worker-enrollment-connected",
+      "args": {
+        "state": "connected"
+      },
+      "paperBaselineId": "enrollment.connected.light.desktop"
+    },
+    {
+      "id": "wr.enrollment.connected.paper-enrollment-connected-phone",
+      "catalogId": "template.workerEnrollmentInstructions",
+      "requiredCaseId": "wr.enrollment.connected.paper-enrollment-connected-phone",
+      "storyId": "bakery-templates-workerenrollmentinstructions--contract",
+      "context": "paper-enrollment-connected-phone",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "AXQ-0"
+      },
+      "fixtureId": "worker-enrollment-connected",
+      "args": {
+        "state": "connected"
+      },
+      "paperBaselineId": "enrollment.connected.light.phone"
+    },
+    {
+      "id": "wr.list.ready.desktop-light-fine",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.ready.desktop-light-fine",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.list.ready.desktop-dark-fine",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.ready.desktop-dark-fine",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "desktop-dark-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "A8Y-0"
+      },
+      "fixtureId": "worker-list-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.list.ready.worker-system-light",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.ready.worker-system-light",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "worker-system-light",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.list.ready.system-dark",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.ready.system-dark",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "system-dark",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "A8Y-0"
+      },
+      "fixtureId": "worker-list-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.list.ready.phone-light-fine",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.ready.phone-light-fine",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "phone-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SE-0"
+      },
+      "fixtureId": "worker-list-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.list.ready.phone-light-coarse",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.ready.phone-light-coarse",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "axe",
+        "containment",
+        "target-size"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SE-0"
+      },
+      "fixtureId": "worker-list-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.list.ready.phone-dark-coarse",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.ready.phone-dark-coarse",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "phone-dark-coarse",
+      "assertions": [
+        "axe",
+        "containment",
+        "target-size"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "AD7-0"
+      },
+      "fixtureId": "worker-list-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.list.ready.zoom-200",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.ready.zoom-200",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "zoom-200",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.list.ready.reduced-motion",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.ready.reduced-motion",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "reduced-motion",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.list.ready.pseudo-locale",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.ready.pseudo-locale",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "pseudo-locale",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.list.ready.rtl",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.ready.rtl",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "rtl",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.list.ready.keyboard-focus",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.ready.keyboard-focus",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "keyboard-focus",
+      "assertions": [
+        "axe",
+        "containment",
+        "focus"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.list.ready.worker-screen-reader",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.ready.worker-screen-reader",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "worker-screen-reader",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.list.loading.desktop-light-fine",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.loading.desktop-light-fine",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-loading",
+      "args": {
+        "state": "loading"
+      }
+    },
+    {
+      "id": "wr.list.empty.desktop-light-fine",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.empty.desktop-light-fine",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-empty",
+      "args": {
+        "state": "empty"
+      }
+    },
+    {
+      "id": "wr.list.error.desktop-light-fine",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.error.desktop-light-fine",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-error",
+      "args": {
+        "state": "error"
+      }
+    },
+    {
+      "id": "wr.list.forbidden.desktop-light-fine",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.forbidden.desktop-light-fine",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-forbidden",
+      "args": {
+        "state": "forbidden"
+      }
+    },
+    {
+      "id": "wr.list.conflict.desktop-light-fine",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.conflict.desktop-light-fine",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-conflict",
+      "args": {
+        "state": "conflict"
+      }
+    },
+    {
+      "id": "wr.list.stale.desktop-light-fine",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.stale.desktop-light-fine",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-stale",
+      "args": {
+        "state": "stale"
+      }
+    },
+    {
+      "id": "wr.list.offline.desktop-light-fine",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.offline.desktop-light-fine",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-offline",
+      "args": {
+        "state": "offline"
+      }
+    },
+    {
+      "id": "wr.list.reconnecting.desktop-light-fine",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.reconnecting.desktop-light-fine",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-reconnecting",
+      "args": {
+        "state": "reconnecting"
+      }
+    },
+    {
+      "id": "wr.list.expired.desktop-light-fine",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.expired.desktop-light-fine",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-expired",
+      "args": {
+        "state": "expired"
+      }
+    },
+    {
+      "id": "wr.list.revoked.desktop-light-fine",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.revoked.desktop-light-fine",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-revoked",
+      "args": {
+        "state": "revoked"
+      }
+    },
+    {
+      "id": "wr.list.unavailable.desktop-light-fine",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.unavailable.desktop-light-fine",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-unavailable",
+      "args": {
+        "state": "unavailable"
+      }
+    },
+    {
+      "id": "wr.list.unproved.desktop-light-fine",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.unproved.desktop-light-fine",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-unproved",
+      "args": {
+        "state": "unproved"
+      }
+    },
+    {
+      "id": "wr.list.worstcase.desktop-light-fine",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.worstcase.desktop-light-fine",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.list.worstcase.desktop-dark-fine",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.worstcase.desktop-dark-fine",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "desktop-dark-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "A8Y-0"
+      },
+      "fixtureId": "worker-list-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.list.worstcase.worker-system-light",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.worstcase.worker-system-light",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "worker-system-light",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.list.worstcase.system-dark",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.worstcase.system-dark",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "system-dark",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "A8Y-0"
+      },
+      "fixtureId": "worker-list-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.list.worstcase.phone-light-fine",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.worstcase.phone-light-fine",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "phone-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SE-0"
+      },
+      "fixtureId": "worker-list-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.list.worstcase.phone-light-coarse",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.worstcase.phone-light-coarse",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "axe",
+        "containment",
+        "target-size"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SE-0"
+      },
+      "fixtureId": "worker-list-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.list.worstcase.phone-dark-coarse",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.worstcase.phone-dark-coarse",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "phone-dark-coarse",
+      "assertions": [
+        "axe",
+        "containment",
+        "target-size"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "AD7-0"
+      },
+      "fixtureId": "worker-list-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.list.worstcase.zoom-200",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.worstcase.zoom-200",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "zoom-200",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.list.worstcase.reduced-motion",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.worstcase.reduced-motion",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "reduced-motion",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.list.worstcase.pseudo-locale",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.worstcase.pseudo-locale",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "pseudo-locale",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.list.worstcase.rtl",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.worstcase.rtl",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "rtl",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.list.worstcase.keyboard-focus",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.worstcase.keyboard-focus",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "keyboard-focus",
+      "assertions": [
+        "axe",
+        "containment",
+        "focus"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.list.worstcase.worker-screen-reader",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.worstcase.worker-screen-reader",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "worker-screen-reader",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.list.ready.paper-list-light-desktop",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.ready.paper-list-light-desktop",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "paper-list-light-desktop",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SD-0"
+      },
+      "fixtureId": "worker-list-ready",
+      "args": {
+        "state": "ready"
+      },
+      "paperBaselineId": "list.default.light.desktop"
+    },
+    {
+      "id": "wr.list.ready.paper-list-light-phone",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.ready.paper-list-light-phone",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "paper-list-light-phone",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8SE-0"
+      },
+      "fixtureId": "worker-list-ready",
+      "args": {
+        "state": "ready"
+      },
+      "paperBaselineId": "list.default.light.phone"
+    },
+    {
+      "id": "wr.list.ready.paper-list-dark-desktop",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.ready.paper-list-dark-desktop",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "paper-list-dark-desktop",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "A8Y-0"
+      },
+      "fixtureId": "worker-list-ready",
+      "args": {
+        "state": "ready"
+      },
+      "paperBaselineId": "list.default.dark.desktop"
+    },
+    {
+      "id": "wr.list.ready.paper-list-dark-phone",
+      "catalogId": "template.workerCatalog",
+      "requiredCaseId": "wr.list.ready.paper-list-dark-phone",
+      "storyId": "bakery-templates-workercatalog--contract",
+      "context": "paper-list-dark-phone",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "AD7-0"
+      },
+      "fixtureId": "worker-list-ready",
+      "args": {
+        "state": "ready"
+      },
+      "paperBaselineId": "list.default.dark.phone"
+    },
+    {
+      "id": "wr.detail.ready.desktop-light-fine",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.ready.desktop-light-fine",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.detail.ready.desktop-dark-fine",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.ready.desktop-dark-fine",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "desktop-dark-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.detail.ready.worker-system-light",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.ready.worker-system-light",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "worker-system-light",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.detail.ready.system-dark",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.ready.system-dark",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "system-dark",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.detail.ready.phone-light-fine",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.ready.phone-light-fine",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "phone-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.detail.ready.phone-light-coarse",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.ready.phone-light-coarse",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "axe",
+        "containment",
+        "target-size"
+      ],
+      "fixtureId": "worker-detail-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.detail.ready.phone-dark-coarse",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.ready.phone-dark-coarse",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "phone-dark-coarse",
+      "assertions": [
+        "axe",
+        "containment",
+        "target-size"
+      ],
+      "fixtureId": "worker-detail-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.detail.ready.zoom-200",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.ready.zoom-200",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "zoom-200",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.detail.ready.reduced-motion",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.ready.reduced-motion",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "reduced-motion",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.detail.ready.pseudo-locale",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.ready.pseudo-locale",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "pseudo-locale",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.detail.ready.rtl",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.ready.rtl",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "rtl",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.detail.ready.keyboard-focus",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.ready.keyboard-focus",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "keyboard-focus",
+      "assertions": [
+        "axe",
+        "containment",
+        "focus"
+      ],
+      "fixtureId": "worker-detail-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.detail.ready.worker-screen-reader",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.ready.worker-screen-reader",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "worker-screen-reader",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-ready",
+      "args": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "wr.detail.loading.desktop-light-fine",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.loading.desktop-light-fine",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-loading",
+      "args": {
+        "state": "loading"
+      }
+    },
+    {
+      "id": "wr.detail.empty.desktop-light-fine",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.empty.desktop-light-fine",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-empty",
+      "args": {
+        "state": "empty"
+      }
+    },
+    {
+      "id": "wr.detail.error.desktop-light-fine",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.error.desktop-light-fine",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-error",
+      "args": {
+        "state": "error"
+      }
+    },
+    {
+      "id": "wr.detail.forbidden.desktop-light-fine",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.forbidden.desktop-light-fine",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-forbidden",
+      "args": {
+        "state": "forbidden"
+      }
+    },
+    {
+      "id": "wr.detail.conflict.desktop-light-fine",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.conflict.desktop-light-fine",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-conflict",
+      "args": {
+        "state": "conflict"
+      }
+    },
+    {
+      "id": "wr.detail.stale.desktop-light-fine",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.stale.desktop-light-fine",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-stale",
+      "args": {
+        "state": "stale"
+      }
+    },
+    {
+      "id": "wr.detail.offline.desktop-light-fine",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.offline.desktop-light-fine",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-offline",
+      "args": {
+        "state": "offline"
+      }
+    },
+    {
+      "id": "wr.detail.reconnecting.desktop-light-fine",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.reconnecting.desktop-light-fine",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-reconnecting",
+      "args": {
+        "state": "reconnecting"
+      }
+    },
+    {
+      "id": "wr.detail.expired.desktop-light-fine",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.expired.desktop-light-fine",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-expired",
+      "args": {
+        "state": "expired"
+      }
+    },
+    {
+      "id": "wr.detail.revoked.desktop-light-fine",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.revoked.desktop-light-fine",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-revoked",
+      "args": {
+        "state": "revoked"
+      }
+    },
+    {
+      "id": "wr.detail.unavailable.desktop-light-fine",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.unavailable.desktop-light-fine",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-unavailable",
+      "args": {
+        "state": "unavailable"
+      }
+    },
+    {
+      "id": "wr.detail.unproved.desktop-light-fine",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.unproved.desktop-light-fine",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-unproved",
+      "args": {
+        "state": "unproved"
+      }
+    },
+    {
+      "id": "wr.detail.worstcase.desktop-light-fine",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.worstcase.desktop-light-fine",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "desktop-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.detail.worstcase.desktop-dark-fine",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.worstcase.desktop-dark-fine",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "desktop-dark-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.detail.worstcase.worker-system-light",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.worstcase.worker-system-light",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "worker-system-light",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.detail.worstcase.system-dark",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.worstcase.system-dark",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "system-dark",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.detail.worstcase.phone-light-fine",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.worstcase.phone-light-fine",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "phone-light-fine",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.detail.worstcase.phone-light-coarse",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.worstcase.phone-light-coarse",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "axe",
+        "containment",
+        "target-size"
+      ],
+      "fixtureId": "worker-detail-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.detail.worstcase.phone-dark-coarse",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.worstcase.phone-dark-coarse",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "phone-dark-coarse",
+      "assertions": [
+        "axe",
+        "containment",
+        "target-size"
+      ],
+      "fixtureId": "worker-detail-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.detail.worstcase.zoom-200",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.worstcase.zoom-200",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "zoom-200",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.detail.worstcase.reduced-motion",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.worstcase.reduced-motion",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "reduced-motion",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.detail.worstcase.pseudo-locale",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.worstcase.pseudo-locale",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "pseudo-locale",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.detail.worstcase.rtl",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.worstcase.rtl",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "rtl",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.detail.worstcase.keyboard-focus",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.worstcase.keyboard-focus",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "keyboard-focus",
+      "assertions": [
+        "axe",
+        "containment",
+        "focus"
+      ],
+      "fixtureId": "worker-detail-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.detail.worstcase.worker-screen-reader",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.worstcase.worker-screen-reader",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "worker-screen-reader",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "fixtureId": "worker-detail-worstcase",
+      "args": {
+        "state": "worstcase"
+      }
+    },
+    {
+      "id": "wr.detail.ready.paper-detail-light-desktop",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.ready.paper-detail-light-desktop",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "paper-detail-light-desktop",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "8Y2-0"
+      },
+      "fixtureId": "worker-detail-ready",
+      "args": {
+        "state": "ready"
+      },
+      "paperBaselineId": "detail.default.light.desktop",
+      "wholeArtboardCapture": {
+        "contractVersion": "paper-k0-whole-artboard-v1",
+        "targetSelector": "[data-paper-whole-artboard=\"worker-detail\"]",
+        "qualificationSelector": ".ui-worker-detail__boundary"
+      }
+    },
+    {
+      "id": "wr.detail.ready.paper-detail-light-phone",
+      "catalogId": "template.workerReadOnlyDetail",
+      "requiredCaseId": "wr.detail.ready.paper-detail-light-phone",
+      "storyId": "bakery-templates-workerreadonlydetail--contract",
+      "context": "paper-detail-light-phone",
+      "assertions": [
+        "axe",
+        "containment"
+      ],
+      "sourceProvenance": {
+        "pageId": "K-0",
+        "frameId": "90D-0"
+      },
+      "fixtureId": "worker-detail-ready",
+      "args": {
+        "state": "ready"
+      },
+      "paperBaselineId": "detail.default.light.phone",
+      "wholeArtboardCapture": {
+        "contractVersion": "paper-k0-whole-artboard-v1",
+        "targetSelector": "[data-paper-whole-artboard=\"worker-detail\"]",
+        "qualificationSelector": ".ui-worker-detail__boundary"
+      }
+    },
+    {
+      "id": "ui.sidebarNav.contract.desktop-light-fine",
+      "catalogId": "ui.sidebarNav",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-sidebarnav--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.topBar.contract.desktop-light-fine",
+      "catalogId": "ui.topBar",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-topbar--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.pageHeader.contract.desktop-light-fine",
+      "catalogId": "ui.pageHeader",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-pageheader--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.inspectorPanel.contract.desktop-light-fine",
+      "catalogId": "ui.inspectorPanel",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-inspectorpanel--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.bottomNav.contract.desktop-light-fine",
+      "catalogId": "ui.bottomNav",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-bottomnav--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.statusStrip.contract.desktop-light-fine",
+      "catalogId": "ui.statusStrip",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-statusstrip--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.workspaceSwitcher.contract.desktop-light-fine",
+      "catalogId": "ui.workspaceSwitcher",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-workspaceswitcher--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.userMenu.contract.desktop-light-fine",
+      "catalogId": "ui.userMenu",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-usermenu--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "template.artboardShell.contract.desktop-light-fine",
+      "catalogId": "template.artboardShell",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-templates-artboardshell--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "template.taskInbox.contract.desktop-light-fine",
+      "catalogId": "template.taskInbox",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-templates-taskinbox--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.artifactDescriptor.contract.desktop-light-fine",
+      "catalogId": "ui.artifactDescriptor",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-artifactdescriptor--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.statusDot.contract.desktop-light-fine",
+      "catalogId": "ui.statusDot",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-statusdot--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.artifactPreview.contract.desktop-light-fine",
+      "catalogId": "ui.artifactPreview",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-artifactpreview--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.taskQueue.contract.desktop-light-fine",
+      "catalogId": "ui.taskQueue",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-taskqueue--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.taskInspector.contract.desktop-light-fine",
+      "catalogId": "ui.taskInspector",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-taskinspector--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.sessionPane.contract.desktop-light-fine",
+      "catalogId": "ui.sessionPane",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-sessionpane--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.themeChoice.contract.desktop-light-fine",
+      "catalogId": "ui.themeChoice",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-themechoice--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.appearancePreview.contract.desktop-light-fine",
+      "catalogId": "ui.appearancePreview",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-appearancepreview--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.accessCard.contract.desktop-light-fine",
+      "catalogId": "ui.accessCard",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-accesscard--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.capabilityList.contract.desktop-light-fine",
+      "catalogId": "ui.capabilityList",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-capabilitylist--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.settingsIndexRow.contract.desktop-light-fine",
+      "catalogId": "ui.settingsIndexRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-settingsindexrow--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.presetOption.contract.desktop-light-fine",
+      "catalogId": "ui.presetOption",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-presetoption--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.taskComposerForm.contract.desktop-light-fine",
+      "catalogId": "ui.taskComposerForm",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-taskcomposerform--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.artifactPane.contract.desktop-light-fine",
+      "catalogId": "ui.artifactPane",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-artifactpane--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.presetOption.contract.dark",
+      "catalogId": "ui.presetOption",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-presetoption--contract",
+      "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.presetOption.contract.system",
+      "catalogId": "ui.presetOption",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-presetoption--contract",
+      "context": "system-dark"
+    },
+    {
+      "id": "ui.presetOption.contract.phone-coarse",
+      "catalogId": "ui.presetOption",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-presetoption--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "containment",
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.presetOption.contract.pseudo-locale",
+      "catalogId": "ui.presetOption",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-presetoption--contract",
+      "context": "pseudo-locale"
+    },
+    {
+      "id": "ui.presetOption.contract.rtl",
+      "catalogId": "ui.presetOption",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-presetoption--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.presetOption.contract.keyboard-focus",
+      "catalogId": "ui.presetOption",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-presetoption--contract",
+      "context": "keyboard-focus",
+      "assertions": [
+        "focus"
+      ]
+    },
+    {
+      "id": "ui.taskComposerForm.contract.dark",
+      "catalogId": "ui.taskComposerForm",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-taskcomposerform--contract",
+      "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.taskComposerForm.contract.system",
+      "catalogId": "ui.taskComposerForm",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-taskcomposerform--contract",
+      "context": "system-dark"
+    },
+    {
+      "id": "ui.taskComposerForm.contract.phone-coarse",
+      "catalogId": "ui.taskComposerForm",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-taskcomposerform--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "containment",
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.taskComposerForm.contract.pseudo-locale",
+      "catalogId": "ui.taskComposerForm",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-taskcomposerform--contract",
+      "context": "pseudo-locale"
+    },
+    {
+      "id": "ui.taskComposerForm.contract.rtl",
+      "catalogId": "ui.taskComposerForm",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-taskcomposerform--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.taskComposerForm.contract.keyboard-focus",
+      "catalogId": "ui.taskComposerForm",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-taskcomposerform--contract",
+      "context": "keyboard-focus",
+      "assertions": [
+        "focus"
+      ]
+    },
+    {
+      "id": "ui.artifactPane.contract.dark",
+      "catalogId": "ui.artifactPane",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-artifactpane--contract",
+      "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.artifactPane.contract.system",
+      "catalogId": "ui.artifactPane",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-artifactpane--contract",
+      "context": "system-dark"
+    },
+    {
+      "id": "ui.artifactPane.contract.phone-coarse",
+      "catalogId": "ui.artifactPane",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-artifactpane--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "containment",
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.artifactPane.contract.pseudo-locale",
+      "catalogId": "ui.artifactPane",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-artifactpane--contract",
+      "context": "pseudo-locale"
+    },
+    {
+      "id": "ui.artifactPane.contract.rtl",
+      "catalogId": "ui.artifactPane",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-artifactpane--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.artifactPane.contract.keyboard-focus",
+      "catalogId": "ui.artifactPane",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-artifactpane--contract",
+      "context": "keyboard-focus",
+      "assertions": [
+        "focus"
+      ]
+    },
+    {
+      "id": "ui.runIdentity.contract.desktop-light-fine",
+      "catalogId": "ui.runIdentity",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-runidentity--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.revisionSummary.contract.desktop-light-fine",
+      "catalogId": "ui.revisionSummary",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-revisionsummary--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.runOutputPanel.contract.desktop-light-fine",
+      "catalogId": "ui.runOutputPanel",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-runoutputpanel--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "template.runOutputView.contract.desktop-light-fine",
+      "catalogId": "template.runOutputView",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-templates-runoutputview--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.runArtifactSummary.contract.desktop-light-fine",
+      "catalogId": "ui.runArtifactSummary",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-runartifactsummary--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.versionPicker.contract.desktop-light-fine",
+      "catalogId": "ui.versionPicker",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-versionpicker--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.artifactViewer.contract.desktop-light-fine",
+      "catalogId": "ui.artifactViewer",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-artifactviewer--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.commentRail.contract.desktop-light-fine",
+      "catalogId": "ui.commentRail",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-commentrail--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.artifactDiscussion.contract.desktop-light-fine",
+      "catalogId": "ui.artifactDiscussion",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-artifactdiscussion--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.commentSheet.contract.desktop-light-fine",
+      "catalogId": "ui.commentSheet",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-commentsheet--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.artifactTombstone.contract.desktop-light-fine",
+      "catalogId": "ui.artifactTombstone",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-artifacttombstone--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.capacityBanner.contract.desktop-light-fine",
+      "catalogId": "ui.capacityBanner",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-capacitybanner--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.sendToAgentDialog.contract.desktop-light-fine",
+      "catalogId": "ui.sendToAgentDialog",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-sendtoagentdialog--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.artifactLayout.contract.desktop-light-fine",
+      "catalogId": "ui.artifactLayout",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-templates-artifactlayout--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.workflowStageStrip.contract.desktop-light-fine",
+      "catalogId": "ui.workflowStageStrip",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-workflowstagestrip--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.workflowStageStrip.contract.dark",
+      "catalogId": "ui.workflowStageStrip",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-workflowstagestrip--contract",
+      "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.workflowStageStrip.contract.system",
+      "catalogId": "ui.workflowStageStrip",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-workflowstagestrip--contract",
+      "context": "system-dark"
+    },
+    {
+      "id": "ui.workflowStageStrip.contract.phone-coarse",
+      "catalogId": "ui.workflowStageStrip",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-workflowstagestrip--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "containment",
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.workflowStageStrip.contract.phone-dark-coarse",
+      "catalogId": "ui.workflowStageStrip",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-workflowstagestrip--contract",
+      "context": "phone-dark-coarse",
+      "assertions": [
+        "containment",
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.workflowStageStrip.contract.rtl",
+      "catalogId": "ui.workflowStageStrip",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-workflowstagestrip--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.messageComposer.contract.desktop-light-fine",
+      "catalogId": "ui.messageComposer",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-messagecomposer--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.messageComposer.contract.dark",
+      "catalogId": "ui.messageComposer",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-messagecomposer--contract",
+      "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.messageComposer.contract.system",
+      "catalogId": "ui.messageComposer",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-messagecomposer--contract",
+      "context": "system-dark"
+    },
+    {
+      "id": "ui.messageComposer.contract.phone-coarse",
+      "catalogId": "ui.messageComposer",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-messagecomposer--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.messageComposer.contract.phone-dark-coarse",
+      "catalogId": "ui.messageComposer",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-messagecomposer--contract",
+      "context": "phone-dark-coarse",
+      "assertions": [
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.messageComposer.contract.rtl",
+      "catalogId": "ui.messageComposer",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-organisms-messagecomposer--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.paneSection.contract.desktop-light-fine",
+      "catalogId": "ui.paneSection",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-panesection--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.paneSection.contract.dark",
+      "catalogId": "ui.paneSection",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-panesection--contract",
+      "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.paneSection.contract.system",
+      "catalogId": "ui.paneSection",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-panesection--contract",
+      "context": "system-dark"
+    },
+    {
+      "id": "ui.paneSection.contract.phone-coarse",
+      "catalogId": "ui.paneSection",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-panesection--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "containment"
+      ]
+    },
+    {
+      "id": "ui.paneSection.contract.phone-dark-coarse",
+      "catalogId": "ui.paneSection",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-panesection--contract",
+      "context": "phone-dark-coarse",
+      "assertions": [
+        "containment"
+      ]
+    },
+    {
+      "id": "ui.paneSection.contract.rtl",
+      "catalogId": "ui.paneSection",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-panesection--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.planRevisionSummary.contract.desktop-light-fine",
+      "catalogId": "ui.planRevisionSummary",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-planrevisionsummary--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.planRevisionSummary.contract.dark",
+      "catalogId": "ui.planRevisionSummary",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-planrevisionsummary--contract",
+      "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.planRevisionSummary.contract.system",
+      "catalogId": "ui.planRevisionSummary",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-planrevisionsummary--contract",
+      "context": "system-dark"
+    },
+    {
+      "id": "ui.planRevisionSummary.contract.phone-coarse",
+      "catalogId": "ui.planRevisionSummary",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-planrevisionsummary--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "containment"
+      ]
+    },
+    {
+      "id": "ui.planRevisionSummary.contract.phone-dark-coarse",
+      "catalogId": "ui.planRevisionSummary",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-planrevisionsummary--contract",
+      "context": "phone-dark-coarse",
+      "assertions": [
+        "containment"
+      ]
+    },
+    {
+      "id": "ui.planRevisionSummary.contract.rtl",
+      "catalogId": "ui.planRevisionSummary",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-planrevisionsummary--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.planSummaryCard.contract.desktop-light-fine",
+      "catalogId": "ui.planSummaryCard",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-plansummarycard--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.planSummaryCard.contract.dark",
+      "catalogId": "ui.planSummaryCard",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-plansummarycard--contract",
+      "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.planSummaryCard.contract.system",
+      "catalogId": "ui.planSummaryCard",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-plansummarycard--contract",
+      "context": "system-dark"
+    },
+    {
+      "id": "ui.planSummaryCard.contract.phone-coarse",
+      "catalogId": "ui.planSummaryCard",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-plansummarycard--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "containment",
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.planSummaryCard.contract.phone-dark-coarse",
+      "catalogId": "ui.planSummaryCard",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-plansummarycard--contract",
+      "context": "phone-dark-coarse",
+      "assertions": [
+        "containment",
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.planSummaryCard.contract.rtl",
+      "catalogId": "ui.planSummaryCard",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-plansummarycard--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.stackedRow.contract.desktop-light-fine",
+      "catalogId": "ui.stackedRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-stackedrow--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.stackedRow.contract.dark",
+      "catalogId": "ui.stackedRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-stackedrow--contract",
+      "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.stackedRow.contract.system",
+      "catalogId": "ui.stackedRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-stackedrow--contract",
+      "context": "system-dark"
+    },
+    {
+      "id": "ui.stackedRow.contract.phone-coarse",
+      "catalogId": "ui.stackedRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-stackedrow--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "containment"
+      ]
+    },
+    {
+      "id": "ui.stackedRow.contract.phone-dark-coarse",
+      "catalogId": "ui.stackedRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-stackedrow--contract",
+      "context": "phone-dark-coarse",
+      "assertions": [
+        "containment"
+      ]
+    },
+    {
+      "id": "ui.stackedRow.contract.rtl",
+      "catalogId": "ui.stackedRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-stackedrow--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.listSection.contract.desktop-light-fine",
+      "catalogId": "ui.listSection",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-listsection--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.listSection.contract.dark",
+      "catalogId": "ui.listSection",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-listsection--contract",
+      "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.listSection.contract.system",
+      "catalogId": "ui.listSection",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-listsection--contract",
+      "context": "system-dark"
+    },
+    {
+      "id": "ui.listSection.contract.phone-coarse",
+      "catalogId": "ui.listSection",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-listsection--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "containment",
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.listSection.contract.phone-dark-coarse",
+      "catalogId": "ui.listSection",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-listsection--contract",
+      "context": "phone-dark-coarse",
+      "assertions": [
+        "containment",
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.listSection.contract.rtl",
+      "catalogId": "ui.listSection",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-listsection--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.listRow.contract.desktop-light-fine",
+      "catalogId": "ui.listRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-listrow--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.listRow.contract.dark",
+      "catalogId": "ui.listRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-listrow--contract",
+      "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.listRow.contract.system",
+      "catalogId": "ui.listRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-listrow--contract",
+      "context": "system-dark"
+    },
+    {
+      "id": "ui.listRow.contract.phone-coarse",
+      "catalogId": "ui.listRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-listrow--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "containment",
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.listRow.contract.phone-dark-coarse",
+      "catalogId": "ui.listRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-listrow--contract",
+      "context": "phone-dark-coarse",
+      "assertions": [
+        "containment",
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.listRow.contract.rtl",
+      "catalogId": "ui.listRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-listrow--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.detailRow.contract.desktop-light-fine",
+      "catalogId": "ui.detailRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-detailrow--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.detailRow.contract.dark",
+      "catalogId": "ui.detailRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-detailrow--contract",
+      "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.detailRow.contract.system",
+      "catalogId": "ui.detailRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-detailrow--contract",
+      "context": "system-dark"
+    },
+    {
+      "id": "ui.detailRow.contract.phone-coarse",
+      "catalogId": "ui.detailRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-detailrow--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "containment"
+      ]
+    },
+    {
+      "id": "ui.detailRow.contract.phone-dark-coarse",
+      "catalogId": "ui.detailRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-detailrow--contract",
+      "context": "phone-dark-coarse",
+      "assertions": [
+        "containment"
+      ]
+    },
+    {
+      "id": "ui.detailRow.contract.rtl",
+      "catalogId": "ui.detailRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-detailrow--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.revisionRow.contract.desktop-light-fine",
+      "catalogId": "ui.revisionRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-revisionrow--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.revisionRow.contract.dark",
+      "catalogId": "ui.revisionRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-revisionrow--contract",
+      "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.revisionRow.contract.system",
+      "catalogId": "ui.revisionRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-revisionrow--contract",
+      "context": "system-dark"
+    },
+    {
+      "id": "ui.revisionRow.contract.phone-coarse",
+      "catalogId": "ui.revisionRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-revisionrow--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "containment",
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.revisionRow.contract.phone-dark-coarse",
+      "catalogId": "ui.revisionRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-revisionrow--contract",
+      "context": "phone-dark-coarse",
+      "assertions": [
+        "containment",
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.revisionRow.contract.rtl",
+      "catalogId": "ui.revisionRow",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-revisionrow--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.cellStack.contract.desktop-light-fine",
+      "catalogId": "ui.cellStack",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-cellstack--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.cellStack.contract.dark",
+      "catalogId": "ui.cellStack",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-cellstack--contract",
+      "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.cellStack.contract.system",
+      "catalogId": "ui.cellStack",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-cellstack--contract",
+      "context": "system-dark"
+    },
+    {
+      "id": "ui.cellStack.contract.phone-coarse",
+      "catalogId": "ui.cellStack",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-cellstack--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "containment"
+      ]
+    },
+    {
+      "id": "ui.cellStack.contract.phone-dark-coarse",
+      "catalogId": "ui.cellStack",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-cellstack--contract",
+      "context": "phone-dark-coarse",
+      "assertions": [
+        "containment"
+      ]
+    },
+    {
+      "id": "ui.cellStack.contract.rtl",
+      "catalogId": "ui.cellStack",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-cellstack--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.visuallyHidden.contract.desktop-light-fine",
+      "catalogId": "ui.visuallyHidden",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-visuallyhidden--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.visuallyHidden.contract.dark",
+      "catalogId": "ui.visuallyHidden",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-visuallyhidden--contract",
+      "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.visuallyHidden.contract.system",
+      "catalogId": "ui.visuallyHidden",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-visuallyhidden--contract",
+      "context": "system-dark"
+    },
+    {
+      "id": "ui.visuallyHidden.contract.phone-coarse",
+      "catalogId": "ui.visuallyHidden",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-visuallyhidden--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "containment",
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.visuallyHidden.contract.phone-dark-coarse",
+      "catalogId": "ui.visuallyHidden",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-visuallyhidden--contract",
+      "context": "phone-dark-coarse",
+      "assertions": [
+        "containment",
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.visuallyHidden.contract.rtl",
+      "catalogId": "ui.visuallyHidden",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-visuallyhidden--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "ui.handoffForm.contract.desktop-light-fine",
+      "catalogId": "ui.handoffForm",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-handoffform--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.handoffForm.contract.dark",
+      "catalogId": "ui.handoffForm",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-handoffform--contract",
+      "context": "desktop-dark-fine"
+    },
+    {
+      "id": "ui.handoffForm.contract.system",
+      "catalogId": "ui.handoffForm",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-handoffform--contract",
+      "context": "system-dark"
+    },
+    {
+      "id": "ui.handoffForm.contract.phone-coarse",
+      "catalogId": "ui.handoffForm",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-handoffform--contract",
+      "context": "phone-light-coarse",
+      "assertions": [
+        "containment",
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.handoffForm.contract.phone-dark-coarse",
+      "catalogId": "ui.handoffForm",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-handoffform--contract",
+      "context": "phone-dark-coarse",
+      "assertions": [
+        "containment",
+        "target-size"
+      ]
+    },
+    {
+      "id": "ui.handoffForm.contract.rtl",
+      "catalogId": "ui.handoffForm",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-atoms-handoffform--contract",
+      "context": "rtl"
+    },
+    {
+      "id": "template.integrationAppRegistration.contract.desktop-light-fine",
+      "catalogId": "template.integrationAppRegistration",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-templates-integrationappregistration--contract",
+      "context": "desktop-light-fine"
+    }
+  ]
+}

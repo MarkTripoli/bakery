@@ -1,0 +1,28 @@
+{
+  "name": "Bakery local backend",
+  "dockerComposeFile": [
+    "../infra/compose.yaml",
+    "docker-compose.override.yml"
+  ],
+  "service": "server",
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+  "overrideCommand": false,
+  "remoteUser": "deno",
+  "forwardPorts": [8000, 8288],
+  "portsAttributes": {
+    "8000": { "label": "Bakery server", "onAutoForward": "notify" },
+    "8288": { "label": "Inngest", "onAutoForward": "silent" }
+  },
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
+  ],
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "deno.enable": true,
+        "deno.enablePaths": ["/workspace"]
+      }
+    }
+  }
+}

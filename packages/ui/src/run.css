@@ -1,0 +1,93 @@
+@import "./foundations/index.css";
+
+.ui-run-card {
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  color: var(--color-fg);
+  display: flex;
+  flex-direction: column;
+  font: var(--type-body);
+  gap: var(--space-4);
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  padding: var(--space-6);
+}
+.ui-run-card h2 {
+  font: var(--type-heading-subsection);
+  margin: var(--space-0);
+}
+.ui-run-card__row,
+.ui-run-card__actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.ui-run-card__badge {
+  background: var(--color-surface-subtle);
+  border-radius: var(--radius-control);
+  font: var(--type-meta);
+  font-weight: var(--weight-medium);
+  padding: var(--space-1) var(--space-2);
+}
+.ui-run-card__meta {
+  color: var(--color-fg-muted);
+  font: var(--type-meta);
+  margin: var(--space-0);
+}
+.ui-run-card__description {
+  color: var(--color-fg-muted);
+  font: var(--type-body);
+  margin: var(--space-0);
+}
+.ui-run-card__notice {
+  background: var(--color-canvas);
+  border-radius: var(--radius-control);
+  font: var(--type-body);
+  margin: var(--space-0);
+  padding: var(--space-4);
+}
+.ui-run-card__actions :is(.ui-button, .ui-link) {
+  block-size: auto;
+  box-sizing: border-box;
+  min-block-size: var(--target-coarse);
+  padding: var(--space-2-5) var(--space-4);
+}
+.ui-run-card__actions .ui-link--button {
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-control);
+  margin-block: var(--space-0);
+}
+.ui-run-card__actions .ui-link--button::before {
+  content: none;
+}
+.ui-log-viewer[data-presentation="output"] {
+  background: var(--color-canvas);
+  border: var(--border-none);
+  border-radius: var(--radius-control);
+  padding: var(--space-4);
+}
+.ui-log-viewer[data-presentation="output"] li {
+  display: block;
+  font: var(--type-time);
+  line-height: var(--space-6);
+  padding: var(--space-0);
+  white-space: pre-wrap;
+}
+.ui-log-viewer[data-presentation="output"] :is(time, code) {
+  color: inherit;
+  font: inherit;
+}
+.ui-log-viewer[data-presentation="output"] :is(time, span) {
+  margin-inline-end: var(--space-3);
+}
+@media (max-width: 743px) {
+  .ui-run-card {
+    padding: var(--space-4);
+  }
+}
+
+.ui-run-artifact__summary {
+  justify-content: space-between;
+}

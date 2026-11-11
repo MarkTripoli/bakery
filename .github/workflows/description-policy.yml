@@ -1,0 +1,60 @@
+name: Description policy
+
+on:
+  issues:
+    types: [opened, edited, reopened, labeled, unlabeled]
+  pull_request_target:
+    branches: [main]
+    types: [opened, edited, reopened, synchronize, ready_for_review]
+
+permissions: {}
+
+# Serialize validation of each item; every run fetches current metadata.
+concurrency:
+  group: description-${{ github.event_name }}-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  issue:
+    if: github.event_name == 'issues'
+    runs-on: [self-hosted, hetzner, linux, x64]
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with:
+          deno-version: v2.9.1
+      - name: Validate live issue metadata
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: deno run --no-config --allow-read=scripts/authoring --allow-env=GITHUB_REPOSITORY,GITHUB_TOKEN --allow-net=api.github.com scripts/authoring/github.ts check issue "$ISSUE_NUMBER"
+
+  pull-request:
+    if: github.event_name == 'pull_request_target'
+    runs-on: [self-hosted, hetzner, linux, x64]
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+      # github.sha is trusted base code for pull_request_target, never PR head.
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with:
+          deno-version: v2.9.1
+      - name: Validate live PR and owning issue metadata
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: deno run --no-config --allow-read=scripts/authoring --allow-env=GITHUB_REPOSITORY,GITHUB_TOKEN --allow-net=api.github.com scripts/authoring/github.ts check pr "$PR_NUMBER"

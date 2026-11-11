@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="docker-pause-for-reconnect-drills" project="bakery">
+  <title>Use docker pause, not restart, for server-outage drills on an ephemeral stack</title>
+  <trigger>A reconnect or lost-server drill needs the API unreachable for seconds while a worker runs.</trigger>
+  <mistake>A container restart on a compose stack with ephemeral published ports can change the host ports, stranding the worker and web origin. A pause of about 28 s also made the worker exit on an HTTP 500 heartbeat, while 15 s survived.</mistake>
+  <rule>Use `docker pause` then `docker unpause` of the server container, diff `docker port` before and after, and keep pauses at or under 15 s unless proving worker exit. Do not restart containers that hold ephemeral ports.</rule>
+  <verification>
+    <command>docker port &lt;server container&gt; &gt; before.txt; docker pause &lt;server container&gt;; sleep 3; docker unpause &lt;server container&gt;; docker port &lt;server container&gt; | diff before.txt -</command>
+    <requirement>Record the drill used, the observed worker and attempt states, and the restore result.</requirement>
+  </verification>
+  <boundary>Applies to ephemeral per-worktree stacks only; never drill the shared bakery-main stack.</boundary>
+</learning>

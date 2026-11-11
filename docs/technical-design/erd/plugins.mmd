@@ -1,0 +1,73 @@
+erDiagram
+  direction LR
+  principals {
+    uuid id PK
+  }
+  organizations {
+    uuid id PK
+  }
+  user_preferences {
+    uuid id PK
+    uuid organization_id FK
+    uuid principal_id FK
+    jsonb preferences
+    int cas_version
+  }
+  organizations ||..o{ user_preferences : "organization_id"
+  principals ||..o{ user_preferences : "principal_id"
+  plugin_state {
+    uuid id PK
+    uuid organization_id FK
+    uuid plugin_install_id FK
+    uuid owner_principal_id FK "nullable"
+    text namespace
+    text key
+    int schema_version
+    jsonb value
+    int cas_version
+  }
+  organizations ||..o{ plugin_state : "organization_id"
+  plugin_installs ||..o{ plugin_state : "plugin_install_id"
+  principals |o..o{ plugin_state : "owner_principal_id"
+  plugin_installs {
+    uuid id PK
+    uuid organization_id FK
+    uuid plugin_package_id FK
+    uuid plugin_version_id FK
+    enum scope
+    uuid owner_principal_id FK "nullable"
+    enum status
+    int state_schema_version
+    timestamp activated_at "nullable"
+    timestamp disabled_at "nullable"
+  }
+  organizations ||..o{ plugin_installs : "organization_id"
+  plugin_packages ||..o{ plugin_installs : "plugin_package_id"
+  plugin_versions ||..o{ plugin_installs : "plugin_version_id"
+  principals |o..o{ plugin_installs : "owner_principal_id"
+  plugin_versions {
+    uuid id PK
+    uuid organization_id FK
+    uuid plugin_package_id FK
+    text version_name
+    text sdk_range
+    jsonb manifest
+    text bundle_digest
+    text bundle_object_ref
+    jsonb source_evidence
+    jsonb build_evidence
+    timestamp published_at "nullable"
+  }
+  organizations ||..o{ plugin_versions : "organization_id"
+  plugin_packages ||..o{ plugin_versions : "plugin_package_id"
+  plugin_packages {
+    uuid id PK
+    uuid organization_id FK
+    text name
+    text display_name
+    jsonb provenance
+    text license
+    enum visibility
+    enum listing_status
+  }
+  organizations ||..o{ plugin_packages : "organization_id"

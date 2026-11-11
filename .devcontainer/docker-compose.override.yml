@@ -1,0 +1,49 @@
+services:
+  server:
+    image: bakery-b01-02-devcontainer:local
+    build:
+      context: ../.devcontainer
+      dockerfile: Dockerfile
+    environment:
+      BAKERY_DEV_WATCH: "1"
+  worker:
+    profiles: ["worker"]
+    command:
+      - sh
+      - -eu
+      - -c
+      - |
+          root="$$BAKERY_WORKER_CGROUP_ROOT"
+          case "$$root" in
+            /sys/fs/cgroup/*|/sys/fs/cgroup) ;;
+            *) echo "WORKER_CGROUP_ROOT_INVALID" >&2; exit 78 ;;
+          esac
+          test -w /sys/fs/cgroup/cgroup.subtree_control || {
+            echo "WORKER_CGROUP_DELEGATION_REQUIRED" >&2
+            exit 78
+          }
+          mkdir "$$root"
+          case " $$(cat /sys/fs/cgroup/cgroup.subtree_control) " in
+            *" pids "*) ;;
+            *) echo "WORKER_CGROUP_DELEGATION_REQUIRED" >&2; exit 78 ;;
+          esac
+          case " $$(cat "$$root/cgroup.controllers") " in
+            *" pids "*) ;;
+            *) echo "WORKER_CGROUP_DELEGATION_REQUIRED" >&2; exit 78 ;;
+          esac
+          test -f "$$root/cgroup.events"
+          test -f "$$root/cgroup.procs"
+          test -f "$$root/cgroup.kill"
+          cd apps/worker
+          exec bash scripts/run-worker.sh
+    environment:
+      BAKERY_WORKER_CGROUP_ROOT: /sys/fs/cgroup/bakery-worker
+  worker-pair:
+    profiles: ["worker-pair"]
+    environment:
+      BAKERY_WORKER_CGROUP_ROOT: /sys/fs/cgroup/bakery-worker-pair
+      BAKERY_WORKER_ENROLLMENT_TOKEN_FILE: /run/secrets/worker-enrollment
+    secrets:
+      - source: worker_enrollment_token
+        target: worker-enrollment
+        mode: 0400

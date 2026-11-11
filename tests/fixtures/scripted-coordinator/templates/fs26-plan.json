@@ -1,0 +1,29 @@
+{
+  "effects": [
+    {
+      "type": "reply",
+      "body": "Here is a plan for you to review."
+    },
+    {
+      "type": "planRevision",
+      "title": "Repository onboarding",
+      "steps": [
+        {
+          "id": "select",
+          "title": "Select the repository",
+          "detail": "Choose a repository and confirm its default branch."
+        },
+        {
+          "id": "verify",
+          "title": "Verify the environment",
+          "detail": "Show every failed toolchain check together, with a retry action."
+        },
+        {
+          "id": "queue",
+          "title": "Queue the first task",
+          "detail": "Wait until all required readiness checks pass."
+        }
+      ]
+    }
+  ]
+}

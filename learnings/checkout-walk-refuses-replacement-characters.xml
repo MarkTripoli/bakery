@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="checkout-walk-refuses-replacement-characters" project="bakery" issue="94">
+  <title>A walk of an untrusted checkout must refuse any name containing U+FFFD</title>
+  <trigger>Code walks a candidate checkout with `Deno.readDir` to find or remove symlinks, or otherwise acts on names it read from untrusted git content.</trigger>
+  <mistake>`Deno.readDir` decodes a file name that is not valid UTF-8 lossily, replacing each bad byte with U+FFFD. Two distinct names can then read as the same string. A decoy file really named with U+FFFD keeps an escaping symlink beside it from being found: the walk acts on the decoy and never on the link. Without a decoy the walk throws and every retry fails the same way. Reproduced with a real worktree checkout, not a mock.</mistake>
+  <rule>Refuse the whole checkout before any model or tool starts when any entry name contains U+FFFD, with a non-retryable fault (`REVIEWER_CHECKOUT_UNSAFE`, 422), and say so in the operator docs. Do not try to repair or skip such a name. Unlink links that leave the tree as the link itself, never its target, and compare `git status` before and after the run.</rule>
+  <verification>
+    <command>pnpm test:unit -- tests/unit/implement-independent-review-and-bounded-repair-loops_test.ts</command>
+    <requirement>A non-UTF-8 name beside a U+FFFD decoy, a lone non-UTF-8 directory and a name that really uses U+FFFD are each refused with the checkout fault and no model starts.</requirement>
+  </verification>
+  <boundary>The candidate then cannot be reviewed at all; the run stops with a `review_failed` decision. That is deliberate: a reviewer that cannot see a candidate safely must not approve it.</boundary>
+</learning>

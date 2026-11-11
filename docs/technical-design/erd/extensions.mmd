@@ -1,0 +1,96 @@
+erDiagram
+  direction LR
+  organizations {
+    uuid id PK
+  }
+  repositories {
+    uuid id PK
+  }
+  workflow_versions {
+    uuid id PK
+  }
+  agent_versions {
+    uuid id PK
+  }
+  skill_versions {
+    uuid id PK
+  }
+  integration_connections {
+    uuid id PK
+  }
+  mcp_servers {
+    uuid id PK
+    uuid organization_id FK
+    text slug
+    text name
+    enum transport
+    jsonb launch_spec "nullable"
+    text endpoint_template "nullable"
+    jsonb config_schema
+    jsonb required_capabilities
+    text source_revision
+  }
+  organizations ||..o{ mcp_servers : "organization_id"
+  mcp_connections {
+    uuid id PK
+    uuid organization_id FK
+    uuid server_id FK
+    uuid integration_connection_id FK "nullable"
+    uuid worker_host_id FK "nullable"
+    text label
+    jsonb config
+    uuid secret_id FK "nullable"
+    jsonb enabled_capabilities
+    enum status
+    uuid current_snapshot_id FK "nullable"
+  }
+  organizations ||..o{ mcp_connections : "organization_id"
+  mcp_servers ||..o{ mcp_connections : "server_id"
+  integration_connections |o..o{ mcp_connections : "integration_connection_id"
+  worker_hosts |o..o{ mcp_connections : "worker_host_id"
+  secrets |o..o{ mcp_connections : "secret_id"
+  mcp_capability_snapshots |o..o{ mcp_connections : "current_snapshot_id"
+  mcp_capability_snapshots {
+    uuid id PK
+    uuid organization_id FK
+    uuid connection_id FK
+    timestamp observed_at
+    text protocol_version
+    jsonb manifest
+    text digest
+  }
+  organizations ||..o{ mcp_capability_snapshots : "organization_id"
+  mcp_connections ||..o{ mcp_capability_snapshots : "connection_id"
+  capability_bindings {
+    uuid id PK
+    uuid organization_id FK
+    uuid repository_id FK "nullable"
+    uuid agent_version_id FK "nullable"
+    uuid workflow_version_id FK "nullable"
+    uuid skill_version_owner_id FK "nullable"
+    uuid automation_version_id FK "nullable"
+    text step_key "nullable"
+    uuid mcp_connection_id FK "nullable"
+    uuid integration_connection_id FK "nullable"
+    uuid skill_version_id FK "nullable"
+    jsonb allowed_operations
+    boolean required
+  }
+  organizations ||..o{ capability_bindings : "organization_id"
+  repositories |o..o{ capability_bindings : "repository_id"
+  agent_versions |o..o{ capability_bindings : "agent_version_id"
+  workflow_versions |o..o{ capability_bindings : "workflow_version_id"
+  skill_versions |o..o{ capability_bindings : "skill_version_owner_id"
+  automation_versions |o..o{ capability_bindings : "automation_version_id"
+  mcp_connections |o..o{ capability_bindings : "mcp_connection_id"
+  integration_connections |o..o{ capability_bindings : "integration_connection_id"
+  skill_versions |o..o{ capability_bindings : "skill_version_id"
+  secrets {
+    uuid id PK
+  }
+  automation_versions {
+    uuid id PK
+  }
+  worker_hosts {
+    uuid id PK
+  }

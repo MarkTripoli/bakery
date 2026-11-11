@@ -1,0 +1,121 @@
+{
+  "fileId": "01M1X504XVC45FC0VDK857A37D",
+  "pageId": "Z-0",
+  "pageName": "61 \u00b7 Repository rules \u00b7 Organization & overrides",
+  "url": "https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/Z-0",
+  "status": "Editable design proposal; sample rules and evidence; runtime not implemented",
+  "exportedAt": "2026-09-08",
+  "technicalPlan": "../22-repository-rules.md",
+  "screens": [
+    {
+      "nodeId": "1JQG-0",
+      "file": "organization-desktop.png",
+      "theme": "light",
+      "family": "organization",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 985
+    },
+    {
+      "nodeId": "1JWA-0",
+      "file": "organization-phone.png",
+      "theme": "light",
+      "family": "organization",
+      "viewport": "phone",
+      "width": 390,
+      "height": 1367
+    },
+    {
+      "nodeId": "1K4K-0",
+      "file": "repository-desktop.png",
+      "theme": "light",
+      "family": "repository",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 998
+    },
+    {
+      "nodeId": "1K8Z-0",
+      "file": "repository-phone.png",
+      "theme": "light",
+      "family": "repository",
+      "viewport": "phone",
+      "width": 390,
+      "height": 1535
+    },
+    {
+      "nodeId": "1KCW-0",
+      "file": "description-editor-desktop.png",
+      "theme": "light",
+      "family": "description-editor",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 955
+    },
+    {
+      "nodeId": "1KCX-0",
+      "file": "description-editor-phone.png",
+      "theme": "light",
+      "family": "description-editor",
+      "viewport": "phone",
+      "width": 390,
+      "height": 1835
+    },
+    {
+      "nodeId": "1KUN-0",
+      "file": "repository-dark-desktop.png",
+      "theme": "dark",
+      "family": "repository-dark",
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 998
+    },
+    {
+      "nodeId": "1KYN-0",
+      "file": "repository-dark-phone.png",
+      "theme": "dark",
+      "family": "repository-dark",
+      "viewport": "phone",
+      "width": 390,
+      "height": 1535
+    }
+  ],
+  "verification": {
+    "paperVisualReview": "All eight screens reviewed for hierarchy, spacing, contrast, row alignment and clipping; mobile edit fields use 16px text.",
+    "catalogCheck": "python3 docs/technical-design/verify-design.py passed; proposed rules additions are explicitly not yet in the catalogs.",
+    "runtimeChecks": "Not implemented or exercised.",
+    "technicalMap": "Navigation and layout passed at 320, 390, 744, 1280 and 1440px; no JavaScript errors. Local plan links and all four desktop/phone pairs passed."
+  },
+  "patterns": {
+    "pageId": "A-0",
+    "pageName": "03 \u00b7 Patterns",
+    "url": "https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/A-0",
+    "recipes": [
+      "Rule inheritance",
+      "Rule configuration",
+      "Enforcement feedback"
+    ],
+    "catalogRecipeCount": 9,
+    "exports": [
+      {
+        "nodeId": "852-0",
+        "file": "patterns-catalog.png",
+        "width": 1440,
+        "height": 1570
+      },
+      {
+        "nodeId": "5YW-0",
+        "file": "patterns-light.png",
+        "width": 1440,
+        "height": 1599
+      },
+      {
+        "nodeId": "5YX-0",
+        "file": "patterns-dark.png",
+        "width": 1440,
+        "height": 1599
+      }
+    ],
+    "verification": "Existing catalog and both light/dark product-pattern boards updated in place; screenshots reviewed for hierarchy, contrast, alignment and clipping."
+  }
+}

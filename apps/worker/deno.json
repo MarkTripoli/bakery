@@ -1,0 +1,6 @@
+{
+  "extends": "../../deno.json",
+  "tasks": {
+    "check": "deno check src/main.ts src/index.ts"
+  }
+}

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="contract-rebind-before-review-and-every-rebase" project="bakery" issue="83">
+  <title>Re-bind the contract compatibility approval before a slice review and after every contract change or rebase</title>
+  <trigger>A branch widens a generated contract (a new required field, enum value or bound), or it is rebased onto a newer origin/main, and `scripts/generate-contracts.ts --check --base-ref origin/main` exits 1.</trigger>
+  <mistake>Planned to re-bind the approval once at PR time. The delivery contract tool (`contract.mjs`) marks a review approval invalid when its own record lists a failing check row, so a slice review written beside a red compatibility check is rejected and consumes a round. The approval pins the exact generated digest and the exact base SHA, so any later contract edit, even a field description, and any rebase onto a moved main turns it red again.</mistake>
+  <rule>Re-bind before the first slice review of a contract-widening branch, and again after every contract-source edit and every rebase. Edit the current entry of docs/technical-design/contract-migrations/v1-unreleased-principal-organization-contracts.json: set fromBaseRefs to the current main SHA, targetCompatibilityDigest to the digest in the regenerated contracts.json, and the digest named in its reason text. Move the displaced entry into priorApprovals only when the base moves. Update the digest pinned in tests/unit/generate-described-contracts-and-reject-contract-drift_test.ts, whose list of prior digests must equal the file's priorApprovals. Run both generators first (contract-sources-two-generators).</rule>
+  <verification>
+    <command>deno run --allow-read --allow-run=git scripts/generate-contracts.ts --check --base-ref origin/main --compatibility-migration docs/technical-design/contract-migrations/v1-unreleased-principal-organization-contracts.json</command>
+    <command>pnpm test:unit -- tests/unit/generate-described-contracts-and-reject-contract-drift_test.ts</command>
+    <requirement>Both exit 0 on the exact head the reviewer will check.</requirement>
+  </verification>
+  <boundary>The approval authorizes only the exact digest and base it names. Never widen fromBaseRefs, add a wildcard or weaken the check to make it pass.</boundary>
+</learning>

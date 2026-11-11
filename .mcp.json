@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "graft": {
+      "command": "graft",
+      "args": [
+        "mcp"
+      ]
+    },
+    "bakery-ui": {
+      "command": "node",
+      "args": [
+        "scripts/ui-catalog-mcp.mjs"
+      ]
+    }
+  }
+}

@@ -1,0 +1,1025 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Bakery · Passkeys</title>
+    <!-- The approved design, not a copy of it: the lane serves the mock
+         stylesheet and its Geist fonts from docs/technical-design. -->
+    <link rel="stylesheet" href="/__test__/design/auth-mocks/auth.css">
+    <style>
+    /* Fixture-only additions. The brand artwork is not served to the lane,
+       so the logo is a wordmark; the rest sizes controls the mock renders
+       as static text. */
+    .brand-mark {
+      width: 28px;
+      height: 28px;
+      background: var(--subtle);
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .brand-wordmark {
+      font-size: 44px;
+      line-height: 52px;
+      font-weight: 600;
+      letter-spacing: -.03em;
+    }
+    .plain-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    /* The mock's passkey screens run at the settings column width; these
+       cards are nested a level deeper than `.settings-content > *`. */
+    #passkeys > .form-content {
+      max-width: 520px;
+    }
+    /* The mock's rows title themselves with `h3`; a credential list under
+       the page's `h1` would skip a heading level, so rows only look alike. */
+    .item .item-title {
+      font-size: 16px;
+      line-height: 24px;
+      font-weight: 600;
+      margin: 0 0 3px;
+    }
+    .rename-form {
+      gap: 8px;
+    }
+    .rename-form input {
+      width: 150px;
+      height: 36px;
+      font-size: 14px;
+    }
+    .refusal-code {
+      font-family: 'Geist Mono', ui-monospace, monospace;
+      font-size: 12px;
+    }
+    .setup-uri {
+      font-size: 12px;
+    }
+    @media (max-width: 743px) {
+      .rename-form input {
+        width: 110px;
+      }
+    }
+    </style>
+  </head>
+  <body>
+    <!-- Signed out: the mock's authShell. -->
+    <div class="auth-layout" id="auth-shell">
+      <aside class="brand-pane" aria-label="Bakery">
+        <div class="brand-content">
+          <p class="brand-wordmark">bakery</p>
+          <h2>Fresh commits,<br>coming right up.</h2>
+          <div class="brand-steps">
+            <div class="item">
+              <span class="icon" data-icon="chat" aria-hidden="true"></span>
+              <div class="grow">
+                <h3>Start with an idea</h3>
+              </div>
+            </div>
+            <div class="item">
+              <span class="icon" data-icon="activity" aria-hidden="true"></span>
+              <div class="grow">
+                <h3>Watch your agents work</h3>
+              </div>
+            </div>
+            <div class="item">
+              <span class="icon" data-icon="document" aria-hidden="true"></span>
+              <div class="grow">
+                <h3>Ship the next batch</h3>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p class="brand-footer">Your software, made together.</p>
+      </aside>
+
+      <main class="form-pane">
+        <div class="form-content" id="sign-in-view">
+          <div class="form-heading">
+            <h1 tabindex="-1">Welcome back</h1>
+            <p>Sign in to your Bakery account.</p>
+          </div>
+
+          <div class="notice js-status" role="status" aria-live="polite" hidden>
+            <span class="icon js-status-icon" aria-hidden="true"></span>
+            <div class="js-status-text"></div>
+          </div>
+
+          <form class="stack" id="sign-in-form">
+            <div class="field">
+              <label for="email">Email</label>
+              <div class="input-wrap">
+                <input id="email" name="email" type="email" required
+                  autocomplete="email" inputmode="email" autocapitalize="none"
+                  spellcheck="false" placeholder="you@example.com">
+              </div>
+            </div>
+            <div class="field">
+              <label for="password">Password</label>
+              <div class="input-wrap">
+                <input id="password" name="password" type="password" required
+                  autocomplete="current-password" data-password
+                  placeholder="Enter your password">
+                <button type="button" class="reveal" data-reveal="password"
+                  aria-label="Show password" aria-pressed="false">
+                  <span class="icon" data-icon="eye" aria-hidden="true"></span>
+                </button>
+              </div>
+            </div>
+            <button class="btn primary full" type="submit">Sign in</button>
+          </form>
+
+          <div class="or">or</div>
+
+          <button class="btn full" type="button" id="passkey-sign-in">
+            <span class="icon" data-icon="key" aria-hidden="true"></span>Sign in
+            with passkey
+          </button>
+        </div>
+
+        <div class="form-content" id="challenge-view" hidden>
+          <div class="form-heading">
+            <h1 tabindex="-1">One more check</h1>
+            <p>Open your authenticator app to finish signing in.</p>
+          </div>
+
+          <div class="notice js-status" role="status" aria-live="polite" hidden>
+            <span class="icon js-status-icon" aria-hidden="true"></span>
+            <div class="js-status-text"></div>
+          </div>
+
+          <div class="notice error" id="challenge-error" role="alert" hidden>
+            <span class="icon" data-icon="alert" aria-hidden="true"></span>
+            <div>
+              That code is incorrect or expired. Try the current code from your
+              app.
+            </div>
+          </div>
+
+          <form class="stack" id="challenge-form">
+            <div class="field">
+              <label for="challenge-code">Authenticator code</label>
+              <input id="challenge-code" name="code" class="otp-input"
+                type="text" inputmode="numeric" autocomplete="one-time-code"
+                pattern="[0-9]{6}" maxlength="6" required placeholder="000000"
+                aria-describedby="challenge-hint">
+              <p id="challenge-hint" class="hint">
+                Enter the six-digit code from your authenticator app.
+              </p>
+            </div>
+            <button class="btn primary full" type="submit">
+              Verify and sign in
+            </button>
+          </form>
+        </div>
+
+        <div class="form-bottom">
+          <span class="prototype-mark">Bakery · account security</span>
+          <button class="btn quiet theme-switch" type="button"
+            data-theme-toggle aria-label="Toggle color theme">
+            <span class="icon" data-icon="sun" aria-hidden="true"></span>
+          </button>
+        </div>
+      </main>
+    </div>
+
+    <!-- Signed in: the mock's settingsShell. -->
+    <div class="settings-layout" id="settings-shell" hidden>
+      <aside class="app-rail">
+        <a class="small-brand" href="#">
+          <span class="brand-mark" aria-hidden="true">B</span><span>Bakery</span>
+        </a>
+        <div class="hint" style="padding-inline:8px">Northstar</div>
+        <nav class="rail-nav" aria-label="Application">
+          <a href="#"><span class="icon" data-icon="document"
+              aria-hidden="true"></span>Work</a>
+          <a href="#"><span class="icon" data-icon="grid"
+              aria-hidden="true"></span>Applications</a>
+          <a href="#"><span class="icon" data-icon="terminal"
+              aria-hidden="true"></span>Sessions</a>
+          <a href="#"><span class="icon" data-icon="computer"
+              aria-hidden="true"></span>Workers</a>
+          <a href="#"><span class="icon" data-icon="plug"
+              aria-hidden="true"></span>Integrations</a>
+          <a href="#"><span class="icon" data-icon="activity"
+              aria-hidden="true"></span>Automations</a>
+          <a href="#" aria-current="page"><span class="icon" data-icon="gear"
+              aria-hidden="true"></span>Settings</a>
+        </nav>
+        <div class="rail-bottom">
+          <div class="item">
+            <span class="icon" data-icon="person" aria-hidden="true"></span>
+            <div class="grow">
+              <h3 data-testid="account-name">Signed in</h3>
+              <p class="hint">Developer</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <section class="settings-main">
+        <div class="settings-topbar">
+          <span class="muted">Settings</span>
+          <span class="muted">/</span>
+          <strong>Account and security</strong>
+          <div class="grow"></div>
+          <button class="btn quiet theme-switch" type="button"
+            data-theme-toggle aria-label="Toggle color theme">
+            <span class="icon" data-icon="sun" aria-hidden="true"></span>
+          </button>
+        </div>
+        <nav class="mobile-settings-nav" aria-label="Account navigation">
+          <a class="text-link" href="#">Account</a>
+          <a class="text-link" href="#">Sessions</a>
+          <a class="text-link" href="#">Clients</a>
+        </nav>
+
+        <main class="settings-content">
+          <a class="text-link" href="#"><span class="icon" data-icon="back"
+              aria-hidden="true"></span>Account and security</a>
+
+          <div class="form-heading">
+            <h1 tabindex="-1">Passkeys</h1>
+            <p>
+              Sign in with your device lock, fingerprint, face or security key.
+            </p>
+          </div>
+
+          <div class="notice js-status" role="status" aria-live="polite" hidden>
+            <span class="icon js-status-icon" aria-hidden="true"></span>
+            <div class="js-status-text"></div>
+          </div>
+
+          <section class="stack" id="passkeys" hidden>
+            <div class="notice" id="passkeys-empty">
+              <span class="icon" data-icon="document" aria-hidden="true"></span>
+              <div>
+                No passkeys added yet. Your existing sign-in methods still work.
+              </div>
+            </div>
+
+            <ul class="plain-list" data-testid="passkeys"></ul>
+
+            <div class="form-content" id="passkey-add">
+              <div class="form-heading">
+                <h2>Add a passkey</h2>
+                <p>Save a passkey with your device or password manager.</p>
+              </div>
+              <div class="notice error" id="passkey-error" role="alert" hidden>
+                <span class="icon" data-icon="alert" aria-hidden="true"></span>
+                <div>
+                  <p class="refusal-text"></p>
+                  <p class="refusal-code"></p>
+                </div>
+              </div>
+              <form class="stack" id="add-passkey-form">
+                <div class="field">
+                  <label for="passkey-name">Passkey name</label>
+                  <div class="input-wrap">
+                    <input id="passkey-name" name="name" type="text" required
+                      autocomplete="off" placeholder="Personal laptop"
+                      aria-describedby="passkey-name-hint">
+                  </div>
+                  <p id="passkey-name-hint" class="hint">
+                    Use a name that helps you recognize this passkey.
+                  </p>
+                </div>
+                <button class="btn primary full" type="submit">
+                  Add a passkey
+                </button>
+              </form>
+            </div>
+
+            <div class="form-content" id="passkey-prompt" hidden>
+              <div class="form-heading">
+                <h2>Follow your device’s prompt</h2>
+                <p>
+                  Choose where to save the passkey and confirm with your device
+                  lock.
+                </p>
+              </div>
+              <div class="item">
+                <span class="icon" data-icon="key" aria-hidden="true"></span>
+                <div class="grow">
+                  <h3 data-pending-name></h3>
+                  <p class="hint">Bakery · this device</p>
+                </div>
+              </div>
+              <div class="notice">
+                <span class="icon" data-icon="document"
+                  aria-hidden="true"></span>
+                <div>
+                  Your browser or operating system handles this step. The prompt
+                  may look different on each device.
+                </div>
+              </div>
+              <button class="text-link" type="button" id="cancel-passkey">
+                Cancel
+              </button>
+            </div>
+
+            <div class="form-content" id="passkey-canceled" hidden>
+              <div class="form-heading">
+                <h2>Passkey creation canceled</h2>
+                <p>No passkey was added to your account.</p>
+              </div>
+              <button class="btn primary full" type="button" data-back-to-add>
+                Back to passkeys
+              </button>
+            </div>
+
+            <div class="form-content" id="passkey-success" hidden>
+              <div class="form-heading">
+                <h2>Your passkey is ready</h2>
+                <p data-success-name></p>
+              </div>
+              <div class="notice success">
+                <span class="icon" data-icon="check" aria-hidden="true"></span>
+                <div>Your existing sign-in methods remain available.</div>
+              </div>
+              <button class="btn full" type="button" data-back-to-add>
+                Manage passkeys
+              </button>
+            </div>
+
+            <div class="form-content" id="passkey-remove" hidden>
+              <div class="form-heading">
+                <h2>Remove this passkey?</h2>
+                <p data-remove-name></p>
+              </div>
+              <div class="notice warning" id="remove-warning">
+                <span class="icon" data-icon="alert" aria-hidden="true"></span>
+                <div>
+                  This removes access to Bakery. It does not delete the passkey
+                  from your password manager.
+                </div>
+              </div>
+              <div class="notice error" id="remove-error" role="alert" hidden>
+                <span class="icon" data-icon="alert" aria-hidden="true"></span>
+                <div>
+                  <p class="refusal-text"></p>
+                  <p class="refusal-code"></p>
+                </div>
+              </div>
+              <button class="btn primary full" type="button"
+                id="confirm-remove">
+                Remove passkey
+              </button>
+              <button class="text-link" type="button" data-back-to-add>
+                Cancel
+              </button>
+            </div>
+
+            <p class="hint">
+              Your device or password manager keeps the private key. Bakery
+              never receives your fingerprint or face data.
+            </p>
+          </section>
+
+          <section class="stack" id="enrollment" hidden>
+            <h2>Two-factor authentication</h2>
+            <div class="item">
+              <span class="icon" data-icon="shield" aria-hidden="true"></span>
+              <div class="grow">
+                <h3>Authenticator app</h3>
+                <p class="hint">
+                  Use a six-digit code from an authenticator app.
+                </p>
+              </div>
+              <span class="badge" id="enrollment-badge">Off</span>
+            </div>
+
+            <div class="form-content">
+              <form class="stack" id="enable-form">
+                <div class="field">
+                  <label for="enable-password">Confirm your password</label>
+                  <div class="input-wrap">
+                    <input id="enable-password" name="password" type="password"
+                      required autocomplete="current-password" data-password
+                      placeholder="Enter your current password">
+                    <button type="button" class="reveal"
+                      data-reveal="enable-password" aria-label="Show password"
+                      aria-pressed="false">
+                      <span class="icon" data-icon="eye"
+                        aria-hidden="true"></span>
+                    </button>
+                  </div>
+                </div>
+                <button class="btn primary full" type="submit">
+                  Enable authenticator
+                </button>
+              </form>
+
+              <div class="form-content" id="enrollment-details" hidden>
+                <div class="stack">
+                  <h3>Can’t scan a code?</h3>
+                  <p class="hint">
+                    Enter this setup key in your authenticator instead.
+                  </p>
+                  <div class="code setup-uri" data-testid="totp-uri"></div>
+                </div>
+                <div class="stack">
+                  <h3>Backup codes</h3>
+                  <p class="hint">
+                    Each code works once. Save them before you leave.
+                  </p>
+                  <ul class="backup-code-list plain-list"
+                    data-testid="backup-codes"></ul>
+                </div>
+                <form class="stack" id="verify-form">
+                  <div class="field">
+                    <label for="verify-code">Authenticator code</label>
+                    <input id="verify-code" name="code" class="otp-input"
+                      type="text" inputmode="numeric"
+                      autocomplete="one-time-code" pattern="[0-9]{6}"
+                      maxlength="6" required placeholder="000000"
+                      aria-describedby="verify-hint">
+                    <p id="verify-hint" class="hint">
+                      Enter the six-digit code from your authenticator app.
+                    </p>
+                  </div>
+                  <button class="btn primary full" type="submit">
+                    Verify and turn on
+                  </button>
+                </form>
+              </div>
+            </div>
+          </section>
+
+          <section id="identity" hidden>
+            <h2>Account</h2>
+            <div class="item">
+              <span class="icon" data-icon="person" aria-hidden="true"></span>
+              <div class="grow">
+                <h3>This session</h3>
+                <p class="hint" data-testid="principal-id"></p>
+              </div>
+              <button class="btn" type="button" id="sign-out" disabled>
+                Sign out
+              </button>
+            </div>
+          </section>
+        </main>
+      </section>
+    </div>
+
+    <script type="module">
+    // The mock's icon set (docs/technical-design/auth-mocks/auth.js), inlined
+    // because the brand and icon artwork is not served to the lane.
+    const ICONS = {
+      eye:
+        '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+      back: '<path d="M19 12H5m6-6-6 6 6 6"/>',
+      lock:
+        '<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2"/>',
+      check: '<path d="m5 12 4 4L19 6"/>',
+      alert: '<path d="m12 3 10 18H2L12 3Zm0 6v5m0 3v.1"/>',
+      chat:
+        '<path d="M21 12a8 8 0 0 1-8 8H5l-4 3V11a9 9 0 0 1 20 1Z" transform="translate(1 -2) scale(.92)"/>',
+      activity:
+        '<path d="m3 17 5-5 5 3 7-10"/><circle cx="3" cy="17" r="1.5"/><circle cx="8" cy="12" r="1.5"/><circle cx="13" cy="15" r="1.5"/><circle cx="20" cy="5" r="1.5"/>',
+      document:
+        '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6m-6 4h6m-6 4h4"/>',
+      person: '<circle cx="12" cy="7" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
+      computer:
+        '<rect x="3" y="3" width="18" height="13" rx="2"/><path d="M8 21h8m-4-5v5"/>',
+      sun:
+        '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/>',
+      grid:
+        '<rect x="3" y="3" width="6" height="6" rx="1"/><rect x="15" y="3" width="6" height="6" rx="1"/><rect x="3" y="15" width="6" height="6" rx="1"/><rect x="15" y="15" width="6" height="6" rx="1"/>',
+      plug: '<path d="M8 2v5m8-5v5M5 7h14v4a7 7 0 0 1-14 0V7Zm7 11v4"/>',
+      terminal: '<path d="m4 6 6 6-6 6m9 0h7"/>',
+      gear:
+        '<circle cx="12" cy="12" r="4"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M5 19l2-2m10-10 2-2"/>',
+      shield:
+        '<path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="m8 12 3 3 5-6"/>',
+      key: '<circle cx="8" cy="8" r="5"/><path d="m12 12 9 9m-5-5 3-3m0 6 3-3"/>',
+    };
+
+    function paintIcon(node) {
+      node.innerHTML = '<svg viewBox="0 0 24 24">' +
+        (ICONS[node.dataset.icon] ?? ICONS.document) + "</svg>";
+    }
+    for (const node of document.querySelectorAll("[data-icon]")) paintIcon(node);
+
+    function iconSpan(name) {
+      const span = document.createElement("span");
+      span.className = "icon";
+      span.dataset.icon = name;
+      span.setAttribute("aria-hidden", "true");
+      paintIcon(span);
+      return span;
+    }
+
+    const authShell = document.querySelector("#auth-shell");
+    const settingsShell = document.querySelector("#settings-shell");
+    const signInView = document.querySelector("#sign-in-view");
+    const signInForm = document.querySelector("#sign-in-form");
+    const passwordInput = document.querySelector("#password");
+    const passkeySignIn = document.querySelector("#passkey-sign-in");
+    const statusNodes = [...document.querySelectorAll(".js-status")];
+    const challengeView = document.querySelector("#challenge-view");
+    const challengeForm = document.querySelector("#challenge-form");
+    const challengeCodeInput = document.querySelector("#challenge-code");
+    const challengeError = document.querySelector("#challenge-error");
+    const enrollment = document.querySelector("#enrollment");
+    const enableForm = document.querySelector("#enable-form");
+    const enablePasswordInput = document.querySelector("#enable-password");
+    const enrollmentDetails = document.querySelector("#enrollment-details");
+    const enrollmentBadge = document.querySelector("#enrollment-badge");
+    const totpUriEl = document.querySelector('[data-testid="totp-uri"]');
+    const backupCodesEl = document.querySelector('[data-testid="backup-codes"]');
+    const verifyForm = document.querySelector("#verify-form");
+    const verifyCodeInput = document.querySelector("#verify-code");
+    const passkeys = document.querySelector("#passkeys");
+    const passkeysEmpty = document.querySelector("#passkeys-empty");
+    const addCard = document.querySelector("#passkey-add");
+    const promptCard = document.querySelector("#passkey-prompt");
+    const canceledCard = document.querySelector("#passkey-canceled");
+    const successCard = document.querySelector("#passkey-success");
+    const removeCard = document.querySelector("#passkey-remove");
+    const addPasskeyForm = document.querySelector("#add-passkey-form");
+    const passkeyNameInput = document.querySelector("#passkey-name");
+    const cancelPasskey = document.querySelector("#cancel-passkey");
+    const confirmRemove = document.querySelector("#confirm-remove");
+    const passkeyError = document.querySelector("#passkey-error");
+    const removeError = document.querySelector("#remove-error");
+    const passkeyList = document.querySelector('[data-testid="passkeys"]');
+    const identity = document.querySelector("#identity");
+    const signOut = document.querySelector("#sign-out");
+
+    // The in-flight `navigator.credentials.*` ceremony, so `Cancel` can
+    // abandon it the way a person dismisses the browser's own dialog.
+    let ceremony;
+    // The row the remove confirmation is about.
+    let pendingRemoval;
+
+    /** One live region per shell; only the visible shell's copy is exposed. */
+    function setStatus(text, tone = "info") {
+      for (const node of statusNodes) {
+        node.hidden = !text;
+        node.className = "notice js-status" + (tone === "info" ? "" : " " + tone);
+        const symbol = tone === "success"
+          ? "check"
+          : tone === "error" || tone === "warning"
+          ? "alert"
+          : "document";
+        const mark = node.querySelector(".js-status-icon");
+        mark.dataset.icon = symbol;
+        paintIcon(mark);
+        node.querySelector(".js-status-text").textContent = text;
+      }
+    }
+
+    function showShell(name) {
+      authShell.hidden = name !== "auth";
+      settingsShell.hidden = name !== "settings";
+    }
+
+    /** The mock's passkey screens are exclusive; only one card is ever shown. */
+    function showCard(card) {
+      for (
+        const node of [addCard, promptCard, canceledCard, successCard, removeCard]
+      ) {
+        node.hidden = node !== card;
+      }
+      syncEmptyState();
+    }
+
+    /** The mock shows the empty notice on the list screen only. */
+    function syncEmptyState() {
+      passkeysEmpty.hidden = passkeyList.children.length > 0 || addCard.hidden;
+    }
+
+    /** Bakery's own refusals, in the mock's words, with the server's code. */
+    const REFUSALS = {
+      LAST_SIGN_IN_METHOD:
+        "Add another usable sign-in method before removing your last one.",
+      USER_VERIFICATION_REQUIRED:
+        "Verify yourself on the authenticator, then try again.",
+      FRESH_SIGN_IN_REQUIRED: "Sign in again before changing account security.",
+      TWO_FACTOR_REQUIRED:
+        "Verify your authenticator before changing account security.",
+      FACTOR_PROOF_REQUIRED:
+        "Verify your authenticator or a backup code before changing account security.",
+    };
+
+    function showRefusal(box, code, fallback) {
+      // Revealed before the text is written so the live region announces it.
+      box.hidden = false;
+      box.className = "notice js-refusal " +
+        (code === "LAST_SIGN_IN_METHOD" ? "warning" : "error");
+      box.querySelector(".refusal-text").textContent = REFUSALS[code] ?? fallback;
+      box.querySelector(".refusal-code").textContent = code;
+    }
+
+    function resetToSignedOut() {
+      showShell("auth");
+      signInView.hidden = false;
+      challengeView.hidden = true;
+      challengeError.hidden = true;
+      enrollment.hidden = true;
+      enrollmentDetails.hidden = true;
+      passkeys.hidden = true;
+      passkeyError.hidden = true;
+      removeError.hidden = true;
+      showCard(addCard);
+      passkeyList.replaceChildren();
+      syncEmptyState();
+      identity.hidden = true;
+      signOut.disabled = true;
+    }
+
+    async function showIdentity() {
+      const response = await fetch("/v1/me", {
+        headers: { accept: "application/json" },
+      });
+      if (!response.ok) return false;
+      const current = await response.json();
+      identity.querySelector('[data-testid="principal-id"]').textContent =
+        current.principalId;
+      identity.hidden = false;
+      signOut.disabled = false;
+      showShell("settings");
+      return true;
+    }
+
+    async function post(path, body, box, fallback) {
+      box.hidden = true;
+      const response = await fetch(path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (response.ok) return true;
+      let failure = {};
+      try {
+        failure = await response.json();
+      } catch {
+        failure = {};
+      }
+      showRefusal(box, failure.code ?? `HTTP_${response.status}`, fallback);
+      return false;
+    }
+
+    const ADDED = new Intl.DateTimeFormat("en-GB", { dateStyle: "medium" });
+    function added(value) {
+      const when = value ? new Date(value) : undefined;
+      return when && !Number.isNaN(when.valueOf())
+        ? `Added ${ADDED.format(when)}`
+        : "Added recently";
+    }
+
+    function passkeyItem(row) {
+      const item = document.createElement("li");
+      item.className = "item";
+      const grow = document.createElement("div");
+      grow.className = "grow";
+      const label = document.createElement("p");
+      label.className = "item-title";
+      label.dataset.testid = "passkey-label";
+      label.textContent = row.name ?? row.credentialID;
+      const meta = document.createElement("p");
+      meta.className = "hint";
+      meta.textContent = added(row.createdAt);
+      grow.append(label, meta);
+
+      const actions = document.createElement("div");
+      actions.className = "row item-action";
+      const renameForm = document.createElement("form");
+      renameForm.className = "row rename-form";
+      const renameLabel = document.createElement("label");
+      renameLabel.className = "sr-only";
+      renameLabel.htmlFor = `rename-${row.id}`;
+      renameLabel.textContent = `New name for ${label.textContent}`;
+      const renameInput = document.createElement("input");
+      renameInput.id = `rename-${row.id}`;
+      renameInput.type = "text";
+      renameInput.required = true;
+      renameInput.value = label.textContent;
+      const renameButton = document.createElement("button");
+      renameButton.type = "submit";
+      renameButton.className = "text-link";
+      renameButton.textContent = "Rename";
+      renameButton.setAttribute("aria-label", `Rename ${label.textContent}`);
+      renameForm.append(renameLabel, renameInput, renameButton);
+      renameForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const name = renameInput.value;
+        if (
+          await post(
+            "/api/auth/passkey/update-passkey",
+            { id: row.id, name },
+            passkeyError,
+            "The passkey could not be renamed.",
+          )
+        ) {
+          showCard(addCard);
+          await refreshPasskeys();
+        }
+      });
+
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className = "text-link";
+      removeButton.textContent = "Remove";
+      removeButton.setAttribute("aria-label", `Remove ${label.textContent}`);
+      removeButton.addEventListener("click", () => {
+        pendingRemoval = row;
+        removeError.hidden = true;
+        removeCard.querySelector("[data-remove-name]").textContent =
+          `${label.textContent} will no longer sign in to Bakery.`;
+        showCard(removeCard);
+      });
+
+      actions.append(renameForm, removeButton);
+      item.append(iconSpan("key"), grow, actions);
+      return item;
+    }
+
+    async function refreshPasskeys() {
+      const response = await fetch("/api/auth/passkey/list-user-passkeys", {
+        headers: { accept: "application/json" },
+      });
+      if (!response.ok) {
+        passkeyList.replaceChildren();
+        syncEmptyState();
+        showRefusal(
+          passkeyError,
+          `HTTP_${response.status}`,
+          "Your passkeys could not be listed.",
+        );
+        return;
+      }
+      const rows = await response.json();
+      passkeyList.replaceChildren(...rows.map(passkeyItem));
+      syncEmptyState();
+    }
+
+    async function showPasskeys() {
+      passkeys.hidden = false;
+      await refreshPasskeys();
+    }
+
+    signInForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      setStatus("Signing in…");
+      resetToSignedOut();
+      const email = signInForm.elements.email.value;
+      const password = passwordInput.value;
+      passwordInput.value = "";
+      try {
+        const response = await fetch("/api/auth/sign-in/email", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        if (!response.ok) throw new Error("SIGN_IN_FAILED");
+        const body = await response.json();
+        if (body.twoFactorRedirect) {
+          setStatus("Enter your authenticator code.");
+          signInView.hidden = true;
+          challengeView.hidden = false;
+          return;
+        }
+        if (!await showIdentity()) throw new Error("IDENTITY_FAILED");
+        enrollment.hidden = false;
+        await showPasskeys();
+        setStatus("Signed in.", "success");
+      } catch {
+        resetToSignedOut();
+        setStatus("Sign in failed.", "error");
+      }
+    });
+
+    passkeySignIn.addEventListener("click", async () => {
+      setStatus("Signing in…");
+      resetToSignedOut();
+      try {
+        const optionsResponse = await fetch(
+          "/api/auth/passkey/generate-authenticate-options",
+          { headers: { accept: "application/json" } },
+        );
+        if (!optionsResponse.ok) throw new Error("OPTIONS_FAILED");
+        const credential = await navigator.credentials.get({
+          publicKey: PublicKeyCredential.parseRequestOptionsFromJSON(
+            await optionsResponse.json(),
+          ),
+        });
+        const response = await fetch(
+          "/api/auth/passkey/verify-authentication",
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ response: credential.toJSON() }),
+          },
+        );
+        if (!response.ok) throw new Error("PASSKEY_SIGN_IN_FAILED");
+        const body = await response.json();
+        if (body.twoFactorRedirect) {
+          setStatus("Enter your authenticator code.");
+          signInView.hidden = true;
+          challengeView.hidden = false;
+          return;
+        }
+        if (!await showIdentity()) throw new Error("IDENTITY_FAILED");
+        await showPasskeys();
+        setStatus("Signed in.", "success");
+      } catch {
+        resetToSignedOut();
+        setStatus("Passkey sign in failed.", "error");
+      }
+    });
+
+    challengeForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      challengeError.hidden = true;
+      const code = challengeCodeInput.value;
+      challengeCodeInput.value = "";
+      const response = await fetch("/api/auth/two-factor/verify-totp", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      if (!response.ok || !await showIdentity()) {
+        challengeError.hidden = false;
+        challengeCodeInput.setAttribute("aria-invalid", "true");
+        return;
+      }
+      challengeCodeInput.removeAttribute("aria-invalid");
+      challengeView.hidden = true;
+      signInView.hidden = false;
+      await showPasskeys();
+      setStatus("Signed in.", "success");
+    });
+
+    enableForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const password = enablePasswordInput.value;
+      enablePasswordInput.value = "";
+      try {
+        const response = await fetch("/api/auth/two-factor/enable", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ password }),
+        });
+        if (!response.ok) throw new Error("ENABLE_FAILED");
+        const body = await response.json();
+        totpUriEl.textContent = body.totpURI;
+        backupCodesEl.replaceChildren(
+          ...body.backupCodes.map((code) => {
+            const item = document.createElement("li");
+            item.className = "backup-code";
+            item.textContent = code;
+            return item;
+          }),
+        );
+        enrollmentDetails.hidden = false;
+        setStatus("Verify your authenticator to finish enrollment.");
+      } catch {
+        setStatus("Enable authenticator failed.", "error");
+      }
+    });
+
+    verifyForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const code = verifyCodeInput.value;
+      verifyCodeInput.value = "";
+      try {
+        const response = await fetch("/api/auth/two-factor/verify-totp", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ code }),
+        });
+        if (!response.ok) throw new Error("VERIFY_FAILED");
+        enrollment.hidden = true;
+        enrollmentBadge.textContent = "On";
+        enrollmentBadge.className = "badge success";
+        setStatus("Authenticator enabled.", "success");
+      } catch {
+        setStatus("Verification failed.", "error");
+      }
+    });
+
+    addPasskeyForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      passkeyError.hidden = true;
+      const name = passkeyNameInput.value;
+      ceremony = new AbortController();
+      promptCard.querySelector("[data-pending-name]").textContent = name;
+      showCard(promptCard);
+      setStatus("Waiting for your authenticator…");
+      try {
+        const optionsResponse = await fetch(
+          "/api/auth/passkey/generate-register-options",
+          { headers: { accept: "application/json" } },
+        );
+        if (!optionsResponse.ok) throw new Error("OPTIONS_FAILED");
+        const credential = await navigator.credentials.create({
+          publicKey: PublicKeyCredential.parseCreationOptionsFromJSON(
+            await optionsResponse.json(),
+          ),
+          signal: ceremony.signal,
+        });
+        const verified = await post(
+          "/api/auth/passkey/verify-registration",
+          {
+            response: credential.toJSON(),
+            name,
+          },
+          passkeyError,
+          "The passkey could not be added. Nothing changed.",
+        );
+        if (!verified) throw new Error("VERIFY_REGISTRATION_FAILED");
+        passkeyNameInput.value = "";
+        successCard.querySelector("[data-success-name]").textContent =
+          `${name} can now sign in to Bakery.`;
+        showCard(successCard);
+        await refreshPasskeys();
+        setStatus("Passkey added.", "success");
+      } catch (error) {
+        if (error?.name === "AbortError") {
+          showCard(canceledCard);
+          setStatus("Canceled.");
+          return;
+        }
+        showCard(addCard);
+        setStatus("Add passkey failed.", "error");
+      } finally {
+        ceremony = undefined;
+      }
+    });
+
+    cancelPasskey.addEventListener("click", () => {
+      ceremony?.abort();
+    });
+
+    confirmRemove.addEventListener("click", async () => {
+      if (!pendingRemoval) return;
+      const removed = await post(
+        "/api/auth/passkey/delete-passkey",
+        { id: pendingRemoval.id },
+        removeError,
+        "The passkey could not be removed. It is still connected.",
+      );
+      if (!removed) return;
+      pendingRemoval = undefined;
+      showCard(addCard);
+      await refreshPasskeys();
+    });
+
+    for (const back of document.querySelectorAll("[data-back-to-add]")) {
+      back.addEventListener("click", () => {
+        pendingRemoval = undefined;
+        showCard(addCard);
+      });
+    }
+
+    signOut.addEventListener("click", async () => {
+      setStatus("Signing out…");
+      try {
+        const response = await fetch("/api/auth/sign-out", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: "{}",
+        });
+        if (!response.ok) throw new Error("SIGN_OUT_FAILED");
+        resetToSignedOut();
+        setStatus("Signed out.", "success");
+      } catch {
+        setStatus("Sign out failed.", "error");
+      }
+    });
+
+    for (const toggle of document.querySelectorAll("[data-theme-toggle]")) {
+      toggle.addEventListener("click", () => {
+        const root = document.documentElement;
+        root.dataset.theme = root.dataset.theme === "dark" ? "light" : "dark";
+      });
+    }
+
+    for (const reveal of document.querySelectorAll("[data-reveal]")) {
+      reveal.addEventListener("click", () => {
+        const input = document.getElementById(reveal.dataset.reveal);
+        const show = input.type === "password";
+        input.type = show ? "text" : "password";
+        reveal.setAttribute("aria-pressed", String(show));
+        reveal.setAttribute(
+          "aria-label",
+          show ? "Hide password" : "Show password",
+        );
+      });
+    }
+
+    document.documentElement.dataset.theme =
+      new URLSearchParams(location.search).get("theme") === "dark"
+        ? "dark"
+        : "light";
+    </script>
+  </body>
+</html>

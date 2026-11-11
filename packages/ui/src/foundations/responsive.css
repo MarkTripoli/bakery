@@ -1,0 +1,22 @@
+:root {
+  --gutter: var(--space-4);
+  --target-min: var(--target-coarse);
+}
+
+@media (min-width: 744px) {
+  :root {
+    --gutter: var(--space-6);
+  }
+}
+
+@media (min-width: 1280px) {
+  :root {
+    --gutter: var(--space-10);
+  }
+}
+
+@media (pointer: fine) {
+  :root {
+    --target-min: var(--target-fine);
+  }
+}

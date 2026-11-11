@@ -1,0 +1,59 @@
+erDiagram
+  direction LR
+  principals {
+    uuid id PK
+  }
+  organizations {
+    uuid id PK
+  }
+  inbound_events {
+    uuid id PK
+  }
+  workflow_versions {
+    uuid id PK
+  }
+  automation_definitions {
+    uuid id PK
+    uuid organization_id FK
+    text slug
+    text name
+    uuid active_version_id FK "nullable"
+    boolean enabled
+    timestamp next_fire_at "nullable"
+  }
+  organizations ||..o{ automation_definitions : "organization_id"
+  automation_versions |o..o{ automation_definitions : "active_version_id"
+  automation_versions {
+    uuid id PK
+    uuid organization_id FK
+    uuid automation_id FK
+    int revision
+    jsonb trigger
+    uuid workflow_version_id FK
+    uuid actor_id FK
+    jsonb inputs
+    enum misfire_policy
+    enum overlap_policy
+    text digest
+  }
+  organizations ||..o{ automation_versions : "organization_id"
+  automation_definitions ||..o{ automation_versions : "automation_id"
+  workflow_versions ||..o{ automation_versions : "workflow_version_id"
+  principals ||..o{ automation_versions : "actor_id"
+  automation_firings {
+    uuid id PK
+    uuid organization_id FK
+    uuid automation_version_id FK
+    timestamp scheduled_at
+    uuid trigger_event_id FK "nullable"
+    enum status
+    uuid run_id FK "nullable"
+    integer skipped_count
+  }
+  organizations ||..o{ automation_firings : "organization_id"
+  automation_versions ||..o{ automation_firings : "automation_version_id"
+  inbound_events |o..o{ automation_firings : "trigger_event_id"
+  workflow_runs |o..o{ automation_firings : "run_id"
+  workflow_runs {
+    uuid id PK
+  }

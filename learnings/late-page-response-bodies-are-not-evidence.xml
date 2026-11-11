@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="late-page-response-bodies-are-not-evidence" project="bakery">
+  <title>Read state from the API in a Playwright case, not from the body of a response the page fetched</title>
+  <trigger>A live case awaits page.waitForResponse for a request the page itself makes and calls response.json() after another await.</trigger>
+  <mistake>After a pin the page refetches its storage query and cancels the fetch in flight; a late response.json() on the mobile project failed with Protocol error (Network.getResponseBody): No data found for resource with given identifier. That a cancelled response was the one read was never observed, and the failure did not reproduce in 15 runs.</mistake>
+  <rule>Keep the status check on the page response and read the data through page.request with the organization header, parsed with the contract schema, so no assertion depends on the lifetime of a page-owned body.</rule>
+  <boundary>Mechanism plausible, not observed; the fix does not depend on it.</boundary>
+</learning>

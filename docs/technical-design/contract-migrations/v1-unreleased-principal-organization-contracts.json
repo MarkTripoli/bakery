@@ -1,0 +1,573 @@
+{
+  "id": "v1-unreleased-principal-organization-contracts",
+  "fromBaseRefs": [
+    "50f687bac8b52cae6c61c88c799e6467165da7f6"
+  ],
+  "status": "approved",
+  "allowBreaking": true,
+  "targetCompatibilityDigest": "sha256:bd0e5ba6714874734c1938dcbc1120b3e4a8ebaf6631aaa2c0f4e7cd7dab1694",
+  "reason": "B10.03 (#94) contract re-bind by the Claude builder on 2026-11-10 under the owner's standing breaking-change authorization (2026-10-09), for main 50f687bac8b52cae6c61c88c799e6467165da7f6. Retains only exact main base 50f687bac8b52cae6c61c88c799e6467165da7f6 and approves the target sha256:bd0e5ba6714874734c1938dcbc1120b3e4a8ebaf6631aaa2c0f4e7cd7dab1694. The target digest changed from sha256:93d63773a5469970d19d17fe4a8f2422a655b73edd8b984d172dfa9f38a08203 only because this branch merged main's removal of the enterprise edition (#543, #548: the installation licence, seats and organization capabilities actions, the FEATURE_NOT_ENTITLED and SEAT_LIMIT_REACHED errors and the SSO availability fields), which the earlier target still contained; the delta from main to this branch is the review and repair delta alone, unchanged. That review and repair contract delta is described in the prior entries for bases e87c255dd6ee381349a616b4bbd20dbd3ab00255 and 9b29e03a6a5233d8bb4583caea138027a7a19fe3; the bases af0457fd4fbc2e713ca94161cfe39412e0e37c94, a9f939bd0c30b4ea1e3cd56641ce435d66eb94c6, 6097629ff4efcfa29df236362c19398db9a798be, 82f529b5eee6329a1656217f2654b9f4db987c2d, 1ea8ad3d789c28968e453437f068bcf6c1aee1af and 619bcc88cec73b79956b4fa26e47e7f1c5513c74 moved the base with ticket admission (#535, #538), the flaky-test fix (#537), the open-source cleanup (#540), a web spec fix (#545), the public-contribution cleanup (#541) and the enterprise edition removal (#548) before this one. The displaced main approval (Remove the enterprise edition) and this branch's previous approval are the first two prior entries. Main moved from 9ea46dcff71723f89d01016beaeff49e5b0e7b3d with a change to the UI coverage removal ledger only (#551), which touches no contract, so the target digest is unchanged.",
+  "priorApprovals": [
+    {
+      "allowBreaking": true,
+      "fromBaseRefs": [
+        "619bcc88cec73b79956b4fa26e47e7f1c5513c74"
+      ],
+      "reason": "B10.03 (#94) contract re-bind by the Claude builder on 2026-11-10 under the owner's standing breaking-change authorization (2026-10-09), for main 619bcc88cec73b79956b4fa26e47e7f1c5513c74. Retains only exact main base 619bcc88cec73b79956b4fa26e47e7f1c5513c74 and keeps the approved target sha256:93d63773a5469970d19d17fe4a8f2422a655b73edd8b984d172dfa9f38a08203. Main moved from 1ea8ad3d789c28968e453437f068bcf6c1aee1af with the public-contribution cleanup (#541), which only rewrites comments and descriptions in contract sources and changes no contract shape, so the generated compatibility digest is unchanged. The review and repair contract delta is described in the prior entries for bases e87c255dd6ee381349a616b4bbd20dbd3ab00255 and 9b29e03a6a5233d8bb4583caea138027a7a19fe3; the bases af0457fd4fbc2e713ca94161cfe39412e0e37c94, a9f939bd0c30b4ea1e3cd56641ce435d66eb94c6, 6097629ff4efcfa29df236362c19398db9a798be, 82f529b5eee6329a1656217f2654b9f4db987c2d and 1ea8ad3d789c28968e453437f068bcf6c1aee1af moved the base with ticket admission (#535, #538), the flaky-test fix (#537), the open-source cleanup (#540) and a web spec fix (#545) before this one.",
+      "status": "approved",
+      "targetCompatibilityDigest": "sha256:93d63773a5469970d19d17fe4a8f2422a655b73edd8b984d172dfa9f38a08203"
+    },
+    {
+      "allowBreaking": true,
+      "fromBaseRefs": [
+        "619bcc88cec73b79956b4fa26e47e7f1c5513c74"
+      ],
+      "reason": "Remove the enterprise edition (#543): main 619bcc88cec73b79956b4fa26e47e7f1c5513c74 drops the installation licence, installation seats and organization capabilities actions, the FEATURE_NOT_ENTITLED and SEAT_LIMIT_REACHED errors, the action entitlement field and the SSO overview availability fields. All features are always available, so no client relies on these shapes. The complete displaced approval is preserved first in priorApprovals.",
+      "status": "approved",
+      "targetCompatibilityDigest": "sha256:ca7eeb37fa36f97f8835a11cbf65f8a91ae4a19534277c7a294bb6677d6510b9"
+    },
+    {
+      "fromBaseRefs": [
+        "a9f939bd0c30b4ea1e3cd56641ce435d66eb94c6"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:76372a8016c3cdd153ff1308f7a1f0e4b71fac96ffaf4a23d4053e9ebb80fdb7",
+      "reason": "B10.03 (#94) contract re-bind by the Claude builder on 2026-11-01 under the owner's standing breaking-change authorization (2026-10-09), for main a9f939bd0c30b4ea1e3cd56641ce435d66eb94c6. Retains only exact main base a9f939bd0c30b4ea1e3cd56641ce435d66eb94c6 and keeps the approved target sha256:76372a8016c3cdd153ff1308f7a1f0e4b71fac96ffaf4a23d4053e9ebb80fdb7. Main moved with #537 (two flaky full-lane tests made deterministic), which changes no contract, so the generated compatibility digest is unchanged. The previous base af0457fd4fbc2e713ca94161cfe39412e0e37c94 carried the same approved target, so it needs no prior entry. The review and repair contract delta is described in the prior entries for bases e87c255dd6ee381349a616b4bbd20dbd3ab00255 and 9b29e03a6a5233d8bb4583caea138027a7a19fe3."
+    },
+    {
+      "fromBaseRefs": [
+        "9b29e03a6a5233d8bb4583caea138027a7a19fe3"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:2d18372cc36b196d0f0282a173157709e7cd199b760353482b03337eb10aa065",
+      "reason": "B10.03 (#94) contract re-bind by the Claude builder on 2026-11-01 under the owner's standing breaking-change authorization (2026-10-09), for main 9b29e03a6a5233d8bb4583caea138027a7a19fe3. Retains only exact main base 9b29e03a6a5233d8bb4583caea138027a7a19fe3 and advances the approved target sha256:0c071f98ee7288dcd1470d8eea9462df86e806a04f59295215f96e384976ba14 to sha256:2d18372cc36b196d0f0282a173157709e7cd199b760353482b03337eb10aa065. The delta is the merge of main into the B10.03 branch: the receipts-intake contracts of #71 (PR #534) join the review and repair contract changes. The review and repair contract delta is described in the prior entry for base e87c255dd6ee381349a616b4bbd20dbd3ab00255. The same base also carries the fixed-coding-reviewed preset contract (preset id, reasons enum 12 to 14) and the Finding.line int4 maximum. It also carries the implemented review read operations (runReviews.list, reviewFindings.list, runDeliveryDecisions.list). The derived ReviewFinding.status is open exactly when the run's latest review cycle reports the fingerprint and resolved otherwise."
+    },
+    {
+      "fromBaseRefs": [
+        "e87c255dd6ee381349a616b4bbd20dbd3ab00255"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:0c071f98ee7288dcd1470d8eea9462df86e806a04f59295215f96e384976ba14",
+      "reason": "B10.03 (#94) contract re-bind by the Claude builder on 2026-10-31 under the owner's standing breaking-change authorization (2026-10-09), for main e87c255dd6ee381349a616b4bbd20dbd3ab00255. Retains only exact main base e87c255dd6ee381349a616b4bbd20dbd3ab00255 and advances the approved target sha256:fbc5e1c5877f5c5c082f05e69aea7c11d3ae32b57d9773475932910ec2a97d48 to sha256:0c071f98ee7288dcd1470d8eea9462df86e806a04f59295215f96e384976ba14. The delta changes the review and repair contracts, which no client relied on in this shape because no worker ran review.independent or harness.repair: Finding gains the required severity, path and line, its fingerprint becomes a 64-hex digest and its detail is capped at 500 characters; RepairInput replaces its findings-only shape with the exact 40-character revision, at most 25 blocking findings and at most 32 FailedCheck entries (new type); ReviewInput and ReviewOutput are new and review.independent becomes a registered worker action with the model and reviewer capabilities, so the agent capability vocabulary gains reviewer; ReviewCycle gains run step, ordinal, reviewer and implementer session and principal, finding and blocking counts and a nullable pullRequestId; ReviewFinding derives its status; DeliveryDecision, DeliveryLoopLimits and Page<DeliveryDecision> are new; the repository fixed-policy effect enum gains review_evidence and allowedEffects may list five entries instead of four; and the catalog gains runReviews.list (GET /v1/runs/{id}/reviews) and runDeliveryDecisions.list (GET /v1/runs/{id}/delivery-decisions) while reviewFindings.list gains the required organization context and SCOPE_REQUIRED. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "a00c1510d5b9deb58e613bf8050f55db068d8f21"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:fbc5e1c5877f5c5c082f05e69aea7c11d3ae32b57d9773475932910ec2a97d48",
+      "reason": "B10.02 (#83) contract re-bind by the Claude orchestrator on 2026-10-31 under the owner's standing breaking-change authorization (2026-10-09), for main a00c1510d5b9deb58e613bf8050f55db068d8f21. Retains only exact main base a00c1510d5b9deb58e613bf8050f55db068d8f21 and advances the approved target sha256:1d9e3729892d3fbb160a9dfc87d61a8d6cac7be3daf52738cd9b008e4271ac53 to sha256:fbc5e1c5877f5c5c082f05e69aea7c11d3ae32b57d9773475932910ec2a97d48. The delta changes the quality.check contracts, which no client relied on in this shape because no worker ran the action: CheckOutput gains the required failedCheckIds and observations (one to 32 CheckObservation entries) and now caps checkRunIds, failedCheckIds and observations at 32 entries each so the server can verify each worker report against its own pins; CheckObservation is a new type; CheckRun gains the unavailable result, a reason code, rule and digest fields; and checks.list (GET /v1/runs/{id}/checks) gains the required organization context and SCOPE_REQUIRED. The CheckOutput field descriptions also state what each field means, not only its bound. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "27db6940d4ee2483d5d5a46c440d2d4e4901d281"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1d9e3729892d3fbb160a9dfc87d61a8d6cac7be3daf52738cd9b008e4271ac53",
+      "reason": "E06 (#100, #143) contract re-bind by the Claude builder on 2026-10-28 under the owner's standing breaking-change authorization (2026-10-09), for main 27db6940d4ee2483d5d5a46c440d2d4e4901d281. Retains only exact main base 27db6940d4ee2483d5d5a46c440d2d4e4901d281 and advances the approved target sha256:710fc37ee626a3490d52ad50e01de1ca59955350e27fc3f70122541474cf92ac to sha256:1d9e3729892d3fbb160a9dfc87d61a8d6cac7be3daf52738cd9b008e4271ac53. The delta changes the coordination plan contracts, which no client relied on in this shape: the CoordinationPlan read model gains the required origin field (ad_hoc, saved_workflow or ticket) and its lane status gains stale; coordinationPlans.create gains the optional origin input and the typed origin conflict; and the new coordinationPlans.createFromWorkflow operation (POST /v1/coordination-plans/from-workflow) maps a published workflow version's parallel node through the same create command. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "9ddb8744ac4ac1589457ba519f822cac1cc6cfc2"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:710fc37ee626a3490d52ad50e01de1ca59955350e27fc3f70122541474cf92ac",
+      "reason": "E06 (#100, #143) contract re-bind by the Claude builder on 2026-10-28 under the owner's standing breaking-change authorization (2026-10-09), for main 9ddb8744ac4ac1589457ba519f822cac1cc6cfc2. Retains only exact main base 9ddb8744ac4ac1589457ba519f822cac1cc6cfc2 and advances the approved target sha256:aa50e96a36b4a59e869b5c0a12df68d8bdbe098cbcb6002a97bcbc15e40bd30f to sha256:710fc37ee626a3490d52ad50e01de1ca59955350e27fc3f70122541474cf92ac. The delta changes the coordination plan contracts, which no client relied on in this shape: the CoordinationPlan read model gains the required origin field (ad_hoc, saved_workflow or ticket) and its lane status gains stale; coordinationPlans.create gains the optional origin input and the typed origin conflict; and the new coordinationPlans.createFromWorkflow operation (POST /v1/coordination-plans/from-workflow) maps a published workflow version's parallel node through the same create command. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "fc8fc21ead3f88daea88c584fe1fe92f9ad9ce23"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:aa50e96a36b4a59e869b5c0a12df68d8bdbe098cbcb6002a97bcbc15e40bd30f",
+      "reason": "E01.5 (#475, #138) contract re-bind by the Claude orchestrator on 2026-10-27 under the owner's standing breaking-change authorization (2026-10-09), merged onto main fc8fc21ead3f88daea88c584fe1fe92f9ad9ce23. Retains only exact main base fc8fc21ead3f88daea88c584fe1fe92f9ad9ce23 and advances the approved target sha256:336ae1d04127b6ef149b6b9ee3d23e2bbf9bfa029dc4e8a44e2f67f38bb10478 to sha256:aa50e96a36b4a59e869b5c0a12df68d8bdbe098cbcb6002a97bcbc15e40bd30f. The delta changes the WorkflowPresetAvailability contract, which no server code outside this change produced and no client relied on in this shape: the reasons enum gains required_check_missing (a bound organization require rule needs a check stage the preset lacks) and reasons maxItems goes from 11 to 12. The same slice adds, additively, the optional repositoryRules pin on the execution context and the typed refusals documented on runs.create, workflowVersions.publish, workflowActivations.create and repositoryRuleVersions.create. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "99605d62a04c2a260d7c9cf3b0aff131349dd3c6"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:336ae1d04127b6ef149b6b9ee3d23e2bbf9bfa029dc4e8a44e2f67f38bb10478",
+      "reason": "E01.5 (#475, #138) contract re-bind by the Claude builder on 2026-10-27 under the owner's standing breaking-change authorization (2026-10-09), merged onto main 99605d62a04c2a260d7c9cf3b0aff131349dd3c6. Retains only exact main base 99605d62a04c2a260d7c9cf3b0aff131349dd3c6 and advances the approved target sha256:7e0a839ba2fc482e14c1764ec3cd48ed3f13daf8581ac7ade3806786f27493a9 to sha256:336ae1d04127b6ef149b6b9ee3d23e2bbf9bfa029dc4e8a44e2f67f38bb10478. The delta changes the WorkflowPresetAvailability contract, which no server code outside this change produced and no client relied on in this shape: the reasons enum gains required_check_missing (a bound organization require rule needs a check stage the preset lacks) and reasons maxItems goes from 11 to 12. The same slice adds, additively, the optional repositoryRules pin on the execution context and the typed refusals documented on runs.create, workflowVersions.publish, workflowActivations.create and repositoryRuleVersions.create. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "08dd9dc6d27d27797bebdbd8a4379ba01b705b62"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:7e0a839ba2fc482e14c1764ec3cd48ed3f13daf8581ac7ade3806786f27493a9",
+      "reason": "B09.02 (#481, #60) contract re-bind by the Claude orchestrator on 2026-10-26 under the owner's standing breaking-change authorization (2026-10-09), merged onto main 08dd9dc6d27d27797bebdbd8a4379ba01b705b62 (#496). Retains only exact main base 08dd9dc6d27d27797bebdbd8a4379ba01b705b62 and advances the approved target sha256:3345e618b68f07b4c9fe812f01fb68ff640b6067835898de182cb7290a881bf9 to sha256:7e0a839ba2fc482e14c1764ec3cd48ed3f13daf8581ac7ade3806786f27493a9. The delta changes the integration connection contracts, which no server code implemented and no client called before this change (only the unrelated integrationConnections.invoke name appears in the SDK gate): the IntegrationConnection field providerId (uuid) becomes provider (enum github), its status gains pending, its field descriptions are rewritten, and its storage mapping follows (provider, granted_permissions); integrationConnections.get gains the required authenticated organization context and adds AUTH_INVALID, AUTH_EXPIRED, AUTH_FACTOR_REQUIRED, MALFORMED_REQUEST and SCOPE_REQUIRED to its errors; and integrationAuth.githubSetup and integrationAuth.githubCallback each add AUTH_REQUIRED, AUTH_EXPIRED, AUTH_FACTOR_REQUIRED, SESSION_REQUIRED and INTERNAL to their errors. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "64dfb3d8923b7452150f4b772db453e33b938a6d"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:3345e618b68f07b4c9fe812f01fb68ff640b6067835898de182cb7290a881bf9",
+      "reason": "B09.02 (#479, #60) contract re-bind by the Claude orchestrator on 2026-10-26 under the owner's standing breaking-change authorization (2026-10-09), merged onto main 64dfb3d8923b7452150f4b772db453e33b938a6d (#493). Retains only exact main base 64dfb3d8923b7452150f4b772db453e33b938a6d and advances the approved target sha256:a2cd7086b8ee983e07893c77ab31d1d0993801c247df3b6f8c08f6db1bfd77d8 to sha256:3345e618b68f07b4c9fe812f01fb68ff640b6067835898de182cb7290a881bf9. The delta changes the integrationAuthAttempts.create contracts, which no server code implemented and no client called before this change: the create input field providerId (uuid) becomes provider (enum github) and gains returnPath, the IntegrationAuthAttempt read model replaces providerId with provider and adds returnPath, the authorizationUrl response field becomes a uri, PRECONDITION_REQUIRED joins the documented problem codes, and the operations list their session authentication errors (integrationAuthAttempts.create adds AUTH_EXPIRED and AUTH_FACTOR_REQUIRED; integrationAuthAttempts.get adds AUTH_INVALID, AUTH_EXPIRED and AUTH_FACTOR_REQUIRED). The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "fe3735ebb403b415b6569f5fdab377cc1b7d8417"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:a2cd7086b8ee983e07893c77ab31d1d0993801c247df3b6f8c08f6db1bfd77d8",
+      "reason": "B07.01 (#437, #51) contract re-bind by the Claude Sonnet worker on 2026-10-22 under the owner's standing breaking-change authorization (2026-10-09), merged onto main fe3735ebb403b415b6569f5fdab377cc1b7d8417 (#435). Retains only exact main base fe3735ebb403b415b6569f5fdab377cc1b7d8417 and advances the approved target sha256:353c3d594328f7e1bfdfdfd19e69af5a59ecb9f24965cdf72a01a059c2b08f76 to sha256:a2cd7086b8ee983e07893c77ab31d1d0993801c247df3b6f8c08f6db1bfd77d8. The delta is purely additive: the workflowActions.list and workflowActions.get catalog operations with WorkflowActionsListQuery, WorkflowActionVersionPath, WorkflowActionDeclaration, WorkflowActionRetry and Page<WorkflowActionDeclaration>, the PlanInput action input, the WorkflowStepBinding output and the optional stepBindings field on ValidationReport. The strict compatibility check against the base reports no break. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "a803cba7ae4315757248a4ca1111c98321e250a4"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:353c3d594328f7e1bfdfdfd19e69af5a59ecb9f24965cdf72a01a059c2b08f76",
+      "reason": "FS06 (#435) contract re-bind by the Claude Sonnet worker on 2026-10-22 under the owner's standing breaking-change authorization (2026-10-09), merged onto main a803cba7ae4315757248a4ca1111c98321e250a4 (#417). Retains only exact main base a803cba7ae4315757248a4ca1111c98321e250a4 and advances the approved target sha256:8d6f8348ef7694438cfdcf5a0c1d5ba2fb88714683ea58c244bbc6d407f1aff6 to sha256:353c3d594328f7e1bfdfdfd19e69af5a59ecb9f24965cdf72a01a059c2b08f76. The delta is the FS06 run observation proof additive response fields on top of the workflow draft contracts of #417. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "08f31b4aea575febd3b74af6b74667316f9ba59e"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:8d6f8348ef7694438cfdcf5a0c1d5ba2fb88714683ea58c244bbc6d407f1aff6",
+      "reason": "E07 (#417) contract re-bind by the Claude Opus worker on 2026-10-22 under the owner's standing breaking-change authorization (2026-10-09), merged onto main 08f31b4aea575febd3b74af6b74667316f9ba59e (#415). Retains only exact main base 08f31b4aea575febd3b74af6b74667316f9ba59e. The delta is the workflow draft validation, publication and activation contracts added by #417. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "b8871cc32459e5b1401eb20e640c8e77b1ddcf5e"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:12f827e5d5408adc37131d97995c8c2b15a5401b5e35bb0830ffcdf233f103bf",
+      "reason": "E06 (#415) contract re-bind by the Claude Opus worker on 2026-10-22 under the owner's standing breaking-change authorization (2026-10-09), merged onto main b8871cc32459e5b1401eb20e640c8e77b1ddcf5e (#413 and #411). Retains only exact main base b8871cc32459e5b1401eb20e640c8e77b1ddcf5e. The approved target sha256:12f827e5d5408adc37131d97995c8c2b15a5401b5e35bb0830ffcdf233f103bf is unchanged because main's new commits leave the generated compatibility digest as is. The delta is the coordinator.turn worker action, ApprovedPlan types, optional approvedPlan and instructions fields, nullable execution attempt runStepId, the agents.activateVersion route and Problem.reason. The displaced approval for base 637b0bec2bdf3940162c73c46c51bc8f6b5d8fdf carried this same target digest, so it is not duplicated into priorApprovals (the drift test requires every prior digest to be rejected); the older approvals are unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "637b0bec2bdf3940162c73c46c51bc8f6b5d8fdf"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:232a2c5758c59d59d31328ede6680fa0f9d66bd5927c8ea6f82d13d9d8c77c3c",
+      "reason": "E06 (#415) contract re-bind by the Claude Opus worker on 2026-10-21 under the owner's standing breaking-change authorization (2026-10-09), rebased onto main 637b0bec2bdf3940162c73c46c51bc8f6b5d8fdf. Retains only exact main base 637b0bec2bdf3940162c73c46c51bc8f6b5d8fdf and advances the approved target sha256:78ee462aaef56f20505b31bded8d75585751303809e557a433485ec2f83b10c9 to sha256:232a2c5758c59d59d31328ede6680fa0f9d66bd5927c8ea6f82d13d9d8c77c3c. The delta is unchanged: it adds the coordinator.turn worker action (CoordinatorTurnInput, CoordinatorTurnOutput), the ApprovedPlan and ApprovedPlanStep types, the optional approvedPlan field on the task brief and optional instructions on the implement step (plus optional detailShortened on approved plan steps), and makes the execution attempt runStepId nullable for standalone jobs. Because coordinator.turn sorts first among worker actions, the WorkerResult result union gains a new first variant, so the compatibility comparison reports the former first variant's input field as removed at WorkerResult.anyOf[0].properties.result.anyOf[0]; the repository.inspect result variant and its input field are unchanged. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "75795024182131780a7a7afb525059944ac2e84c"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:78ee462aaef56f20505b31bded8d75585751303809e557a433485ec2f83b10c9",
+      "reason": "E06 (#415) contract re-bind by the Claude Opus worker on 2026-10-21 under the owner's standing breaking-change authorization (2026-10-09). Retains only exact main base 75795024182131780a7a7afb525059944ac2e84c and advances the approved target sha256:68b743e80c5fb9c85c643d74d9385a55bdbd3eff154441ff2d363bcdf2bfc1a4 to sha256:78ee462aaef56f20505b31bded8d75585751303809e557a433485ec2f83b10c9. The delta adds the coordinator.turn worker action (CoordinatorTurnInput, CoordinatorTurnOutput), the ApprovedPlan and ApprovedPlanStep types, the optional approvedPlan field on the task brief and optional instructions on the implement step (plus optional detailShortened on approved plan steps), and makes the execution attempt runStepId nullable for standalone jobs. Because coordinator.turn sorts first among worker actions, the WorkerResult result union gains a new first variant, so the compatibility comparison reports the former first variant's input field as removed at WorkerResult.anyOf[0].properties.result.anyOf[0]; the repository.inspect result variant and its input field are unchanged. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "867648dc546206b9cfe441cbc710692a3c27f6a5"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:68b743e80c5fb9c85c643d74d9385a55bdbd3eff154441ff2d363bcdf2bfc1a4",
+      "reason": "F7.04 (#403) contract re-bind by the Claude Opus worker on 2026-10-20 under the owner's standing breaking-change authorization (2026-10-09). Retains only exact main base 867648dc546206b9cfe441cbc710692a3c27f6a5 and advances the approved target sha256:98fd81fd9287c8ad856c73e96dbf27903811cdbe58764f61f73c2ab25987f242 to sha256:68b743e80c5fb9c85c643d74d9385a55bdbd3eff154441ff2d363bcdf2bfc1a4. The delta adds DispatchBlockers.reason (nullable enum) and DispatchBlockers.connectivity (enum), both now required, and adds WorkerHeartbeatResult.inventoryRevision, now required, so the worker learns its inventory revision from the heartbeat. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "010900aa81d3368c06d4fedd2d65702bddbf240f"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:98fd81fd9287c8ad856c73e96dbf27903811cdbe58764f61f73c2ab25987f242",
+      "reason": "B08.04j (#402) contract re-bind by the Claude Opus worker on 2026-10-20 under the owner's standing breaking-change authorization (2026-10-09). Retains only exact main base 010900aa81d3368c06d4fedd2d65702bddbf240f and advances the approved target sha256:7e19b404d23529f2a3b14a8f5c18c194aff26a81d41c5519fcfd2a9dc35dc2a1 to sha256:98fd81fd9287c8ad856c73e96dbf27903811cdbe58764f61f73c2ab25987f242. The delta renames HarnessCheckpoint.sessionId to nativeSessionId wherever HarnessOutput.checkpoint appears (HarnessOutput and WorkerResult). The server resolves every sessionId key in a worker result as a Bakery agent session, so the native Pi id under that key made every Pi terminal result fail 404. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "7f0465adbd681eb9aaea97fed877b900d63993ca"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:7e19b404d23529f2a3b14a8f5c18c194aff26a81d41c5519fcfd2a9dc35dc2a1",
+      "reason": "E16 Phase 17 contract re-bind by the c-e16-p17 builder on 2026-10-13 under the owner's standing breaking-change authorization (2026-10-09). Retains only exact main base 7f0465adbd681eb9aaea97fed877b900d63993ca and advances the approved target sha256:55f636df3722b1a00102270811f8559d26b1fc983cc2b10ec22655a6bcb7a476 to sha256:7e19b404d23529f2a3b14a8f5c18c194aff26a81d41c5519fcfd2a9dc35dc2a1. The delta adds the SCIM connection actions scimConnection.get, create, rotate (entitlement scim) and revoke with permissions scimConnection:read and scimConnection:manage, the schemas ScimConnectionCreate, ScimConnectionRotate, ScimCredential, ScimConnection and ScimConnectionCreated, and their implemented-action and client-manifest entries. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "7f0465adbd681eb9aaea97fed877b900d63993ca"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:55f636df3722b1a00102270811f8559d26b1fc983cc2b10ec22655a6bcb7a476",
+      "reason": "E16 Phase 14 contract re-bind by the Claude Sonnet builder on 2026-10-13 under the owner's standing breaking-change authorization (2026-10-09). Retains only the exact main base and advances the approved target sha256:92d4d9c2af182d0ff6b64ef42e4ea5e5f5b286dd35f8f7bf2fcc2fd99398267f to sha256:55f636df3722b1a00102270811f8559d26b1fc983cc2b10ec22655a6bcb7a476. The delta is the Phase 14 custom-roles surface on top of Phase 13: six organizationRoles actions (list, create, update, delete, assign, unassign) with permissions organizationRole:read and organizationRole:manage, the OrganizationRoleCreate, OrganizationRoleUpdate, OrganizationRoleAssign and OrganizationRoleMemberPath inputs, and the OrganizationRole (with memberIds) and Page<OrganizationRole> outputs. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "7f0465adbd681eb9aaea97fed877b900d63993ca"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:92d4d9c2af182d0ff6b64ef42e4ea5e5f5b286dd35f8f7bf2fcc2fd99398267f",
+      "reason": "E16 Phase 13 contract re-bind by the Claude Sonnet builder on 2026-10-13 under the owner's standing breaking-change authorization (2026-10-09). Retains only exact main base 7f0465adbd681eb9aaea97fed877b900d63993ca and advances the approved target sha256:d5ef3702fa55af7c433997da1cb98f433417b2a1f0f26486640c8d3c54c5ddb1 to sha256:92d4d9c2af182d0ff6b64ef42e4ea5e5f5b286dd35f8f7bf2fcc2fd99398267f. The delta is Phase 13 resource bindings: accessBindings.list|create|delete with the accessBinding:read and accessBinding:manage permissions, the AccessBinding, AccessBindingCreate and Page<AccessBinding> schemas, the accessBinding.created and accessBinding.deleted events, and OrganizationInvitationCreate.role widened to admin|developer|viewer|guest. The complete displaced approval is preserved first in priorApprovals. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "7f0465adbd681eb9aaea97fed877b900d63993ca"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:d5ef3702fa55af7c433997da1cb98f433417b2a1f0f26486640c8d3c54c5ddb1",
+      "reason": "E16 enforce-live truncation repair: raise EffectiveAccess.capabilities maxItems from 100 to 256 and return the full role permission-key list. The only delta from the previous target sha256:4fc78d2de03e5e376dd79b87c3f189ddca5b3186b786acd34545a18a9511a8ba is the single fieldBounds.capabilities.maxItems bound change (100 -> 256); no action, permission key, schema, or OpenAPI entry is added, removed, or renamed. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard and covers no future digest."
+    },
+    {
+      "fromBaseRefs": [
+        "7f0465adbd681eb9aaea97fed877b900d63993ca"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:4fc78d2de03e5e376dd79b87c3f189ddca5b3186b786acd34545a18a9511a8ba",
+      "reason": "E16 Phase 15 re-bind after merging Phase 12 (scoped access tokens), by the c-e16-p15 builder on 2026-10-13 under the owner's standing breaking-change authorization (2026-10-09). Retains only exact main base 7f0465adbd681eb9aaea97fed877b900d63993ca and advances the Phase 12 target sha256:cc6a65616c808782df86dfd9daef27c8aa6f4222438b6235e0eb64d716e7c7b4 and the Phase 15 target sha256:9a576a3680e40f6172f243f5419f0d73af8e6b752f918863e25b394f46c44521 to the composed target sha256:4fc78d2de03e5e376dd79b87c3f189ddca5b3186b786acd34545a18a9511a8ba. The delta is the union of the Phase 12 access-token contracts and the Phase 15 audit export and retention contracts: actions auditEvents.export (entitlement audit.export), auditRetention.get and auditRetention.update (entitlement audit.retention), permissions auditEvent:export, auditRetention:read and auditRetention:manage, and schemas AuditExportQuery, AuditExport, AuditRetention and AuditRetentionUpdate. Both displaced approvals are preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "7f0465adbd681eb9aaea97fed877b900d63993ca"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:cc6a65616c808782df86dfd9daef27c8aa6f4222438b6235e0eb64d716e7c7b4",
+      "reason": "E16 Phase 12 contract re-bind by the Claude Sonnet builder on 2026-10-13 under the owner's standing breaking-change authorization (2026-10-09). Retains only exact main base 7f0465adbd681eb9aaea97fed877b900d63993ca and advances the approved target sha256:0f2698701cb30196d67aa170e27651b16baded4bc00b6f1a0bcd9444fd205245 to sha256:cc6a65616c808782df86dfd9daef27c8aa6f4222438b6235e0eb64d716e7c7b4. The delta is the SESSION_REQUIRED 403 fault, listed on principals.create|update, permissionGrants.create|delete and accessTokens.create|revoke, which refuse bearer-token callers. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "7f0465adbd681eb9aaea97fed877b900d63993ca"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:9a576a3680e40f6172f243f5419f0d73af8e6b752f918863e25b394f46c44521",
+      "reason": "E16 Phase 15 contract re-bind by the c-e16-p15 builder on 2026-10-13 under the owner's standing breaking-change authorization (2026-10-09). Retains only exact main base 7f0465adbd681eb9aaea97fed877b900d63993ca and advances the approved target sha256:e02273ddd925972b33530f085536aa94a9d2654b6f167f758076be8d8bbcc188 to sha256:9a576a3680e40f6172f243f5419f0d73af8e6b752f918863e25b394f46c44521. The delta adds the audit export and retention actions auditEvents.export (entitlement audit.export), auditRetention.get and auditRetention.update (entitlement audit.retention) with permissions auditEvent:export, auditRetention:read and auditRetention:manage, the schemas AuditExportQuery, AuditExport, AuditRetention and AuditRetentionUpdate, and SCOPE_REQUIRED and MALFORMED_REQUEST in their error lists. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "7f0465adbd681eb9aaea97fed877b900d63993ca"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:e02273ddd925972b33530f085536aa94a9d2654b6f167f758076be8d8bbcc188",
+      "reason": "E16 Phase 15 contract re-bind by the c-e16-p15 builder on 2026-10-13 under the owner's standing breaking-change authorization (2026-10-09). Retains only exact main base 7f0465adbd681eb9aaea97fed877b900d63993ca and advances the approved target sha256:770a0d41eb29b5a176911b29a7523cde1e0daea10113cc9c23023b40832004c7 to sha256:e02273ddd925972b33530f085536aa94a9d2654b6f167f758076be8d8bbcc188. The delta adds the audit export and retention actions auditEvents.export (entitlement audit.export), auditRetention.get and auditRetention.update (entitlement audit.retention) with permissions auditEvent:export, auditRetention:read and auditRetention:manage, and the schemas AuditExportQuery, AuditExport, AuditRetention and AuditRetentionUpdate. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "7f0465adbd681eb9aaea97fed877b900d63993ca"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:0f2698701cb30196d67aa170e27651b16baded4bc00b6f1a0bcd9444fd205245",
+      "reason": "E16 Phase 12 contract re-bind by the Claude Sonnet builder on 2026-10-13 under the owner's standing breaking-change authorization (2026-10-09). Retains only exact main base 7f0465adbd681eb9aaea97fed877b900d63993ca and advances the approved target sha256:770a0d41eb29b5a176911b29a7523cde1e0daea10113cc9c23023b40832004c7 to sha256:0f2698701cb30196d67aa170e27651b16baded4bc00b6f1a0bcd9444fd205245. The delta is Phase 12 scoped access: principals.list|create|update become organization-scoped service-account actions (PrincipalCreate takes displayName and role); permissionGrants.list|create|delete become implemented; accessTokens.list|create|revoke are added with the accessToken:read and accessToken:manage permissions and the AccessToken, AccessTokenCreate, AccessTokenCreated and Page<AccessToken> schemas; the INSUFFICIENT_SCOPE 403 fault and the accessToken.created and accessToken.revoked events are added. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "7f0465adbd681eb9aaea97fed877b900d63993ca"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:770a0d41eb29b5a176911b29a7523cde1e0daea10113cc9c23023b40832004c7",
+      "reason": "E16 Phase 11 contract re-bind by the Claude Sonnet builder on 2026-10-13 under the owner's standing breaking-change authorization (2026-10-09). Retains only exact main base 7f0465adbd681eb9aaea97fed877b900d63993ca and advances the approved target sha256:5bb840b9dcdbef0eb3f6b8e4955ae1c1f4e351b1e9f4f2e59c9af3b47670cd72 to sha256:770a0d41eb29b5a176911b29a7523cde1e0daea10113cc9c23023b40832004c7. The only delta from the previous Phase 11 target is that auditEvents.list errors are restored to the original catalog list (AUTH_REQUIRED, AUTH_FORBIDDEN, SCOPE_REQUIRED, RESOURCE_NOT_FOUND, INVALID_CURSOR, MALFORMED_REQUEST). The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "7f0465adbd681eb9aaea97fed877b900d63993ca"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:5bb840b9dcdbef0eb3f6b8e4955ae1c1f4e351b1e9f4f2e59c9af3b47670cd72",
+      "reason": "E16 Phase 11 contract re-bind by the Claude Sonnet builder on 2026-10-13 under the owner's standing breaking-change authorization (2026-10-09). Retains only exact main base 7f0465adbd681eb9aaea97fed877b900d63993ca and advances the approved target sha256:8f87027aa5c3c8e3f7c1ce56a43de3c53e814e27d5b711025bd6517215a741be to sha256:5bb840b9dcdbef0eb3f6b8e4955ae1c1f4e351b1e9f4f2e59c9af3b47670cd72. The only delta from the previous Phase 11 target is that auditEvents.list again declares SCOPE_REQUIRED among its errors, as every required-context action does. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "7f0465adbd681eb9aaea97fed877b900d63993ca"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:8f87027aa5c3c8e3f7c1ce56a43de3c53e814e27d5b711025bd6517215a741be",
+      "reason": "E16 Phase 11 contract re-bind by the Claude Sonnet builder on 2026-10-13 under the owner's standing breaking-change authorization (2026-10-09). Retains only exact main base 7f0465adbd681eb9aaea97fed877b900d63993ca and advances the approved target sha256:dee4469890ac830cb229330814505de465e6112912e959a65d0c56684ede3aa1 to sha256:8f87027aa5c3c8e3f7c1ce56a43de3c53e814e27d5b711025bd6517215a741be. The delta over the merged Phase 10 epic is the Phase 11 audit listing: auditEvents.list becomes implemented with organization context, installationAuditEvents.list is added with the installationAuditEvent:read permission, and the AuditEvent schema drops the never-populated updatedAt and version fields and gains a nullable organizationId. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "7f0465adbd681eb9aaea97fed877b900d63993ca"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:dee4469890ac830cb229330814505de465e6112912e959a65d0c56684ede3aa1",
+      "reason": "E16 Phase 10 seat friction re-bind by the Phase 10 builder on 2026-10-13 under the owner's standing breaking-change authorization (2026-10-09), per the orchestrator's instruction. Retains only exact main base 7f0465adbd681eb9aaea97fed877b900d63993ca and advances the approved target sha256:c4d6006be3ff3fc414df1491792fc7be6733234bbd0b5649104cf4d230346efe to sha256:dee4469890ac830cb229330814505de465e6112912e959a65d0c56684ede3aa1. The delta is Phase 10: adds the implemented InstallationAdministrator action installation.seats.get (GET /v1/installation/seats) with the new InstallationSeats and OrganizationSeats schemas; OrganizationCapabilities gains required nullable seats; adds the SEAT_LIMIT_REACHED 409 fault and lists it on organizationInvitations.create, organizationMemberships.create, organizationMemberships.update and organizations.create. The complete displaced approval is preserved first in priorApprovals. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "7f0465adbd681eb9aaea97fed877b900d63993ca"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:c4d6006be3ff3fc414df1491792fc7be6733234bbd0b5649104cf4d230346efe",
+      "reason": "E16 Phase 8 contract re-bind by the Claude orchestrator on 2026-10-13 under the owner's standing breaking-change authorization (2026-10-09). Retains only exact main base 7f0465adbd681eb9aaea97fed877b900d63993ca and advances the approved target sha256:a504b9aca55fcf83165e0e7e2ded3a2dd45098fe9902a5e4dc042d60a62f32d6 to sha256:c4d6006be3ff3fc414df1491792fc7be6733234bbd0b5649104cf4d230346efe. The delta is the Phase 8 EffectiveAccess change: capabilities items now enumerate permission keys instead of action names, plus the permission-key based role enforcement contract changes already present in the Phase 8 branch. The complete displaced approval is preserved first in priorApprovals, followed by all older approvals unchanged. This authorizes only this exact composed contract migration; it grants no wildcard base or target."
+    },
+    {
+      "fromBaseRefs": [
+        "7f0465adbd681eb9aaea97fed877b900d63993ca"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:a504b9aca55fcf83165e0e7e2ded3a2dd45098fe9902a5e4dc042d60a62f32d6",
+      "reason": "E16 Phase 7 contract approval written by astra-orch on 2026-10-12 after the independent repaired-source APPROVE_CODE disposition. Retains only exact main base 7f0465adbd681eb9aaea97fed877b900d63993ca (compatibility digest sha256:a6db8a26822842a0f197e755af058505d76d0d3c5b653921e922c2f1dcb2daab) and advances the approved Phase 1-5 union target sha256:5e61ef61d01e981d22ed477a987587315d2c66c31f674fd99a95be30493f51a2 to sha256:a504b9aca55fcf83165e0e7e2ded3a2dd45098fe9902a5e4dc042d60a62f32d6. The independently verified Phase 7 delta adds exactly one permission field to all 270 action records: 248 principal-action strings and 22 non-principal nulls. No existing action field, schema, OpenAPI value, action order or implemented-action membership changes in this added delta. The complete change from main retains the previously approved six installation-action additions, featureAvailability.get removal, four schema additions, FeatureAvailability removal and eight schema changes, plus permission metadata on 264 common and six new actions. The complete displaced approval is preserved first below, followed by all 23 older approvals unchanged. This authorizes only the exact composed contract migration; it grants no wildcard base or target, further contract change, Phase 8 enforcement approval, runtime waiver, phase completion or PR merge."
+    },
+    {
+      "fromBaseRefs": [
+        "7f0465adbd681eb9aaea97fed877b900d63993ca"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:5e61ef61d01e981d22ed477a987587315d2c66c31f674fd99a95be30493f51a2",
+      "reason": "E16/main integration approval written by astra-orch on 2026-10-12. Binds only exact main base 7f0465adbd681eb9aaea97fed877b900d63993ca (approved E05 compatibility digest sha256:a6db8a26822842a0f197e755af058505d76d0d3c5b653921e922c2f1dcb2daab) to combined target sha256:5e61ef61d01e981d22ed477a987587315d2c66c31f674fd99a95be30493f51a2. The independent contract-union review compared the common ancestor, both parents, every schema, complete action records, implemented-action membership and OpenAPI, and verified exactly the union of the previously approved main E05 delta and E16 delta sha256:1b1922aa621bbd8e7a12ecc87fd4dc37f894202cc5124bc0826ccbe7dbe99903. Relative to main, the approved E16 delta adds installation.capabilities, installationAdministrators.create/list/revoke and installationSettings.get/update; removes featureAvailability.get and FeatureAvailability; adds InstallationAdministratorCreate, InstallationCapabilities, InstallationSettings and InstallationSettingsUpdate; retains the approved administrator identity/bootstrap reshape; and updates the six permission/capability enums. Every main artifact, storage, comment, output and job-attempt contract remains intact. The overlapping enums retain both parents' additions and the E16-approved removal, without extra or duplicate capabilities. Both displaced current approvals are preserved unchanged below, followed by their identical 21-entry history. This authorizes only that exact composed contract migration, not a wildcard base, further contract change, code approval, runtime waiver, phase completion or PR merge."
+    },
+    {
+      "fromBaseRefs": [
+        "6ff1efeadaf0bb1fc499b7cfaac154e96a6bb8a5"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1b1922aa621bbd8e7a12ecc87fd4dc37f894202cc5124bc0826ccbe7dbe99903",
+      "reason": "E16 phase 5 installation settings, written by astra-orch under the owner's standing 2026-10-09 authorization to make breaking changes freely without version increments, as recorded in the orchestrator brief. Binds exact main base 6ff1efeadaf0bb1fc499b7cfaac154e96a6bb8a5 (compatibility digest sha256:4a9958548e5915a432e627dc9915c0d122f23d43d80d15184c8b95f8d9051b51) to generated target sha256:1b1922aa621bbd8e7a12ecc87fd4dc37f894202cc5124bc0826ccbe7dbe99903. Root independently compared actual generated contracts to that base. removes public featureAvailability.get (GET /v1/feature-availability) and FeatureAvailability boolean schema; adds public installation.capabilities (GET /v1/installation/capabilities) with required registration closed|invitation, organizationCreation installation_admins|any_user and ssoAvailable. Adds implemented installationSettings.get/update and installationAdministrators.list/create/revoke with explicit installation-administrator scope, stable idempotency keys for mutations and mandatory If-Match for settings update/admin revoke. Adds described InstallationSettings, InstallationSettingsUpdate, InstallationAdministratorCreate and InstallationCapabilities schemas. BREAKING InstallationAdministrator and Page<InstallationAdministrator>.items reshape: removes required id and createdAt, retains required principalId as the sole grant identity matching the table primary key and DELETE route target, adds required displayName and bootstrap derived from owner-only pointer, revises principalId/grantor/version/updatedAt/schema descriptions and revokedAt description/nullability metadata (still required timestamp|null; null means live grant). BREAKING permission vocabularies in EffectiveAccess, PermissionGrant, PermissionGrantCreate, PermissionGrants, permission_grants and Page<PermissionGrant> remove featureAvailability.get and add all six installation action names. No other existing action metadata changed; no other schema changed. Root independently confirmed action/schema-name sets and deeper administrator/permission deltas.  All earlier approvals are preserved below. This is exact contract-migration authorization, not independent code approval, runtime acceptance or merge approval."
+    },
+    {
+      "fromBaseRefs": [
+        "5d138ac7bc8beb2df5ac622ce9990cfe4d5b1989",
+        "6ff1efeadaf0bb1fc499b7cfaac154e96a6bb8a5"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:a6db8a26822842a0f197e755af058505d76d0d3c5b653921e922c2f1dcb2daab",
+      "reason": "Epic E05 (#7) artifacts, bundles and durable session output on main. Owner standing authorization, given directly to the orchestrator in its own session on 2026-10-09, verbatim: 'I don't worry about breaking changes. Don't do version increments or anything like that. Just make breaking changes freely as you need to.' This entry was written by the orchestrator (session 4e9880e9), not by a builder. It binds exact main base 5d138ac7bc8beb2df5ac622ce9990cfe4d5b1989 (compatibility digest sha256:4a9958548e5915a432e627dc9915c0d122f23d43d80d15184c8b95f8d9051b51) to target compatibility digest sha256:14686b2a71d825f99d496d73eb3ce3426b348ff933a78622a08cfee221d9742c, read from packages/contracts/generated/contracts.json on branch delivery/epic-e05-artifacts at 8b3b9adad42f7c13dc87e21b60eff2c88cfa2225 (PR #341). Relative to that base the delta is: adds the implemented Admin action artifactStorage.get (GET /v1/artifact-storage) with the new ArtifactStorage schema; implements the previously catalogued-only artifacts.update, artifactComments.create, artifactComments.list, artifactComments.listAcrossVersions and artifactComments.update, which join implementedActions; artifacts.update now returns the new ArtifactPinResult (pin metadata plus unpinEligible), which is the breaking change; artifactVersions.content and artifactVersions.extract add ARTIFACT_CONTENT_EXPIRED and worker.artifacts adds DEPENDENCY_UNAVAILABLE to their error lists; Artifact, ArtifactVersion and ArtifactVersionMetadata gain pin, retention and purge fields; OutputStream gains required archive fields and the new OutputTranscriptSegment schema is added with OutputReadPage and OutputStreamPage reshaped; ArtifactComment and ArtifactCommentUpdate are revised; the WebSocketFrame union changes; and the generated permission vocabulary in PermissionGrant, PermissionGrantCreate, PermissionGrants, permission_grants, Page<PermissionGrant> and EffectiveAccess gains the newly implemented actions. No action, method, path or authority boundary is removed. The previous top-level approval and every earlier approval remain in priorApprovals. Any other base or generated delta needs a separate entry; a later E05 catalog change (for example jobAttempts.list from the run-output slice) requires re-binding this entry to the new digest. Round 2 re-bind (orchestrator, 2026-10-11): the target digest moves from sha256:14686b2a71d825f99d496d73eb3ce3426b348ff933a78622a08cfee221d9742c (never merged to main) to sha256:971a4c4e9dbbce4250b23657df217baa0a565200f34a88733bd50fd6b10a568b, read from packages/contracts/generated/contracts.json on delivery/epic-e05-ci1 at 41d3c0a4. The added delta is error metadata only: SCOPE_REQUIRED joins artifactComments.list, artifactComments.listAcrossVersions, artifactComments.create, artifactComments.update and artifactStorage.get, and MALFORMED_REQUEST joins artifactComments.create, artifactComments.update and artifactStorage.get, documenting the existing organization-header validation. No schema, path, permission or runtime change. Round 3 re-bind (interim orchestrator astra-orch, 2026-10-11): the target digest moves from sha256:971a4c4e9dbbce4250b23657df217baa0a565200f34a88733bd50fd6b10a568b to sha256:a6db8a26822842a0f197e755af058505d76d0d3c5b653921e922c2f1dcb2daab, read from packages/contracts/generated/contracts.json after the reviewed run-ui slice merged at 438e4d8608603f9d6c1f651ab71af5c3f1c0a1b1. The added delta implements jobAttempts.list with its bounded attempt evidence and generated contract schema; the exact base and previous approvals remain unchanged. Round 4 base re-bind (standing orchestrator astra-orch, 2026-10-12): add exact current main 6ff1efeadaf0bb1fc499b7cfaac154e96a6bb8a5 alongside the original approved 5d138ac7bc8beb2df5ac622ce9990cfe4d5b1989 base. Root verified packages/contracts/generated/contracts.json is byte-identical at both bases: Git blob 9b09b236e3e34072c2dc68f0ad2377251bf1d9b0, SHA256 0ecb6e35887415bf6ce8ce4134ee91d63203e732d54bcdc567c2011ff718459c, compatibility digest sha256:4a9958548e5915a432e627dc9915c0d122f23d43d80d15184c8b95f8d9051b51. Reviewed E05 candidate fd1d858830aa0705b059d7e072d5892fba504afb retains exact generated target sha256:a6db8a26822842a0f197e755af058505d76d0d3c5b653921e922c2f1dcb2daab. The previously authorized public contract delta is therefore identical; this adds only the exact new base binding under standing owner authority. The original base, target, prior approvals and all rejected prior digests remain unchanged. No wildcard, branch alias, new schema change or merge approval is granted."
+    },
+    {
+      "fromBaseRefs": [
+        "1592ed3a3f2e0a41fe42b138d1f6177e34950d00"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:4a9958548e5915a432e627dc9915c0d122f23d43d80d15184c8b95f8d9051b51",
+      "reason": "Epic E03 (#5) / FS18 (#151) Phase 7 connected clients, on main after E04 #329. Owner authorization given directly to this orchestrator in its own session on 2026-10-10, verbatim: \"You're authorized to do whatever you need and there's two things you don't need my approval for anything\" (with the standing owner instruction to make breaking changes freely without version increments). Written by the orchestrator, not a builder. Binds exact main base 1592ed3a3f2e0a41fe42b138d1f6177e34950d00 to target compatibility digest sha256:4a9958548e5915a432e627dc9915c0d122f23d43d80d15184c8b95f8d9051b51, computed by the orchestrator with generateContracts().compatibilityDigest on delivery/epic-e03-settings at c19a1e40. Delta relative to that base: adds connectedClients.list (GET /v1/me/connected-clients) and connectedClients.revoke (DELETE /v1/me/connected-clients/{id}) with described schemas ConnectedClient, ConnectedClientList and ConnectedClientRevocation; adds required UserProfile.emailVerified sourced from Better Auth user.emailVerified; removes the public FeatureAvailability.stale field (breaking; entitlements direction, no flag service); plus the earlier approved E03 settings delta (profile.get/update, featureAvailability.get, userPreferences reshape, defaultLocale, timeZone, VERSION_CONFLICT). E04's workflowPreset surface is already on the base. The previous top-level approval and every earlier approval remain in priorApprovals. Any other base or generated delta needs a separate entry."
+    },
+    {
+      "fromBaseRefs": [
+        "a4ac7592dfac8b9788c2ee63e8c56dc646e7e2e1"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:978785707cce0b228199da13704c2f05e84078dcd1bd79ba3599e4bbd1757667",
+      "reason": "Owner-authorized PR #304 integration of the combined #128/#129 task and run contract onto main after #302. Owner authorization, verbatim, 2026-10-07, relayed by the orchestrator: 'approve the #304 v1 contract migration on main'. It binds the generated contract to exact main base a4ac7592dfac8b9788c2ee63e8c56dc646e7e2e1, which carries the prior compatibility digest sha256:51409633e9d771a2e8c761691aa2e62e6252dc53fee67db9fbc7a94a45aea7a9. Relative to that base the exact generated delta is: (1) tasks.list input changes from CursorQuery to the new TaskCursorQuery, which keeps cursor and limit and adds optional bounded status, repositoryId and literal search filters; (2) TaskCreate gains optional repositoryProfileId; (3) a new implemented Developer action runs.controlCapabilities is added at the new route GET /v1/runs/{id}/controls, with new RunControlCapabilities and RunControlCapability schemas, and joins implementedActions; (4) the generated permission vocabulary enum in PermissionGrant, PermissionGrantCreate, PermissionGrants, permission_grants, Page<PermissionGrant> and EffectiveAccess gains runs.controlCapabilities. These are the changes the earlier unmerged #304 approval sha256:c1afde5ae19fbf35589d0fc195f7540c5d7bdeb3f7c95d54ce0b15ed427d8516 covered against base 090c6b2a8344baddcf83e21413b3bb51809ee0bb. No action, method, path, field, error, authority boundary or negative compatibility assertion is removed or weakened. The prior exact approval and every earlier approval remain in priorApprovals. This approval binds only the named base and target compatibility digest sha256:978785707cce0b228199da13704c2f05e84078dcd1bd79ba3599e4bbd1757667; any other base or generated delta requires a separate source-bound approval. The delta was enumerated mechanically by comparing packages/contracts/generated/contracts.json at the base with the regenerated file."
+    },
+    {
+      "fromBaseRefs": [
+        "090c6b2a8344baddcf83e21413b3bb51809ee0bb"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:51409633e9d771a2e8c761691aa2e62e6252dc53fee67db9fbc7a94a45aea7a9",
+      "reason": "Owner-authorized PR #302 integration of exact budget accounting with the #51 action guards. Owner authorization, verbatim, 2026-10-07, relayed by the orchestrator: 'approve the #302 v1 contract migration'. It binds the generated contract to exact main base 090c6b2a8344baddcf83e21413b3bb51809ee0bb, which carries the prior compatibility digest sha256:6bda73092281a4782bdf22990a05724cb6689eb6521e6002ce90c8a3649b68f8. Relative to that base the exact generated delta is: (1) BillingConfig, the AgentVersionCreate config.billing projection and the JobAssignment billing variant gain a required bounded billingAccountId string naming the immutable provider billing account, a breaking required-field addition in the unreleased v1 contract; (2) usage.list changes from an unimplemented Developer observation action in the Observation group to an implemented Installation administrator action in the Installation administration group under installation_administrator_scope with STATE_CONFLICT added to its errors, and joins implementedActions; (3) UsageQuery drops its cursor and limit parameters because the exact-accounting usage summary is not paginated; (4) UsageSummary, its byProvider items and ProviderUsageSummary gain required unverifiedCostUsd and unverifiedCount; UsageRecord, UsageRecords and usage_records gain a required provenance; a UsageReceipt schema is added and all three WorkerResult variants (completed, failed and canceled) gain a usage field that admits it; descriptions of UsageQuery, UsageSummary and ProviderUsageSummary are updated. No other action, method, path, error, authority boundary or negative compatibility assertion is removed or weakened. The prior exact approval and every earlier approval remain in priorApprovals. This approval binds only the named base and target compatibility digest sha256:51409633e9d771a2e8c761691aa2e62e6252dc53fee67db9fbc7a94a45aea7a9; any other base or generated delta requires a separate source-bound approval. The delta was enumerated mechanically by comparing packages/contracts/generated/contracts.json at the base with the regenerated file."
+    },
+    {
+      "fromBaseRefs": [
+        "faddf707411e7daa05924082d7a1c099fdb68e53",
+        "698f359cc0894493d6453025d8b15db3ad7dc9c1"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:b3ffca3c7f59ff8a08115a6d1ee524c9871d07a1ce53116c3819512dab8e8d4b",
+      "reason": "Owner-authorized PR #296 integration merges exact pinned-skill-import parent faddf707411e7daa05924082d7a1c099fdb68e53 (compatibility digest sha256:46e470ec654319b74b99873e4238498ce15c56637694bd6dda5cb8de91e91cc2) with exact host-merged PR #290 main parent 698f359cc0894493d6453025d8b15db3ad7dc9c1 (compatibility digest sha256:6c2254faae8fbf5c9b23b6240db42e3ed8868e6626e2328be6a5aa3ccd8b28d3) and regenerates only their canonical contract union at compatibility digest sha256:b3ffca3c7f59ff8a08115a6d1ee524c9871d07a1ce53116c3819512dab8e8d4b. Relative to the pinned-import parent, the union adds the reviewed strict secret.identity.read input/output and action, required nullable sealedCredentialOperation assignment field, and fixed requester/engine/leased-worker secret identity boundaries without exposing credentials or provider selection. Relative to the main parent, the union adds the reviewed authenticated skillSources.create and skills.import actions, strict skill.import.requested event, and Run kind plus nullable workflow/task/source ownership required for durable pinned imports while preserving actual upstream sourceRevision independently from manifest digest. The owned pinned import migration moves from 0056 to next-free 0058 after main 0056_agent_definitions and 0057_issue286_prepared_operations; its SQL bytes and both main migrations remain unchanged. No parent action, method, path, field, schema, error, authority boundary, secret admission rule, import pin, replay rule, or historical approval is removed or weakened. This approval binds only the two named merge parents and exact target digest; any later base or contract change requires separate source-bound validation and parent-focused review."
+    },
+    {
+      "fromBaseRefs": [
+        "84b5c2d4ec6a502eaf2ee1fa3483644ac12d7224",
+        "ddc518790707dada41c91f07f032935b1ed17a6a",
+        "b3aaa833b5a37dbfb2d7170f5523cac529a0582b"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:46e470ec654319b74b99873e4238498ce15c56637694bd6dda5cb8de91e91cc2",
+      "reason": "Approved compatibility union for issue 278, bound to both actual merge parents (with the existing b3aaa833b5a37dbfb2d7170f5523cac529a0582b compatibility binding retained for the same exact digest) and only the intentional generated-contract deltas. Against main 84b5c2d4ec6a502eaf2ee1fa3483644ac12d7224 (parent digest sha256:8549b0f4adcd52eda87064d7c2a6536747f375cefbfe8fc1d9df6e28575abf30), the source-import slice changes schemas.SkillSourceCreate.sourceType from absent to required with enum git|url; changes schemas.Page<Run>, schemas.Run, schemas.WorkflowRun, schemas.WorkflowRuns, and schemas.workflow_runs to add required kind, nullable taskId/workflowVersionId, and nullable skillSourceId ownership; adds the corresponding OpenAPI schema paths and required Bakery-Organization-Id parameters at openapi.paths./v1/skill-sources.post and openapi.paths./v1/skill-imports.post; and changes actions.skillSources.create and actions.skills.import to required_authenticated_context, implemented true, with SCOPE_REQUIRED and MALFORMED_REQUEST, while skills.import uses event skill.import.requested and adds both actions to implementedActions. Against reviewed parent ddc518790707dada41c91f07f032935b1ed17a6a (parent digest sha256:c4e25ce32c659955f5c0c9a17de7546f1faf8e5eb6997a9e0423529d85168673), the only union deltas are the already reviewed current-main agent contract: schemas.AgentVersionCreate.config.allowedCapabilities is restricted to the generated worker-action vocabulary; schemas.DefinitionUpdate.description is nullable; agents.list/get/create/update and agentVersions.create/list become implemented, require authenticated organization context, and add their exact scoped malformed-request error declarations. No action, method, path, field, schema, error, ownership rule, migration, or runtime behavior outside these listed paths is approved. The regenerated canonical union is target compatibility digest sha256:46e470ec654319b74b99873e4238498ce15c56637694bd6dda5cb8de91e91cc2; both parent approvals and all priorApprovals remain preserved below. Fresh parent-focused review remains required before capture or publication."
+    },
+    {
+      "fromBaseRefs": [
+        "84b5c2d4ec6a502eaf2ee1fa3483644ac12d7224"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:6c2254faae8fbf5c9b23b6240db42e3ed8868e6626e2328be6a5aa3ccd8b28d3",
+      "reason": "Owner-authorized issue #286 integration combines reviewed fixed secret identity head 8d7eda92b9f93419daf0bd42fed9124bf6396451 with actual merged main 84b5c2d4ec6a502eaf2ee1fa3483644ac12d7224, including immutable agent catalog candidate b7de70cc706711067bf77cebc092d0986e089c09, and regenerates their canonical union at compatibility digest sha256:6c2254faae8fbf5c9b23b6240db42e3ed8868e6626e2328be6a5aa3ccd8b28d3. The union retains exactly six authenticated agent-management routes, generated worker-capability restrictions, immutable caller revision and digest validation, rejection of nonempty prompt or skill bindings, main application registries and permissions, fixed repository policy, shared conversations, local skill publication, and current-policy run admission. It also retains the required nullable sealedCredentialOperation field, strict secret.identity.read contracts, requester U, engine E, worker W separation, frozen authority and account pins, attempt-only replay, one provider I/O admission, typed completion and uncertain outcomes. The unmerged identity migration moves from 0056 to 0057 with identical SQL bytes after deployed main migration 0056_agent_definitions; no deployed migration changes. No action, method, path, field, schema, error, authority pin, replay rule, permission, or fixture environment is removed or weakened. This approval binds only actual base 84b5c2d4ec6a502eaf2ee1fa3483644ac12d7224 and the exact digest above; later bases or contract changes require separate source-bound validation."
+    },
+    {
+      "fromBaseRefs": [
+        "b3aaa833b5a37dbfb2d7170f5523cac529a0582b"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:8549b0f4adcd52eda87064d7c2a6536747f375cefbfe8fc1d9df6e28575abf30",
+      "reason": "Owner-authorized child #288 integration combines the independently reviewed immutable agent catalog candidate 4e09ec6f598a6a0705ebf676b11888d6eaaad5cd with current main b3aaa833b5a37dbfb2d7170f5523cac529a0582b. The regenerated canonical union preserves main's fixed repository policy, shared conversation, local skill publication, Unicode case folding, and all prior contract approvals while retaining exactly six agent-management routes, immutable caller revision and digest validation, generated worker-capability restrictions, and rejection of nonempty prompt or skill bindings. The only migration interaction renumbers the byte-identical owned agent definition migration from 0054 to the next free main ordinal 0056; no foreign migration changes. Parent #51 retains #45 and all discovery, effective-requirement, activation, execution, prompt or skill resolution, model, billing, provider, credential, and arbitrary-code work. This record binds only the named main base and exact union digest; fresh independent review remains required before push."
+    },
+    {
+      "fromBaseRefs": [
+        "c6182ded2a64bba1a6de71c0e7dc16ee3dfee7e3",
+        "d9df74fd9b5f92d79f1683ef653d4f53437978df",
+        "9cb246e507ead6ca40a8c18ce0071ea0e7a7999a",
+        "b3aaa833b5a37dbfb2d7170f5523cac529a0582b",
+        "7b4921db9cf2330d9cc4438304275ae0f6f325fc"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:39bebac9652e364e16640714107e3d9d5849786f00c719be39ca60ab88d08ff6",
+      "reason": "This exact canonical union integrates reviewed secret-identity candidate 39a653c529af924e75f2cab9314c6dc31af16014 with independently reviewed technical predecessor 9cb246e507ead6ca40a8c18ce0071ea0e7a7999a, whose current-main parent is d9df74fd9b5f92d79f1683ef653d4f53437978df, and regenerates compatibility digest sha256:39bebac9652e364e16640714107e3d9d5849786f00c719be39ca60ab88d08ff6. The union preserves the required nullable sealedCredentialOperation field on every JobAssignment, strict secret.identity.read input and output, fixed repository policy, native output and replay contracts, shared conversation actions, and local skill catalog publication with canonical base64 validation. It removes or weakens no action, method, path, field, schema, error declaration, authority pin, account pin, replay rule, one-I/O rule, or uncertain-outcome contract. Exact base c6182ded2a64bba1a6de71c0e7dc16ee3dfee7e3 is retained because hosted run 37316288688 used that concrete base and exposed the missing JobAssignment approval; d9df74fd9b5f92d79f1683ef653d4f53437978df is the fetched current main parent; 9cb246e507ead6ca40a8c18ce0071ea0e7a7999a is the reviewed technical predecessor. Host-confirmed PR291 merge b3aaa833b5a37dbfb2d7170f5523cac529a0582b has the identical source tree 2c90deb25bc65dd22a53d7bbe83e02eaa1ce72ba as reviewed predecessor 9cb246e507ead6ca40a8c18ce0071ea0e7a7999a; its exact base alias inherits that unchanged-source approval. Main 7b4921db9cf2330d9cc4438304275ae0f6f325fc changes only run admission and its integration test relative to b3aaa833; generated contract bytes are identical, so this exact contract-base alias preserves the reviewed contract delta without claiming unchanged runtime source. This approval covers only these named bases and this digest. Any later base or contract change requires separate source-bound revalidation and independent integration review."
+    },
+    {
+      "fromBaseRefs": [
+        "9a411f7bd24d502d4774228d1157d68f0ee2f527"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:2969de3294670cd497d82c862f9b0d5b98282a243df93ad70531f2f6d60287c2",
+      "reason": "Integration of the independently approved immutable fixed repository policy from main #287 and the independently approved fixed secret identity vertical from #286 produces one canonical contract union. The union preserves schema-version-2 fixed repository policy, inspection-derived trusted-checker binding, immutable execution-context fields, the secret.identity.read action and strict input/output schemas, and the required nullable sealedCredentialOperation field on every JobAssignment. Main native output and replay contracts remain present, non-identity assignments retain sealedCredentialOperation: null, and no approved action, method, path, field, error, or fixed-policy constraint is removed or weakened. This integration approval is exact to compatibility digest sha256:2969de3294670cd497d82c862f9b0d5b98282a243df93ad70531f2f6d60287c2 against base 9a411f7bd24d502d4774228d1157d68f0ee2f527 and covers only the named approved contract union; any later contract change requires separate source-bound review."
+    },
+    {
+      "fromBaseRefs": [
+        "d9df74fd9b5f92d79f1683ef653d4f53437978df"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:7f37597e4998fcbe86728fbc927b0e5cd1c7ee1628d66b61be666b0df242db3f",
+      "reason": "Integration combines reviewed issue #277 parent 6c3b526ced4ebf4bef52c1c4d89bfe76ef4193a3 with current main parent d9df74fd9b5f92d79f1683ef653d4f53437978df and regenerates their canonical contract union at compatibility digest sha256:7f37597e4998fcbe86728fbc927b0e5cd1c7ee1628d66b61be666b0df242db3f. Issue #277 retains the first local skill publication client contract and canonical base64 validation. Current main retains the implemented messages.list, messages.create, and conversationTurns.list contracts, required authenticated organization context, handler-reachable errors, and decimal-string event validation. The exact parent approvals at digests sha256:aebd28ef58a960d7e9da837659e60a32161c68f106add54c4018a6e541be355f and sha256:b1f7b4e099a9f48f3c26e181b8403577c183849450562df075e37459f3418b55 remain preserved below. The union removes no action, method, path, field, schema, error declaration, fixed repository policy, conversation contract, or skill contract. Parent #72 command execution, parent #45 worker materialization, and linked current-policy continuation remain outside this approval. This record binds only the named current-main base and exact combined digest; fresh independent integration review remains required before publication."
+    },
+    {
+      "fromBaseRefs": [
+        "9a411f7bd24d502d4774228d1157d68f0ee2f527"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:c6f7614c7da4c4ca8484f9edd2bbb674c061173ab1436a72f155d36d4739cd4e",
+      "reason": "The reviewed main contract migration at compatibility digest sha256:5300a71cd4e6abc6fa55b2932f7859b10aadbe82617918cbf084438b248c64a9 remains preserved as a prior approval for required application scope and scoped policy errors. Native child #285 candidate 61cf8f154c5fa724da8de4984a878d37e34b4133 adds the schema-version-2 fixed repository policy, inspection-derived trusted-checker binding, and immutable execution-context fields after clean scoped review. Main reconciliation preserves the merged native output and replay contracts and regenerates their contract union at compatibility digest sha256:c6f7614c7da4c4ca8484f9edd2bbb674c061173ab1436a72f155d36d4739cd4e against base 9a411f7bd24d502d4774228d1157d68f0ee2f527. The fixed-policy additions do not remove or weaken existing actions, methods, paths, fields, or error declarations. Parent #72 command execution and linked current-policy continuation remain outside this approval. This approval covers only the exact union digest and named base; any later contract change requires separate source-bound review."
+    },
+    {
+      "fromBaseRefs": [
+        "9a411f7bd24d502d4774228d1157d68f0ee2f527"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:ceb15810df3c1d583df237ccde52b43ebacf26f96aa40324903694ebbf93afa1",
+      "reason": "Issue #286 adds the first complete code-owned secret.identity.read worker vertical under the approved planning.epic.0006 contract and planning.epic.0009 requester/replay recut, approved at plan review round 7 against reviewed commit 9a411f7bd24d502d4774228d1157d68f0ee2f527. The intentional compatibility delta registers the new action and its strict input/output schemas and adds the required nullable sealedCredentialOperation field to every JobAssignment; server and production worker consumers ship in the same candidate. The field is required so old producers cannot silently omit whether an assignment carries prepared credential authority, while null preserves every non-identity action. This approval is exact to compatibility digest sha256:ceb15810df3c1d583df237ccde52b43ebacf26f96aa40324903694ebbf93afa1 and does not cover a future digest, base, action, or transport change."
+    },
+    {
+      "fromBaseRefs": [
+        "9a411f7bd24d502d4774228d1157d68f0ee2f527"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:5300a71cd4e6abc6fa55b2932f7859b10aadbe82617918cbf084438b248c64a9",
+      "reason": "The reviewed stack integration adds required applicationId fields to SecretPolicyUpdate and SecretRotation while mounting their first generated-client and server consumers together. Luna independently approved the exact scoped updatePolicy catalog correction recorded in review/compatibility/0002.md: append MALFORMED_REQUEST and then SCOPE_REQUIRED to secrets.updatePolicy.errors at source candidate 0d8ee3db9efd9a797f946cae681f3414843525f2, source tree a1e3272f94fb34a81783438301666e6aec2871fc, and compatibility digest sha256:5300a71cd4e6abc6fa55b2932f7859b10aadbe82617918cbf084438b248c64a9 against base 9a411f7bd24d502d4774228d1157d68f0ee2f527. The correction declares existing malformed-body and required-scope handler outcomes; it changes no input, output, method, path, existing error, or handler behavior. SecretPolicyUpdate keeps applicationId, allowedPrincipalIds, and allowedActions required; SecretRotation keeps applicationId and value required and expiresAt optional and nullable. No base-mounted secret route or generated client consumer is displaced. This approval does not cover the replay parent, another base, a future digest, or any later rotation or policy change."
+    },
+    {
+      "fromBaseRefs": [
+        "9a411f7bd24d502d4774228d1157d68f0ee2f527"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:1a5e741ff89fecd5cb17269e47310f6edb1132c8de681d7069da92e886a0f172",
+      "reason": "The reviewed stack integration adds required applicationId fields to SecretPolicyUpdate and SecretRotation while mounting their first generated-client and server consumers together. Luna independently approved only the exact transition from base 9a411f7bd24d502d4774228d1157d68f0ee2f527 to candidate 4fc7cc7e88cc087e851669b0a63b4a25c336cb2f at compatibility digest sha256:1a5e741ff89fecd5cb17269e47310f6edb1132c8de681d7069da92e886a0f172. SecretPolicyUpdate keeps allowedPrincipalIds and allowedActions required; SecretRotation keeps value required and expiresAt optional and nullable. No base-mounted secret route or generated client consumer is displaced. This approval does not cover the replay parent, another base, a future digest, or later rotation and policy changes."
+    },
+    {
+      "fromBaseRefs": [
+        "4146414bcf483eff696b548f1527f0d75a28ac3f",
+        "ced1163aec295df307cdd571e026e4a2a689eb0a",
+        "e3c9f31551f40ea40464fe6e75107e97d68bf773",
+        "f41f90dab5427d6a6c9944e439d422e8bb1f7f41",
+        "fdd318bcf0367b123b846730ebfc39920c218578",
+        "f108b74f1b44cc0217f6efe7f170a8bb11be341b",
+        "cd8783b989f5792b51442ee16803c450585ffed7",
+        "20c6f63ce83cf2691e8aa51b5f5b13f09f96068e",
+        "ad5e50ec50102a9c06987065ae86726171a43c35",
+        "6b649f5266af961707ee6fd24b63d4ff72c0b9df",
+        "6919ddf6b4da5b6a4cef2fdba2c308c614bb0134",
+        "14f86dc20214a1d2ebf34dc27ae934c0a7c024f0",
+        "17a170f3cef0f81367e6d5728418d00c9f41ef91",
+        "bf6d328eb6ca7fc16a5a8d76b0393778d14c5a45",
+        "a2d5329e5615c11beb8716ce97516ccf4066e8ae",
+        "28e4852a763184511d54bdeba37a89469b11ca69",
+        "37dbfe9939f95a713b2e7f1e37593fa2c7b10c80",
+        "6fa97db445a90787b52ff6a0fda3e413479c9340",
+        "539b5521515c10f0ce74f12cc312ba17f4104c76",
+        "0b4aa85197faf827de94dd61b6f9f51f1abf8e70",
+        "483a2c412327c87ee2832c23a5fc50f5f122f796"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:07570c28bcb1792aae51252985674a668e1a945a71f857577e64f55652d316d2",
+      "reason": "The v1 API has no shipped client application. The live tenant authority work intentionally replaces the principal and organization-list response contracts before clients exist. The events socket contract removes the unimplementable run scope, adopts conversation before any socket client exists, and documents organization selection as a header or optional browser query parameter while still rejecting omission. The identity bootstrap adds the effective locale, direction and catalog version before any client consumes /v1/me. The product sign-in work (#127) adds the required twoFactorEnabled field to PrincipalIdentity alongside the first /v1/me client, which ships in the same change. The FS03 invitation and account screens (#127) add the required email and backupCodesRemaining fields to PrincipalIdentity for the same first /v1/me client, which ships in the same change. Issue #36 adds bounded run budgets, nullable accounting periods while accounting is unknown, non-authoritative admission summaries, and blocked-run projection facts before a run client ships. Issue #41 replaces the artifacts.list input with ArtifactQuery and makes taskId optional, preserves the historical application/octet-stream BinaryArtifact response while adding wildcard BinaryArtifactBytes responses for stored artifact media types, and replaces the worker action outputs' bare artifact identifiers with immutable ArtifactRef tuples, all before any client consumes them. Issue #44 expands the generated Git SHA schema from lowercase-only hexadecimal to uppercase/lowercase hexadecimal while preserving exactly 40 or 64 hexadecimal characters, matching the preexisting case-insensitive Zod runtime and enabling generated-client imports of canonical uppercase or mixed-case Git IDs. Issue #46 introduces caller-supplied organization-unique repository slugs alongside the first repository onboarding web client in PR #256; legacy persisted null slugs remain valid, but new registrations require an explicit slug. The same slice introduces role lifecycle and bounded distinct-repository identity resolution with optional strict-v1 profile pins, literal-null observation pins and explicit ambiguity overflow. The dependent trusted-inspection slice replaces the previously unimplemented onboarding input's caller-supplied profile reference with a strict empty start command, and introduces exact completed profile/observation links, typed observed-v2 read configurations and receipt-bound observation payloads alongside their first functional inspection client. Manual strict-v1 publication remains unchanged. The owner-authorized final issue #46 cutover in PR #258 replaces the scaffolding's literal-false eligible-observation candidate field with a real boolean and literal-null execution observation pins with exact nullable UUID, digest and base-SHA pins. Server, worker and the first functional repository client migrate together; no compatibility alias or unobserved execution fallback is retained. This approval is bound to the actual inspected PR #257 merge base and exact generated compatibility digest. The opening no-shipped-v1-client assertion records historical migration context and is no longer true: Bakery now has a web client. Issue #261, PR #264, introduces the first mounted application-scoped secret create/list/get API from previously unimplemented catalog definitions. Independent compatibility review of existing commit 1b7d5d9a767765dad49661828dcf0c1694a8f255 and source revision 744eb88632c5f7d18ee1206ea292b70fa6e51f4d45349a73c9081a5e5f8ce248 approves only the delta from base 483a2c412327c87ee2832c23a5fc50f5f122f796 to compatibility digest sha256:07570c28bcb1792aae51252985674a668e1a945a71f857577e64f55652d316d2. Required application scope, fixed GitHub verification, bounded write-only credential and safe name constraints, canonical empty grants, typed safe shared metadata, and additive secrets.get action vocabulary ship with the first generated-client consumers in the same diff. No existing mounted secret operation or base generated-client secret consumer is displaced; existing web client action descriptors are unchanged. The shared metadata change does not approve or implement held rotate/revoke/policy inputs, credential resolution, worker actions, or UI. Later contract changes require separate source-bound review. This is current independent approval of the existing other-builder delta, not prior approval or approval of a future migration patch."
+    },
+    {
+      "fromBaseRefs": [
+        "9a411f7bd24d502d4774228d1157d68f0ee2f527",
+        "c6182ded2a64bba1a6de71c0e7dc16ee3dfee7e3"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:aebd28ef58a960d7e9da837659e60a32161c68f106add54c4018a6e541be355f",
+      "reason": "Integration combines reviewed issue #277 source parent bf962147ca1e536c458fafb0f2f29c932493be52 with main parent c6182ded2a64bba1a6de71c0e7dc16ee3dfee7e3 and regenerates their canonical union at compatibility digest sha256:aebd28ef58a960d7e9da837659e60a32161c68f106add54c4018a6e541be355f. Issue #277 adds the first local skill publication client contract and tightens LocalSkillVersion file content to canonical base64 before any client consumes that action; its branch source was independently reviewed at bf962147ca1e536c458fafb0f2f29c932493be52. The reviewed main contract migration at compatibility digest sha256:5300a71cd4e6abc6fa55b2932f7859b10aadbe82617918cbf084438b248c64a9 remains preserved as a prior approval for required application scope and scoped policy errors. Native child #285 candidate 61cf8f154c5fa724da8de4984a878d37e34b4133 adds the schema-version-2 fixed repository policy, inspection-derived trusted-checker binding, and immutable execution-context fields after clean scoped review. Main reconciliation preserves the merged native output and replay contracts at prior compatibility digest sha256:c6f7614c7da4c4ca8484f9edd2bbb674c061173ab1436a72f155d36d4739cd4e against base 9a411f7bd24d502d4774228d1157d68f0ee2f527. The fixed-policy and skill-publication additions do not remove existing actions, methods, paths, fields, or error declarations. Parent #72 command execution, parent #45 worker materialization, and linked current-policy continuation remain outside this approval. This approval covers only the exact union digest and named bases; exact-head source review remains separate, and any later contract change requires separate source-bound review."
+    },
+    {
+      "fromBaseRefs": [
+        "c6182ded2a64bba1a6de71c0e7dc16ee3dfee7e3"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:b1f7b4e099a9f48f3c26e181b8403577c183849450562df075e37459f3418b55",
+      "reason": "Issue #283 successor extraction applies the previously reviewed shared-conversation delta from exact pre-draft candidate 416cdd055500d5eded39c239f70227fdad585a6c onto merged main c6182ded2a64bba1a6de71c0e7dc16ee3dfee7e3. The merged-main fixed-repository-policy approval at digest sha256:c6f7614c7da4c4ca8484f9edd2bbb674c061173ab1436a72f155d36d4739cd4e and the conversation approval at digest sha256:7280b5cdfbbe881b136ec5c5a74e0baf8f92868382f139fe3772c3115b5e6b18 remain preserved as prior approvals. Relative to merged main, the contract transition only mounts the existing messages.list, messages.create, and conversationTurns.list actions with required authenticated organization context and handler-reachable errors; it removes no action, method, path, field, schema, or fixed repository policy declaration. The generated transition is additive and nonbreaking. This record binds only the named merged base and exact combined digest; fresh independent candidate review remains required before publication."
+    },
+    {
+      "fromBaseRefs": [
+        "1b5d049811a4c24ae4b5c44bf2a3dcc7f0d2859a"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:7280b5cdfbbe881b136ec5c5a74e0baf8f92868382f139fe3772c3115b5e6b18",
+      "reason": "PR #274 integrates the independently reviewed shared-conversation slice onto current main and mounts the first server and generated-client implementations of the existing messages.list, messages.create, and conversationTurns.list contracts. Luna independently approved only the exact transition from base 1b5d049811a4c24ae4b5c44bf2a3dcc7f0d2859a to candidate 47da3b49c02cc49ce90b6355c59368c33d6144d4, candidate tree 9389a165e30a92670fa86c365be0818f43e4832a, and compatibility digest sha256:7280b5cdfbbe881b136ec5c5a74e0baf8f92868382f139fe3772c3115b5e6b18. Relative to that base, no action, field, method, path, input, output, or schema is removed or changed. The three existing catalog actions become implemented with required authenticated organization context and handler-reachable error declarations; output.streams.list, output.streams.read, secrets.rotate, and secrets.updatePolicy remain byte-for-byte identical in the generated action inventory. The base-bound generator compatibility check passes without a migration waiver because the transition is additive and nonbreaking. This active record binds repository policy to the exact reviewed current source; it does not rebind historical evidence or approve another base, digest, source change, or future conversation behavior."
+    },
+    {
+      "fromBaseRefs": [
+        "9a411f7bd24d502d4774228d1157d68f0ee2f527"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:23925a33300c5bace9bf0ea5729725c8779c2e6ac70f0a3290aaf2335daff1f2",
+      "reason": "Owner-authorized child #288 integration combines the independently reviewed immutable agent catalog candidate 3ac790da77851aba02acb1b66ce5832ffbcb7b10 with reviewed main 46c17b250e6976d01755d38987d279d18c528e4d from base 9a411f7bd24d502d4774228d1157d68f0ee2f527. Exact before/after comparison preserves all six agent actions, agent schemas, generated client surface, generated capability restriction, unavailable nonempty prompt and skill binding rejection, and management-only scope byte-for-byte; the only owned migration interaction renumbers agent definitions from 0052 to the next free ordinal 0054 without changing SQL bytes. The combined digest retains main's application-scoped secret rotation and output replay contracts and adds the previously unimplemented agent management surface, nullable optional DefinitionUpdate.description, scoped catalog faults, and closed generated worker-capability vocabulary. Parent #51 and #45 stay open; this approval grants no discovery, execution, activation, prompt or skill resolution, model selection, billing, provider, credential, or arbitrary code authority. A fresh focused current-main review remains required before push and merge and is not claimed by this migration record."
+    },
+    {
+      "fromBaseRefs": [
+        "d6b410eff3517d3aed8786e48c2b0deefb5f4a93",
+        "d51e6299bd914ad46800e135660dcc7386f740eb"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:6bda73092281a4782bdf22990a05724cb6689eb6521e6002ce90c8a3649b68f8",
+      "reason": "Owner-authorized PR #299 repair binds the issue #279 generated contract to exact task base d6b410eff3517d3aed8786e48c2b0deefb5f4a93 and current PR base d51e6299bd914ad46800e135660dcc7386f740eb, which both carry prior compatibility digest sha256:b3ffca3c7f59ff8a08115a6d1ee524c9871d07a1ce53116c3819512dab8e8d4b. Relative to both bases, the exact generated delta only adds the optional bounded repository-profile config.agentBindings map to the JobAssignment input variants, RepositoryInspectionInput, RepositoryInspectionReport, and successful WorkerResult inspection projection in generated schemas and OpenAPI. The source schema limits the map to 17 registered action names and exact immutable agent-version UUIDs. No action, method, path, existing field, error, authority boundary, parent approval, or negative compatibility assertion is removed or weakened. The prior exact approval remains first in priorApprovals. This approval binds only the two named bases and target compatibility digest sha256:6bda73092281a4782bdf22990a05724cb6689eb6521e6002ce90c8a3649b68f8; any other base or generated delta requires a separate source-bound approval."
+    },
+    {
+      "fromBaseRefs": [
+        "967d6b687ef222ccc39a7d91fc9a4fd97b432696"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:7f121f3dd6d394422c44dbe266e087428464c62344c4a4c38fa568d0fefa008f",
+      "reason": "Epic E03 (#5) / FS18 (#151) settings contracts on main. Owner standing authorization, given directly to the orchestrator in its own session on 2026-10-09, verbatim: 'I don't worry about breaking changes. Don't do version increments or anything like that. Just make breaking changes freely as you need to.' This entry was written by the orchestrator, not by a builder. It binds exact main base 967d6b687ef222ccc39a7d91fc9a4fd97b432696 to target compatibility digest sha256:7f121f3dd6d394422c44dbe266e087428464c62344c4a4c38fa568d0fefa008f, computed with generateContracts().compatibilityDigest on branch delivery/epic-e03-settings at e7887e1b762bd9551c0d26862e26c0357e9cd228. Relative to that base the delta is: adds profile.get (GET /v1/me/profile), profile.update (PATCH /v1/me/profile; self-only; Idempotency-Key and If-Match; VERSION_CONFLICT) and the public featureAvailability.get (GET /v1/feature-availability) with new schemas UserProfile, UserProfileUpdate and FeatureAvailability; implements the previously catalogued-only userPreferences.get and userPreferences.update and reshapes UserPreferences (theme, locale, timeZone, effectiveLocale, direction, availableLocales, casVersion, nullable id and timestamps) and UserPreferencesUpdate (optional theme, locale and timeZone plus required expectedCasVersion; the free-form preferences field is removed, which is the breaking change); adds nullable defaultLocale to Organization, OrganizationAccess and OrganizationUpdate; adds timeZone to PrincipalIdentity; adds VERSION_CONFLICT to the userPreferences.update and organizations.update error lists. No operation or schema is removed. The previous top-level approval and every earlier approval remain in priorApprovals. Any other base or generated delta needs a separate entry."
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "checkedAt": "2026-09-08T04:09:40.636Z",
+  "scope": "Design mocks only",
+  "checks": [
+    "TOTP setup",
+    "six-digit input semantics",
+    "leading zeros",
+    "backup copy",
+    "backup download",
+    "saved acknowledgement",
+    "post-password factor",
+    "backup-code sign-in",
+    "invitation continuity",
+    "regeneration cancellation",
+    "native passkey handoff",
+    "passkey removal",
+    "last-method guard"
+  ],
+  "errors": []
+}

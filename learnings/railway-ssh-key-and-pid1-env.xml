@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="railway-ssh-key-and-pid1-env" project="bakery">
+  <title>Railway SSH needs a key under ~/.ssh, a pinned host key, and setpriv to read PID 1's environment</title>
+  <trigger>railway ssh keys add answers "Key not found", railway ssh answers "Host key verification failed", or reading /proc/1/environ over railway ssh answers "Permission denied".</trigger>
+  <rule>railway ssh keys add --key resolves only keys under ~/.ssh (path, fingerprint or comment); a key kept in another directory answers "Key not found". Put the dedicated pair in ~/.ssh, pass --key explicitly (auto-detect may pick another key there), and read railway ssh keys list back. The harness auto-mode classifier denies this command for an agent ("Access Added As A Means"), so a human runs it in their own terminal.</rule>
+  <rule>ssh.railway.com is not in known_hosts on a new host and Railway publishes no host key fingerprint; a non-interactive railway ssh then fails. Pin the ed25519 key with ssh-keyscan -t ed25519 ssh.railway.com and record its fingerprint; it is a first-use trust decision, so say so.</rule>
+  <rule>The SSH session is root without CAP_SYS_PTRACE, so /proc/1/environ (owned by the service uid, mode 0400) is unreadable even to root. The session keeps CAP_SETUID: run the names-only loop through setpriv --reuid=UID --regid=UID --clear-groups bash -s, feeding the script on stdin. Take UID from the Uid line of /proc/1/status.</rule>
+  <verification>
+    <command>railway ssh keys list</command>
+    <requirement>Record the key name and fingerprint, then the PID 1 environment variable names (never values) for api and dispatcher, and that none of the forbidden names appears.</requirement>
+  </verification>
+  <boundary>Names only: a value never goes to a log, a chat or a record. The uid 1993 and the capability set were read from the QA api container on 2026-10-26; read them again after an image change.</boundary>
+</learning>

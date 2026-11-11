@@ -1,0 +1,39 @@
+{
+  "contentHash": {
+    "tokens": "49fea8f7"
+  },
+  "exports": [
+    {
+      "nodeId": "1X6B-0",
+      "filePath": "~/Downloads/02 \u00b7 Build with Bakery (2).png"
+    },
+    {
+      "nodeId": "1YPI-0",
+      "filePath": "~/Downloads/10 \u00b7 Workflow outline \u00b7 Phone (1).png"
+    },
+    {
+      "nodeId": "1YSO-0",
+      "filePath": "~/Downloads/11 \u00b7 Build with Bakery \u00b7 Phone (1).png"
+    },
+    {
+      "nodeId": "1YVA-0",
+      "filePath": "~/Downloads/12 \u00b7 Skills \u00b7 Phone.png"
+    },
+    {
+      "nodeId": "1YYP-0",
+      "filePath": "~/Downloads/13 \u00b7 Instructions \u00b7 Phone.png"
+    },
+    {
+      "nodeId": "1Z0A-0",
+      "filePath": "~/Downloads/14 \u00b7 Evaluations \u00b7 Phone (1).png"
+    },
+    {
+      "nodeId": "21HI-0",
+      "filePath": "~/Downloads/20 \u00b7 Auto-build draft and checkpoint (1).png"
+    },
+    {
+      "nodeId": "21OD-0",
+      "filePath": "~/Downloads/21 \u00b7 Review draft changes \u00b7 Phone (1).png"
+    }
+  ]
+}

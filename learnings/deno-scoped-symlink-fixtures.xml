@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="deno-scoped-symlink-fixtures" project="bakery">
+  <title>Deno 2.9 symlink fixtures with scoped write permissions</title>
+  <trigger>Deno.symlink raises NotCapable in an integration or security lane with --allow-write limited to TMPDIR.</trigger>
+  <rule>Preserve the lane's scoped write grant and the real symlink attack. The private-symlink-fixture helper validates both paths are below the private temporary directory, then uses the lane's existing Node subprocess permission to create the actual link. Never replace the symlink with a mock or remove the attack assertion.</rule>
+  <rule>The R2 credential test also observed Node-compatible open accepting a symlink despite O_NOFOLLOW under Deno 2.9.1. Reject symlinks with lstat and compare the opened device/inode before reading private credential bytes; do not rely on that open flag alone.</rule>
+  <verification>Run the relevant security lane under the verification lock with a private TMPDIR, including import-and-materialize-pinned-skill-bundles-on-the-filesystem_test.ts.</verification>
+</learning>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="local-bootstrap-environment" project="bakery">
+  <title>Map Compose Inngest credentials when running the local bootstrap CLI</title>
+  <trigger>Host createsuperuser exits AUTH_CONFIGURATION_INVALID for INNGEST_SIGNING_KEY or INNGEST_EVENT_KEY while the owned Compose server is healthy.</trigger>
+  <mistake>Loaded the owned Compose secret and port files without mapping their BAKERY-prefixed Inngest credential names to the unprefixed names the host CLI reads.</mistake>
+  <rule>Keep the normal interactive createsuperuser command and bootstrap convergence guards. In its process environment, map INNGEST_SIGNING_KEY from BAKERY_INNGEST_SIGNING_KEY and INNGEST_EVENT_KEY from BAKERY_INNGEST_EVENT_KEY when using the owned Compose credentials. Keep the same public HTTPS origin as the serving application. Never print credentials, create accounts through direct SQL, disable validation, or reset an existing account by rerunning bootstrap.</rule>
+  <verification>
+    <command>export INNGEST_SIGNING_KEY="$BAKERY_INNGEST_SIGNING_KEY"</command>
+    <command>export INNGEST_EVENT_KEY="$BAKERY_INNGEST_EVENT_KEY"</command>
+    <command>pnpm createsuperuser</command>
+    <requirement>Observe CLI completion, bootstrapped:true, actual HTTPS browser sign-in and authenticated identity. An installation-status response alone does not prove login works.</requirement>
+  </verification>
+  <boundary>Use only the installation's owned database and secret files. Read generated passwords only on the host, outside chat and evidence. Browser verification must log out its own test sessions before closing contexts; closing a browser alone does not revoke server sessions.</boundary>
+</learning>

@@ -1,0 +1,24 @@
+{
+  "fileId": "01M1X504XVC45FC0VDK857A37D",
+  "pageId": "12-0",
+  "pageUrl": "https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/12-0",
+  "designSystem": {
+    "shell": "Bakery current application shell",
+    "primaryNavigationWidth": 208,
+    "fontFamilies": ["Geist", "Geist Mono"],
+    "primaryDestinations": ["Workflows", "Skills"]
+  },
+  "artboards": [
+    {"key": "workflow-library", "name": "01 · Workflow library · Current app shell", "id": "23C6-0", "width": 1440, "height": 900},
+    {"key": "canvas", "name": "02 · Workflow canvas · Current app shell", "id": "23HD-0", "width": 1440, "height": 900},
+    {"key": "ai", "name": "03 · Build with Bakery · Current app shell", "id": "23PW-0", "width": 1440, "height": 900},
+    {"key": "skills", "name": "04 · Skills library · Current app shell", "id": "240J-0", "width": 1440, "height": 900},
+    {"key": "skill-edit", "name": "05 · Skill package · Files · Current app shell", "id": "247I-0", "width": 1440, "height": 900},
+    {"key": "skill-edit-phone", "name": "06 · Skill package · Phone", "id": "24DB-0", "width": 390, "height": 844}
+  ],
+  "review": {
+    "screenshotsReviewed": true,
+    "desktopVerdict": "Compact hierarchy, aligned navigation, legible graph and consistent Bakery controls.",
+    "mobileVerdict": "The ordered section index, compact file tree and runnable editor remain readable without overlap."
+  }
+}

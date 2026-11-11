@@ -1,0 +1,79 @@
+erDiagram
+  direction LR
+  principals {
+    uuid id PK
+  }
+  organizations {
+    uuid id PK
+  }
+  applications {
+    uuid id PK
+  }
+  repositories {
+    uuid id PK
+  }
+  conversations {
+    uuid id PK
+    uuid organization_id FK
+    uuid application_id FK "nullable"
+    uuid repository_id FK "nullable"
+    text title
+    uuid created_by FK
+    timestamp archived_at "nullable"
+  }
+  organizations ||..o{ conversations : "organization_id"
+  applications |o..o{ conversations : "application_id"
+  repositories |o..o{ conversations : "repository_id"
+  principals ||..o{ conversations : "created_by"
+  messages {
+    uuid id PK
+    uuid organization_id FK
+    uuid conversation_id FK
+    uuid author_id FK "nullable"
+    uuid agent_session_id FK "nullable"
+    enum message_type
+    text body
+    text client_message_id
+    uuid reply_to_id FK "nullable"
+    bigint sequence
+    enum intent
+    jsonb comment_context "nullable"
+  }
+  organizations ||..o{ messages : "organization_id"
+  conversations ||..o{ messages : "conversation_id"
+  principals |o..o{ messages : "author_id"
+  agent_sessions |o..o{ messages : "agent_session_id"
+  messages |o..o{ messages : "reply_to_id"
+  conversation_turns {
+    uuid id PK
+    uuid organization_id FK
+    uuid conversation_id FK
+    uuid trigger_message_id FK
+    uuid agent_session_id FK "nullable"
+    enum status
+    bigint context_through_sequence "nullable"
+    timestamp finished_at "nullable"
+    jsonb failure "nullable"
+  }
+  organizations ||..o{ conversation_turns : "organization_id"
+  conversations ||..o{ conversation_turns : "conversation_id"
+  messages ||..o| conversation_turns : "trigger_message_id"
+  agent_sessions |o..o| conversation_turns : "agent_session_id"
+  channel_links {
+    uuid id PK
+    uuid organization_id FK
+    uuid conversation_id FK
+    uuid integration_connection_id FK
+    text external_channel_id
+    text external_thread_id
+    boolean enabled
+  }
+  organizations ||..o{ channel_links : "organization_id"
+  conversations ||..o{ channel_links : "conversation_id"
+  integration_connections ||..o{ channel_links : "integration_connection_id"
+  integration_connections {
+    uuid id PK
+  }
+  agent_sessions {
+    uuid id PK
+  }

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<learning id="local-security-lane-admin-url" project="bakery" issue="486">
+  <title>The local security lane needs the postgres superuser as BAKERY_ADMIN_DATABASE_URL</title>
+  <trigger>Running `pnpm test:security` against a per-worktree stack from `scripts/dev/compose-up.sh`.</trigger>
+  <mistake>`compose-up.sh` writes `DATABASE_URL` and `BAKERY_APP_DATABASE_URL` only. Without `BAKERY_ADMIN_DATABASE_URL` the lane fails `BAKERY_ADMIN_DATABASE_URL_REQUIRED`; pointing it at the `bakery` owner role fails `permission denied to create database`. Both read like code failures.</mistake>
+  <rule>Export `BAKERY_ADMIN_DATABASE_URL` as the stack container's `postgres` superuser on the published port (its password is the container's `POSTGRES_PASSWORD`), as `.github/workflows/ci.yml` does, with `BAKERY_TEST_DATABASE_ALLOW_REMOTE_RESET=1`. Keep the URL in an untracked env file.</rule>
+  <rule>An integration or security lane that resets a container database also needs `BAKERY_TEST_DATABASE_RESET_CONFIRMATION=RESET_BAKERY_TEST_DATABASE`; without it the reset is refused. Point the admin URL at the `bakery` database, not `postgres`, or fixtures fail with `schema "bakery" does not exist`. `BETTER_AUTH_SECRET` must be at least 32 bytes or the server-kind config check rejects it.</rule>
+  <verification>
+    <command>BAKERY_TEST_DATABASE_RESET_CONFIRMATION=RESET_BAKERY_TEST_DATABASE BAKERY_TEST_DATABASE_ALLOW_REMOTE_RESET=1 pnpm test:security</command>
+    <requirement>Exits 0 on the per-worktree stack.</requirement>
+  </verification>
+  <boundary>Local per-worktree stacks only; CI already sets the variable.</boundary>
+</learning>

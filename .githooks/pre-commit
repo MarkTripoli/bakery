@@ -1,0 +1,12 @@
+#!/bin/sh
+# Staged-file quality guard: format, lint, and suppression checks run so a
+# commit cannot carry files that CI's `pnpm lint` lane will reject. It checks
+# the staged copy and never rewrites the index; failures block the commit.
+# Tracked so it applies to every clone/worktree via `core.hooksPath` (set by
+# the root package.json "prepare" script).
+# Escape hatch: BAKERY_SKIP_CHECKS=1 git commit ...
+if [ "${BAKERY_SKIP_CHECKS:-0}" != "1" ] && command -v deno >/dev/null 2>&1; then
+    if ! deno run --allow-read --allow-run scripts/ci/precommit-guard.ts; then
+        exit 1
+    fi
+fi

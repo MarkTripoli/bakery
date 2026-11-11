@@ -1,0 +1,264 @@
+/**
+ * from Paper
+ * https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/K-0/A5P-0
+ * on Oct 5, 2026
+ */
+export default function () {
+  return (
+    <div style={{ backgroundColor: 'var(--color-surface)', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-sans)', fontSynthesis: 'none', gap: '24px', height: 'fit-content', minHeight: '1100px', MozOsxFontSmoothing: 'grayscale', overflow: 'clip', overflowWrap: 'anywhere', padding: '40px', WebkitFontSmoothing: 'antialiased', width: '1440px' }}>
+      <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px', maxWidth: '920px' }}>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '28px', fontWeight: 600, lineHeight: '36px' }}>
+          Machines
+        </div>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '16px', lineHeight: '20px' }}>
+          Organization-owned execution · Interface study
+        </div>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
+          Extend Bakery’s enterprise shell: Geist, cool neutrals, cobalt selection, existing icon rail. Desktop inventory becomes a phone list. Admins connect their own hosts, inspect readiness, and maintain harnesses without losing work.
+        </div>
+      </div>
+      <div style={{ backgroundColor: 'var(--color-background)', borderRadius: '8px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px', padding: '20px' }}>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '20px', fontWeight: 600, lineHeight: '28px' }}>
+          One machine. One organization.
+        </div>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
+          Each organization enrolls and manages its own Linux servers and Macs. No shared pool, cross-organization routing or hosted provisioning in this release. Bakery-managed infrastructure is a future capability.
+        </div>
+      </div>
+      <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 500, lineHeight: '20px' }}>
+          Sample data throughout
+        </div>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
+          Machine names, installed versions, accounts, quota readings and server URLs illustrate states. These are editable mocks, not connected machines or verified releases. Implementation commands follow the proposed worker CLI.
+        </div>
+      </div>
+      <div style={{ alignItems: 'start', boxSizing: 'border-box', display: 'flex', flexWrap: 'wrap', gap: '24px' }}>
+        <div style={{ borderColor: 'var(--color-border)', borderRadius: '8px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', gap: '16px', minHeight: '240px', padding: '20px', width: '437px' }}>
+          <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '16px', fontWeight: 600, lineHeight: '20px' }}>
+            No machines yet
+          </div>
+          <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
+            Connect your organization’s first Linux server or Mac to begin running work.
+          </div>
+          <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
+            <div style={{ alignItems: 'center', backgroundColor: 'var(--color-primary)', borderColor: 'var(--color-primary)', borderRadius: 'var(--radius-6)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', justifyContent: 'center', minHeight: '44px', paddingBlock: '8px', paddingInline: '14px' }}>
+              <div style={{ boxSizing: 'border-box', color: 'var(--color-primary-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>
+                Connect a machine
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style={{ borderColor: 'var(--color-border)', borderRadius: '8px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', gap: '16px', minHeight: '240px', padding: '20px', width: '437px' }}>
+          <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
+            <div style={{ alignItems: 'center', backgroundColor: 'var(--color-warning-surface)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', flexShrink: '0', gap: '6px', paddingBlock: '3px', paddingInline: '8px' }}>
+              <div style={{ boxSizing: 'border-box', color: 'var(--color-warning)', fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 500, lineHeight: '20px' }}>
+                Attention
+              </div>
+            </div>
+          </div>
+          <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '16px', fontWeight: 600, lineHeight: '20px' }}>
+            Enrollment token expired
+          </div>
+          <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
+            Create a new token for Mark’s workspace. The expired token can no longer enroll a machine.
+          </div>
+          <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
+            <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: 'var(--radius-6)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', justifyContent: 'center', minHeight: '44px', paddingBlock: '8px', paddingInline: '14px' }}>
+              <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>
+                Generate new token
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style={{ borderColor: 'var(--color-border)', borderRadius: '8px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', gap: '16px', minHeight: '240px', padding: '20px', width: '437px' }}>
+          <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
+            <div style={{ alignItems: 'center', backgroundColor: 'var(--color-warning-surface)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', flexShrink: '0', gap: '6px', paddingBlock: '3px', paddingInline: '8px' }}>
+              <div style={{ boxSizing: 'border-box', color: 'var(--color-warning)', fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 500, lineHeight: '20px' }}>
+                Attention
+              </div>
+            </div>
+          </div>
+          <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '16px', fontWeight: 600, lineHeight: '20px' }}>
+            Machine offline
+          </div>
+          <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
+            Last seen 38 minutes ago. No new work is assigned here. Recheck availability before applying a queued update.
+          </div>
+          <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
+            <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: 'var(--radius-6)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', justifyContent: 'center', minHeight: '44px', paddingBlock: '8px', paddingInline: '14px' }}>
+              <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>
+                View safe diagnostics
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style={{ borderColor: 'var(--color-border)', borderRadius: '8px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', gap: '16px', minHeight: '240px', padding: '20px', width: '437px' }}>
+          <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
+            <div style={{ alignItems: 'center', backgroundColor: 'var(--color-destructive-surface)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', flexShrink: '0', gap: '6px', paddingBlock: '3px', paddingInline: '8px' }}>
+              <div style={{ boxSizing: 'border-box', color: 'var(--color-destructive)', fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 500, lineHeight: '20px' }}>
+                Action required
+              </div>
+            </div>
+          </div>
+          <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '16px', fontWeight: 600, lineHeight: '20px' }}>
+            Update verification failed
+          </div>
+          <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
+            Claude Code remains unavailable. Review the error, retry verification or restore a supported previous release.
+          </div>
+          <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
+            <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: 'var(--radius-6)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', justifyContent: 'center', minHeight: '44px', paddingBlock: '8px', paddingInline: '14px' }}>
+              <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>
+                Review recovery
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style={{ borderColor: 'var(--color-border)', borderRadius: '8px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', gap: '16px', minHeight: '240px', padding: '20px', width: '437px' }}>
+          <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
+            <div style={{ alignItems: 'center', backgroundColor: 'var(--color-success-surface)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', flexShrink: '0', gap: '6px', paddingBlock: '3px', paddingInline: '8px' }}>
+              <div style={{ boxSizing: 'border-box', color: 'var(--color-success)', fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 500, lineHeight: '20px' }}>
+                Ready
+              </div>
+            </div>
+          </div>
+          <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '16px', fontWeight: 600, lineHeight: '20px' }}>
+            Machine verified
+          </div>
+          <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
+            Organization identity, credential isolation and toolchain checks passed. Two task slots can accept work.
+          </div>
+          <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
+            <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: 'var(--radius-6)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', justifyContent: 'center', minHeight: '44px', paddingBlock: '8px', paddingInline: '14px' }}>
+              <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>
+                Open machine
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style={{ borderColor: 'var(--color-border)', borderRadius: '8px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', gap: '16px', minHeight: '240px', padding: '20px', width: '437px' }}>
+          <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
+            <div style={{ alignItems: 'center', backgroundColor: 'var(--color-warning-surface)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', flexShrink: '0', gap: '6px', paddingBlock: '3px', paddingInline: '8px' }}>
+              <div style={{ boxSizing: 'border-box', color: 'var(--color-warning)', fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 500, lineHeight: '20px' }}>
+                Attention
+              </div>
+            </div>
+          </div>
+          <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '16px', fontWeight: 600, lineHeight: '20px' }}>
+            Update queued
+          </div>
+          <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
+            Waiting for one Claude Code session to finish. Codex and Pi continue to accept work.
+          </div>
+          <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
+            <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: 'var(--radius-6)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', justifyContent: 'center', minHeight: '44px', paddingBlock: '8px', paddingInline: '14px' }}>
+              <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>
+                Cancel update
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style={{ borderColor: 'var(--color-border)', borderRadius: '8px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', gap: '16px', minHeight: '240px', padding: '20px', width: '437px' }}>
+          <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
+            <div style={{ alignItems: 'center', backgroundColor: 'var(--color-destructive-surface)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', flexShrink: '0', gap: '6px', paddingBlock: '3px', paddingInline: '8px' }}>
+              <div style={{ boxSizing: 'border-box', color: 'var(--color-destructive)', fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 500, lineHeight: '20px' }}>
+                Action required
+              </div>
+            </div>
+          </div>
+          <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '16px', fontWeight: 600, lineHeight: '20px' }}>
+            Security check failed
+          </div>
+          <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
+            The harness could access daemon credentials. This machine cannot accept work until isolation is fixed.
+          </div>
+          <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
+            <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: 'var(--radius-6)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', justifyContent: 'center', minHeight: '44px', paddingBlock: '8px', paddingInline: '14px' }}>
+              <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>
+                View setup guidance
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style={{ borderColor: 'var(--color-border)', borderRadius: '8px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', gap: '16px', minHeight: '240px', padding: '20px', width: '437px' }}>
+          <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '16px', fontWeight: 600, lineHeight: '20px' }}>
+            Developer view
+          </div>
+          <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
+            You can inspect machine status and permitted activity. An organization Admin manages enrollment and updates.
+          </div>
+          <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
+            <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: 'var(--radius-6)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', justifyContent: 'center', minHeight: '44px', paddingBlock: '8px', paddingInline: '14px' }}>
+              <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>
+                View activity
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style={{ borderColor: 'var(--color-border)', borderRadius: '8px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', gap: '16px', minHeight: '240px', padding: '20px', width: '437px' }}>
+          <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
+            <div style={{ alignItems: 'center', backgroundColor: 'var(--color-warning-surface)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', flexShrink: '0', gap: '6px', paddingBlock: '3px', paddingInline: '8px' }}>
+              <div style={{ boxSizing: 'border-box', color: 'var(--color-warning)', fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 500, lineHeight: '20px' }}>
+                Attention
+              </div>
+            </div>
+          </div>
+          <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '16px', fontWeight: 600, lineHeight: '20px' }}>
+            Disconnect web-worker-01?
+          </div>
+          <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
+            Two tasks are active. Drain the machine before revoking its organization access. Its activity history will remain available.
+          </div>
+          <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
+            <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: 'var(--radius-6)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', justifyContent: 'center', minHeight: '44px', paddingBlock: '8px', paddingInline: '14px' }}>
+              <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>
+                Drain before disconnecting
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '16px', fontWeight: 600, lineHeight: '20px' }}>
+          Shared primitives
+        </div>
+        <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
+          <div style={{ alignItems: 'center', backgroundColor: 'var(--color-primary)', borderColor: 'var(--color-primary)', borderRadius: 'var(--radius-6)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', justifyContent: 'center', minHeight: '44px', paddingBlock: '8px', paddingInline: '14px' }}>
+            <div style={{ boxSizing: 'border-box', color: 'var(--color-primary-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>
+              Primary action
+            </div>
+          </div>
+          <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: 'var(--radius-6)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', justifyContent: 'center', minHeight: '44px', paddingBlock: '8px', paddingInline: '14px' }}>
+            <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>
+              Secondary action
+            </div>
+          </div>
+          <div style={{ alignItems: 'center', backgroundColor: 'var(--color-background)', borderColor: 'var(--color-border)', borderRadius: '6px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', minHeight: '44px', paddingBlock: '10px', paddingInline: '14px' }}>
+            <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
+              Checking…
+            </div>
+          </div>
+          <div style={{ alignItems: 'center', backgroundColor: 'var(--color-success-surface)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', flexShrink: '0', gap: '6px', paddingBlock: '3px', paddingInline: '8px' }}>
+            <div style={{ boxSizing: 'border-box', color: 'var(--color-success)', fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 500, lineHeight: '20px' }}>
+              Online
+            </div>
+          </div>
+          <div style={{ alignItems: 'center', backgroundColor: 'var(--color-warning-surface)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', flexShrink: '0', gap: '6px', paddingBlock: '3px', paddingInline: '8px' }}>
+            <div style={{ boxSizing: 'border-box', color: 'var(--color-warning)', fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 500, lineHeight: '20px' }}>
+              Offline
+            </div>
+          </div>
+          <div style={{ alignItems: 'center', backgroundColor: 'var(--color-destructive-surface)', borderRadius: 'var(--radius-4)', boxSizing: 'border-box', display: 'flex', flexShrink: '0', gap: '6px', paddingBlock: '3px', paddingInline: '8px' }}>
+            <div style={{ boxSizing: 'border-box', color: 'var(--color-destructive)', fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 500, lineHeight: '20px' }}>
+              Failed
+            </div>
+          </div>
+        </div>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
+          Reuse Bakery buttons, inputs, tabs, status badges and dialogs. Phone actions are at least 44 px; inputs use 16 px text. Status always includes a text label. Preserve keyboard focus and restore focus after dialogs.
+        </div>
+      </div>
+    </div>
+  );
+}

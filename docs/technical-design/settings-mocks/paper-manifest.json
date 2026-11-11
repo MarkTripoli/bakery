@@ -1,0 +1,468 @@
+{
+  "fileId": "01M1X504XVC45FC0VDK857A37D",
+  "pageId": "O-0",
+  "pageName": "Settings",
+  "url": "https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/O-0",
+  "status": "Consolidated editable design proposal; sample data; runtime not implemented",
+  "screens": [
+    {
+      "nodeId": "Z4E-0",
+      "name": "00 \u00b7 Settings \u00b7 Scope and recovery guide",
+      "file": "scope-guide.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 1440,
+      "height": 1346,
+      "canvas": {
+        "x": 0,
+        "y": -1440
+      },
+      "sha256": "722afac53e84c66a0c1950dfb3379ce95190645f59c634609a0b9f4542042472"
+    },
+    {
+      "nodeId": "HJE-0",
+      "name": "01 \u00b7 Profile \u00b7 Desktop",
+      "file": "personal-desktop.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 1440,
+      "height": 900,
+      "canvas": {
+        "x": 0,
+        "y": 0
+      },
+      "sha256": "989da85c0f923c7dac47dc2f183c641a826f873420d941e6b029333bbb295dac"
+    },
+    {
+      "nodeId": "IG3-0",
+      "name": "01 \u00b7 Profile \u00b7 Phone",
+      "file": "personal-phone.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 390,
+      "height": 958,
+      "canvas": {
+        "x": 1520,
+        "y": 0
+      },
+      "sha256": "3f44c03568071867117e30200e3825083b0f012962f8d27a543c8ae32fdd0308"
+    },
+    {
+      "nodeId": "K1K-0",
+      "name": "02 \u00b7 Account & security \u00b7 Desktop",
+      "file": "account-security-desktop.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 1440,
+      "height": 1022,
+      "canvas": {
+        "x": 0,
+        "y": 1400
+      },
+      "sha256": "e9fc03df5a92df5daaa6f9e143c96ebdc2ed1ac6f0040362d92d40868f8e60b3"
+    },
+    {
+      "nodeId": "K65-0",
+      "name": "02 \u00b7 Account & security \u00b7 Phone",
+      "file": "account-security-phone.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 390,
+      "height": 1349,
+      "canvas": {
+        "x": 1520,
+        "y": 1400
+      },
+      "sha256": "05397714075943ae90a947cc8d9bcd86613a353e44e7173fc2f5129f200ac55b"
+    },
+    {
+      "nodeId": "L7E-0",
+      "name": "03 \u00b7 Active sessions \u00b7 Desktop",
+      "file": "active-sessions-desktop.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 1440,
+      "height": 960,
+      "canvas": {
+        "x": 0,
+        "y": 2800
+      },
+      "sha256": "a95e7cae299d01126fa312c0d81aabca302cf556bfb276c505903ddad01ed6bf"
+    },
+    {
+      "nodeId": "LBZ-0",
+      "name": "03 \u00b7 Active sessions \u00b7 Phone",
+      "file": "active-sessions-phone.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 390,
+      "height": 1102,
+      "canvas": {
+        "x": 1520,
+        "y": 2800
+      },
+      "sha256": "84f96e1d9b43e80e26c7b3d3b6f326525cd423eb91ae957efb5c3d1d258f4433"
+    },
+    {
+      "nodeId": "LJE-0",
+      "name": "04 \u00b7 Connected clients \u00b7 Desktop",
+      "file": "connected-clients-desktop.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 1440,
+      "height": 960,
+      "canvas": {
+        "x": 0,
+        "y": 4200
+      },
+      "sha256": "61b2cff381958860590f90fc00508a2a677bfb53d3d875d4bbf87eda82b1f73d"
+    },
+    {
+      "nodeId": "LNZ-0",
+      "name": "04 \u00b7 Connected clients \u00b7 Phone",
+      "file": "connected-clients-phone.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 390,
+      "height": 1045,
+      "canvas": {
+        "x": 1520,
+        "y": 4200
+      },
+      "sha256": "31916819807c790829d51db714490190cb9f1e92a7703af1b075c69af73ed1a2"
+    },
+    {
+      "nodeId": "N1T-0",
+      "name": "05 \u00b7 Appearance \u00b7 Desktop \u00b7 Light",
+      "file": "appearance-desktop-light.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 1440,
+      "height": 1297,
+      "canvas": {
+        "x": 0,
+        "y": 5600
+      },
+      "sha256": "a3a3a9afef4656943100f41179a893bfefa666a6240da48500cc9cec7beedf43"
+    },
+    {
+      "nodeId": "N6E-0",
+      "name": "05 \u00b7 Appearance \u00b7 Phone \u00b7 Light",
+      "file": "appearance-phone-light.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 390,
+      "height": 1588,
+      "canvas": {
+        "x": 1520,
+        "y": 5600
+      },
+      "sha256": "edfc404ee589632eedad89057f27157916d637dac2b75bae84b75cf0148512d4"
+    },
+    {
+      "nodeId": "SGB-0",
+      "name": "05 \u00b7 Appearance \u00b7 Desktop \u00b7 Dark",
+      "file": "appearance-desktop-dark.png",
+      "theme": "dark",
+      "stage": "current-model",
+      "width": 1440,
+      "height": 1297,
+      "canvas": {
+        "x": 2080,
+        "y": 5600
+      },
+      "sha256": "f8902edbe5217f7c4cf6689ca99b64c4e2a6eb1082796189703014b4eed82d2c"
+    },
+    {
+      "nodeId": "SLW-0",
+      "name": "05 \u00b7 Appearance \u00b7 Phone \u00b7 Dark",
+      "file": "appearance-phone-dark.png",
+      "theme": "dark",
+      "stage": "current-model",
+      "width": 390,
+      "height": 1588,
+      "canvas": {
+        "x": 3600,
+        "y": 5600
+      },
+      "sha256": "c01b002eeacdaf599dc721ea6962cdc0edaf4ee305a62d1773cac25f42ccccbb"
+    },
+    {
+      "nodeId": "KHJ-0",
+      "name": "06 \u00b7 Your access \u00b7 Developer \u00b7 Desktop",
+      "file": "developer-access-desktop.png",
+      "theme": "dark",
+      "stage": "current-model",
+      "width": 1440,
+      "height": 1100,
+      "canvas": {
+        "x": 0,
+        "y": 7900
+      },
+      "sha256": "06c075d420e1ce7cb1055eaa582e0dcb5030def734c8b0509eb813d75fd2cab9"
+    },
+    {
+      "nodeId": "MZJ-0",
+      "name": "06 \u00b7 Your access \u00b7 Developer \u00b7 Phone",
+      "file": "developer-access-phone.png",
+      "theme": "dark",
+      "stage": "current-model",
+      "width": 390,
+      "height": 1136,
+      "canvas": {
+        "x": 1520,
+        "y": 7900
+      },
+      "sha256": "0be1fb2804040fafdda160087dcb63c3701703b1881bbe7b88ab00e19b6dcf53"
+    },
+    {
+      "nodeId": "U4H-0",
+      "name": "07 \u00b7 Your access \u00b7 Custom role \u00b7 Future \u00b7 Desktop",
+      "file": "custom-member-desktop.png",
+      "theme": "dark",
+      "stage": "future",
+      "width": 1440,
+      "height": 1100,
+      "canvas": {
+        "x": 0,
+        "y": 9600
+      },
+      "sha256": "10a1c650b98f892545951a36bf2ff865cefa4a00573f3888a6c284d531022579"
+    },
+    {
+      "nodeId": "UFQ-0",
+      "name": "07 \u00b7 Your access \u00b7 Custom role \u00b7 Future \u00b7 Phone",
+      "file": "custom-member-phone.png",
+      "theme": "dark",
+      "stage": "future",
+      "width": 390,
+      "height": 1207,
+      "canvas": {
+        "x": 1520,
+        "y": 9600
+      },
+      "sha256": "5d33cff6043b4bc717f7280b1abc6199781c508a77582ada88e90f40072c6f38"
+    },
+    {
+      "nodeId": "ON6-0",
+      "name": "08 \u00b7 Notifications \u00b7 Future concept \u00b7 Desktop",
+      "file": "notifications-future-desktop.png",
+      "theme": "light",
+      "stage": "future",
+      "width": 1440,
+      "height": 1006,
+      "canvas": {
+        "x": 0,
+        "y": 11300
+      },
+      "sha256": "1ec535927d011c10e729b8ed21d9e19934996459309fdc6c2be80b6b6bd60a93"
+    },
+    {
+      "nodeId": "ORR-0",
+      "name": "08 \u00b7 Notifications \u00b7 Future concept \u00b7 Phone",
+      "file": "notifications-future-phone.png",
+      "theme": "light",
+      "stage": "future",
+      "width": 390,
+      "height": 1332,
+      "canvas": {
+        "x": 1520,
+        "y": 11300
+      },
+      "sha256": "5d3c650b279a51fbaaf018ec4851185743879617adb8391434ab296eba218c5d"
+    },
+    {
+      "nodeId": "QHO-0",
+      "name": "09 \u00b7 Settings \u00b7 Account menu \u00b7 Desktop",
+      "file": "account-menu-desktop.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 1440,
+      "height": 960,
+      "canvas": {
+        "x": 4160,
+        "y": 0
+      },
+      "sha256": "3f242671111d18f309e620ec096a518be5539576921d8da4520f7008e7dcbc02"
+    },
+    {
+      "nodeId": "QM9-0",
+      "name": "09 \u00b7 Settings \u00b7 Section index \u00b7 Phone",
+      "file": "settings-index-phone.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 390,
+      "height": 1038,
+      "canvas": {
+        "x": 5680,
+        "y": 0
+      },
+      "sha256": "33dca69069bd01e87d00be5f36809da6edab7ec456fd3c87ea65c481fd0f7bfc"
+    },
+    {
+      "nodeId": "VO6-0",
+      "name": "10 \u00b7 Change password \u00b7 Validation error \u00b7 Desktop",
+      "file": "password-error-desktop.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 1440,
+      "height": 960,
+      "canvas": {
+        "x": 4160,
+        "y": 1600
+      },
+      "sha256": "54a1ebadc2fd8fe362ff7afa93624096688339f632d12be5bfab1a1ca35a2508"
+    },
+    {
+      "nodeId": "VSR-0",
+      "name": "10 \u00b7 Change password \u00b7 Validation error \u00b7 Phone",
+      "file": "password-error-phone.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 390,
+      "height": 960,
+      "canvas": {
+        "x": 5680,
+        "y": 1600
+      },
+      "sha256": "d50cb426cff56ca03580ea2411f5a5ab59bfb960225dadc62fa5c6ba9cbed76f"
+    },
+    {
+      "nodeId": "VZA-0",
+      "name": "11 \u00b7 Change email \u00b7 Verification pending \u00b7 Desktop",
+      "file": "email-pending-desktop.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 1440,
+      "height": 960,
+      "canvas": {
+        "x": 4160,
+        "y": 3200
+      },
+      "sha256": "c9e7481b53c7e53c316490ce5646a887f26ffa53ace92fe0e4e90f108d74e2e0"
+    },
+    {
+      "nodeId": "W3V-0",
+      "name": "11 \u00b7 Change email \u00b7 Verification pending \u00b7 Phone",
+      "file": "email-pending-phone.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 390,
+      "height": 1021,
+      "canvas": {
+        "x": 5680,
+        "y": 3200
+      },
+      "sha256": "b869e3e36a60d939e5d5e56846b30fa26fc407662fda6a2e799b2a7f7f981336"
+    },
+    {
+      "nodeId": "XNB-0",
+      "name": "12 \u00b7 Sign out other sessions \u00b7 Confirmation \u00b7 Desktop",
+      "file": "sign-out-confirmation-desktop.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 1440,
+      "height": 960,
+      "canvas": {
+        "x": 4160,
+        "y": 4800
+      },
+      "sha256": "77a96c5723c21b0491b945ab3c4b143cc79839ddaa5207697ebbba2079638081"
+    },
+    {
+      "nodeId": "XRW-0",
+      "name": "12 \u00b7 Sign out other sessions \u00b7 Confirmation \u00b7 Phone",
+      "file": "sign-out-confirmation-phone.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 390,
+      "height": 960,
+      "canvas": {
+        "x": 5680,
+        "y": 4800
+      },
+      "sha256": "927f8b00cfaf0d14d6ee3cd6cda205942296df9701d806fed9d1c6791fcf4ebb"
+    },
+    {
+      "nodeId": "XX2-0",
+      "name": "13 \u00b7 Revoke client access \u00b7 Confirmation \u00b7 Desktop",
+      "file": "revoke-client-desktop.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 1440,
+      "height": 960,
+      "canvas": {
+        "x": 4160,
+        "y": 6400
+      },
+      "sha256": "b90f01d01ed1efede52f8a81ffb3fcbac2077a25c533adc07458c1e2e2249c3f"
+    },
+    {
+      "nodeId": "Y1N-0",
+      "name": "13 \u00b7 Revoke client access \u00b7 Confirmation \u00b7 Phone",
+      "file": "revoke-client-phone.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 390,
+      "height": 978,
+      "canvas": {
+        "x": 5680,
+        "y": 6400
+      },
+      "sha256": "86e4e5ceed133cf4941d105edcd11622ef125ae1b7819a50ff7c6b529f5d76a4"
+    },
+    {
+      "nodeId": "11JV-0",
+      "name": "00 \u00b7 Settings \u00b7 Account actions & recovery",
+      "file": "account-actions-guide.png",
+      "theme": "light",
+      "stage": "current-model",
+      "width": 1200,
+      "height": 1035,
+      "canvas": {
+        "x": 2080,
+        "y": -1440
+      },
+      "sha256": "196313e2673ecd8b169301f6376db197917ef35e5bbada1415c92a9889da635a"
+    }
+  ],
+  "tokenRevision": "49fea8f7",
+  "exportedAt": "2026-09-08T04:52:04.849959+00:00",
+  "navigation": {
+    "component": "SectionNavigation",
+    "desktopWidth": 224,
+    "token": "--container-section-sidebar",
+    "sections": [
+      {
+        "label": "Profile",
+        "route": "/settings/profile"
+      },
+      {
+        "label": "Account & security",
+        "route": "/settings/security"
+      },
+      {
+        "label": "Active sessions",
+        "route": "/settings/sessions"
+      },
+      {
+        "label": "Connected clients",
+        "route": "/settings/clients"
+      },
+      {
+        "label": "Appearance",
+        "route": "/settings/appearance"
+      },
+      {
+        "label": "Your access",
+        "route": "/settings/access"
+      }
+    ],
+    "mobile": "Same ordered section index/menu with parent return link",
+    "organizationAdministration": "Separate Organization area",
+    "futureConcepts": [
+      "Assigned custom roles",
+      "Notification preferences"
+    ]
+  }
+}

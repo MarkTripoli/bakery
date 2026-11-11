@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="artifact-capture-shared-view" project="bakery">
+  <title>Artifact Paper fixtures must render the production view</title>
+  <trigger>Artifact Paper comparison uses DEV-only candidate URLs while functional tests use protected production routes.</trigger>
+  <rule>Inspect candidate URLs and route registration before choosing the server. Run the standard DEV fixture captures on Vite; use the built application for production-route browser tests. A successful screenshot write does not prove the intended page rendered. Production and deterministic fixtures must share the actual page, composer, dialog, preview and responsive presentation, including required fields. A common wrapper around parallel fixture markup is insufficient. Keep fixture URLs, approved references and pinned capture machinery unchanged unless a maintainer explicitly authorizes those changes.</rule>
+  <verification>
+    <requirement>Inspect captured page content, run the standard comparator, and independently trace both adapters into the same view components. Production-route tests must still exercise authorization, verified bytes, mutations and the real phone comment layout. Report reference differences without introducing fixture-only rendering branches.</requirement>
+  </verification>
+</learning>

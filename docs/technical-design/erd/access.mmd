@@ -1,0 +1,108 @@
+erDiagram
+  direction LR
+  principals {
+    uuid id PK
+    uuid auth_user_id FK "nullable"
+    enum principal_type
+    text display_name
+    timestamp disabled_at "nullable"
+  }
+  auth_users |o..o{ principals : "auth_user_id"
+  auth_users {
+    uuid id PK
+    text email
+    text name
+    text first_name "nullable"
+    text last_name "nullable"
+    text title "nullable"
+    boolean email_verified
+    text image "nullable"
+  }
+  organizations {
+    uuid id PK
+    text name
+    text slug
+    text logo "nullable"
+    jsonb metadata
+  }
+  organization_memberships {
+    uuid id PK
+    uuid organization_id FK
+    uuid principal_id FK
+    enum role "nullable"
+    enum status
+    timestamp joined_at
+  }
+  organizations ||..o{ organization_memberships : "organization_id"
+  principals ||..o{ organization_memberships : "principal_id"
+  organization_invitations {
+    uuid id PK
+    uuid organization_id FK
+    text email
+    enum role
+    enum status
+    timestamp expires_at
+    uuid inviter_principal_id FK
+  }
+  organizations ||..o{ organization_invitations : "organization_id"
+  principals ||..o{ organization_invitations : "inviter_principal_id"
+  installation_administrators {
+    uuid id PK
+    uuid principal_id FK
+    uuid granted_by_principal_id FK
+    timestamp revoked_at "nullable"
+  }
+  principals ||..o{ installation_administrators : "principal_id"
+  principals ||..o{ installation_administrators : "granted_by_principal_id"
+  permission_grants {
+    uuid id PK
+    uuid organization_id FK
+    uuid subject_principal_id FK "nullable"
+    uuid automation_definition_id FK "nullable"
+    enum direction
+    text capability
+    int action_version "nullable"
+    uuid integration_connection_id FK "nullable"
+    uuid integration_resource_id FK "nullable"
+    uuid application_id FK "nullable"
+    uuid repository_id FK "nullable"
+    timestamp expires_at "nullable"
+    timestamp revoked_at "nullable"
+    uuid granted_by_principal_id FK
+    int policy_revision
+  }
+  organizations ||..o{ permission_grants : "organization_id"
+  principals |o..o{ permission_grants : "subject_principal_id"
+  automation_definitions |o..o{ permission_grants : "automation_definition_id"
+  integration_connections |o..o{ permission_grants : "integration_connection_id"
+  integration_resources |o..o{ permission_grants : "integration_resource_id"
+  applications |o..o{ permission_grants : "application_id"
+  repositories |o..o{ permission_grants : "repository_id"
+  principals ||..o{ permission_grants : "granted_by_principal_id"
+  applications {
+    uuid id PK
+  }
+  repositories {
+    uuid id PK
+  }
+  integration_connections {
+    uuid id PK
+  }
+  integration_resources {
+    uuid id PK
+  }
+  automation_definitions {
+    uuid id PK
+  }
+  worker_enrollments {
+    uuid id PK
+    uuid organization_id FK
+    uuid principal_id FK
+    text token_hash
+    jsonb allowed_capabilities
+    timestamp expires_at
+    timestamp consumed_at "nullable"
+    text public_key_fingerprint "nullable"
+  }
+  organizations ||..o{ worker_enrollments : "organization_id"
+  principals ||..o{ worker_enrollments : "principal_id"

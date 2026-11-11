@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="test-reset-lists-provider-tables" project="bakery">
+  <title>A new Better Auth provider table must join resetTestDatabase or every later fixture fails</title>
+  <trigger>A provider migration (public.* tables from a plugin) is added.</trigger>
+  <mistake>The confirmed test reset drops a fixed list of provider tables. A plugin table missing from it survives the reset while the migration ledger is wiped, so the next fixture re-runs the migration and fails with "relation already exists" across the whole integration lane.</mistake>
+  <rule>Add each new public table to the drop list in apps/server/src/platform/migrate.ts, the expected ledger lists in tests/integration/implement-checksum-migrations-and-isolated-database-fixtures_test.ts and tests/unit/implement-local-skill-catalog-publication_test.ts, then run the checksum migration test.</rule>
+  <verification>
+    <requirement>implement-checksum-migrations-and-isolated-database-fixtures_test.ts passes and a second integration file in the same deno test process still opens its fixture.</requirement>
+  </verification>
+</learning>

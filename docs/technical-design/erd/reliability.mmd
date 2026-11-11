@@ -1,0 +1,172 @@
+erDiagram
+  direction LR
+  principals {
+    uuid id PK
+  }
+  organizations {
+    uuid id PK
+  }
+  applications {
+    uuid id PK
+  }
+  repositories {
+    uuid id PK
+  }
+  repository_profiles {
+    uuid id PK
+  }
+  conversations {
+    uuid id PK
+  }
+  tasks {
+    uuid id PK
+  }
+  integration_connections {
+    uuid id PK
+  }
+  integration_event_subscriptions {
+    uuid id PK
+  }
+  integration_resources {
+    uuid id PK
+  }
+  mcp_connections {
+    uuid id PK
+  }
+  secret_versions {
+    uuid id PK
+  }
+  automation_definitions {
+    uuid id PK
+  }
+  run_steps {
+    uuid id PK
+  }
+  artifact_versions {
+    uuid id PK
+  }
+  event_clock {
+    uuid organization_id PK, FK
+    text stream PK
+    bigint next_seq
+    bigint retained_from_seq
+  }
+  organizations ||..o{ event_clock : "organization_id"
+  application_migration_drain {
+    text id PK
+    boolean public_connect
+    boolean application_connect
+    timestamp started_at
+  }
+  domain_events {
+    uuid id PK
+    uuid organization_id FK
+    bigint sequence
+    bigint organization_sequence
+    text event_type
+    int schema_version
+    uuid application_id FK "nullable"
+    uuid repository_id FK "nullable"
+    uuid task_id FK "nullable"
+    uuid aggregate_id
+    int aggregate_version
+    jsonb payload
+    text trace_id
+    uuid conversation_id FK "nullable"
+  }
+  organizations ||..o{ domain_events : "organization_id"
+  applications |o..o{ domain_events : "application_id"
+  repositories |o..o{ domain_events : "repository_id"
+  tasks |o..o{ domain_events : "task_id"
+  conversations |o..o{ domain_events : "conversation_id"
+  outbox {
+    uuid id PK
+    uuid organization_id FK
+    uuid event_id FK
+    enum destination
+    text delivery_key
+    enum status
+    int attempt_count
+    timestamp next_attempt_at
+    timestamp lease_until "nullable"
+    jsonb last_error "nullable"
+  }
+  organizations ||..o{ outbox : "organization_id"
+  domain_events ||..o{ outbox : "event_id"
+  idempotency_records {
+    uuid id PK
+    enum scope
+    uuid organization_id FK "nullable"
+    uuid principal_id FK
+    text operation
+    text key
+    text request_digest
+    enum status
+    int response_status "nullable"
+    text response_body "nullable"
+    jsonb response_headers "nullable"
+    timestamp expires_at
+  }
+  organizations |o..o{ idempotency_records : "organization_id"
+  principals ||..o{ idempotency_records : "principal_id"
+  external_effects {
+    uuid id PK
+    uuid organization_id FK
+    uuid run_step_id FK "nullable"
+    uuid automation_definition_id FK "nullable"
+    uuid subscription_id FK "nullable"
+    text operation
+    int action_version "nullable"
+    text target
+    uuid integration_connection_id FK "nullable"
+    uuid integration_resource_id FK "nullable"
+    uuid mcp_connection_id FK "nullable"
+    uuid repository_profile_id FK "nullable"
+    uuid requesting_principal_id FK
+    text idempotency_key
+    text request_digest
+    jsonb safe_arguments "nullable"
+    uuid argument_artifact_version_id FK "nullable"
+    text external_account_id "nullable"
+    text external_resource_id "nullable"
+    text adapter_version
+    uuid credential_version_id FK "nullable"
+    int authorization_revision "nullable"
+    uuid budget_reservation_id FK "nullable"
+    enum status
+    text remote_id "nullable"
+    jsonb safe_result "nullable"
+    timestamp next_retry_at "nullable"
+    int dispatch_generation
+    timestamp lease_expires_at "nullable"
+    timestamp last_checked_at "nullable"
+  }
+  organizations ||..o{ external_effects : "organization_id"
+  run_steps |o..o{ external_effects : "run_step_id"
+  automation_definitions |o..o{ external_effects : "automation_definition_id"
+  integration_event_subscriptions |o..o{ external_effects : "subscription_id"
+  integration_connections |o..o{ external_effects : "integration_connection_id"
+  integration_resources |o..o{ external_effects : "integration_resource_id"
+  mcp_connections |o..o{ external_effects : "mcp_connection_id"
+  repository_profiles |o..o{ external_effects : "repository_profile_id"
+  principals ||..o{ external_effects : "requesting_principal_id"
+  artifact_versions |o..o{ external_effects : "argument_artifact_version_id"
+  secret_versions |o..o{ external_effects : "credential_version_id"
+  budget_reservations |o..o{ external_effects : "budget_reservation_id"
+  audit_events {
+    uuid id PK
+    uuid organization_id FK
+    uuid principal_id FK "nullable"
+    text operation
+    text resource_type
+    text resource_id
+    enum outcome
+    text request_id
+    text trace_id
+    jsonb details
+  }
+  organizations ||..o{ audit_events : "organization_id"
+  principals |o..o{ audit_events : "principal_id"
+  budget_reservations {
+    uuid id PK
+  }

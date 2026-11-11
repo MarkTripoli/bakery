@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="reference-proof-working-tree" project="bakery">
+  <title>Reference proof reuse must inspect the rendered working tree</title>
+  <trigger>A local comparison inherits base proof while reference inputs are staged, modified or newly introduced.</trigger>
+  <mistake>A base...HEAD diff sees committed changes only. It cannot establish that the files read by the renderer still match the base.</mistake>
+  <rule>Before reusing reference-render proof, inspect the committed delta, the working-tree delta against HEAD, and untracked files. Bound untracked discovery to declared literal input pathspecs without ignore exclusions: ignored inputs are still rendered. Intersect all three with declared reference inputs. Use NUL-delimited Git output and fail closed on discovery errors. A separately recorded fresh-reference check remains independent evidence; never relabel inherited proof as a fresh render. Collect optional diagnostics only after the acceptance budget and verdict are fixed, and isolate collection failures from acceptance.</rule>
+  <verification>
+    <command>pnpm --dir packages/ui exec playwright test tests/visual-parity.spec.ts --workers=1</command>
+    <requirement>A real temporary Git repository proves ignored declared inputs force a fresh render, literal pathspecs exclude lookalike names, and tracked or committed changes still invalidate proof. Discovery failures cannot reuse proof. At the four-hour boundary, slow or failed diagnostics cannot alter the enabled-versus-disabled acceptance result.</requirement>
+  </verification>
+</learning>

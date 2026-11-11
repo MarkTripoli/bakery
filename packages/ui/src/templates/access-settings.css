@@ -1,0 +1,589 @@
+.ui-access-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-inline-size: 820px;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-fg);
+}
+.ui-access-settings[data-state="loading"],
+.ui-access-settings[data-state="error"] {
+  gap: var(--space-5);
+}
+.ui-access-settings__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+.ui-access-settings__heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+.ui-access-settings__heading h1 {
+  margin: var(--space-0);
+  font: var(--type-heading-auth);
+  font-family: system-ui, sans-serif;
+  letter-spacing: var(--tracking-heading-page);
+}
+.ui-access-settings__heading p {
+  margin: var(--space-0);
+  color: var(--color-fg-muted);
+  font: var(--type-body);
+  font-family: system-ui, sans-serif;
+}
+.ui-access-settings__summary {
+  position: absolute;
+  visibility: hidden;
+  inline-size: 0;
+  block-size: 0;
+  margin: 0;
+  overflow: hidden;
+}
+.ui-access-settings__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.ui-access-settings .ui-button--primary {
+  box-sizing: border-box;
+  min-block-size: 36px;
+  padding-block: calc(var(--space-2) - var(--border-default));
+  padding-inline: calc(var(--space-3-5) - var(--border-default));
+  font: var(--type-control-preview-compact);
+  font-family: system-ui, sans-serif;
+  line-height: var(--space-5);
+}
+
+.ui-access-settings__section {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+.ui-access-settings__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-block-end: var(--space-2);
+}
+.ui-access-settings__section-head h2 {
+  margin: var(--space-0);
+  font: var(--type-heading-subsection);
+  font-family: system-ui, sans-serif;
+}
+.ui-access-settings__aside {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+  font-family: system-ui, sans-serif;
+}
+.ui-access-settings__section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+}
+
+.ui-access-settings__rows {
+  display: flex;
+  flex-direction: column;
+  margin: var(--space-0);
+  padding: var(--space-0);
+  border-block-end: var(--border-default) solid var(--color-border);
+  list-style: none;
+}
+.ui-access-settings__rows[data-callout="true"] {
+  border-block-end: var(--border-none);
+}
+.ui-access-settings__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding-block: var(--space-2-5);
+  border-block-start: var(--border-default) solid var(--color-border);
+}
+.ui-access-settings__identity {
+  flex: 1;
+  min-inline-size: 0;
+  font: var(--type-body);
+  font-family: system-ui, sans-serif;
+}
+.ui-access-settings__identity[data-emphasis="true"] {
+  font: var(--type-control);
+  font-family: system-ui, sans-serif;
+}
+.ui-access-settings__cell {
+  flex: none;
+  inline-size: 180px;
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+  font-family: system-ui, sans-serif;
+}
+.ui-access-settings__cell + .ui-access-settings__cell {
+  inline-size: 160px;
+}
+.ui-access-settings__rows[data-columns="detail"] .ui-access-settings__cell {
+  inline-size: 340px;
+}
+.ui-access-settings__action {
+  flex: none;
+  inline-size: var(--space-12);
+  font: var(--type-control-preview-compact);
+  font-family: system-ui, sans-serif;
+  line-height: var(--space-5);
+}
+.ui-access-settings__action[data-tone="destructive"] {
+  color: var(--color-destructive);
+}
+.ui-access-settings__action .ui-button {
+  min-block-size: 20px;
+  min-inline-size: 0;
+  padding: var(--space-0);
+  border: var(--border-none);
+  background: transparent;
+  font: inherit;
+  line-height: var(--space-5);
+  color: var(--color-selection);
+}
+.ui-access-settings__action[data-tone="destructive"] .ui-button {
+  color: var(--color-destructive);
+}
+.ui-access-settings__action .ui-button::after {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  inline-size: 56px;
+  content: "";
+}
+
+.ui-access-settings__empty {
+  color: var(--color-fg-muted);
+  font: var(--type-body);
+  font-family: system-ui, sans-serif;
+}
+
+@media (max-width: 743px) {
+  .ui-access-settings {
+    gap: var(--space-4);
+  }
+  .ui-access-settings__heading h1 {
+    font: var(--type-heading-page);
+    font-family: system-ui, sans-serif;
+  }
+  .ui-access-settings__description,
+  .ui-access-settings__title-detail,
+  .ui-access-settings__aside {
+    position: absolute;
+    visibility: hidden;
+    inline-size: 0;
+    block-size: 0;
+    margin: 0;
+    overflow: hidden;
+  }
+  .ui-access-settings__summary {
+    position: static;
+    visibility: visible;
+    inline-size: auto;
+    block-size: auto;
+    overflow: visible;
+  }
+  .ui-access-settings__header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-4);
+  }
+  .ui-access-settings__actions[data-phone-hidden="true"] {
+    position: absolute;
+    visibility: hidden;
+  }
+  .ui-access-settings .ui-button--primary {
+    inline-size: 100%;
+    min-block-size: var(--target-coarse);
+    font: var(--type-control);
+    font-family: system-ui, sans-serif;
+  }
+  .ui-access-settings__section {
+    gap: var(--space-4);
+  }
+  .ui-access-settings__section-head {
+    padding-block-end: var(--space-0);
+  }
+  .ui-access-settings__rows {
+    gap: var(--space-4);
+    border-block-end: var(--border-none);
+  }
+  /* Paper's phone rows are 56px: a 20px identity line over an 18px detail
+     line, so the line box under the identity is set from the detail type. */
+  .ui-access-settings__row {
+    display: block;
+    min-block-size: 56px;
+    box-sizing: border-box;
+    padding-block: var(--space-2);
+    font: var(--type-row-title);
+    font-family: system-ui, sans-serif;
+  }
+  .ui-access-settings__identity {
+    display: block;
+  }
+  .ui-access-settings__row:last-child {
+    border-block-end: var(--border-default) solid var(--color-border);
+  }
+  .ui-access-settings__rows[data-columns] :is(.ui-access-settings__identity, .ui-access-settings__cell, .ui-access-settings__action) {
+    inline-size: auto;
+    min-inline-size: 0;
+  }
+  .ui-access-settings__cell {
+    display: inline-block;
+    font: var(--type-row-title);
+    font-family: system-ui, sans-serif;
+  }
+  .ui-access-settings__rows[data-columns] .ui-access-settings__cell[data-phone-hidden="true"] {
+    position: absolute;
+    inset-inline-start: 0;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  /* The separator opens an inline-block, where a leading space collapses;
+     pre keeps both spaces so the line reads "Developer · storefront". */
+  .ui-access-settings__cell + .ui-access-settings__cell::before {
+    content: " · ";
+    white-space: pre;
+  }
+  .ui-access-settings__rows[data-phone="overlay"] .ui-access-settings__action {
+    position: absolute;
+    inset: 0;
+    inline-size: auto;
+  }
+  .ui-access-settings__rows[data-phone="overlay"] .ui-access-settings__action .ui-button {
+    position: absolute;
+    inset: 0;
+    inline-size: 100%;
+    block-size: 100%;
+    color: transparent;
+  }
+  .ui-access-settings__rows[data-phone="overlay"] .ui-access-settings__action .ui-button::after {
+    display: none;
+  }
+  .ui-access-settings__rows[data-phone="inline"] .ui-access-settings__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    /* The " · " separator carries the spacing; a gap would double it. */
+    column-gap: var(--space-0);
+    padding-block: var(--space-0);
+  }
+  .ui-access-settings__rows[data-phone="inline"] .ui-access-settings__identity {
+    display: inline;
+    flex: none;
+  }
+  .ui-access-settings__rows[data-phone="inline"] .ui-access-settings__cell {
+    font: var(--type-control);
+    font-family: system-ui, sans-serif;
+    color: var(--color-fg);
+  }
+  .ui-access-settings__rows[data-phone="inline"] .ui-access-settings__cell code {
+    font: inherit;
+  }
+  .ui-access-settings__rows[data-phone="inline"] .ui-access-settings__cell[data-phone-hidden="true"] + .ui-access-settings__cell::before {
+    content: " · ";
+    white-space: pre;
+  }
+  .ui-access-settings__rows[data-phone="inline"] .ui-access-settings__action {
+    margin-inline-start: auto;
+  }
+  .ui-access-settings__rows[data-phone="stacked"] .ui-access-settings__action {
+    display: inline;
+    inline-size: auto;
+    font: var(--type-row-title);
+    font-family: system-ui, sans-serif;
+  }
+  .ui-access-settings__rows[data-phone="stacked"] .ui-access-settings__action::before {
+    content: " · ";
+    color: var(--color-fg-muted);
+  }
+  /* Paper's phone frames end the detail line with the action in the same
+     muted tone ("Expires 17 Oct · Cancel"); the label names what it does. */
+  .ui-access-settings__rows[data-phone="stacked"] .ui-access-settings__action .ui-button {
+    display: inline;
+    font: var(--type-control-preview-compact);
+    line-height: var(--space-5);
+    color: var(--color-fg-muted);
+  }
+  .ui-access-settings__rows[data-phone="stacked"] .ui-access-settings__action .ui-button::after {
+    display: none;
+  }
+}
+
+.ui-access-settings__loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+.ui-access-settings__loading p {
+  margin: var(--space-0);
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+  font-family: system-ui, sans-serif;
+  line-height: var(--space-4);
+}
+.ui-access-settings__skeleton-line {
+  display: block;
+  inline-size: 260px;
+  max-inline-size: 100%;
+  block-size: var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-subtle);
+}
+.ui-access-settings__skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ui-access-settings__skeleton span {
+  block-size: var(--space-10);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-subtle);
+}
+.ui-access-settings__panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  box-sizing: border-box;
+  padding: var(--space-4);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-overlay);
+}
+.ui-access-settings__panel-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.ui-access-settings__panel h2 {
+  margin: var(--space-0);
+  font: var(--type-control-preview);
+  font-family: system-ui, sans-serif;
+}
+.ui-access-settings__panel p {
+  margin: var(--space-0);
+  font: var(--type-hint);
+  font-family: system-ui, sans-serif;
+}
+.ui-access-settings__panel[data-tone="error"] {
+  background: var(--color-destructive-surface);
+}
+.ui-access-settings__panel[data-tone="error"] h2 {
+  color: var(--color-destructive);
+}
+.ui-access-settings__panel[data-tone="empty"] {
+  padding: var(--space-8);
+  border-style: dashed;
+  border-color: var(--color-control-border);
+}
+.ui-access-settings__panel[data-tone="empty"] h2 {
+  font: var(--type-heading-subsection);
+  font-family: system-ui, sans-serif;
+  line-height: var(--space-5);
+}
+.ui-access-settings__panel[data-tone="empty"] p {
+  max-inline-size: 520px;
+  color: var(--color-fg-muted);
+  font: var(--type-body);
+  font-family: system-ui, sans-serif;
+}
+.ui-access-settings__panel .ui-button {
+  box-sizing: border-box;
+  min-block-size: 32px;
+  padding-block: calc(var(--space-2) - var(--border-default));
+  padding-inline: calc(var(--space-3-5) - var(--border-default));
+  font: var(--type-control-preview-compact);
+  font-family: system-ui, sans-serif;
+}
+.ui-access-settings__panel p[data-short="true"] {
+  position: absolute;
+  visibility: hidden;
+  inline-size: 0;
+  block-size: 0;
+  margin: 0;
+  overflow: hidden;
+}
+/* Paper's phone status frames (2ENY-0, 2EO0-0, 2ENZ-0): the card holds only the
+   copy and the state's action is a full-width button 16px under it; the
+   placeholder is a 200px line over three 56px rows, all 16px apart. */
+@media (max-width: 743px) {
+  .ui-access-settings[data-state="loading"],
+  .ui-access-settings[data-state="error"] {
+    gap: var(--space-4);
+  }
+  .ui-access-settings__loading,
+  .ui-access-settings__skeleton {
+    gap: var(--space-4);
+  }
+  .ui-access-settings__skeleton-line {
+    inline-size: 200px;
+  }
+  .ui-access-settings__skeleton span {
+    block-size: 56px;
+  }
+  .ui-access-settings__skeleton span:nth-child(n + 4) {
+    display: none;
+  }
+  .ui-access-settings__panel,
+  .ui-access-settings__panel[data-tone] {
+    align-items: stretch;
+    gap: var(--space-4);
+    padding: var(--space-0);
+    border: var(--border-none);
+    border-radius: var(--radius-none);
+    background: transparent;
+  }
+  .ui-access-settings__panel-copy {
+    box-sizing: border-box;
+    padding: var(--space-4);
+    border: var(--border-default) solid var(--color-border);
+    border-radius: var(--radius-overlay);
+  }
+  .ui-access-settings__panel[data-tone="error"] .ui-access-settings__panel-copy {
+    background: var(--color-destructive-surface);
+  }
+  .ui-access-settings__panel[data-tone="empty"] .ui-access-settings__panel-copy {
+    padding: var(--space-5);
+    border-style: dashed;
+    border-color: var(--color-control-border);
+  }
+  .ui-access-settings__panel .ui-button--primary {
+    inline-size: 100%;
+    min-block-size: var(--target-coarse);
+    font: var(--type-control);
+    font-family: system-ui, sans-serif;
+  }
+  .ui-access-settings__panel p[data-short="false"] {
+    position: absolute;
+    visibility: hidden;
+    inline-size: 0;
+    block-size: 0;
+    margin: 0;
+    overflow: hidden;
+  }
+  .ui-access-settings__panel p[data-short="true"] {
+    position: static;
+    visibility: visible;
+    inline-size: auto;
+    block-size: auto;
+    overflow: visible;
+  }
+}
+
+.ui-access-settings__callout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-overlay);
+  background: var(--color-status-success-surface);
+  font: var(--type-hint);
+  font-family: system-ui, sans-serif;
+}
+.ui-access-settings code {
+  font: var(--type-data);
+}
+/* The dismiss control sits over the callout's edge so the token value keeps its
+   place; it shows on hover and focus, and always on a touch screen. */
+.ui-access-settings__dismiss {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-end: calc(var(--space-1) * -1);
+  min-inline-size: var(--target-fine);
+  min-block-size: var(--target-fine);
+  padding: var(--space-0);
+  border: var(--border-none);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: inherit;
+  font: var(--type-dismiss);
+  font-family: system-ui, sans-serif;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-50%);
+}
+.ui-access-settings__callout {
+  position: relative;
+}
+.ui-access-settings__callout [data-short="true"] {
+  position: absolute;
+  visibility: hidden;
+  inline-size: 0;
+  block-size: 0;
+  margin: 0;
+  overflow: hidden;
+}
+/* Paper's phone callout reads as one line, "New token shown once: <value>",
+   in a 12px-padded box. */
+@media (max-width: 743px) {
+  .ui-access-settings__callout {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    column-gap: var(--space-1);
+    row-gap: var(--space-0);
+    padding: var(--space-3);
+  }
+  .ui-access-settings__callout:has([data-short="true"]) [data-short="false"] {
+    position: absolute;
+    visibility: hidden;
+    inline-size: 0;
+    block-size: 0;
+    margin: 0;
+    overflow: hidden;
+  }
+  .ui-access-settings__callout [data-short="true"] {
+    position: static;
+    visibility: visible;
+    inline-size: auto;
+    block-size: auto;
+    overflow: visible;
+  }
+}
+.ui-access-settings__callout:hover .ui-access-settings__dismiss,
+.ui-access-settings__dismiss:focus-visible {
+  opacity: 1;
+}
+@media (pointer: coarse) {
+  .ui-access-settings__dismiss {
+    opacity: 1;
+  }
+  /* Always shown on a touch screen, so the value must not run under it. */
+  .ui-access-settings__callout:has(.ui-access-settings__dismiss) {
+    padding-inline-end: calc(var(--target-coarse) + var(--space-1));
+  }
+}
+
+/* A coarse pointer needs 44px targets; the buttons grow around their text and
+   pull their margins in, so the rows keep their rhythm. */
+@media (pointer: coarse) {
+  .ui-access-settings .ui-button--primary,
+  .ui-access-settings__panel .ui-button {
+    min-block-size: var(--target-coarse);
+  }
+  .ui-access-settings__action .ui-button,
+  .ui-access-settings__section-actions .ui-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: var(--target-coarse);
+    min-inline-size: var(--target-coarse);
+    margin-block: calc((var(--space-5) - var(--target-coarse)) / 2);
+  }
+  .ui-access-settings__dismiss {
+    min-inline-size: var(--target-coarse);
+    min-block-size: var(--target-coarse);
+  }
+}

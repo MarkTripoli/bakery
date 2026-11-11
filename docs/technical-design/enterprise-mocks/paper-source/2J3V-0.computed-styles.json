@@ -1,0 +1,16 @@
+{
+  "styles": {
+    "2J3V-0": {
+      "display": "flex",
+      "overflow": "clip",
+      "width": "390px",
+      "height": "844px",
+      "flexDirection": "column",
+      "fontFamily": "var(--font-sans)",
+      "left": "7600px",
+      "top": "0px",
+      "position": "absolute",
+      "backgroundColor": "var(--color-surface)"
+    }
+  }
+}

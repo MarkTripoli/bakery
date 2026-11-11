@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="railway-qa-dispatcher-recovery" project="bakery">
+  <title>A crash-looping dispatcher stalls the outbox: read its logs, fix the cause, then redeploy it</title>
+  <trigger>deploy-qa fails DISPATCHER_RESTARTING, DISPATCHER_NOT_ALIVE or DISPATCHER_LOGS_UNAVAILABLE; the dispatcher deployment shows CRASHED or repeated restart markers in its logs; or outbox events pile up and never reach Inngest.</trigger>
+  <mistake>Redeployed the dispatcher without reading why it exited, or waited for a permanent CRASHED status that never comes.</mistake>
+  <rule>Without the dispatcher, outbox events never reach Inngest, so event-driven work (turns, runs) stalls. Its restart policy is ALWAYS, so a long crash loop appears as repeated restarts in the logs, not as a permanent CRASHED state. Recover: (1) railway logs -s dispatcher --json --lines 200. (2) Match the error to a cause: INNGEST_URL_INVALID (BAKERY_INNGEST_PRIVATE_HOST_SUFFIX unset, the URL host is not under .railway.internal, or the URL has a path or query); BAKERY_APP_DATABASE_ROLE_UNSAFE (the bakery_app role or a pending drain, see railway-qa-migration-drain); the api never became ready (BAKERY_WAIT_FOR_READY waits up to 600 s for the api /health/ready); Inngest is down. (3) Fix the cause, then railway redeploy -s dispatcher --yes and wait for SUCCESS. Two dispatchers overlapping during a deploy are safe because both use leases.</rule>
+  <rule>The deploy guard reads current behaviour only. On a skip it re-reads the last two minutes of the current dispatcher deployment's logs and fails DISPATCHER_RESTARTING if they show restarts, DISPATCHER_LOGS_UNAVAILABLE if they cannot be read, and DISPATCHER_NOT_ALIVE if the deployment is no longer SUCCESS or the list is unreadable. A dispatcher that restarted earlier but logged no restart in the last two minutes, or one in a slow crash loop, passes.</rule>
+  <verification>
+    <command>railway logs -s dispatcher --json --lines 200</command>
+    <command>railway deployment list -s dispatcher --json</command>
+    <requirement>Record the error code found, the fix, the new dispatcher deployment at SUCCESS, and that no restart marker appears in its logs for at least two minutes. Confirm queued outbox work then reaches Inngest.</requirement>
+  </verification>
+  <boundary>Redeploying does not fix a configuration or database-role cause. Read the log first; never print railway variable list output without jq keys or has().</boundary>
+</learning>

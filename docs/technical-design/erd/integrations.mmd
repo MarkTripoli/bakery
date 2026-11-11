@@ -1,0 +1,170 @@
+erDiagram
+  direction LR
+  principals {
+    uuid id PK
+  }
+  organizations {
+    uuid id PK
+  }
+  inbound_events {
+    uuid id PK
+    uuid provider_id FK
+    text provider_registration_id
+    text external_delivery_id
+    text payload_digest
+    text event_kind
+    jsonb normalized_projection "nullable"
+    enum status
+    text rejection_reason "nullable"
+    timestamp received_at
+  }
+  integration_providers ||..o{ inbound_events : "provider_id"
+  integration_providers {
+    uuid id PK
+    text slug
+    text name
+    boolean native
+    text adapter_version
+    text manifest_digest
+    jsonb auth_modes
+    jsonb resource_kinds
+    jsonb config_schema
+    jsonb action_schemas
+    jsonb event_schemas
+  }
+  integration_connections {
+    uuid id PK
+    uuid organization_id FK
+    uuid provider_id FK
+    uuid installation_id FK
+    text provider_registration_id
+    text external_authorization_id
+    text external_account_id
+    text label
+    jsonb config
+    int config_schema_version
+    text adapter_version
+    uuid secret_id FK "nullable"
+    jsonb granted_permissions
+    int authorization_revision
+    enum status
+    enum health
+    timestamp last_checked_at "nullable"
+    timestamp last_success_at "nullable"
+    timestamp next_allowed_at "nullable"
+    text last_problem_code "nullable"
+    timestamp archived_at "nullable"
+  }
+  organizations ||..o{ integration_connections : "organization_id"
+  integration_providers ||..o{ integration_connections : "provider_id"
+  integration_installations ||..o{ integration_connections : "installation_id"
+  secrets |o..o{ integration_connections : "secret_id"
+  external_identity_links {
+    uuid id PK
+    uuid organization_id FK
+    uuid principal_id FK
+    uuid provider_id FK
+    text provider_registration_id
+    text identity_scope
+    text external_user_id
+    enum verification_method
+    timestamp verified_at
+    enum status
+    timestamp revoked_at "nullable"
+  }
+  organizations ||..o{ external_identity_links : "organization_id"
+  principals ||..o{ external_identity_links : "principal_id"
+  integration_providers ||..o{ external_identity_links : "provider_id"
+  integration_event_subscriptions {
+    uuid id PK
+    uuid organization_id FK
+    uuid integration_connection_id FK
+    uuid[] source_resource_ids
+    text[] event_types
+    text projection_id
+    uuid destination_resource_id FK
+    text action_id
+    int action_version
+    uuid sender_principal_id FK
+    boolean enabled
+    int policy_revision
+    enum last_delivery_status
+    timestamp archived_at "nullable"
+  }
+  organizations ||..o{ integration_event_subscriptions : "organization_id"
+  integration_connections ||..o{ integration_event_subscriptions : "integration_connection_id"
+  integration_resources ||..o{ integration_event_subscriptions : "destination_resource_id"
+  principals ||..o{ integration_event_subscriptions : "sender_principal_id"
+  inbound_event_routes {
+    uuid id PK
+    uuid organization_id FK
+    uuid inbound_event_id FK
+    uuid integration_connection_id FK
+    uuid integration_resource_id FK "nullable"
+    text purpose
+    enum status
+    text failure_code "nullable"
+  }
+  organizations ||..o{ inbound_event_routes : "organization_id"
+  inbound_events ||..o{ inbound_event_routes : "inbound_event_id"
+  integration_connections ||..o{ inbound_event_routes : "integration_connection_id"
+  integration_resources |o..o{ inbound_event_routes : "integration_resource_id"
+  integration_resources {
+    uuid id PK
+    uuid organization_id FK
+    uuid connection_id FK
+    uuid installation_id FK
+    text external_id
+    enum kind
+    text display_name
+    text safe_url "nullable"
+    boolean selected
+    boolean available
+    boolean enabled
+    jsonb capability_snapshot
+    int last_discovery_generation
+    uuid secret_id FK "nullable"
+    timestamp archived_at "nullable"
+  }
+  organizations ||..o{ integration_resources : "organization_id"
+  integration_connections ||..o{ integration_resources : "connection_id"
+  integration_installations ||..o{ integration_resources : "installation_id"
+  secrets |o..o{ integration_resources : "secret_id"
+  integration_auth_attempts {
+    uuid id PK
+    uuid organization_id FK
+    uuid initiating_principal_id FK
+    text session_id
+    uuid provider_id FK
+    uuid reconnect_connection_id FK "nullable"
+    text state_hash
+    uuid pkce_verifier_secret_id FK "nullable"
+    timestamp expires_at
+    enum status
+    uuid result_connection_id FK "nullable"
+    text failure_code "nullable"
+    timestamp consumed_at "nullable"
+  }
+  organizations ||..o{ integration_auth_attempts : "organization_id"
+  principals ||..o{ integration_auth_attempts : "initiating_principal_id"
+  integration_providers ||..o{ integration_auth_attempts : "provider_id"
+  integration_connections |o..o{ integration_auth_attempts : "reconnect_connection_id"
+  secrets |o..o{ integration_auth_attempts : "pkce_verifier_secret_id"
+  integration_connections |o..o{ integration_auth_attempts : "result_connection_id"
+  integration_installations {
+    uuid id PK
+    uuid provider_id FK
+    text provider_registration_id
+    text external_authorization_id
+    text external_account_id
+    uuid credential_secret_id FK "nullable"
+    jsonb granted_permissions
+    int authorization_revision
+    enum status
+    timestamp last_checked_at "nullable"
+  }
+  integration_providers ||..o{ integration_installations : "provider_id"
+  secrets |o..o{ integration_installations : "credential_secret_id"
+  secrets {
+    uuid id PK
+  }

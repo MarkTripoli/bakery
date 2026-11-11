@@ -1,0 +1,8 @@
+{
+  "effects": [
+    {
+      "type": "reply",
+      "body": "I read the task. The repository needs a readiness check before the first task can be queued."
+    }
+  ]
+}

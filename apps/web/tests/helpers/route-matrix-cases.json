@@ -1,0 +1,1206 @@
+[
+  {
+    "id": "tasks",
+    "path": "/tasks"
+  },
+  {
+    "id": "task-new",
+    "path": "/tasks/new"
+  },
+  {
+    "id": "e05-task-run",
+    "path": "/tasks/$taskId"
+  },
+  {
+    "id": "task-coordination",
+    "path": "/tasks/$taskId/coordination"
+  },
+  {
+    "id": "machines",
+    "path": "/machines"
+  },
+  {
+    "id": "machine-detail",
+    "path": "/machines/$machineId"
+  },
+  {
+    "id": "status",
+    "path": "/"
+  },
+  {
+    "id": "settings-index",
+    "path": "/settings"
+  },
+  {
+    "id": "profile",
+    "path": "/settings/profile"
+  },
+  {
+    "id": "appearance",
+    "path": "/settings/appearance"
+  },
+  {
+    "id": "access",
+    "path": "/settings/access"
+  },
+  {
+    "id": "setup",
+    "path": "/setup"
+  },
+  {
+    "id": "projects-onboarding",
+    "path": "/projects/onboarding"
+  },
+  {
+    "id": "sign-in",
+    "path": "/sign-in"
+  },
+  {
+    "id": "totp-challenge",
+    "path": "/sign-in/two-factor"
+  },
+  {
+    "id": "backup-challenge",
+    "path": "/sign-in/recovery-code"
+  },
+  {
+    "id": "signout",
+    "path": "/sign-out"
+  },
+  {
+    "id": "register",
+    "path": "/register"
+  },
+  {
+    "id": "invitation",
+    "path": "/invitations/$invitationId"
+  },
+  {
+    "id": "organizations",
+    "path": "/organizations"
+  },
+  {
+    "id": "installation-settings",
+    "path": "/installation/settings"
+  },
+  {
+    "id": "installation-license",
+    "path": "/installation/license"
+  },
+  {
+    "id": "installation-audit",
+    "path": "/installation/audit"
+  },
+  {
+    "id": "installation-integrations",
+    "path": "/settings/installation/integrations"
+  },
+  {
+    "id": "settings-organization-access",
+    "path": "/settings/organization/access"
+  },
+  {
+    "id": "settings-organization-roles",
+    "path": "/settings/organization/roles"
+  },
+  {
+    "id": "settings-organization-integrations",
+    "path": "/settings/organization/integrations"
+  },
+  {
+    "id": "settings-audit",
+    "path": "/settings/audit"
+  },
+  {
+    "id": "settings-scim",
+    "path": "/settings/scim"
+  },
+  {
+    "id": "organization-settings",
+    "path": "/organization/settings"
+  },
+  {
+    "id": "artifact-retrieval",
+    "path": "/tasks/$taskId/artifacts/$artifactId"
+  },
+  {
+    "id": "security",
+    "path": "/settings/security"
+  },
+  {
+    "id": "password",
+    "path": "/settings/security/password"
+  },
+  {
+    "id": "passkeys",
+    "path": "/settings/security/passkeys"
+  },
+  {
+    "id": "passkey-add",
+    "path": "/settings/security/passkeys/new"
+  },
+  {
+    "id": "reauth",
+    "path": "/account/reauthenticate"
+  },
+  {
+    "id": "clients",
+    "path": "/settings/clients"
+  },
+  {
+    "id": "revoke-client",
+    "path": "/settings/clients/revoke"
+  },
+  {
+    "id": "consent",
+    "path": "/oauth/consent"
+  },
+  {
+    "id": "sessions",
+    "path": "/settings/sessions"
+  },
+  {
+    "id": "revoke",
+    "path": "/settings/sessions/revoke"
+  },
+  {
+    "id": "two-factor",
+    "path": "/settings/security/two-factor"
+  },
+  {
+    "id": "totp-setup",
+    "path": "/settings/security/two-factor/setup"
+  },
+  {
+    "id": "backup-codes",
+    "path": "/settings/security/two-factor/backup-codes"
+  },
+  {
+    "id": "totp-disable",
+    "path": "/settings/security/two-factor/disable"
+  },
+  {
+    "id": "fixture-machines:default",
+    "path": "/__fixtures__/machines/default"
+  },
+  {
+    "id": "fixture-machines:ready",
+    "path": "/__fixtures__/machines/ready"
+  },
+  {
+    "id": "fixture-machines:loading",
+    "path": "/__fixtures__/machines/loading"
+  },
+  {
+    "id": "fixture-machines:empty",
+    "path": "/__fixtures__/machines/empty"
+  },
+  {
+    "id": "fixture-machines:error",
+    "path": "/__fixtures__/machines/error"
+  },
+  {
+    "id": "fixture-machines:forbidden",
+    "path": "/__fixtures__/machines/forbidden"
+  },
+  {
+    "id": "fixture-machines:stale",
+    "path": "/__fixtures__/machines/stale"
+  },
+  {
+    "id": "fixture-machines:offline",
+    "path": "/__fixtures__/machines/offline"
+  },
+  {
+    "id": "fixture-machines:reconnecting",
+    "path": "/__fixtures__/machines/reconnecting"
+  },
+  {
+    "id": "fixture-machines:expired",
+    "path": "/__fixtures__/machines/expired"
+  },
+  {
+    "id": "fixture-machines:revoked",
+    "path": "/__fixtures__/machines/revoked"
+  },
+  {
+    "id": "fixture-machines:unavailable",
+    "path": "/__fixtures__/machines/unavailable"
+  },
+  {
+    "id": "fixture-machines:accepted",
+    "path": "/__fixtures__/machines/accepted"
+  },
+  {
+    "id": "fixture-machines:complete",
+    "path": "/__fixtures__/machines/complete"
+  },
+  {
+    "id": "fixture-machines-detail",
+    "path": "/__fixtures__/machines/detail"
+  },
+  {
+    "id": "fixture-api-boundary",
+    "path": "/__fixtures__/api-boundary"
+  },
+  {
+    "id": "fixture-organization-sso",
+    "path": "/__fixtures__/organization/sso"
+  },
+  {
+    "id": "fixture-organization-access",
+    "path": "/__fixtures__/organization/access"
+  },
+  {
+    "id": "fixture-installation-settings",
+    "path": "/__fixtures__/installation/settings"
+  },
+  {
+    "id": "fixture-shell-state:loading",
+    "path": "/__fixtures__/shell/loading"
+  },
+  {
+    "id": "fixture-shell-state:empty",
+    "path": "/__fixtures__/shell/empty"
+  },
+  {
+    "id": "fixture-shell-state:error",
+    "path": "/__fixtures__/shell/error"
+  },
+  {
+    "id": "fixture-shell-state:forbidden",
+    "path": "/__fixtures__/shell/forbidden"
+  },
+  {
+    "id": "fixture-shell-state:conflict",
+    "path": "/__fixtures__/shell/conflict"
+  },
+  {
+    "id": "fixture-shell-state:stale",
+    "path": "/__fixtures__/shell/stale"
+  },
+  {
+    "id": "fixture-shell-state:offline",
+    "path": "/__fixtures__/shell/offline"
+  },
+  {
+    "id": "fixture-shell-state:reconnecting",
+    "path": "/__fixtures__/shell/reconnecting"
+  },
+  {
+    "id": "fixture-shell-state:busy",
+    "path": "/__fixtures__/shell/busy"
+  },
+  {
+    "id": "fixture-shell-state:long-copy",
+    "path": "/__fixtures__/shell/long-copy"
+  },
+  {
+    "id": "fixture-auth:setup-default",
+    "path": "/__fixtures__/auth/setup-default"
+  },
+  {
+    "id": "fixture-auth:setup-ready",
+    "path": "/__fixtures__/auth/setup-ready"
+  },
+  {
+    "id": "fixture-auth:login-github-disabled",
+    "path": "/__fixtures__/auth/login-github-disabled"
+  },
+  {
+    "id": "fixture-auth:login-invalid",
+    "path": "/__fixtures__/auth/login-invalid"
+  },
+  {
+    "id": "fixture-auth:login-loading",
+    "path": "/__fixtures__/auth/login-loading"
+  },
+  {
+    "id": "fixture-auth:login-offline",
+    "path": "/__fixtures__/auth/login-offline"
+  },
+  {
+    "id": "fixture-auth:login-unavailable",
+    "path": "/__fixtures__/auth/login-unavailable"
+  },
+  {
+    "id": "fixture-auth:login-throttled",
+    "path": "/__fixtures__/auth/login-throttled"
+  },
+  {
+    "id": "fixture-auth:expired-default",
+    "path": "/__fixtures__/auth/expired-default"
+  },
+  {
+    "id": "fixture-auth:join-default",
+    "path": "/__fixtures__/auth/join-default"
+  },
+  {
+    "id": "fixture-auth:register-default",
+    "path": "/__fixtures__/auth/register-default"
+  },
+  {
+    "id": "fixture-auth:register-invalid",
+    "path": "/__fixtures__/auth/register-invalid"
+  },
+  {
+    "id": "fixture-auth:register-existing",
+    "path": "/__fixtures__/auth/register-existing"
+  },
+  {
+    "id": "fixture-auth:register-loading",
+    "path": "/__fixtures__/auth/register-loading"
+  },
+  {
+    "id": "fixture-auth:invite-default",
+    "path": "/__fixtures__/auth/invite-default"
+  },
+  {
+    "id": "fixture-auth:invite-authenticated",
+    "path": "/__fixtures__/auth/invite-authenticated"
+  },
+  {
+    "id": "fixture-auth:invite-wrong-account",
+    "path": "/__fixtures__/auth/invite-wrong-account"
+  },
+  {
+    "id": "fixture-auth:invite-accepted",
+    "path": "/__fixtures__/auth/invite-accepted"
+  },
+  {
+    "id": "fixture-auth:invite-declined",
+    "path": "/__fixtures__/auth/invite-declined"
+  },
+  {
+    "id": "fixture-auth:invite-revoked",
+    "path": "/__fixtures__/auth/invite-revoked"
+  },
+  {
+    "id": "fixture-auth:invite-login-default",
+    "path": "/__fixtures__/auth/invite-login-default"
+  },
+  {
+    "id": "fixture-auth:invite-login-invalid",
+    "path": "/__fixtures__/auth/invite-login-invalid"
+  },
+  {
+    "id": "fixture-auth:invite-login-loading",
+    "path": "/__fixtures__/auth/invite-login-loading"
+  },
+  {
+    "id": "fixture-auth:organizations-default",
+    "path": "/__fixtures__/auth/organizations-default"
+  },
+  {
+    "id": "fixture-auth:organizations-empty",
+    "path": "/__fixtures__/auth/organizations-empty"
+  },
+  {
+    "id": "fixture-auth:organizations-removed",
+    "path": "/__fixtures__/auth/organizations-removed"
+  },
+  {
+    "id": "fixture-auth:profile-default",
+    "path": "/__fixtures__/auth/profile-default"
+  },
+  {
+    "id": "fixture-auth:profile-loading",
+    "path": "/__fixtures__/auth/profile-loading"
+  },
+  {
+    "id": "fixture-auth:profile-empty",
+    "path": "/__fixtures__/auth/profile-empty"
+  },
+  {
+    "id": "fixture-auth:profile-error",
+    "path": "/__fixtures__/auth/profile-error"
+  },
+  {
+    "id": "fixture-auth:profile-forbidden",
+    "path": "/__fixtures__/auth/profile-forbidden"
+  },
+  {
+    "id": "fixture-auth:profile-conflict",
+    "path": "/__fixtures__/auth/profile-conflict"
+  },
+  {
+    "id": "fixture-auth:profile-stale",
+    "path": "/__fixtures__/auth/profile-stale"
+  },
+  {
+    "id": "fixture-auth:profile-offline",
+    "path": "/__fixtures__/auth/profile-offline"
+  },
+  {
+    "id": "fixture-auth:profile-reconnecting",
+    "path": "/__fixtures__/auth/profile-reconnecting"
+  },
+  {
+    "id": "fixture-auth:profile-long-copy",
+    "path": "/__fixtures__/auth/profile-long-copy"
+  },
+  {
+    "id": "fixture-auth:appearance-default",
+    "path": "/__fixtures__/auth/appearance-default"
+  },
+  {
+    "id": "fixture-auth:appearance-loading",
+    "path": "/__fixtures__/auth/appearance-loading"
+  },
+  {
+    "id": "fixture-auth:appearance-empty",
+    "path": "/__fixtures__/auth/appearance-empty"
+  },
+  {
+    "id": "fixture-auth:appearance-error",
+    "path": "/__fixtures__/auth/appearance-error"
+  },
+  {
+    "id": "fixture-auth:appearance-forbidden",
+    "path": "/__fixtures__/auth/appearance-forbidden"
+  },
+  {
+    "id": "fixture-auth:appearance-conflict",
+    "path": "/__fixtures__/auth/appearance-conflict"
+  },
+  {
+    "id": "fixture-auth:appearance-stale",
+    "path": "/__fixtures__/auth/appearance-stale"
+  },
+  {
+    "id": "fixture-auth:appearance-offline",
+    "path": "/__fixtures__/auth/appearance-offline"
+  },
+  {
+    "id": "fixture-auth:appearance-reconnecting",
+    "path": "/__fixtures__/auth/appearance-reconnecting"
+  },
+  {
+    "id": "fixture-auth:appearance-long-copy",
+    "path": "/__fixtures__/auth/appearance-long-copy"
+  },
+  {
+    "id": "fixture-auth:your-access-default",
+    "path": "/__fixtures__/auth/your-access-default"
+  },
+  {
+    "id": "fixture-auth:your-access-loading",
+    "path": "/__fixtures__/auth/your-access-loading"
+  },
+  {
+    "id": "fixture-auth:your-access-empty",
+    "path": "/__fixtures__/auth/your-access-empty"
+  },
+  {
+    "id": "fixture-auth:your-access-error",
+    "path": "/__fixtures__/auth/your-access-error"
+  },
+  {
+    "id": "fixture-auth:your-access-forbidden",
+    "path": "/__fixtures__/auth/your-access-forbidden"
+  },
+  {
+    "id": "fixture-auth:your-access-stale",
+    "path": "/__fixtures__/auth/your-access-stale"
+  },
+  {
+    "id": "fixture-auth:your-access-offline",
+    "path": "/__fixtures__/auth/your-access-offline"
+  },
+  {
+    "id": "fixture-auth:your-access-reconnecting",
+    "path": "/__fixtures__/auth/your-access-reconnecting"
+  },
+  {
+    "id": "fixture-auth:your-access-no-access",
+    "path": "/__fixtures__/auth/your-access-no-access"
+  },
+  {
+    "id": "fixture-auth:section-index-default",
+    "path": "/__fixtures__/auth/section-index-default"
+  },
+  {
+    "id": "fixture-auth:security-default",
+    "path": "/__fixtures__/auth/security-default"
+  },
+  {
+    "id": "fixture-auth:security-saved",
+    "path": "/__fixtures__/auth/security-saved"
+  },
+  {
+    "id": "fixture-auth:security-protected",
+    "path": "/__fixtures__/auth/security-protected"
+  },
+  {
+    "id": "fixture-auth:sessions-default",
+    "path": "/__fixtures__/auth/sessions-default"
+  },
+  {
+    "id": "fixture-auth:sessions-revoked",
+    "path": "/__fixtures__/auth/sessions-revoked"
+  },
+  {
+    "id": "fixture-auth:sessions-empty",
+    "path": "/__fixtures__/auth/sessions-empty"
+  },
+  {
+    "id": "fixture-auth:revoke-default",
+    "path": "/__fixtures__/auth/revoke-default"
+  },
+  {
+    "id": "fixture-auth:revoke-success",
+    "path": "/__fixtures__/auth/revoke-success"
+  },
+  {
+    "id": "fixture-auth:revoke-failed",
+    "path": "/__fixtures__/auth/revoke-failed"
+  },
+  {
+    "id": "fixture-auth:revoke-client-default",
+    "path": "/__fixtures__/auth/revoke-client-default"
+  },
+  {
+    "id": "fixture-auth:revoke-client-failed",
+    "path": "/__fixtures__/auth/revoke-client-failed"
+  },
+  {
+    "id": "fixture-auth:revoke-client-long-copy",
+    "path": "/__fixtures__/auth/revoke-client-long-copy"
+  },
+  {
+    "id": "fixture-auth:revoke-client-loading",
+    "path": "/__fixtures__/auth/revoke-client-loading"
+  },
+  {
+    "id": "fixture-auth:revoke-client-empty",
+    "path": "/__fixtures__/auth/revoke-client-empty"
+  },
+  {
+    "id": "fixture-auth:revoke-client-error",
+    "path": "/__fixtures__/auth/revoke-client-error"
+  },
+  {
+    "id": "fixture-auth:revoke-client-forbidden",
+    "path": "/__fixtures__/auth/revoke-client-forbidden"
+  },
+  {
+    "id": "fixture-auth:revoke-client-conflict",
+    "path": "/__fixtures__/auth/revoke-client-conflict"
+  },
+  {
+    "id": "fixture-auth:revoke-client-stale",
+    "path": "/__fixtures__/auth/revoke-client-stale"
+  },
+  {
+    "id": "fixture-auth:revoke-client-offline",
+    "path": "/__fixtures__/auth/revoke-client-offline"
+  },
+  {
+    "id": "fixture-auth:revoke-client-reconnecting",
+    "path": "/__fixtures__/auth/revoke-client-reconnecting"
+  },
+  {
+    "id": "fixture-auth:clients-default",
+    "path": "/__fixtures__/auth/clients-default"
+  },
+  {
+    "id": "fixture-auth:clients-revoked",
+    "path": "/__fixtures__/auth/clients-revoked"
+  },
+  {
+    "id": "fixture-auth:clients-empty",
+    "path": "/__fixtures__/auth/clients-empty"
+  },
+  {
+    "id": "fixture-auth:clients-long-copy",
+    "path": "/__fixtures__/auth/clients-long-copy"
+  },
+  {
+    "id": "fixture-auth:clients-loading",
+    "path": "/__fixtures__/auth/clients-loading"
+  },
+  {
+    "id": "fixture-auth:clients-error",
+    "path": "/__fixtures__/auth/clients-error"
+  },
+  {
+    "id": "fixture-auth:clients-forbidden",
+    "path": "/__fixtures__/auth/clients-forbidden"
+  },
+  {
+    "id": "fixture-auth:clients-conflict",
+    "path": "/__fixtures__/auth/clients-conflict"
+  },
+  {
+    "id": "fixture-auth:clients-stale",
+    "path": "/__fixtures__/auth/clients-stale"
+  },
+  {
+    "id": "fixture-auth:clients-offline",
+    "path": "/__fixtures__/auth/clients-offline"
+  },
+  {
+    "id": "fixture-auth:clients-reconnecting",
+    "path": "/__fixtures__/auth/clients-reconnecting"
+  },
+  {
+    "id": "fixture-auth:consent-default",
+    "path": "/__fixtures__/auth/consent-default"
+  },
+  {
+    "id": "fixture-auth:consent-denied",
+    "path": "/__fixtures__/auth/consent-denied"
+  },
+  {
+    "id": "fixture-auth:consent-success",
+    "path": "/__fixtures__/auth/consent-success"
+  },
+  {
+    "id": "fixture-auth:consent-expired",
+    "path": "/__fixtures__/auth/consent-expired"
+  },
+  {
+    "id": "fixture-auth:consent-failed",
+    "path": "/__fixtures__/auth/consent-failed"
+  },
+  {
+    "id": "fixture-auth:consent-long-copy",
+    "path": "/__fixtures__/auth/consent-long-copy"
+  },
+  {
+    "id": "fixture-auth:consent-loading",
+    "path": "/__fixtures__/auth/consent-loading"
+  },
+  {
+    "id": "fixture-auth:consent-error",
+    "path": "/__fixtures__/auth/consent-error"
+  },
+  {
+    "id": "fixture-auth:consent-forbidden",
+    "path": "/__fixtures__/auth/consent-forbidden"
+  },
+  {
+    "id": "fixture-auth:consent-offline",
+    "path": "/__fixtures__/auth/consent-offline"
+  },
+  {
+    "id": "fixture-auth:consent-reconnecting",
+    "path": "/__fixtures__/auth/consent-reconnecting"
+  },
+  {
+    "id": "fixture-auth:totp-challenge-default",
+    "path": "/__fixtures__/auth/totp-challenge-default"
+  },
+  {
+    "id": "fixture-auth:totp-challenge-invalid",
+    "path": "/__fixtures__/auth/totp-challenge-invalid"
+  },
+  {
+    "id": "fixture-auth:totp-challenge-loading",
+    "path": "/__fixtures__/auth/totp-challenge-loading"
+  },
+  {
+    "id": "fixture-auth:totp-challenge-rate-limited",
+    "path": "/__fixtures__/auth/totp-challenge-rate-limited"
+  },
+  {
+    "id": "fixture-auth:totp-challenge-expired",
+    "path": "/__fixtures__/auth/totp-challenge-expired"
+  },
+  {
+    "id": "fixture-auth:two-factor-default",
+    "path": "/__fixtures__/auth/two-factor-default"
+  },
+  {
+    "id": "fixture-auth:two-factor-enabled",
+    "path": "/__fixtures__/auth/two-factor-enabled"
+  },
+  {
+    "id": "fixture-auth:two-factor-no-codes",
+    "path": "/__fixtures__/auth/two-factor-no-codes"
+  },
+  {
+    "id": "fixture-auth:totp-setup-default",
+    "path": "/__fixtures__/auth/totp-setup-default"
+  },
+  {
+    "id": "fixture-auth:totp-setup-scan",
+    "path": "/__fixtures__/auth/totp-setup-scan"
+  },
+  {
+    "id": "fixture-auth:totp-setup-invalid",
+    "path": "/__fixtures__/auth/totp-setup-invalid"
+  },
+  {
+    "id": "fixture-auth:totp-setup-expired",
+    "path": "/__fixtures__/auth/totp-setup-expired"
+  },
+  {
+    "id": "fixture-auth:totp-setup-loading",
+    "path": "/__fixtures__/auth/totp-setup-loading"
+  },
+  {
+    "id": "fixture-auth:backup-codes-default",
+    "path": "/__fixtures__/auth/backup-codes-default"
+  },
+  {
+    "id": "fixture-auth:backup-codes-copied",
+    "path": "/__fixtures__/auth/backup-codes-copied"
+  },
+  {
+    "id": "fixture-auth:backup-codes-regenerate",
+    "path": "/__fixtures__/auth/backup-codes-regenerate"
+  },
+  {
+    "id": "fixture-auth:backup-codes-invalid",
+    "path": "/__fixtures__/auth/backup-codes-invalid"
+  },
+  {
+    "id": "fixture-auth:backup-codes-regenerated",
+    "path": "/__fixtures__/auth/backup-codes-regenerated"
+  },
+  {
+    "id": "fixture-auth:totp-disable-default",
+    "path": "/__fixtures__/auth/totp-disable-default"
+  },
+  {
+    "id": "fixture-auth:totp-disable-invalid",
+    "path": "/__fixtures__/auth/totp-disable-invalid"
+  },
+  {
+    "id": "fixture-auth:totp-disable-disabled",
+    "path": "/__fixtures__/auth/totp-disable-disabled"
+  },
+  {
+    "id": "fixture-auth:backup-challenge-default",
+    "path": "/__fixtures__/auth/backup-challenge-default"
+  },
+  {
+    "id": "fixture-auth:backup-challenge-invalid",
+    "path": "/__fixtures__/auth/backup-challenge-invalid"
+  },
+  {
+    "id": "fixture-auth:backup-challenge-loading",
+    "path": "/__fixtures__/auth/backup-challenge-loading"
+  },
+  {
+    "id": "fixture-auth:backup-challenge-no-access",
+    "path": "/__fixtures__/auth/backup-challenge-no-access"
+  },
+  {
+    "id": "fixture-auth:signout-default",
+    "path": "/__fixtures__/auth/signout-default"
+  },
+  {
+    "id": "fixture-auth:signout-success",
+    "path": "/__fixtures__/auth/signout-success"
+  },
+  {
+    "id": "fixture-auth:security-hub-default",
+    "path": "/__fixtures__/auth/security-hub-default"
+  },
+  {
+    "id": "fixture-auth:security-hub-saved",
+    "path": "/__fixtures__/auth/security-hub-saved"
+  },
+  {
+    "id": "fixture-auth:security-hub-protected",
+    "path": "/__fixtures__/auth/security-hub-protected"
+  },
+  {
+    "id": "fixture-auth:security-hub-loading",
+    "path": "/__fixtures__/auth/security-hub-loading"
+  },
+  {
+    "id": "fixture-auth:security-hub-empty",
+    "path": "/__fixtures__/auth/security-hub-empty"
+  },
+  {
+    "id": "fixture-auth:security-hub-error",
+    "path": "/__fixtures__/auth/security-hub-error"
+  },
+  {
+    "id": "fixture-auth:security-hub-forbidden",
+    "path": "/__fixtures__/auth/security-hub-forbidden"
+  },
+  {
+    "id": "fixture-auth:security-hub-conflict",
+    "path": "/__fixtures__/auth/security-hub-conflict"
+  },
+  {
+    "id": "fixture-auth:security-hub-stale",
+    "path": "/__fixtures__/auth/security-hub-stale"
+  },
+  {
+    "id": "fixture-auth:security-hub-offline",
+    "path": "/__fixtures__/auth/security-hub-offline"
+  },
+  {
+    "id": "fixture-auth:security-hub-reconnecting",
+    "path": "/__fixtures__/auth/security-hub-reconnecting"
+  },
+  {
+    "id": "fixture-auth:security-hub-long-copy",
+    "path": "/__fixtures__/auth/security-hub-long-copy"
+  },
+  {
+    "id": "fixture-auth:password-default",
+    "path": "/__fixtures__/auth/password-default"
+  },
+  {
+    "id": "fixture-auth:password-invalid",
+    "path": "/__fixtures__/auth/password-invalid"
+  },
+  {
+    "id": "fixture-auth:password-success",
+    "path": "/__fixtures__/auth/password-success"
+  },
+  {
+    "id": "fixture-auth:password-loading",
+    "path": "/__fixtures__/auth/password-loading"
+  },
+  {
+    "id": "fixture-auth:password-skeleton",
+    "path": "/__fixtures__/auth/password-skeleton"
+  },
+  {
+    "id": "fixture-auth:password-empty",
+    "path": "/__fixtures__/auth/password-empty"
+  },
+  {
+    "id": "fixture-auth:password-error",
+    "path": "/__fixtures__/auth/password-error"
+  },
+  {
+    "id": "fixture-auth:password-forbidden",
+    "path": "/__fixtures__/auth/password-forbidden"
+  },
+  {
+    "id": "fixture-auth:password-conflict",
+    "path": "/__fixtures__/auth/password-conflict"
+  },
+  {
+    "id": "fixture-auth:password-stale",
+    "path": "/__fixtures__/auth/password-stale"
+  },
+  {
+    "id": "fixture-auth:password-offline",
+    "path": "/__fixtures__/auth/password-offline"
+  },
+  {
+    "id": "fixture-auth:password-reconnecting",
+    "path": "/__fixtures__/auth/password-reconnecting"
+  },
+  {
+    "id": "fixture-auth:password-long-copy",
+    "path": "/__fixtures__/auth/password-long-copy"
+  },
+  {
+    "id": "fixture-auth:passkeys-default",
+    "path": "/__fixtures__/auth/passkeys-default"
+  },
+  {
+    "id": "fixture-auth:passkeys-enabled",
+    "path": "/__fixtures__/auth/passkeys-enabled"
+  },
+  {
+    "id": "fixture-auth:passkeys-rename",
+    "path": "/__fixtures__/auth/passkeys-rename"
+  },
+  {
+    "id": "fixture-auth:passkeys-remove",
+    "path": "/__fixtures__/auth/passkeys-remove"
+  },
+  {
+    "id": "fixture-auth:passkeys-blocked",
+    "path": "/__fixtures__/auth/passkeys-blocked"
+  },
+  {
+    "id": "fixture-auth:passkeys-failed",
+    "path": "/__fixtures__/auth/passkeys-failed"
+  },
+  {
+    "id": "fixture-auth:passkeys-loading",
+    "path": "/__fixtures__/auth/passkeys-loading"
+  },
+  {
+    "id": "fixture-auth:passkeys-empty",
+    "path": "/__fixtures__/auth/passkeys-empty"
+  },
+  {
+    "id": "fixture-auth:passkeys-error",
+    "path": "/__fixtures__/auth/passkeys-error"
+  },
+  {
+    "id": "fixture-auth:passkeys-forbidden",
+    "path": "/__fixtures__/auth/passkeys-forbidden"
+  },
+  {
+    "id": "fixture-auth:passkeys-conflict",
+    "path": "/__fixtures__/auth/passkeys-conflict"
+  },
+  {
+    "id": "fixture-auth:passkeys-stale",
+    "path": "/__fixtures__/auth/passkeys-stale"
+  },
+  {
+    "id": "fixture-auth:passkeys-offline",
+    "path": "/__fixtures__/auth/passkeys-offline"
+  },
+  {
+    "id": "fixture-auth:passkeys-reconnecting",
+    "path": "/__fixtures__/auth/passkeys-reconnecting"
+  },
+  {
+    "id": "fixture-auth:passkeys-long-copy",
+    "path": "/__fixtures__/auth/passkeys-long-copy"
+  },
+  {
+    "id": "fixture-auth:passkey-add-default",
+    "path": "/__fixtures__/auth/passkey-add-default"
+  },
+  {
+    "id": "fixture-auth:passkey-add-prompt",
+    "path": "/__fixtures__/auth/passkey-add-prompt"
+  },
+  {
+    "id": "fixture-auth:passkey-add-canceled",
+    "path": "/__fixtures__/auth/passkey-add-canceled"
+  },
+  {
+    "id": "fixture-auth:passkey-add-unsupported",
+    "path": "/__fixtures__/auth/passkey-add-unsupported"
+  },
+  {
+    "id": "fixture-auth:passkey-add-failed",
+    "path": "/__fixtures__/auth/passkey-add-failed"
+  },
+  {
+    "id": "fixture-auth:passkey-add-success",
+    "path": "/__fixtures__/auth/passkey-add-success"
+  },
+  {
+    "id": "fixture-auth:passkey-add-loading",
+    "path": "/__fixtures__/auth/passkey-add-loading"
+  },
+  {
+    "id": "fixture-auth:passkey-add-empty",
+    "path": "/__fixtures__/auth/passkey-add-empty"
+  },
+  {
+    "id": "fixture-auth:passkey-add-error",
+    "path": "/__fixtures__/auth/passkey-add-error"
+  },
+  {
+    "id": "fixture-auth:passkey-add-forbidden",
+    "path": "/__fixtures__/auth/passkey-add-forbidden"
+  },
+  {
+    "id": "fixture-auth:passkey-add-conflict",
+    "path": "/__fixtures__/auth/passkey-add-conflict"
+  },
+  {
+    "id": "fixture-auth:passkey-add-stale",
+    "path": "/__fixtures__/auth/passkey-add-stale"
+  },
+  {
+    "id": "fixture-auth:passkey-add-offline",
+    "path": "/__fixtures__/auth/passkey-add-offline"
+  },
+  {
+    "id": "fixture-auth:passkey-add-reconnecting",
+    "path": "/__fixtures__/auth/passkey-add-reconnecting"
+  },
+  {
+    "id": "fixture-auth:passkey-add-long-copy",
+    "path": "/__fixtures__/auth/passkey-add-long-copy"
+  },
+  {
+    "id": "fixture-auth:reauth-default",
+    "path": "/__fixtures__/auth/reauth-default"
+  },
+  {
+    "id": "fixture-auth:reauth-invalid",
+    "path": "/__fixtures__/auth/reauth-invalid"
+  },
+  {
+    "id": "fixture-auth:reauth-loading",
+    "path": "/__fixtures__/auth/reauth-loading"
+  },
+  {
+    "id": "fixture-auth:reauth-skeleton",
+    "path": "/__fixtures__/auth/reauth-skeleton"
+  },
+  {
+    "id": "fixture-auth:reauth-empty",
+    "path": "/__fixtures__/auth/reauth-empty"
+  },
+  {
+    "id": "fixture-auth:reauth-error",
+    "path": "/__fixtures__/auth/reauth-error"
+  },
+  {
+    "id": "fixture-auth:reauth-forbidden",
+    "path": "/__fixtures__/auth/reauth-forbidden"
+  },
+  {
+    "id": "fixture-auth:reauth-conflict",
+    "path": "/__fixtures__/auth/reauth-conflict"
+  },
+  {
+    "id": "fixture-auth:reauth-stale",
+    "path": "/__fixtures__/auth/reauth-stale"
+  },
+  {
+    "id": "fixture-auth:reauth-offline",
+    "path": "/__fixtures__/auth/reauth-offline"
+  },
+  {
+    "id": "fixture-auth:reauth-reconnecting",
+    "path": "/__fixtures__/auth/reauth-reconnecting"
+  },
+  {
+    "id": "fixture-auth:reauth-long-copy",
+    "path": "/__fixtures__/auth/reauth-long-copy"
+  },
+  {
+    "id": "fixture-settings",
+    "path": "/__fixtures__/settings"
+  },
+  {
+    "id": "fixture-settings-profile",
+    "path": "/__fixtures__/settings/profile"
+  },
+  {
+    "id": "fixture-settings-security",
+    "path": "/__fixtures__/settings/security"
+  },
+  {
+    "id": "fixture-settings-security-password",
+    "path": "/__fixtures__/settings/security/password"
+  },
+  {
+    "id": "fixture-settings-security-email",
+    "path": "/__fixtures__/settings/security/email"
+  },
+  {
+    "id": "fixture-settings-sessions",
+    "path": "/__fixtures__/settings/sessions"
+  },
+  {
+    "id": "fixture-settings-clients",
+    "path": "/__fixtures__/settings/clients"
+  },
+  {
+    "id": "fixture-settings-appearance",
+    "path": "/__fixtures__/settings/appearance"
+  },
+  {
+    "id": "fixture-settings-access",
+    "path": "/__fixtures__/settings/access"
+  },
+  {
+    "id": "fixture-organization",
+    "path": "/__fixtures__/organization"
+  },
+  {
+    "id": "fixture-cache-scope",
+    "path": "/__fixtures__/cache-scope"
+  },
+  {
+    "id": "fixture-work-queue",
+    "path": "/__fixtures__/work/queue"
+  },
+  {
+    "id": "fixture-work-session",
+    "path": "/__fixtures__/work/session"
+  },
+  {
+    "id": "fixture-work-conversation:default",
+    "path": "/__fixtures__/work/conversation/default"
+  },
+  {
+    "id": "fixture-work-conversation:plan-review",
+    "path": "/__fixtures__/work/conversation/plan-review"
+  },
+  {
+    "id": "fixture-work-conversation:question",
+    "path": "/__fixtures__/work/conversation/question"
+  },
+  {
+    "id": "fixture-work-conversation:empty",
+    "path": "/__fixtures__/work/conversation/empty"
+  },
+  {
+    "id": "fixture-work-conversation:conflict",
+    "path": "/__fixtures__/work/conversation/conflict"
+  },
+  {
+    "id": "fixture-work-coordination:default",
+    "path": "/__fixtures__/work/coordination/default"
+  },
+  {
+    "id": "fixture-work-coordination:empty",
+    "path": "/__fixtures__/work/coordination/empty"
+  },
+  {
+    "id": "fixture-work-coordination:partial",
+    "path": "/__fixtures__/work/coordination/partial"
+  },
+  {
+    "id": "fixture-work-coordination:stale",
+    "path": "/__fixtures__/work/coordination/stale"
+  },
+  {
+    "id": "fixture-work-coordination:workflow",
+    "path": "/__fixtures__/work/coordination/workflow"
+  },
+  {
+    "id": "fixture-work-coordination:ticket",
+    "path": "/__fixtures__/work/coordination/ticket"
+  },
+  {
+    "id": "fixture-work-onboarding:default",
+    "path": "/__fixtures__/work/onboarding/default"
+  },
+  {
+    "id": "fixture-artifacts-artifact:default",
+    "path": "/__fixtures__/artifacts/artifact/default"
+  },
+  {
+    "id": "fixture-artifacts-artifact:empty",
+    "path": "/__fixtures__/artifacts/artifact/empty"
+  },
+  {
+    "id": "fixture-artifacts-artifact:expired",
+    "path": "/__fixtures__/artifacts/artifact/expired"
+  },
+  {
+    "id": "fixture-artifacts-artifact:forbidden",
+    "path": "/__fixtures__/artifacts/artifact/forbidden"
+  },
+  {
+    "id": "fixture-artifacts-artifact:loading",
+    "path": "/__fixtures__/artifacts/artifact/loading"
+  },
+  {
+    "id": "fixture-artifacts-artifact:reconnecting",
+    "path": "/__fixtures__/artifacts/artifact/reconnecting"
+  },
+  {
+    "id": "fixture-artifacts-artifact:stale",
+    "path": "/__fixtures__/artifacts/artifact/stale"
+  },
+  {
+    "id": "fixture-artifacts-artifact:unsupported",
+    "path": "/__fixtures__/artifacts/artifact/unsupported"
+  },
+  {
+    "id": "fixture-artifacts-task-run:default",
+    "path": "/__fixtures__/artifacts/task-run/default"
+  },
+  {
+    "id": "fixture-artifacts-task-run:reconnecting",
+    "path": "/__fixtures__/artifacts/task-run/reconnecting"
+  }
+]

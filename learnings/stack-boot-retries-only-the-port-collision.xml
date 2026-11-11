@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="stack-boot-retries-only-the-port-collision" project="bakery">
+  <title>A test stack's first boot may repeat only after the named host-port bind collision</title>
+  <trigger>compose up fails with RootlessKit PortManager.AddPort(): listen tcp4 127.0.0.1:PORT: bind: address already in use.</trigger>
+  <mistake>Stack setups drew ports with a listen on port 0 that they closed before compose bound them, and Docker's own port 0 choice lost to a host socket outside its bookkeeping (inngest on 127.0.0.1:33306, PR 537 dispatch). No allocator can exclude such a socket, and the setups retried unevenly: the durable-core stack once on its first boot, the skill-import stack and two materialize-authorized-skills-worker tests through bindLoopbackPortWithRetry, the rest not at all.</mistake>
+  <rule>Boot through retryOnPortCollision (tests/fixtures/loopback-port-allocation.ts): draw ports inside run so every attempt re-draws, and on exactly that error clean the project the attempt owns, restore its owned networks and boot again, at most three times, announcing each lost race on stderr as [port-collision-retry] so a boot that needed one says so. Any other error rethrows at once with no cleanup. A first boot cleans the project it owns. A restart of a pinned port (the durable-core engine, stopped and started again) must not clean: it has nothing to remove (the failed up leaves a created container that the next up recreates), so it passes a no-op cleanup, re-draws the port, updates the port its consumers read (stack.ports.inngest) and starts again; CI run 42870736271 lost 127.0.0.1:33604 that way while the engine was stopped.</rule>
+  <verification>
+    <requirement>tests/unit/loopback-port-allocation_test.ts covers the exact CI text, a non-matching error, exhaustion, a first-attempt success and the announcement of each lost race (none for an unrelated error).</requirement>
+  </verification>
+</learning>

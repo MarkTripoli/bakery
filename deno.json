@@ -1,0 +1,88 @@
+{
+  "lock": "deno.lock",
+  "imports": {
+    "@bakery/config": "./packages/config/src/env.ts",
+    "@bakery/config/sentry": "./packages/config/src/sentry.ts",
+    "@bakery/config/sentry-build": "./packages/config/src/sentry-build.ts",
+    "@bakery/config/sentry-privacy": "./packages/config/src/sentry-privacy.ts",
+    "@bakery/config/sentry-deno": "./packages/config/src/sentry-deno.ts",
+    "@bakery/integration-sdk": "./packages/integration-sdk/mod.ts",
+    "@bakery/integration-sdk/testing": "./packages/integration-sdk/testing.ts",
+    "@sentry/core": "npm:@sentry/core@11.6.0",
+    "@sentry/deno": "npm:@sentry/deno@11.6.0",
+    "@bakery/contracts/repository-inspection": "./packages/contracts/src/repository-inspection.ts",
+    "@bakery/contracts/coordinator-turn": "./packages/contracts/src/coordinator-turn.ts",
+    "@bakery/contracts/installation-settings": "./packages/contracts/src/installation-settings.ts",
+    "@bakery/contracts/integrations": "./packages/contracts/src/integrations.ts",
+    "@bakery/contracts/description-quality": "./packages/contracts/src/description-quality.ts",
+    "@bakery/contracts/workflow-compiler": "./packages/contracts/src/workflow-compiler/mod.ts",
+    "@bakery/contracts/workflow-compiler/default-catalog": "./packages/contracts/src/workflow-compiler/default-catalog.ts",
+    "@bakery/contracts/worker-skill-read": "./packages/contracts/src/worker-skill-read.ts",
+    "@bakery/persistence/repository-admission": "./packages/persistence/src/repository-admission.ts",
+    "@std/assert": "jsr:@std/assert@1.0.14",
+    "better-auth": "npm:better-auth@1.7.3",
+    "better-auth/api": "npm:better-auth@1.7.3/api",
+    "better-auth/db/migration": "npm:better-auth@1.7.3/db/migration",
+    "better-auth/oauth2": "npm:better-auth@1.7.3/oauth2",
+    "better-auth/plugins": "npm:better-auth@1.7.3/plugins",
+    "@better-auth/passkey": "npm:@better-auth/passkey@1.7.3",
+    "@better-auth/sso": "npm:@better-auth/sso@1.7.3",
+    "samlify": "npm:samlify@2.13.1",
+    "@better-auth/mcp": "npm:@better-auth/mcp@1.7.3",
+    "@better-auth/scim": "npm:@better-auth/scim@1.7.3",
+    "@modelcontextprotocol/server": "npm:@modelcontextprotocol/server@2.0.0",
+    "hono": "npm:hono@4.13.7",
+    "inngest": "npm:inngest@4.20.0",
+    "loro-crdt": "npm:loro-crdt@1.16.0/base64",
+    "pg": "npm:pg@8.23.0",
+    "postgres": "npm:postgres@3.4.7",
+    "@types/node": "npm:@types/node@22.13.4",
+    "zod": "npm:zod@4.5.4",
+    "@aws-sdk/client-s3": "npm:@aws-sdk/client-s3@3.888.0"
+  },
+  "fmt": {
+    "exclude": [
+      "apps/web/public/theme-bootstrap.js",
+      "apps/web/public/favicon.svg",
+      "packages/contracts/src/catalog-literals.ts",
+      "packages/contracts/generated/client-manifest.ts",
+      "packages/contracts/generated/transport-schemas.ts",
+      "docs/technical-design/enterprise-mocks/paper-source/",
+      "docs/technical-design/enterprise-mocks/site/",
+      "docs/technical-design/settings-mocks/source/",
+      "docs/technical-design/settings-mocks/site/",
+      "docs/technical-design/entitlements-mocks/source/",
+      "docs/technical-design/entitlements-mocks/site/",
+      "docs/technical-design/artifacts-mocks/source/",
+      "docs/technical-design/artifacts-mocks/site/"
+    ]
+  },
+  "lint": {
+    "exclude": [
+      "apps/web/public/theme-bootstrap.js"
+    ],
+    "plugins": [
+      "./scripts/lint/contract-quality.ts"
+    ]
+  },
+  "tasks": {
+    "typecheck": "deno check apps/server/src/main.ts apps/worker/src/main.ts scripts/run-stack.ts tests/unit/create-the-minimal-backend-workspace-and-health-service_test.ts tests/contract/create-the-minimal-backend-workspace-and-health-service_test.ts",
+    "test:rails": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts rails",
+    "test:unit": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts unit",
+    "test:contract": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts contract",
+    "test:integration": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts integration",
+    "test:security": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts security",
+    "contracts:generate": "deno run --allow-read --allow-write --allow-run=git scripts/generate-contracts.ts",
+    "fmt": "deno fmt",
+    "lint": "deno lint",
+    "build": "deno check apps/server/src/main.ts apps/worker/src/main.ts scripts/run-stack.ts",
+    "startup": "deno task --cwd apps/server startup",
+    "migrate": "deno task --cwd apps/server migrate",
+    "auth:migrations:generate": "deno task --cwd apps/server auth:migrations:generate",
+    "createsuperuser": "deno task --cwd apps/server createsuperuser",
+    "dispatch": "deno task --cwd apps/server dispatch",
+    "catalog:literals": "deno run --allow-read --allow-write scripts/generate-catalog-literals.ts",
+    "catalog:literals:check": "deno run --allow-read scripts/generate-catalog-literals.ts --check",
+    "test:r2": "deno run --allow-env --allow-read --allow-run scripts/run-tests.ts r2"
+  }
+}

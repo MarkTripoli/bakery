@@ -1,0 +1,5088 @@
+{
+  "schemaVersion": 1,
+  "description": "Route reference ledger: every production route in routeCoverage maps to Paper frames and golden cases, or records why it cannot. See README.md in this directory.",
+  "entries": [
+    {
+      "routeId": "status",
+      "path": "/",
+      "status": "no-mock",
+      "rationale": "Production health/readiness probe page (HealthPage). Searched artboards.txt (all 514 Paper artboards, 2026-10-07) for health|status|readiness|probe: only E-0 SM-0 '07 · Applications & worker health' matches, which depicts the Applications/workers surface, not the readiness probe this route renders.",
+      "frames": []
+    },
+    {
+      "routeId": "settings-index",
+      "path": "/settings",
+      "status": "baselined",
+      "manifest": "settings",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "O-0",
+          "frameId": "QM9-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        }
+      ],
+      "absentVariants": [
+        {
+          "theme": "dark",
+          "reason": "Paper O-0 draws the phone Settings index (QM9-0) in the light theme only; dark is proven by the Storybook dark axe lane and the evidence video."
+        },
+        {
+          "theme": "light",
+          "device": "desktop",
+          "reason": "On desktop and tablet /settings redirects to /settings/profile and renders nothing, so there is no desktop frame to score; O-0 has none either (searched settings-mocks/paper-manifest.json 2026-10-10)."
+        }
+      ],
+      "cases": [
+        "section-index.default.light.phone"
+      ]
+    },
+    {
+      "routeId": "profile",
+      "path": "/settings/profile",
+      "status": "baselined",
+      "manifest": "settings",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "O-0",
+          "frameId": "HJE-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "O-0",
+          "frameId": "IG3-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        }
+      ],
+      "absentVariants": [
+        {
+          "theme": "dark",
+          "reason": "Paper O-0 draws Profile in the light theme only (HJE-0 desktop, IG3-0 phone); the dark theme is proven by the Storybook dark axe lane and the evidence video, not scored against a mock that does not exist."
+        }
+      ],
+      "cases": [
+        "profile.default.light.desktop",
+        "profile.default.light.phone"
+      ]
+    },
+    {
+      "routeId": "appearance",
+      "path": "/settings/appearance",
+      "status": "baselined",
+      "manifest": "settings",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "O-0",
+          "frameId": "N1T-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "O-0",
+          "frameId": "N6E-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "O-0",
+          "frameId": "SGB-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "O-0",
+          "frameId": "SLW-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        }
+      ],
+      "cases": [
+        "appearance.default.light.desktop",
+        "appearance.default.light.phone",
+        "appearance.default.dark.desktop",
+        "appearance.default.dark.phone"
+      ]
+    },
+    {
+      "routeId": "access",
+      "path": "/settings/access",
+      "status": "baselined",
+      "manifest": "settings",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "O-0",
+          "frameId": "KHJ-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "developer"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "O-0",
+          "frameId": "MZJ-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "developer"
+        }
+      ],
+      "absentVariants": [
+        {
+          "theme": "light",
+          "reason": "Paper O-0 draws Your access in the dark theme only (KHJ-0 desktop, MZJ-0 phone, Developer role); the light theme is proven by the Storybook light axe lane and the evidence video, not scored against a mock that does not exist."
+        }
+      ],
+      "cases": [
+        "your-access.developer.dark.desktop",
+        "your-access.developer.dark.phone"
+      ]
+    },
+    {
+      "routeId": "setup",
+      "path": "/setup",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "VMT-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "VUP-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1696-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "16BJ-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "VVQ-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "ready"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "VYI-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "ready"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "16DC-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "ready"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "16EO-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "ready"
+        }
+      ],
+      "cases": [
+        "setup.default.light.desktop",
+        "setup.default.light.phone",
+        "setup.default.dark.desktop",
+        "setup.default.dark.phone",
+        "setup.ready.light.desktop",
+        "setup.ready.light.phone",
+        "setup.ready.dark.desktop",
+        "setup.ready.dark.phone"
+      ]
+    },
+    {
+      "routeId": "projects-onboarding",
+      "path": "/projects/onboarding",
+      "status": "baselined",
+      "rationale": "E06 (#56, #67, #78): applications, repositories, profiles, inspection and coordination aliases on native Paper p-18-0 frames scored as enterprise design cases against /__fixtures__/work/onboarding/$state.",
+      "manifest": "enterprise",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-18-0",
+          "frameId": "2JSH-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-18-0",
+          "frameId": "2JZO-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-18-0",
+          "frameId": "2K4U-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        }
+      ],
+      "absentVariants": [
+        {
+          "theme": "dark",
+          "device": "phone",
+          "reason": "Paper p-18-0 draws the phone variant in the light theme only; dark phone is proven by the Storybook dark axe lane, the dark desktop golden and the evidence video."
+        }
+      ],
+      "cases": [
+        "projects-onboarding.default.light.desktop",
+        "projects-onboarding.default.dark.desktop",
+        "projects-onboarding.default.light.phone"
+      ]
+    },
+    {
+      "routeId": "sign-in",
+      "path": "/sign-in",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "L5F-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "github-disabled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "LDX-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "github-disabled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "XJG-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "github-disabled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "XL0-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "github-disabled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "KLY-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "KOE-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "X39-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "X58-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "L0I-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "offline"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "L25-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "offline"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "XF9-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "offline"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "XGO-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "offline"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "L2Y-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "unavailable"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "L4L-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "unavailable"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "XHF-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "unavailable"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "XIR-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "unavailable"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "R0M-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "R22-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "11VN-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "11X3-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "KY8-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "throttled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "KZS-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "throttled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "XD9-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "throttled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "XEL-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "throttled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "KU3-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "KWL-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "X9U-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "XBW-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "loading"
+        }
+      ],
+      "cases": [
+        "login.github-disabled.light.desktop",
+        "login.github-disabled.light.phone",
+        "login.github-disabled.dark.desktop",
+        "login.github-disabled.dark.phone",
+        "login.invalid.light.desktop",
+        "login.invalid.light.phone",
+        "login.invalid.dark.desktop",
+        "login.invalid.dark.phone",
+        "login.offline.light.desktop",
+        "login.offline.light.phone",
+        "login.offline.dark.desktop",
+        "login.offline.dark.phone",
+        "login.unavailable.light.desktop",
+        "login.unavailable.light.phone",
+        "login.unavailable.dark.desktop",
+        "login.unavailable.dark.phone",
+        "expired.default.light.desktop",
+        "expired.default.light.phone",
+        "expired.default.dark.desktop",
+        "expired.default.dark.phone",
+        "login.throttled.light.desktop",
+        "login.throttled.light.phone",
+        "login.throttled.dark.desktop",
+        "login.throttled.dark.phone",
+        "login.loading.light.desktop",
+        "login.loading.light.phone",
+        "login.loading.dark.desktop",
+        "login.loading.dark.phone"
+      ]
+    },
+    {
+      "routeId": "totp-challenge",
+      "path": "/sign-in/two-factor",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1AQA-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1ARQ-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1FEK-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1FHO-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1AZ4-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "expired"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1B08-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "expired"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1FW2-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "expired"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1FX6-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "expired"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1ASI-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1ATW-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1FKP-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1FO8-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1AX0-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "rate-limited"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1AYE-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "rate-limited"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1FTY-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "rate-limited"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1FVC-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "rate-limited"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1AUM-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1AW5-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1FQV-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1FT3-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "loading"
+        }
+      ],
+      "cases": [
+        "totp-challenge.default.light.desktop",
+        "totp-challenge.default.light.phone",
+        "totp-challenge.default.dark.desktop",
+        "totp-challenge.default.dark.phone",
+        "totp-challenge.expired.light.desktop",
+        "totp-challenge.expired.light.phone",
+        "totp-challenge.expired.dark.desktop",
+        "totp-challenge.expired.dark.phone",
+        "totp-challenge.invalid.light.desktop",
+        "totp-challenge.invalid.light.phone",
+        "totp-challenge.invalid.dark.desktop",
+        "totp-challenge.invalid.dark.phone",
+        "totp-challenge.rate-limited.light.desktop",
+        "totp-challenge.rate-limited.light.phone",
+        "totp-challenge.rate-limited.dark.desktop",
+        "totp-challenge.rate-limited.dark.phone",
+        "totp-challenge.loading.light.desktop",
+        "totp-challenge.loading.light.phone",
+        "totp-challenge.loading.dark.desktop",
+        "totp-challenge.loading.dark.phone"
+      ]
+    },
+    {
+      "routeId": "backup-challenge",
+      "path": "/sign-in/recovery-code",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1B0N-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1B25-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1FXL-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1FZ3-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1B2Y-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1B4D-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1G9I-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1GAX-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1B7K-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "no-access"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1B8W-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "no-access"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1GE4-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "no-access"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1GFG-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "no-access"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1B53-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1B6O-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1GBN-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1GD8-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "loading"
+        }
+      ],
+      "cases": [
+        "backup-challenge.default.light.desktop",
+        "backup-challenge.default.light.phone",
+        "backup-challenge.default.dark.desktop",
+        "backup-challenge.default.dark.phone",
+        "backup-challenge.invalid.light.desktop",
+        "backup-challenge.invalid.light.phone",
+        "backup-challenge.invalid.dark.desktop",
+        "backup-challenge.invalid.dark.phone",
+        "backup-challenge.no-access.light.desktop",
+        "backup-challenge.no-access.light.phone",
+        "backup-challenge.no-access.dark.desktop",
+        "backup-challenge.no-access.dark.phone",
+        "backup-challenge.loading.light.desktop",
+        "backup-challenge.loading.light.phone",
+        "backup-challenge.loading.dark.desktop",
+        "backup-challenge.loading.dark.phone"
+      ]
+    },
+    {
+      "routeId": "signout",
+      "path": "/sign-out",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "TR3-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "TSF-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "148G-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "149S-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "TV0-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "success"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "TW4-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "success"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "14NY-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "success"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "14P2-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "success"
+        }
+      ],
+      "cases": [
+        "signout.default.light.desktop",
+        "signout.default.light.phone",
+        "signout.default.dark.desktop",
+        "signout.default.dark.phone",
+        "signout.success.light.desktop",
+        "signout.success.light.phone",
+        "signout.success.dark.desktop",
+        "signout.success.dark.phone"
+      ]
+    },
+    {
+      "routeId": "register",
+      "path": "/register",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "N1S-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "NTR-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "Z1B-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "Z3I-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "O02-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "existing"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "O2A-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "existing"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "ZI7-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "existing"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "ZKF-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "existing"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "NVT-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "NY0-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "ZE0-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "ZG7-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "O4D-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "O6I-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "ZMG-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "ZOL-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "loading"
+        }
+      ],
+      "cases": [
+        "register.default.light.desktop",
+        "register.default.light.phone",
+        "register.default.dark.desktop",
+        "register.default.dark.phone",
+        "register.existing.light.desktop",
+        "register.existing.light.phone",
+        "register.existing.dark.desktop",
+        "register.existing.dark.phone",
+        "register.invalid.light.desktop",
+        "register.invalid.light.phone",
+        "register.invalid.dark.desktop",
+        "register.invalid.dark.phone",
+        "register.loading.light.desktop",
+        "register.loading.light.phone",
+        "register.loading.dark.desktop",
+        "register.loading.dark.phone"
+      ]
+    },
+    {
+      "routeId": "invitation",
+      "path": "/invitations/$invitationId",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "MDX-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "accepted"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "MFF-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "accepted"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "YJB-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "accepted"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "YKJ-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "accepted"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "LSX-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "authenticated"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "LYW-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "authenticated"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "YAG-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "authenticated"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "YC5-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "authenticated"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "MGR-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "declined"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "MI5-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "declined"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "YLN-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "declined"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "YMS-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "declined"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "JZ9-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "K1D-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "XUN-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "Y8I-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "MBZ-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "revoked"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "MDD-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "revoked"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "YHP-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "revoked"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "YIU-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "revoked"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "M3D-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "wrong-account"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "M8R-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "wrong-account"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "YDP-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "wrong-account"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "YEZ-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "wrong-account"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "MN5-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "MP5-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "YQZ-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "YSR-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "MR0-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "MT6-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "YUE-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "YW6-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "LGJ-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "LQF-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "XLV-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "XNA-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "MV8-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "MXG-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "YXU-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "YZN-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "loading"
+        }
+      ],
+      "cases": [
+        "invite.accepted.light.desktop",
+        "invite.accepted.light.phone",
+        "invite.accepted.dark.desktop",
+        "invite.accepted.dark.phone",
+        "invite.authenticated.light.desktop",
+        "invite.authenticated.light.phone",
+        "invite.authenticated.dark.desktop",
+        "invite.authenticated.dark.phone",
+        "invite.declined.light.desktop",
+        "invite.declined.light.phone",
+        "invite.declined.dark.desktop",
+        "invite.declined.dark.phone",
+        "invite.default.light.desktop",
+        "invite.default.light.phone",
+        "invite.default.dark.desktop",
+        "invite.default.dark.phone",
+        "invite.revoked.light.desktop",
+        "invite.revoked.light.phone",
+        "invite.revoked.dark.desktop",
+        "invite.revoked.dark.phone",
+        "invite.wrong-account.light.desktop",
+        "invite.wrong-account.light.phone",
+        "invite.wrong-account.dark.desktop",
+        "invite.wrong-account.dark.phone",
+        "invite-login.default.light.desktop",
+        "invite-login.default.light.phone",
+        "invite-login.default.dark.desktop",
+        "invite-login.default.dark.phone",
+        "invite-login.invalid.light.desktop",
+        "invite-login.invalid.light.phone",
+        "invite-login.invalid.dark.desktop",
+        "invite-login.invalid.dark.phone",
+        "join.default.light.desktop",
+        "join.default.light.phone",
+        "join.default.dark.desktop",
+        "join.default.dark.phone",
+        "invite-login.loading.light.desktop",
+        "invite-login.loading.light.phone",
+        "invite-login.loading.dark.desktop",
+        "invite-login.loading.dark.phone"
+      ]
+    },
+    {
+      "routeId": "organizations",
+      "path": "/organizations",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "QEE-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "QG0-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "11E9-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "11FV-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "QGX-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "empty"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "QPN-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "empty"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "11OS-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "empty"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "11Q7-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "empty"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "QSE-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "removed"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "QUX-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "removed"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "11QX-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "removed"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "11SA-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "removed"
+        }
+      ],
+      "cases": [
+        "organizations.default.light.desktop",
+        "organizations.default.light.phone",
+        "organizations.default.dark.desktop",
+        "organizations.default.dark.phone",
+        "organizations.empty.light.desktop",
+        "organizations.empty.light.phone",
+        "organizations.empty.dark.desktop",
+        "organizations.empty.dark.phone",
+        "organizations.removed.light.desktop",
+        "organizations.removed.light.phone",
+        "organizations.removed.dark.desktop",
+        "organizations.removed.dark.phone"
+      ]
+    },
+    {
+      "routeId": "organization-settings",
+      "path": "/organization/settings",
+      "status": "no-mock",
+      "rationale": "Organization administration page (default language with a compare-and-swap save, read-only feature availability). Searched the paper-manifest.json files of auth-mocks, settings-mocks, enterprise-mocks and worker-readiness (2026-10-09) for organization settings, default language, default locale and feature availability: none has an organization-settings artboard. settings-mocks/SETTINGS.md assigns organization administration to a separate Organization page and defines no frame for it. Built only from catalog components in the settings composition and covered by the web-shell, axe and Storybook lanes.",
+      "frames": []
+    },
+    {
+      "routeId": "artifact-retrieval",
+      "path": "/tasks/$taskId/artifacts/$artifactId",
+      "status": "baselined",
+      "rationale": "E05 artifact reference ownership promoted to the shipped route; candidate capture enforces every listed frame.",
+      "manifest": "artifacts",
+      "frames": [
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--default--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--default--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--default--dark--desktop",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--default--dark--phone",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--text--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "text"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--text--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "text"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--image--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "image"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--image--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "image"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--patch--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "patch"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--patch--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "patch"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--log--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "log"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--log--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "log"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--comments--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "comments"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--comments--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "comments"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--outdated--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "outdated"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--outdated--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "outdated"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--deleted--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "deleted"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--deleted--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "deleted"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--reply--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "reply"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--reply--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "reply"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--send-to-agent--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "send-to-agent"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--send-to-agent--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "send-to-agent"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--pinned--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "pinned"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--pinned--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "pinned"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--expired--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "expired"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--expired--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "expired"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--capacity-paused--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "capacity-paused"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--capacity-paused--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "capacity-paused"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--forbidden--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "forbidden"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--forbidden--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "forbidden"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--missing-version--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "missing-version"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--missing-version--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "missing-version"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--loading--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "loading"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--loading--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "loading"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--empty--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "empty"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--empty--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "empty"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--unsupported--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "unsupported"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--unsupported--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "unsupported"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--stale--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "stale"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--stale--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "stale"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--reconnecting--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "reconnecting"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--reconnecting--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "reconnecting"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--digest-failure--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "digest-failure"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--digest-failure--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "digest-failure"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--publish-conflict--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "publish-conflict"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--publish-conflict--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "publish-conflict"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--failed-mutation--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "failed-mutation"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-artifact--failed-mutation--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "failed-mutation"
+        }
+      ],
+      "cases": [
+        "artifact.default.light.desktop",
+        "artifact.default.light.phone",
+        "artifact.default.dark.desktop",
+        "artifact.default.dark.phone",
+        "artifact.text.light.desktop",
+        "artifact.text.light.phone",
+        "artifact.image.light.desktop",
+        "artifact.image.light.phone",
+        "artifact.patch.light.desktop",
+        "artifact.patch.light.phone",
+        "artifact.log.light.desktop",
+        "artifact.log.light.phone",
+        "artifact.comments.light.desktop",
+        "artifact.comments.light.phone",
+        "artifact.outdated.light.desktop",
+        "artifact.outdated.light.phone",
+        "artifact.deleted.light.desktop",
+        "artifact.deleted.light.phone",
+        "artifact.reply.light.desktop",
+        "artifact.reply.light.phone",
+        "artifact.send-to-agent.light.desktop",
+        "artifact.send-to-agent.light.phone",
+        "artifact.pinned.light.desktop",
+        "artifact.pinned.light.phone",
+        "artifact.expired.light.desktop",
+        "artifact.expired.light.phone",
+        "artifact.capacity-paused.light.desktop",
+        "artifact.capacity-paused.light.phone",
+        "artifact.forbidden.light.desktop",
+        "artifact.forbidden.light.phone",
+        "artifact.missing-version.light.desktop",
+        "artifact.missing-version.light.phone",
+        "artifact.loading.light.desktop",
+        "artifact.loading.light.phone",
+        "artifact.empty.light.desktop",
+        "artifact.empty.light.phone",
+        "artifact.unsupported.light.desktop",
+        "artifact.unsupported.light.phone",
+        "artifact.stale.light.desktop",
+        "artifact.stale.light.phone",
+        "artifact.reconnecting.light.desktop",
+        "artifact.reconnecting.light.phone",
+        "artifact.digest-failure.light.desktop",
+        "artifact.digest-failure.light.phone",
+        "artifact.publish-conflict.light.desktop",
+        "artifact.publish-conflict.light.phone",
+        "artifact.failed-mutation.light.desktop",
+        "artifact.failed-mutation.light.phone"
+      ]
+    },
+    {
+      "routeId": "security",
+      "path": "/settings/security",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "RAU-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "REW-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "125V-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "129X-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "18OS-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "protected"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "18SL-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "protected"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1DD2-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "protected"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1DGV-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "protected"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "RHA-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "saved"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "RKQ-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "saved"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "12CB-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "saved"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "12FR-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "saved"
+        }
+      ],
+      "cases": [
+        "security.default.light.desktop",
+        "security.default.light.phone",
+        "security.default.dark.desktop",
+        "security.default.dark.phone",
+        "security.protected.light.desktop",
+        "security.protected.light.phone",
+        "security.protected.dark.desktop",
+        "security.protected.dark.phone",
+        "security.saved.light.desktop",
+        "security.saved.light.phone",
+        "security.saved.dark.desktop",
+        "security.saved.dark.phone"
+      ]
+    },
+    {
+      "routeId": "sessions",
+      "path": "/settings/sessions",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "T46-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "T72-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "13LJ-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "13OF-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "TD8-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "empty"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "TFQ-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "empty"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "13UL-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "empty"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "13X3-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "empty"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "T8O-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "revoked"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "TBL-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "revoked"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "13Q1-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "revoked"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "13SY-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "revoked"
+        }
+      ],
+      "cases": [
+        "sessions.default.light.desktop",
+        "sessions.default.light.phone",
+        "sessions.default.dark.desktop",
+        "sessions.default.dark.phone",
+        "sessions.empty.light.desktop",
+        "sessions.empty.light.phone",
+        "sessions.empty.dark.desktop",
+        "sessions.empty.dark.phone",
+        "sessions.revoked.light.desktop",
+        "sessions.revoked.light.phone",
+        "sessions.revoked.dark.desktop",
+        "sessions.revoked.dark.phone"
+      ]
+    },
+    {
+      "routeId": "revoke",
+      "path": "/settings/sessions/revoke",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "TGY-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "TJD-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "13YB-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "140Q-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "TNS-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "failed"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "TQ3-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "failed"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1455-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "failed"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "147G-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "failed"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "TKH-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "success"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "TMS-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "success"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "141U-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "success"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1445-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "success"
+        }
+      ],
+      "cases": [
+        "revoke.default.light.desktop",
+        "revoke.default.light.phone",
+        "revoke.default.dark.desktop",
+        "revoke.default.dark.phone",
+        "revoke.failed.light.desktop",
+        "revoke.failed.light.phone",
+        "revoke.failed.dark.desktop",
+        "revoke.failed.dark.phone",
+        "revoke.success.light.desktop",
+        "revoke.success.light.phone",
+        "revoke.success.dark.desktop",
+        "revoke.success.dark.phone"
+      ]
+    },
+    {
+      "routeId": "two-factor",
+      "path": "/settings/security/two-factor",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "18V6-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "18XR-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1DJG-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1DM1-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "18Z3-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "enabled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "191R-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "enabled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1DND-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "enabled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1DQ1-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "enabled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1935-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "no-codes"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "195W-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "no-codes"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1DRF-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "no-codes"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1DU6-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "no-codes"
+        }
+      ],
+      "cases": [
+        "two-factor.default.light.desktop",
+        "two-factor.default.light.phone",
+        "two-factor.default.dark.desktop",
+        "two-factor.default.dark.phone",
+        "two-factor.enabled.light.desktop",
+        "two-factor.enabled.light.phone",
+        "two-factor.enabled.dark.desktop",
+        "two-factor.enabled.dark.phone",
+        "two-factor.no-codes.light.desktop",
+        "two-factor.no-codes.light.phone",
+        "two-factor.no-codes.dark.desktop",
+        "two-factor.no-codes.dark.phone"
+      ]
+    },
+    {
+      "routeId": "totp-setup",
+      "path": "/settings/security/two-factor/setup",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "197D-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "199R-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1DVN-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1DY1-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "19JG-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "expired"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "19LT-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "expired"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1E7Q-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "expired"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1EA3-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "expired"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "19FD-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "19I1-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1E3N-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1E6B-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "19AU-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "scan"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "19DR-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "scan"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1DZ4-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "scan"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1E21-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "scan"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "19MV-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "19PO-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1EB5-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1EDY-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "loading"
+        }
+      ],
+      "cases": [
+        "totp-setup.default.light.desktop",
+        "totp-setup.default.light.phone",
+        "totp-setup.default.dark.desktop",
+        "totp-setup.default.dark.phone",
+        "totp-setup.expired.light.desktop",
+        "totp-setup.expired.light.phone",
+        "totp-setup.expired.dark.desktop",
+        "totp-setup.expired.dark.phone",
+        "totp-setup.invalid.light.desktop",
+        "totp-setup.invalid.light.phone",
+        "totp-setup.invalid.dark.desktop",
+        "totp-setup.invalid.dark.phone",
+        "totp-setup.scan.light.desktop",
+        "totp-setup.scan.light.phone",
+        "totp-setup.scan.dark.desktop",
+        "totp-setup.scan.dark.phone",
+        "totp-setup.loading.light.desktop",
+        "totp-setup.loading.light.phone",
+        "totp-setup.loading.dark.desktop",
+        "totp-setup.loading.dark.phone"
+      ]
+    },
+    {
+      "routeId": "backup-codes",
+      "path": "/settings/security/two-factor/backup-codes",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "19WU-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "copied"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "19ZX-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "copied"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1EL4-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "copied"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1EO7-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "copied"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "19R8-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "19UN-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1EFI-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1EIX-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1A5X-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1A8L-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1EU7-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1EWV-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1A1S-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "regenerate"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1A4H-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "regenerate"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1EQ2-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "regenerate"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1ESR-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "regenerate"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1AA1-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "regenerated"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1AD1-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "regenerated"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1EYB-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "regenerated"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1F1B-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "regenerated"
+        }
+      ],
+      "cases": [
+        "backup-codes.copied.light.desktop",
+        "backup-codes.copied.light.phone",
+        "backup-codes.copied.dark.desktop",
+        "backup-codes.copied.dark.phone",
+        "backup-codes.default.light.desktop",
+        "backup-codes.default.light.phone",
+        "backup-codes.default.dark.desktop",
+        "backup-codes.default.dark.phone",
+        "backup-codes.invalid.light.desktop",
+        "backup-codes.invalid.light.phone",
+        "backup-codes.invalid.dark.desktop",
+        "backup-codes.invalid.dark.phone",
+        "backup-codes.regenerate.light.desktop",
+        "backup-codes.regenerate.light.phone",
+        "backup-codes.regenerate.dark.desktop",
+        "backup-codes.regenerate.dark.phone",
+        "backup-codes.regenerated.light.desktop",
+        "backup-codes.regenerated.light.phone",
+        "backup-codes.regenerated.dark.desktop",
+        "backup-codes.regenerated.dark.phone"
+      ]
+    },
+    {
+      "routeId": "totp-disable",
+      "path": "/settings/security/two-factor/disable",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1AET-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1AHH-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1F33-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1F5R-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1AMX-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "disabled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1AP8-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "disabled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1FB7-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "disabled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1FDI-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "disabled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1AIX-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1ALJ-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1F77-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1F9T-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "invalid"
+        }
+      ],
+      "cases": [
+        "totp-disable.default.light.desktop",
+        "totp-disable.default.light.phone",
+        "totp-disable.default.dark.desktop",
+        "totp-disable.default.dark.phone",
+        "totp-disable.disabled.light.desktop",
+        "totp-disable.disabled.light.phone",
+        "totp-disable.disabled.dark.desktop",
+        "totp-disable.disabled.dark.phone",
+        "totp-disable.invalid.light.desktop",
+        "totp-disable.invalid.light.phone",
+        "totp-disable.invalid.dark.desktop",
+        "totp-disable.invalid.dark.phone"
+      ]
+    },
+    {
+      "routeId": "password",
+      "path": "/settings/security/password",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "RP7-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "RUR-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "12IC-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "12MF-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "S65-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "S8W-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "12ON-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "12SB-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "SDK-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "SGA-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "12XI-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1308-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "SAC-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "success"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "SCL-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "success"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "12UA-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "success"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "12WJ-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "success"
+        }
+      ],
+      "cases": [
+        "password.default.light.desktop",
+        "password.default.light.phone",
+        "password.default.dark.desktop",
+        "password.default.dark.phone",
+        "password.invalid.light.desktop",
+        "password.invalid.light.phone",
+        "password.invalid.dark.desktop",
+        "password.invalid.dark.phone",
+        "password.loading.light.desktop",
+        "password.loading.light.phone",
+        "password.loading.dark.desktop",
+        "password.loading.dark.phone",
+        "password.success.light.desktop",
+        "password.success.light.phone",
+        "password.success.dark.desktop",
+        "password.success.dark.phone"
+      ]
+    },
+    {
+      "routeId": "passkeys",
+      "path": "/settings/security/passkeys",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1BOB-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "blocked"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1BQT-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "blocked"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1GUV-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "blocked"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1GXD-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "blocked"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1B9J-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1BBY-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1GG3-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1GII-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1BD4-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "enabled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1BFJ-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "enabled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1GJO-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "enabled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1GM3-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "enabled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1BS1-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "failed"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1BUP-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "failed"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1GYL-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "failed"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1H19-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "failed"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1BJZ-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "remove"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1BMS-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "remove"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1GQJ-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "remove"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1GTC-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "remove"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1BGO-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "rename"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1BIZ-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "rename"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1GN8-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "rename"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1GPJ-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "rename"
+        }
+      ],
+      "cases": [
+        "passkeys.blocked.light.desktop",
+        "passkeys.blocked.light.phone",
+        "passkeys.blocked.dark.desktop",
+        "passkeys.blocked.dark.phone",
+        "passkeys.default.light.desktop",
+        "passkeys.default.light.phone",
+        "passkeys.default.dark.desktop",
+        "passkeys.default.dark.phone",
+        "passkeys.enabled.light.desktop",
+        "passkeys.enabled.light.phone",
+        "passkeys.enabled.dark.desktop",
+        "passkeys.enabled.dark.phone",
+        "passkeys.failed.light.desktop",
+        "passkeys.failed.light.phone",
+        "passkeys.failed.dark.desktop",
+        "passkeys.failed.dark.phone",
+        "passkeys.remove.light.desktop",
+        "passkeys.remove.light.phone",
+        "passkeys.remove.dark.desktop",
+        "passkeys.remove.dark.phone",
+        "passkeys.rename.light.desktop",
+        "passkeys.rename.light.phone",
+        "passkeys.rename.dark.desktop",
+        "passkeys.rename.dark.phone"
+      ]
+    },
+    {
+      "routeId": "passkey-add",
+      "path": "/settings/security/passkeys/new",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1D3C-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "canceled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1D5J-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "canceled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1HAJ-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "canceled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1HCQ-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "canceled"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1BW3-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1BYM-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1H2N-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1H56-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1D9T-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "success"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1DC3-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "success"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1HH0-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "success"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1HJA-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "success"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1D6F-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "unsupported"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1D8R-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "unsupported"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1HDM-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "unsupported"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1HFY-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "unsupported"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1BZU-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "prompt"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1C2J-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "prompt"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1H6E-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "prompt"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1H93-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "prompt"
+        }
+      ],
+      "cases": [
+        "passkey-add.canceled.light.desktop",
+        "passkey-add.canceled.light.phone",
+        "passkey-add.canceled.dark.desktop",
+        "passkey-add.canceled.dark.phone",
+        "passkey-add.default.light.desktop",
+        "passkey-add.default.light.phone",
+        "passkey-add.default.dark.desktop",
+        "passkey-add.default.dark.phone",
+        "passkey-add.success.light.desktop",
+        "passkey-add.success.light.phone",
+        "passkey-add.success.dark.desktop",
+        "passkey-add.success.dark.phone",
+        "passkey-add.unsupported.light.desktop",
+        "passkey-add.unsupported.light.phone",
+        "passkey-add.unsupported.dark.desktop",
+        "passkey-add.unsupported.dark.phone",
+        "passkey-add.prompt.light.desktop",
+        "passkey-add.prompt.light.phone",
+        "passkey-add.prompt.dark.desktop",
+        "passkey-add.prompt.dark.phone"
+      ]
+    },
+    {
+      "routeId": "reauth",
+      "path": "/account/reauthenticate",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "R2T-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "R4G-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "11XU-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "11ZH-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "R5E-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "R73-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "120F-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1224-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "invalid"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "R83-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "R9T-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "1234-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "124U-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "loading"
+        }
+      ],
+      "cases": [
+        "reauth.default.light.desktop",
+        "reauth.default.light.phone",
+        "reauth.default.dark.desktop",
+        "reauth.default.dark.phone",
+        "reauth.invalid.light.desktop",
+        "reauth.invalid.light.phone",
+        "reauth.invalid.dark.desktop",
+        "reauth.invalid.dark.phone",
+        "reauth.loading.light.desktop",
+        "reauth.loading.light.phone",
+        "reauth.loading.dark.desktop",
+        "reauth.loading.dark.phone"
+      ]
+    },
+    {
+      "routeId": "clients",
+      "path": "/settings/clients",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "UQJ-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "empty"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "USQ-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "empty"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "157F-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "empty"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "159M-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "empty"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "UN1-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "revoked"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "UPF-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "revoked"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "153X-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "revoked"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "156B-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "revoked"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "UJR-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "UM2-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "150N-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "152Y-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        }
+      ],
+      "cases": [
+        "clients.empty.light.desktop",
+        "clients.empty.light.phone",
+        "clients.empty.dark.desktop",
+        "clients.empty.dark.phone",
+        "clients.revoked.light.desktop",
+        "clients.revoked.light.phone",
+        "clients.revoked.dark.desktop",
+        "clients.revoked.dark.phone",
+        "clients.default.light.desktop",
+        "clients.default.light.phone",
+        "clients.default.dark.desktop",
+        "clients.default.dark.phone"
+      ]
+    },
+    {
+      "routeId": "revoke-client",
+      "path": "/settings/clients/revoke",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "UTN-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "UW1-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "15AJ-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "15CX-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "UX7-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "failed"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "UZI-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "failed"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "15E3-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "failed"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "15GE-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "failed"
+        }
+      ],
+      "cases": [
+        "revoke-client.default.light.desktop",
+        "revoke-client.default.light.phone",
+        "revoke-client.default.dark.desktop",
+        "revoke-client.default.dark.phone",
+        "revoke-client.failed.light.desktop",
+        "revoke-client.failed.light.phone",
+        "revoke-client.failed.dark.desktop",
+        "revoke-client.failed.dark.phone"
+      ]
+    },
+    {
+      "routeId": "consent",
+      "path": "/oauth/consent",
+      "status": "baselined",
+      "manifest": "auth",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "U14-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "denied"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "U2F-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "denied"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "14U0-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "denied"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "14VB-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "denied"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "UAU-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "expired"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "UC1-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "expired"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "14YI-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "expired"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "14ZP-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "expired"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "U3H-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "success"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "U8Y-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "success"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "14WB-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "success"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "14XJ-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "success"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "TWJ-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "14PH-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "TYY-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "V-0",
+          "frameId": "14RW-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        }
+      ],
+      "cases": [
+        "consent.denied.light.desktop",
+        "consent.denied.light.phone",
+        "consent.denied.dark.desktop",
+        "consent.denied.dark.phone",
+        "consent.expired.light.desktop",
+        "consent.expired.light.phone",
+        "consent.expired.dark.desktop",
+        "consent.expired.dark.phone",
+        "consent.success.light.desktop",
+        "consent.success.light.phone",
+        "consent.success.dark.desktop",
+        "consent.success.dark.phone",
+        "consent.default.light.desktop",
+        "consent.default.dark.desktop",
+        "consent.default.light.phone",
+        "consent.default.dark.phone"
+      ]
+    },
+    {
+      "routeId": "tasks",
+      "path": "/tasks",
+      "status": "baselined",
+      "rationale": "Route ships on #304 (delivery/issue129-task-run-ui), not yet in routeCoverage on main. Enterprise goldens are self-checked; scoring starts once the route exists, which turns this planned entry into a CI failure until it becomes baselined.",
+      "manifest": "enterprise",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "E-0",
+          "frameId": "5J-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "E-0",
+          "frameId": "E8-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        }
+      ],
+      "absentVariants": [
+        {
+          "theme": "dark",
+          "reason": "no dark Paper frame on page E-0 for this route (searched artboards.txt 2026-10-07 for dark|Dark on E-0; dark frames exist only for auth, appearance, foundations, patterns, machines and artifact-compare pages)"
+        }
+      ],
+      "cases": [
+        "queue.default.light.desktop",
+        "queue.default.light.phone"
+      ]
+    },
+    {
+      "routeId": "task-new",
+      "path": "/tasks/new",
+      "status": "no-mock",
+      "rationale": "New-task composer (#129, EPIC E04). Searched artboards.txt 2026-10-09 for new task|create task|compose|composer|new work: E-0 5J-0/E8-0 show the Work queue and its selected-task inspector only, and HU-0/P6-0 show a session reply composer, not a task form. No Paper frame depicts a new-task form, so none is invented. Desktop renders the form in the queue's inspector region (the 5J-0 inspector form recipe, whose queue goldens stay scored); phones render it as a full page.",
+      "frames": []
+    },
+    {
+      "routeId": "task-coordination",
+      "path": "/tasks/$taskId/coordination",
+      "status": "baselined",
+      "rationale": "E06 (#143): the coordination plan view on native Paper p-18-0 frames scored as enterprise design cases against /__fixtures__/work/coordination/$state. Plan origin, short digest, typed-handoff wording and the stale lane state are not drawn in p-18-0 (searched E06-FRAMES.md task-coordination nodes 2J64-0, 2JD6-0, 2JQJ-0, 2JH8-0, 2JLA-0 2026-10-29): the scored default, partial and empty states hide origin and digest through the fixture, and the stale, workflow and ticket fixture states plus apps/web/tests/task-coordination.spec.ts cover them without a Paper frame.",
+      "manifest": "enterprise",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-18-0",
+          "frameId": "2J64-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-18-0",
+          "frameId": "2JD6-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-18-0",
+          "frameId": "2JQJ-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-18-0",
+          "frameId": "2JH8-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "empty"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-18-0",
+          "frameId": "2JLA-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "partial"
+        }
+      ],
+      "absentVariants": [
+        {
+          "theme": "dark",
+          "device": "phone",
+          "reason": "Paper p-18-0 draws the phone variant in the light theme only; dark phone is proven by the Storybook dark axe lane, the dark desktop golden and the evidence video."
+        }
+      ],
+      "cases": [
+        "task-coordination.default.light.desktop",
+        "task-coordination.default.dark.desktop",
+        "task-coordination.default.light.phone",
+        "task-coordination.empty.light.desktop",
+        "task-coordination.partial.light.desktop"
+      ]
+    },
+    {
+      "routeId": "installation-settings",
+      "path": "/installation/settings",
+      "status": "baselined",
+      "manifest": "entitlements",
+      "rationale": "Implemented installation settings with live policy actions, version-bound edits and save failure/conflict states. Owner decision 2026-10-12 authorizes eight independently repository-authored installation-settings-v2 design derivatives and one further capture/comparison after source/reference review. Listed genuine Paper frame IDs identify original design ancestry, not new Paper artboards or exports; scoring uses the declared derivative JSX and versioned reference paths. All84 selection, full frames, strict schema and inclusive0.95 remain mandatory. Prebound references await rendering/hash finalization; no F2 pass or Phase5 completion is claimed. Owner decision 2026-10-14 (\"go with option 1, add v3 references\"): E16 added Licence and Audit log to the installation section nav, so the four desktop frames are re-rendered as repository-authored installation-settings-v3 successors with the real four-item nav; v2 references and provenance stay intact, phone frames stay on v2, threshold unchanged at 0.95.",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2DA1-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2DYC-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2C24-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2D27-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2E5Y-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "save-conflict"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2E62-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "save-conflict"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2E5Z-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "save-error"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2E63-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "save-error"
+        }
+      ],
+      "cases": [
+        "installation-settings.default.dark.desktop",
+        "installation-settings.default.dark.phone",
+        "installation-settings.default.light.desktop",
+        "installation-settings.default.light.phone",
+        "installation-settings.save-conflict.light.desktop",
+        "installation-settings.save-conflict.light.phone",
+        "installation-settings.save-error.light.desktop",
+        "installation-settings.save-error.light.phone"
+      ]
+    },
+    {
+      "routeId": "installation-administrators",
+      "path": "/installation/administrators",
+      "status": "planned",
+      "manifest": "entitlements",
+      "rationale": "Installation administrators: E16 route not built yet. Reference renders exist; scoring starts when the route ships and the entry becomes baselined.",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2E61-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "denied-non-admin"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2E65-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "denied-non-admin"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2DCR-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "list"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2DYD-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "list"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2C4V-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "list"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2D28-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "list"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2E60-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "revoke-confirm"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2E64-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "revoke-confirm"
+        }
+      ],
+      "cases": [
+        "installation-administrators.denied-non-admin.light.desktop",
+        "installation-administrators.denied-non-admin.light.phone",
+        "installation-administrators.list.dark.desktop",
+        "installation-administrators.list.dark.phone",
+        "installation-administrators.list.light.desktop",
+        "installation-administrators.list.light.phone",
+        "installation-administrators.revoke-confirm.light.desktop",
+        "installation-administrators.revoke-confirm.light.phone"
+      ]
+    },
+    {
+      "routeId": "organization-access",
+      "path": "/organization/access",
+      "status": "planned",
+      "manifest": "entitlements",
+      "rationale": "Organization access page. The page ships at /settings/organization/access (route settings-organization-access) and renders the same component through the development alias /__fixtures__/organization/access for Paper capture. The cases stay planned because baselining them changes candidate.route in entitlements-baselines.json, which compare-paper.mjs blocks without a refreshed immutable Paper source identity, and because the frames contradict each other (see settings-organization-access). The seat-banner frames also draw the invite form without its role selector and send button, a dark desktop layout that differs from the light one, and a form-only phone layout. Phone captures are clipped to the frame height, so phone scores measure pixels, not page height. Measured locally 2026-10-22 (planned cases, not gated), whole frame: access-page phone members light 0.343, members dark 0.246, empty 0.296, error 0.308, loading 0.216; seat-banner phone 0.000 (surface); desktop members light 0.959, members dark 0.940, empty 0.824, error 0.806, loading 0.736. Scored from the Access heading down with the heading aligned, the phone page itself reads error 1.000, loading 1.000, empty 0.928 (the New service account action the empty card must offer) and members light 0.956 down to the accounts section, whose New service account and New token actions Paper does not draw; members dark draws another rhythm than members light. Every phone frame draws a settings sub-header (back to Settings, Platform team with role) that neither the organization nor the installation shell has, and the status frames put the heading 16px lower than the members frame. For installation the owner chose repository-authored phone derivatives without that sub-header (2026-10-12); the organization frames need the same owner decision, or a shell change, before any whole phone frame can reach 0.95.",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2ENV-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "empty"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2ENY-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "empty"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2ENX-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "error"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2EO0-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "error"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2ENW-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2ENZ-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "loading"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2DCW-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "members"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2DYI-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "members"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2CCD-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "members"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2D2D-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "members"
+        }
+      ],
+      "cases": [
+        "access-page.empty.light.desktop",
+        "access-page.empty.light.phone",
+        "access-page.error.light.desktop",
+        "access-page.error.light.phone",
+        "access-page.loading.light.desktop",
+        "access-page.loading.light.phone",
+        "access-page.members.dark.desktop",
+        "access-page.members.dark.phone",
+        "access-page.members.light.desktop",
+        "access-page.members.light.phone"
+      ]
+    },
+    {
+      "routeId": "organization-roles",
+      "path": "/organization/roles",
+      "status": "planned",
+      "manifest": "entitlements",
+      "rationale": "Custom roles. The page ships at /settings/organization/roles (route settings-organization-roles); no candidate fixture renders it at this path for Paper capture yet, so the cases stay planned and no golden is claimed. Scoring starts when a capture alias exists and the entry becomes baselined.",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2EXJ-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "create-or-edit"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2EXP-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "create-or-edit"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2DCX-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "list"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2DYJ-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "list"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2CGG-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "list"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2D2E-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "list"
+        }
+      ],
+      "cases": [
+        "custom-roles.create-or-edit.light.desktop",
+        "custom-roles.create-or-edit.light.phone",
+        "custom-roles.list.dark.desktop",
+        "custom-roles.list.dark.phone",
+        "custom-roles.list.light.desktop",
+        "custom-roles.list.light.phone"
+      ]
+    },
+    {
+      "routeId": "organization-audit",
+      "path": "/organization/audit",
+      "status": "planned",
+      "manifest": "entitlements",
+      "rationale": "Audit log: E16 route not built yet. Reference renders exist; scoring starts when the route ships and the entry becomes baselined.",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2EXK-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "export-dialog"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2EXQ-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "export-dialog"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2DCY-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "list"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2DYK-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "list"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2CJE-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "list"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2D2F-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "list"
+        }
+      ],
+      "cases": [
+        "audit-log.export-dialog.light.desktop",
+        "audit-log.export-dialog.light.phone",
+        "audit-log.list.dark.desktop",
+        "audit-log.list.dark.phone",
+        "audit-log.list.light.desktop",
+        "audit-log.list.light.phone"
+      ]
+    },
+    {
+      "routeId": "organization-sso",
+      "path": "/organization/sso",
+      "status": "planned",
+      "manifest": "entitlements",
+      "rationale": "Single sign-on providers: E16 route not built yet. Reference renders exist; scoring starts when the route ships and the entry becomes baselined.",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2EXL-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "add-oidc"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2EXR-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "add-oidc"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2EXM-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "add-saml-and-domain-verification"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2EXS-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "add-saml-and-domain-verification"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2DCZ-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "list"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2DYL-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "list"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2CMC-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "list"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2D2G-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "list"
+        }
+      ],
+      "cases": [
+        "sso.add-oidc.light.desktop",
+        "sso.add-oidc.light.phone",
+        "sso.add-saml-and-domain-verification.light.desktop",
+        "sso.add-saml-and-domain-verification.light.phone",
+        "sso.list.dark.desktop",
+        "sso.list.dark.phone",
+        "sso.list.light.desktop",
+        "sso.list.light.phone"
+      ]
+    },
+    {
+      "routeId": "organization-scim",
+      "path": "/organization/scim",
+      "status": "planned",
+      "manifest": "entitlements",
+      "rationale": "SCIM connection and token: E16 route not built yet. Reference renders exist; scoring starts when the route ships and the entry becomes baselined.",
+      "frames": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2EXO-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "revoke-and-decommission-confirm"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2EXU-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "revoke-and-decommission-confirm"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2EXN-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "rotate-confirm"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2EXT-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "rotate-confirm"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2DD0-0",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "token-shown-once"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2DYM-0",
+          "device": "phone",
+          "theme": "dark",
+          "state": "token-shown-once"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2CPA-0",
+          "device": "desktop",
+          "theme": "light",
+          "state": "token-shown-once"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "p-17-0",
+          "frameId": "2D2H-0",
+          "device": "phone",
+          "theme": "light",
+          "state": "token-shown-once"
+        }
+      ],
+      "cases": [
+        "scim.revoke-and-decommission-confirm.light.desktop",
+        "scim.revoke-and-decommission-confirm.light.phone",
+        "scim.rotate-confirm.light.desktop",
+        "scim.rotate-confirm.light.phone",
+        "scim.token-shown-once.dark.desktop",
+        "scim.token-shown-once.dark.phone",
+        "scim.token-shown-once.light.desktop",
+        "scim.token-shown-once.light.phone"
+      ]
+    },
+    {
+      "routeId": "e05-task-run",
+      "path": "/tasks/$taskId",
+      "status": "baselined",
+      "rationale": "Production and the 22 DEV fixture candidate cases share TaskSessionView, TaskRunSectionView, TaskRunStreamView and AppLayout with ArtifactPane. Fixtures supply deterministic authored data; production supplies API state and operational controls. The standard artifacts manifest comparison scores whole artboards at >=0.95 per case. Production browser suites and PostgreSQL-backed seeded acceptance separately prove reconnect, replay, outcomes and archive recovery. Fixture scores do not claim all-state live API parity. E06 (#161, #128) retired the task-detail debt entry, whose route id this entry replaced: its E-0 HU-0/P6-0 planning frames are superseded by native Paper p-18-0 task-conversation frames (2IBL-0, 2IFZ-0, 2J3V-0, 2IK1-0, 2IO3-0, 2IS5-0, 2IW7-0), scored on this path by the 7 enterprise manifest cases task-conversation.* against /__fixtures__/work/conversation/$state, listed under additionalManifests and checked like the artifacts cases. The cases cover the default state (light and dark desktop, light phone) and the plan-review, question, empty and conflict states (light desktop). Evidence: .omo/evidence/paper2-final/.",
+      "manifest": "artifacts",
+      "frames": [
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--default--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--default--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "default"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--default--dark--desktop",
+          "device": "desktop",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--default--dark--phone",
+          "device": "phone",
+          "theme": "dark",
+          "state": "default"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--truncated--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "truncated"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--truncated--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "truncated"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--reconnecting--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "reconnecting"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--reconnecting--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "reconnecting"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--reset--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "reset"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--reset--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "reset"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--exit--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "exit"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--exit--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "exit"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--interrupted--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "interrupted"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--interrupted--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "interrupted"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--quota--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "quota"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--quota--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "quota"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--usage-unknown--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "usage-unknown"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--usage-unknown--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "usage-unknown"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--timeout--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "timeout"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--timeout--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "timeout"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--lost-lease--light--desktop",
+          "device": "desktop",
+          "theme": "light",
+          "state": "lost-lease"
+        },
+        {
+          "fileId": "bakery-repo-e05",
+          "pageId": "E05-artifacts",
+          "frameId": "E05-task-run--lost-lease--light--phone",
+          "device": "phone",
+          "theme": "light",
+          "state": "lost-lease"
+        }
+      ],
+      "cases": [
+        "task-run.default.light.desktop",
+        "task-run.default.light.phone",
+        "task-run.default.dark.desktop",
+        "task-run.default.dark.phone",
+        "task-run.truncated.light.desktop",
+        "task-run.truncated.light.phone",
+        "task-run.reconnecting.light.desktop",
+        "task-run.reconnecting.light.phone",
+        "task-run.reset.light.desktop",
+        "task-run.reset.light.phone",
+        "task-run.exit.light.desktop",
+        "task-run.exit.light.phone",
+        "task-run.interrupted.light.desktop",
+        "task-run.interrupted.light.phone",
+        "task-run.quota.light.desktop",
+        "task-run.quota.light.phone",
+        "task-run.usage-unknown.light.desktop",
+        "task-run.usage-unknown.light.phone",
+        "task-run.timeout.light.desktop",
+        "task-run.timeout.light.phone",
+        "task-run.lost-lease.light.desktop",
+        "task-run.lost-lease.light.phone"
+      ],
+      "additionalManifests": [
+        {
+          "manifest": "enterprise",
+          "frames": [
+            {
+              "fileId": "01M1X504XVC45FC0VDK857A37D",
+              "pageId": "p-18-0",
+              "frameId": "2IBL-0",
+              "device": "desktop",
+              "theme": "light",
+              "state": "default"
+            },
+            {
+              "fileId": "01M1X504XVC45FC0VDK857A37D",
+              "pageId": "p-18-0",
+              "frameId": "2IFZ-0",
+              "device": "desktop",
+              "theme": "dark",
+              "state": "default"
+            },
+            {
+              "fileId": "01M1X504XVC45FC0VDK857A37D",
+              "pageId": "p-18-0",
+              "frameId": "2J3V-0",
+              "device": "phone",
+              "theme": "light",
+              "state": "default"
+            },
+            {
+              "fileId": "01M1X504XVC45FC0VDK857A37D",
+              "pageId": "p-18-0",
+              "frameId": "2IK1-0",
+              "device": "desktop",
+              "theme": "light",
+              "state": "plan-review"
+            },
+            {
+              "fileId": "01M1X504XVC45FC0VDK857A37D",
+              "pageId": "p-18-0",
+              "frameId": "2IO3-0",
+              "device": "desktop",
+              "theme": "light",
+              "state": "question"
+            },
+            {
+              "fileId": "01M1X504XVC45FC0VDK857A37D",
+              "pageId": "p-18-0",
+              "frameId": "2IS5-0",
+              "device": "desktop",
+              "theme": "light",
+              "state": "empty"
+            },
+            {
+              "fileId": "01M1X504XVC45FC0VDK857A37D",
+              "pageId": "p-18-0",
+              "frameId": "2IW7-0",
+              "device": "desktop",
+              "theme": "light",
+              "state": "conflict"
+            }
+          ],
+          "cases": [
+            "task-conversation.default.light.desktop",
+            "task-conversation.default.dark.desktop",
+            "task-conversation.default.light.phone",
+            "task-conversation.plan-review.light.desktop",
+            "task-conversation.question.light.desktop",
+            "task-conversation.empty.light.desktop",
+            "task-conversation.conflict.light.desktop"
+          ]
+        }
+      ]
+    },
+    {
+      "routeId": "installation-audit",
+      "path": "/installation/audit",
+      "status": "no-mock",
+      "rationale": "Installation audit log page (E16 phase 11): newest-first table of installation-level and sign-in credential events with action and period filters. Searched artboards.txt and docs/technical-design/entitlements-mocks/site/fragments (2026-10-13) for audit: no Paper frame depicts it, so no golden exists and none is invented.",
+      "frames": []
+    },
+    {
+      "routeId": "installation-integrations",
+      "path": "/settings/installation/integrations",
+      "status": "no-mock",
+      "rationale": "Installation Integrations page (B09.02, #478): create the installation GitHub App through the manifest flow and show the registered App name, id, slug, owner and permissions. Searched artboards.txt, integration-mocks-v2 and docs/technical-design/entitlements-mocks/site/fragments (2026-10-26) for integration|github|app registration: no Paper frame or repository-authored fragment depicts installation-level App registration, so no golden exists and none is invented. Built from the installation settings pattern (SettingsContent, DescriptionList, CapabilityList, AlertBanner). The owner approved this no-mock reference for the GitHub App area on 2026-10-28; Paper parity stays unscored until a mock exists. Object storage section (E05, #49) on the same route: an installation administrator saves the Cloudflare R2 account id, bucket and write-only credentials, sees the active backend read-only, and runs a bounded verification with a fixed message per outcome. Searched docs/technical-design/integration-mocks, integration-mocks-v2 and entitlements-mocks (2026-10-28) for object storage|bucket|R2|cloudflare: no Paper frame or repository-authored fragment matches, so no golden exists and none is invented. Built from existing primitives (SettingsContent, DescriptionList, Field, TextInput, PasswordInput, EmptyState, AlertBanner, Button). UNAPPROVED: the owner has not approved this no-mock rationale for the storage section; the 2026-10-28 approval above covers the GitHub App area only and does not extend to storage. The route stays no-mock and unscored until the owner approves it or a mock exists.",
+      "frames": []
+    },
+    {
+      "routeId": "settings-organization-integrations",
+      "path": "/settings/organization/integrations",
+      "status": "no-mock",
+      "rationale": "Organization Integrations page (#133): the route every GitHub connection callback returns to. Connect GitHub (install then authorize), a pending connection's repository selection and Enable, a Check showing health and capabilities, and a message for every connection outcome. integration-mocks-v2 depicts a separate multi-route wizard (/integrations/github/connect/*, connection detail and settings) rather than this settings route the server redirects to, so no frame maps to it and none is invented. Built from the settings pattern (SettingsContent, SettingsSection, StatusBadge, Checkbox, DescriptionList, CapabilityList, AlertBanner). No-mock follows the owner-approved installation-integrations precedent of 2026-10-28; Paper parity stays unscored until a mock maps here.",
+      "frames": []
+    },
+    {
+      "routeId": "settings-audit",
+      "path": "/settings/audit",
+      "status": "no-mock",
+      "rationale": "Organization audit log page (E16 phase 11): newest-first table of membership, invitation, preference and client events with action and period filters. Searched artboards.txt and docs/technical-design/entitlements-mocks/site/fragments (2026-10-13) for audit: no Paper frame depicts it, so no golden exists and none is invented.",
+      "frames": []
+    },
+    {
+      "routeId": "settings-organization-access",
+      "path": "/settings/organization/access",
+      "status": "no-mock",
+      "rationale": "Organization Access page (E16 phase 13): members with scoped roles, invitations, service accounts and tokens, connected clients. The page renders through the AccessSettings template. Its Paper frames stay owned by the planned organization-access entry (path /organization/access) and are scored locally, not in CI, through the development alias /__fixtures__/organization/access and the access capture recipe in packages/ui/scripts/capture-enterprise.mjs (2026-10-21, compare-paper.mjs --manifest entitlements with those cases temporarily ledgered baselined): members light desktop 0.9586 (passes the 0.95 floor), members dark desktop 0.9395, empty 0.8239 (0.8420 before the empty card gained New service account), error 0.8057, loading 0.7356 as whole frames. Scored on the main content area alone, empty, error, loading and members dark are 0.9878, 1.0, 1.0 and 0.9579. The whole-frame shortfall is the Paper shell, which the frames disagree on (empty, error and loading draw a 38px section-nav pitch and no account actions; members draws 40px and a 32px account circle; the dark members frame draws no account circle). Phone frames are scored with the capture clipped to the frame; their numbers and the shell gap are in the organization-access entry. Binding the cases needs a refreshed Paper source identity and an owner decision on which shell is authoritative, so no golden is claimed here.",
+      "frames": []
+    },
+    {
+      "routeId": "settings-organization-roles",
+      "path": "/settings/organization/roles",
+      "status": "no-mock",
+      "rationale": "Custom roles page (E16 phase 14): the organization's custom roles with create, edit, assign and delete, moved off the Access page so Access fits its Paper frames. The Paper custom-roles frames stay owned by the planned organization-roles entry (path /organization/roles); no candidate fixture scores this route against them yet, so no golden is claimed. Behaviour is covered by apps/web/tests/custom-roles.spec.ts on desktop and phone viewports, not by pixel scoring.",
+      "frames": []
+    },
+    {
+      "routeId": "settings-scim",
+      "path": "/settings/scim",
+      "status": "no-mock",
+      "rationale": "Organization SCIM provisioning page (E16 phase 17): connection state, base URL, credential list, create, rotate and revoke, and the one-time token panel. Searched artboards.txt and docs/technical-design/entitlements-mocks/site/fragments (2026-10-13) for scim: the repo-authored scim fragments (token shown once, rotate confirm, revoke confirm) exist but are not bound as scored baselines in entitlements-baselines.json, so no golden exists and none is invented.",
+      "frames": []
+    },
+    {
+      "routeId": "machines",
+      "path": "/machines",
+      "status": "no-mock",
+      "rationale": "Live worker inventory and enrollment state are organization-scoped API data. The approved worker-readiness K-0 Paper manifest and catalog stories remain available through /__fixtures__/machines/$state for deterministic template coverage; this production route intentionally stays real-API only and is not scored against synthetic records.",
+      "frames": []
+    },
+    {
+      "routeId": "machine-detail",
+      "path": "/machines/$machineId",
+      "status": "no-mock",
+      "rationale": "Live machine detail includes server-derived readiness, bounded dispatch blockers and Admin-only provider auth state. The approved worker-readiness K-0 detail Paper reference remains available through /__fixtures__/machines/detail for deterministic template coverage; this production route intentionally stays real-API only and is not scored against synthetic records.",
+      "frames": []
+    }
+  ]
+}

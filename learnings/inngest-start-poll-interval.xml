@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="inngest-start-poll-interval" project="bakery">
+  <title>Set a poll interval for self-hosted Inngest behind a redeploying API</title>
+  <trigger>Self-hosted inngest start runs next to an API that is redeployed or restarted independently, for example on a PaaS.</trigger>
+  <rule>inngest start --poll-interval defaults to 0, which means the server does not re-poll the SDK URL after the first sync attempt. Set INNGEST_POLL_INTERVAL (the QA start script uses 60) so a redeployed API is picked up without restarting Inngest. Also gate Inngest on the API readiness (BAKERY_WAIT_FOR_READY) so the first sync finds it.</rule>
+  <rule>Keep INNGEST_TICK at 1000 and INNGEST_POSTGRES_MAX_OPEN_CONNS at 20 on small plans. The local proof saw idle CPU ticks 25 versus 35 over 30 seconds for tick 1000 versus 150, and Postgres sessions drop from 5 to 1 with a lower connection cap.</rule>
+  <verification>
+    <requirement>Check the Inngest GraphQL apps list shows the Bakery app with functions and no sync error after an API redeploy within the poll interval.</requirement>
+  </verification>
+  <boundary>The default of 0 is from inngest start --help on v1.44.0. Re-sync after an API restart was not measured in the local proof, only the first sync; do not claim it until a live run shows it.</boundary>
+</learning>

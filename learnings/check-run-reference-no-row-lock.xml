@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="check-run-reference-no-row-lock" project="bakery" issue="83">
+  <title>A reference check must not lock rows of an insert-only table</title>
+  <trigger>A result-reference or existence check reads a table the application role can only select from and insert into, such as bakery.check_runs, and uses `for update` or `for key share`.</trigger>
+  <mistake>assertCheckRunReference selected check_runs `for update of check_run`. PostgreSQL requires UPDATE privilege for every row lock, even FOR KEY SHARE, so the application role failed with permission denied the first time a result carried a real checkRunId. The earlier code never ran because no row could exist.</mistake>
+  <rule>Read an insert-only table without a row lock. Nothing can change or delete the row before the transaction commits, so a lock adds no safety. Keep locks (`for key share`) only on tables the role may update, such as artifact_versions. Prove a new reference check with a real row through the application role, not the owner role.</rule>
+  <verification>
+    <command>pnpm test:integration -- tests/integration/run-deterministic-checks-bound-to-candidate-and-metadata_test.ts</command>
+    <requirement>A completed quality.check result whose checkRunIds name rows written by the finalizer is accepted through the application role.</requirement>
+  </verification>
+  <boundary>Applies to tables with `grant select, insert` only; a table the role updates still needs the lock that protects against a concurrent change.</boundary>
+</learning>

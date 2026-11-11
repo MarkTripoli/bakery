@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="explicit-resume-clears-the-same-state-as-automatic" project="bakery" issue="82">
+  <title>Every route out of suspended clears the same per-suspension state, and a person's call keeps the recorded basis</title>
+  <trigger>A request state machine has more than one way back from suspended (an automatic resume from a recheck and an explicit resume from a person), and a field such as the pause-requested mark is set during suspension.</trigger>
+  <mistake>The explicit resume left pause_requested_at set, so the next suspension of that request never paused its live run: the pause rule fires only while the mark is empty. Evaluating the person's call as a manual call dropped the label basis, so the next poll suspended the request again; evaluating it with the recorded origin alone failed for lack of label provenance on a manual prefetch.</mistake>
+  <rule>Pair every field reset of a state machine with a test that suspends, resumes by each route, and suspends again. A person's call on an automatic request keeps the recorded label basis and swaps only the authority (the caller's live authority replaces the label applier's), so the label is still required.</rule>
+  <verification>
+    <requirement>Leaving the mark set in either explicit-resume write fails the suspend, resume, suspend test, and the label-basis resume case fails when the caller's manual basis is used.</requirement>
+  </verification>
+</learning>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="worker-state-polls-tolerate-the-lock-timeout" project="bakery">
+  <title>A test poll that reads the worker state treats WORKER_STATE_LOCKED as not yet</title>
+  <trigger>waitForCondition calls registrationStore.load() while the supervisor under test holds the state lock.</trigger>
+  <mistake>The read waits out the 1s lock budget on a loaded host and throws WORKER_STATE_LOCKED, ending the wait with an unrelated error (released event spool data replays exactly after restart, 1 of 10 runs at load 33).</mistake>
+  <rule>waitForCondition (tests/helpers/worker-execution/recovery-support.ts) reads again after exactly that error and still ends at its own deadline, with the lock error as the cause only if the last read was still locked; any other error ends the wait.</rule>
+  <verification>
+    <requirement>tests/unit/wait-for-condition_test.ts holds the real state lock past its 1s budget: it fails 3 of 4 before the change and passes after.</requirement>
+  </verification>
+</learning>

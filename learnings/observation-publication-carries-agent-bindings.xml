@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="observation-publication-carries-agent-bindings" project="bakery" issue="94">
+  <title>A profile derived from an observation must carry every operator-authored field forward</title>
+  <trigger>Onboarding publishes an observed (v2) repository profile from a draft profile, or any code rebuilds a profile from parts.</trigger>
+  <mistake>`deriveRepositoryInspectionConfig` rebuilt the observed profile from the workflow, branches, worktree, fixed policy and rule overrides but dropped `agentBindings`. A draft that bound agents produced an active profile with none, so every run on a fixed-policy profile failed admission with `model_agent_required` and no model-backed preset could start. Unit tests that seeded v2 profiles directly never went through the derivation, so nothing failed until a lane onboarded through the real inspection route.</mistake>
+  <rule>Treat repository intent (agent bindings, rule overrides) as data to carry forward, not something an observation recomputes. When a profile is rebuilt, spread each authored optional field the same way the overrides are, and prove it with a case that derives from a draft that has the field, re-derives from the observed result, and derives from a draft without it (the field stays absent). Prove the bindings also survive a real onboarding run: create the repository with bindings, onboard it through the inspection route and admit a model step on the result.</rule>
+  <verification>
+    <command>pnpm test:unit -- tests/unit/implement-independent-review-and-bounded-repair-loops_test.ts</command>
+    <requirement>The derived observed profile equals the draft's agent bindings, keeps them when derived again, and has no `agentBindings` key when the draft has none.</requirement>
+  </verification>
+  <boundary>Fixed in apps/server/src/modules/projects/repository-inspect.ts. A profile created before the fix lost its bindings and needs a new profile revision with them.</boundary>
+</learning>

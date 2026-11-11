@@ -1,0 +1,241 @@
+.ui-installation-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-inline-size: 45rem;
+  min-inline-size: 0;
+  color: var(--color-fg);
+}
+.ui-installation-settings[data-state="error"],
+.ui-installation-settings[data-state="conflict"] {
+  gap: calc(var(--space-6) + var(--space-1));
+}
+.ui-installation-settings__heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.ui-installation-settings__heading h1 {
+  margin: var(--space-0);
+  font: var(--type-heading-auth);
+  letter-spacing: var(--tracking-heading-page);
+}
+.ui-installation-settings__heading p {
+  margin: var(--space-0);
+  color: var(--color-fg-muted);
+  font: var(--type-body);
+}
+.ui-installation-settings__group {
+  display: flex;
+  gap: var(--space-6);
+  min-inline-size: 0;
+  margin: var(--space-0);
+  padding: var(--space-6) var(--space-0);
+  border: var(--border-none);
+  border-block-start: var(--border-default) solid var(--color-border);
+}
+.ui-installation-settings__legend {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.ui-installation-settings__label {
+  display: flex;
+  flex: 0 0 12.5rem;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.ui-installation-settings__label strong {
+  font: var(--type-control);
+}
+.ui-installation-settings__choice-copy strong {
+  font: var(--type-body);
+}
+.ui-installation-settings .ui-radio input:checked ~ .ui-installation-settings__choice-copy strong {
+  font: var(--type-control);
+}
+.ui-installation-settings__label span,
+.ui-installation-settings__choice-copy > span,
+.ui-installation-settings__footer > span {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+}
+.ui-installation-settings__choices {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+.ui-installation-settings .ui-radio {
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  gap: var(--space-3);
+  min-block-size: var(--target-coarse);
+  position: relative;
+  padding-inline-start: calc(var(--space-6) + var(--space-1-5));
+}
+.ui-installation-settings .ui-radio[data-state="disabled"] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.ui-installation-settings .ui-radio input {
+  appearance: none;
+  position: absolute;
+  inset-inline-start: var(--space-0);
+  inset-block-start: var(--space-0);
+  inline-size: var(--target-coarse);
+  block-size: var(--target-coarse);
+  margin: var(--space-0);
+  opacity: 0;
+}
+.ui-installation-settings__radio-glyph {
+  position: absolute;
+  inset-inline-start: var(--space-0);
+  inset-block-start: calc(
+    (var(--target-coarse) - 1.125rem) / 2
+  );
+  box-sizing: border-box;
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+  border: var(--border-default) solid var(--color-control-border);
+  border-radius: var(--radius-circle);
+  background: transparent;
+  pointer-events: none;
+}
+.ui-installation-settings .ui-radio input:checked + .ui-installation-settings__radio-glyph {
+  border-style: solid;
+  border-width: 0.3125rem;
+  border-color: var(--color-selection);
+}
+.ui-installation-settings .ui-radio input:focus-visible + .ui-installation-settings__radio-glyph {
+  outline: var(--space-0-5) solid var(--color-selection);
+  outline-offset: var(--space-1);
+}
+.ui-installation-settings .ui-radio input:disabled + .ui-installation-settings__radio-glyph {
+  border-color: var(--color-control-border);
+}
+
+.ui-installation-settings__failure {
+  padding: var(--space-4);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-overlay);
+  background: var(--color-destructive-surface);
+}
+.ui-installation-settings__failure[data-tone="warning"] {
+  background: var(--color-status-warning-surface);
+}
+.ui-installation-settings__failure h2 {
+  margin: var(--space-0) var(--space-0) var(--space-2);
+  color: var(--color-destructive);
+  font: var(--type-control);
+}
+.ui-installation-settings__failure[data-tone="warning"] h2 {
+  color: var(--color-status-warning);
+}
+.ui-installation-settings__failure p {
+  margin: var(--space-0) var(--space-0) var(--space-3);
+  font: var(--type-hint);
+}
+.ui-installation-settings__summary {
+  margin: var(--space-0);
+  font: var(--type-control);
+}
+.ui-installation-settings__summary > div {
+  display: grid;
+  grid-template-columns: 12.5rem minmax(0, 1fr);
+  gap: var(--space-6);
+  padding-block: var(--space-5);
+  border-block-start: var(--border-default) solid var(--color-border);
+}
+.ui-installation-settings__summary dd {
+  margin: var(--space-0);
+  overflow-wrap: anywhere;
+}
+.ui-installation-settings__choice-copy {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  padding-block-start: var(--space-0-5);
+}
+.ui-installation-settings__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-block: var(--space-5);
+  border-block-start: var(--border-default) solid var(--color-border);
+}
+.ui-installation-settings__footer > span {
+  max-inline-size: 420px;
+}
+.ui-installation-settings__actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-2);
+}
+.ui-installation-settings__actions .ui-button {
+  min-block-size: var(--target-coarse);
+  padding: calc(var(--space-3) - var(--border-default)) var(--space-4);
+  font: var(--type-control);
+}
+.ui-installation-settings__actions .ui-button--outline {
+  border-color: var(--color-control-border);
+  background: transparent;
+}
+.ui-installation-settings__actions .ui-button:disabled {
+  opacity: 0.5;
+}
+@media (max-width: 743px) {
+  .ui-installation-settings__heading h1 {
+    font: var(--type-heading-page);
+  }
+  .ui-installation-settings__group {
+    flex-direction: column;
+    gap: var(--space-4);
+    padding-block: var(--space-4) var(--space-5);
+  }
+  .ui-installation-settings__label {
+    flex-basis: auto;
+  }
+  .ui-installation-settings__choice-copy > span,
+  .ui-installation-settings__footer > span {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .ui-installation-settings__choice-copy {
+    align-self: center;
+    padding-block: var(--space-0);
+  }
+  .ui-installation-settings__choices {
+    gap: var(--space-3);
+  }
+  .ui-installation-settings__summary > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+  .ui-installation-settings__footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .ui-installation-settings__actions {
+    inline-size: 100%;
+    flex-wrap: wrap;
+  }
+  .ui-installation-settings__failure .ui-installation-settings__actions {
+    flex-direction: column;
+  }
+  .ui-installation-settings__footer .ui-installation-settings__actions {
+    flex-direction: column-reverse;
+  }
+  .ui-installation-settings__actions .ui-button {
+    flex: 1;
+    min-block-size: var(--target-coarse);
+  }
+}

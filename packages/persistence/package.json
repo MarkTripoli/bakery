@@ -1,0 +1,35 @@
+{
+  "name": "@bakery/persistence",
+  "private": true,
+  "version": "0.0.0",
+  "exports": {
+    ".": "./src/index.ts",
+    "./postgres": "./src/postgres.ts",
+    "./worker-session": "./src/worker-session.ts",
+    "./claims": "./src/claims.ts",
+    "./repository-admission": "./src/repository-admission.ts",
+    "./attempts": "./src/attempts.ts",
+    "./heartbeat": "./src/heartbeat.ts",
+    "./event-journal": "./src/event-journal.ts",
+    "./event-audit": "./src/event-audit.ts",
+    "./machine-readiness": "./src/machine-readiness.ts",
+    "./results": "./src/results.ts",
+    "./coordination": "./src/coordination.ts",
+    "./secret-identity": "./src/secret-identity.ts",
+    "./budget-release": "./src/budget-release.ts",
+    "./external-effect-holds": "./src/external-effect-holds.ts"
+  },
+  "scripts": {
+    "typecheck": "deno check src/index.ts src/machine-readiness.ts src/postgres.ts src/worker-session.ts src/claims.ts src/attempts.ts src/heartbeat.ts src/event-journal.ts src/event-audit.ts src/results.ts src/coordination.ts src/secret-identity.ts src/budget-release.ts src/external-effect-holds.ts",
+    "build": "deno check src/index.ts src/machine-readiness.ts src/postgres.ts src/worker-session.ts src/claims.ts src/attempts.ts src/heartbeat.ts src/event-journal.ts src/event-audit.ts src/results.ts src/coordination.ts src/secret-identity.ts src/budget-release.ts src/external-effect-holds.ts"
+  },
+  "dependencies": {
+    "@bakery/config": "workspace:*",
+    "@bakery/contracts": "workspace:*",
+    "pg": "8.23.0",
+    "postgres": "npm:postgres@3.4.7"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1"
+  }
+}

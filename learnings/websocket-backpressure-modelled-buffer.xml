@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="websocket-backpressure-modelled-buffer" project="bakery">
+  <title>Prove socket backpressure through a modelled bufferedAmount, not loopback</title>
+  <trigger>A test needs to show that a slow WebSocket consumer is bounded and closed, or any behaviour that depends on the kernel send buffer filling.</trigger>
+  <mistake>Wrote a slow-consumer test against a real loopback socket with a client that never reads. Loopback buffers absorbed every byte the server produced, so bufferedAmount stayed at zero for both the slow and the draining peer, and the test could only pass by setting a budget smaller than any legal frame, which proved the wrong branch and flaked.</mistake>
+  <rule>Do not infer transport backpressure from loopback timing. Expose one documented test seam on the handler options (an upgradeWebSocket factory that createApp never sets) and drive the output budget with an own-property bufferedAmount on the upgraded socket. Assert the observable contract: frames withheld past the budget, retry once the peer drains, close 1008 after the grace period, registry drained, and a draining twin unaffected. Keep each timing regression in its own step with margins measured in hundreds of milliseconds, and prove it fails against the pre-fix server before keeping it.</rule>
+  <verification>
+    <command>DATABASE_URL=... BAKERY_APP_DATABASE_URL=... pnpm test:integration -- tests/integration/deliver-bounded-authorized-websocket-events-and-replay_test.ts</command>
+    <requirement>State in the evidence that the backpressure branch is proven against a modelled bufferedAmount and that the runtime's own inbound message ceiling applies before the application bound.</requirement>
+  </verification>
+  <boundary>The seam models the peer, not the server: authorization, budgeting, close codes and retry all run through production code. It is not a substitute for asserting behaviour a real socket can observe.</boundary>
+</learning>

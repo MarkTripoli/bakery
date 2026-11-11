@@ -1,0 +1,39 @@
+<!doctype html>
+<!--
+THESIS: familiar, task-first account access; Bakery's character lives in the approved logo and one line.
+OWN-WORLD: current enterprise Geist, neutral surfaces, blue links, 4px controls, 44px targets.
+STORY: sign in or accept an invitation; recover safely; choose the organization; manage access.
+FIRST VIEWPORT: headerless split entry, full centered logo above "Fresh commits, coming right up";
+380px form opposite. Phone keeps the logo and form; invitation context stacks before its form.
+FORM: B for routine access and C for invitations, explicitly approved by the user.
+Generated images guide composition; all controls and text below are semantic mock UI.
+-->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="referrer" content="no-referrer"><title>Bakery · Authentication design</title><link rel="icon" href="favicon.png"><link rel="stylesheet" href="auth.css"></head>
+<body>
+<div id="gallery" hidden>
+<header class="gallery-header"><nav aria-label="Project"><strong>Bakery · Authentication</strong><a href="../show-me-bakery.html">Technical map</a><a href="../integration-mocks-v2/index.html">Integrations</a><a href="https://app.paper.design/file/01M1X504XVC45FC0VDK857A37D/V-0" target="_blank" rel="noopener">Paper designs ↗</a></nav><a href="AUTH-FLOWS.md">Flow contract ↗</a></header>
+<main class="gallery-main">
+<div class="gallery-intro"><div class="row spread wrap"><h1>Account access, from first invite to daily work.</h1><span id="screen-count" class="hint"></span></div><p class="muted">Explore the working mock at phone, tablet and desktop widths. Forms, links and recovery actions use synthetic data; no account is created and no email is sent.</p></div>
+<div class="gallery-controls">
+<div class="field"><label for="screen-select">Screen</label><select id="screen-select"></select></div>
+<div class="field"><label for="state-select">State</label><select id="state-select"></select></div>
+<div class="field"><label for="theme-select">Appearance</label><select id="theme-select"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></div>
+<div class="view-buttons" role="group" aria-label="Preview width"><button class="btn" data-viewport="phone" aria-pressed="false">Phone</button><button class="btn" data-viewport="tablet" aria-pressed="false">Tablet</button><button class="btn" data-viewport="desktop" aria-pressed="true">Desktop</button></div>
+</div>
+<div class="row spread wrap gallery-title-row"><div class="grow"><h2 id="screen-title">Sign in</h2><p id="screen-route" class="hint"></p></div><a id="open-screen" class="btn" target="_blank" rel="noopener">Open full screen ↗</a></div>
+<div id="preview-wrap" class="preview-wrap"><iframe id="preview" title="Interactive Bakery authentication mock"></iframe></div>
+<div class="row spread wrap"><p id="screen-note" class="muted screen-notes"></p><div class="row"><button class="btn" id="previous" aria-label="Previous screen">←</button><span id="position" class="hint"></span><button class="btn" id="next" aria-label="Next screen">→</button></div></div>
+<details class="review-details"><summary>Responsive and accessibility fixtures</summary><div class="row wrap" style="margin-top:12px"><label class="row"><input id="rtl-toggle" type="checkbox" style="width:20px;height:20px">Right-to-left layout</label><label class="row"><input id="long-toggle" type="checkbox" style="width:20px;height:20px">Long organization name</label><label class="row"><input id="pseudo-toggle" type="checkbox" style="width:20px;height:20px">Expanded text fixture</label><label class="row"><input id="core-toggle" type="checkbox" style="width:20px;height:20px">Core installation capabilities</label></div><p class="hint">Phone layouts are real reflows. These toggles are layout stress fixtures, not completed translations. Core installation capabilities renders each screen without GitHub sign-in, password reset, passkeys, email/password change, the email-verification badge, connected clients and the preview-only review aids — the derivation the product parity gate compares against. Use your browser zoom and keyboard for additional review.</p></details>
+<details class="review-details" open><summary>Follow a complete flow</summary><div class="flow-list">
+<section><h3>Join an organization</h3><ol><li><a href="#mail-invite">Invitation email</a></li><li><a href="#invite">Review invitation</a></li><li><a href="#register">Create account</a></li><li><a href="#verify">Verify email, if required</a></li><li><a href="#invite/accepted">Accept and enter organization</a></li></ol></section>
+<section><h3>Recover access</h3><ol><li><a href="#login/invalid">Sign-in error</a></li><li><a href="#forgot">Request reset</a></li><li><a href="#mail-reset">Reset email</a></li><li><a href="#reset">Set new password</a></li><li><a href="#login">Sign in again</a></li></ol></section>
+<section><h3>Manage account access</h3><ol><li><a href="#security">Account and security</a></li><li><a href="#reauth">Confirm identity</a></li><li><a href="#sessions">Review sessions</a></li><li><a href="#consent">Authorize a local client</a></li><li><a href="#clients">Revoke client access</a></li></ol></section>
+<section><h3>Protect your account</h3><ol><li><a href="#two-factor">Two-factor settings</a></li><li><a href="#totp-setup">Set up an authenticator</a></li><li><a href="#backup-codes">Save backup codes</a></li><li><a href="#totp-challenge">Six-digit sign-in check</a></li><li><a href="#backup-challenge">Recover with a backup code</a></li><li><a href="#passkeys">Manage passkeys</a></li></ol></section>
+</div></details>
+<details class="review-details"><summary>Approved visual references</summary><p class="muted">B for sign-in, with the header removed and the full logo above the new bakery copy. C for invitations. The generated images are composition references; the interactive mock adds real responsive behavior and states.</p><div class="concepts"><figure><a href="approved-sign-in.png" target="_blank" rel="noopener"><img src="approved-sign-in.png" alt="Approved split sign-in direction with the full Bakery logo above Fresh commits, coming right up." loading="lazy" width="1536" height="1024"></a><figcaption>Sign-in · approved revision</figcaption></figure><figure><a href="invitation.png" target="_blank" rel="noopener"><img src="invitation.png" alt="Invitation direction with organization context beside the form." loading="lazy" width="1536" height="1024"></a><figcaption>Invitations · destination-aware entry</figcaption></figure></div></details>
+<footer class="gallery-footer"><a href="AUTH-FLOWS.md">All flows and security boundaries</a><a href="../DESIGN.md">Shared design system</a><a href="approved-sign-in.png">Generated sign-in reference</a><span class="caption" style="align-self:center">Design mocks · authentication runtime pending</span></footer>
+</main></div>
+<main id="app" hidden></main>
+<noscript><p style="padding:24px">JavaScript is needed for this interactive mock. <a href="AUTH-FLOWS.md">Read all authentication flows</a> or <a href="approved-sign-in.png">view the approved sign-in image</a>.</p></noscript>
+<script src="auth.js"></script>
+</body></html>

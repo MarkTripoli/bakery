@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="inngest-env-and-ipv6-bind" project="bakery">
+  <title>Configure Inngest through env vars and bind with the bracketed IPv6 wildcard</title>
+  <trigger>Starting inngest start in a container where secrets must stay off the command line or the private network may be IPv6.</trigger>
+  <rule>Inngest v1.44.0 honours its flags as INNGEST_* environment variables: INNGEST_HOST, INNGEST_PORT, INNGEST_POSTGRES_URI, INNGEST_REDIS_URI, INNGEST_EVENT_KEY, INNGEST_SIGNING_KEY, INNGEST_SDK_URL, INNGEST_POLL_INTERVAL, INNGEST_TICK, INNGEST_POSTGRES_MAX_OPEN_CONNS and INNGEST_POSTGRES_MAX_IDLE_CONNS. Pass URIs and keys that way so nothing secret appears in /proc/PID/cmdline. A missing event or signing key name silently falls back to dev defaults, so prove each name.</rule>
+  <rule>Bind with INNGEST_HOST=[::]. A bare :: fails with listen tcp: address :::PORT: too many colons in address. [::] listens on the tcp6 wildcard, dual-stack with Linux bindv6only=0, so one bind serves Railway's A and AAAA private addresses.</rule>
+  <verification>
+    <requirement>The container image has no pgrep or ps; read /proc/PID/cmdline and /proc/net/tcp6 to prove no secret on argv and a wildcard LISTEN.</requirement>
+    <requirement>Prove the event key (configured key accepted, wrong key refused), signing key and SDK URL (app synced), and Redis URI (state keys present in Redis).</requirement>
+  </verification>
+  <boundary>The local proof network was IPv4 only; IPv6 reachability itself was not exercised, only the tcp6 wildcard bind. The /proc probes ran inside the committed proof script infra/railway/local-proof/prove.sh. An inline docker exec sh -c loop was refused by the Claude Code safety check and was not retried in another form.</boundary>
+</learning>

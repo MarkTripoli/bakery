@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="tanstack-link-active-class" project="bakery">
+  <title>TanStack Link injects an active className; pass activeProps={{}} through UI.Link</title>
+  <trigger>A UI.Link wraps the TanStack Router Link in @bakery/ui.</trigger>
+  <mistake>TanStack Link adds className "active" to the anchor of the current route. UI STYLE_PROPS forbids className, so the UI architecture check failed on an otherwise valid link.</mistake>
+  <rule>Give UI.Link activeProps={{}} so the router injects nothing, and no className. Express current-route state with aria-current or a data-ui-* tag, not a class.</rule>
+  <verification>
+    <requirement>pnpm lint and the UI architecture check pass, and the anchor of the current route carries no "active" class.</requirement>
+  </verification>
+</learning>

@@ -1,0 +1,106 @@
+name: Deploy production
+on:
+  # Manual dispatch only. Automatic deployment on a successful main push needs
+  # a provisioned production host; none exists, so that trigger produced a
+  # guaranteed failure after every green main run without ever reaching a host.
+  # Restore the workflow_run trigger in the same change that provisions the
+  # host and installs PRODUCTION_SSH_HOST, PRODUCTION_DEPLOY_KEY and
+  # PRODUCTION_SSH_KNOWN_HOSTS.
+  workflow_dispatch:
+    inputs:
+      action:
+        type: choice
+        options: [deploy, rollback, recover]
+        default: deploy
+      expected_active_sha:
+        description: Full active SHA required for rollback
+        type: string
+        required: false
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: bakery-production
+  cancel-in-progress: false
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04-arm
+    environment: production
+    timeout-minutes: 45
+    env:
+      RELEASE_SHA: ${{ github.sha }}
+      DEPLOY_ACTION: ${{ inputs.action || 'deploy' }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ env.RELEASE_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify successful main candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          if [ "$DEPLOY_ACTION" = deploy ]; then
+            node scripts/deploy/build-release.mjs authorize "$RELEASE_SHA" "$GH_REPO"
+          else
+            test "$(gh api repos/$GH_REPO/git/ref/heads/main --jq .object.sha)" = "$RELEASE_SHA"
+          fi
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        if: env.DEPLOY_ACTION == 'deploy'
+        with: { node-version: "22.22.0" }
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+        if: env.DEPLOY_ACTION == 'deploy'
+        with: { version: "10.33.0" }
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        if: env.DEPLOY_ACTION == 'deploy'
+        with: { deno-version: v2.9.1 }
+      - name: Install locked ARM dependencies
+        if: env.DEPLOY_ACTION == 'deploy'
+        run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+      - name: Test deployment failure and rollback behavior
+        if: env.DEPLOY_ACTION == 'deploy'
+        run: |
+          curl --fail --location --silent --show-error https://github.com/caddyserver/caddy/releases/download/v2.11.7/caddy_2.11.7_linux_arm64.tar.gz -o "$RUNNER_TEMP/caddy.tar.gz"
+          printf '%s  %s\n' d8fc6d179a5d283028a472a5618564f6ad8a86fed513e64f032b3b0b7cc45e42 "$RUNNER_TEMP/caddy.tar.gz" | sha256sum --check --status
+          tar -xzf "$RUNNER_TEMP/caddy.tar.gz" -C "$RUNNER_TEMP" caddy
+          CADDY_BINARY="$RUNNER_TEMP/caddy" node --test scripts/deploy/*.test.mjs
+          bash -n scripts/deploy/*.sh apps/server/scripts/run-main.sh
+          sh -n infra/production/001-roles.sh
+      - name: Build immutable release and upload source maps
+        if: env.DEPLOY_ACTION == 'deploy'
+        env:
+          VITE_SENTRY_DSN: ${{ vars.VITE_SENTRY_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_WEB_PROJECT }}
+        run: node scripts/deploy/build-release.mjs "$RELEASE_SHA" "$RUNNER_TEMP/release"
+      - name: Transfer and apply serialized release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DEPLOY_HOST: ${{ vars.PRODUCTION_SSH_HOST }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
+          DEPLOY_KEY: ${{ secrets.PRODUCTION_DEPLOY_KEY }}
+          EXPECTED_ACTIVE_SHA: ${{ inputs.expected_active_sha }}
+        run: |
+          umask 077
+          install -d -m 0700 "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$DEPLOY_KEY" > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$RUNNER_TEMP/ssh/known_hosts"
+          trap 'rm -rf "$RUNNER_TEMP/ssh"' EXIT
+          ssh_options=(-i "$RUNNER_TEMP/ssh/key" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts")
+          case "$DEPLOY_ACTION" in
+            deploy)
+              checksum=$(cut -d ' ' -f1 "$RUNNER_TEMP/release/$RELEASE_SHA.tar.gz.sha256")
+              ssh "${ssh_options[@]}" "bakery-deploy@$DEPLOY_HOST" "upload $RELEASE_SHA $checksum" < "$RUNNER_TEMP/release/$RELEASE_SHA.tar.gz"
+              node scripts/deploy/build-release.mjs promote "$RELEASE_SHA" "$GH_REPO" "$checksum" "$DEPLOY_HOST" "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts";;
+            rollback)
+              [[ "$EXPECTED_ACTIVE_SHA" =~ ^[a-f0-9]{40}$ ]] || exit 64
+              ssh "${ssh_options[@]}" "bakery-deploy@$DEPLOY_HOST" "rollback $EXPECTED_ACTIVE_SHA";;
+            recover)
+              ssh "${ssh_options[@]}" "bakery-deploy@$DEPLOY_HOST" recover;;
+            *) exit 64;;
+          esac

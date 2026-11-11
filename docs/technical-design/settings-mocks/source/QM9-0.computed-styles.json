@@ -1,0 +1,17 @@
+{
+  "styles": {
+    "QM9-0": {
+      "display": "flex",
+      "overflow": "clip",
+      "width": "390px",
+      "height": "fit-content",
+      "flexDirection": "column",
+      "fontFamily": "var(--font-sans)",
+      "left": "1560px",
+      "top": "6575px",
+      "minHeight": "960px",
+      "position": "absolute",
+      "backgroundColor": "var(--color-surface)"
+    }
+  }
+}

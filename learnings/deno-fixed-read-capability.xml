@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="deno-fixed-read-capability" project="bakery">
+  <title>Separate Deno read capability failures from kernel policy evidence</title>
+  <trigger>A bounded diagnostic reports Deno NotCapable or an operating-system PermissionDenied result while reading fixed procfs, cgroup, or sysctl paths.</trigger>
+  <rule>Deno run with --allow-read can still return NotCapable for fixed proc status, cgroup, or sysctl reads in a local environment. A diagnostic that combines NotCapable and operating-system PermissionDenied into one denied state cannot prove which capability or kernel policy caused the denial.</rule>
+  <rule>Preserve the existing capability boundary. When the distinction is required, use an explicitly authorized reader outside Deno that accepts only the fixed paths and bounded outputs needed for the observation.</rule>
+  <boundary>Do not add --allow-all, broaden path authority, infer a host kernel cause from the combined status, or weaken existing security assertions.</boundary>
+</learning>

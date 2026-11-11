@@ -1,0 +1,6 @@
+self-hosted-runner:
+  labels:
+    - ovh
+    - hetzner
+    - amd
+    - trusted-verifier

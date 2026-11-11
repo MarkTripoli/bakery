@@ -1,0 +1,261 @@
+# Railway-like local proof stack for the hosted QA deployment (#434).
+#
+# Runs the real images from apps/server/Dockerfile, apps/web/Dockerfile and
+# infra/railway/inngest.Dockerfile on a private network that has no egress, with
+# the same service variables the Railway project carries (the values that differ
+# are hosts, secrets and the public origin). prove.sh drives it; run it from
+# there, not by hand, so one private env file serves up, exec and down.
+#
+# Networks
+#   private  10.250.0.0/24, internal (no route out). Every service lives here
+#            under its <name>.railway.internal alias, like Railway's private
+#            network. The edge is 10.250.0.2: the only peer the web tier trusts.
+#   public   198.51.100.0/24 (TEST-NET-2), outside every range the API trusts.
+#            Only the edge and the two probe clients are on it, so the client
+#            addresses the rate limiter must key on are 198.51.100.11/.12.
+#
+# Required variables come from the private env file (prove.sh writes it, mode
+# 0600); compose refuses to start when one is missing.
+
+name: bakery-railway-qa-proof
+
+x-api-environment: &api-environment
+  BAKERY_ENV: production
+  BAKERY_SERVER_HOST: "::"
+  BAKERY_SERVER_PORT: "8000"
+  BAKERY_PUBLIC_BASE_URL: https://bakery-qa.localhost:${EDGE_PORT:?}
+  BAKERY_CONTAINER_BASE_URL: http://api.railway.internal:8000
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?}
+  DATABASE_URL: postgres://bakery:${BAKERY_OWNER_PASSWORD:?}@postgres.railway.internal:5432/bakery
+  BAKERY_APP_DATABASE_URL: postgres://bakery_app:${BAKERY_APP_PASSWORD:?}@postgres.railway.internal:5432/bakery
+  BAKERY_BOOTSTRAP_DATABASE_URL: postgres://postgres:${PROOF_POSTGRES_PASSWORD:?}@postgres.railway.internal:5432/railway
+  BAKERY_OWNER_PASSWORD: ${BAKERY_OWNER_PASSWORD:?}
+  BAKERY_APP_PASSWORD: ${BAKERY_APP_PASSWORD:?}
+  BAKERY_INNGEST_DATABASE_PASSWORD: ${BAKERY_INNGEST_DATABASE_PASSWORD:?}
+  INNGEST_URL: ${PROOF_INNGEST_URL:-http://inngest.railway.internal:8288}
+  INNGEST_SIGNING_KEY: ${INNGEST_SIGNING_KEY:?}
+  INNGEST_EVENT_KEY: ${INNGEST_EVENT_KEY:?}
+  # Unset (empty) in the negative control; prove.sh overrides it per step.
+  BAKERY_INNGEST_PRIVATE_HOST_SUFFIX: ${PROOF_INNGEST_PRIVATE_HOST_SUFFIX-.railway.internal}
+  # An empty value means "trust nobody": rate limits key on the socket peer.
+  BAKERY_TRUSTED_PROXY_CIDRS: ${PROOF_API_TRUSTED_PROXY_CIDRS-10.0.0.0/8,100.64.0.0/10,172.16.0.0/12,192.168.0.0/16,fc00::/7}
+  BAKERY_SECRETS_KEY_B64: ${BAKERY_SECRETS_KEY_B64-}
+  BAKERY_SECRETS_KEY_ID: ${BAKERY_SECRETS_KEY_ID-}
+
+x-hardened: &hardened
+  security_opt:
+    - no-new-privileges:true
+
+networks:
+  private:
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.250.0.0/24
+          gateway: 10.250.0.1
+          # Dynamic addresses come from the upper half so the edge's static
+          # 10.250.0.2 can never be taken by another container.
+          ip_range: 10.250.0.128/25
+  public:
+    ipam:
+      config:
+        - subnet: 198.51.100.0/24
+          gateway: 198.51.100.1
+          ip_range: 198.51.100.128/25
+
+services:
+  postgres:
+    image: ghcr.io/railwayapp-templates/postgres-ssl:17@sha256:87184beace8ec657a760401a466a13c5b689066b31b77993103b4771933a9d31
+    environment:
+      POSTGRES_PASSWORD: ${PROOF_POSTGRES_PASSWORD:?}
+      POSTGRES_DB: railway
+    mem_limit: 1g
+    networks:
+      private:
+        aliases: [postgres.railway.internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d railway -h 127.0.0.1"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+
+  redis:
+    image: redis:7.4-alpine@sha256:520775a41a63e77e06c73e35d2fd9cc15921a609516818796b4ecbb813078bc7
+    <<: *hardened
+    command: ["sh", "-c", 'exec redis-server --save "" --appendonly no --requirepass "$$REDIS_PASSWORD"']
+    environment:
+      REDIS_PASSWORD: ${PROOF_REDIS_PASSWORD:?}
+    mem_limit: 256m
+    networks:
+      private:
+        aliases: [redis.railway.internal]
+    healthcheck:
+      test: ["CMD-SHELL", 'REDISCLI_AUTH="$$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+      interval: 3s
+      timeout: 5s
+      retries: 40
+
+  # One-shot Railway pre-deploy: bootstrap roles/databases as the superuser,
+  # then migrate as the owner. prove.sh runs it with `compose run --rm`.
+  api-predeploy:
+    image: bakery-railway-qa-proof-server:local
+    pull_policy: never
+    <<: *hardened
+    profiles: [proof]
+    restart: "no"
+    command: ["bash", "/workspace/infra/railway/server-entrypoint.sh", "predeploy"]
+    environment: *api-environment
+    mem_limit: 1g
+    networks:
+      private: {}
+
+  api:
+    image: bakery-railway-qa-proof-server:local
+    build:
+      context: ../../..
+      dockerfile: apps/server/Dockerfile
+    pull_policy: never
+    <<: *hardened
+    command: ["bash", "/workspace/infra/railway/server-entrypoint.sh", "api"]
+    environment: *api-environment
+    mem_limit: 1g
+    networks:
+      private:
+        aliases: [api.railway.internal]
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - "exec 3<>/dev/tcp/127.0.0.1/8000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: 127.0.0.1\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q ' 200 '"
+      interval: 3s
+      timeout: 5s
+      retries: 60
+      start_period: 5s
+
+  dispatcher:
+    image: bakery-railway-qa-proof-server:local
+    pull_policy: never
+    <<: *hardened
+    command: ["bash", "/workspace/infra/railway/server-entrypoint.sh", "dispatch"]
+    environment:
+      BAKERY_ENV: production
+      BAKERY_APP_DATABASE_URL: postgres://bakery_app:${BAKERY_APP_PASSWORD:?}@postgres.railway.internal:5432/bakery
+      BAKERY_PUBLIC_BASE_URL: https://bakery-qa.localhost:${EDGE_PORT:?}
+      INNGEST_URL: ${PROOF_INNGEST_URL:-http://inngest.railway.internal:8288}
+      INNGEST_EVENT_KEY: ${INNGEST_EVENT_KEY:?}
+      BAKERY_INNGEST_PRIVATE_HOST_SUFFIX: ${PROOF_INNGEST_PRIVATE_HOST_SUFFIX-.railway.internal}
+      BAKERY_WAIT_FOR_READY: api.railway.internal:8000
+    mem_limit: 768m
+    restart: unless-stopped
+    networks:
+      private:
+        aliases: [dispatcher.railway.internal]
+
+  inngest:
+    image: bakery-railway-qa-proof-inngest:local
+    build:
+      context: ../../..
+      dockerfile: infra/railway/inngest.Dockerfile
+    pull_policy: never
+    <<: *hardened
+    environment:
+      BAKERY_POSTGRES_HOST: postgres.railway.internal
+      BAKERY_INNGEST_DATABASE_PASSWORD: ${BAKERY_INNGEST_DATABASE_PASSWORD:?}
+      INNGEST_REDIS_URI: redis://default:${PROOF_REDIS_PASSWORD:?}@redis.railway.internal:6379/0
+      INNGEST_EVENT_KEY: ${INNGEST_EVENT_KEY:?}
+      INNGEST_SIGNING_KEY: ${INNGEST_SIGNING_KEY:?}
+      INNGEST_SDK_URL: http://api.railway.internal:8000/api/inngest
+      BAKERY_WAIT_FOR_READY: api.railway.internal:8000
+      # Empty means "use the start script default"; prove.sh sets them for the
+      # tick / connection-pool probe.
+      INNGEST_TICK: ${PROOF_INNGEST_TICK-}
+      INNGEST_POSTGRES_MAX_OPEN_CONNS: ${PROOF_INNGEST_MAX_OPEN-}
+      INNGEST_POSTGRES_MAX_IDLE_CONNS: ${PROOF_INNGEST_MAX_IDLE-}
+    mem_limit: 768m
+    restart: unless-stopped
+    networks:
+      private:
+        aliases: [inngest.railway.internal]
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - "exec 3<>/dev/tcp/127.0.0.1/8288 && printf 'GET /health HTTP/1.1\\r\\nHost: 127.0.0.1\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q '200 OK'"
+      interval: 3s
+      timeout: 5s
+      retries: 100
+      start_period: 5s
+
+  web:
+    image: bakery-railway-qa-proof-web:local
+    build:
+      context: ../../..
+      dockerfile: apps/web/Dockerfile
+    pull_policy: never
+    <<: *hardened
+    environment:
+      PORT: "8080"
+      BAKERY_API_UPSTREAM: api.railway.internal:8000
+      # The edge's private address: the peer the web tier actually sees.
+      BAKERY_WEB_TRUSTED_PROXIES: 10.250.0.2/32
+      BAKERY_WEB_CLIENT_IP_HEADER: X-Real-IP
+    mem_limit: 256m
+    networks:
+      private:
+        aliases: [web.railway.internal]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+
+  # Railway edge emulator: terminates TLS and sets X-Real-IP / X-Forwarded-Proto
+  # (overwriting anything a client sent). The only published port.
+  edge:
+    image: caddy:2.11.7-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+    pull_policy: never
+    <<: *hardened
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    environment:
+      EDGE_PORT: ${EDGE_PORT:?}
+      XDG_DATA_HOME: /tmp/caddy-data
+      XDG_CONFIG_HOME: /tmp/caddy-config
+    volumes:
+      - ./edge.Caddyfile:/etc/caddy/Caddyfile:ro
+    ports:
+      - "127.0.0.1:${EDGE_PORT:?}:${EDGE_PORT:?}"
+    mem_limit: 128m
+    networks:
+      private:
+        ipv4_address: 10.250.0.2
+      public:
+        ipv4_address: 198.51.100.2
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 $${EDGE_PORT}"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+
+  client-a:
+    image: curlimages/curl:8.11.1@sha256:c1fe1679c34d9784c1b0d1e5f62ac0a79fca01fb6377cdd33e90473c6f9f9a69
+    pull_policy: never
+    <<: *hardened
+    profiles: [proof]
+    command: ["sleep", "infinity"]
+    mem_limit: 64m
+    networks:
+      public:
+        ipv4_address: 198.51.100.11
+
+  client-b:
+    image: curlimages/curl:8.11.1@sha256:c1fe1679c34d9784c1b0d1e5f62ac0a79fca01fb6377cdd33e90473c6f9f9a69
+    pull_policy: never
+    <<: *hardened
+    profiles: [proof]
+    command: ["sleep", "infinity"]
+    mem_limit: 64m
+    networks:
+      public:
+        ipv4_address: 198.51.100.12

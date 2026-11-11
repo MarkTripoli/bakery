@@ -1,0 +1,19 @@
+{
+  "name": "@bakery/i18n",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "validate": "deno run --allow-read scripts/validate-catalogs.ts",
+    "pseudo": "deno run --allow-read --allow-write scripts/pseudo.ts",
+    "pseudo:check": "deno run --allow-read scripts/pseudo.ts --check",
+    "typecheck": "deno check src/index.ts scripts/validate-catalogs.ts scripts/pseudo.ts && pnpm validate",
+    "build": "deno check src/index.ts scripts/validate-catalogs.ts scripts/pseudo.ts && pnpm validate"
+  },
+  "dependencies": {
+    "intl-messageformat": "11.2.15"
+  }
+}
