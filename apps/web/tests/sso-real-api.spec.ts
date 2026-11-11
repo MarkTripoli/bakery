@@ -3,7 +3,7 @@ import { createInterface } from "node:readline";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  expect,
+  expect as baseExpect,
   type Locator,
   type Page,
   type Route,
@@ -67,6 +67,15 @@ type State = {
 type PasswordSignIn = { status: number; code: string | null; sessions: number };
 
 test.use({ video: process.env.BAKERY_EVIDENCE_VIDEO === "1" ? "on" : "off" });
+
+/**
+ * Every page here is a hard load of the unbundled Vite dev server followed by
+ * a read through the real API, which takes several seconds on the shared,
+ * heavily loaded host (load average above 30 on 12 cores), more than the
+ * default 5 s `expect` timeout. The assertions are unchanged; they wait
+ * longer, and an assertion that holds returns at once.
+ */
+const expect = baseExpect.configure({ timeout: 20_000 });
 
 const evidenceDirectory = process.env.BAKERY_EVIDENCE_DIR;
 const EVIDENCE_VIEWPORTS = [
@@ -180,7 +189,9 @@ test.describe("single sign-on settings against the real API", () => {
   async function openAsAdmin(page: Page, baseURL: string | undefined) {
     await connect(page, baseURL!, server.adminCookie);
     await page.goto(SSO_PAGE);
-    await expect(page.getByRole("heading", { name: "Single sign-on" }).first())
+    await expect(
+      page.getByRole("heading", { name: "Single sign-on" }).first(),
+    )
       .toBeVisible();
   }
 
@@ -188,7 +199,7 @@ test.describe("single sign-on settings against the real API", () => {
     control<PasswordSignIn>("/password-sign-in", { who });
 
   test.beforeEach(() => {
-    test.setTimeout(60_000);
+    test.setTimeout(90_000);
   });
 
   test("an administrator opens the production route and sees the empty state the backend reports", async ({ page, baseURL }) => {
@@ -370,7 +381,9 @@ test.describe("single sign-on settings against the real API", () => {
     );
     await shot(page, "sso-saml-registered");
     await page.reload();
-    await expect(page.getByRole("button", { name: `${SAML_PROVIDER} · SAML` }))
+    await expect(
+      page.getByRole("button", { name: `${SAML_PROVIDER} · SAML` }),
+    )
       .toBeVisible();
   });
 
@@ -416,10 +429,11 @@ test.describe("single sign-on settings against the real API", () => {
       .click();
     await expect(page.getByTestId("scim-token-once")).toHaveCount(0);
     await page.reload();
-    // The secret is never read back; the connection and its base URL are.
-    await expect(page.getByText(scimToken)).toHaveCount(0);
+    // The connection and its base URL are read back; the secret never is.
+    // Wait for the loaded page first, or the absence check passes vacuously.
     await expect(page.getByText(`${server.publicOrigin}/api/auth/scim/v2`))
       .toBeVisible();
+    await expect(page.getByText(scimToken)).toHaveCount(0);
   });
 
   test("rotating replaces the SCIM credential and revoking ends provisioning access", async ({ page, baseURL }) => {
