@@ -29,6 +29,41 @@ export const MAX_STREAM_BATCH_BYTES = 65_536;
  */
 export const STREAM_SETTLE_SECONDS = 30;
 
+/** Longest string field kept when an oversized event must be cut further. */
+export const STREAM_FIELD_CHARS = 1_024;
+
+type StreamEvent = ReturnType<typeof toAuditEvent>;
+
+/**
+ * Shrinks an event whose line exceeds the batch cap. `details` is always
+ * replaced by a marker carrying its own serialized size; if the line is still
+ * over the cap, every string field longer than STREAM_FIELD_CHARS is cut and
+ * named in the marker. A line is then bounded by the fixed field count, so
+ * the cursor always advances past it.
+ */
+function omitOversized(event: StreamEvent): Record<string, unknown> {
+  const detailsBytes = new TextEncoder().encode(
+    JSON.stringify(event.details ?? null),
+  ).byteLength;
+  const marked: Record<string, unknown> = {
+    ...event,
+    details: { streamOmitted: "details", detailsBytes },
+  };
+  if (
+    new TextEncoder().encode(JSON.stringify(marked)).byteLength + 1 <=
+      MAX_STREAM_BATCH_BYTES
+  ) return marked;
+  const truncatedFields: string[] = [];
+  for (const [key, value] of Object.entries(marked)) {
+    if (typeof value === "string" && value.length > STREAM_FIELD_CHARS) {
+      marked[key] = value.slice(0, STREAM_FIELD_CHARS);
+      truncatedFields.push(key);
+    }
+  }
+  marked.details = { streamOmitted: "details", detailsBytes, truncatedFields };
+  return marked;
+}
+
 /** Input of one audit stream read: one organization, one resumable position. */
 export type AuditStreamInput = Readonly<{
   action: string;
@@ -46,8 +81,9 @@ export type AuditStreamInput = Readonly<{
  * to the caller, the organization and the filter set. Once any event has been
  * delivered every batch returns a cursor, so polling with it delivers each
  * settled event once. An event that alone exceeds the batch byte cap is still
- * delivered, with its `details` replaced by an omission marker, so one large
- * row can never stall the stream; the full row stays readable in the list.
+ * delivered, with its `details` replaced by an omission marker and any
+ * overlong string field cut (see `omitOversized`), so one large row can never
+ * stall the stream; the full row stays readable in the list.
  */
 export async function streamAuditEvents(
   transaction: Pick<PgTransactionClient, "query">,
@@ -105,10 +141,7 @@ export async function streamAuditEvents(
     let size = sizeOf(line);
     const oversized = size > MAX_STREAM_BATCH_BYTES;
     if (oversized) {
-      line = JSON.stringify({
-        ...event,
-        details: { streamOmitted: "details", detailsBytes: size },
-      });
+      line = JSON.stringify(omitOversized(event));
       size = sizeOf(line);
     }
     if (bytes + size > MAX_STREAM_BATCH_BYTES) {
