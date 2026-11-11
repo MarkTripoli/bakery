@@ -771,6 +771,41 @@ Deno.test("AC3: publishing or activating a workflow without a required stage is 
         "workflow_not_fixed",
       );
       assertEquals(await facts(id), beforeDynamic);
+      // A compiler-grammar plan with a container node is valid, only not
+      // executable yet: it is named as such, not as invalid (#108). It still
+      // fails closed, because the guard cannot read nested steps.
+      const planId = crypto.randomUUID();
+      await f.owner`
+        insert into bakery.workflow_versions (
+          id, organization_id, workflow_id, revision, source_yaml,
+          normalized_spec, digest, status, created_by, version
+        ) values (
+          ${planId}, ${organizationAId}, ${id}, 3, '',
+          ${
+        f.owner.json({
+          apiVersion: "bakery.dev/v1",
+          kind: "workflow",
+          name: "plan-only",
+          steps: [{
+            id: "choose",
+            branch: {
+              when: '$input.target == "main"',
+              then: [{ id: "on_main", uses: "workflow.noop", with: {} }],
+              else: [{ id: "on_other", uses: "workflow.noop", with: {} }],
+            },
+          }],
+        })
+      },
+          ${"c".repeat(64)}, 'published', ${f.adminA.principalId}, 1
+        )`;
+      const beforePlan = await facts(id);
+      const plan = await activate(id, planId);
+      assertEquals(plan.status, 409, await plan.clone().text());
+      assertEquals(
+        (await plan.json() as { reason?: string }).reason,
+        "workflow_not_executable",
+      );
+      assertEquals(await facts(id), beforePlan);
     });
 
     await test.step("unreadable stored rules fail the guard closed on publish and activate", async () => {
