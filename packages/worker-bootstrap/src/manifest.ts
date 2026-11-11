@@ -84,6 +84,50 @@ function hasExactly(value: Json, keys: readonly string[]): boolean {
   return own.length === keys.length && keys.every((key) => own.includes(key));
 }
 
+/**
+ * True when any object in this JSON text repeats a key. `JSON.parse` keeps the
+ * last value silently, so two readers could disagree about what was signed.
+ * Keys are compared as decoded, so `"a"` and `"\u0061"` are the same key. The
+ * text must already have parsed, so every string it holds is terminated.
+ */
+export function hasDuplicateKeys(text: string): boolean {
+  // One entry per open container: the keys seen so far for an object, or
+  // null for an array.
+  const open: Array<Set<string> | null> = [];
+  let expectKey = false;
+  for (let at = 0; at < text.length; at += 1) {
+    const char = text[at];
+    if (char === '"') {
+      let end = at + 1;
+      while (end < text.length && text[end] !== '"') {
+        end += text[end] === "\\" ? 2 : 1;
+      }
+      const keys = open[open.length - 1];
+      if (expectKey && keys) {
+        const key = JSON.parse(text.slice(at, end + 1)) as string;
+        if (keys.has(key)) return true;
+        keys.add(key);
+      }
+      expectKey = false;
+      at = end;
+    } else if (char === "{") {
+      open.push(new Set());
+      expectKey = true;
+    } else if (char === "[") {
+      open.push(null);
+      expectKey = false;
+    } else if (char === "}" || char === "]") {
+      open.pop();
+      expectKey = false;
+    } else if (char === ",") {
+      expectKey = open[open.length - 1] instanceof Set;
+    } else if (char === ":") {
+      expectKey = false;
+    }
+  }
+  return false;
+}
+
 function decodeBase64(value: unknown, maxBytes: number): Buffer {
   if (
     typeof value !== "string" || value.length === 0 ||
@@ -126,11 +170,13 @@ type Parsed = Readonly<{
 
 function parsePayload(bytes: Buffer): Parsed {
   let document: unknown;
+  const text = bytes.toString("utf8");
   try {
-    document = JSON.parse(bytes.toString("utf8"));
+    document = JSON.parse(text);
   } catch {
     throw malformed();
   }
+  if (hasDuplicateKeys(text)) throw malformed();
   if (
     !isRecord(document) ||
     !hasExactly(document, [
@@ -213,6 +259,11 @@ export function verifySignedManifest(
   signed: string,
   options: VerifyOptions,
 ): VerifiedManifest {
+  // A clock that gives no time must fail closed: every comparison with NaN is
+  // false, so an expired manifest would otherwise verify.
+  if (
+    !(options.now instanceof Date) || !Number.isFinite(options.now.getTime())
+  ) throw new BootstrapError("CLOCK_INVALID");
   if (!EXACT_RELEASE.test(options.release)) {
     throw new BootstrapError("RELEASE_NOT_EXACT");
   }
@@ -225,6 +276,7 @@ export function verifySignedManifest(
   } catch {
     throw malformed();
   }
+  if (hasDuplicateKeys(signed)) throw malformed();
   if (
     !isRecord(envelope) ||
     !hasExactly(envelope, ["keyId", "payload", "signature"])
@@ -263,6 +315,7 @@ export function verifySignedManifest(
     throw new BootstrapError("MANIFEST_TARGET_UNSUPPORTED");
   }
   if (
+    !Number.isInteger(options.protocol) ||
     options.protocol < manifest.protocol.min ||
     options.protocol > manifest.protocol.max
   ) throw new BootstrapError("MANIFEST_PROTOCOL_INCOMPATIBLE");

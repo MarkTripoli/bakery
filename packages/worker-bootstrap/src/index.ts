@@ -17,4 +17,7 @@ export {
   type InstallOptions,
   installRelease,
   type InstallResult,
+  type ProcessInfo,
+  type ProcessProbe,
+  type StagedFile,
 } from "./install.ts";

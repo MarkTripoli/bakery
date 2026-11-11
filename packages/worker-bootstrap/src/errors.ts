@@ -12,6 +12,8 @@ export const BOOTSTRAP_ERRORS = {
     "The release manifest signature does not verify. Nothing was installed.",
   MANIFEST_EXPIRED:
     "The release manifest has expired. Fetch a current setup command from Bakery.",
+  CLOCK_INVALID:
+    "This machine's clock did not give a valid time. Nothing was installed.",
   MANIFEST_NOT_YET_VALID:
     "The release manifest is dated in the future. Check this machine's clock.",
   MANIFEST_RELEASE_MISMATCH:
@@ -32,11 +34,12 @@ export const BOOTSTRAP_ERRORS = {
     "The downloaded file does not match the signed digest. The existing installation was not changed.",
   INSTALL_REFUSED_ROOT:
     "Run setup as an ordinary user, not as root. A narrow privilege step is requested separately for the service.",
-  INSTALL_ROOT_INVALID: "The install root must be an absolute path.",
+  INSTALL_ROOT_INVALID:
+    "The install root must be an absolute path to a real directory that only this user can write to.",
   INSTALL_PERMISSION_DENIED:
     "This user may not write to the install root. The existing installation was not changed.",
   INSTALL_LOCKED:
-    "Another setup holds the install lock. If none is running, remove the lock directory named in the install guide.",
+    "Another setup holds the install lock. Wait for it to finish; if none is running, remove the .install.lock directory inside the install root.",
   INSTALL_VERSION_DIFFERS:
     "A different release is installed. Re-run with an explicit upgrade to change it.",
   INSTALL_CORRUPT:
