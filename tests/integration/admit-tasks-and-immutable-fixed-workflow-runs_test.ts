@@ -107,6 +107,7 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
     const repositoryDependentCloudOnlyWorkflowVersionId = crypto.randomUUID();
     const malformedRepeatCloudOnlyWorkflowVersionId = crypto.randomUUID();
     const unsupportedWorkflowVersionId = crypto.randomUUID();
+    const planOnlyWorkflowVersionId = crypto.randomUUID();
     const disabledWorkflowId = crypto.randomUUID();
     const disabledWorkflowVersionId = crypto.randomUUID();
     const userEmail = `issue36-${userId}@example.test`;
@@ -280,6 +281,21 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       workflow: { kind: "dynamic" },
     };
     const unsupportedWorkflowDigest = await digest(unsupportedWorkflowSpec);
+    // A compiler-grammar version with a container node: it validates and
+    // publishes, but the fixed executor cannot run it until plans execute.
+    const planOnlyWorkflowSpec = {
+      ...workflowSpec,
+      name: "issue-16-plan-only-workflow",
+      steps: [{
+        id: "choose",
+        branch: {
+          when: '$input.target == "main"',
+          then: [{ id: "on_main", uses: "workflow.noop", with: {} }],
+          else: [{ id: "on_other", uses: "workflow.noop", with: {} }],
+        },
+      }],
+    };
+    const planOnlyWorkflowDigest = await digest(planOnlyWorkflowSpec);
     const oversizedWorkflowSpec = {
       ...workflowSpec,
       padding: "x".repeat(100_000),
@@ -370,6 +386,16 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
         ${unsupportedWorkflowDigest}, 'published', ${principalId}, 1
       )`;
     await owner`
+      insert into bakery.workflow_versions (
+        id, organization_id, workflow_id, revision, source_yaml,
+        normalized_spec, digest, status, created_by, version
+      ) values (
+        ${planOnlyWorkflowVersionId}, ${organizationId},
+        ${cloudOnlyWorkflowId}, 5, '',
+        ${owner.json(planOnlyWorkflowSpec)},
+        ${planOnlyWorkflowDigest}, 'published', ${principalId}, 1
+      )`;
+    await owner`
       insert into bakery.workflow_definitions (
         id, organization_id, slug, name, enabled, version
       ) values (
@@ -399,6 +425,7 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       cloudOnlyProfile: crypto.randomUUID(),
       disabledWorkflow: crypto.randomUUID(),
       unsupportedWorkflow: crypto.randomUUID(),
+      planOnlyWorkflow: crypto.randomUUID(),
       cycleA: crypto.randomUUID(),
       cycleB: crypto.randomUUID(),
       cycleC: crypto.randomUUID(),
@@ -469,6 +496,7 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       taskIds.unsupportedWorkflow,
       "Unsupported workflow task",
     );
+    await insertTask(taskIds.planOnlyWorkflow, "Plan-only workflow task");
     await insertTask(taskIds.cycleA, "Cycle A");
     await insertTask(taskIds.cycleB, "Cycle B");
     await insertTask(taskIds.cycleC, "Cycle C");
@@ -973,6 +1001,43 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       run_count: 0,
       receipt_count: 0,
     });
+    // #16: a published compiler-grammar version with a container node is a
+    // typed refusal, not an unhandled 500, and leaves no run or receipt.
+    const planOnlyWorkflowStart = await send(
+      "POST",
+      `/v1/tasks/${taskIds.planOnlyWorkflow}/runs`,
+      {
+        organizationId,
+        idempotencyKey: "issue16-plan-only-workflow",
+        body: {
+          ...runInput,
+          workflowVersionId: planOnlyWorkflowVersionId,
+          inputs: { taskId: taskIds.planOnlyWorkflow, target: "main" },
+        },
+      },
+    );
+    assertEquals(
+      planOnlyWorkflowStart.status,
+      409,
+      await planOnlyWorkflowStart.clone().text(),
+    );
+    const planOnlyBody = await planOnlyWorkflowStart.json() as {
+      code: string;
+      reason?: string;
+    };
+    assertEquals(planOnlyBody.code, "STATE_CONFLICT");
+    assertEquals(planOnlyBody.reason, "workflow_not_executable");
+    const planOnlyPersistence = await owner`
+      select
+        (select count(*)::int from bakery.workflow_runs
+          where organization_id = ${organizationId}
+            and task_id = ${taskIds.planOnlyWorkflow}) as run_count,
+        (select count(*)::int from bakery.idempotency_records
+          where organization_id = ${organizationId}
+            and principal_id = ${principalId}
+            and operation = 'runs.create'
+            and key = 'issue16-plan-only-workflow') as receipt_count`;
+    assertEquals(planOnlyPersistence[0], { run_count: 0, receipt_count: 0 });
     const firstStart = await send(
       "POST",
       `/v1/tasks/${taskIds.ready}/runs`,

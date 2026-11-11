@@ -242,6 +242,15 @@ Deno.test("stream: default limit over more than 64 KiB cuts by bytes, and an ove
       [f.organizationId],
     );
 
+    // One event whose resource id alone exceeds a batch, after the large one.
+    await f.pgDatabase.query(
+      `insert into bakery.audit_events (organization_id, operation, resource_type,
+         resource_id, outcome, request_id, trace_id, created_at)
+       values ($1, 'stream.vol', 'stream_test', 'long' || repeat('y', 65400),
+         'succeeded', 'r', 't', now() - interval '5 minutes')`,
+      [f.organizationId],
+    );
+
     const ids = new Set<string>();
     let cursor: string | null = null;
     let reads = 0;
@@ -266,15 +275,27 @@ Deno.test("stream: default limit over more than 64 KiB cuts by bytes, and an ove
         ids.add(event.id);
         if (event.resourceId === "huge") {
           assertEquals(event.details.streamOmitted, "details");
-          assert(Number(event.details.detailsBytes) > 65_536);
+          // The serialized size of the details alone, not of the line (#95).
+          assertEquals(
+            event.details.detailsBytes,
+            JSON.stringify({ pad: "x".repeat(200_000) }).length,
+          );
+          assertEquals("truncatedFields" in event.details, false);
+        }
+        if (event.resourceId.startsWith("long")) {
+          // A non-details field too large for a batch is cut, never stalls (#94).
+          assertEquals(event.resourceId, "long".padEnd(1_024, "y"));
+          assertEquals(event.details.streamOmitted, "details");
+          assertEquals(event.details.truncatedFields, ["resourceId"]);
+          assertEquals(event.details.detailsBytes, 2);
         }
       }
       cursor = body.nextCursor;
       if (body.caughtUp) break;
       assert(reads < 100, "stream never caught up");
     }
-    assertEquals(ids.size, 1001);
-    assertEquals(omitted, 1);
+    assertEquals(ids.size, 1002);
+    assertEquals(omitted, 2);
     assert(cutByBytes, "no batch was cut by the byte budget");
     assert(reads > 1);
   } finally {

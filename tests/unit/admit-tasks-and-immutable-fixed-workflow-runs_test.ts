@@ -13,6 +13,7 @@ import {
 } from "../../apps/server/src/modules/work/run-query.ts";
 import {
   extractFixedWorkflowSteps,
+  WorkflowNotExecutableError,
   WorkflowNotFixedError,
   workflowRequiresRepository,
 } from "../../apps/server/src/modules/work/run-steps.ts";
@@ -634,4 +635,80 @@ Deno.test("run cursors bind the task path and reject reuse for another task", as
     StandardError,
   );
   assertEquals(error.code, "INVALID_CURSOR");
+});
+
+// --- #16: a compiler-grammar version with container nodes publishes but does not run yet.
+
+const noopAction = (id: string) => ({ id, uses: "workflow.noop", with: {} });
+
+const CONTAINER_NODES: [string, unknown][] = [
+  ["sequence", { id: "group", steps: [noopAction("one")] }],
+  ["wait", { id: "pause", wait: { duration: "1m" } }],
+  ["branch", {
+    id: "choose",
+    branch: {
+      when: '$input.target == "main"',
+      then: [noopAction("on_main")],
+      else: [noopAction("on_other")],
+    },
+  }],
+  ["repeat", {
+    id: "fix",
+    repeat: {
+      max: 2,
+      seed: { currentCandidate: { done: false } },
+      until: "$repeat.currentCandidate.done == true",
+      steps: [noopAction("try_one")],
+      outputs: { currentCandidate: { done: false } },
+    },
+  }],
+  ["parallel", {
+    id: "fan",
+    parallel: {
+      maxConcurrency: 2,
+      join: "all-required",
+      failurePolicy: "stop-dependent",
+      branches: [
+        { id: "lane_a", repository: "main", steps: [noopAction("work_a")] },
+      ],
+    },
+  }],
+];
+
+for (const [kind, node] of CONTAINER_NODES) {
+  Deno.test(`a compiler-grammar version with a ${kind} node is refused as not executable`, () => {
+    assertThrows(
+      () =>
+        extractFixedWorkflowSteps({
+          ...WORKFLOW,
+          steps: [noopAction("first"), node],
+        }),
+      WorkflowNotExecutableError,
+    );
+  });
+}
+
+Deno.test("a flat compiler-grammar version stays executable", () => {
+  assertEquals(
+    extractFixedWorkflowSteps({
+      ...WORKFLOW,
+      steps: [noopAction("first"), noopAction("second")],
+    }).map((step) => step.key),
+    ["first", "second"],
+  );
+});
+
+Deno.test("a container node without apiVersion keeps the plain invalid-version error", () => {
+  // Legacy documents never carry container nodes: the flat validator refuses
+  // them at publish. A stored one is corrupt, not a plan, and stays an error.
+  const { apiVersion: _apiVersion, ...legacy } = WORKFLOW;
+  assertThrows(
+    () =>
+      extractFixedWorkflowSteps({
+        ...legacy,
+        steps: [CONTAINER_NODES[0][1]],
+      }),
+    Error,
+    "WORKFLOW_VERSION_INVALID",
+  );
 });

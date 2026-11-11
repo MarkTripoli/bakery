@@ -96,4 +96,5 @@
   <entry file="drain-budget-is-also-the-quiescence-budget.xml" scope="project" />
   <entry file="late-page-response-bodies-are-not-evidence.xml" scope="project" />
   <entry file="paper-identity-repin-after-wording-edit.xml" scope="project" />
+  <entry file="nested-steps-bind-through-compiler-action-sites.xml" scope="project" />
 </learnings>
