@@ -763,6 +763,9 @@ jobs:
     name: full / integration
     needs: [changes, format, typecheck, contract, unit]
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'integration_tests'))) && needs.format.result == 'success' && needs.typecheck.result == 'success' && needs.contract.result == 'success' && needs.unit.result == 'success' }}
+    # `amd` is the heavy-lane pool label, not a CPU guarantee: all four runners
+    # carry it and two are Intel, so heavy lanes budget for the slower hosts
+    # (learnings/heavy-lane-label-is-pool-not-cpu.xml).
     runs-on: [self-hosted, hetzner, amd, linux, x64]
     env:
       BAKERY_TEST_DATABASE_RESET_CONFIRMATION: RESET_BAKERY_TEST_DATABASE
@@ -2043,6 +2046,14 @@ jobs:
       - name: Stop web dev server
         if: always()
         run: kill "$(cat "$RUNNER_TEMP/web-dev.pid")" || true
+      - name: Record git history state before the provenance gate
+        # The Paper provenance gate refuses a shallow repository ("Incomplete
+        # shallow provenance history", run 43023722608 on hetzner-4, an hour
+        # after a checkout that unshallowed). This read-only line says whether
+        # history is still complete here, so a repeat names where it was lost.
+        run: |
+          printf 'host=%s shallow=%s commits=%s head=%s\n' "$(hostname)" "$(git rev-parse --is-shallow-repository)" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+          ls -l "$(git rev-parse --git-dir)/shallow" 2>&1 || true
       - name: Compare owned Paper references
         # On a pull request the base SHA lets compare-paper.mjs skip
         # re-rendering references that no changed path produces or pins (the

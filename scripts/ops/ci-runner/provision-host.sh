@@ -131,6 +131,12 @@ if [ ! -x $RUNNER_DIR/config.sh ]; then
   runuser -u $CI_USER -- tar -xzf "$tarball" -C $RUNNER_DIR
   rm -f "$tarball"
 fi
+# `hetzner` selects the pool. `amd` is the label every heavy lane asks for and
+# names membership of the heavy-lane pool, not a CPU: as read from cpuinfo on
+# 2026-11-11, hetzner-1 and -2 are AMD EPYC-Rome and hetzner-4 and -5 are Intel
+# Skylake (all 4 vCPU, 7 GB). All four stay in the pool for capacity, so lane
+# time budgets are sized for the slower hosts (see learnings/
+# heavy-lane-label-is-pool-not-cpu.xml). Do not re-register to change this.
 if [ ! -f $RUNNER_DIR/.runner ]; then
   [ -n "$RUNNER_TOKEN" ] || { echo "RUNNER_TOKEN required on stdin to register" >&2; exit 1; }
   (cd $RUNNER_DIR && runuser -u $CI_USER -- env -i HOME=/home/$CI_USER LANG=en_US.UTF-8 \
