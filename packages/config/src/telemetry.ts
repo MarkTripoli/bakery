@@ -192,21 +192,35 @@ export function createTelemetry(options: TelemetryOptions): Telemetry {
     }
   }
   const registry = createMetricsRegistry({ ...application, ...metaSpecs });
-  const lostReason = {
-    "queue-full": "queue_full",
-    "send-failed": "send_failed",
-    shutdown: "shutdown",
-  } as const;
+  // No loss callback is registered. The exporter counts every drop by reason in
+  // its stats, and the loss metric is brought up to those counts whenever the
+  // metrics are read, so it is exact at that moment, needs no timer and cannot
+  // be re-entered by the code that reports it.
   const exporter: BoundedExporter<TelemetryRecord> = createBoundedExporter({
     ...options.exporter,
     send: options.send,
-    onLoss: (loss) =>
-      registry.inc(
-        TELEMETRY_META_METRICS.lost,
-        { reason: lostReason[loss.reason] },
-        loss.count,
-      ),
   });
+  const lostReasons = [
+    ["queueFull", "queue_full"],
+    ["sendFailed", "send_failed"],
+    ["shutdown", "shutdown"],
+  ] as const;
+  const accounted = { queueFull: 0, sendFailed: 0, shutdown: 0 };
+  /** Adds to the loss metric what the exporter has dropped since the last read. */
+  const syncLoss = () => {
+    try {
+      const { dropped } = exporter.stats();
+      for (const [key, reason] of lostReasons) {
+        const delta = dropped[key] - accounted[key];
+        if (delta > 0) {
+          accounted[key] = dropped[key];
+          registry.inc(TELEMETRY_META_METRICS.lost, { reason }, delta);
+        }
+      }
+    } catch {
+      // Counting is best effort; the exporter's own stats stay exact.
+    }
+  };
   const clock = options.now ?? Date.now;
   const count = (outcome: string) =>
     registry.inc(TELEMETRY_META_METRICS.events, { outcome });
@@ -277,10 +291,18 @@ export function createTelemetry(options: TelemetryOptions): Telemetry {
       }
     },
 
-    metrics: registry,
+    metrics: {
+      inc: (name, labels, by) => registry.inc(name, labels, by),
+      set: (name, labels, value) => registry.set(name, labels, value),
+      snapshot: () => {
+        syncLoss();
+        return registry.snapshot();
+      },
+    },
 
     flushMetrics() {
       try {
+        syncLoss();
         registry.set(
           TELEMETRY_META_METRICS.queueDepth,
           {},

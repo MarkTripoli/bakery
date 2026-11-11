@@ -511,3 +511,213 @@ Deno.test("no timer is left running by a telemetry that was used and closed", as
     for (const id of live) realClear(id as ReturnType<typeof setTimeout>);
   }
 });
+
+// ---- export loss is read, not reported ----------------------------------------
+// The loss metric used to be fed by the exporter's loss callback, whose timing
+// the exporter is free to change (deferred, coalesced, rate limited). It is now
+// read from the exporter's own counts whenever the metrics are, so it is exact
+// at that moment and depends on no callback.
+
+const reasons = [
+  ["queueFull", "queue_full"],
+  ["sendFailed", "send_failed"],
+  ["shutdown", "shutdown"],
+] as const;
+
+function lostMatchesStats(
+  samples: readonly MetricSample[],
+  stats: ReturnType<ReturnType<typeof make>["telemetry"]["stats"]>,
+  what: string,
+) {
+  for (const [key, reason] of reasons) {
+    assertEquals(
+      meta(samples, TELEMETRY_META_METRICS.lost, reason),
+      stats.dropped[key],
+      `${what}: ${reason}`,
+    );
+  }
+}
+
+Deno.test("the loss metric is exact in the same tick as the drop, with nothing to wait for", () => {
+  const { telemetry } = make({
+    send: () => new Promise(() => {}),
+    exporter: {
+      ...baseExporter,
+      capacity: 2,
+      batchSize: 1,
+      sendTimeoutMs: 60_000,
+    },
+  });
+  for (let index = 0; index < 50; index += 1) {
+    telemetry.event("job.completed", {});
+  }
+  const stats = telemetry.stats();
+  assert(stats.dropped.queueFull > 40, "the queue overflowed");
+  lostMatchesStats(telemetry.metrics.snapshot(), stats, "same tick");
+});
+
+Deno.test("reading the metrics again does not count a loss twice", async () => {
+  const { telemetry } = make({
+    send: () => new Promise(() => {}),
+    exporter: {
+      ...baseExporter,
+      capacity: 1,
+      batchSize: 1,
+      sendTimeoutMs: 60_000,
+    },
+  });
+  for (let index = 0; index < 10; index += 1) {
+    telemetry.event("job.completed", {});
+  }
+  const first = telemetry.metrics.snapshot();
+  const second = telemetry.metrics.snapshot();
+  telemetry.flushMetrics();
+  const third = telemetry.metrics.snapshot();
+  const queueFull = meta(first, TELEMETRY_META_METRICS.lost, "queue_full");
+  assert(queueFull > 0);
+  assertEquals(
+    meta(second, TELEMETRY_META_METRICS.lost, "queue_full"),
+    queueFull,
+  );
+  // The flush offered one more record into a full queue, which is one more loss.
+  lostMatchesStats(third, telemetry.stats(), "after a flush");
+  await telemetry.close(20);
+});
+
+Deno.test("the metrics record that is sent carries the losses counted when it was taken", async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const sent: TelemetryRecord[] = [];
+  const telemetry = createTelemetry({
+    send: async (batch) => {
+      await gate;
+      sent.push(...batch);
+    },
+    exporter: {
+      ...baseExporter,
+      capacity: 2,
+      batchSize: 2,
+      sendTimeoutMs: 60_000,
+    },
+    redact,
+    events: ["job.completed"],
+  });
+  // Two queue, eight are dropped for room.
+  for (let index = 0; index < 10; index += 1) {
+    telemetry.event("job.completed", {});
+  }
+  assertEquals(telemetry.stats().dropped.queueFull, 8);
+  // The held send takes the queued pair, which makes room for the record.
+  await until(() => telemetry.stats().inFlight === 2, "a batch in flight");
+  telemetry.flushMetrics();
+  assertEquals(telemetry.stats().queued, 1, "the metrics record was accepted");
+  release();
+  await telemetry.close(500);
+  const record = sent.find((r) => r.kind === "metrics");
+  assert(record && record.kind === "metrics", "a metrics record was sent");
+  assertEquals(
+    meta(record.samples, TELEMETRY_META_METRICS.lost, "queue_full"),
+    8,
+    "the record carries the eight losses counted before it was taken",
+  );
+});
+
+Deno.test("losses are exact under a seeded random mix of events, reads, flushes and a close", async () => {
+  let seed = 90210;
+  const random = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 2 ** 32;
+  };
+  for (let round = 0; round < 40; round += 1) {
+    const { telemetry } = make({
+      send: random() < 0.5
+        ? () => new Promise(() => {})
+        : () => Promise.reject(new Error("down")),
+      exporter: {
+        ...baseExporter,
+        capacity: 1 + Math.floor(random() * 6),
+        batchSize: 1,
+        sendTimeoutMs: random() < 0.5 ? 60_000 : 5,
+      },
+    });
+    let last = { queue_full: 0, send_failed: 0, shutdown: 0 };
+    const read = (what: string) => {
+      const samples = telemetry.metrics.snapshot();
+      lostMatchesStats(samples, telemetry.stats(), `round ${round} ${what}`);
+      const now = {
+        queue_full: meta(samples, TELEMETRY_META_METRICS.lost, "queue_full"),
+        send_failed: meta(samples, TELEMETRY_META_METRICS.lost, "send_failed"),
+        shutdown: meta(samples, TELEMETRY_META_METRICS.lost, "shutdown"),
+      };
+      for (const reason of Object.keys(now) as Array<keyof typeof now>) {
+        assert(now[reason] >= last[reason], `${reason} went down`);
+      }
+      last = now;
+    };
+    const steps = 20 + Math.floor(random() * 30);
+    for (let step = 0; step < steps; step += 1) {
+      const pick = random();
+      if (pick < 0.6) telemetry.event("job.completed", {});
+      else if (pick < 0.75) read("a read");
+      else if (pick < 0.9) telemetry.flushMetrics();
+      else await pause(1);
+    }
+    read("before close");
+    await telemetry.close(10);
+    read("after close");
+    telemetry.event("job.completed", {});
+    read("an event after close");
+  }
+});
+
+Deno.test("dropping events and reading the metrics schedules no timer: the facade has no loss reporter", async () => {
+  const live = new Set<unknown>();
+  const realSet = globalThis.setTimeout;
+  const realClear = globalThis.clearTimeout;
+  globalThis.setTimeout = ((handler: () => void, ms?: number) => {
+    const id: unknown = realSet(() => {
+      live.delete(id);
+      handler();
+    }, ms);
+    live.add(id);
+    return id;
+  }) as unknown as typeof setTimeout;
+  globalThis.clearTimeout = ((id: unknown) => {
+    live.delete(id);
+    realClear(id as ReturnType<typeof setTimeout>);
+  }) as typeof clearTimeout;
+  try {
+    const { telemetry } = make({
+      send: () => new Promise(() => {}),
+      exporter: {
+        ...baseExporter,
+        capacity: 1,
+        batchSize: 1,
+        sendTimeoutMs: 60_000,
+      },
+    });
+    telemetry.event("job.completed", {});
+    telemetry.event("job.completed", {});
+    await until(() => telemetry.stats().inFlight === 1, "an item in flight");
+    const before = live.size;
+    for (let index = 0; index < 1000; index += 1) {
+      telemetry.event("job.completed", {});
+    }
+    telemetry.metrics.snapshot();
+    telemetry.flushMetrics();
+    assert(telemetry.stats().dropped.queueFull >= 1000);
+    assertEquals(
+      live.size,
+      before,
+      "a loss that is only counted needs no timer; a reporter would add one",
+    );
+    await telemetry.close(20);
+    assertEquals(live.size, 0, "and nothing is left behind by close");
+  } finally {
+    globalThis.setTimeout = realSet;
+    globalThis.clearTimeout = realClear;
+    for (const id of live) realClear(id as ReturnType<typeof setTimeout>);
+  }
+});
