@@ -312,6 +312,15 @@ Deno.test("allowed documentation paths ride along without selecting lanes", () =
   );
 });
 
+Deno.test("the worker bootstrap package is classified and selects no heavy lane", () => {
+  // An unmapped path is unknown and forces the full route; this package's
+  // tests are unit tests, which the fast lanes run on every change.
+  assertEquals(
+    affectedLanes([entry("M", "packages/worker-bootstrap/src/install.ts")]),
+    [],
+  );
+});
+
 Deno.test("affected route depends on the event like the other routes", () => {
   assertEquals(routeForEvent("affected", "push"), "affected");
   assertEquals(routeForEvent("affected", "schedule"), "full");
