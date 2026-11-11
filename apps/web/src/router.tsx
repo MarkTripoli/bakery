@@ -54,6 +54,7 @@ import {
 import { ScimConnectionPage } from "./pages/ScimConnectionPage.tsx";
 import { AuditEventsPage } from "./pages/AuditEventsPage.tsx";
 import { OrganizationAccessPage } from "./pages/OrganizationAccessPage.tsx";
+import { OrganizationRepositoryRulesPage } from "./pages/OrganizationRepositoryRulesPage.tsx";
 import { OrganizationRolesPage } from "./pages/OrganizationRolesPage.tsx";
 import {
   CONNECTION_ID_PARAMETER,
@@ -407,6 +408,12 @@ export const routeCoverage = [
     path: "/settings/organization/roles",
     classification: "production",
     states: ["loading", "default", "error", "forbidden"],
+  },
+  {
+    id: "settings-organization-repository-rules",
+    path: "/settings/organization/repository-rules",
+    classification: "production",
+    states: ["loading", "default", "empty", "error", "forbidden"],
   },
   {
     id: "settings-organization-integrations",
@@ -1099,6 +1106,15 @@ const organizationAccessRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const organizationRepositoryRulesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/organization/repository-rules",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: OrganizationRepositoryRulesPage,
+  errorComponent: ProtectedRouteError,
+});
+
 const organizationRolesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings/organization/roles",
@@ -1665,6 +1681,7 @@ const routeTree = rootRoute.addChildren([
   organizationAccessRoute,
   organizationIntegrationsRoute,
   organizationRolesRoute,
+  organizationRepositoryRulesRoute,
   settingsAuditRoute,
   settingsScimRoute,
   projectsOnboardingRoute,

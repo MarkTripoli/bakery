@@ -54,6 +54,11 @@ export const productionSettingsRoutes = [
     href: "/settings/organization/roles",
   },
   {
+    id: "settings-organization-repository-rules",
+    label: <I18nText id="shell.navigation.repositoryRules" />,
+    href: "/settings/organization/repository-rules",
+  },
+  {
     id: "settings-organization-integrations",
     label: <I18nText id="shell.navigation.organizationIntegrations" />,
     href: "/settings/organization/integrations",

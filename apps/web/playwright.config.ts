@@ -136,6 +136,21 @@ export const REAL_M1_SPECS: readonly string[] = [
   "**/m1-journey-real.spec.ts",
 ];
 
+/**
+ * Repository rules (#65) against the real API: a Deno child
+ * (tests/helpers/repository-rules-server.child.ts) runs the real Bakery app on a
+ * real test database. It seeds its own Admin and Developer through
+ * `openInstallationFixture`, whose `createSuperuser` fails AUTH_BOOTSTRAP_CONFLICT
+ * on an installation the auth-bootstrap project already bootstrapped, so it
+ * cannot join the shared-admin lanes. It needs only a migrated test database
+ * (`DATABASE_URL`, `BAKERY_APP_DATABASE_URL`, `BAKERY_ENV=test`) and `deno`; the
+ * project is selected only when the operator sets both `BAKERY_REAL_API=1` and
+ * `BAKERY_REAL_API_RULES=1`, and it is never CI-selected.
+ */
+export const REAL_RULES_SPECS: readonly string[] = [
+  "**/organization-repository-rules-real-api.spec.ts",
+];
+
 export default defineConfig({
   testDir: "./tests",
   ...(mode === "affected"
@@ -180,6 +195,7 @@ export default defineConfig({
         ...REAL_API_SPECS,
         ...REAL_HARNESS_SPECS,
         ...REAL_M1_SPECS,
+        ...REAL_RULES_SPECS,
       ],
       ...consumerSelection("desktop"),
     },
@@ -191,6 +207,7 @@ export default defineConfig({
         ...REAL_API_SPECS,
         ...REAL_HARNESS_SPECS,
         ...REAL_M1_SPECS,
+        ...REAL_RULES_SPECS,
       ],
       ...consumerSelection("mobile"),
     },
@@ -212,6 +229,17 @@ export default defineConfig({
       testMatch: process.env.BAKERY_REAL_API === "1" &&
           process.env.BAKERY_REAL_API_HARNESS === "1"
         ? [...REAL_HARNESS_SPECS]
+        : [],
+      workers: 1,
+      fullyParallel: false,
+    },
+    {
+      // Serial: one child API, one seeded Admin and one growing revision list.
+      name: "desktop-real-rules",
+      use: { ...devices["Desktop Chrome"] },
+      testMatch: process.env.BAKERY_REAL_API === "1" &&
+          process.env.BAKERY_REAL_API_RULES === "1"
+        ? [...REAL_RULES_SPECS]
         : [],
       workers: 1,
       fullyParallel: false,
