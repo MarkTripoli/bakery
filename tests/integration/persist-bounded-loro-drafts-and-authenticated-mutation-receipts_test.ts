@@ -1,6 +1,7 @@
 import { assert, assertEquals, assertExists } from "@std/assert";
 import { createDraftIsolation } from "../../apps/server/src/modules/knowledge/draft-isolation.ts";
 import type { DraftIsolation } from "../../apps/server/src/modules/knowledge/draft-isolation.ts";
+import { DRAFT_LIMITS } from "../../apps/server/src/modules/knowledge/drafts.ts";
 import {
   cleanupDraftFixture,
   type DraftFixture,
@@ -444,7 +445,7 @@ Deno.test("a duplicate whose original commits during its last stale attempt repl
       const candidate = await real.edit(current, source, input, signal);
       if (nested || !original) return candidate;
       duplicateEdits += 1;
-      if (duplicateEdits < 3) {
+      if (duplicateEdits < DRAFT_LIMITS.staleAttempts) {
         await fixture.pgDatabase.query(
           `update bakery.artifact_drafts
               set server_sequence=server_sequence+1
@@ -473,7 +474,7 @@ Deno.test("a duplicate whose original commits during its last stale attempt repl
     original = () => edit(fixture, draft, selected, mutationId);
     const duplicate = await edit(fixture, draft, selected, mutationId);
 
-    assertEquals(duplicateEdits, 3);
+    assertEquals(duplicateEdits, DRAFT_LIMITS.staleAttempts);
     assertExists(originalResponse);
     assertEquals(originalResponse.status, 201);
     const receipt = await responseJson(originalResponse) as Receipt;
