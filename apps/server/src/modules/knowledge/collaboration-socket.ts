@@ -30,7 +30,17 @@ import {
 } from "../auth/domain/assurance.ts";
 import type { PgDatabase } from "../../platform/database.ts";
 import { withPgTransaction } from "../../platform/database.ts";
-import { readDraft } from "./draft-persistence.ts";
+import {
+  commitDraftUpdate,
+  type DraftReceipt,
+  prepareDraftUpdate,
+  readDraft,
+  readDraftState,
+  StaleDraftCandidateError,
+} from "./draft-persistence.ts";
+import { type DraftIsolation, DraftIsolationError } from "./draft-isolation.ts";
+import { DRAFT_LIMITS } from "./drafts.ts";
+import { sha256Bytes } from "./bytes.ts";
 
 type Frame = z.output<typeof contractSchemas.CollaborationFrame>;
 type Room = z.output<typeof contractSchemas.CollaborationRoom>;
@@ -41,6 +51,83 @@ type Presence = z.output<typeof contractSchemas.CollaborationPresence>;
 type RemovalReason = "left" | "closed" | "expired" | "revoked";
 
 export const COLLABORATION_PROTOCOL_VERSION = 1;
+
+/** Binary frame kinds; see the CollaborationFrame contract description. */
+export const BinaryFrameKind = Object.freeze(
+  {
+    ClientUpdate: 1,
+    ServerSnapshot: 2,
+    ServerUpdate: 3,
+  } as const,
+);
+export const BINARY_HEADER_BYTES = 52;
+const BINARY_VERSION = 1;
+const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
+
+export type BinaryFrame = {
+  kind: number;
+  epoch: number;
+  draftId: string;
+  mutationId: string;
+  sequence: bigint;
+  payload: Uint8Array;
+};
+
+function uuidBytes(value: string): Uint8Array {
+  const hex = value.replaceAll("-", "");
+  const bytes = new Uint8Array(16);
+  for (let index = 0; index < 16; index += 1) {
+    bytes[index] = parseInt(hex.slice(index * 2, index * 2 + 2), 16);
+  }
+  return bytes;
+}
+
+function bytesUuid(bytes: Uint8Array): string {
+  const hex = [...bytes].map((value) => value.toString(16).padStart(2, "0"))
+    .join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${
+    hex.slice(16, 20)
+  }-${hex.slice(20)}`;
+}
+
+/** Encodes one binary collaboration frame (52-byte big-endian header + payload). */
+export function encodeBinaryFrame(frame: BinaryFrame): Uint8Array {
+  const output = new Uint8Array(BINARY_HEADER_BYTES + frame.payload.length);
+  const view = new DataView(output.buffer);
+  view.setUint8(0, BINARY_VERSION);
+  view.setUint8(1, frame.kind);
+  view.setUint16(2, 0);
+  view.setUint32(4, frame.epoch);
+  output.set(uuidBytes(frame.draftId), 8);
+  output.set(uuidBytes(frame.mutationId), 24);
+  view.setBigUint64(40, frame.sequence);
+  view.setUint32(48, frame.payload.length);
+  output.set(frame.payload, BINARY_HEADER_BYTES);
+  return output;
+}
+
+/** Decodes and validates a binary frame; the declared length must match exactly. */
+export function decodeBinaryFrame(bytes: Uint8Array): BinaryFrame {
+  if (bytes.length < BINARY_HEADER_BYTES) {
+    throw new StandardError({ code: "MALFORMED_REQUEST" });
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const declared = view.getUint32(48);
+  if (
+    view.getUint8(0) !== BINARY_VERSION || view.getUint16(2) !== 0 ||
+    declared !== bytes.length - BINARY_HEADER_BYTES
+  ) {
+    throw new StandardError({ code: "MALFORMED_REQUEST" });
+  }
+  return {
+    kind: view.getUint8(1),
+    epoch: view.getUint32(4),
+    draftId: bytesUuid(bytes.subarray(8, 24)),
+    mutationId: bytesUuid(bytes.subarray(24, 40)),
+    sequence: view.getBigUint64(40),
+    payload: bytes.slice(BINARY_HEADER_BYTES),
+  };
+}
 
 /**
  * Bounds of the collaboration socket (docs/technical-design/20-collaborative-documents.md).
@@ -91,6 +178,8 @@ export const COLLABORATION_SOCKET_LIMITS: CollaborationSocketLimits = Object
 
 export type CollaborationSocketHandlerOptions = {
   database: PgDatabase;
+  /** Isolated Loro import for untrusted updates; the same one the draft routes use. */
+  isolation: DraftIsolation;
   store: SessionStore;
   secret: string;
   publicBaseUrl: string;
@@ -438,6 +527,9 @@ export function createCollaborationSocketHandler(
       connection.close(1008, "RATE_LIMITED");
       return;
     }
+    if (data instanceof ArrayBuffer) {
+      return await onBinary(connection, new Uint8Array(data));
+    }
     if (typeof data !== "string") {
       problem(
         connection,
@@ -507,6 +599,12 @@ export function createCollaborationSocketHandler(
         updatePresence(entry.participant, frame.state as PresenceState);
         return;
       }
+      case "sync":
+        return await sync(
+          connection,
+          frame.requestId as string,
+          frame.room as Room,
+        );
       case "ping":
         send(connection, { type: "ping", requestId: frame.requestId } as Frame);
         return;
@@ -518,6 +616,283 @@ export function createCollaborationSocketHandler(
           new StandardError({ code: "MALFORMED_REQUEST" }),
         );
     }
+  }
+
+  /** Draft write access in a fresh transaction (operate permission, live membership). */
+  async function assertWriteAccess(connection: Connection): Promise<void> {
+    await withPgTransaction(
+      options.database,
+      async (transaction) => {
+        const actor = await resolveOrganizationActor(
+          transaction,
+          principalId(connection.principal.principalId),
+          connection.organizationId,
+        );
+        authorize(actor, "draft:write", { action: "drafts.edit" });
+      },
+      undefined,
+      "read committed",
+    );
+  }
+
+  /** Sends draft bytes; a peer over the buffer budget is closed to resynchronize. */
+  function sendBinary(connection: Connection, frame: Frame, bytes: Uint8Array) {
+    if (connection.closed) return;
+    if (connection.socket.bufferedAmount > limits.maxBufferedBytes) {
+      connection.close(1008, "backpressure");
+      return;
+    }
+    if (!send(connection, frame)) return;
+    try {
+      connection.socket.send(bytes);
+    } catch {
+      connection.close(1011, "socket error");
+    }
+  }
+
+  /** `sync`: the committed state of a joined room, read now. */
+  async function sync(connection: Connection, requestId: string, room: Room) {
+    if (!connection.rooms.has(roomKey(room))) {
+      problem(
+        connection,
+        requestId,
+        new StandardError({ code: "RESOURCE_NOT_FOUND" }),
+      );
+      return;
+    }
+    let state: Awaited<ReturnType<typeof readDraftState>>;
+    try {
+      await assertSession(connection.token);
+      await assertRoomAccess(connection, room);
+      state = await withPgTransaction(
+        options.database,
+        (transaction) =>
+          readDraftState(transaction, connection.organizationId, room.id),
+        undefined,
+        "read committed",
+      );
+    } catch (error) {
+      problem(connection, requestId, error);
+      return;
+    }
+    sendBinary(
+      connection,
+      {
+        type: "synced",
+        requestId,
+        room,
+        epoch: state.epoch,
+        serverSequence: state.serverSequence,
+        checkpointId: state.checkpointId,
+        byteLength: state.state.length,
+      } as Frame,
+      encodeBinaryFrame({
+        kind: BinaryFrameKind.ServerSnapshot,
+        epoch: state.epoch,
+        draftId: room.id,
+        mutationId: ZERO_UUID,
+        sequence: BigInt(state.serverSequence),
+        payload: state.state,
+      }),
+    );
+  }
+
+  /** Admission is serialized per draft in this process; Postgres CAS covers the rest. */
+  const admissions = new Map<string, Promise<unknown>>();
+  function serialize<T>(draftId: string, run: () => Promise<T>): Promise<T> {
+    const previous = admissions.get(draftId) ?? Promise.resolve();
+    const next = previous.catch(() => {}).then(run);
+    const tail = next.catch(() => {});
+    admissions.set(draftId, tail);
+    tail.then(() => {
+      if (admissions.get(draftId) === tail) admissions.delete(draftId);
+    });
+    return next;
+  }
+
+  function resync(
+    connection: Connection,
+    room: Room,
+    mutationId: string | null,
+    reason: "stale" | "epoch" | "rejected",
+  ) {
+    send(connection, {
+      type: "resync_required",
+      room,
+      mutationId,
+      reason,
+    } as Frame);
+  }
+
+  /**
+   * A client update: authorize, import outside any transaction in the
+   * isolated worker, then commit with a highwater check and receipt before
+   * acknowledging and only then relaying the committed bytes to the room.
+   */
+  async function onBinary(connection: Connection, bytes: Uint8Array) {
+    if (bytes.length > BINARY_HEADER_BYTES + DRAFT_LIMITS.updateBytes) {
+      problem(connection, null, new StandardError({ code: "BODY_TOO_LARGE" }));
+      return;
+    }
+    let frame: BinaryFrame;
+    try {
+      frame = decodeBinaryFrame(bytes);
+      if (
+        frame.kind !== BinaryFrameKind.ClientUpdate || frame.sequence !== 0n ||
+        !isUuid(frame.mutationId) || frame.mutationId === ZERO_UUID ||
+        frame.payload.length === 0
+      ) throw new StandardError({ code: "MALFORMED_REQUEST" });
+    } catch (error) {
+      problem(connection, null, error);
+      return;
+    }
+    const room: Room = { kind: "draft", id: frame.draftId };
+    const entry = connection.rooms.get(roomKey(room));
+    if (!entry) {
+      problem(
+        connection,
+        null,
+        new StandardError({ code: "RESOURCE_NOT_FOUND" }),
+      );
+      return;
+    }
+    await serialize(room.id, () => admit(connection, entry.room, frame));
+  }
+
+  async function admit(connection: Connection, room: Room, frame: BinaryFrame) {
+    const input = {
+      epoch: frame.epoch,
+      mutationId: frame.mutationId,
+      clientUpdateDigest: await sha256Bytes(frame.payload),
+    };
+    const principal = connection.principal.principalId;
+    try {
+      await assertSession(connection.token);
+      await assertWriteAccess(connection);
+    } catch (error) {
+      problem(connection, null, error);
+      return;
+    }
+    for (let attempt = 0; attempt < DRAFT_LIMITS.staleAttempts; attempt += 1) {
+      if (connection.closed) return;
+      let prepared;
+      try {
+        prepared = await withPgTransaction(
+          options.database,
+          (transaction) =>
+            prepareDraftUpdate(
+              transaction,
+              connection.organizationId,
+              principal,
+              room.id,
+              input,
+            ),
+          undefined,
+          "read committed",
+        );
+      } catch (error) {
+        if (
+          error instanceof StandardError && error.code === "PRECONDITION_FAILED"
+        ) {
+          resync(connection, room, frame.mutationId, "epoch");
+          return;
+        }
+        problem(connection, null, error);
+        return;
+      }
+      if (!("kind" in prepared)) {
+        // Exact replay of an already committed mutation.
+        send(connection, {
+          type: "ack",
+          room,
+          mutationId: frame.mutationId,
+          receipt: prepared,
+        } as Frame);
+        return;
+      }
+      let candidate;
+      try {
+        candidate = await options.isolation.importUpdate(
+          prepared.currentState,
+          frame.payload,
+        );
+      } catch (error) {
+        if (
+          error instanceof DraftIsolationError && error.kind !== "unavailable"
+        ) {
+          resync(connection, room, frame.mutationId, "rejected");
+          return;
+        }
+        problem(
+          connection,
+          null,
+          new StandardError({ code: "DEPENDENCY_UNAVAILABLE" }),
+        );
+        return;
+      }
+      if (candidate.update.length === 0) {
+        // Everything in the update is already committed: nothing new to save.
+        send(connection, {
+          type: "ack",
+          room,
+          mutationId: frame.mutationId,
+          receipt: null,
+        } as Frame);
+        return;
+      }
+      let receipt: DraftReceipt;
+      try {
+        receipt = await withPgTransaction(
+          options.database,
+          async (transaction) => {
+            const actor = await resolveOrganizationActor(
+              transaction,
+              principalId(principal),
+              connection.organizationId,
+            );
+            authorize(actor, "draft:write", { action: "drafts.edit" });
+            return await commitDraftUpdate(
+              transaction,
+              connection.organizationId,
+              principal,
+              input,
+              prepared,
+              candidate,
+            );
+          },
+        );
+      } catch (error) {
+        if (error instanceof StaleDraftCandidateError) continue;
+        problem(connection, null, error);
+        return;
+      }
+      send(connection, {
+        type: "ack",
+        room,
+        mutationId: frame.mutationId,
+        receipt,
+      } as Frame);
+      const relayed = encodeBinaryFrame({
+        kind: BinaryFrameKind.ServerUpdate,
+        epoch: receipt.epoch,
+        draftId: room.id,
+        mutationId: frame.mutationId,
+        sequence: BigInt(receipt.serverSequence),
+        payload: candidate.update,
+      });
+      for (const peer of internals!.rooms.get(roomKey(room))?.values() ?? []) {
+        if (peer.connection === connection) continue;
+        sendBinary(peer.connection, {
+          type: "committed",
+          room,
+          mutationId: frame.mutationId,
+          serverSequence: receipt.serverSequence,
+          byteLength: relayed.length,
+        } as Frame, relayed);
+      }
+      return;
+    }
+    resync(connection, room, frame.mutationId, "stale");
   }
 
   async function join(connection: Connection, requestId: string, room: Room) {
@@ -705,6 +1080,7 @@ export function createCollaborationSocketHandler(
       return fail(error);
     }
 
+    upgraded.socket.binaryType = "arraybuffer";
     const connection: Connection = {
       id: connectionId,
       socket: upgraded.socket,
