@@ -4,6 +4,7 @@ import { FIXED_CODING_PRESET } from "../../packages/contracts/src/workflow-prese
 import { WORKFLOW_COMPILER_VERSION } from "../../packages/contracts/src/workflow-compiler/mod.ts";
 import { strictYaml } from "../fixtures/workflow-compiler/specimen.ts";
 import {
+  compilerPinOf,
   jsonPointerToSegments,
   validateWorkflowBindings,
   validateWorkflowDefinitionStatic,
@@ -508,4 +509,258 @@ Deno.test("a secret reference is rejected without echoing its value", async () =
   assertEquals(report.semanticDigest, null);
   assert(report.compilerDiagnostics.length > 0);
   assertFalse(JSON.stringify(report).includes("TOPSECRETVALUE"));
+});
+
+// --- #16: the compiler is the structural authority for compiler-grammar documents.
+
+const OPEN_ORG = "00000000-0000-4000-8000-0000000000b1";
+
+const noopNode = (id: string) => ({ id, uses: "workflow.noop", with: {} });
+
+const freeformNode = (id: string) => ({
+  id,
+  uses: "agent.freeform",
+  with: {
+    prompt: "Summarize the task.",
+    maxTurns: 2,
+    timeout: "5m",
+    maxCostUsd: 1,
+    allowedTools: [],
+  },
+});
+
+/** A compiler-grammar document (`apiVersion` declared) around the given steps. */
+function compilerGrammar(
+  steps: unknown[],
+  extra: Record<string, unknown> = {},
+) {
+  return {
+    apiVersion: "bakery.dev/v1",
+    kind: "workflow",
+    name: "nested-flow",
+    description: "Containers around no-op and model steps.",
+    inputs: { target: { type: "string", required: true } },
+    steps,
+    ...extra,
+  };
+}
+
+const NESTED_CONTAINERS: [string, unknown][] = [
+  ["sequence", { id: "group", steps: [noopNode("one"), noopNode("two")] }],
+  ["wait", { id: "pause", wait: { duration: "1m" } }],
+  ["branch", {
+    id: "choose",
+    branch: {
+      when: '$input.target == "prod"',
+      then: [noopNode("on_prod")],
+      else: [noopNode("on_dev")],
+    },
+  }],
+  ["repeat", {
+    id: "fix",
+    repeat: {
+      max: 2,
+      seed: { currentCandidate: { done: false } },
+      until: "$repeat.currentCandidate.done == true",
+      steps: [noopNode("try_one")],
+      outputs: { currentCandidate: { done: false } },
+    },
+  }],
+  ["parallel", {
+    id: "fan",
+    parallel: {
+      maxConcurrency: 2,
+      join: "all-required",
+      failurePolicy: "stop-dependent",
+      branches: [
+        { id: "lane_a", repository: "main", steps: [noopNode("work_a")] },
+        { id: "lane_b", repository: "main", steps: [noopNode("work_b")] },
+      ],
+    },
+  }],
+];
+
+for (const [kind, node] of NESTED_CONTAINERS) {
+  Deno.test(`a ${kind} node the compiler accepts is not rejected by the flat validator`, async () => {
+    const definition = compilerGrammar([node]);
+    const report = await validateWorkflowDefinitionStatic(definition);
+    assertEquals(report.compilerDiagnostics, []);
+    assertEquals(report.errors, []);
+    assert(report.valid, `${kind} must validate`);
+    assert(/^[0-9a-f]{64}$/.test(report.semanticDigest ?? ""));
+    assertEquals(
+      report.normalizedDigest,
+      await sha256Hex(canonicalJson(definition)),
+    );
+    assertEquals(report.registryVersion, 1);
+    assert(report.graph !== undefined);
+    // A parallel lane that names a repository needs one; no other node does.
+    assertEquals(report.requiresRepository, kind === "parallel");
+  });
+}
+
+Deno.test("a flat compiler-grammar list still validates unchanged", async () => {
+  const report = await validateWorkflowDefinitionStatic(
+    compilerGrammar([noopNode("one"), noopNode("two")]),
+  );
+  assert(report.valid);
+  assertEquals(report.errors, []);
+});
+
+Deno.test("a definition the compiler rejects is invalid and its diagnostics are errors", async () => {
+  const secret = "$secret.sk_live_TOPSECRETVALUE";
+  const report = await validateWorkflowDefinitionStatic(
+    compilerGrammar([{ ...noopNode("first"), with: { token: secret } }]),
+  );
+  assertFalse(report.valid);
+  assertEquals(report.normalizedDigest, null);
+  assertEquals(report.semanticDigest, null);
+  assert(report.compilerDiagnostics.length > 0);
+  for (const diagnostic of report.compilerDiagnostics) {
+    assert(
+      report.errors.some((e) =>
+        e.path === diagnostic.path && e.code === diagnostic.code
+      ),
+      `${diagnostic.path}:${diagnostic.code} must be an error`,
+    );
+  }
+  assertFalse(JSON.stringify(report).includes("TOPSECRETVALUE"));
+});
+
+Deno.test("an unresolved action schema blocks a compiler-grammar document", async () => {
+  const report = await validateWorkflowDefinitionStatic(
+    compilerGrammar([{ id: "land", uses: "delivery.merge", with: {} }]),
+  );
+  assertFalse(report.valid);
+  assert(
+    report.errors.some((e) =>
+      e.path === "/steps/0/uses" && e.code === "action_schema_unresolved"
+    ),
+  );
+});
+
+Deno.test("a nested step the compiler rejects blocks validation at its authored path", async () => {
+  const report = await validateWorkflowDefinitionStatic(compilerGrammar([{
+    id: "choose",
+    branch: {
+      when: '$input.target == "prod"',
+      then: [noopNode("same"), noopNode("same")],
+      else: [noopNode("on_dev")],
+    },
+  }]));
+  assertFalse(report.valid);
+  assert(report.errors.length > 0);
+  assert(
+    report.errors.every((e) => e.path.startsWith("/steps/0/branch/then/")),
+    JSON.stringify(report.errors),
+  );
+});
+
+Deno.test("a legacy document without apiVersion keeps the flat verdict", async () => {
+  for (const spec of [FIXED_CODING_PRESET.spec, minimal]) {
+    const report = await validateWorkflowDefinitionStatic(spec);
+    assert(report.valid, JSON.stringify(report.errors));
+    assertEquals(report.errors, []);
+  }
+});
+
+Deno.test("nested steps warn at their own authored paths", async () => {
+  const report = await validateWorkflowDefinitionStatic(compilerGrammar([{
+    id: "choose",
+    branch: {
+      when: '$input.target == "prod"',
+      then: [freeformNode("on_prod")],
+      else: [noopNode("on_dev")],
+    },
+  }]));
+  assert(report.valid, JSON.stringify(report.errors));
+  // The model step has no bound agent; workflow.noop is registered but not
+  // executable, as for a top-level step.
+  assertEquals(
+    report.warnings.map((w) => [w.path, w.code]),
+    [
+      ["/steps/0/branch/then/0/uses", "model_agent_unbound"],
+      ["/steps/0/branch/else/0/uses", "action_not_executable"],
+    ],
+  );
+});
+
+const NESTED_MODEL_FLOW = compilerGrammar([{
+  id: "choose",
+  branch: {
+    when: '$input.target == "prod"',
+    then: [freeformNode("on_prod")],
+    else: [noopNode("on_dev")],
+  },
+}], { agents: { "agent.freeform": agentId } });
+
+Deno.test("agent binding is validated for steps nested in containers", async () => {
+  // The agent allows no model capability. A binding check that only reads the
+  // top-level steps would skip this document and let it publish.
+  const transaction = await bindingTransaction(["git"]);
+  const { errors } = await validateWorkflowBindings(
+    transaction,
+    OPEN_ORG,
+    NESTED_MODEL_FLOW,
+  );
+  assertEquals(
+    errors.map(({ path, code }) => ({ path, code })),
+    [
+      {
+        path: "/agents/agent.freeform",
+        code: "agent_action_capability_denied",
+      },
+      {
+        path: "/steps/0/branch/then/0/requires",
+        code: "agent_action_capability_denied",
+      },
+    ],
+  );
+});
+
+Deno.test("nested steps report their binding under the qualified step id", async () => {
+  const transaction = await bindingTransaction(["model"]);
+  const { errors, bindings } = await validateWorkflowBindings(
+    transaction,
+    OPEN_ORG,
+    NESTED_MODEL_FLOW,
+  );
+  assertEquals(errors, []);
+  assertEquals(
+    bindings.map((b) => [b.stepId, b.action, b.source, b.agentVersionId]),
+    [
+      ["choose.on_prod", "agent.freeform", "workflow", agentId],
+      ["choose.on_dev", "workflow.noop", "none", null],
+    ],
+  );
+});
+
+// --- #16 AC6: the pin a published version stores.
+
+Deno.test("a compiled version is pinned with the compiler version and digest it returned", async () => {
+  const report = await validateWorkflowDefinitionStatic(
+    compilerGrammar([noopNode("first")]),
+  );
+  assert(report.valid);
+  assertEquals(compilerPinOf(report), {
+    compilerVersion: WORKFLOW_COMPILER_VERSION,
+    semanticDigest: report.semanticDigest,
+  });
+});
+
+Deno.test("a nested compiled version is pinned too", async () => {
+  const report = await validateWorkflowDefinitionStatic(
+    compilerGrammar([NESTED_CONTAINERS[2][1]]),
+  );
+  assert(report.valid);
+  assert(/^[0-9a-f]{64}$/.test(compilerPinOf(report)?.semanticDigest ?? ""));
+});
+
+Deno.test("a version the compiler did not accept carries no pin, not half of one", async () => {
+  // A legacy flat document: the compiler reports its version but no digest.
+  const legacy = await validateWorkflowDefinitionStatic(minimal);
+  assert(legacy.valid);
+  assertEquals(legacy.compilerVersion, WORKFLOW_COMPILER_VERSION);
+  assertEquals(legacy.semanticDigest, null);
+  assertEquals(compilerPinOf(legacy), null);
 });

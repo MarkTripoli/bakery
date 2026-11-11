@@ -23,6 +23,7 @@ import {
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
+  compilerPinOf,
   jsonPointerToSegments,
   MAX_WORKFLOW_DEFINITION_BYTES,
   validateWorkflowBindings,
@@ -727,12 +728,16 @@ export async function publishWorkflowVersion(
     organizationId,
     draft.definition,
   );
+  // The compile of exactly this definition, stored with the row. Published
+  // rows are immutable, so this is what a later reader executes.
+  const pin = compilerPinOf(report);
   const inserted = await boundedMutation(() =>
     transaction.query<WorkflowVersionRow>(
       `insert into bakery.workflow_versions (
          id, organization_id, workflow_id, revision, source_yaml,
-         normalized_spec, digest, status, created_by
-       ) values ($1, $2, $3, $4, $5, $6::jsonb, $7, 'published', $8)
+         normalized_spec, digest, status, created_by,
+         compiler_version, semantic_digest
+       ) values ($1, $2, $3, $4, $5, $6::jsonb, $7, 'published', $8, $9, $10)
        returning id, workflow_id, revision, source_yaml,
                  normalized_spec as spec, digest, status, created_by,
                  created_at, updated_at, version`,
@@ -747,6 +752,8 @@ export async function publishWorkflowVersion(
         // created_by is the draft author; the publisher is recorded in the
         // workflowVersions.publish audit row below.
         draft.created_by,
+        pin?.compilerVersion ?? null,
+        pin?.semanticDigest ?? null,
       ],
     )
   );
