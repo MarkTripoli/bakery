@@ -25,6 +25,14 @@ const uuid = "0b9a1f0e-5a3c-4c1e-8f6a-2d4b7c9e1a30";
 
 /** The filter as a consumer would build it, with names that resemble no credential. */
 const vocabulary = {
+  stepIds: [
+    "build",
+    "implement_review",
+    "step_1",
+    "retry_10",
+    "outer.inner.build",
+    "delivery_gate",
+  ],
   actions: ["agents.list", "installation.seats.get"],
   providerCategories: ["model", "git"],
   outcomes: ["AUTH_FORBIDDEN", "TIMEOUT"],
@@ -164,131 +172,145 @@ Deno.test("prompts, diffs, source, tool arguments, output and errors have no fie
 });
 
 /**
- * Fragments of random credential-shaped material are fed to `bakery.step.key`,
- * the one open-ended string field, and the share it accepts is compared with a
- * stated bound. The generator is seeded, so the numbers below are the numbers
- * every run produces; a bound is exceeded only when the rule changes.
- *
- * Measured and stated, in percent of random fragments accepted:
- *
- *   alphabet       len 4   len 8   len 12  len 16  len 24
- *   base62/64/url   <= 10    <= 1    <= .5   <= .1   <= .1
- *   hex             <= 40   <= 10   <= 1    <= .1   <= .1
- *   base36 lower    <= 75   <= 68   <= 48   <= 30   <= 8
- *   base32 lower    <= 83   <= 82   <= 73   <= 59   <= 31
- *
- * The last two rows are the known weakness: a lowercase identifier grammar
- * cannot tell a fragment of a lowercase token from a word. They are recorded,
- * not defended. A snake_case sentence passes for the same reason.
+ * Fragments of random credential-shaped material are fed to `bakery.step.key`
+ * and to the closed fields, with a seeded generator so a run draws the same
+ * numbers every time. A step key is accepted only as one of the ids the run
+ * declared, so the rate is exactly zero: a piece of a secret would have to
+ * equal a declared id. The previous design validated the shape of a lowercase
+ * identifier instead, and measured at 45% for 12-character base36 fragments,
+ * 91% for a base36 secret cut in three (9% with all three pieces accepted) and
+ * 98% for base32 (30%), because no lowercase grammar can tell a fragment from
+ * a word. A snake_case sentence passed it too.
  */
-const fragmentBounds: Record<AlphabetName, readonly number[]> = {
-  base62: [10, 1, 0.5, 0.1, 0.1],
-  base64: [10, 1, 0.5, 0.1, 0.1],
-  base64url: [10, 1, 0.5, 0.1, 0.1],
-  hex: [40, 10, 1, 0.1, 0.1],
-  base36lower: [75, 68, 48, 30, 8],
-  base32lower: [83, 82, 73, 59, 31],
-};
-const fragmentLengths = [4, 8, 12, 16, 24];
-
-Deno.test("random fragments of a secret reach the step key only within the stated bounds", () => {
+Deno.test("no random fragment of any secret alphabet reaches any field", () => {
   const random = seeded(20261111);
-  const samples = 5000;
+  const samples = 4000;
+  const fields = [
+    "bakery.step.key",
+    "bakery.action",
+    "bakery.provider.category",
+    "bakery.outcome",
+    "bakery.run.id",
+  ];
+  // `bakery.actor.hash` is left out on purpose: a 64-character hex string is
+  // exactly a SHA-256 digest, so a secret of that shape cannot be told from one.
   for (const name of Object.keys(alphabets) as AlphabetName[]) {
-    fragmentLengths.forEach((length, column) => {
-      let accepted = 0;
+    for (const length of [2, 3, 4, 5, 6, 8, 12, 16, 24, 40, 64]) {
       for (let index = 0; index < samples; index += 1) {
         const fragment = draw(random, alphabets[name], length);
-        if (
-          "bakery.step.key" in
-            redactTelemetryAttributes({ "bakery.step.key": fragment })
-              .attributes
-        ) {
-          accepted += 1;
-        }
+        const result = redactTelemetryAttributes(
+          Object.fromEntries(fields.map((field) => [field, fragment])),
+        );
+        assertEquals(
+          Object.keys(result.attributes),
+          [],
+          `${name} fragment of ${length} chars reached a field`,
+        );
       }
-      const percent = (100 * accepted) / samples;
-      assert(
-        percent <= fragmentBounds[name][column],
-        `${name} fragments of ${length}: ${
-          percent.toFixed(2)
-        }% accepted, bound ${fragmentBounds[name][column]}%`,
-      );
-    });
+    }
   }
 });
 
-/** What a three-way split of each credential format may leave in the step key. */
-const splitBounds: Record<string, { any: number; all: number }> = {
-  githubClassic: { any: 15, all: 0.1 },
-  githubFineGrained: { any: 15, all: 0.1 },
-  awsSecretKey: { any: 6, all: 0.1 },
-  jwtLike: { any: 3, all: 0.1 },
-  slackLike: { any: 7, all: 0.1 },
-  hex40: { any: 30, all: 0.1 },
-  hex64: { any: 22, all: 0.1 },
-  // The known weakness, stated so that it cannot grow unnoticed.
-  base36lower32: { any: 95, all: 12 },
-  base32lower32: { any: 99, all: 33 },
-};
-
-Deno.test("a randomly split credential has every piece accepted by the step key only within the stated bounds, and none by a closed field", () => {
+Deno.test("a randomly split credential has no piece accepted by any field", () => {
   const random = seeded(7);
   const secrets = 4000;
-  assertEquals(
-    Object.keys(splitBounds).sort(),
-    Object.keys(credentialShapes).sort(),
-  );
+  assertEquals(Object.keys(credentialShapes).length, 9);
   for (const [shape, make] of Object.entries(credentialShapes)) {
-    let anyPiece = 0;
-    let allPieces = 0;
     for (let index = 0; index < secrets; index += 1) {
       const pieces = splitInThree(random, make(random));
-      const accepted = pieces.map((piece) =>
-        "bakery.step.key" in
-          redactTelemetryAttributes({ "bakery.step.key": piece }).attributes
-      );
-      if (accepted.some(Boolean)) anyPiece += 1;
-      if (accepted.every(Boolean)) allPieces += 1;
-      // The closed fields take none of it: no piece is a name on the list.
       for (const piece of pieces) {
-        const closed = redactTelemetryAttributes({
+        const result = redactTelemetryAttributes({
+          "bakery.step.key": piece,
           "bakery.action": piece,
           "bakery.provider.category": piece,
           "bakery.outcome": piece,
         });
         assertEquals(
-          Object.keys(closed.attributes),
+          Object.keys(result.attributes),
           [],
-          `${shape}: ${piece.length} chars`,
+          `${shape}: a ${piece.length}-char piece was accepted`,
         );
       }
     }
-    const any = (100 * anyPiece) / secrets;
-    const all = (100 * allPieces) / secrets;
-    assert(
-      any <= splitBounds[shape].any,
-      `${shape}: ${any.toFixed(2)}% had a piece accepted, bound ${
-        splitBounds[shape].any
-      }%`,
+  }
+});
+
+Deno.test("word-like text and a lowercase token are refused as a step key while a declared id still passes", () => {
+  const refused = [
+    "please_summarize_the_task_and_attach_the_diff",
+    "the_customer_password_is_hunter2",
+    "delivery_gate_but_with_extra_words",
+    "build_a_very_long_name_that_reads_like_a_sentence",
+    "zk3lq9xv2rt7yb5nm1cp8hd4wg6sf0ja",
+    "k4m2n9p7q3r8s5t6v1w0x2y4z7a3b8c5",
+    "3f9c1e7a5b2d4f6a8c0e1b3d5f7a9c2e",
+    "retry_11",
+  ];
+  for (const key of refused) {
+    const result = redactTelemetryAttributes({ "bakery.step.key": key });
+    assertEquals(result.attributes, {}, key);
+    assert(!JSON.stringify(result).includes(key), `${key} was echoed`);
+  }
+  for (
+    const key of ["build", "retry_10", "outer@3.inner@1.build", "delivery_gate"]
+  ) {
+    assertEquals(
+      redactTelemetryAttributes({ "bakery.step.key": key }).attributes,
+      { "bakery.step.key": key },
+      key,
     );
-    assert(
-      all <= splitBounds[shape].all,
-      `${shape}: ${all.toFixed(2)}% had every piece accepted, bound ${
-        splitBounds[shape].all
-      }%`,
+  }
+});
+
+Deno.test("a huge step key is refused without being taken apart", () => {
+  // Valid-looking all the way through, so only a length bound can stop the work.
+  const huge = "aa.".repeat(2_000_000) + "aa";
+  const started = performance.now();
+  for (let index = 0; index < 5; index += 1) {
+    assertEquals(
+      redactTelemetryAttributes({ "bakery.step.key": huge }).invalid,
+      ["bakery.step.key"],
+    );
+  }
+  const elapsed = performance.now() - started;
+  assert(elapsed < 100, `5 refusals of a 6 MB key took ${elapsed} ms`);
+});
+
+Deno.test("a step key cannot carry text through its iteration marker or its separators", () => {
+  // The only free parts of an accepted key are the loop counters, 0 to 999.
+  const result = redactTelemetryAttributes({
+    "bakery.step.key": "outer@999.inner@999.build@999",
+  });
+  assertEquals(Object.keys(result.attributes), ["bakery.step.key"]);
+  for (
+    const key of [
+      "build@a",
+      "build@1a",
+      "build@1.5",
+      "build@1e3",
+      "build@0x10",
+      "build@ 1",
+      "build@١",
+      "build@1\n",
+      "build@1;drop",
+      "build@" + "9".repeat(50),
+    ]
+  ) {
+    assertEquals(
+      redactTelemetryAttributes({ "bakery.step.key": key }).attributes,
+      {},
+      key,
     );
   }
 });
 
 Deno.test("a secret cut into the token's own prefix and body is refused piece by piece", () => {
-  // The first chunk of a prefixed token is its prefix; it is not a step key
-  // (it has an uppercase letter or a dash) and it is on no vocabulary.
   const random = seeded(99);
   for (let index = 0; index < 500; index += 1) {
     const secret = credentialShapes.githubFineGrained(random);
     const [first] = splitInThree(random, secret, 4);
     const result = redactTelemetryAttributes({
+      "bakery.step.key": first,
       "bakery.action": first,
       "bakery.provider.category": first,
       "bakery.outcome": first,
