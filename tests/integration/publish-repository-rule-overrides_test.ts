@@ -1,3 +1,4 @@
+import { seedProfile } from "../helpers/repository-rule-preview-fixture.ts";
 import { assert, assertEquals } from "@std/assert";
 import { maxPublishableConfigBytes } from "../../apps/server/src/modules/projects/inspection-budget.ts";
 import {
@@ -1841,6 +1842,140 @@ Deno.test("rules-only activation retains the observed baseline and fixed policy"
     );
   } finally {
     await harness.close();
+    await f.close();
+  }
+});
+
+Deno.test("#138: checker availability follows the active fixed policy and protection is unknown with a reason", async () => {
+  const f = await openRepositoryRulesFixture();
+  const { send, organizationAId } = f;
+  const adminA = { cookie: f.cookies.adminA, organizationId: organizationAId };
+  const read = async (repositoryId: string) => {
+    const response = await send("GET", f.effectivePath(repositoryId), adminA);
+    assertEquals(response.status, 200, await response.clone().text());
+    return await response.json() as {
+      checkers: { state: string; unavailableRuleKeys: string[] };
+      providerProtection: { state: string; reason: string | null };
+    };
+  };
+  // A v1 profile with a complete fixed policy over the given command ids.
+  const profileWith = (overrides: unknown[], commandIds: string[]) => ({
+    ...baseProfileConfig,
+    repositoryRules: { entries: overrides },
+    fixedPolicy: {
+      schemaVersion: 1,
+      commands: commandIds.map((id) => ({ id, argv: ["check", id] })),
+      allowedEffects: ["evidence_only"],
+      lockedConfiguration: { branches: true, worktree: true, checker: true },
+      decisions: commandIds.map((id) => ({ commandId: id, mode: "require" })),
+    },
+  });
+  const bound = (checkBinding: string | null) => ({
+    ruleKey: "code.magicStrings",
+    enabled: true,
+    mode: "require",
+    options: { checkBinding, allowedLiterals: [], excludedPaths: [] },
+  });
+  try {
+    // A bound require rule whose command is in the active fixed policy.
+    const configured = await f.seedRepository(organizationAId);
+    await seedProfile(
+      f,
+      organizationAId,
+      configured.repositoryId,
+      profileWith([bound("magic.strings")], ["magic.strings"]),
+    );
+    assertEquals((await read(configured.repositoryId)).checkers, {
+      state: "configured",
+      unavailableRuleKeys: [],
+    });
+
+    // The same rule bound to a command the policy does not have.
+    const missing = await f.seedRepository(organizationAId);
+    await seedProfile(
+      f,
+      organizationAId,
+      missing.repositoryId,
+      profileWith([bound("magic.strings")], ["other.command"]),
+    );
+    assertEquals((await read(missing.repositoryId)).checkers, {
+      state: "unavailable",
+      unavailableRuleKeys: ["code.magicStrings"],
+    });
+
+    // A require rule with no binding at all is unavailable too, never a pass.
+    const unbound = await f.seedRepository(organizationAId);
+    await seedProfile(
+      f,
+      organizationAId,
+      unbound.repositoryId,
+      profileWith([bound(null)], ["magic.strings"]),
+    );
+    assertEquals((await read(unbound.repositoryId)).checkers, {
+      state: "unavailable",
+      unavailableRuleKeys: ["code.magicStrings"],
+    });
+
+    // With an enabled provider connection, protection is still unknown, but
+    // the reason says Bakery has not checked it.
+    const connected = await f.seedRepository(organizationAId);
+    const connectionId = (await f.owner<{ id: string }[]>`
+      select integration_connection_id as id from bakery.repositories
+       where organization_id = ${organizationAId} and id = ${connected.repositoryId}`)[
+      0
+    ]!.id;
+    // The GitHub App registration is one row per provider; reuse it if present.
+    let registrationId = (await f.owner<{ id: string }[]>`
+      select id from bakery.integration_app_registrations
+       where provider = 'github'`)[0]?.id;
+    if (registrationId === undefined) {
+      registrationId = crypto.randomUUID();
+      const clientSecretId = crypto.randomUUID();
+      const privateKeyId = crypto.randomUUID();
+      await f.owner`
+        insert into bakery.secrets (id, name) values
+          (${clientSecretId}, 'rules-test-client-secret'),
+          (${privateKeyId}, 'rules-test-private-key')`;
+      await f.owner`
+        insert into bakery.integration_app_registrations (
+          id, provider, external_app_id, slug, name, client_id, owner_login,
+          owner_id, owner_type, html_url, permissions, events,
+          client_secret_id, private_key_secret_id, status, registered_by
+        ) values (${registrationId}, 'github', 1, 'bakery-rules-test',
+          'Bakery rules test', 'Iv1.rulestest', 'rules-owner', 1,
+          'Organization', 'https://github.com/apps/bakery-rules-test',
+          '{}'::jsonb, '[]'::jsonb, ${clientSecretId}, ${privateKeyId},
+          'registered', ${f.adminA.principalId})`;
+    }
+    const installationId = crypto.randomUUID();
+    const externalId = String(1e12 + Math.floor(Math.random() * 9e12));
+    await f.owner`
+      insert into bakery.integration_installations (
+        id, provider, registration_id, external_authorization_id,
+        external_account_id, account_login, account_type,
+        repository_selection, granted_permissions, status
+      ) values (${installationId}, 'github', ${registrationId}, ${externalId},
+        '1', 'rules-owner', 'Organization', 'selected', '{}'::jsonb,
+        'enabled')`;
+    await f.owner`
+      insert into bakery.integration_connections (
+        id, organization_id, provider, installation_id,
+        external_authorization_id, external_account_id, label,
+        adapter_version, granted_permissions, status, health, created_by
+      ) values (${connectionId}, ${organizationAId}, 'github',
+        ${installationId}, ${externalId}, '1', 'rules-owner',
+        'github@rules-test', '{}'::jsonb, 'enabled', 'healthy',
+        ${f.adminA.principalId})`;
+    assertEquals((await read(connected.repositoryId)).providerProtection, {
+      state: "unknown",
+      reason: "not_checked",
+    });
+    // Without that connection the reason differs, and it is never "not_configured".
+    assertEquals((await read(configured.repositoryId)).providerProtection, {
+      state: "unknown",
+      reason: "provider_not_connected",
+    });
+  } finally {
     await f.close();
   }
 });

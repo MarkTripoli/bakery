@@ -882,11 +882,12 @@ Deno.test("CheckOutput field descriptions say what each field means before they 
 
 Deno.test("compatibility migration approves only its exact generated delta", () => {
   const approvedBases = [
-    "50f687bac8b52cae6c61c88c799e6467165da7f6",
+    "a2d735147ce97e3a11788dbb8efd0348c2767cca",
   ];
   const approvedDigest =
-    "sha256:bd0e5ba6714874734c1938dcbc1120b3e4a8ebaf6631aaa2c0f4e7cd7dab1694";
+    "sha256:c348efc564ffa81a7d0666542b97a81ca920e676a1c098a99e6dc79fb7722464";
   const rejectedPriorDigests = [
+    "sha256:bd0e5ba6714874734c1938dcbc1120b3e4a8ebaf6631aaa2c0f4e7cd7dab1694",
     "sha256:93d63773a5469970d19d17fe4a8f2422a655b73edd8b984d172dfa9f38a08203",
     "sha256:ca7eeb37fa36f97f8835a11cbf65f8a91ae4a19534277c7a294bb6677d6510b9",
     "sha256:76372a8016c3cdd153ff1308f7a1f0e4b71fac96ffaf4a23d4053e9ebb80fdb7",
