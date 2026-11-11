@@ -103,13 +103,13 @@ for (
       });
       await page.goto("/settings/scim");
       await expect(
-        page.getByRole("heading", { name: "SCIM provisioning" })
+        page.getByRole("heading", { name: "SCIM", exact: true })
           .first(),
       ).toBeVisible();
       await page.getByRole("button", { name: "Create connection" }).click();
       const once = page.getByTestId("scim-token-once");
       await expect(once).toContainText(SECRET);
-      await expect(once).toContainText("shown once");
+      await expect(once).toContainText("not shown again");
       expect(state.calls).toContain("POST /v1/scim-connection");
       await page.getByRole("button", { name: "I have stored the token" })
         .click();
@@ -131,23 +131,27 @@ for (
         initial: "active",
       });
       await page.goto("/settings/scim");
-      await page.getByRole("button", { name: "Rotate credential" }).click();
+      await page.getByRole("button", { name: "Rotate token", exact: true })
+        .click();
       const dialog = page.getByRole("alertdialog", {
-        name: "Rotate the SCIM credential?",
+        name: "Rotate the SCIM token?",
       });
       await expect(dialog).toBeVisible();
       await dialog.getByRole("button", { name: "Cancel" }).click();
       expect(state.calls.filter((call) => call.includes("rotate"))).toEqual([]);
-      await page.getByRole("button", { name: "Rotate credential" }).click();
-      await dialog.getByRole("button", { name: "Rotate", exact: true }).click();
+      await page.getByRole("button", { name: "Rotate token", exact: true })
+        .click();
+      await dialog.getByRole("button", { name: "Rotate token", exact: true })
+        .click();
       await expect(page.getByTestId("scim-token-once")).toContainText(SECRET);
       await page.getByRole("button", { name: "I have stored the token" })
         .click();
-      await page.getByRole("button", { name: "Revoke connection" }).click();
+      await page.getByRole("button", { name: "Revoke token", exact: true })
+        .click();
       await page.getByRole("alertdialog", {
-        name: "Revoke the SCIM connection?",
+        name: "Revoke the SCIM token?",
       })
-        .getByRole("button", { name: "Revoke", exact: true }).click();
+        .getByRole("button", { name: "Revoke token", exact: true }).click();
       await expect(page.getByText("Revoked").first()).toBeVisible();
       expect(state.calls).toContain("POST /v1/scim-connection/revoke");
     });
@@ -175,7 +179,7 @@ for (
       await scimFixture(page, { initial: "none" });
       await page.goto("/settings/scim");
       const trail = page.getByRole("navigation", { name: "Breadcrumb" });
-      await expect(trail.getByText("SCIM provisioning")).toBeVisible();
+      await expect(trail.getByText("SCIM", { exact: true })).toBeVisible();
       await expect(trail.getByText("Organization", { exact: true }))
         .toBeVisible();
       await expect(trail.getByText("Settings", { exact: true })).toHaveCount(0);

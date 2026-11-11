@@ -168,29 +168,30 @@ export function ScimConnectionPage() {
               aria-label={translate("settings.scim.token.title")}
               data-testid="scim-token-once"
             >
-              <UI.AlertBanner tone="success">
-                {translate("settings.scim.token.warning")}
-              </UI.AlertBanner>
-              <UI.Heading level="section">
-                {translate("settings.scim.token.title")}
-              </UI.Heading>
-              <UI.SetupKey>{secret}</UI.SetupKey>
-              <UI.Inline>
-                <UI.Button type="button" variant="secondary" onClick={copy}>
-                  {copied
-                    ? translate("settings.scim.token.copied")
-                    : translate("settings.scim.token.copy")}
-                </UI.Button>
-                <UI.Button
-                  type="button"
-                  onClick={() => {
-                    setSecret(null);
-                    setCopied(false);
-                  }}
-                >
-                  {translate("settings.scim.token.done")}
-                </UI.Button>
-              </UI.Inline>
+              <UI.Stack>
+                <UI.AlertBanner tone="success">
+                  <UI.Stack gap="compact">
+                    {translate("settings.scim.token.warning")}
+                    <UI.SetupKey>{secret}</UI.SetupKey>
+                  </UI.Stack>
+                </UI.AlertBanner>
+                <UI.Inline>
+                  <UI.Button type="button" variant="secondary" onClick={copy}>
+                    {copied
+                      ? translate("settings.scim.token.copied")
+                      : translate("settings.scim.token.copy")}
+                  </UI.Button>
+                  <UI.Button
+                    type="button"
+                    onClick={() => {
+                      setSecret(null);
+                      setCopied(false);
+                    }}
+                  >
+                    {translate("settings.scim.token.done")}
+                  </UI.Button>
+                </UI.Inline>
+              </UI.Stack>
             </section>
           )
           : null}
@@ -287,7 +288,7 @@ export function ScimConnectionPage() {
                     )}
                     <UI.Button
                       type="button"
-                      variant="destructive"
+                      variant="destructive-outline"
                       onClick={() => setPending("revoke")}
                     >
                       {translate("settings.scim.revoke")}
@@ -323,17 +324,19 @@ export function ScimConnectionPage() {
             </UI.Button>
           }
         >
-          <UI.Text>{translate("settings.scim.rotate.body")}</UI.Text>
-          {lifetimeField}
-          <UI.Combobox
-            label={translate("settings.scim.overlap.label")}
-            value={String(overlap)}
-            onChange={(event) => setOverlap(Number(event.target.value))}
-            options={OVERLAPS.map((minutes) => ({
-              value: String(minutes),
-              label: translate(`settings.scim.overlap.${minutes}`),
-            }))}
-          />
+          <UI.Stack>
+            <UI.Text>{translate("settings.scim.rotate.body")}</UI.Text>
+            {lifetimeField}
+            <UI.Combobox
+              label={translate("settings.scim.overlap.label")}
+              value={String(overlap)}
+              onChange={(event) => setOverlap(Number(event.target.value))}
+              options={OVERLAPS.map((minutes) => ({
+                value: String(minutes),
+                label: translate(`settings.scim.overlap.${minutes}`),
+              }))}
+            />
+          </UI.Stack>
         </UI.AlertDialog>
         <UI.AlertDialog
           open={pending === "revoke"}

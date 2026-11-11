@@ -1177,7 +1177,7 @@ const settingsScimRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => (
-    <InOrganization section="shell.navigation.scim">
+    <InOrganization section="shell.navigation.scimShort">
       <ScimConnectionPage />
     </InOrganization>
   ),

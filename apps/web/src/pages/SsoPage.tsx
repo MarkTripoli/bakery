@@ -573,7 +573,7 @@ function ProviderForm({
       </UI.Field>
       {showTxt
         ? (
-          <section>
+          <UI.Stack gap="compact">
             <UI.Heading level="section">
               {translate("settings.sso.verify.heading")}
             </UI.Heading>
@@ -591,7 +591,7 @@ function ProviderForm({
             <UI.InlineNotice tone="warning">
               {translate("settings.sso.verify.pending")}
             </UI.InlineNotice>
-          </section>
+          </UI.Stack>
         )
         : null}
       {problem

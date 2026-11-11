@@ -532,7 +532,8 @@ test.describe("settings routes and navigation", () => {
       "Custom roles",
       "Integrations",
       "Audit log",
-      "SCIM provisioning",
+      "Single sign-on",
+      "SCIM",
     ]);
   });
 

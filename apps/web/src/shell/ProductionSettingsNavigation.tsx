@@ -70,7 +70,7 @@ export const productionSettingsRoutes = [
   },
   {
     id: "settings-scim",
-    label: <I18nText id="shell.navigation.scim" />,
+    label: <I18nText id="shell.navigation.scimShort" />,
     href: "/settings/scim",
   },
 ] satisfies readonly UI.SectionNavigationItem[];

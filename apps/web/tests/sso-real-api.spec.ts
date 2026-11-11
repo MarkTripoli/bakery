@@ -353,10 +353,11 @@ test.describe("single sign-on settings against the real API", () => {
     await openAsAdmin(page, baseURL);
     await page.getByRole("button", { name: "Add SAML" }).click();
     await page.getByLabel("Display name").fill(SAML_PROVIDER);
+    await page.getByLabel("Email domain").fill(SAML_DOMAIN);
+    await shot(page, "sso-add-saml");
     await page.getByLabel("Identity provider metadata").fill(
       server.samlMetadata,
     );
-    await page.getByLabel("Email domain").fill(SAML_DOMAIN);
     const registered = page.waitForResponse((response) =>
       response.url().endsWith("/api/auth/sso/register")
     );
@@ -407,14 +408,14 @@ test.describe("single sign-on settings against the real API", () => {
     await connect(page, baseURL!, server.adminCookie);
     await page.goto(SCIM_PAGE);
     await expect(
-      page.getByRole("heading", { name: "SCIM provisioning" }).first(),
+      page.getByRole("heading", { name: "SCIM", exact: true }).first(),
     ).toBeVisible();
     // No connection yet: provisioning refuses everyone.
     expect(await scimStatus("")).toBe(401);
 
     await page.getByRole("button", { name: "Create connection" }).click();
     await expect(page.getByTestId("scim-token-once")).toContainText(
-      "shown once",
+      "not shown again",
     );
     scimToken = await shownToken(page);
     expect(scimToken).not.toBe("");
@@ -439,18 +440,23 @@ test.describe("single sign-on settings against the real API", () => {
   test("rotating replaces the SCIM credential and revoking ends provisioning access", async ({ page, baseURL }) => {
     await connect(page, baseURL!, server.adminCookie);
     await page.goto(SCIM_PAGE);
-    await page.getByRole("button", { name: "Rotate credential" }).click();
+    await page.getByRole("button", { name: "Rotate token", exact: true })
+      .click();
     const rotate = page.getByRole("alertdialog", {
-      name: "Rotate the SCIM credential?",
+      name: "Rotate the SCIM token?",
     });
+    await expect(rotate).toBeVisible();
+    await shot(page, "scim-rotate-confirm");
     await rotate.getByRole("button", { name: "Cancel" }).click();
     // Cancelling changed nothing: the first token still works.
     expect(await scimStatus(scimToken)).toBe(200);
 
-    await page.getByRole("button", { name: "Rotate credential" }).click();
-    await rotate.getByRole("button", { name: "Rotate", exact: true }).click();
+    await page.getByRole("button", { name: "Rotate token", exact: true })
+      .click();
+    await rotate.getByRole("button", { name: "Rotate token", exact: true })
+      .click();
     await expect(page.getByTestId("scim-token-once")).toContainText(
-      "shown once",
+      "not shown again",
     );
     const rotated = await shownToken(page);
     expect(rotated).not.toBe("");
@@ -460,9 +466,15 @@ test.describe("single sign-on settings against the real API", () => {
     await page.getByRole("button", { name: "I have stored the token" })
       .click();
 
-    await page.getByRole("button", { name: "Revoke connection" }).click();
-    await page.getByRole("alertdialog", { name: "Revoke the SCIM connection?" })
-      .getByRole("button", { name: "Revoke", exact: true }).click();
+    await page.getByRole("button", { name: "Revoke token", exact: true })
+      .click();
+    const revoke = page.getByRole("alertdialog", {
+      name: "Revoke the SCIM token?",
+    });
+    await expect(revoke).toBeVisible();
+    await shot(page, "scim-revoke-confirm");
+    await revoke.getByRole("button", { name: "Revoke token", exact: true })
+      .click();
     await expect(page.getByText("Revoked").first()).toBeVisible();
     expect(await scimStatus(rotated)).toBe(401);
     await page.reload();
