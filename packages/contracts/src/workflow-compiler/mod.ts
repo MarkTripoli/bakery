@@ -51,12 +51,15 @@ export type {
 } from "./schema.ts";
 export {
   compileWorkflowDocument,
+  compileWorkflowDocumentDetailed,
   WorkflowCompilerInvariantError,
 } from "./compile.ts";
 export type {
   WorkflowCompileOptions,
+  WorkflowDetailedResult,
   WorkflowDocumentResult,
 } from "./compile.ts";
+export type { WorkflowActionSite } from "./action-sites.ts";
 export { createWorkflowCompilerCatalog } from "./catalog.ts";
 export type {
   ResolvedWorkflowAction,

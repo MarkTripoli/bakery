@@ -46,6 +46,32 @@ export class WorkflowNotFixedError extends Error {
     this.name = "WorkflowNotFixedError";
   }
 }
+
+/**
+ * A compiler-grammar version whose plan has container nodes (sequence, branch,
+ * repeat, parallel, wait). It is valid and publishable, but the fixed executor
+ * runs a flat list of actions and cannot run it until plans execute.
+ */
+export class WorkflowNotExecutableError extends Error {
+  constructor() {
+    super("WORKFLOW_NOT_EXECUTABLE");
+    this.name = "WorkflowNotExecutableError";
+  }
+}
+/** Keys that make a compiler-grammar node a container rather than an action. */
+const CONTAINER_NODE_KEYS: readonly string[] = [
+  "steps",
+  "branch",
+  "repeat",
+  "parallel",
+  "wait",
+];
+
+function isContainerNode(node: unknown): boolean {
+  return isRecord(node) && !Object.hasOwn(node, "uses") &&
+    CONTAINER_NODE_KEYS.some((key) => Object.hasOwn(node, key));
+}
+
 const STEP_ID_PATTERN = /^[a-z][a-z0-9_]{1,63}$/;
 const STEP_ID_SEGMENT = "[a-z][a-z0-9_]{1,63}";
 const REPOSITORY_ID_REFERENCE = new RegExp(
@@ -328,6 +354,15 @@ export function extractFixedWorkflowSteps(
   const steps = normalizedSpec.steps;
   if (!Array.isArray(steps) || steps.length === 0 || steps.length > 100) {
     throw invalidWorkflowVersion();
+  }
+  // A compiler-grammar version may carry container nodes. They validate and
+  // publish, but this executor runs a flat list of actions, so name that limit
+  // instead of failing as a corrupt version. A document without apiVersion
+  // never has them: the flat validator refuses them at publish.
+  if (
+    Object.hasOwn(normalizedSpec, "apiVersion") && steps.some(isContainerNode)
+  ) {
+    throw new WorkflowNotExecutableError();
   }
   const workflowAgentsValue = normalizedSpec.agents;
   if (

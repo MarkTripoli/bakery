@@ -31,8 +31,12 @@ async function* sources(
   }
 }
 
-/** A spawn of the bare name, in any quoting and with any spacing. */
-const bareGitSpawn = /\bCommand\(\s*["'`]git["'`]/;
+/**
+ * A spawn of the bare name, in any quoting and with any spacing: directly, or
+ * as the executable handed to the shared `runGit` / spawn seam.
+ */
+const bareGitSpawn =
+  /\bCommand\(\s*["'`]git["'`]|\brunGit\(\s*[\w.]+\s*,\s*["'`]git["'`]|\bdefaultGitSpawn\(\s*["'`]git["'`]/;
 
 Deno.test("the git the worker is granted is the absolute path it is told to spawn", () => {
   assert(GIT_EXECUTABLE.startsWith("/"), "a path, never a name found on PATH");
@@ -73,6 +77,10 @@ Deno.test("the scan recognises the spawns it forbids and lets the right one thro
       "new Deno.Command(`git`, {",
       'new Deno.Command(\n    "git",',
       'new Deno.Command( "git" , {',
+      'return runGit(defaultGitSpawn, "git", cwd, args, timeoutMs);',
+      "runGit(spawn,\n    'git',\n    cwd)",
+      "runGit(defaultGitSpawn, `git`, cwd)",
+      'defaultGitSpawn("git", { args: [], cwd })',
     ]
   ) assert(bareGitSpawn.test(forbidden), forbidden);
   for (
@@ -80,6 +88,9 @@ Deno.test("the scan recognises the spawns it forbids and lets the right one thro
       "new Deno.Command(GIT_EXECUTABLE, {",
       'new Deno.Command("gitleaks", {',
       'new Deno.Command("/usr/bin/setsid", { args: ["git"] })',
+      "runGit(defaultGitSpawn, GIT_EXECUTABLE, cwd, args, timeoutMs)",
+      'runGit(spawn, "gitleaks", cwd)',
+      "new Deno.Command(executable, {",
     ]
   ) assert(!bareGitSpawn.test(allowed), allowed);
 });

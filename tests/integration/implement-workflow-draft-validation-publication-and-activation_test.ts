@@ -981,6 +981,85 @@ Deno.test("manage workflow definitions and version reads through the mounted Pos
       assertEquals(stale.status, 412);
     });
 
+    await test.step("5c-1b publish pins the compiler version and semantic digest of the exact definition", async () => {
+      const validated = async (definition: unknown) =>
+        await (await send(
+          "POST",
+          "/v1/workflow-validations",
+          command({ body: { definition } }),
+        )).json() as {
+          valid: boolean;
+          compilerVersion: string;
+          semanticDigest: string | null;
+        };
+      const pinOf = async (versionId: string) =>
+        (await runtime.query<
+          { compiler_version: string | null; semantic_digest: string | null }
+        >(
+          `select compiler_version, semantic_digest
+             from bakery.workflow_versions
+            where organization_id = $1 and id = $2`,
+          [organizationAId, versionId],
+        )).rows[0];
+      const publishNew = async (name: string, definition: unknown) => {
+        const id = await createWorkflow(name);
+        const draftId = await newDraft(id, definition);
+        const published = await publish(id, draftId);
+        assertEquals(published.status, 200, await published.clone().text());
+        return draftId;
+      };
+      const noop = (id: string) => ({ id, uses: "workflow.noop", with: {} });
+      const grammar = (steps: unknown[]) => ({
+        apiVersion: "bakery.dev/v1",
+        kind: "workflow",
+        name: "pinned-flow",
+        description: "Pins the compiler version and digest at publish.",
+        inputs: { target: { type: "string", required: true } },
+        steps,
+      });
+
+      // A legacy flat document: the compiler returns a version but no digest,
+      // so nothing is pinned. Both columns are set together or not at all.
+      const legacyReport = await validated(validDefinition);
+      assertEquals(legacyReport.valid, true);
+      assertEquals(legacyReport.semanticDigest, null);
+      assertEquals(
+        await pinOf(await publishNew("pin-legacy", validDefinition)),
+        { compiler_version: null, semantic_digest: null },
+      );
+
+      // A flat compiler-grammar document and a nested one: each row stores
+      // exactly what the compiler returned for that definition.
+      for (
+        const [name, definition] of [
+          ["pin-flat", grammar([noop("first"), noop("second")])],
+          [
+            "pin-nested",
+            grammar([{
+              id: "choose",
+              branch: {
+                when: '$input.target == "prod"',
+                then: [noop("on_prod")],
+                else: [noop("on_dev")],
+              },
+            }]),
+          ],
+        ] as const
+      ) {
+        const report = await validated(definition);
+        assertEquals(report.valid, true, name);
+        assert(/^[0-9a-f]{64}$/.test(report.semanticDigest ?? ""), name);
+        assertEquals(
+          await pinOf(await publishNew(name, definition)),
+          {
+            compiler_version: report.compilerVersion,
+            semantic_digest: report.semanticDigest,
+          },
+          name,
+        );
+      }
+    });
+
     await test.step("5c-2 published versions are immutable", async () => {
       const id = await createWorkflow("published-immutable");
       const draftId = await newDraft(id, validDefinition);

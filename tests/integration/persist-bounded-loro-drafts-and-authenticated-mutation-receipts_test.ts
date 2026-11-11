@@ -361,3 +361,131 @@ Deno.test("one and two stale highwaters reload, while three discard exactly thre
     }
   }
 });
+
+Deno.test("concurrent, duplicated and reordered edits from one checkpoint converge with exact receipts", async () => {
+  const fixture = await openDraftFixture();
+  try {
+    const draft = await openDraft(fixture);
+    const left = await slice(fixture, draft, 0, 5);
+    const right = await slice(fixture, draft, 13, 18);
+    assertEquals([left.text, right.text], ["alpha", "omega"]);
+    const leftId = crypto.randomUUID();
+    const rightId = crypto.randomUUID();
+
+    // Two clients edit disjoint ranges of the same checkpoint at once, and the
+    // left client's request is duplicated in flight.
+    const responses = await Promise.all([
+      edit(fixture, draft, left, leftId, "ALPHA"),
+      edit(fixture, draft, right, rightId, "OMEGA"),
+      edit(fixture, draft, left, leftId, "ALPHA"),
+    ]);
+    for (const response of responses) {
+      assertEquals(response.status, 201, await response.clone().text());
+    }
+    const [leftReceipt, rightReceipt, leftDuplicate] = await Promise.all(
+      responses.map((response) => responseJson(response)),
+    ) as Receipt[];
+    assertEquals(leftDuplicate, leftReceipt);
+    assertEquals(
+      new Set([leftReceipt!.serverSequence, rightReceipt!.serverSequence]),
+      new Set(["1", "2"]),
+    );
+
+    const read = await fixture.app.fetch(draftRequest(
+      fixture,
+      `/v1/drafts/${draft.id}`,
+    ));
+    assertEquals(read.status, 200);
+    const committed = await responseJson(read) as Draft;
+    assertEquals(committed.text, "ALPHA target OMEGA 😀");
+    assertEquals(committed.serverSequence, "2");
+
+    // A reconnecting client resends both edits in the other order: each
+    // replays its exact receipt and nothing new is committed.
+    assertEquals(
+      await responseJson(await edit(fixture, draft, right, rightId, "OMEGA")),
+      rightReceipt,
+    );
+    assertEquals(
+      await responseJson(await edit(fixture, draft, left, leftId, "ALPHA")),
+      leftReceipt,
+    );
+    // The same mutation id with a changed payload conflicts.
+    const changed = await edit(fixture, draft, right, rightId, "other");
+    assertEquals(changed.status, 422);
+    assertEquals(
+      (await changed.json() as { code: string }).code,
+      "IDEMPOTENCY_PAYLOAD_MISMATCH",
+    );
+    const receipts = await fixture.pgDatabase.query<{ count: number }>(
+      `select count(*)::int as count from bakery.artifact_draft_receipts
+        where draft_id=$1`,
+      [draft.id],
+    );
+    assertEquals(receipts.rows[0]?.count, 2);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+Deno.test("a duplicate whose original commits during its last stale attempt replays the exact receipt", async () => {
+  // The duplicate is made stale on every attempt. On its last attempt, after
+  // its final preparation, the original request commits. Only the commit-time
+  // receipt lookup can then answer, because the stale budget is exhausted.
+  const real = createDraftIsolation();
+  let duplicateEdits = 0;
+  let nested = false;
+  let original: (() => Promise<Response>) | undefined;
+  let originalResponse: Response | undefined;
+  const isolation: DraftIsolation = {
+    initialize: real.initialize,
+    slice: real.slice,
+    async edit(current, source, input, signal) {
+      const candidate = await real.edit(current, source, input, signal);
+      if (nested || !original) return candidate;
+      duplicateEdits += 1;
+      if (duplicateEdits < 3) {
+        await fixture.pgDatabase.query(
+          `update bakery.artifact_drafts
+              set server_sequence=server_sequence+1
+            where id=(select draft_id from bakery.artifact_draft_checkpoints
+                       where state=$1 limit 1)`,
+          [current],
+        );
+      } else {
+        nested = true;
+        try {
+          originalResponse = await original();
+        } finally {
+          nested = false;
+        }
+      }
+      return candidate;
+    },
+  };
+  const fixture = await openDraftFixture("alpha target omega", {
+    draftIsolation: isolation,
+  });
+  try {
+    const draft = await openDraft(fixture);
+    const selected = await slice(fixture, draft);
+    const mutationId = crypto.randomUUID();
+    original = () => edit(fixture, draft, selected, mutationId);
+    const duplicate = await edit(fixture, draft, selected, mutationId);
+
+    assertEquals(duplicateEdits, 3);
+    assertExists(originalResponse);
+    assertEquals(originalResponse.status, 201);
+    const receipt = await responseJson(originalResponse) as Receipt;
+    assertEquals(duplicate.status, 201, await duplicate.clone().text());
+    assertEquals(await responseJson(duplicate), receipt);
+    const receipts = await fixture.pgDatabase.query<{ count: number }>(
+      `select count(*)::int as count from bakery.artifact_draft_receipts
+        where draft_id=$1`,
+      [draft.id],
+    );
+    assertEquals(receipts.rows[0]?.count, 1);
+  } finally {
+    await cleanup(fixture);
+  }
+});
