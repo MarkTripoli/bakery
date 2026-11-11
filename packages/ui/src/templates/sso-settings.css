@@ -131,6 +131,20 @@
 .ui-sso-settings__form .ui-inline--actions {
   justify-content: flex-end;
 }
+/* The page wraps the fields in one <form>, so the column and gap above would
+   otherwise space only that single child: give the form the same layout. */
+.ui-sso-settings__form > form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3-5);
+}
+@media (min-width: 744px) {
+  /* Paper add-OIDC (desktop): content-sized actions, right-aligned, not the
+     auth screens' equal-width pair. */
+  .ui-sso-settings__form .ui-inline--actions > * {
+    flex: 0 0 auto;
+  }
+}
 .ui-sso-settings .ui-status-badge {
   padding: var(--space-0-5) var(--space-2-5);
   font: var(--type-status);
