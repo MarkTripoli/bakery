@@ -70,6 +70,13 @@ export default defineConfig(({ mode, command }) => {
           project: env.SENTRY_PROJECT,
           authToken: env.SENTRY_AUTH_TOKEN,
           telemetry: false,
+          // Declared upload is a promise that frames resolve. Left to its
+          // default the plugin only logs a failed upload, the build exits 0,
+          // and `filesToDeleteAfterUpload` still removes the maps, so the
+          // release ships frames that can never resolve and nothing says so.
+          errorHandler: (error) => {
+            throw error;
+          },
           release: { name: telemetry.release, inject: false },
           sourcemaps: {
             assets: `${appRoot}dist/**`,

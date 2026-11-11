@@ -4184,6 +4184,33 @@
     {
       "group": "Access",
       "method": "GET",
+      "path": "/v1/audit-events/stream",
+      "action": "auditEvents.stream",
+      "access": "Admin",
+      "permission": "auditEvent:export",
+      "input": "AuditStreamQuery",
+      "output": "AuditStreamBatch",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "INTERNAL"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Access",
+      "method": "GET",
       "path": "/v1/audit-retention",
       "action": "auditRetention.get",
       "access": "Admin",
@@ -8790,6 +8817,7 @@
     "installationAdministrators.revoke",
     "auditEvents.list",
     "auditEvents.export",
+    "auditEvents.stream",
     "auditRetention.get",
     "auditRetention.update",
     "installationAuditEvents.list",
@@ -19043,6 +19071,91 @@
                 "application/json": {
                   "schema": {
                     "$ref": "#/components/schemas/AuditExport"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/audit-events/stream": {
+        "get": {
+          "operationId": "auditEvents.stream",
+          "parameters": [
+            {
+              "name": "cursor",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "AuditStreamQuery.cursor must contain at most 512 UTF-8 bytes.",
+                "type": "string",
+                "maxLength": 65536,
+                "x-utf8-max-bytes": 512
+              }
+            },
+            {
+              "name": "limit",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "AuditStreamQuery.limit must be at most 1000.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000
+              }
+            },
+            {
+              "name": "operation",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "AuditStreamQuery.operation must contain at most 200 characters.",
+                "type": "string",
+                "maxLength": 200
+              }
+            },
+            {
+              "name": "outcome",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "AuditStreamQuery.outcome must contain at most 80 characters.",
+                "type": "string",
+                "maxLength": 80
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/AuditStreamBatch"
                   }
                 }
               }
@@ -37925,6 +38038,7 @@
                 "secrets.revoke",
                 "auditEvents.list",
                 "auditEvents.export",
+                "auditEvents.stream",
                 "auditRetention.get",
                 "auditRetention.update",
                 "workers.list",
@@ -53722,6 +53836,36 @@
           ],
           "additionalProperties": false,
           "description": "Selects the bounded window and optional filters of an organization audit export; the export is the same redacted trail the audit list shows, as JSON Lines."
+        },
+        "AuditStreamQuery": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "cursor": {
+              "description": "AuditStreamQuery.cursor must contain at most 512 UTF-8 bytes.",
+              "type": "string",
+              "maxLength": 65536,
+              "x-utf8-max-bytes": 512
+            },
+            "limit": {
+              "description": "AuditStreamQuery.limit must be at most 1000.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "operation": {
+              "description": "AuditStreamQuery.operation must contain at most 200 characters.",
+              "type": "string",
+              "maxLength": 200
+            },
+            "outcome": {
+              "description": "AuditStreamQuery.outcome must contain at most 80 characters.",
+              "type": "string",
+              "maxLength": 80
+            }
+          },
+          "additionalProperties": false,
+          "description": "Selects one resumable batch of an organization audit stream for an external collector: an optional resume cursor, batch size and the same filters as the export."
         },
         "AuditRetentionUpdate": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -79829,6 +79973,7 @@
                 "secrets.revoke",
                 "auditEvents.list",
                 "auditEvents.export",
+                "auditEvents.stream",
                 "auditRetention.get",
                 "auditRetention.update",
                 "workers.list",
@@ -80288,6 +80433,7 @@
                 "secrets.revoke",
                 "auditEvents.list",
                 "auditEvents.export",
+                "auditEvents.stream",
                 "auditRetention.get",
                 "auditRetention.update",
                 "workers.list",
@@ -80747,6 +80893,7 @@
                 "secrets.revoke",
                 "auditEvents.list",
                 "auditEvents.export",
+                "auditEvents.stream",
                 "auditRetention.get",
                 "auditRetention.update",
                 "workers.list",
@@ -123278,6 +123425,7 @@
                       "secrets.revoke",
                       "auditEvents.list",
                       "auditEvents.export",
+                      "auditEvents.stream",
                       "auditRetention.get",
                       "auditRetention.update",
                       "workers.list",
@@ -187763,6 +187911,69 @@
           "additionalProperties": false,
           "description": "A bounded JSON Lines export of the organization's audit events, oldest first, one redacted AuditEvent object per line."
         },
+        "AuditStreamBatch": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "contentType": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Media type of content, always application/x-ndjson."
+            },
+            "lineCount": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Number of audit events, one per line, in content."
+            },
+            "content": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The JSON Lines batch, at most 65536 bytes: one AuditEvent JSON object per line, empty when no new event has settled."
+            },
+            "nextCursor": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Cursor to pass on the next read. When the batch is empty it is the request cursor again, and it is null only before the stream has delivered any event."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "AuditStreamBatch.nextCursor may be null in this transport value."
+            },
+            "caughtUp": {
+              "type": "boolean",
+              "description": "True when no further settled event is waiting; the collector should wait before polling again. False means read again at once."
+            },
+            "detailsOmitted": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Number of events in this batch that were too large for one batch: their details were replaced by an omission marker and any string field over 1024 characters was cut. Read those events in full from the audit list."
+            },
+            "settledBefore": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "Instant up to which events were eligible for this batch; newer events arrive in a later batch."
+            }
+          },
+          "required": [
+            "contentType",
+            "lineCount",
+            "content",
+            "nextCursor",
+            "caughtUp",
+            "detailsOmitted",
+            "settledBefore"
+          ],
+          "additionalProperties": false,
+          "description": "One batch of the organization audit stream, oldest first, one redacted AuditEvent object per line, with the cursor to resume from."
+        },
         "AuditRetention": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -192761,7 +192972,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:bd0e5ba6714874734c1938dcbc1120b3e4a8ebaf6631aaa2c0f4e7cd7dab1694",
+  "compatibilityDigest": "sha256:3b235c62a878ab3b87215277a89348321388513bcc776df68aa4fb4036357d43",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -199872,6 +200083,7 @@
             "secrets.revoke",
             "auditEvents.list",
             "auditEvents.export",
+            "auditEvents.stream",
             "auditRetention.get",
             "auditRetention.update",
             "workers.list",
@@ -215723,6 +215935,36 @@
       ],
       "additionalProperties": false,
       "description": "Selects the bounded window and optional filters of an organization audit export; the export is the same redacted trail the audit list shows, as JSON Lines."
+    },
+    "AuditStreamQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "description": "AuditStreamQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "AuditStreamQuery.limit must be at most 1000.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "operation": {
+          "description": "AuditStreamQuery.operation must contain at most 200 characters.",
+          "type": "string",
+          "maxLength": 200
+        },
+        "outcome": {
+          "description": "AuditStreamQuery.outcome must contain at most 80 characters.",
+          "type": "string",
+          "maxLength": 80
+        }
+      },
+      "additionalProperties": false,
+      "description": "Selects one resumable batch of an organization audit stream for an external collector: an optional resume cursor, batch size and the same filters as the export."
     },
     "AuditRetentionUpdate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -241924,6 +242166,7 @@
             "secrets.revoke",
             "auditEvents.list",
             "auditEvents.export",
+            "auditEvents.stream",
             "auditRetention.get",
             "auditRetention.update",
             "workers.list",
@@ -242383,6 +242626,7 @@
             "secrets.revoke",
             "auditEvents.list",
             "auditEvents.export",
+            "auditEvents.stream",
             "auditRetention.get",
             "auditRetention.update",
             "workers.list",
@@ -242842,6 +243086,7 @@
             "secrets.revoke",
             "auditEvents.list",
             "auditEvents.export",
+            "auditEvents.stream",
             "auditRetention.get",
             "auditRetention.update",
             "workers.list",
@@ -285515,6 +285760,7 @@
                   "secrets.revoke",
                   "auditEvents.list",
                   "auditEvents.export",
+                  "auditEvents.stream",
                   "auditRetention.get",
                   "auditRetention.update",
                   "workers.list",
@@ -350091,6 +350337,69 @@
       ],
       "additionalProperties": false,
       "description": "A bounded JSON Lines export of the organization's audit events, oldest first, one redacted AuditEvent object per line."
+    },
+    "AuditStreamBatch": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "contentType": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Media type of content, always application/x-ndjson."
+        },
+        "lineCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Number of audit events, one per line, in content."
+        },
+        "content": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The JSON Lines batch, at most 65536 bytes: one AuditEvent JSON object per line, empty when no new event has settled."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Cursor to pass on the next read. When the batch is empty it is the request cursor again, and it is null only before the stream has delivered any event."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "AuditStreamBatch.nextCursor may be null in this transport value."
+        },
+        "caughtUp": {
+          "type": "boolean",
+          "description": "True when no further settled event is waiting; the collector should wait before polling again. False means read again at once."
+        },
+        "detailsOmitted": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Number of events in this batch that were too large for one batch: their details were replaced by an omission marker and any string field over 1024 characters was cut. Read those events in full from the audit list."
+        },
+        "settledBefore": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "Instant up to which events were eligible for this batch; newer events arrive in a later batch."
+        }
+      },
+      "required": [
+        "contentType",
+        "lineCount",
+        "content",
+        "nextCursor",
+        "caughtUp",
+        "detailsOmitted",
+        "settledBefore"
+      ],
+      "additionalProperties": false,
+      "description": "One batch of the organization audit stream, oldest first, one redacted AuditEvent object per line, with the cursor to resume from."
     },
     "AuditRetention": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
