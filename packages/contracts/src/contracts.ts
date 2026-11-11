@@ -1457,6 +1457,156 @@ const actionSpecs: Record<
   }
 > = {
   ArtifactOutput: { fields: { artifact: "ArtifactRef" } },
+  ResearchOutput: {
+    fields: { artifact: "ArtifactRef", repositoryRevision: "string" },
+    bounds: { repositoryRevision: { minLength: 1 } },
+    meanings: {
+      artifact:
+        "Immutable research artifact the step published; the design step reads it.",
+      repositoryRevision:
+        "Full commit SHA of the repository revision the research read, so a later reader knows what the findings describe.",
+    },
+  },
+  CandidateEvidence: {
+    fields: {
+      headSha: "string",
+      baseSha: "string",
+      policyDigest: "string",
+      checksPassed: "boolean",
+      checkRunIds: "uuid[]",
+      failedCheckIds: "uuid[]",
+      blockingFindings: "integer",
+      reviewId: "uuid",
+      findings: "Finding[]",
+    },
+    bounds: {
+      headSha: { minLength: 1 },
+      baseSha: { minLength: 1 },
+      policyDigest: { minLength: 1 },
+      checkRunIds: { minItems: 1, maxItems: CHECK_OBSERVATION_MAX_ITEMS },
+      failedCheckIds: { maxItems: CHECK_OBSERVATION_MAX_ITEMS },
+      blockingFindings: { min: 0, max: REVIEW_LOOP_LIMITS.maxFindings },
+      findings: { maxItems: REVIEW_LOOP_LIMITS.maxFindings },
+    },
+    meanings: {
+      headSha:
+        "Full commit SHA of the candidate the checks ran on and the review judged.",
+      baseSha:
+        "Base commit SHA pinned by the inspected repository profile, as the checks and the review reported it.",
+      policyDigest:
+        "Digest of the effective policy the checks ran under, as the check step reported it.",
+      checksPassed:
+        "True only when every required check passed, taken from the check step's allRequired.",
+      checkRunIds:
+        "Identifiers of the recorded check runs of this candidate, in input order, which the delivery gate can cite.",
+      failedCheckIds:
+        "Identifiers of the required check runs that did not pass; empty when checksPassed is true.",
+      blockingFindings:
+        "Count of review findings with severity blocker or major, taken from the review step; a merge requires zero.",
+      reviewId:
+        "Identifier of the independent review cycle that judged this candidate.",
+      findings:
+        "Structured findings from that review in severity order; empty for a clean review.",
+    },
+  },
+  PrepareOutput: {
+    fields: {
+      releaseId: "string",
+      artifactDigest: "string",
+      environment: "string",
+      status: "literal(prepared)",
+    },
+    bounds: {
+      releaseId: { minLength: 1 },
+      artifactDigest: { minLength: 1 },
+      environment: { minLength: 1 },
+    },
+    meanings: {
+      releaseId:
+        "Identifier of the prepared release; the deploy step takes it as its input.",
+      artifactDigest:
+        "Digest of the release artifact that was prepared, so a deploy can prove it rolls out the same bytes.",
+      environment: "Environment the release was prepared for.",
+      status: "Always prepared: a failed prepare fails the step instead.",
+    },
+  },
+  MergeOutput: {
+    fields: {
+      commitSha: "string",
+      providerEffectId: "string",
+      status: "literal(confirmed)",
+    },
+    bounds: {
+      commitSha: { minLength: 1 },
+      providerEffectId: { minLength: 1 },
+    },
+    meanings: {
+      commitSha:
+        "Full commit SHA of the merge commit the provider confirmed; the prepare step builds exactly this commit.",
+      providerEffectId:
+        "Identifier of the provider-side merge effect, kept so the merge can be reconciled later.",
+      status:
+        "Always confirmed: an uncertain merge is reconciled before the step finishes, never reported as done.",
+    },
+  },
+  DeployOutput: {
+    fields: {
+      deploymentId: "uuid",
+      commitSha: "string",
+      status: "enum(accepted|queued|deploying)",
+      providerEffectId: "string",
+    },
+    bounds: {
+      commitSha: { minLength: 1 },
+      providerEffectId: { minLength: 1 },
+    },
+    meanings: {
+      deploymentId:
+        "Identifier of the deployment the provider accepted; the health step observes it.",
+      commitSha: "Full commit SHA the deployment rolls out.",
+      status:
+        "How far the provider has taken the deployment when the step returns; health, not this status, decides whether it is good.",
+      providerEffectId:
+        "Identifier of the provider-side deploy effect, kept so the deploy can be reconciled later.",
+    },
+  },
+  HealthOutput: {
+    fields: {
+      deploymentId: "uuid",
+      status: "enum(healthy|degraded|failed)",
+      checkedAt: "timestamp",
+      evidenceArtifact: "ArtifactRef",
+    },
+    meanings: {
+      deploymentId: "Deployment whose health was observed.",
+      status:
+        "Observed health; only healthy lets a delivery count as released.",
+      checkedAt: "When the health observation was taken.",
+      evidenceArtifact:
+        "Immutable artifact holding the evidence the observation is based on.",
+    },
+  },
+  MemoryOutput: {
+    fields: { memoryId: "uuid", status: "literal(promoted)" },
+    meanings: {
+      memoryId: "Project memory entry the artifact was promoted into.",
+      status:
+        "Always promoted: the step only answers once the memory entry is written.",
+    },
+  },
+  EvaluationOutput: {
+    fields: {
+      evaluationId: "uuid",
+      status: "enum(completed|failed)",
+      measured: "boolean",
+    },
+    meanings: {
+      evaluationId: "Evaluation record the sample was written to.",
+      status: "Whether the sampled evaluation finished or failed.",
+      measured:
+        "Whether the run was actually measured; false when the sample rate selected nothing to evaluate.",
+    },
+  },
   HarnessOutput: {
     fields: {
       headSha: "string",
@@ -1552,6 +1702,15 @@ const actionSpecs: Record<
   },
 };
 const actionOutputTypes = new Set(Object.keys(actionSpecs));
+/**
+ * Action output names that are another contract under the action's own name:
+ * doc 06 defines `IntegrationActionOutput = ActionResult (read or confirmed
+ * write)`, so the action resolves to the one result shape the connection
+ * routes already return instead of a second copy that could drift.
+ */
+const actionOutputAliases: Readonly<Record<string, string>> = {
+  IntegrationActionOutput: "ActionResult",
+};
 
 function actionOutput(name: string): Schema {
   const spec = actionSpecs[name];
@@ -2456,6 +2615,14 @@ function buildSchemas(
   }
   for (const name of actionOutputTypes) {
     if (selected(name)) schemas[name] = actionOutput(name);
+  }
+  for (const [alias, target] of Object.entries(actionOutputAliases)) {
+    if (!selected(alias)) continue;
+    schemas[alias] = schemas[target] ?? buildOutput(
+      target,
+      (source.outputs as JsonObject)[target],
+      source,
+    );
   }
   return schemas;
 }
