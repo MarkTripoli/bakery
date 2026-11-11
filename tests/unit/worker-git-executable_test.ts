@@ -1,4 +1,14 @@
-import { readdir, readFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { runInNewContext } from "node:vm";
 import { assert, assertEquals } from "@std/assert";
 import { workerRunExecutables } from "../../apps/worker/src/config.ts";
 import { GIT_EXECUTABLE } from "../../apps/worker/src/git-executable.ts";
@@ -11,28 +21,38 @@ import { GIT_EXECUTABLE } from "../../apps/worker/src/git-executable.ts";
 // grant the narrow list exists to avoid. So the worker spawns the one path it
 // is granted, and this file keeps the grant and every spawn on that one name.
 //
-// The scan below looks at string literals, not at spawn calls: a spawn call can
-// be written around (a constant, a variable, a copied flag), a literal cannot.
-// It is a tripwire for accidents. It cannot see a name built at run time
-// ("g" + "it"); the case that runs the worker under its production grants
+// The scan below looks at string literals, not at spawn calls: a spawn call is
+// easy to write around (a constant, a variable, a copied flag), a literal is
+// harder. It reads the value the language gives a literal, so escapes and line
+// continuations ("g\x69t", "gi\<newline>t") are seen through, and a fuzz test
+// checks that against the JavaScript engine itself. It is a tripwire for
+// accidents. It cannot see a name built at run time ("g" + "it"); the case that
+// runs the worker under its production grants
 // (tests/unit/run-deterministic-checks-bound-to-candidate-and-metadata_test.ts)
 // is what fails when a bare git is actually spawned on a /bin-first host.
 
 const workerSource = new URL("../../apps/worker/src/", import.meta.url);
 const constantModule = "git-executable.ts";
 
-async function* sources(
+/** Every kind of source file the worker could be written in. */
+export function isScannedSource(name: string): boolean {
+  return /\.(?:[cm]?[jt]s|[jt]sx)$/.test(name);
+}
+
+export async function* sources(
   directory: URL,
+  // Names are reported relative to the directory the walk started in.
+  base: URL = directory,
 ): AsyncGenerator<{ name: string; text: string }> {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const child = new URL(
       `${entry.name}${entry.isDirectory() ? "/" : ""}`,
       directory,
     );
-    if (entry.isDirectory()) yield* sources(child);
-    else if (entry.name.endsWith(".ts")) {
+    if (entry.isDirectory()) yield* sources(child, base);
+    else if (isScannedSource(entry.name)) {
       yield {
-        name: child.pathname.slice(workerSource.pathname.length),
+        name: child.pathname.slice(base.pathname.length),
         text: await readFile(child, "utf8"),
       };
     }
@@ -73,10 +93,19 @@ function decodeEscape(source: string, at: number): [string, number] {
     }
     return hex(4) ?? ["u", at + 2];
   }
+  // A backslash before a line terminator is a line continuation. It
+  // contributes nothing, so "gi\<newline>t" is the value git.
+  if (next === "\n" || next === "\u2028" || next === "\u2029") {
+    return ["", at + 2];
+  }
+  if (next === "\r") return ["", source[at + 2] === "\n" ? at + 3 : at + 2];
   const simple: Record<string, string> = {
     n: "\n",
     t: "\t",
     r: "\r",
+    b: "\b",
+    f: "\f",
+    v: "\v",
     "0": "\0",
   };
   return [simple[next ?? ""] ?? next ?? "", at + 2];
@@ -96,6 +125,10 @@ export function stringLiterals(
   const templates: Array<{ text: string; depth: number }> = [];
   let previous = "";
   let index = 0;
+  // Whether each open parenthesis belongs to an if, while, for or with header.
+  // After the `)` that closes one a statement starts, so a `/` there begins a
+  // regular expression; after any other `)` it is a division.
+  const parens: boolean[] = [];
 
   const readTemplate = (start: number, text = ""): void => {
     let at = start;
@@ -201,6 +234,17 @@ export function stringLiterals(
       previous = "/";
       index = at + 1;
       while (/[a-z]/.test(source[index] ?? "")) index += 1;
+    } else if (char === "(") {
+      parens.push(
+        /(?<![.$\w])(?:if|while|for|with)\s*$|(?<![.$\w])for\s+await\s*$/.test(
+          source.slice(Math.max(0, index - 16), index),
+        ),
+      );
+      previous = "(";
+      index += 1;
+    } else if (char === ")") {
+      previous = parens.pop() ? ";" : ")";
+      index += 1;
     } else {
       if (!/\s/.test(char)) previous = char;
       index += 1;
@@ -412,4 +456,285 @@ Deno.test("the scan reads the whole worker tree and finds nothing in the one fil
     [GIT_EXECUTABLE],
   );
   assertEquals(bareGitFindings(text), []);
+});
+
+// ---- QA round 1 on #141 -----------------------------------------------------
+
+/** The five line terminators a continuation can use, by name. */
+const terminators: Array<[string, string]> = [
+  ["LF", "\n"],
+  ["CRLF", "\r\n"],
+  ["CR", "\r"],
+  ["U+2028", " "],
+  ["U+2029", " "],
+];
+const quotes = ['"', "'", "`"];
+
+Deno.test("a bare git written across a line continuation is still a bare git", () => {
+  for (const [name, newline] of terminators) {
+    for (const quote of quotes) {
+      const split = (value: string) => value.replaceAll("|", `\\${newline}`);
+      for (
+        const [shape, body] of [
+          ["in the middle", "gi|t"],
+          ["after every letter", "g|i|t"],
+          ["before", "|git"],
+          ["after", "git|"],
+          ["twice in a row", "g||it"],
+        ]
+      ) {
+        const source = `export const T = ${quote}${split(body)}${quote};`;
+        assert(
+          bareGitFindings(source).length > 0,
+          `missed a ${name} continuation in ${quote}, ${shape}: ${
+            JSON.stringify(source)
+          }`,
+        );
+      }
+      // The same inside a copied run grant.
+      const grant =
+        `const f = ${quote}--allow-run=zip,gi\\${newline}t${quote};`;
+      assert(
+        bareGitFindings(grant).length > 0,
+        `missed a grant split by ${name} in ${quote}`,
+      );
+    }
+  }
+});
+
+Deno.test("a continuation contributes nothing, and the other single-letter escapes decode to their characters", () => {
+  const cases: Array<[string, string]> = [
+    ['"a\\\nb"', "ab"],
+    ['"a\\\r\nb"', "ab"],
+    ['"a\\\rb"', "ab"],
+    ['"a\\ b"', "ab"],
+    ['"a\\ b"', "ab"],
+    ["`a\\\nb`", "ab"],
+    ["`a\\\r\nb`", "ab"],
+    ["'a\\\n\\\nb'", "ab"],
+    ['"\\b\\f\\v\\n\\r\\t\\0"', "\b\f\v\n\r\t\0"],
+    ['"\\g\\i"', "gi"],
+  ];
+  for (const [source, expected] of cases) {
+    const { literals, balanced } = stringLiterals(source);
+    assert(balanced, `lost track: ${JSON.stringify(source)}`);
+    assertEquals(
+      literals.map((l) => l.text),
+      [expected],
+      JSON.stringify(source),
+    );
+  }
+});
+
+Deno.test("a regular expression after the header of an if, while, for or with is read as one, so what follows is not swallowed", () => {
+  const swallowing: string[] = [
+    "while (x) /`/.test(s);",
+    "if (a) /`/.test(s);",
+    "for (;;) /`/.test(s);",
+    "for (const k of ks) /`/.test(k);",
+    "for await (const k of ks) /`/.test(k);",
+    "with (o) /`/.test(s);",
+    "} else if (a) /`/.test(s);",
+    "while (x) /'/.test(s);",
+    'if (a) /"/.test(s);',
+    "while (f(x)) /`/.test(s);",
+    "if (a && (b || c)) /`/.test(s);",
+  ];
+  for (const head of swallowing) {
+    const source =
+      `${head}\nconst T = "git";\n// a comment ending in a backtick \``;
+    const { literals, balanced } = stringLiterals(source);
+    assert(balanced, `lost track: ${head}`);
+    assertEquals(
+      literals.map((l) => l.text),
+      ["git"],
+      `the scanner swallowed the literal after: ${head}`,
+    );
+    assert(bareGitFindings(source).length > 0, `missed the git after: ${head}`);
+  }
+  // A `)` that closes anything else is followed by a division, not a regex.
+  const divisions: string[] = [
+    "const q = f(a) / 2 / 3;",
+    "const q = (a + b) / 2;",
+    "const q = x.if(a) / 2;",
+    "const q = x.while(a) / 2;",
+    "const q = elif(a) / 2;",
+    "const q = fork(a) / 2;",
+    "const q = g(f(a)) / 2 / 4;",
+  ];
+  for (const head of divisions) {
+    const { literals, balanced } = stringLiterals(`${head}\nconst s = "ok";`);
+    assert(balanced, `lost track: ${head}`);
+    assertEquals(literals.map((l) => l.text), ["ok"], head);
+  }
+});
+
+Deno.test("every kind of JavaScript and TypeScript source is scanned, and nothing else", () => {
+  for (
+    const name of [
+      "a.ts",
+      "a.tsx",
+      "a.mts",
+      "a.cts",
+      "a.d.ts",
+      "a.js",
+      "a.jsx",
+      "a.mjs",
+      "a.cjs",
+    ]
+  ) assert(isScannedSource(name), name);
+  for (
+    const name of [
+      "a.json",
+      "a.md",
+      "a.sql",
+      "a.sh",
+      "ts",
+      "a.tsx.map",
+      "a.ts.bak",
+    ]
+  ) assert(!isScannedSource(name), name);
+});
+
+// ---- the engine as the oracle -----------------------------------------------
+// The scanner claims to read the value the language gives a literal. Rather than
+// trust that, spell literals every way the language allows and ask the engine.
+
+function seeded(seed: number): () => number {
+  let state = (seed >>> 0) || 1;
+  return () => {
+    state ^= state << 13;
+    state >>>= 0;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    state >>>= 0;
+    return state;
+  };
+}
+
+const alphabet = "gitGITxyz -_=,./:";
+/** Letters that mean nothing after a backslash, so `\g` is just `g`. */
+const plainEscapable = new Set(
+  "gGiIxyzXYZ".split("").filter((c) => !"xuXU".includes(c)),
+);
+
+/** A literal in `quote` whose value is `value`, spelled in a random way. */
+function spell(value: string, quote: string, random: () => number): string {
+  let out = "";
+  const hex = (n: number, digits: number) =>
+    n.toString(16).padStart(digits, "0");
+  for (const char of value) {
+    // Sometimes a line continuation first: it adds nothing to the value.
+    if (random() % 4 === 0) {
+      out += "\\" + terminators[random() % terminators.length][1];
+    }
+    const code = char.codePointAt(0)!;
+    const pick = random() % 6;
+    const needsEscape = char === quote || char === "\\";
+    if (pick === 0 || (pick >= 4 && needsEscape && !plainEscapable.has(char))) {
+      out += needsEscape ? "\\" + char : char;
+    } else if (pick === 1) out += "\\x" + hex(code, 2);
+    else if (pick === 2) out += "\\u" + hex(code, 4);
+    else if (pick === 3) {
+      out += "\\u{" + "0".repeat(random() % 3) + hex(code, 1) + "}";
+    } else if (plainEscapable.has(char)) out += "\\" + char;
+    else out += needsEscape ? "\\" + char : char;
+  }
+  if (random() % 4 === 0) {
+    out += "\\" + terminators[random() % terminators.length][1];
+  }
+  return quote + out + quote;
+}
+
+Deno.test("the scanner reads every literal the way the JavaScript engine does", () => {
+  const random = seeded(20261111);
+  let checked = 0;
+  for (let round = 0; round < 3000; round += 1) {
+    const quote = quotes[round % 3];
+    const length = random() % 9;
+    let value = "";
+    for (let index = 0; index < length; index += 1) {
+      value += alphabet[random() % alphabet.length];
+    }
+    const source = spell(value, quote, random);
+    const engine = runInNewContext(source);
+    assertEquals(
+      engine,
+      value,
+      `the spelling does not mean what the test thinks: ${
+        JSON.stringify(source)
+      }`,
+    );
+    const { literals, balanced } = stringLiterals(`const x = ${source};`);
+    assert(balanced, `lost track of ${JSON.stringify(source)}`);
+    assertEquals(
+      literals.map((l) => l.text),
+      [engine],
+      `disagrees with the engine on ${JSON.stringify(source)}`,
+    );
+    checked += 1;
+  }
+  assertEquals(checked, 3000);
+});
+
+Deno.test("every spelling of git the engine reads as git is flagged, in every quote and context", () => {
+  const random = seeded(7);
+  const contexts = [
+    (s: string) => `const T = ${s};`,
+    (s: string) => `run(${s});`,
+    (s: string) => `const o = { executable: ${s} };`,
+    (s: string) => `const a = [${s}, "x"];`,
+    (s: string) => `export default ${s};`,
+    (s: string) => `x = cond ? ${s} : other;`,
+  ];
+  let flagged = 0;
+  for (let round = 0; round < 3000; round += 1) {
+    const quote = quotes[round % 3];
+    const spelling = spell("git", quote, random);
+    assertEquals(runInNewContext(spelling), "git", JSON.stringify(spelling));
+    const source = contexts[round % contexts.length](spelling);
+    assert(
+      bareGitFindings(source).length > 0,
+      `missed a spelling of git: ${JSON.stringify(source)}`,
+    );
+    flagged += 1;
+  }
+  assertEquals(flagged, 3000);
+});
+
+Deno.test("the walk reads every kind of source file in nested directories, and a bare git in any of them is found", async () => {
+  const root = await mkdtemp(join(tmpdir(), "git-walk-"));
+  try {
+    await mkdir(join(root, "nested", "deeper"), { recursive: true });
+    const sourcesByName: Record<string, string> = {
+      "a.ts": 'export const T = "git";',
+      "b.tsx": 'export const T = "git";',
+      "c.mts": 'export const T = "git";',
+      "d.cts": 'export const T = "git";',
+      "e.js": 'exports.T = "git";',
+      "f.jsx": 'exports.T = "git";',
+      "g.mjs": 'export const T = "git";',
+      "h.cjs": 'exports.T = "git";',
+      "nested/i.js": 'exports.T = "git";',
+      "nested/deeper/j.mjs": 'export const T = "git";',
+    };
+    for (const [name, text] of Object.entries(sourcesByName)) {
+      await writeFile(join(root, name), text);
+    }
+    // Not sources: must never be read as one.
+    await writeFile(join(root, "notes.md"), 'const T = "git";');
+    await writeFile(join(root, "data.json"), '{"t": "git"}');
+    await writeFile(join(root, "a.ts.map"), '"git"');
+    const seen: string[] = [];
+    for await (const { name, text } of sources(new URL(`file://${root}/`))) {
+      seen.push(name);
+      assert(
+        bareGitFindings(text).length > 0,
+        `${name} was read but not flagged`,
+      );
+    }
+    assertEquals(seen.sort(), Object.keys(sourcesByName).sort());
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
