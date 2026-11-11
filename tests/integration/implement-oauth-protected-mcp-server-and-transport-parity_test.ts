@@ -764,7 +764,7 @@ Deno.test("catalog tools run the REST operation: same state, replay, preconditio
     // A route identifier that URL normalization would collapse ("." / "..")
     // or that carries a path separator is refused before any dispatch, so a
     // tool can never reach a route other than the one its scope was checked for.
-    for (const value of [".", "..", "", "a/b", "%2e", "x\\y"]) {
+    for (const value of [".", "..", "", "a/b", "%2e", "x\\y", "a\ud800b"]) {
       const refused = await tool(fixture, accessToken, "bakery_runs_list", {
         id: value,
       });
@@ -780,7 +780,9 @@ Deno.test("catalog tools run the REST operation: same state, replay, preconditio
       const header of [
         { idempotencyKey: 12345 },
         { idempotencyKey: "" },
+        { idempotencyKey: "   " },
         { ifMatch: 123 },
+        { ifMatch: "\t " },
       ]
     ) {
       const refused = await tool(

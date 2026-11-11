@@ -205,9 +205,10 @@ export function createMcpCatalogTools(options: {
       // Header arguments must be strings when given; never dropped silently.
       if (
         (idempotencyKey !== undefined &&
-          (typeof idempotencyKey !== "string" || idempotencyKey === "")) ||
+          (typeof idempotencyKey !== "string" ||
+            idempotencyKey.trim() === "")) ||
         (ifMatch !== undefined &&
-          (typeof ifMatch !== "string" || ifMatch === ""))
+          (typeof ifMatch !== "string" || ifMatch.trim() === ""))
       ) return invalid();
       // A route identifier is one opaque path segment. Empty, "." and ".."
       // would be collapsed by URL normalization and could reach another route.
@@ -215,7 +216,8 @@ export function createMcpCatalogTools(options: {
       for (const name of tool.pathNames) {
         const value = fields[name];
         if (
-          typeof value !== "string" || value === "" || value === "." ||
+          typeof value !== "string" || !value.isWellFormed() || value === "" ||
+          value === "." ||
           value === ".." || value.includes("/") || value.includes("\\")
         ) return invalid();
         segments.push(encodeURIComponent(value));
