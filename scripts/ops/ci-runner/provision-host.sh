@@ -136,7 +136,7 @@ if [ ! -f $RUNNER_DIR/.runner ]; then
   (cd $RUNNER_DIR && runuser -u $CI_USER -- env -i HOME=/home/$CI_USER LANG=en_US.UTF-8 \
     PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin \
     ./config.sh --unattended --url $REPO_URL --token "$RUNNER_TOKEN" --name "$runner_name" \
-    --labels hetzner --work _work --replace)
+    --labels hetzner,amd --work _work --replace)
 fi
 unit="actions.runner.MarkTripoli-bakery.$runner_name.service"
 [ -f /etc/systemd/system/$unit ] || (cd $RUNNER_DIR && ./svc.sh install $CI_USER)
