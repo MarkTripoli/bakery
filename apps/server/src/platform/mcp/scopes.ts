@@ -96,3 +96,20 @@ export function effectiveMcpScopes(
     scopeImplies(tokenScopes, scope) && scopeImplies(consentScopes, scope)
   );
 }
+
+/**
+ * Scope decision for a catalog tool: the same rule as `decideMcpToolAccess`,
+ * keyed by the operation's catalog permission instead of a fixed tool.
+ */
+export function decideMcpPermissionAccess(input: {
+  permission: CatalogPermissionKey;
+  tokenScopes: readonly string[];
+  consentScopes: readonly string[];
+}): McpToolDecision {
+  const allowed = scopeAllows(input.permission, input.tokenScopes) &&
+    scopeAllows(input.permission, input.consentScopes);
+  return allowed ? { allowed: true } : {
+    allowed: false,
+    missingScopes: minimalScopes(input.permission).filter(isMcpScope),
+  };
+}

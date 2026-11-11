@@ -172,6 +172,23 @@ Deno.test(
             resource,
           }));
           assertEquals(await listTools(driver, accessToken), [
+            "bakery_applications_get",
+            "bakery_applications_list",
+            "bakery_repositories_get",
+            "bakery_repositories_list",
+            "bakery_repositoryRulePreviews_createForRepository",
+            "bakery_repositoryRules_getEffective",
+            "bakery_runSteps_list",
+            "bakery_runs_create",
+            "bakery_runs_get",
+            "bakery_runs_list",
+            "bakery_taskDependencies_create",
+            "bakery_taskDependencies_delete",
+            "bakery_tasks_create",
+            "bakery_tasks_get",
+            "bakery_tasks_list",
+            "bakery_tasks_update",
+            "bakery_usage_list",
             "organization_get",
             "whoami",
           ]);

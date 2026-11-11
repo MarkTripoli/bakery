@@ -4,6 +4,7 @@ import { FIXED_CODING_PRESET } from "../../packages/contracts/src/workflow-prese
 import { WORKFLOW_COMPILER_VERSION } from "../../packages/contracts/src/workflow-compiler/mod.ts";
 import { strictYaml } from "../fixtures/workflow-compiler/specimen.ts";
 import {
+  compilerPinOf,
   jsonPointerToSegments,
   validateWorkflowBindings,
   validateWorkflowDefinitionStatic,
@@ -732,4 +733,34 @@ Deno.test("nested steps report their binding under the qualified step id", async
       ["choose.on_dev", "workflow.noop", "none", null],
     ],
   );
+});
+
+// --- #16 AC6: the pin a published version stores.
+
+Deno.test("a compiled version is pinned with the compiler version and digest it returned", async () => {
+  const report = await validateWorkflowDefinitionStatic(
+    compilerGrammar([noopNode("first")]),
+  );
+  assert(report.valid);
+  assertEquals(compilerPinOf(report), {
+    compilerVersion: WORKFLOW_COMPILER_VERSION,
+    semanticDigest: report.semanticDigest,
+  });
+});
+
+Deno.test("a nested compiled version is pinned too", async () => {
+  const report = await validateWorkflowDefinitionStatic(
+    compilerGrammar([NESTED_CONTAINERS[2][1]]),
+  );
+  assert(report.valid);
+  assert(/^[0-9a-f]{64}$/.test(compilerPinOf(report)?.semanticDigest ?? ""));
+});
+
+Deno.test("a version the compiler did not accept carries no pin, not half of one", async () => {
+  // A legacy flat document: the compiler reports its version but no digest.
+  const legacy = await validateWorkflowDefinitionStatic(minimal);
+  assert(legacy.valid);
+  assertEquals(legacy.compilerVersion, WORKFLOW_COMPILER_VERSION);
+  assertEquals(legacy.semanticDigest, null);
+  assertEquals(compilerPinOf(legacy), null);
 });
