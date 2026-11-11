@@ -142,6 +142,10 @@
   min-block-size: 2.25rem;
   font: var(--type-body);
 }
+/* Paper add-OIDC draws the client ID, an opaque identifier, in the data face. */
+.ui-sso-settings__form input[name="clientId"] {
+  font: var(--type-data);
+}
 /* Paper add-SAML draws the pasted metadata, a XML document, in the data face. */
 .ui-sso-settings__form .ui-field--textarea textarea:not(.ui-text-input) {
   font: var(--type-data);

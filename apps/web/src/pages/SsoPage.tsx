@@ -114,8 +114,12 @@ export function SsoPage() {
   const checkDomain = (provider: SsoProvider) =>
     run(`check:${provider.providerId}`, async () => {
       const result = await ssoApi.verifyDomain(provider.providerId);
+      // A domain someone else already verified (another tab, another
+      // administrator) answers 409 DOMAIN_VERIFIED: it is verified, not an error.
+      const verified = result.ok ||
+        (result.status === 409 && result.code === "DOMAIN_VERIFIED");
       setNotice(
-        result.ok
+        verified
           ? { tone: "success", key: "settings.sso.verify.done" }
           : result.status === 502
           ? { tone: "information", key: "settings.sso.verify.pending" }
@@ -182,7 +186,17 @@ export function SsoPage() {
                     key={view.kind === "edit"
                       ? view.provider.providerId
                       : view.kind}
-                    view={view}
+                    view={view.kind === "edit"
+                      ? {
+                        ...view,
+                        // The form follows the stored provider, so a domain
+                        // verified while it is open stops offering the check.
+                        provider:
+                          data.providers.find((provider) =>
+                            provider.providerId === view.provider.providerId
+                          ) ?? view.provider,
+                      }
+                      : view}
                     organizationId={organizationId}
                     onCancel={backToList}
                     onSaved={async (saved) => {

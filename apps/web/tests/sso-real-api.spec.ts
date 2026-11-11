@@ -257,17 +257,35 @@ test.describe("single sign-on settings against the real API", () => {
     expect(token).not.toBe("");
 
     await page.getByRole("button", { name: `${PROVIDER} · OIDC` }).click();
+    const check = page.getByRole("button", { name: "Check domain" });
+    const verifyAnswer = () =>
+      page.waitForResponse((response) =>
+        response.url().endsWith("/api/auth/sso/verify-domain")
+      );
+
     // No TXT record is published yet: the server's own lookup finds nothing.
-    await page.getByRole("button", { name: "Check domain" }).click();
-    await expect(page.getByText("Not verified yet.", { exact: false }).first())
-      .toBeVisible();
+    // Wait for that answer itself; the form's static "Not verified yet." line
+    // is on screen before any check has been made.
+    const refused = verifyAnswer();
+    await check.click();
+    expect((await refused).status()).toBe(502);
     expect((await control<State>("/state")).stored[0].domainVerified).toBe(
       false,
     );
 
     await control("/dns", { name: TXT_NAME, value: token });
-    await page.getByRole("button", { name: "Check domain" }).click();
+    const accepted = verifyAnswer();
+    await check.click();
+    expect((await accepted).status()).toBe(204);
     await expect(page.getByText("Domain verified.")).toBeVisible();
+    // Verified: the form follows the stored provider and offers no further
+    // check, so nothing here can ask the server about it a second time.
+    await expect(check).toHaveCount(0);
+    await expect(page.getByText("Not verified yet.", { exact: false }))
+      .toHaveCount(0);
+    await expect(
+      page.getByText("The domain could not be checked right now."),
+    ).toHaveCount(0);
     await page.getByRole("button", { name: "Cancel" }).click();
     await expect(page.getByText("Enabled")).toBeVisible();
     expect((await control<State>("/state")).stored[0].domainVerified).toBe(
@@ -473,9 +491,20 @@ test.describe("single sign-on settings against the real API", () => {
     });
     await expect(revoke).toBeVisible();
     await shot(page, "scim-revoke-confirm");
+    // Wait for the revoke request itself: after the rotation the credentials
+    // table already holds an older Revoked row, so the word "Revoked" alone is
+    // on screen before this request has finished.
+    const revoked = page.waitForResponse((response) =>
+      response.url().endsWith("/v1/scim-connection/revoke") &&
+      response.request().method() === "POST"
+    );
     await revoke.getByRole("button", { name: "Revoke token", exact: true })
       .click();
-    await expect(page.getByText("Revoked").first()).toBeVisible();
+    expect((await revoked).status()).toBe(201);
+    // The page offers a new connection only once the status is no longer
+    // active, which is a signal no older table row can give early.
+    await expect(page.getByRole("button", { name: "Create connection" }))
+      .toBeVisible();
     expect(await scimStatus(rotated)).toBe(401);
     await page.reload();
     await expect(page.getByText("Revoked").first()).toBeVisible();

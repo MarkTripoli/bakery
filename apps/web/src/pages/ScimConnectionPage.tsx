@@ -147,10 +147,14 @@ export function ScimConnectionPage() {
     <>
       <ShellActiveNavigation id="settings" />
       <UI.SettingsContent data-testid="scim-connection">
-        <UI.Heading level="page">{translate("settings.scim.title")}</UI.Heading>
-        <UI.Text variant="muted">
-          {translate("settings.scim.description")}
-        </UI.Text>
+        <UI.Stack gap="tight">
+          <UI.Heading level="page">
+            {translate("settings.scim.title")}
+          </UI.Heading>
+          <UI.Text variant="muted">
+            {translate("settings.scim.description")}
+          </UI.Text>
+        </UI.Stack>
         {notice
           ? (
             <UI.AlertBanner

@@ -33,6 +33,8 @@ async function ssoFixture(
   page: Page,
   options: Partial<Pick<Fixture, "providers" | "enforce">> & {
     forbidden?: boolean;
+    /** The server already holds the domain as verified: every check answers 409. */
+    alreadyVerified?: boolean;
   } = {},
 ) {
   await mockAuthenticatedSession(page);
@@ -73,6 +75,13 @@ async function ssoFixture(
       route.fulfill(json({ domainVerificationToken: "txt-token-123" }, 201)),
   );
   await page.route("**/api/auth/sso/verify-domain", (route) => {
+    if (options.alreadyVerified) {
+      state.providers = state.providers.map((p) => ({
+        ...p,
+        domainVerified: true,
+      }));
+      return route.fulfill(json({ code: "DOMAIN_VERIFIED" }, 409));
+    }
     if (!state.verified) {
       return route.fulfill(json({ code: "BAD_GATEWAY" }, 502));
     }
@@ -236,6 +245,55 @@ test.describe("single sign-on settings", () => {
     await expect(page.getByText("Domain verified.")).toBeVisible();
     await page.getByRole("button", { name: "Cancel" }).click();
     await expect(page.getByText("Enabled")).toBeVisible();
+  });
+
+  test("a verified domain stops offering the check and the unverified notice", async ({ page }) => {
+    const state = await ssoFixture(page, {
+      providers: [{
+        providerId: "okta",
+        issuer: "https://acme.okta.example",
+        domain: "acme.example",
+        domainVerified: false,
+        protocol: "oidc",
+      }],
+    });
+    await page.goto("/settings/organization/sso");
+    await page.getByRole("button", { name: "okta · OIDC" }).click();
+    const check = page.getByRole("button", { name: "Check domain" });
+    await expect(check).toBeVisible();
+    await expect(page.getByText("Not verified yet.", { exact: false }))
+      .toHaveCount(1);
+    state.verified = true;
+    await check.click();
+    await expect(page.getByText("Domain verified.")).toBeVisible();
+    // The form follows the stored provider: nothing left to check, and the
+    // amber "not verified" line is gone while the green banner shows.
+    await expect(check).toHaveCount(0);
+    await expect(page.getByText("Not verified yet.", { exact: false }))
+      .toHaveCount(0);
+    await expect(
+      page.getByText("The domain could not be checked right now."),
+    ).toHaveCount(0);
+  });
+
+  test("checking a domain the server already holds as verified is not an error", async ({ page }) => {
+    await ssoFixture(page, {
+      alreadyVerified: true,
+      providers: [{
+        providerId: "okta",
+        issuer: "https://acme.okta.example",
+        domain: "acme.example",
+        domainVerified: false,
+        protocol: "oidc",
+      }],
+    });
+    await page.goto("/settings/organization/sso");
+    await page.getByRole("button", { name: "okta · OIDC" }).click();
+    await page.getByRole("button", { name: "Check domain" }).click();
+    await expect(page.getByText("Domain verified.")).toBeVisible();
+    await expect(
+      page.getByText("The domain could not be checked right now."),
+    ).toHaveCount(0);
   });
 
   test("edits a provider, requires SSO through the switch and removes it", async ({ page }) => {
