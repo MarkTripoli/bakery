@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "a2d735147ce97e3a11788dbb8efd0348c2767cca"
+    "f20f7cae2c30437dfcbab095ce5b0a9c0ab333ef"
   ],
   "status": "approved",
   "allowBreaking": true,
   "targetCompatibilityDigest": "sha256:c348efc564ffa81a7d0666542b97a81ca920e676a1c098a99e6dc79fb7722464",
-  "reason": "#138 contract re-bind by dev-server on 2026-11-11 under owner's standing breaking-change authorization (2026-10-09), main a2d735147ce97e3a11788dbb8efd0348c2767cca: RepositoryEffectiveRules gains required repositoryVersion, checkers and providerProtection.",
+  "reason": "#138 contract re-bind by dev-server on 2026-11-11 under owner's standing breaking-change authorization (2026-10-09), main f20f7cae2c30437dfcbab095ce5b0a9c0ab333ef: RepositoryEffectiveRules gains required repositoryVersion, checkers and providerProtection (re-bound after merging main).",
   "priorApprovals": [
     {
       "allowBreaking": true,
