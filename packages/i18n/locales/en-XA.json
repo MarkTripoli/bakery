@@ -2535,11 +2535,8 @@
   "shell.navigation.repositoryRules": "⟦Ŕëþôšïŧôŕÿ ŕûļëš ŧëš⟧",
   "settings.repositoryRules.title": "⟦Ŕëþôšïŧôŕÿ ŕûļëš ŧëš⟧",
   "settings.repositoryRules.description": "⟦À šĥàŕëð šŧàŕŧïñĝ þôïñŧ ƒôŕ ëṽëŕÿ ŕëþôšïŧôŕÿ ïñ ŧĥïš ôŕĝàñïžàŧïôñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
-  "settings.repositoryRules.flow": "⟦Ðëƒàûļŧš ƒļôŵ ŧô ëṽëŕÿ ŕëþôšïŧôŕÿ, ïñçļûðïñĝ ƒûŧûŕë ôñëš. Àļļôŵ à ŕëþôšïŧôŕÿ ŧô çûšŧôɱïžë à ŕûļë, ôŕ ļôçķ ïŧ ŧô ķëëþ ŧĥë šàɱë ŕëǫûïŕëɱëñŧ ëṽëŕÿŵĥëŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "settings.repositoryRules.loading": "⟦Ļôàðïñĝ ŕëþôšïŧôŕÿ ŕûļëš. ŧëšŧ ç⟧",
-  "settings.repositoryRules.loadError": "⟦Ŧĥë ŕëþôšïŧôŕÿ ŕûļëš çôûļð ñôŧ ƀë ļôàðëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "settings.repositoryRules.forbidden": "⟦Ôñļÿ ôŕĝàñïžàŧïôñ àðɱïñïšŧŕàŧôŕš çàñ ɱàñàĝë ŕëþôšïŧôŕÿ ŕûļëš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
-  "settings.repositoryRules.empty": "⟦Ñô ôŕĝàñïžàŧïôñ ŕûļëš àŕë þûƀļïšĥëð ÿëŧ. Ŕëþôšïŧôŕïëš ƒôļļôŵ ôñļÿ ŧĥëïŕ ôŵñ šëŧŧïñĝš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "settings.repositoryRules.table.caption": "⟦Ôŕĝàñïžàŧïôñ ŕûļëš ŧëšŧ⟧",
   "settings.repositoryRules.column.rule": "⟦Ŕûļë⟧",
   "settings.repositoryRules.column.enforcement": "⟦Ëñƒôŕçëɱëñŧ ŧ⟧",
@@ -2574,5 +2571,10 @@
   "settings.repositoryRules.history.loadMore": "⟦Ļôàð ɱôŕë ŕëṽïšïôñš ŧëšŧ⟧",
   "settings.repositoryRules.history.loadError": "⟦Ŧĥë ŕëṽïšïôñ ĥïšŧôŕÿ çôûļð ñôŧ ƀë ļôàðëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "settings.repositoryRules.current": "⟦Þûƀļïšĥëð ŕëṽïšïôñ {revision} · {published} ŧëšŧ çôþÿ ŧëš⟧",
-  "settings.repositoryRules.enforcementAccess": "⟦{enforcement} · {access} ŧëšŧ ç⟧"
+  "settings.repositoryRules.enforcementAccess": "⟦{enforcement} · {access} ŧëšŧ ç⟧",
+  "settings.repositoryRules.loadError": "⟦Ŧĥë ŕëþôšïŧôŕÿ ŕûļëš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ ŧë⟧",
+  "settings.repositoryRules.empty.title": "⟦Ñô ôŕĝàñïžàŧïôñ ŕûļëš ÿëŧ ŧëšŧ ç⟧",
+  "settings.repositoryRules.empty.description": "⟦Ŕëþôšïŧôŕïëš ƒôļļôŵ ôñļÿ ŧĥëïŕ ôŵñ šëŧŧïñĝš. ŧëšŧ çôþÿ ŧëš⟧",
+  "settings.repositoryRules.history.revision": "⟦Ŕëṽïšïôñ {revision} ŧëšŧ⟧",
+  "settings.repositoryRules.history.detail": "⟦{published} · {count, plural, one {# rule} other {# rules}} ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
 }

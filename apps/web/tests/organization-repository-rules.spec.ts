@@ -4,6 +4,7 @@ import {
   mockAuthenticatedSession,
 } from "./helpers/mock-session.ts";
 import {
+  historyRows,
   RULE_ENTRIES,
   type RuleEntry,
   ruleRow,
@@ -61,6 +62,8 @@ async function rulesFixture(
   page: Page,
   options: Partial<Pick<Fixture, "revision" | "entries" | "versions">> & {
     readStatus?: number;
+    /** The rules read waits for this before it answers. */
+    hold?: Promise<void>;
   } = {},
 ): Promise<Fixture> {
   const revision = options.revision ?? 3;
@@ -80,7 +83,8 @@ async function rulesFixture(
   );
   await page.route(
     `**/v1/organizations/${MOCK_ORGANIZATION_ID}/repository-rules`,
-    (route: Route) => {
+    async (route: Route) => {
+      await options.hold;
       if (state.readStatus !== 200) {
         return route.fulfill(
           problem(
@@ -156,21 +160,21 @@ test.describe("organization repository rules", () => {
     // A switched-off rule is not an absent one.
     await expect(row("Magic strings")).toContainText("Off");
 
-    const history = page.getByRole("table", { name: "Published revisions" });
-    await expect(history.getByRole("row")).toHaveCount(3); // header + 2
+    const history = historyRows(page);
+    await expect(history).toHaveCount(2);
     // Newest first, each with the start of its digest.
-    await expect(history.getByRole("row").nth(1)).toContainText(
-      digest("3").slice(0, 8),
-    );
+    await expect(history.nth(0)).toContainText(digest("3").slice(0, 8));
+    // The table cell is the bare number; a phone row titles it "Revision 3".
+    await expect(history.nth(0)).toHaveText(/^(Revision )?3/);
   });
 
   test("loads older revisions with the cursor", async ({ page }) => {
     const state = await rulesFixture(page);
     await page.goto(PAGE_PATH);
-    const history = page.getByRole("table", { name: "Published revisions" });
-    await expect(history.getByRole("row")).toHaveCount(3);
+    const history = historyRows(page);
+    await expect(history).toHaveCount(2);
     await page.getByRole("button", { name: "Load more revisions" }).click();
-    await expect(history.getByRole("row")).toHaveCount(4);
+    await expect(history).toHaveCount(3);
     await expect(
       page.getByRole("button", { name: "Load more revisions" }),
     ).toHaveCount(0);
@@ -181,9 +185,7 @@ test.describe("organization repository rules", () => {
     await rulesFixture(page, { revision: 0, entries: [], versions: [] });
     await page.goto(PAGE_PATH);
     await expect(
-      page.getByText("No organization rules are published yet", {
-        exact: false,
-      }),
+      page.getByText("No organization rules yet", { exact: true }),
     ).toBeVisible();
     await expect(
       rulesRegion(page),
@@ -213,6 +215,53 @@ test.describe("organization repository rules", () => {
     ).toBeVisible();
     await expect(page.getByText("could not be loaded", { exact: false }))
       .toHaveCount(0);
+  });
+
+  test("has no permanent explanatory banner above the rules", async ({ page }) => {
+    await rulesFixture(page);
+    await page.goto(PAGE_PATH);
+    await expect(page.getByTestId("org-rules-current")).toBeVisible();
+    await expect(page.getByText("Defaults flow", { exact: false }))
+      .toHaveCount(0);
+  });
+
+  test("shows placeholder rows while the rules load, not a loading banner", async ({ page }) => {
+    let release!: () => void;
+    const hold = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await rulesFixture(page, { hold });
+    await page.goto(PAGE_PATH);
+    const loading = page.getByTestId("org-rules-loading");
+    await expect(loading).toBeVisible();
+    await expect(loading).toHaveAttribute("aria-busy", "true");
+    await expect(page.getByText("Loading repository rules.")).toHaveCount(0);
+    release();
+    await expect(loading).toHaveCount(0);
+    await expect(page.getByTestId("org-rules-current")).toBeVisible();
+  });
+
+  test("a failed read offers Try again, which loads the rules", async ({ page }) => {
+    const state = await rulesFixture(page, { readStatus: 500 });
+    await page.goto(PAGE_PATH);
+    await expect(
+      page.getByRole("alert").filter({
+        hasText: "The repository rules could not be loaded.",
+      }),
+    ).toBeVisible();
+    state.readStatus = 200;
+    await page.getByRole("button", { name: "Try again" }).click();
+    await expect(page.getByTestId("org-rules-current")).toBeVisible();
+    await expect(page.getByRole("alert")).toHaveCount(0);
+  });
+
+  test("a digest never wraps onto a second line", async ({ page }) => {
+    await rulesFixture(page);
+    await page.goto(PAGE_PATH);
+    const digestBox = await historyRows(page).nth(0)
+      .locator('[data-ui-component="dataText"]').boundingBox();
+    // One line of the data face, not two.
+    expect(digestBox!.height).toBeLessThan(26);
   });
 
   test("a failed read says so and offers no rules", async ({ page }) => {

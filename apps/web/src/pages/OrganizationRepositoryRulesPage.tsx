@@ -113,20 +113,18 @@ export function OrganizationRepositoryRulesPage() {
     timeZone,
   });
   const data = rules.isSuccess ? rules.data : undefined;
-  const notice = organizationId === null && !restoring
-    ? null
-    : forbidden
+  const waiting = !(organizationId === null && !restoring);
+  const refusal = waiting && forbidden
     ? translate("settings.repositoryRules.forbidden")
-    : rules.isError
-    ? translate("settings.repositoryRules.loadError")
-    : rules.isPending
-    ? translate("settings.repositoryRules.loading")
     : null;
   const history = versions.isSuccess
     ? versions.data.pages.flatMap((page) => page.items)
     : [];
+  // A digest never wraps; the whole value is its title.
   const digestText = (value: string) => (
-    <UI.DataText title={value}>{value.slice(0, DIGEST_CHARS)}</UI.DataText>
+    <UI.DataText truncate title={value}>
+      {value.slice(0, DIGEST_CHARS)}
+    </UI.DataText>
   );
 
   return (
@@ -148,26 +146,52 @@ export function OrganizationRepositoryRulesPage() {
         <UI.Text variant="muted">
           {translate("settings.repositoryRules.description")}
         </UI.Text>
-        {notice
+        {refusal
+          ? <UI.AlertBanner tone="information">{refusal}</UI.AlertBanner>
+          : null}
+        {waiting && rules.isPending
           ? (
-            <UI.AlertBanner
-              tone={rules.isError && !forbidden ? "error" : "information"}
+            <div
+              aria-busy="true"
+              aria-label={translate("settings.repositoryRules.loading")}
+              data-testid="org-rules-loading"
+              role="status"
             >
-              {notice}
-            </UI.AlertBanner>
+              <UI.Stack gap="compact">
+                {[0, 1, 2, 3, 4].map((row) => (
+                  <UI.Skeleton key={row} shape="row" />
+                ))}
+              </UI.Stack>
+            </div>
+          )
+          : null}
+        {waiting && rules.isError && !forbidden
+          ? (
+            <UI.ErrorState
+              action={
+                <UI.Button
+                  loading={rules.isFetching}
+                  onClick={() => void rules.refetch()}
+                  type="button"
+                >
+                  {translate("core.actions.retry")}
+                </UI.Button>
+              }
+              title={translate("settings.repositoryRules.loadError")}
+            />
           )
           : null}
         {data
           ? (
             <>
-              <UI.AlertBanner tone="information">
-                {translate("settings.repositoryRules.flow")}
-              </UI.AlertBanner>
               {data.revision === 0
                 ? (
-                  <UI.Text variant="muted">
-                    {translate("settings.repositoryRules.empty")}
-                  </UI.Text>
+                  <UI.EmptyState
+                    description={translate(
+                      "settings.repositoryRules.empty.description",
+                    )}
+                    title={translate("settings.repositoryRules.empty.title")}
+                  />
                 )
                 : (
                   <>
@@ -251,7 +275,7 @@ export function OrganizationRepositoryRulesPage() {
                             },
                           ]}
                           emptyMessage={translate(
-                            "settings.repositoryRules.empty",
+                            "settings.repositoryRules.empty.title",
                           )}
                           error={translate(
                             "settings.repositoryRules.loadError",
@@ -267,53 +291,87 @@ export function OrganizationRepositoryRulesPage() {
               <UI.Heading level="section">
                 {translate("settings.repositoryRules.history.title")}
               </UI.Heading>
-              <UI.DataTable<NonNullable<typeof history>[number]>
-                caption={translate("settings.repositoryRules.history.caption")}
-                columns={[
-                  {
-                    id: "revision",
-                    header: translate(
-                      "settings.repositoryRules.history.column.revision",
-                    ),
-                    cell: (row) => String(row.revision),
-                  },
-                  {
-                    id: "published",
-                    header: translate(
-                      "settings.repositoryRules.history.column.published",
-                    ),
-                    cell: (row) => when.format(new Date(row.createdAt)),
-                  },
-                  {
-                    id: "rules",
-                    header: translate(
-                      "settings.repositoryRules.history.column.rules",
-                    ),
-                    cell: (row) => String(row.entries.length),
-                  },
-                  {
-                    id: "digest",
-                    header: translate(
-                      "settings.repositoryRules.history.column.digest",
-                    ),
-                    cell: (row) => digestText(row.digest),
-                  },
-                ]}
-                emptyMessage={translate(
-                  "settings.repositoryRules.history.empty",
+              {phone && history.length > 0
+                ? (
+                  <div
+                    role="list"
+                    aria-label={translate(
+                      "settings.repositoryRules.history.caption",
+                    )}
+                  >
+                    {history.map((row) => (
+                      <div key={row.id} role="listitem">
+                        <UI.ListRow
+                          detail={translate(
+                            "settings.repositoryRules.history.detail",
+                            {
+                              published: when.format(new Date(row.createdAt)),
+                              count: row.entries.length,
+                            },
+                          )}
+                          title={translate(
+                            "settings.repositoryRules.history.revision",
+                            { revision: row.revision },
+                          )}
+                          trailing={digestText(row.digest)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )
+                : (
+                  <UI.DataTable<NonNullable<typeof history>[number]>
+                    caption={translate(
+                      "settings.repositoryRules.history.caption",
+                    )}
+                    columns={[
+                      {
+                        id: "revision",
+                        header: translate(
+                          "settings.repositoryRules.history.column.revision",
+                        ),
+                        cell: (row) => String(row.revision),
+                      },
+                      {
+                        id: "published",
+                        header: translate(
+                          "settings.repositoryRules.history.column.published",
+                        ),
+                        cell: (row) => when.format(new Date(row.createdAt)),
+                      },
+                      {
+                        id: "rules",
+                        header: translate(
+                          "settings.repositoryRules.history.column.rules",
+                        ),
+                        cell: (row) => String(row.entries.length),
+                      },
+                      {
+                        id: "digest",
+                        header: translate(
+                          "settings.repositoryRules.history.column.digest",
+                        ),
+                        cell: (row) => digestText(row.digest),
+                      },
+                    ]}
+                    emptyMessage={translate(
+                      "settings.repositoryRules.history.empty",
+                    )}
+                    error={translate(
+                      "settings.repositoryRules.history.loadError",
+                    )}
+                    getRowKey={(row) => row.id}
+                    rows={history}
+                    state={versions.isPending
+                      ? "loading"
+                      : versions.isError
+                      ? "error"
+                      : history.length === 0
+                      ? "empty"
+                      : "ready"}
+                    variant="table"
+                  />
                 )}
-                error={translate("settings.repositoryRules.history.loadError")}
-                getRowKey={(row) => row.id}
-                rows={history}
-                state={versions.isPending
-                  ? "loading"
-                  : versions.isError
-                  ? "error"
-                  : history.length === 0
-                  ? "empty"
-                  : "ready"}
-                variant="table"
-              />
               {versions.hasNextPage
                 ? (
                   <UI.Button

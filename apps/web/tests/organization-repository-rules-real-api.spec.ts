@@ -10,6 +10,7 @@ import {
   stopChild,
 } from "./helpers/real-api.ts";
 import {
+  historyRows,
   RULE_ENTRIES,
   type RuleEntry,
   ruleRow,
@@ -107,9 +108,7 @@ test.describe("organization repository rules against the real API", () => {
   test("an organization with nothing published reads as empty from the real server", async ({ page, baseURL }) => {
     await openAsAdmin(page, baseURL);
     await expect(
-      page.getByText("No organization rules are published yet", {
-        exact: false,
-      }),
+      page.getByText("No organization rules yet", { exact: true }),
     ).toBeVisible();
     expect((await state()).versions).toEqual([]);
     await shot(page, "rules-empty");
@@ -136,14 +135,14 @@ test.describe("organization repository rules against the real API", () => {
     await expect(row("Magic numbers")).toContainText("allow 0, 1");
     await expect(row("Magic strings")).toContainText("Off");
 
-    const history = page.getByRole("table", { name: "Published revisions" });
-    // Header plus both revisions, newest first.
-    await expect(history.getByRole("row")).toHaveCount(3);
+    const history = historyRows(page);
+    // Both revisions, newest first.
+    await expect(history).toHaveCount(2);
     // The digest on screen is the one the server stored for that revision.
-    await expect(history.getByRole("row").nth(1)).toContainText(
+    await expect(history.nth(0)).toContainText(
       stored[1].digest.slice(0, 8),
     );
-    await expect(history.getByRole("row").nth(2)).toContainText(
+    await expect(history.nth(1)).toContainText(
       stored[0].digest.slice(0, 8),
     );
     await shot(page, "rules-current");
@@ -156,14 +155,14 @@ test.describe("organization repository rules against the real API", () => {
     expect((await state()).versions).toHaveLength(TOTAL_REVISIONS);
 
     await openAsAdmin(page, baseURL);
-    const history = page.getByRole("table", { name: "Published revisions" });
-    // One page of 25 plus the header; the oldest revision is on the next page.
-    await expect(history.getByRole("row")).toHaveCount(PAGE_SIZE + 1);
-    await expect(history.getByRole("row").nth(1)).toContainText(
+    const history = historyRows(page);
+    // One page of 25; the oldest revision is on the next page.
+    await expect(history).toHaveCount(PAGE_SIZE);
+    await expect(history.nth(0)).toContainText(
       String(TOTAL_REVISIONS),
     );
     await page.getByRole("button", { name: "Load more revisions" }).click();
-    await expect(history.getByRole("row")).toHaveCount(TOTAL_REVISIONS + 1);
+    await expect(history).toHaveCount(TOTAL_REVISIONS);
     await expect(
       page.getByRole("button", { name: "Load more revisions" }),
     ).toHaveCount(0);

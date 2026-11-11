@@ -72,3 +72,15 @@ export function ruleRow(page: Page, name: string): Locator {
     region.getByRole("listitem").filter({ hasText: name }),
   );
 }
+
+/**
+ * The published revisions as the page lays them out: a table on a wide screen
+ * and a list of rows on a phone. One locator per revision, newest first,
+ * without the table's header row.
+ */
+export function historyRows(page: Page): Locator {
+  const region = page.getByRole("table", { name: "Published revisions" }).or(
+    page.getByRole("list", { name: "Published revisions" }),
+  );
+  return region.locator("tbody tr").or(region.getByRole("listitem"));
+}
