@@ -3,6 +3,7 @@ import {
   childTraceContext,
   formatTraceparent,
   linkedContinuation,
+  MAX_TRACE_LINK_SCAN,
   MAX_TRACE_LINKS,
   newTraceContext,
   parseTraceLink,
@@ -11,11 +12,13 @@ import {
 } from "../../packages/config/src/telemetry-trace.ts";
 import {
   createTelemetryRedactor,
+  MAX_STEP_KEY_LENGTH,
+  MAX_STEP_KEY_SEGMENTS,
   MAX_VOCABULARY_ENTRIES,
   MAX_VOCABULARY_ENTRY_LENGTH,
   redactTelemetryAttributes,
-  STEP_KEY_MAX_DIGITS,
-  STEP_KEY_PATTERN,
+  STEP_ID_SEGMENT,
+  STEP_KEY_SEGMENT,
   TELEMETRY_ATTRIBUTE_NAMES,
 } from "../../packages/config/src/telemetry-attributes.ts";
 import { FAULTS } from "../../packages/contracts/src/http.ts";
@@ -241,11 +244,114 @@ function implementedActionIds(): string[] {
 }
 
 const vocabulary = {
+  stepIds: ["build", "implement_review", "step_1", "outer.inner.build"],
   actions: ["installation.seats.get", "agents.activateVersion"],
   providerCategories: ["model"],
   outcomes: ["AUTH_FORBIDDEN"],
 };
 const redact = createTelemetryRedactor(vocabulary);
+
+/** A value whose every trap throws, as a hostile or broken object might. */
+function throwingProxy(target: object): object {
+  const boom = () => {
+    throw new Error("trap boom");
+  };
+  return new Proxy(target, {
+    get: boom,
+    has: boom,
+    ownKeys: boom,
+    getOwnPropertyDescriptor: boom,
+    getPrototypeOf: boom,
+  });
+}
+
+Deno.test("linkedContinuation never throws, whatever the resumed span or the history is", () => {
+  const good = { traceId, spanId };
+  const revoked = Proxy.revocable([], {});
+  revoked.revoke();
+  const hostileHistories: unknown[] = [
+    throwingProxy([]),
+    throwingProxy([good]),
+    revoked.proxy,
+    new Proxy([good], {
+      get(target, property) {
+        if (property === "length") throw new Error("length boom");
+        return Reflect.get(target, property);
+      },
+    }),
+    "not an array",
+    42,
+    null,
+    { length: 3, 0: good },
+  ];
+  for (const history of hostileHistories) {
+    const result = linkedContinuation(good, history as typeof good[]);
+    assertEquals(result.links[0], good);
+    assertEquals(
+      parseTraceparent(formatTraceparent(result.context)),
+      result.context,
+    );
+  }
+  const hostileResumed: unknown[] = [
+    throwingProxy({}),
+    throwingProxy({ traceId, spanId }),
+    revoked.proxy,
+    {
+      traceId,
+      spanId,
+      get sampled(): boolean {
+        throw new Error("sampled boom");
+      },
+    },
+    undefined,
+    null,
+  ];
+  for (const resumed of hostileResumed) {
+    const result = linkedContinuation(resumed as typeof good, [good]);
+    // Whatever could not be read is dropped; whatever is kept is a clean copy.
+    assert(result.links.length <= 2, `${result.links.length} links`);
+    for (const link of result.links) assertEquals(link, good);
+    assertEquals(
+      parseTraceparent(formatTraceparent(result.context)),
+      result.context,
+    );
+  }
+});
+
+Deno.test("one unreadable entry in the history costs that link and no other", () => {
+  const first = { traceId: "1".repeat(32), spanId: "1".repeat(16) };
+  const third = { traceId: "3".repeat(32), spanId: "3".repeat(16) };
+  const history = new Proxy([first, { traceId, spanId }, third], {
+    get(target, property) {
+      if (property === "1") throw new Error("entry boom");
+      return Reflect.get(target, property);
+    },
+  });
+  const result = linkedContinuation({ traceId, spanId }, history as never);
+  assertEquals(result.links, [{ traceId, spanId }, first, third]);
+});
+
+Deno.test("a history that claims an enormous length is read for a bounded number of entries", () => {
+  const sparse: Array<{ traceId: string; spanId: string }> = [];
+  sparse.length = 4_294_967_295;
+  const started = performance.now();
+  const result = linkedContinuation({ traceId, spanId }, sparse);
+  assert(performance.now() - started < 250, "the scan must stay bounded");
+  assertEquals(result.links, [{ traceId, spanId }]);
+  // Only the newest MAX_TRACE_LINK_SCAN entries are read; older valid links
+  // behind a wall of invalid ones are not.
+  const walled: unknown[] = [{
+    traceId: "9".repeat(32),
+    spanId: "9".repeat(16),
+  }];
+  for (let index = 0; index < MAX_TRACE_LINK_SCAN; index += 1) {
+    walled.push("junk");
+  }
+  assertEquals(linkedContinuation({ traceId, spanId }, walled as never).links, [
+    { traceId, spanId },
+  ]);
+  assert(MAX_TRACE_LINK_SCAN >= MAX_TRACE_LINKS);
+});
 
 Deno.test("each registered attribute kind admits exactly its own shape", () => {
   const input = {
@@ -254,7 +360,7 @@ Deno.test("each registered attribute kind admits exactly its own shape", () => {
     "bakery.job.id": uuid,
     "bakery.task.id": uuid,
     "bakery.repository.id": uuid,
-    "bakery.step.key": "implement_review",
+    "bakery.step.key": "implement_review@2",
     "bakery.action": "installation.seats.get",
     "bakery.provider.category": "model",
     "bakery.outcome": "AUTH_FORBIDDEN",
@@ -345,71 +451,203 @@ Deno.test("numbers must be finite, non-negative and within their bound", () => {
   }
 });
 
-Deno.test("a step key is the runtime step-id grammar with at most three digits", () => {
-  for (
-    const key of [
-      "implement_review",
-      "delivery_gate",
-      "build",
-      "step_1",
-      "step_2",
-      "review_2",
-      "attempt_3",
-      "try_1",
-      "retry_10",
-      "a_1",
-      "lane_a2",
-      "node2",
-      "ab",
-      "a_123",
-      `a${"b".repeat(63)}`,
-    ]
-  ) {
+Deno.test("a step key is accepted only when its id path is one the run declared, loop iterations included", () => {
+  const accepted = [
+    "build",
+    "build@0",
+    "build@7",
+    "build@999",
+    "implement_review",
+    "step_1",
+    "outer.inner.build",
+    "outer@2.inner@0.build",
+    "outer@1.inner@3.build@12",
+  ];
+  for (const key of accepted) {
     assertEquals(
       redact({ "bakery.step.key": key }).attributes,
       { "bakery.step.key": key },
       key,
     );
   }
-  for (
-    const key of [
-      "",
-      "a",
-      "Step_1",
-      "1step",
-      "_step",
-      "step-1",
-      "step.one",
-      "implement.review",
-      "step 1",
-      "step_1\n",
-      " step_1",
-      "step_а",
-      "a_1234",
-      "ab12cd34",
-      `a${"b".repeat(64)}`,
-      "a".repeat(128_000),
-    ]
-  ) {
+  const refused = [
+    // Well-formed ids that the run did not declare.
+    "deploy",
+    "outer",
+    "outer.inner",
+    "inner.build",
+    "build.outer",
+    "Build",
+    // The compiler's own grammar, broken one rule at a time.
+    "build@1000",
+    "build@01",
+    "build@-1",
+    "build@",
+    "build@@1",
+    "build@1@2",
+    "@1",
+    "@build",
+    "build.",
+    ".build",
+    "outer..build",
+    "outer.inner.build.extra",
+    "build ",
+    " build",
+    "build\n",
+    "build\u0000",
+    "build​",
+    "buildа",
+    "build-1",
+    "buind",
+    "",
+    "b",
+    "a".repeat(MAX_STEP_KEY_LENGTH + 1),
+    "a".repeat(128_000),
+    Array.from({ length: MAX_STEP_KEY_SEGMENTS + 1 }, () => "build").join("."),
+  ];
+  for (const key of refused) {
     assertEquals(
       redact({ "bakery.step.key": key }).invalid,
       ["bakery.step.key"],
       key.slice(0, 40),
     );
   }
-  assertEquals(STEP_KEY_MAX_DIGITS, 3);
 });
 
-Deno.test("the step-key grammar is the one the server enforces", async () => {
-  // Both server modules declare it privately, so the only way to notice drift
-  // is to read them. A change to either has to be made here as well.
-  const declaration = `const STEP_ID_PATTERN = ${STEP_KEY_PATTERN};`;
+Deno.test("with no step ids declared every step key is refused, including a word-like one", () => {
+  const bare = createTelemetryRedactor({});
   for (
-    const file of [
-      "../../apps/server/src/modules/work/run-steps.ts",
-      "../../apps/server/src/modules/workflows/validation.ts",
+    const key of [
+      "build",
+      "step_1",
+      "please_summarize_the_task_and_attach_the_diff",
+      "zk3lq9xv2rt7yb5nm1cp8hd4wg6sf0ja",
     ]
   ) {
+    assertEquals(bare({ "bakery.step.key": key }).invalid, ["bakery.step.key"]);
+  }
+  assertEquals(
+    redactTelemetryAttributes({ "bakery.step.key": "build" }).invalid,
+    ["bakery.step.key"],
+  );
+});
+
+Deno.test("a step id the run declares is checked against the compiler's grammar when the redactor is built", () => {
+  const bad = [
+    "",
+    "a",
+    "Build",
+    "step-1",
+    "step 1",
+    "build@1",
+    "build.",
+    ".build",
+    "a..b",
+    "build\n",
+    "x".repeat(65),
+    `a${"b".repeat(64)}`,
+    Array.from({ length: MAX_STEP_KEY_SEGMENTS + 1 }, () => "build").join("."),
+    42 as unknown as string,
+  ];
+  for (const id of bad) {
+    let message = "";
+    try {
+      createTelemetryRedactor({ stepIds: [id] });
+    } catch (error) {
+      assert(error instanceof RangeError);
+      message = error.message;
+    }
+    assert(message.length > 0, `accepted ${JSON.stringify(id).slice(0, 30)}`);
+    assert(!message.includes("xxxx"), "the message must not echo the entry");
+  }
+  // The grammar is a sanity check on a list the consumer already trusts, not
+  // the protection: a lowercase token is a legal id segment. What keeps a
+  // secret out is that a key is accepted only if the consumer declared it.
+  assertEquals(
+    createTelemetryRedactor({ stepIds: ["ghp_" + "x".repeat(36)] })({
+      "bakery.step.key": "build",
+    }).invalid,
+    ["bakery.step.key"],
+  );
+  // The longest legal id is fine.
+  const longest = Array.from(
+    { length: MAX_STEP_KEY_SEGMENTS },
+    () => `a${"b".repeat(63)}`,
+  ).join(".");
+  assert(longest.length <= MAX_STEP_KEY_LENGTH);
+  assertEquals(
+    createTelemetryRedactor({ stepIds: [longest] })({
+      "bakery.step.key": longest,
+    })
+      .attributes,
+    { "bakery.step.key": longest },
+  );
+});
+
+Deno.test("each run gets its own step ids and nothing leaks between runs or back into the base", () => {
+  const base = createTelemetryRedactor({
+    ...vocabulary,
+    stepIds: ["shared"],
+  });
+  const runA = base.withStepIds(["alpha", "alpha.one"]);
+  const runB = base.withStepIds(["beta"]);
+  assertEquals(runA({ "bakery.step.key": "alpha.one@2" }).invalid, []);
+  assertEquals(runA({ "bakery.step.key": "beta" }).invalid, [
+    "bakery.step.key",
+  ]);
+  assertEquals(runB({ "bakery.step.key": "alpha" }).invalid, [
+    "bakery.step.key",
+  ]);
+  assertEquals(runB({ "bakery.step.key": "beta" }).invalid, []);
+  // A run's ids replace the base's; they do not add to them.
+  assertEquals(runA({ "bakery.step.key": "shared" }).invalid, [
+    "bakery.step.key",
+  ]);
+  assertEquals(base({ "bakery.step.key": "shared" }).invalid, []);
+  assertEquals(base({ "bakery.step.key": "alpha" }).invalid, [
+    "bakery.step.key",
+  ]);
+  // The other vocabularies come along unchanged.
+  assertEquals(
+    runA({ "bakery.action": "installation.seats.get" }).invalid,
+    [],
+  );
+  // The result can narrow again, and the ids are copied.
+  const source = new Set(["gamma"]);
+  const runC = runA.withStepIds(source);
+  source.add("delta");
+  assertEquals(runC({ "bakery.step.key": "delta" }).invalid, [
+    "bakery.step.key",
+  ]);
+  assertEquals(runC({ "bakery.step.key": "gamma" }).invalid, []);
+  // A bad id is refused here too.
+  let threw = false;
+  try {
+    base.withStepIds(["NotAnId"]);
+  } catch (error) {
+    threw = error instanceof RangeError;
+  }
+  assert(threw);
+});
+
+Deno.test("the step-key grammar is the one the server and the compiler enforce", async () => {
+  // They declare it privately, so the only way to notice drift is to read the
+  // sources. A change to any of them has to be made here as well.
+  const checks: Array<[string, string]> = [
+    [
+      "../../apps/server/src/modules/work/run-steps.ts",
+      `const STEP_ID_PATTERN = ${STEP_ID_SEGMENT};`,
+    ],
+    [
+      "../../apps/server/src/modules/workflows/validation.ts",
+      `const STEP_ID_PATTERN = ${STEP_ID_SEGMENT};`,
+    ],
+    [
+      "../../packages/contracts/src/workflow-compiler/plan.ts",
+      `const SEGMENT = ${STEP_KEY_SEGMENT};`,
+    ],
+  ];
+  for (const [file, declaration] of checks) {
     const source = await Deno.readTextFile(new URL(file, import.meta.url));
     assert(
       source.includes(declaration),
@@ -539,6 +777,52 @@ Deno.test("a vocabulary of anything but short names is refused when it is built"
   assert(tooMany, "an oversized vocabulary must be refused");
 });
 
+Deno.test("a vocabulary that never ends, or repeats one name forever, is stopped by counting every item it yields", () => {
+  for (
+    const key of [
+      "actions",
+      "providerCategories",
+      "outcomes",
+      "stepIds",
+    ] as const
+  ) {
+    let pulled = 0;
+    const endless = (function* () {
+      for (;;) {
+        pulled += 1;
+        // Stand-in for a hang: the unfixed code would loop here for ever.
+        if (pulled > MAX_VOCABULARY_ENTRIES * 10) {
+          throw new Error("the generator was pulled without bound");
+        }
+        yield "build";
+      }
+    })();
+    let error: unknown;
+    try {
+      createTelemetryRedactor({ [key]: endless });
+    } catch (caught) {
+      error = caught;
+    }
+    assert(error instanceof RangeError, `${key}: ${String(error)}`);
+    assert(
+      pulled <= MAX_VOCABULARY_ENTRIES + 1,
+      `${key}: pulled ${pulled} items before stopping`,
+    );
+  }
+});
+
+Deno.test("duplicates count toward the vocabulary limit, and the limit itself is allowed", () => {
+  const same = (count: number) => Array.from({ length: count }, () => "build");
+  createTelemetryRedactor({ stepIds: same(MAX_VOCABULARY_ENTRIES) });
+  let threw = false;
+  try {
+    createTelemetryRedactor({ stepIds: same(MAX_VOCABULARY_ENTRIES + 1) });
+  } catch (error) {
+    threw = error instanceof RangeError;
+  }
+  assert(threw, "one item past the limit must be refused even when it repeats");
+});
+
 Deno.test("the real action registry and fault catalog work as vocabularies", () => {
   const actions = implementedActionIds();
   const outcomes = Object.keys(FAULTS);
@@ -636,6 +920,21 @@ Deno.test("redaction never throws into the code that is being observed", () => {
   }
   // Other attributes survive a getter that fails, so one bad field costs one field.
   assertEquals(redact(hostile).attributes["bakery.run.id"], uuid);
+});
+
+Deno.test("a revoked proxy, as the record or as a value, is refused without throwing", () => {
+  const revoked = Proxy.revocable({}, {});
+  revoked.revoke();
+  const result = redact(revoked.proxy);
+  assertEquals(result.attributes, {});
+  assertEquals(result.invalid, []);
+  const revokedArray = Proxy.revocable([], {});
+  revokedArray.revoke();
+  assertEquals(redact(revokedArray.proxy).attributes, {});
+  // As a value of a registered field it is just a wrong value.
+  assertEquals(redact({ "bakery.task.id": revoked.proxy }).invalid, [
+    "bakery.task.id",
+  ]);
 });
 
 Deno.test("symbol keys, inherited properties and a __proto__ key carry nothing", () => {
