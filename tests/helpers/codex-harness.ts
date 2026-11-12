@@ -1,4 +1,3 @@
-import { userInfo } from "node:os";
 import { isAbsolute, join, resolve, sep } from "node:path";
 import {
   harnessAvailable,
@@ -53,13 +52,33 @@ function realPathOrResolved(path: string): string {
 /** The account's own home directory, which HOME may not name (unset, or elsewhere). */
 type AccountHome = () => string | undefined;
 
-const accountHomeDirectory: AccountHome = () => {
+/**
+ * The home directory the account database gives the current user. It reads the
+ * passwd entry for `Deno.uid()` and needs only `sys:uid`, which every lane
+ * grants; `os.userInfo()` is not used because it also needs `sys:gid`, which no
+ * lane grants, so it throws there. When the home cannot be found (no entry,
+ * unreadable file, a missing permission) it returns `undefined` and the gate
+ * refuses: a check that quietly does nothing is worse than none.
+ */
+export const accountHomeDirectory: AccountHome = () => {
   try {
-    return userInfo().homedir || undefined;
+    const uid = Deno.uid();
+    if (uid === null) return undefined;
+    for (const line of Deno.readTextFileSync("/etc/passwd").split("\n")) {
+      const fields = line.split(":");
+      if (fields.length >= 6 && fields[2] === String(uid) && fields[5]) {
+        return fields[5];
+      }
+    }
   } catch {
-    return undefined;
+    // Not readable under this lane's permissions.
   }
+  return undefined;
 };
+
+/** The metadata of the dedicated directory's auth.json, without following a link. */
+type FileInfoOf = (path: string) => Deno.FileInfo;
+const lstatFile: FileInfoOf = (path) => Deno.lstatSync(path);
 
 /** Every place the operator's own Codex login can be named. */
 function operatorLoginDirectories(
@@ -122,6 +141,7 @@ function isOperatorAuthFile(
 function dedicatedDirectory(
   env: EnvReader,
   accountHome: AccountHome,
+  fileInfo: FileInfoOf,
 ): { readonly dir: string } | { readonly reason: string } {
   const raw = env(CODEX_TEST_AUTH_DIR_ENV)?.trim();
   if (!raw) {
@@ -143,6 +163,13 @@ function dedicatedDirectory(
       reason: `${CODEX_TEST_AUTH_DIR_ENV} is not an existing directory`,
     };
   }
+  if (!accountHome()?.trim()) {
+    return {
+      reason: `${CODEX_TEST_AUTH_DIR_ENV} cannot be checked: the account's ` +
+        "home directory could not be found, so the operator's login cannot be " +
+        "told from a dedicated directory",
+    };
+  }
   if (isOperatorCodexLogin(real, env, accountHome)) {
     return {
       reason: `${CODEX_TEST_AUTH_DIR_ENV} is the operator's own Codex login ` +
@@ -153,7 +180,7 @@ function dedicatedDirectory(
   try {
     // lstat: a link is looked at, not followed. The login file reached through
     // a symlink or a second hard link is still the operator's login.
-    info = Deno.lstatSync(join(real, AUTH_FILE));
+    info = fileInfo(join(real, AUTH_FILE));
   } catch {
     return { reason: `${CODEX_TEST_AUTH_DIR_ENV} holds no ${AUTH_FILE}` };
   }
@@ -192,8 +219,9 @@ export async function codexTestCredentialGate(
   probe: CodexProbe,
   executable: string,
   accountHome: AccountHome = accountHomeDirectory,
+  fileInfo: FileInfoOf = lstatFile,
 ): Promise<string | true> {
-  const resolved = dedicatedDirectory(env, accountHome);
+  const resolved = dedicatedDirectory(env, accountHome, fileInfo);
   if ("reason" in resolved) return resolved.reason;
   return await probe(executable, {
     HOME: resolved.dir,
@@ -219,8 +247,9 @@ export function codexHarnessAvailable(): Promise<string | true> {
 export function dedicatedCodexTestAuthSource(
   env: EnvReader = processEnv,
   accountHome: AccountHome = accountHomeDirectory,
+  fileInfo: FileInfoOf = lstatFile,
 ): string {
-  const resolved = dedicatedDirectory(env, accountHome);
+  const resolved = dedicatedDirectory(env, accountHome, fileInfo);
   if ("reason" in resolved) {
     throw new Error(`CODEX_TEST_CREDENTIALS_REQUIRED: ${resolved.reason}`);
   }

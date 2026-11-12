@@ -2,9 +2,27 @@ import { assert, assertEquals, assertThrows } from "@std/assert";
 import { join } from "node:path";
 import {
   CODEX_TEST_AUTH_DIR_ENV,
-  codexTestCredentialGate,
-  dedicatedCodexTestAuthSource,
+  codexTestCredentialGate as gateWithAccount,
+  dedicatedCodexTestAuthSource as sourceWithAccount,
 } from "../helpers/codex-harness.ts";
+
+// These cases must never consult the real account: a gate that finds the real
+// home would look at the real ~/.codex path. They use a neutral fake home unless
+// a case passes its own. The real lookup is tested under the lane's exact
+// permissions in tests/rails/codex-test-credentials_test.ts.
+const NEUTRAL_HOME = () => "/nonexistent-account-home";
+const codexTestCredentialGate = (
+  env: Parameters<typeof gateWithAccount>[0],
+  probe: Parameters<typeof gateWithAccount>[1],
+  executable: string,
+  accountHome: Parameters<typeof gateWithAccount>[3] = NEUTRAL_HOME,
+  fileInfo?: Parameters<typeof gateWithAccount>[4],
+) => gateWithAccount(env, probe, executable, accountHome, fileInfo);
+const dedicatedCodexTestAuthSource = (
+  env: Parameters<typeof sourceWithAccount>[0],
+  accountHome: Parameters<typeof sourceWithAccount>[1] = NEUTRAL_HOME,
+  fileInfo?: Parameters<typeof sourceWithAccount>[2],
+) => sourceWithAccount(env, accountHome, fileInfo);
 
 // #207: the real-Codex cases used to run whenever a `codex` executable
 // resolved, against the operator's own login ($HOME/.codex by default), so a
@@ -415,5 +433,145 @@ Deno.test("the login is known even when HOME is unset or points elsewhere", asyn
     }
   } finally {
     await Deno.remove(operator.home, { recursive: true });
+  }
+});
+
+// --- QA round 2
+
+Deno.test("an account home that cannot be found fails closed: the opt-in is refused, not waved through", async () => {
+  const dedicated = await dedicatedDirectory();
+  try {
+    const env = {
+      HOME: "/nonexistent-home",
+      [CODEX_TEST_AUTH_DIR_ENV]: dedicated,
+    };
+    for (const missing of [() => undefined, () => "", () => "   "]) {
+      const spy = spyProbe();
+      const result = await codexTestCredentialGate(
+        reader(env),
+        spy.probe,
+        EXECUTABLE,
+        missing,
+      );
+      assert(
+        typeof result === "string" && result.includes("home directory"),
+        `an unknown account home was accepted: ${result}`,
+      );
+      assertEquals(spy.calls.length, 0);
+      assertThrows(
+        () => dedicatedCodexTestAuthSource(reader(env), missing),
+        Error,
+      );
+    }
+    // With a home it can find, the same directory is fine.
+    assertEquals(
+      await codexTestCredentialGate(
+        reader(env),
+        spyProbe(true).probe,
+        EXECUTABLE,
+      ),
+      true,
+    );
+  } finally {
+    await Deno.remove(dedicated, { recursive: true });
+  }
+});
+
+Deno.test("HOME alone names the login: no other variable is needed to refuse it", async () => {
+  const operator = await sentinelOperator();
+  try {
+    // Only HOME is set; CODEX_HOME and BAKERY_CODEX_AUTH_SOURCE_DIR are not.
+    const homeOnly: Env = { HOME: operator.home };
+    const asDirectory = {
+      ...homeOnly,
+      [CODEX_TEST_AUTH_DIR_ENV]: operator.login,
+    };
+    const spy = spyProbe();
+    const result = await codexTestCredentialGate(
+      reader(asDirectory),
+      spy.probe,
+      EXECUTABLE,
+    );
+    assert(
+      typeof result === "string" && result.includes("operator's own"),
+      String(result),
+    );
+    assertEquals(spy.calls.length, 0);
+
+    // And a hard link to its login file, with HOME the only way to find it.
+    const linked = await Deno.makeTempDir({ prefix: "bakery-home-only-" });
+    try {
+      await Deno.link(
+        join(operator.login, "auth.json"),
+        join(linked, "auth.json"),
+      );
+      const result2 = await codexTestCredentialGate(
+        reader({ ...homeOnly, [CODEX_TEST_AUTH_DIR_ENV]: linked }),
+        spy.probe,
+        EXECUTABLE,
+      );
+      assert(
+        typeof result2 === "string",
+        "a hard link to the login file was accepted",
+      );
+      assertEquals(spy.calls.length, 0);
+    } finally {
+      await Deno.remove(linked, { recursive: true });
+    }
+  } finally {
+    await Deno.remove(operator.home, { recursive: true });
+  }
+});
+
+Deno.test("a file that is the operator's own by identity is refused even when it has one link (a bind mount)", async () => {
+  // Only identity catches this: a bind mount of the login file gives it a second
+  // path and no second link. The file-info seam reports the operator's own
+  // device and inode for the dedicated path, as such a mount would.
+  const operator = await sentinelOperator();
+  const dedicated = await dedicatedDirectory();
+  try {
+    const operatorFile = Deno.statSync(join(operator.login, "auth.json"));
+    const bindMounted = () => ({
+      ...operatorFile,
+      nlink: 1,
+      isFile: true,
+      isSymlink: false,
+    });
+    const env = { ...operator.env, [CODEX_TEST_AUTH_DIR_ENV]: dedicated };
+    const spy = spyProbe();
+    const result = await codexTestCredentialGate(
+      reader(env),
+      spy.probe,
+      EXECUTABLE,
+      NEUTRAL_HOME,
+      bindMounted as never,
+    );
+    assert(
+      typeof result === "string" &&
+        result.includes("operator's own login file"),
+      String(result),
+    );
+    assertEquals(spy.calls.length, 0);
+    assertThrows(
+      () =>
+        dedicatedCodexTestAuthSource(
+          reader(env),
+          NEUTRAL_HOME,
+          bindMounted as never,
+        ),
+      Error,
+    );
+    // The control: the dedicated directory's own file is accepted.
+    assertEquals(
+      await codexTestCredentialGate(
+        reader(env),
+        spyProbe(true).probe,
+        EXECUTABLE,
+      ),
+      true,
+    );
+  } finally {
+    await Deno.remove(operator.home, { recursive: true });
+    await Deno.remove(dedicated, { recursive: true });
   }
 });
