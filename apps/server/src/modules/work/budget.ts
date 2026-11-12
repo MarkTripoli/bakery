@@ -1,4 +1,7 @@
-import { workerActionCapabilities } from "@bakery/contracts/contracts";
+import {
+  WORKFLOW_ACTION_METADATA,
+  type WorkflowActionName,
+} from "@bakery/contracts/workflow-action-registry";
 import type {
   BillingConfig,
   ContractOutput,
@@ -229,8 +232,18 @@ export async function findTrustedPricingSnapshot(
   return result.rows[0]?.id ?? null;
 }
 
+/**
+ * True when the action runs a model. The action registry is the one source of
+ * truth for this, the same one the workflow compiler reads to decide which
+ * steps may select an agent version, so the budget and the executor can never
+ * disagree with it. An unregistered action is refused, not assumed free.
+ */
 export function isModelAction(action: string): boolean {
-  return workerActionCapabilities(action).includes("model");
+  if (!Object.hasOwn(WORKFLOW_ACTION_METADATA, action)) {
+    throw new Error(`unsupported workflow action: ${action}`);
+  }
+  return WORKFLOW_ACTION_METADATA[action as WorkflowActionName].capabilities
+    .includes("model");
 }
 
 function requirePolicy(policy: BudgetPolicy | undefined): BudgetPolicy {
