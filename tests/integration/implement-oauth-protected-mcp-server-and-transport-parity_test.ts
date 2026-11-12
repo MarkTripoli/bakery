@@ -118,6 +118,18 @@ Deno.test("a pre-registered client uses PKCE, calls tools, is listed, and revoke
       "bakery_artifactVersions_list",
       "bakery_artifacts_get",
       "bakery_artifacts_list",
+      "bakery_conversationTurns_cancel",
+      "bakery_conversationTurns_get",
+      "bakery_conversationTurns_list",
+      "bakery_conversations_create",
+      "bakery_conversations_get",
+      "bakery_conversations_list",
+      "bakery_conversations_update",
+      "bakery_messages_create",
+      "bakery_messages_list",
+      "bakery_questions_answer",
+      "bakery_questions_get",
+      "bakery_questions_list",
       "bakery_repositories_get",
       "bakery_repositories_list",
       "bakery_repositoryRulePreviews_createForRepository",
@@ -1103,6 +1115,91 @@ Deno.test("artifact content reaches MCP only as bounded text or a reference, nev
       [principalId],
     );
   } finally {
+    await cleanupOAuth(fixture, seeded.emails, clientIds);
+    await fixture.close();
+  }
+});
+
+Deno.test("conversation tools run the REST operation: an MCP-created conversation reads back identically", async () => {
+  const fixture = await openAuthFixture();
+  const seeded = await seed(fixture, crypto.randomUUID(), false);
+  const clientIds: string[] = [];
+  try {
+    const clientId = await registerTestClient(fixture);
+    clientIds.push(clientId);
+    const { accessToken } = await connectClient(fixture, {
+      cookie: seeded.adminCookie,
+      clientId,
+    });
+    const tools = await listTools(fixture, accessToken);
+    for (
+      const name of [
+        "bakery_conversations_create",
+        "bakery_conversations_get",
+        "bakery_conversations_list",
+        "bakery_messages_list",
+        "bakery_questions_list",
+      ]
+    ) assert(tools.includes(name), name);
+
+    const key = crypto.randomUUID();
+    const created = await tool(
+      fixture,
+      accessToken,
+      "bakery_conversations_create",
+      {
+        title: "Planned over MCP",
+        idempotencyKey: key,
+      },
+    );
+    assertEquals(created.isError, undefined, JSON.stringify(created));
+    assertEquals(created.structuredContent?.status, 201);
+    const body = created.structuredContent!.body as Record<string, unknown>;
+    const id = ((body.conversation as { id?: string } | undefined)?.id ??
+      body.id) as string;
+    assert(typeof id === "string", JSON.stringify(body));
+    // Same key and input replays the original result.
+    const replay = await tool(
+      fixture,
+      accessToken,
+      "bakery_conversations_create",
+      {
+        title: "Planned over MCP",
+        idempotencyKey: key,
+      },
+    );
+    assertEquals(replay.structuredContent, created.structuredContent);
+
+    const rest = await call(
+      fixture,
+      "GET",
+      `/v1/conversations/${id}`,
+      seeded.adminCookie,
+      { headers: { "bakery-organization-id": seeded.organizationId } },
+    );
+    assertEquals(rest.status, 200);
+    const mcp = await tool(fixture, accessToken, "bakery_conversations_get", {
+      id,
+    });
+    assertEquals(mcp.structuredContent?.body, await rest.json());
+    // An unknown conversation is the REST fault code, as a tool error.
+    const unknown = await tool(
+      fixture,
+      accessToken,
+      "bakery_conversations_get",
+      {
+        id: crypto.randomUUID(),
+      },
+    );
+    assertEquals(unknown.isError, true);
+    assertEquals(
+      unknown.structuredContent?.problem?.code,
+      "RESOURCE_NOT_FOUND",
+    );
+  } finally {
+    await fixture.pgDatabase.query(
+      "delete from bakery.conversations where title = 'Planned over MCP'",
+    );
     await cleanupOAuth(fixture, seeded.emails, clientIds);
     await fixture.close();
   }
