@@ -1391,6 +1391,10 @@ Deno.test("an outside awaiter fed by the sink cannot starve timers", async () =>
     LIMIT,
   );
   await until(() => timerFiredAtCall >= 0, "an ordinary 20 ms timer", 10_000);
+  // How many sink calls fit into 20 ms belongs to the machine: wait for the
+  // work (the feeder is still running) instead of asserting it happened in the
+  // time the timer took.
+  await until(() => calls > 3, "the sink to be called a few times", 10_000);
   await feeder.stop();
   await exporter.close(100);
   assert(calls > 3, `the exporter made progress: ${calls} sends`);
