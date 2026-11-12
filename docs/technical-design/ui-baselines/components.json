@@ -1,5 +1,5 @@
 {
-  "revision": "80798081a8f49b51f71c3dbf20b5bd43eb20f1ef139b3f3978b2eec7a844bba7",
+  "revision": "1258df6cecf8feb0a0adeb8df07744e5bae2499d9b0749f784ee1b33d3de0638",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -6996,6 +6996,138 @@
           "desktop-light-fine"
         ]
       }
+    },
+    {
+      "id": "ui.helpTip",
+      "name": "HelpTip",
+      "description": "Explains the label it sits after: an information button that shows its help text on hover, focus and tap.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/HelpTip",
+      "usage": {
+        "whenToUse": "Explain a column header, a term or a value in place, one tip per label.",
+        "whenNotToUse": "Do not hide instructions a person needs to finish the task, or the only accessible name or error message.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "The explanation is essential to the task",
+            "use": "ui.inlineNotice"
+          },
+          {
+            "when": "A familiar compact control needs a short name",
+            "use": "ui.tooltip"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "button",
+        "accessibleName": "aria-label",
+        "keyboard": [
+          "Enter/Space or a tap opens the help; hover and focus show it",
+          "Escape dismisses it; leaving the button closes it"
+        ],
+        "targetSize": "min 44px (coarse pointer)",
+        "notes": "The help text describes the button through aria-describedby; it is not the button's name and is never the only way to do the task."
+      },
+      "tokens": [
+        "--color-fg",
+        "--color-fg-muted",
+        "--space-0",
+        "--space-1",
+        "--space-8",
+        "--target-min"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "closed",
+        "open",
+        "focus"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises the documented HelpTip states across required contexts: closed, open on hover and focused.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "closed",
+            "open",
+            "focus"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.auth"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.helpTip.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.helpTip.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.helpTip.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the #65 UX design comment (section E amendment, 2026-11-12); no Paper frame names it."
     },
     {
       "id": "ui.popover",

@@ -245,6 +245,30 @@
   display: none;
 }
 
+/* HelpTip: the information button after a label. Its box is the pointer
+   target (28px fine, 44px coarse); the glyph stays 16px and muted until the
+   button is hovered or focused. The text is a tooltip up to 320px wide. */
+.ui-help-tip {
+  display: inline-flex;
+  margin-inline-start: var(--space-1);
+  vertical-align: middle;
+}
+.ui-help-tip .ui-icon-button {
+  block-size: var(--target-min);
+  color: var(--color-fg-muted);
+  inline-size: var(--target-min);
+  min-block-size: var(--target-min);
+  padding: var(--space-0);
+}
+.ui-help-tip .ui-icon-button:hover,
+.ui-help-tip .ui-icon-button:focus-visible {
+  color: var(--color-fg);
+}
+.ui-help-tip .ui-tooltip__content {
+  inline-size: max-content;
+  max-inline-size: min(320px, calc(100vw - var(--space-8)));
+  text-align: start;
+}
 .ui-popover {
   display: inline-block;
   max-inline-size: 100%;
