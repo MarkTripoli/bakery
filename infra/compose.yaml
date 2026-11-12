@@ -38,6 +38,18 @@ services:
 
   postgres:
     image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
+    # Local and test stacks only (production Postgres is configured elsewhere):
+    # commits are acknowledged before their WAL flush. On a shared developer
+    # disk a durable flush can take seconds (#275: fdatasync ~2 s/op measured
+    # on the btrfs host), which stalls every write commit; this keeps commits
+    # visible to all sessions at once and loses at most the last ~0.6 s of
+    # commits only if Postgres itself or the host crashes. App-crash recovery
+    # proofs are unaffected. BAKERY_LOCAL_POSTGRES_SYNCHRONOUS_COMMIT=on
+    # restores durable commits.
+    command:
+      - postgres
+      - -c
+      - synchronous_commit=${BAKERY_LOCAL_POSTGRES_SYNCHRONOUS_COMMIT:-off}
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${BAKERY_LOCAL_POSTGRES_PASSWORD:-bakery-local-postgres}
