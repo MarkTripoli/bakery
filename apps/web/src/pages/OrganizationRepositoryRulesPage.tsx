@@ -1,6 +1,6 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { MessageKey } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
@@ -22,6 +22,7 @@ import {
 } from "./repository-rules/presentation.ts";
 import { useRulesDraft } from "./repository-rules/draft.ts";
 import { LeaveGuard } from "./repository-rules/leave-guard.tsx";
+import { ReviewPublishDialog } from "./repository-rules/ReviewPublishDialog.tsx";
 import { useRulesScope } from "./repository-rules/use-rules-scope.ts";
 
 /** How many characters of a digest the page shows; the full value is the title. */
@@ -67,6 +68,18 @@ export function OrganizationRepositoryRulesPage() {
   const drafts = useRulesDraft(rulesScope, data?.revision, data?.entries);
   const [discarding, setDiscarding] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  // The revision just published, until the banner is dismissed.
+  const [published, setPublished] = useState<number | null>(null);
+  // After a publish the heading takes focus: it replaces what the person was doing.
+  useEffect(() => {
+    if (published === null) return;
+    const heading = document.querySelector<HTMLElement>(
+      '[data-testid="org-repository-rules"] h1',
+    );
+    heading?.setAttribute("tabindex", "-1");
+    heading?.focus();
+  }, [published]);
   // The rules as they would be once the draft is published.
   const shown = data ? drafts.entries : [];
   const changedKeys = new Set<string>(drafts.changed);
@@ -158,6 +171,15 @@ export function OrganizationRepositoryRulesPage() {
             {translate("settings.repositoryRules.description")}
           </UI.Text>
         </UI.Stack>
+        {published !== null
+          ? (
+            <UI.AlertBanner onDismiss={() => setPublished(null)} tone="success">
+              {translate("settings.repositoryRules.publish.done", {
+                revision: published,
+              })}
+            </UI.AlertBanner>
+          )
+          : null}
         {shown.length > 0 ? addControl : null}
         {refusal
           ? <UI.AlertBanner tone="information">{refusal}</UI.AlertBanner>
@@ -535,13 +557,9 @@ export function OrganizationRepositoryRulesPage() {
                 revision: drafts.draft.baseRevision,
               })}
               primaryAction={
-                // Review and publish opens the preview dialog (next commit).
-
-
-                  <UI.Button disabled type="button">
-                    {translate("settings.repositoryRules.draft.review")}
-                  </UI.Button>
-
+                <UI.Button onClick={() => setReviewing(true)} type="button">
+                  {translate("settings.repositoryRules.draft.review")}
+                </UI.Button>
               }
               secondaryAction={
                 <UI.Button
@@ -555,6 +573,22 @@ export function OrganizationRepositoryRulesPage() {
               summary={translate("settings.repositoryRules.draft.summary", {
                 count: drafts.count,
               })}
+            />
+          )
+          : null}
+        {drafts.draft
+          ? (
+            <ReviewPublishDialog
+              baseRevision={drafts.draft.baseRevision}
+              entries={drafts.entries}
+              onOpenChange={setReviewing}
+              onPublished={(revision) => {
+                setReviewing(false);
+                drafts.discard();
+                setPublished(revision);
+              }}
+              open={reviewing}
+              scope={rulesScope}
             />
           )
           : null}
