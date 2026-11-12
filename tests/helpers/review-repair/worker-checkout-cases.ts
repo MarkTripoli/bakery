@@ -230,7 +230,8 @@ export function registerWorkerCheckoutCases(): void {
   );
 
   // The two reads have their own deadlines, so each case fails exactly one of
-  // them and a check on the other cannot cover for a missing one.
+  // them and a check on the other cannot cover for a missing one. A bound of
+  // zero has already passed, so the miss does not depend on how fast git is.
   for (
     const [read, limits, detail] of [
       ["stat", { statMs: 0 }, "list of changed files"],

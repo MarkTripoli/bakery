@@ -110,9 +110,13 @@ async function publishReceipt(
 }
 
 /** Runs one funded job to a settled result; `after` runs with the identifiers. */
+/** Looks at the world between a call and its replay, which one observation at the end cannot. */
+type Checkpoints = { afterRenewal?: () => void; afterResult?: () => void };
+
 async function runJob(
   fixture: WorkerFixture,
   stepKey: string,
+  checkpoints: Checkpoints = {},
 ): Promise<
   { observation: Observation; attemptId: string; leaseToken: string }
 > {
@@ -143,6 +147,7 @@ async function runJob(
     { idempotencyKey: renewalKey },
   );
   await renewal.arrayBuffer();
+  checkpoints.afterRenewal?.();
   const renewalReplay = await workerRequest(
     fixture,
     worker.credential,
@@ -171,6 +176,7 @@ async function runJob(
     resultKey,
   );
   await result.arrayBuffer();
+  checkpoints.afterResult?.();
   const resultReplay = await postWorkerResult(
     fixture,
     worker,
@@ -229,10 +235,12 @@ async function runJob(
 async function observe(
   telemetry: ExecutionTelemetry | undefined,
   stepKey: string,
+  checkpoints: Checkpoints = {},
 ) {
-  return await withWorkerFixture((fixture) => runJob(fixture, stepKey), {
-    telemetry,
-  });
+  return await withWorkerFixture(
+    (fixture) => runJob(fixture, stepKey, checkpoints),
+    { telemetry },
+  );
 }
 
 const EXPECTED: Observation = {
@@ -388,17 +396,42 @@ Deno.test("AC1: with a telemetry that itself throws, rejects or hangs when told,
 
 Deno.test("what a healthy sink receives: three events, ids and a closed outcome, once each despite replays, and no token", async () => {
   const sent: TelemetryRecord[] = [];
-  const telemetry = createServerTelemetry({
+  const exporter = createServerTelemetry({
     send: (batch) => {
       sent.push(...batch);
     },
   });
+  // What the routes said, in the order they said it, as they said it.
+  const told: string[] = [];
+  const telemetry: ExecutionTelemetry = {
+    event: (name, attributes) => {
+      told.push(name);
+      exporter.event(name, attributes);
+    },
+  };
   const { observation, attemptId, leaseToken } = await observe(
     telemetry,
     "ac1-healthy",
+    {
+      // Before the replays. Emitting on the replay instead of on the first call
+      // would leave the same three events at the end, and only this can tell.
+      afterRenewal: () =>
+        assertEquals(
+          told,
+          ["lease.renewed"],
+          "the first renewal told telemetry",
+        ),
+      afterResult: () =>
+        assertEquals(
+          [...told].sort(),
+          ["job.completed", "lease.renewed", "usage.settled"],
+          "the first result told telemetry its completion and its settlement",
+        ),
+    },
   );
   assertEquals(observation, EXPECTED);
-  await telemetry.close(1_000);
+  assertEquals(told.length, 3, "the replays told it nothing more");
+  await exporter.close(1_000);
   const events = sent.flatMap((record) =>
     record.kind === "event" ? [record] : []
   );
