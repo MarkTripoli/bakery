@@ -203,10 +203,16 @@ services:
               set -- "$$@" "--allow-read=$$fixture_path"
             fi
           done
-          exec deno run "$$@" --allow-env --allow-net --allow-sys=uid apps/server/src/main.ts
+          # Draft isolation starts each Loro worker through one fixed launcher
+          # (no systemd in the container). It is the only executable the
+          # server may run: it takes one UUID and execs Deno on the fixed
+          # worker module with pinned flags. Granting Deno itself would allow
+          # anything through `deno eval`.
+          exec deno run "$$@" --allow-env --allow-net --allow-sys=uid --allow-run=/workspace/infra/draft-worker/launch.sh apps/server/src/main.ts
     environment:
       BAKERY_ENV: ${BAKERY_ENV:-development}
       BAKERY_SERVER_HOST: 0.0.0.0
+      BAKERY_DRAFT_ISOLATION: process
       BAKERY_SERVER_SENTRY_DSN: ${BAKERY_SERVER_SENTRY_DSN:-}
       BAKERY_SENTRY_ENABLED: ${BAKERY_SENTRY_ENABLED:-}
       BAKERY_SENTRY_ENVIRONMENT: ${BAKERY_SENTRY_ENVIRONMENT:-}
