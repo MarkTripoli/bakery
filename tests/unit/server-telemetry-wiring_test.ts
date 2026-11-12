@@ -1,4 +1,4 @@
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertThrows } from "@std/assert";
 import {
   createServerTelemetry,
   SERVER_TELEMETRY_CLOSE_MS,
@@ -315,6 +315,76 @@ Deno.test("emitExecutionEvent handles a promise the telemetry returns, so a reje
   assertEquals(seen, []);
 });
 
+Deno.test("emitExecutionEvent never calls a foreign then, so no hostile promise shape leaves a rejection unhandled", async () => {
+  const seen: unknown[] = [];
+  const onUnhandled = (event: PromiseRejectionEvent) => {
+    seen.push(event.reason);
+    event.preventDefault();
+  };
+  // Every `then` below, if called, returns a promise that rejects and that
+  // nobody holds: the shapes a handler attached by calling `then` cannot cover.
+  const thenCalls: string[] = [];
+  class HostilePromise<T> extends Promise<T> {
+    override then<A = T, B = never>(): Promise<A | B> {
+      thenCalls.push("subclass then");
+      return Promise.reject(new Error("subclass then rejects"));
+    }
+  }
+  const ownThen = Promise.reject(new Error("rejected, with its own then"));
+  Object.defineProperty(ownThen, "then", {
+    value: () => {
+      thenCalls.push("own-property then");
+      return Promise.reject(new Error("own-property then rejects"));
+    },
+  });
+  const ports: Record<string, unknown> = {
+    "a thenable whose then returns a rejected promise": {
+      then: () => {
+        thenCalls.push("thenable then");
+        return Promise.reject(new Error("thenable then rejects"));
+      },
+    },
+    "a thenable whose then is an async function that throws": {
+      then: async () => {
+        thenCalls.push("async then");
+        await null;
+        throw new Error("async then throws");
+      },
+    },
+    "a rejected Promise subclass whose then returns a rejected promise":
+      HostilePromise
+        .reject(new Error("rejected subclass")),
+    "a rejected Promise with its own then property": ownThen,
+  };
+  globalThis.addEventListener("unhandledrejection", onUnhandled);
+  try {
+    for (const [shape, returned] of Object.entries(ports)) {
+      emitExecutionEvent(
+        { event: () => returned as never },
+        "job.completed",
+        {},
+      );
+      assertEquals(thenCalls, [], `${shape}: its then was called`);
+    }
+    await pause(50);
+    assertEquals(seen, [], "a hostile shape left a rejection unhandled");
+    // The control: with no handler, this runtime does report the rejection, so
+    // the empty list above means something.
+    void Promise.reject(new Error("control"));
+    await pause(50);
+    assertEquals(
+      seen.length,
+      1,
+      "the detector did not see an unhandled rejection",
+    );
+  } finally {
+    // Whatever a failing run left pending is reported to this listener, not to
+    // the runner, so the assertion that failed is the one that is shown.
+    await pause(50);
+    globalThis.removeEventListener("unhandledrejection", onUnhandled);
+  }
+});
+
 Deno.test("the event names and outcome words are part of what sinks key on, so they are pinned as literals", () => {
   assertEquals({ ...EXECUTION_TELEMETRY_EVENTS }, {
     leaseRenewed: "lease.renewed",
@@ -322,4 +392,17 @@ Deno.test("the event names and outcome words are part of what sinks key on, so t
     usageSettled: "usage.settled",
   });
   assertEquals([...JOB_OUTCOMES], ["completed", "failed", "canceled"]);
+  // And they cannot be changed afterwards by anything that imports them.
+  assert(Object.isFrozen(JOB_OUTCOMES));
+  assert(Object.isFrozen(EXECUTION_TELEMETRY_EVENTS));
+  assertThrows(
+    () => (JOB_OUTCOMES as unknown as string[]).push("lost"),
+    TypeError,
+  );
+  assertThrows(
+    () => {
+      (EXECUTION_TELEMETRY_EVENTS as Record<string, string>).leaseRenewed = "x";
+    },
+    TypeError,
+  );
 });

@@ -49,12 +49,14 @@ export function emitExecutionEvent(
   try {
     const returned: unknown = telemetry.event(name, attributes);
     // The port returns nothing, but a stand-in written as an async function
-    // would return a promise, and an unhandled rejection ends a Node process.
-    if (
-      typeof returned === "object" && returned !== null &&
-      typeof (returned as PromiseLike<unknown>).then === "function"
-    ) {
-      (returned as PromiseLike<unknown>).then(undefined, () => {});
+    // would return a promise, and an unhandled rejection ends a Node or Deno
+    // process. Only a genuine Promise gets a handler, through the built-in
+    // `then`: a foreign `then` is never called, because whatever it returns (a
+    // rejected promise, an async function's promise) is a promise nobody holds,
+    // and a subclass's own `then` is no safer. A thenable that is not a Promise
+    // is left alone, so it cannot reject anything.
+    if (returned instanceof Promise) {
+      Promise.prototype.then.call(returned, undefined, () => {});
     }
   } catch {
     // Telemetry never reaches the caller.
