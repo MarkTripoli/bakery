@@ -1338,3 +1338,141 @@ Deno.test("the exporter loads and holds its guarantees under Node's type strippi
   assertEquals(result.after, result.atClose, "no report after close");
   assertEquals(result.unhandled, [], "no unhandled rejection under Node");
 });
+
+// ---- #184: a producer that waits on the sink must not starve timers ----------
+// When outer code awaits a promise the sink resolves and then offers again, the
+// next batch used to be taken in the same burst of microtasks as the sink's
+// resolution, so the pump never gave a timer a turn: 200,000 sink calls ran
+// before a 20 ms timer fired, and 5,000,000 blocked timers for up to 119 s. The
+// pump now yields a macrotask between batches.
+
+/** An outside feeder that offers, then waits for the sink to be called. */
+function feedFromOutside(
+  exporter: ReturnType<typeof make<number>>,
+  calls: () => number,
+  setRelease: (release: () => void) => void,
+  limit: number,
+) {
+  let feeding = true;
+  const done = (async () => {
+    while (feeding && calls() < limit) {
+      const answered = new Promise<void>((resolve) => setRelease(resolve));
+      exporter.offer(1);
+      await answered;
+    }
+  })();
+  return {
+    stop: async () => {
+      feeding = false;
+      await Promise.race([done, pause(200)]);
+    },
+  };
+}
+
+Deno.test("an outside awaiter fed by the sink cannot starve timers", async () => {
+  const LIMIT = 100_000;
+  let calls = 0;
+  let release: (() => void) | undefined;
+  let timerFiredAtCall = -1;
+  const exporter = make<number>(
+    () => {
+      calls += 1;
+      release?.();
+    },
+    { capacity: 5, batchSize: 1, intervalMs: 3, maxAttempts: 1 },
+  );
+  setTimeout(() => {
+    timerFiredAtCall = calls;
+  }, 20);
+  const feeder = feedFromOutside(
+    exporter,
+    () => calls,
+    (r) => release = r,
+    LIMIT,
+  );
+  await until(() => timerFiredAtCall >= 0, "an ordinary 20 ms timer", 10_000);
+  await feeder.stop();
+  await exporter.close(100);
+  assert(calls > 3, `the exporter made progress: ${calls} sends`);
+  assert(
+    timerFiredAtCall < 5_000,
+    `the timer waited for ${timerFiredAtCall} sink calls (the feeder's limit is ${LIMIT})`,
+  );
+  conserved(exporter.stats());
+});
+
+Deno.test("yielding between batches still drains a large backlog in good time", async () => {
+  const exported: number[] = [];
+  const exporter = make<number>(
+    (batch) => {
+      exported.push(...batch);
+    },
+    { capacity: 10_000, batchSize: 100, intervalMs: 1, maxAttempts: 1 },
+  );
+  for (let item = 0; item < 10_000; item += 1) exporter.offer(item);
+  const started = performance.now();
+  await until(
+    () => exporter.stats().exported === 10_000,
+    "the whole backlog",
+    20_000,
+  );
+  const took = performance.now() - started;
+  assertEquals(exported.length, 10_000);
+  assertEquals(exported[0], 0);
+  assertEquals(exported[9_999], 9_999, "in order");
+  assert(took < 8_000, `100 batches of 100 took ${took.toFixed(0)} ms`);
+  await exporter.close(100);
+  conserved(exporter.stats());
+});
+
+Deno.test("a closing exporter does not wait out the yield between batches more than a tick", async () => {
+  let calls = 0;
+  const exporter = make<number>(
+    () => {
+      calls += 1;
+    },
+    { capacity: 1000, batchSize: 1, intervalMs: 1, maxAttempts: 1 },
+  );
+  for (let item = 0; item < 1000; item += 1) exporter.offer(item);
+  const started = performance.now();
+  await exporter.close(5_000);
+  const took = performance.now() - started;
+  assertEquals(calls, 1000, "everything queued was sent before close returned");
+  assert(took < 5_000, `closing took ${took.toFixed(0)} ms`);
+  conserved(exporter.stats());
+});
+
+Deno.test("an outside awaiter fed by a sink that answers and then fails cannot starve timers either", async () => {
+  // The failure branch needs its own yield: a sink that wakes the waiting
+  // producer and then throws drops the batch without ever sending it.
+  const LIMIT = 100_000;
+  let calls = 0;
+  let release: (() => void) | undefined;
+  let timerFiredAtCall = -1;
+  const exporter = make<number>(
+    () => {
+      calls += 1;
+      release?.();
+      throw new Error("down");
+    },
+    { capacity: 5, batchSize: 1, intervalMs: 3, maxAttempts: 1 },
+  );
+  setTimeout(() => {
+    timerFiredAtCall = calls;
+  }, 20);
+  const feeder = feedFromOutside(
+    exporter,
+    () => calls,
+    (r) => release = r,
+    LIMIT,
+  );
+  await until(() => timerFiredAtCall >= 0, "an ordinary 20 ms timer", 10_000);
+  await feeder.stop();
+  await exporter.close(100);
+  assert(exporter.stats().failedBatches > 3, "the batches really failed");
+  assert(
+    timerFiredAtCall < 5_000,
+    `the timer waited for ${timerFiredAtCall} failed sends (the feeder's limit is ${LIMIT})`,
+  );
+  conserved(exporter.stats());
+});
