@@ -26,6 +26,11 @@ export const Contract: StoryObj = {
         trailing={<IconGlyph name="chevron-right" size="small" />}
       />
       <ListRow
+        detail="A detail that runs long keeps its first two lines and ends in an ellipsis, with the whole text as its title, so one row never grows without limit however much it has to say."
+        detailLines={2}
+        title="Northwind long detail"
+      />
+      <ListRow
         detail="Revision 7 · enforced"
         size="tall"
         title="northwind/payments"

@@ -2583,6 +2583,9 @@
   "settings.repositoryRules.history.revision": "⟪Revision {revision}⟫",
   "settings.repositoryRules.history.detail": "⟪{published} · {count, plural, one {# rule} other {# rules}}⟫",
   "settings.repositoryRules.history.loadError": "⟪The revision history could not be loaded. Try again.⟫",
+  "settings.repositoryRules.history.loadMoreError": "⟪Older revisions could not be loaded.⟫",
+  "settings.repositoryRules.history.loading": "⟪Loading revisions.⟫",
+  "settings.repositoryRules.column.actions": "⟪Actions⟫",
   "settings.repositoryRules.edit": "⟪Edit⟫",
   "settings.repositoryRules.edit.named": "⟪Edit {rule}⟫",
   "settings.repositoryRules.add": "⟪Add rule⟫",
@@ -2643,6 +2646,5 @@
   "settings.repositoryRules.editor.error.itemLength": "⟪Each item can be at most {max} characters.⟫",
   "settings.repositoryRules.editor.error.integer": "⟪Enter a whole number between {min} and {max}.⟫",
   "settings.repositoryRules.editor.error.number": "⟪Enter numbers separated by commas.⟫",
-  "settings.repositoryRules.editor.error.textMax": "⟪Use at most {max} characters.⟫",
-  "settings.repositoryRules.column.actions": "⟪Actions⟫"
+  "settings.repositoryRules.editor.error.textMax": "⟪Use at most {max} characters.⟫"
 }

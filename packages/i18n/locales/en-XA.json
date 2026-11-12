@@ -2583,6 +2583,9 @@
   "settings.repositoryRules.history.revision": "⟦Ŕëṽïšïôñ {revision} ŧëšŧ⟧",
   "settings.repositoryRules.history.detail": "⟦{published} · {count, plural, one {# rule} other {# rules}} ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "settings.repositoryRules.history.loadError": "⟦Ŧĥë ŕëṽïšïôñ ĥïšŧôŕÿ çôûļð ñôŧ ƀë ļôàðëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "settings.repositoryRules.history.loadMoreError": "⟦Ôļðëŕ ŕëṽïšïôñš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿŧ⟧",
+  "settings.repositoryRules.history.loading": "⟦Ļôàðïñĝ ŕëṽïšïôñš. ŧëšŧ⟧",
+  "settings.repositoryRules.column.actions": "⟦Àçŧïôñš…⟧",
   "settings.repositoryRules.edit": "⟦Ëðïŧ⟧",
   "settings.repositoryRules.edit.named": "⟦Ëðïŧ {rule} ŧ⟧",
   "settings.repositoryRules.add": "⟦Àðð ŕûļë…⟧",
@@ -2643,6 +2646,5 @@
   "settings.repositoryRules.editor.error.itemLength": "⟦Ëàçĥ ïŧëɱ çàñ ƀë àŧ ɱôšŧ {max} çĥàŕàçŧëŕš. ŧëšŧ çôþÿ ŧë⟧",
   "settings.repositoryRules.editor.error.integer": "⟦Ëñŧëŕ à ŵĥôļë ñûɱƀëŕ ƀëŧŵëëñ {min} àñð {max}. ŧëšŧ çôþÿ ŧëš⟧",
   "settings.repositoryRules.editor.error.number": "⟦Ëñŧëŕ ñûɱƀëŕš šëþàŕàŧëð ƀÿ çôɱɱàš. ŧëšŧ çôþÿ⟧",
-  "settings.repositoryRules.editor.error.textMax": "⟦Ûšë àŧ ɱôšŧ {max} çĥàŕàçŧëŕš. ŧëšŧ çôþ⟧",
-  "settings.repositoryRules.column.actions": "⟦Àçŧïôñš…⟧"
+  "settings.repositoryRules.editor.error.textMax": "⟦Ûšë àŧ ɱôšŧ {max} çĥàŕàçŧëŕš. ŧëšŧ çôþ⟧"
 }

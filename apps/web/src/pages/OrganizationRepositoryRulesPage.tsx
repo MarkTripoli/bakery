@@ -126,9 +126,10 @@ export function OrganizationRepositoryRulesPage() {
   const refusal = waiting && forbidden
     ? translate("settings.repositoryRules.forbidden")
     : null;
-  const history = versions.isSuccess
-    ? versions.data.pages.flatMap((page) => page.items)
-    : [];
+  // Rows already loaded stay on screen whatever a later read does.
+  const history = versions.data?.pages.flatMap((page) => page.items) ?? [];
+  const firstReadFailed = versions.isError && !versions.data;
+  const moreFailed = versions.isFetchNextPageError;
   // A digest never wraps; the whole value is its title.
   const digestText = (value: string) => (
     <UI.DataText truncate title={value}>
@@ -239,6 +240,7 @@ export function OrganizationRepositoryRulesPage() {
                                   { rule: translate(RULE_NAME[row.ruleKey]) },
                                 )}
                                 detail={summarize(row, translate)}
+                                detailLines={2}
                                 onSelect={() =>
                                   openEditor(row.ruleKey)}
                                 title={translate(RULE_NAME[row.ruleKey])}
@@ -287,7 +289,11 @@ export function OrganizationRepositoryRulesPage() {
                                     </UI.Text>
                                     {editedBadge(row)}
                                   </UI.Inline>
-                                  <UI.Text variant="muted">
+                                  <UI.Text
+                                    lines={2}
+                                    title={summarize(row, translate)}
+                                    variant="muted"
+                                  >
                                     {summarize(row, translate)}
                                   </UI.Text>
                                 </UI.Stack>
@@ -359,7 +365,41 @@ export function OrganizationRepositoryRulesPage() {
                               "settings.repositoryRules.history.title",
                             )}
                           </UI.Heading>
-                          {phone && history.length > 0
+                          {phone && versions.isPending
+                            ? (
+                              <div
+                                aria-busy="true"
+                                aria-label={translate(
+                                  "settings.repositoryRules.history.loading",
+                                )}
+                                data-testid="org-rules-history-loading"
+                                role="status"
+                              >
+                                <UI.Stack gap="compact">
+                                  {[0, 1, 2].map((row) => (
+                                    <UI.Skeleton key={row} shape="row" />
+                                  ))}
+                                </UI.Stack>
+                              </div>
+                            )
+                            : firstReadFailed
+                            ? (
+                              <UI.ErrorState
+                                action={
+                                  <UI.Button
+                                    loading={versions.isFetching}
+                                    onClick={() => void versions.refetch()}
+                                    type="button"
+                                  >
+                                    {translate("core.actions.retry")}
+                                  </UI.Button>
+                                }
+                                title={translate(
+                                  "settings.repositoryRules.history.loadError",
+                                )}
+                              />
+                            )
+                            : phone && history.length > 0
                             ? (
                               <div
                                 role="list"
@@ -436,15 +476,34 @@ export function OrganizationRepositoryRulesPage() {
                                 rows={history}
                                 state={versions.isPending
                                   ? "loading"
-                                  : versions.isError
-                                  ? "error"
                                   : history.length === 0
                                   ? "empty"
                                   : "ready"}
                                 variant="table"
                               />
                             )}
-                          {versions.hasNextPage
+                          {moreFailed
+                            ? (
+                              <UI.InlineNotice
+                                action={
+                                  <UI.Button
+                                    loading={versions.isFetchingNextPage}
+                                    onClick={() =>
+                                      void versions.fetchNextPage()}
+                                    type="button"
+                                    variant="secondary"
+                                  >
+                                    {translate("core.actions.retry")}
+                                  </UI.Button>
+                                }
+                                tone="error"
+                              >
+                                {translate(
+                                  "settings.repositoryRules.history.loadMoreError",
+                                )}
+                              </UI.InlineNotice>
+                            )
+                            : versions.hasNextPage
                             ? (
                               <UI.Button
                                 loading={versions.isFetchingNextPage}
