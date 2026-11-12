@@ -84,10 +84,6 @@
     "path": "/installation/settings"
   },
   {
-    "id": "installation-license",
-    "path": "/installation/license"
-  },
-  {
     "id": "installation-audit",
     "path": "/installation/audit"
   },
@@ -110,6 +106,10 @@
   {
     "id": "settings-audit",
     "path": "/settings/audit"
+  },
+  {
+    "id": "settings-organization-sso",
+    "path": "/settings/organization/sso"
   },
   {
     "id": "settings-scim",

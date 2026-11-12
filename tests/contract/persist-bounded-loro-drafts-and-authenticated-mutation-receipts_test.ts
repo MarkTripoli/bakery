@@ -83,12 +83,30 @@ Deno.test("draft edit is strict text-only input with no caller authority or bina
       `${field} crossed the strict public boundary`,
     );
   }
+  // Binary Loro bytes never cross a REST or MCP action. The only
+  // collaboration entry is the WebSocket upgrade, which has no MCP tool.
   assertEquals(
     catalogActions.some((action) =>
-      action.path.includes("collaboration") ||
       action.action.toLowerCase().includes("binary")
     ),
     false,
+  );
+  const collaboration = catalogActions.filter((action) =>
+    action.path.includes("collaboration")
+  );
+  assertEquals(
+    collaboration.map(({ action, method, path, mcp }) => ({
+      action,
+      method,
+      path,
+      mcp,
+    })),
+    [{
+      action: "collaboration.connect",
+      method: "GET",
+      path: "/v1/collaboration",
+      mcp: null,
+    }],
   );
 });
 

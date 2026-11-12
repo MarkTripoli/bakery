@@ -1,13 +1,22 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "d7f0334f9817f570aa4e1fe2d5e66cf03a004ffa"
+    "86dd7889ae8fbd618cd4953635971885841d89c5"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:dc18cc1ed5f027113db82e9883fa59f8d9c8d2c5c710b74886f713f0906bb046",
-  "reason": "#138 contract re-bind by dev-server on 2026-11-11 under owner's standing breaking-change authorization (2026-10-09), main d7f0334f9817f570aa4e1fe2d5e66cf03a004ffa: RepositoryEffectiveRules gains required repositoryVersion, checkers and providerProtection (re-bound after merging main).",
+  "targetCompatibilityDigest": "sha256:1ed6bad0484976eed09deea818a1a340eab2668f5de555c36169c18d611b01a2",
+  "reason": "#138 contract re-bind by dev-server on 2026-11-11 under owner's standing breaking-change authorization (2026-10-09), main 86dd7889ae8fbd618cd4953635971885841d89c5: RepositoryEffectiveRules gains required repositoryVersion, checkers and providerProtection (re-bound after merging main).",
   "priorApprovals": [
+    {
+      "allowBreaking": true,
+      "fromBaseRefs": [
+        "d7f0334f9817f570aa4e1fe2d5e66cf03a004ffa"
+      ],
+      "reason": "#138 contract re-bind by dev-server on 2026-11-11 under owner's standing breaking-change authorization (2026-10-09), main d7f0334f9817f570aa4e1fe2d5e66cf03a004ffa: RepositoryEffectiveRules gains required repositoryVersion, checkers and providerProtection (re-bound after merging main).",
+      "status": "approved",
+      "targetCompatibilityDigest": "sha256:dc18cc1ed5f027113db82e9883fa59f8d9c8d2c5c710b74886f713f0906bb046"
+    },
     {
       "allowBreaking": true,
       "fromBaseRefs": [
