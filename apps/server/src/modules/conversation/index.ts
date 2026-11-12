@@ -52,13 +52,43 @@ function createConversationCommandRunner(): CommandRunner {
   };
 }
 
+/** The conversation action registry; built once and shared by REST and MCP. */
+export function createConversationRegistry(options: {
+  database: PgDatabase;
+  cursorSecret: string;
+}) {
+  const queries = createConversationQueryHandlers(options.cursorSecret);
+  return createConversationActionRegistry(
+    {
+      messagesList: queries.messagesList,
+      messagesCreate: createMessage,
+      turnsList: queries.turnsList,
+      participantsList: queries.participantsList,
+      conversationsList: createConversationsListHandler(options.cursorSecret),
+      conversationsGet: getConversation,
+      conversationsCreate: createConversation,
+      conversationsUpdate: updateConversation,
+      questionsList: createQuestionsListHandler(options.cursorSecret),
+      questionsGet: getQuestion,
+      questionsAnswer: answerQuestion,
+      turnsGet: getConversationTurn,
+      turnsCancel: cancelConversationTurn,
+    },
+    {
+      authorityRunner: new PostgresAuthorityRunner(options.database),
+      commandRunner: createConversationCommandRunner(),
+    },
+  );
+}
+
 export function createConversationRoutes(options: {
   database: PgDatabase;
   browserSession: MiddlewareHandler<{ Variables: AuthVariables }>;
   publicBaseUrl: string;
   cursorSecret: string;
+  /** A registry already shared with MCP; omitted, the routes build their own. */
+  registry?: ReturnType<typeof createConversationRegistry>;
 }) {
-  const queries = createConversationQueryHandlers(options.cursorSecret);
   const app = new Hono<{ Variables: AuthVariables }>();
   app.use("/v1/conversations", options.browserSession);
   app.use("/v1/conversations/*", options.browserSession);
@@ -68,29 +98,7 @@ export function createConversationRoutes(options: {
   app.route(
     "/",
     createApiRouter({
-      registry: createConversationActionRegistry(
-        {
-          messagesList: queries.messagesList,
-          messagesCreate: createMessage,
-          turnsList: queries.turnsList,
-          participantsList: queries.participantsList,
-          conversationsList: createConversationsListHandler(
-            options.cursorSecret,
-          ),
-          conversationsGet: getConversation,
-          conversationsCreate: createConversation,
-          conversationsUpdate: updateConversation,
-          questionsList: createQuestionsListHandler(options.cursorSecret),
-          questionsGet: getQuestion,
-          questionsAnswer: answerQuestion,
-          turnsGet: getConversationTurn,
-          turnsCancel: cancelConversationTurn,
-        },
-        {
-          authorityRunner: new PostgresAuthorityRunner(options.database),
-          commandRunner: createConversationCommandRunner(),
-        },
-      ),
+      registry: options.registry ?? createConversationRegistry(options),
       publicBaseUrl: options.publicBaseUrl,
       createContext: createActionContext,
     }),
