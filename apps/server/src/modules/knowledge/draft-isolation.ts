@@ -1174,8 +1174,10 @@ export function createDraftIsolation(
       "--wait",
       "--quiet",
       `--unit=${unit}`,
-      ...SYSTEMD_UNIT_PROPERTIES,
+      // The per-isolation backstop first, then the fixed list: every unit
+      // property precedes the worker command.
       `--property=RuntimeMaxSec=${runtimeMaxSeconds}s`,
+      ...SYSTEMD_UNIT_PROPERTIES,
       denoPath,
       "run",
       "--cached-only",
