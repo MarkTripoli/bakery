@@ -66,6 +66,44 @@ async function openDraft(
   return (await response.json() as { id: string }).id;
 }
 
+/** Mints a real, live `bky_` access token for the world's first member. */
+async function mintAccessToken(
+  harness: Harness,
+  target: CollaborationWorld,
+): Promise<string> {
+  // Minting needs the admin role; the member stays a browser-session member.
+  const member = target.members[0]!;
+  await harness.fixture.pgDatabase.query(
+    "update bakery.organization_memberships set role='admin' where principal_id=$1",
+    [member.principalId],
+  );
+  await harness.fixture.pgDatabase.query(
+    `update public.member set role='admin' where "userId"=$1`,
+    [member.providerUserId],
+  );
+  const response = await harness.fixture.app.fetch(
+    new Request(`${authTestOrigin}/v1/access-tokens`, {
+      method: "POST",
+      headers: {
+        cookie: target.members[0]!.cookie,
+        origin: authTestOrigin,
+        "content-type": "application/json",
+        "Bakery-Organization-Id": target.organizationId,
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+      body: JSON.stringify({
+        name: "collaboration socket probe",
+        scopes: ["bakery:read"],
+        expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+      }),
+    }),
+  );
+  assertEquals(response.status, 201, await response.clone().text());
+  const { secret } = await response.json() as { secret: string };
+  assert(secret.startsWith("bky_"), "not a Bakery access token");
+  return secret;
+}
+
 async function connect(
   harness: Harness,
   organizationId: string,
@@ -135,12 +173,21 @@ Deno.test("only an assured browser session opens the socket: no bearer token, no
   try {
     const target = await world(harness);
     const member = target.members[0]!;
-    // A bearer access token is not a browser session.
+    // A live Bakery access token is not a browser session: alone, or even
+    // next to a valid session cookie (a bearer never falls back to the
+    // cookie), it cannot open the socket.
+    const minted = await mintAccessToken(harness, target);
     const bearer = await connect(harness, target.organizationId, null, {
-      Authorization: "Bearer bkr_pat_not_a_session_token_000000000000",
+      Authorization: `Bearer ${minted}`,
     });
     assert(!("send" in bearer));
     assertEquals(bearer.status, 401);
+    assertEquals((bearer.body as { code: string }).code, "AUTH_INVALID");
+    const both = await connect(harness, target.organizationId, member.cookie, {
+      Authorization: `Bearer ${minted}`,
+    });
+    assert(!("send" in both));
+    assertEquals(both.status, 401);
     // A session waiting for its second factor is refused before upgrade.
     await harness.fixture.pgDatabase.query(
       'update public."user" set "twoFactorEnabled"=true where id=$1',
@@ -187,6 +234,9 @@ Deno.test("refusals never echo client input back", async () => {
       room: { kind: "draft", id: crypto.randomUUID() },
       state: { activity: "active", typing: false, cursor: null },
       principalId: marker,
+      // Validation messages quote unknown key NAMES, so the marker must also
+      // be a key for an echo of the error detail to be visible.
+      [marker]: "x",
     }));
     await client.send(`{"type":"join","note":"${marker}"`);
     const received = await collect(client, 1_000);
