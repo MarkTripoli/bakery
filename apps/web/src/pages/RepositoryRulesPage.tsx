@@ -232,6 +232,19 @@ export function RepositoryRulesPage(
           : null,
       ].filter(Boolean).join(" ")
     : "";
+  // The 8-character form: at the end of the row beside Copy on a wide screen,
+  // under the label on a phone, where the action is narrow.
+  const shortFingerprint = data
+    ? (
+      <UI.DataText
+        data-testid="repository-rules-digest"
+        title={data.digest}
+        variant="code"
+      >
+        {data.digest.slice(0, FINGERPRINT_CHARS)}
+      </UI.DataText>
+    )
+    : null;
   const version = (value: number | null) =>
     value && value > 0
       ? String(value)
@@ -526,15 +539,9 @@ export function RepositoryRulesPage(
                   <UI.DescriptionItem
                     action={
                       <UI.Inline gap="compact">
-                        {copyResult === "failed" ? null : (
-                          <UI.DataText
-                            data-testid="repository-rules-digest"
-                            title={data.digest}
-                            variant="code"
-                          >
-                            {data.digest.slice(0, FINGERPRINT_CHARS)}
-                          </UI.DataText>
-                        )}
+                        {copyResult === "failed" || phone
+                          ? null
+                          : shortFingerprint}
                         <UI.Button
                           onClick={() => void copyFingerprint()}
                           type="button"
@@ -562,6 +569,8 @@ export function RepositoryRulesPage(
                           </UI.DataText>
                         </UI.Stack>
                       )
+                      : phone
+                      ? shortFingerprint
                       : undefined}
                     title={
                       <>

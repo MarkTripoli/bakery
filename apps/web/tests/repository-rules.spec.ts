@@ -982,6 +982,26 @@ test.describe("repository rules: the effective rules of one repository", () => {
     );
   });
 
+  test("on a phone the fingerprint sits under its label and Copy alone is at the end", async ({ page }) => {
+    test.skip(!isPhone(page), "the wide-screen row puts the value beside Copy");
+    await rulesFixture(page);
+    await page.goto(RULES_PATH);
+    const section = details(page);
+    const label = (await section.getByText("Rules fingerprint", { exact: true })
+      .boundingBox())!;
+    const value = (await page.getByTestId("repository-rules-digest")
+      .boundingBox())!;
+    const copy = (await section.getByRole("button", { name: "Copy" })
+      .boundingBox())!;
+    const box = (await section.boundingBox())!;
+    // The value is on the next line, starting where the label starts.
+    expect(value.y).toBeGreaterThanOrEqual(label.y + label.height - 1);
+    expect(Math.abs(value.x - label.x)).toBeLessThanOrEqual(2);
+    // Copy is alone at the end of the row, not stacked with the value.
+    expect(box.x + box.width - (copy.x + copy.width)).toBeLessThan(32);
+    expect(copy.x).toBeGreaterThan(value.x + value.width);
+  });
+
   test("has no accessibility violations", async ({ page }) => {
     await rulesFixture(page);
     await page.goto(RULES_PATH);
