@@ -107,6 +107,17 @@ Deno.test("a pre-registered client uses PKCE, calls tools, is listed, and revoke
     assertEquals(await listTools(fixture, first.accessToken), [
       "bakery_applications_get",
       "bakery_applications_list",
+      "bakery_artifactComments_create",
+      "bakery_artifactComments_list",
+      "bakery_artifactComments_listAcrossVersions",
+      "bakery_artifactComments_update",
+      "bakery_artifactStorage_get",
+      "bakery_artifactVersions_content",
+      "bakery_artifactVersions_extract",
+      "bakery_artifactVersions_import",
+      "bakery_artifactVersions_list",
+      "bakery_artifacts_get",
+      "bakery_artifacts_list",
       "bakery_repositories_get",
       "bakery_repositories_list",
       "bakery_repositoryRulePreviews_createForRepository",
@@ -856,6 +867,241 @@ Deno.test("a read+operate grant cannot call an admin catalog tool: 403 before di
       "select 1 from bakery.applications where slug = 'denied-app'",
     );
     assertEquals(written.rows.length, 0);
+  } finally {
+    await cleanupOAuth(fixture, seeded.emails, clientIds);
+    await fixture.close();
+  }
+});
+
+async function rpc(
+  fixture: Fixture,
+  token: string,
+  method: string,
+  params: Record<string, unknown>,
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const response = await fixture.app.fetch(
+    mcpRequest(method, params, { token }),
+  );
+  const text = await response.text();
+  return { status: response.status, body: text ? JSON.parse(text) : {} };
+}
+
+async function seedArtifactVersions(
+  fixture: Fixture,
+  organizationId: string,
+  principalId: string,
+) {
+  const ids = {
+    application: crypto.randomUUID(),
+    conversation: crypto.randomUUID(),
+    task: crypto.randomUUID(),
+    artifact: crypto.randomUUID(),
+    text: crypto.randomUUID(),
+    binary: crypto.randomUUID(),
+  };
+  const db = fixture.pgDatabase;
+  await db.query(
+    `insert into bakery.applications (id,organization_id,slug,name)
+     values ($1,$2,$3,'MCP artifacts')`,
+    [ids.application, organizationId, `mcp-art-${ids.application}`],
+  );
+  await db.query(
+    `insert into bakery.conversations (id,organization_id,application_id,title,created_by)
+     values ($1,$2,$3,'MCP artifacts',$4)`,
+    [ids.conversation, organizationId, ids.application, principalId],
+  );
+  await db.query(
+    `insert into bakery.tasks (id,organization_id,application_id,conversation_id,title,task_type,status,priority,created_by)
+     values ($1,$2,$3,$4,'MCP artifacts','feature','active',50,$5)`,
+    [ids.task, organizationId, ids.application, ids.conversation, principalId],
+  );
+  await db.query(
+    `insert into bakery.artifacts (id,organization_id,task_id,artifact_type,name,revision,version)
+     values ($1,$2,$3,'plan','mcp source',1,1)`,
+    [ids.artifact, organizationId, ids.task],
+  );
+  // A text version larger than one extraction window, and a PNG.
+  const text = new TextEncoder().encode("line of text\n".repeat(8_000));
+  const png = new Uint8Array([
+    0x89,
+    0x50,
+    0x4e,
+    0x47,
+    0x0d,
+    0x0a,
+    0x1a,
+    0x0a,
+    ...new Array(2_000).fill(0x41),
+  ]);
+  for (
+    const [id, revision, content, mediaType] of [
+      [ids.text, 1, text, "text/markdown"],
+      [ids.binary, 2, png, "image/png"],
+    ] as const
+  ) {
+    const digest = Array.from(
+      new Uint8Array(await crypto.subtle.digest("SHA-256", content)),
+    ).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+    await db.query(
+      `insert into bakery.artifact_versions (id,organization_id,artifact_id,task_id,author_id,revision,metadata,content,sha256,size_bytes,media_type)
+       values ($1,$2,$3,$4,$5,$6,'{}'::jsonb,$7,$8,$9,$10)`,
+      [
+        id,
+        organizationId,
+        ids.artifact,
+        ids.task,
+        principalId,
+        revision,
+        content,
+        digest,
+        content.length,
+        mediaType,
+      ],
+    );
+  }
+  return {
+    ids,
+    textBytes: text.length,
+    pngBase64: btoa(String.fromCharCode(...png)),
+  };
+}
+
+Deno.test("artifact content reaches MCP only as bounded text or a reference, never as bytes (AC3)", async () => {
+  const fixture = await openAuthFixture();
+  const seeded = await seed(fixture, crypto.randomUUID(), false);
+  const clientIds: string[] = [];
+  try {
+    const clientId = await registerTestClient(fixture);
+    clientIds.push(clientId);
+    const { accessToken } = await connectClient(fixture, {
+      cookie: seeded.adminCookie,
+      clientId,
+    });
+    const principalId = (await fixture.pgDatabase.query<{ id: string }>(
+      `select p.id from bakery.principals p join public."user" u on u.id = p.provider_user_id
+        where u.email = $1`,
+      [seeded.emails[0]],
+    )).rows[0]!.id;
+    const { ids, textBytes, pngBase64 } = await seedArtifactVersions(
+      fixture,
+      seeded.organizationId,
+      principalId,
+    );
+    const tools = await listTools(fixture, accessToken);
+    for (
+      const name of [
+        "bakery_artifacts_get",
+        "bakery_artifactVersions_extract",
+        "bakery_artifactVersions_content",
+      ]
+    ) assert(tools.includes(name), name);
+
+    // The content tool answers with a reference, for text and binary alike.
+    for (
+      const [id, mediaType, size] of [
+        [ids.text, "text/markdown", textBytes],
+        [ids.binary, "image/png", 2_008],
+      ] as const
+    ) {
+      const call = await rpc(fixture, accessToken, "tools/call", {
+        name: "bakery_artifactVersions_content",
+        arguments: { id },
+      });
+      assertEquals(call.status, 200);
+      const result = (call.body as {
+        result: { structuredContent: { body: Record<string, unknown> } };
+      })
+        .result.structuredContent.body;
+      assertEquals(result.versionId, id);
+      assertEquals(result.mediaType, mediaType);
+      assertEquals(result.sizeBytes, size);
+      assertEquals(result.resourceUri, `bakery://artifact-versions/${id}`);
+      assert(
+        String(result.contentUrl).endsWith(
+          `/v1/artifact-versions/${id}/content`,
+        ),
+      );
+      assertEquals(
+        JSON.stringify(call.body).includes(pngBase64.slice(0, 40)),
+        false,
+      );
+    }
+
+    const templates = await rpc(
+      fixture,
+      accessToken,
+      "resources/templates/list",
+      {},
+    );
+    assertEquals(templates.status, 200);
+    assert(
+      JSON.stringify(templates.body).includes(
+        "bakery://artifact-versions/{id}",
+      ),
+      JSON.stringify(templates.body),
+    );
+
+    // A text version is one bounded window with its digest and range.
+    const textRead = await rpc(fixture, accessToken, "resources/read", {
+      uri: `bakery://artifact-versions/${ids.text}`,
+    });
+    assertEquals(textRead.status, 200, JSON.stringify(textRead.body));
+    const textContent = (textRead.body as {
+      result: {
+        contents: {
+          text: string;
+          mimeType: string;
+          _meta: Record<string, unknown>;
+          blob?: string;
+        }[];
+      };
+    }).result.contents[0]!;
+    assertEquals(textContent.mimeType, "text/markdown");
+    assertEquals(new TextEncoder().encode(textContent.text).length, 65_536);
+    assertEquals(textContent._meta["bakery/hasMore"], true);
+    assertEquals(textContent._meta["bakery/startByte"], 0);
+    assertEquals(textContent._meta["bakery/endByteExclusive"], 65_536);
+    assertEquals(textContent.blob, undefined);
+
+    // A binary version is a reference: no bytes, no blob.
+    const binaryRead = await rpc(fixture, accessToken, "resources/read", {
+      uri: `bakery://artifact-versions/${ids.binary}`,
+    });
+    assertEquals(binaryRead.status, 200, JSON.stringify(binaryRead.body));
+    const binaryContent = (binaryRead.body as {
+      result: { contents: { text: string; mimeType: string; blob?: string }[] };
+    }).result.contents[0]!;
+    assertEquals(
+      binaryContent.mimeType,
+      "application/vnd.bakery.artifact-reference+json",
+    );
+    assertEquals(binaryContent.blob, undefined);
+    assertEquals(JSON.parse(binaryContent.text).sizeBytes, 2_008);
+    assertEquals(
+      JSON.stringify(binaryRead.body).includes(pngBase64.slice(0, 40)),
+      false,
+    );
+
+    // An unknown version reveals nothing.
+    const unknown = await rpc(fixture, accessToken, "resources/read", {
+      uri: `bakery://artifact-versions/${crypto.randomUUID()}`,
+    });
+    assert("error" in unknown.body, JSON.stringify(unknown.body));
+    assertEquals("result" in unknown.body, false);
+
+    // Lost membership ends access before any read.
+    await fixture.pgDatabase.query(
+      `update bakery.organization_memberships set status = 'inactive' where principal_id = $1`,
+      [principalId],
+    );
+    const revoked = await rpc(fixture, accessToken, "resources/read", {
+      uri: `bakery://artifact-versions/${ids.text}`,
+    });
+    assertEquals(revoked.status, 401);
+    await fixture.pgDatabase.query(
+      `update bakery.organization_memberships set status = 'active' where principal_id = $1`,
+      [principalId],
+    );
   } finally {
     await cleanupOAuth(fixture, seeded.emails, clientIds);
     await fixture.close();
