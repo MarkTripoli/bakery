@@ -85,8 +85,51 @@ export async function assertRepositoryOverridesAllowed(
   });
 }
 
+/**
+ * Bakery checker availability: every enabled warn or require entry that
+ * declares a check binding must bind a command of the active fixed policy.
+ * A require entry without a working checker is unavailable, never a pass.
+ */
+export function checkerAvailability(
+  entries: readonly {
+    ruleKey: string;
+    enabled: boolean;
+    mode: string;
+    options: object;
+  }[],
+  commandIds: ReadonlySet<string>,
+): {
+  state: "configured" | "unavailable" | "not_required";
+  unavailableRuleKeys: string[];
+} {
+  let needed = 0;
+  const unavailableRuleKeys: string[] = [];
+  for (const entry of entries) {
+    if (!entry.enabled || (entry.mode !== "warn" && entry.mode !== "require")) {
+      continue;
+    }
+    if (!("checkBinding" in entry.options)) continue;
+    needed += 1;
+    const binding = (entry.options as { checkBinding: string | null })
+      .checkBinding;
+    if (binding === null || !commandIds.has(binding)) {
+      unavailableRuleKeys.push(entry.ruleKey);
+    }
+  }
+  return {
+    state: needed === 0
+      ? "not_required"
+      : unavailableRuleKeys.length > 0
+      ? "unavailable"
+      : "configured",
+    unavailableRuleKeys,
+  };
+}
+
 type EffectiveRow = {
   repository_id: string;
+  repository_version: number;
+  provider_connected: boolean;
   profile_id: string | null;
   profile_revision: number | null;
   profile_config: unknown;
@@ -112,6 +155,13 @@ export async function getEffectiveRepositoryRules(
   }
   const result = await transaction.query<EffectiveRow>(
     `select r.id as repository_id,
+            r.version as repository_version,
+            exists (
+              select 1 from bakery.integration_connections c
+               where c.organization_id = r.organization_id
+                 and c.id = r.integration_connection_id
+                 and c.status = 'enabled' and c.archived_at is null
+            ) as provider_connected,
             p.id as profile_id,
             p.revision as profile_revision,
             p.config as profile_config,
@@ -135,6 +185,7 @@ export async function getEffectiveRepositoryRules(
   const row = result.rows[0];
   if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   let overrides = NO_OVERRIDES;
+  let commandIds: ReadonlySet<string> = new Set();
   if (row.profile_id !== null) {
     const config = RepositoryVersionedProfileConfigSchema.safeParse(
       row.profile_config,
@@ -147,6 +198,9 @@ export async function getEffectiveRepositoryRules(
       });
     }
     overrides = config.data.repositoryRules ?? NO_OVERRIDES;
+    commandIds = new Set(
+      (config.data.fixedPolicy?.commands ?? []).map((command) => command.id),
+    );
   }
   const organization = row.organization_revision === null
     ? null
@@ -156,6 +210,14 @@ export async function getEffectiveRepositoryRules(
     });
   const resolved = await resolveRepositoryRules(organization, overrides);
   return {
+    repositoryVersion: row.repository_version,
+    checkers: checkerAvailability(resolved.entries, commandIds),
+    providerProtection: {
+      state: "unknown" as const,
+      reason: row.provider_connected
+        ? "not_checked" as const
+        : "provider_not_connected" as const,
+    },
     repositoryId: row.repository_id,
     profileId: row.profile_id,
     profileRevision: row.profile_revision,
