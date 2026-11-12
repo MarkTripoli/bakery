@@ -57,6 +57,10 @@ type Fixture = {
   readStatus: number;
   /** Cursors the history read was asked for, in order. */
   cursors: (string | null)[];
+  /** The first page of the history answers 500 while this is true. */
+  failFirstHistory: boolean;
+  /** Any later page of the history answers 500 while this is true. */
+  failMoreHistory: boolean;
 };
 
 async function rulesFixture(
@@ -65,6 +69,10 @@ async function rulesFixture(
     readStatus?: number;
     /** The rules read waits for this before it answers. */
     hold?: Promise<void>;
+    /** The first page of the history waits for this before it answers. */
+    holdHistory?: Promise<void>;
+    failFirstHistory?: boolean;
+    failMoreHistory?: boolean;
   } = {},
 ): Promise<Fixture> {
   const revision = options.revision ?? 3;
@@ -75,6 +83,8 @@ async function rulesFixture(
       [3, 2, 1].map((n) => version(n, n === 3 ? ENTRIES : [])),
     readStatus: options.readStatus ?? 200,
     cursors: [],
+    failFirstHistory: options.failFirstHistory ?? false,
+    failMoreHistory: options.failMoreHistory ?? false,
   };
   await mockAuthenticatedSession(page);
   // The page reads only rules: answer every other organization call empty.
@@ -112,9 +122,13 @@ async function rulesFixture(
   );
   await page.route(
     `**/v1/organizations/${MOCK_ORGANIZATION_ID}/repository-rule-versions**`,
-    (route: Route) => {
+    async (route: Route) => {
       const cursor = new URL(route.request().url()).searchParams.get("cursor");
       state.cursors.push(cursor);
+      if (cursor === null) await options.holdHistory;
+      if (cursor === null ? state.failFirstHistory : state.failMoreHistory) {
+        return route.fulfill(problem(500, "INTERNAL"));
+      }
       // Two revisions a page: the second page holds the oldest.
       const all = state.versions;
       const items = cursor === null ? all.slice(0, 2) : all.slice(2);
@@ -341,6 +355,118 @@ test.describe("organization repository rules", () => {
       document.documentElement.clientWidth
     );
     expect(overflow).toBeLessThanOrEqual(0);
+  });
+
+  test("a failed Load more keeps the revisions on screen and retries the same cursor", async ({ page }) => {
+    const state = await rulesFixture(page, { failMoreHistory: true });
+    await page.goto(PAGE_PATH);
+    const history = historyRows(page);
+    await expect(history).toHaveCount(2);
+    await page.getByRole("button", { name: "Load more revisions" }).click();
+    const notice = page.getByRole("alert").filter({
+      hasText: "Older revisions could not be loaded.",
+    });
+    await expect(notice).toBeVisible();
+    await shot(page, "rules-history-load-more-failed");
+    // Nothing already shown is lost, and the failure is not offered as another Load more.
+    await expect(history).toHaveCount(2);
+    await expect(
+      page.getByRole("button", { name: "Load more revisions" }),
+    ).toHaveCount(0);
+    state.failMoreHistory = false;
+    await notice.getByRole("button", { name: "Try again" }).click();
+    await expect(history).toHaveCount(3);
+    await expect(notice).toHaveCount(0);
+    expect(state.cursors).toEqual([null, "page-2", "page-2"]);
+  });
+
+  test("a failed first History read leaves the rules and offers a button to try again", async ({ page }) => {
+    const state = await rulesFixture(page, { failFirstHistory: true });
+    await page.goto(PAGE_PATH);
+    await expect(ruleRow(page, "Semantic commits")).toBeVisible();
+    const failure = page.getByRole("alert").filter({
+      hasText: "The revision history could not be loaded.",
+    });
+    await expect(failure).toBeVisible();
+    await shot(page, "rules-history-load-failed");
+    // The sentence no longer tells people to try again with nothing to press.
+    await expect(failure).not.toContainText("Try again.");
+    state.failFirstHistory = false;
+    await failure.getByRole("button", { name: "Try again" }).click();
+    await expect(historyRows(page)).toHaveCount(2);
+    await expect(failure).toHaveCount(0);
+  });
+
+  test("on a phone the History shows placeholder rows while it loads, never the table header", async ({ page, isMobile }) => {
+    test.skip(!isMobile, "a wide screen shows the table's own loading state");
+    let release!: () => void;
+    const holdHistory = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await rulesFixture(page, { holdHistory });
+    await page.goto(PAGE_PATH);
+    await expect(ruleRow(page, "Semantic commits")).toBeVisible();
+    await expect(page.getByTestId("org-rules-history-loading")).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "Revision" }))
+      .toHaveCount(0);
+    release();
+    await expect(page.getByTestId("org-rules-history-loading")).toHaveCount(0);
+    await expect(historyRows(page)).toHaveCount(2);
+  });
+
+  test("a rule summary is clamped to two lines with the whole text as its title", async ({ page }) => {
+    const sections = Array.from(
+      { length: 16 },
+      (_, index) => `Required section number ${index + 1}`,
+    );
+    const entries = RULE_ENTRIES.map((entry) =>
+      entry.ruleKey === "changeRequest.description"
+        ? {
+          ...entry,
+          options: { ...(entry.options as object), requiredSections: sections },
+        }
+        : entry
+    );
+    await rulesFixture(page, { entries });
+    await page.goto(PAGE_PATH);
+    const summary = ruleRow(page, "Merge descriptions").locator(
+      '[data-lines="2"]',
+    );
+    await expect(summary).toHaveAttribute(
+      "title",
+      /Required section number 16/,
+    );
+    const { height, lineHeight } = await summary.evaluate((node) => ({
+      height: node.getBoundingClientRect().height,
+      lineHeight: parseFloat(getComputedStyle(node).lineHeight),
+    }));
+    // Two lines and no more: a 16-section list does not grow the row without limit.
+    expect(height).toBeLessThanOrEqual(lineHeight * 2 + 1);
+    // The rule's name is not clamped.
+    await expect(ruleRow(page, "Merge descriptions")).toContainText(
+      "Merge descriptions",
+    );
+  });
+
+  test("on a phone the enforcement and access label is shown whole", async ({ page, isMobile }) => {
+    test.skip(!isMobile, "a wide screen lays it out in columns");
+    await rulesFixture(page);
+    await page.goto(PAGE_PATH);
+    for (
+      const [rule, label] of [
+        ["Semantic commits", "Require · Locked"],
+        ["Merge descriptions", "Require · Can override"],
+        ["Magic strings", "Off · Can override"],
+      ]
+    ) {
+      const row = ruleRow(page, rule);
+      await expect(row).toContainText(label);
+      // Whatever does not fit beside the name wraps under it; nothing is clipped.
+      const clipped = await row.evaluate((node) =>
+        node.scrollWidth > node.clientWidth
+      );
+      expect(clipped).toBe(false);
+    }
   });
 
   test("is reachable from the settings navigation", async ({ page }) => {
