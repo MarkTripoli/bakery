@@ -20900,6 +20900,57 @@ const transportSchemas = {
           "fieldTypes": {
             "requestId": "uuid|null"
           }
+        },
+        {
+          "type": "sync",
+          "direction": "client",
+          "fields": [
+            "requestId",
+            "room"
+          ]
+        },
+        {
+          "type": "synced",
+          "direction": "server",
+          "fields": [
+            "requestId",
+            "room",
+            "epoch",
+            "serverSequence",
+            "checkpointId",
+            "byteLength"
+          ]
+        },
+        {
+          "type": "ack",
+          "direction": "server",
+          "fields": [
+            "room",
+            "mutationId",
+            "receipt"
+          ]
+        },
+        {
+          "type": "committed",
+          "direction": "server",
+          "fields": [
+            "room",
+            "mutationId",
+            "serverSequence",
+            "byteLength"
+          ]
+        },
+        {
+          "type": "resync_required",
+          "direction": "server",
+          "fields": [
+            "room",
+            "mutationId",
+            "reason"
+          ],
+          "fieldTypes": {
+            "mutationId": "uuid|null"
+          }
         }
       ],
       "bounds": {
@@ -20916,10 +20967,16 @@ const transportSchemas = {
         "state": "CollaborationPresenceState",
         "presence": "CollaborationPresence",
         "participantKey": "uuid",
-        "reason": "enum(left|closed|expired|revoked)",
-        "problem": "Problem"
+        "reason": "enum(left|closed|expired|revoked|stale|epoch|rejected)",
+        "problem": "Problem",
+        "epoch": "integer",
+        "serverSequence": "decimalString",
+        "checkpointId": "uuid",
+        "byteLength": "nonnegativeInteger",
+        "mutationId": "uuid",
+        "receipt": "DraftMutationReceipt|null"
       },
-      "description": "Bounded JSON frames on /v1/collaboration: room join/leave and ephemeral presence. Presence is never durable, never replayed and never authority.",
+      "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, and committed draft sync. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
       "fieldDescriptions": {
         "protocolVersion": "Collaboration protocol version reported by the server.",
         "connectionId": "Server-assigned identifier of this connection.",
@@ -20931,8 +20988,14 @@ const transportSchemas = {
         "state": "Presence hints the client asks the server to relay.",
         "presence": "Participant presence as the server relays it.",
         "participantKey": "Key of the participant that left the room.",
-        "reason": "Why the participant left: explicit leave, closed connection, TTL expiry or lost access.",
-        "problem": "Safe standard problem describing why the request was refused."
+        "reason": "Why a participant left (left, closed, expired, revoked), or why an update must be resynchronized: stale highwater after the retry budget, another epoch, or rejected bytes.",
+        "problem": "Safe standard problem describing why the request was refused.",
+        "epoch": "Draft epoch of the state or update.",
+        "serverSequence": "Committed server sequence (decimal string) the state or update reaches.",
+        "checkpointId": "Checkpoint the synced state was read from.",
+        "byteLength": "Exact length of the binary frame that immediately follows this frame.",
+        "mutationId": "Client mutation id the frame refers to.",
+        "receipt": "Committed mutation receipt, replayed exactly for a duplicate; null when the update added nothing new to the committed state."
       }
     },
     "MetricPoint": {

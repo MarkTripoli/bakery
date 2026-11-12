@@ -383,11 +383,11 @@ export async function prepareDraftEdit(
   };
 }
 
-export async function commitDraftEdit(
+async function commitDraftCandidate(
   transaction: PgTransactionClient,
   organizationId: string,
   principalId: string,
-  input: DraftEditInput,
+  input: { mutationId: string },
   preparation: PreparedDraftEdit,
   candidate: DraftCandidate,
 ): Promise<DraftReceipt> {
@@ -486,6 +486,124 @@ export async function commitDraftEdit(
     [organizationId, preparation.draftId, checkpointId, nextSequence],
   );
   return receipt(saved.rows[0]);
+}
+
+export async function commitDraftEdit(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+  input: DraftEditInput,
+  preparation: PreparedDraftEdit,
+  candidate: DraftCandidate,
+): Promise<DraftReceipt> {
+  return await commitDraftCandidate(
+    transaction,
+    organizationId,
+    principalId,
+    input,
+    preparation,
+    candidate,
+  );
+}
+
+/** One collaboration-socket update: the client's Loro bytes under a mutation id. */
+export type DraftUpdateInput = {
+  epoch: number;
+  mutationId: string;
+  /** SHA-256 of the client's update bytes, binding replays to identical bytes. */
+  clientUpdateDigest: string;
+};
+
+/**
+ * Loads the committed state for a socket update, or replays its exact receipt.
+ * The same mutation id with different bytes is IDEMPOTENCY_PAYLOAD_MISMATCH;
+ * a different epoch is PRECONDITION_FAILED (the client must resynchronize).
+ */
+export async function prepareDraftUpdate(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+  draftId: string,
+  input: DraftUpdateInput,
+): Promise<DraftReceipt | PreparedDraftEdit> {
+  const scope = await loadDraftScope(transaction, organizationId, draftId);
+  const digest = await sha256Hex(canonicalJson({
+    operation: "drafts.update",
+    draftId,
+    principalId,
+    ...input,
+  }));
+  const existing = await loadReceipt(
+    transaction,
+    organizationId,
+    draftId,
+    input.mutationId,
+  );
+  if (existing) return assertReceiptDigest(existing, digest);
+  if (scope.epoch !== input.epoch) {
+    throw new StandardError({ code: "PRECONDITION_FAILED" });
+  }
+  const current = (await transaction.query<{ state: Uint8Array }>(
+    `select state from bakery.artifact_draft_checkpoints
+      where organization_id=$1 and draft_id=$2 and id=$3`,
+    [organizationId, draftId, scope.current_checkpoint_id],
+  )).rows[0];
+  if (!current) throw new StandardError({ code: "PRECONDITION_FAILED" });
+  const state = stateBytes(current.state);
+  return {
+    kind: "candidate",
+    draftId,
+    epoch: scope.epoch,
+    highwater: sequence(scope.server_sequence),
+    requestDigest: digest,
+    currentState: state,
+    sourceState: state,
+  };
+}
+
+/** Commits a socket update; same locking, highwater check and receipt as an edit. */
+export async function commitDraftUpdate(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+  input: DraftUpdateInput,
+  preparation: PreparedDraftEdit,
+  candidate: DraftCandidate,
+): Promise<DraftReceipt> {
+  return await commitDraftCandidate(
+    transaction,
+    organizationId,
+    principalId,
+    input,
+    preparation,
+    candidate,
+  );
+}
+
+/** Committed state of a draft for a collaboration sync. */
+export async function readDraftState(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  draftId: string,
+): Promise<{
+  epoch: number;
+  serverSequence: string;
+  checkpointId: string;
+  state: Uint8Array;
+}> {
+  const scope = await loadDraftScope(transaction, organizationId, draftId);
+  const row = (await transaction.query<{ state: Uint8Array }>(
+    `select state from bakery.artifact_draft_checkpoints
+      where organization_id=$1 and draft_id=$2 and id=$3`,
+    [organizationId, draftId, scope.current_checkpoint_id],
+  )).rows[0];
+  if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  return {
+    epoch: scope.epoch,
+    serverSequence: sequence(scope.server_sequence),
+    checkpointId: scope.current_checkpoint_id,
+    state: stateBytes(row.state),
+  };
 }
 
 export async function readDraft(

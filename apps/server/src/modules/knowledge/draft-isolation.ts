@@ -177,6 +177,12 @@ export type DraftIsolation = {
     endUtf16: number,
     signal?: AbortSignal,
   ): Promise<IsolatedDraftSlice>;
+  /** Imports one untrusted collaboration update into the committed state. */
+  importUpdate(
+    currentState: Uint8Array,
+    update: Uint8Array,
+    signal?: AbortSignal,
+  ): Promise<DraftCandidate>;
 };
 
 type IsolationOptions = {
@@ -1228,6 +1234,15 @@ export function createDraftIsolation(
           currentState,
           encoder.encode(input.expectedText),
           encoder.encode(input.replacement),
+        ], signal),
+      );
+    },
+    async importUpdate(currentState, update, signal) {
+      return parseCandidate(
+        await run([
+          encoder.encode(JSON.stringify({ operation: "import" })),
+          currentState,
+          update,
         ], signal),
       );
     },

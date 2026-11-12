@@ -4,6 +4,7 @@ import {
   createInitialDraftCandidate,
   DRAFT_LIMITS,
   DraftCandidateError,
+  importDraftUpdateCandidate,
 } from "./drafts.ts";
 
 const encoder = new TextEncoder();
@@ -153,6 +154,25 @@ async function execute(frames: readonly Frame[]): Promise<Uint8Array[]> {
         encoder.encode(JSON.stringify({
           ok: true,
           operation: "edit",
+          textDigest: candidate.textDigest,
+          updateDigest: candidate.updateDigest,
+        })),
+        candidate.state,
+        candidate.update,
+        candidate.frontiers,
+        encoder.encode(candidate.text),
+      ];
+    }
+    case "import": {
+      if (frames.length !== 3) throw new Error("PROTOCOL_FRAME_COUNT_INVALID");
+      if (frames[2].length > DRAFT_LIMITS.updateBytes) {
+        throw new Error("UPDATE_FRAME_TOO_LARGE");
+      }
+      const candidate = await importDraftUpdateCandidate(frames[1], frames[2]);
+      return [
+        encoder.encode(JSON.stringify({
+          ok: true,
+          operation: "import",
           textDigest: candidate.textDigest,
           updateDigest: candidate.updateDigest,
         })),
