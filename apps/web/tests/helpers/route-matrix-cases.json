@@ -108,6 +108,10 @@
     "path": "/settings/audit"
   },
   {
+    "id": "settings-organization-sso",
+    "path": "/settings/organization/sso"
+  },
+  {
     "id": "settings-scim",
     "path": "/settings/scim"
   },

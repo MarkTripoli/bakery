@@ -20,6 +20,7 @@ import {
   consentQuery,
   exchangeCode,
   listTools,
+  mcpRequest,
   type McpResult,
   OAUTH_ISSUER,
   pkcePair,
@@ -102,7 +103,25 @@ Deno.test("a pre-registered client uses PKCE, calls tools, is listed, and revoke
       cookie: seeded.adminCookie,
       clientId,
     });
+    // Fixed tools plus the catalog tools read+operate allow, in a fixed order.
     assertEquals(await listTools(fixture, first.accessToken), [
+      "bakery_applications_get",
+      "bakery_applications_list",
+      "bakery_repositories_get",
+      "bakery_repositories_list",
+      "bakery_repositoryRulePreviews_createForRepository",
+      "bakery_repositoryRules_getEffective",
+      "bakery_runSteps_list",
+      "bakery_runs_create",
+      "bakery_runs_get",
+      "bakery_runs_list",
+      "bakery_taskDependencies_create",
+      "bakery_taskDependencies_delete",
+      "bakery_tasks_create",
+      "bakery_tasks_get",
+      "bakery_tasks_list",
+      "bakery_tasks_update",
+      "bakery_usage_list",
       "organization_get",
       "whoami",
     ]);
@@ -522,6 +541,323 @@ Deno.test("discovery documents name the resource, the issuer and no dynamic regi
     assert(String(metadata.authorization_endpoint).startsWith(OAUTH_ISSUER));
     assert(String(metadata.token_endpoint).startsWith(OAUTH_ISSUER));
   } finally {
+    await fixture.close();
+  }
+});
+
+type ToolCall = {
+  isError?: boolean;
+  structuredContent?: {
+    status?: number;
+    body?: Record<string, unknown>;
+    etag?: string;
+    problem?: { code: string; status: number };
+  };
+};
+
+async function tool(
+  fixture: Fixture,
+  token: string,
+  name: string,
+  args: Record<string, unknown>,
+): Promise<ToolCall> {
+  const response = await fixture.app.fetch(
+    mcpRequest("tools/call", { name, arguments: args }, { token }),
+  );
+  assertEquals(response.status, 200, await response.clone().text());
+  const body = await response.json() as {
+    result?: ToolCall;
+    error?: unknown;
+  };
+  assertEquals(body.error, undefined, JSON.stringify(body.error));
+  return body.result!;
+}
+
+Deno.test("catalog tools run the REST operation: same state, replay, preconditions and fault codes", async () => {
+  const fixture = await openAuthFixture();
+  const seeded = await seed(fixture, crypto.randomUUID(), false);
+  const clientIds: string[] = [];
+  try {
+    const clientId = await registerTestClient(fixture, {
+      scopes: ["bakery:read", "bakery:operate", "bakery:admin"],
+    });
+    clientIds.push(clientId);
+    const { accessToken } = await connectClient(fixture, {
+      cookie: seeded.adminCookie,
+      clientId,
+      scope: "bakery:read bakery:operate bakery:admin",
+    });
+    const org = { "bakery-organization-id": seeded.organizationId };
+    assert(
+      (await listTools(fixture, accessToken)).includes(
+        "bakery_applications_create",
+      ),
+    );
+
+    // Discovery publishes the operation's own input schema.
+    const listed = await fixture.app.fetch(
+      mcpRequest("tools/list", {}, { token: accessToken }),
+    );
+    const createTool = (await listed.json() as {
+      result: {
+        tools: {
+          name: string;
+          inputSchema: {
+            properties: Record<string, unknown>;
+            required?: string[];
+          };
+        }[];
+      };
+    }).result.tools.find((t) => t.name === "bakery_applications_create")!;
+    for (const field of ["slug", "name", "description", "idempotencyKey"]) {
+      assert(field in createTool.inputSchema.properties, field);
+    }
+    assert(createTool.inputSchema.required?.includes("slug"));
+
+    // Write through MCP; the result is the REST 201 body plus its ETag.
+    const key = crypto.randomUUID();
+    const input = { slug: "mcp-app", name: "MCP app", description: "" };
+    const created = await tool(
+      fixture,
+      accessToken,
+      "bakery_applications_create",
+      {
+        ...input,
+        idempotencyKey: key,
+      },
+    );
+    assertEquals(created.isError, undefined, JSON.stringify(created));
+    assertEquals(created.structuredContent?.status, 201);
+    const application = created.structuredContent!.body!;
+    const id = (application.application as { id: string } | undefined)?.id ??
+      application.id as string;
+    assert(typeof id === "string");
+
+    // The same key and input replays the original result exactly.
+    const replay = await tool(
+      fixture,
+      accessToken,
+      "bakery_applications_create",
+      {
+        ...input,
+        idempotencyKey: key,
+      },
+    );
+    assertEquals(replay.structuredContent, created.structuredContent);
+    // The same key with a different input is the REST 422.
+    const mismatch = await tool(
+      fixture,
+      accessToken,
+      "bakery_applications_create",
+      {
+        ...input,
+        name: "Other",
+        idempotencyKey: key,
+      },
+    );
+    assertEquals(mismatch.isError, true);
+    assertEquals(
+      mismatch.structuredContent?.problem?.code,
+      "IDEMPOTENCY_PAYLOAD_MISMATCH",
+    );
+
+    // REST reads what MCP wrote, and both reads agree.
+    const restRead = await call(
+      fixture,
+      "GET",
+      `/v1/applications/${id}`,
+      seeded.adminCookie,
+      { headers: org },
+    );
+    assertEquals(restRead.status, 200);
+    const mcpRead = await tool(
+      fixture,
+      accessToken,
+      "bakery_applications_get",
+      {
+        id,
+      },
+    );
+    assertEquals(mcpRead.structuredContent?.status, 200);
+    assertEquals(mcpRead.structuredContent?.body, await restRead.json());
+    const etag = mcpRead.structuredContent?.etag ??
+      restRead.headers.get("etag") ?? undefined;
+
+    // Compare-and-set: missing and stale If-Match are the REST 428 and 412.
+    const update = { id, name: "Renamed", idempotencyKey: crypto.randomUUID() };
+    const missing = await tool(
+      fixture,
+      accessToken,
+      "bakery_applications_update",
+      update,
+    );
+    const restMissing = await call(
+      fixture,
+      "PATCH",
+      `/v1/applications/${id}`,
+      seeded.adminCookie,
+      {
+        headers: { ...org, "idempotency-key": crypto.randomUUID() },
+        body: { name: "Renamed" },
+      },
+    );
+    assertEquals(missing.isError, true);
+    assertEquals(
+      missing.structuredContent?.problem?.code,
+      ((await restMissing.json()) as { code: string }).code,
+    );
+    assertEquals(
+      missing.structuredContent?.problem?.status,
+      restMissing.status,
+    );
+    if (etag) {
+      const stale = await tool(
+        fixture,
+        accessToken,
+        "bakery_applications_update",
+        {
+          ...update,
+          idempotencyKey: crypto.randomUUID(),
+          ifMatch: '"stale"',
+        },
+      );
+      assertEquals(
+        stale.structuredContent?.problem?.code,
+        "PRECONDITION_FAILED",
+      );
+      const fresh = await tool(
+        fixture,
+        accessToken,
+        "bakery_applications_update",
+        {
+          ...update,
+          idempotencyKey: crypto.randomUUID(),
+          ifMatch: etag,
+        },
+      );
+      assertEquals(fresh.isError, undefined, JSON.stringify(fresh));
+      assertEquals(fresh.structuredContent?.status, 200);
+    }
+
+    // A missing resource is the REST fault code, as a tool error.
+    const unknown = crypto.randomUUID();
+    const notFound = await tool(
+      fixture,
+      accessToken,
+      "bakery_applications_get",
+      {
+        id: unknown,
+      },
+    );
+    const restNotFound = await call(
+      fixture,
+      "GET",
+      `/v1/applications/${unknown}`,
+      seeded.adminCookie,
+      { headers: org },
+    );
+    assertEquals(notFound.isError, true);
+    assertEquals(
+      notFound.structuredContent?.problem?.code,
+      ((await restNotFound.json()) as { code: string }).code,
+    );
+    // A route identifier that URL normalization would collapse ("." / "..")
+    // or that carries a path separator is refused before any dispatch, so a
+    // tool can never reach a route other than the one its scope was checked for.
+    for (const value of [".", "..", "", "a/b", "%2e", "x\\y", "a\ud800b"]) {
+      const refused = await tool(fixture, accessToken, "bakery_runs_list", {
+        id: value,
+      });
+      assertEquals(refused.isError, true, `id ${JSON.stringify(value)}`);
+      assertEquals(
+        refused.structuredContent?.problem?.code,
+        "MALFORMED_REQUEST",
+        `id ${JSON.stringify(value)}`,
+      );
+    }
+    // Header arguments of the wrong type are a validation fault, not dropped.
+    for (
+      const header of [
+        { idempotencyKey: 12345 },
+        { idempotencyKey: "" },
+        { idempotencyKey: "   " },
+        { ifMatch: 123 },
+        { ifMatch: "\t " },
+        { idempotencyKey: "k\ud800" },
+        { idempotencyKey: "k€" },
+        { idempotencyKey: "\u3000k" },
+        { ifMatch: '"v1"\ufeff' },
+        { ifMatch: '"v1"\r\nx-evil: 1' },
+      ]
+    ) {
+      const refused = await tool(
+        fixture,
+        accessToken,
+        "bakery_applications_create",
+        {
+          slug: "mcp-typed",
+          name: "Typed",
+          description: "",
+          ...header,
+        },
+      );
+      assertEquals(refused.isError, true, JSON.stringify(header));
+      assertEquals(
+        refused.structuredContent?.problem?.code,
+        "MALFORMED_REQUEST",
+        JSON.stringify(header),
+      );
+    }
+    const typedRows = await fixture.pgDatabase.query(
+      "select 1 from bakery.applications where slug = 'mcp-typed'",
+    );
+    assertEquals(typedRows.rows.length, 0);
+
+    // Invalid input is a tool error carrying the REST validation code.
+    const invalid = await tool(
+      fixture,
+      accessToken,
+      "bakery_applications_get",
+      {
+        id: "not-a-uuid",
+      },
+    );
+    assertEquals(invalid.isError, true);
+    assertEquals(invalid.structuredContent?.problem?.code, "MALFORMED_REQUEST");
+  } finally {
+    await fixture.pgDatabase.query(
+      "delete from bakery.applications where slug = 'mcp-app'",
+    );
+    await cleanupOAuth(fixture, seeded.emails, clientIds);
+    await fixture.close();
+  }
+});
+
+Deno.test("a read+operate grant cannot call an admin catalog tool: 403 before dispatch", async () => {
+  const fixture = await openAuthFixture();
+  const seeded = await seed(fixture, crypto.randomUUID(), false);
+  const clientIds: string[] = [];
+  try {
+    const clientId = await registerTestClient(fixture);
+    clientIds.push(clientId);
+    const { accessToken } = await connectClient(fixture, {
+      cookie: seeded.adminCookie,
+      clientId,
+    });
+    const response = await fixture.app.fetch(mcpRequest("tools/call", {
+      name: "bakery_applications_create",
+      arguments: { slug: "denied-app", name: "Denied", description: "" },
+    }, { token: accessToken }));
+    assertEquals(response.status, 403);
+    assert(
+      response.headers.get("www-authenticate")?.includes("insufficient_scope"),
+    );
+    const written = await fixture.pgDatabase.query(
+      "select 1 from bakery.applications where slug = 'denied-app'",
+    );
+    assertEquals(written.rows.length, 0);
+  } finally {
+    await cleanupOAuth(fixture, seeded.emails, clientIds);
     await fixture.close();
   }
 });

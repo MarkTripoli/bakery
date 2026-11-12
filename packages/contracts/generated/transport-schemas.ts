@@ -4167,6 +4167,17 @@ const transportSchemas = {
       ],
       "description": "Query parameters accompanying the authenticated GET /v1/events upgrade to WebSocket; the resulting connection is read-only and delivers notifications and cursors, never task or artifact mutations."
     },
+    "CollaborationUpgrade": {
+      "fields": [
+        {
+          "name": "organizationId",
+          "type": "uuid",
+          "required": true,
+          "description": "Organization whose rooms the connection may join; browsers pass it as a query parameter because upgrade requests cannot carry the Bakery-Organization-Id header."
+        }
+      ],
+      "description": "Query parameters accompanying the authenticated GET /v1/collaboration upgrade to WebSocket. One connection multiplexes the rooms a client explicitly joins; identity always comes from the session, never from a frame."
+    },
     "WorkerArtifact": {
       "fields": [
         {
@@ -7767,6 +7778,173 @@ const transportSchemas = {
           "type": "uuid",
           "required": true,
           "description": "Reference to the research artifact produced by the preceding rpi.research step; the design step reads it to ground its proposed design."
+        }
+      ]
+    },
+    "ResearchInput": {
+      "description": "Input to the rpi.research workflow action: the task to research and the repository whose code the research reads, from which the step produces its research artifact.",
+      "fields": [
+        {
+          "name": "taskId",
+          "type": "uuid",
+          "required": true,
+          "description": "Task the research is for; the step reads the task brief and scope from it."
+        },
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": true,
+          "description": "Repository the research inspects through a detached worktree."
+        }
+      ]
+    },
+    "PrepareInput": {
+      "description": "Input to the delivery.prepare workflow action: the exact merged commit to turn into a release candidate and the repository profile revision that governs how it is built.",
+      "fields": [
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": true,
+          "description": "Repository whose merged commit is prepared for release."
+        },
+        {
+          "name": "headSha",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1
+          },
+          "description": "Full commit SHA of the merged candidate to prepare, normally the commitSha a preceding delivery.merge step confirmed."
+        },
+        {
+          "name": "profileRevision",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1
+          },
+          "description": "Revision of the repository profile the release is prepared under; the server rejects a revision that is not the active one at prepare time."
+        }
+      ]
+    },
+    "MergeInput": {
+      "description": "Input to the delivery.merge workflow action: the repository to merge into and the candidate evidence that justifies the merge. The effect key makes a retried merge reconcile with the first attempt and never merge twice.",
+      "fields": [
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": true,
+          "description": "Repository the candidate is merged into."
+        },
+        {
+          "name": "candidate",
+          "type": "CandidateEvidence",
+          "required": true,
+          "description": "Evidence for the exact candidate being merged: its head and base commits, the policy it was checked under, the check runs and the independent review. The merge step refuses evidence that does not match the repository's current candidate."
+        },
+        {
+          "name": "effectKey",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1
+          },
+          "description": "Stable key for this merge effect, so a retry after an uncertain response reconciles with the first attempt instead of repeating the mutation."
+        }
+      ]
+    },
+    "DeployInput": {
+      "description": "Input to the delivery.deploy workflow action: the prepared release to roll out and the environment to roll it out to. The effect key makes a retried deploy reconcile with the first attempt.",
+      "fields": [
+        {
+          "name": "releaseId",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1
+          },
+          "description": "Identifier of the release a preceding delivery.prepare step produced."
+        },
+        {
+          "name": "environment",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1
+          },
+          "description": "Name of the environment to deploy to, such as production; it must be one the repository profile allows."
+        },
+        {
+          "name": "effectKey",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1
+          },
+          "description": "Stable key for this deploy effect, so a retry after an uncertain response reconciles with the first attempt instead of deploying twice."
+        }
+      ]
+    },
+    "HealthInput": {
+      "description": "Input to the delivery.health workflow action: the deployment whose health is observed.",
+      "fields": [
+        {
+          "name": "deploymentId",
+          "type": "uuid",
+          "required": true,
+          "description": "Deployment a preceding delivery.deploy step accepted; the step reads its observed health and records the evidence."
+        }
+      ]
+    },
+    "ArtifactPublishInput": {
+      "description": "Input to the artifact.publish workflow action: the artifact version a preceding step produced, which this step publishes so it becomes a retained, addressable artifact of the run.",
+      "fields": [
+        {
+          "name": "artifact",
+          "type": "ArtifactRef",
+          "required": true,
+          "description": "Immutable artifact version to publish, normally the artifact a preceding step emitted; the step records it as published without changing its content."
+        }
+      ]
+    },
+    "MemoryPromoteInput": {
+      "description": "Input to the memory.promote workflow action: the artifact version to promote into project memory and the repository revision that evidence was drawn from.",
+      "fields": [
+        {
+          "name": "artifact",
+          "type": "ArtifactRef",
+          "required": true,
+          "description": "Immutable artifact version to promote into project memory, normally a research or review artifact a preceding step produced."
+        },
+        {
+          "name": "sourceRevision",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1
+          },
+          "description": "Repository revision the promoted artifact describes, kept with the memory so a later reader can tell when it was true."
+        }
+      ]
+    },
+    "EvaluationInput": {
+      "description": "Input to the evaluation.sample workflow action: the completed run to sample and the fraction of its outcomes to evaluate.",
+      "fields": [
+        {
+          "name": "runId",
+          "type": "uuid",
+          "required": true,
+          "description": "Workflow run whose outcomes are sampled for evaluation."
+        },
+        {
+          "name": "sampleRate",
+          "type": "number",
+          "required": true,
+          "bounds": {
+            "min": 0,
+            "max": 1
+          },
+          "description": "Fraction of the run's outcomes to evaluate, from 0 (none) to 1 (all)."
         }
       ]
     },
@@ -17509,7 +17687,10 @@ const transportSchemas = {
         "organizationRevision",
         "entries",
         "supersededOverrides",
-        "digest"
+        "digest",
+        "repositoryVersion",
+        "checkers",
+        "providerProtection"
       ],
       "fieldTypes": {
         "repositoryId": "uuid",
@@ -17518,7 +17699,10 @@ const transportSchemas = {
         "organizationRevision": "integer",
         "entries": "json",
         "supersededOverrides": "json",
-        "digest": "sha256"
+        "digest": "sha256",
+        "repositoryVersion": "positiveInteger",
+        "checkers": "RepositoryRuleCheckers",
+        "providerProtection": "RepositoryProviderProtection"
       },
       "nullableFields": [
         "profileId",
@@ -17532,7 +17716,43 @@ const transportSchemas = {
         "organizationRevision": "Organization rules revision resolved against; 0 means no organization revision is published yet.",
         "entries": "Effective rule entries in canonical rule-key order, each with its provenance and source organization revision; a locked entry is the organization entry with provenance locked_by_organization.",
         "supersededOverrides": "Saved repository overrides that are inactive because the organization currently locks the rule; they stay in the profile and take effect again if the lock is dropped.",
-        "digest": "Lowercase SHA-256 of the canonical effective entries and organization revision; superseded overrides are excluded."
+        "digest": "Lowercase SHA-256 of the canonical effective entries and organization revision; superseded overrides are excluded.",
+        "repositoryVersion": "Current repository version; the response ETag is \"v<version>\", the If-Match value profile activation requires.",
+        "checkers": "Bakery checker availability for the effective rules.",
+        "providerProtection": "Git provider branch protection state, separate from Bakery enforcement."
+      }
+    },
+    "RepositoryRuleCheckers": {
+      "fields": [
+        "state",
+        "unavailableRuleKeys"
+      ],
+      "fieldTypes": {
+        "state": "enum(configured|unavailable|not_required)",
+        "unavailableRuleKeys": "string[]"
+      },
+      "description": "Whether the rules that need a Bakery checker have one: every enabled warn or require rule with a check binding must name a command of the active profile fixed policy.",
+      "fieldDescriptions": {
+        "state": "configured when every checker-backed rule names an active fixed-policy command, unavailable when at least one does not (a require rule then blocks delivery), not_required when no enabled rule needs a checker.",
+        "unavailableRuleKeys": "Rule keys whose checker is missing or unbound, in canonical order; empty unless state is unavailable."
+      }
+    },
+    "RepositoryProviderProtection": {
+      "fields": [
+        "state",
+        "reason"
+      ],
+      "fieldTypes": {
+        "state": "enum(verified|not_configured|unknown)",
+        "reason": "enum(provider_not_connected|not_checked)|null"
+      },
+      "nullableFields": [
+        "reason"
+      ],
+      "description": "Git provider branch protection for the repository, reported independently of Bakery rule status. Bakery does not yet read provider protection, so it is unknown rather than assumed absent.",
+      "fieldDescriptions": {
+        "state": "verified or not_configured once read from the provider; unknown when it has not been read.",
+        "reason": "Why the state is unknown: the repository has no enabled provider connection, or Bakery has not checked protection; null when the state is known."
       }
     },
     "OrganizationRepositoryRulesRead": {
@@ -20495,6 +20715,224 @@ const transportSchemas = {
         "streamId": "Stable logical output stream UUID, never an agent-session or worker-session identifier.",
         "batch": "One immutable committed output batch delivered under current reader authority.",
         "resumeAfter": "Exclusive reset position immediately before retainedFrom, so recovery does not skip the first retained batch."
+      }
+    },
+    "CollaborationRoom": {
+      "fields": [
+        "kind",
+        "id"
+      ],
+      "fieldTypes": {
+        "kind": "enum(draft)",
+        "id": "uuid"
+      },
+      "description": "One collaboration room: the live document a participant has open. Joining checks current read access to that resource.",
+      "fieldDescriptions": {
+        "kind": "Room type; only collaborative drafts can be joined.",
+        "id": "Identifier of the draft the room belongs to."
+      }
+    },
+    "CollaborationCursor": {
+      "fields": [
+        "anchor",
+        "head"
+      ],
+      "fieldTypes": {
+        "anchor": "string",
+        "head": "string"
+      },
+      "fieldBounds": {
+        "anchor": {
+          "maxBytes": 512
+        },
+        "head": {
+          "maxBytes": 512
+        }
+      },
+      "description": "Opaque editor cursor or selection hint as encoded relative positions; it is display-only and never addresses committed text.",
+      "fieldDescriptions": {
+        "anchor": "Encoded relative position where the selection starts.",
+        "head": "Encoded relative position where the selection ends; equal to anchor for a caret."
+      }
+    },
+    "CollaborationPresenceState": {
+      "fields": [
+        "activity",
+        "typing",
+        "cursor"
+      ],
+      "fieldTypes": {
+        "activity": "enum(active|background|idle)",
+        "typing": "boolean",
+        "cursor": "CollaborationCursor|null"
+      },
+      "nullableFields": [
+        "cursor"
+      ],
+      "description": "Client-supplied presence hints: activity, typing and an optional cursor. They carry no identity, timestamps or authority.",
+      "fieldDescriptions": {
+        "activity": "Whether the surface is in the foreground, backgrounded, or idle.",
+        "typing": "True while the participant is typing.",
+        "cursor": "Current cursor or selection hint, or null when none is shown."
+      }
+    },
+    "CollaborationPresence": {
+      "fields": [
+        "participantKey",
+        "principalId",
+        "principalType",
+        "displayName",
+        "state",
+        "receivedAt"
+      ],
+      "fieldTypes": {
+        "participantKey": "uuid",
+        "principalId": "uuid",
+        "principalType": "enum(human|service|worker)",
+        "displayName": "string",
+        "state": "CollaborationPresenceState",
+        "receivedAt": "timestamp"
+      },
+      "fieldBounds": {
+        "displayName": {
+          "maxLength": 200
+        }
+      },
+      "description": "One participant's presence in a room as the server relays it. Identity fields are server-assigned from the session; presence is ephemeral and never grants authority or proves a read.",
+      "fieldDescriptions": {
+        "participantKey": "Server-assigned key for one connection in one room; a person with several tabs has several keys.",
+        "principalId": "Authenticated principal the server bound to this connection.",
+        "principalType": "Kind of principal: person, service account or worker.",
+        "displayName": "Trusted display name from the principal record.",
+        "state": "Latest accepted presence hints.",
+        "receivedAt": "Server receipt time of the latest accepted hint; presence expires 30 seconds after it."
+      }
+    },
+    "CollaborationFrames": {
+      "frames": "CollaborationFrame[]",
+      "description": "Catalog wrapper enumerating every bounded frame on /v1/collaboration; it is not a wire batch."
+    },
+    "CollaborationFrame": {
+      "union": [
+        {
+          "type": "hello",
+          "direction": "server",
+          "fields": [
+            "protocolVersion",
+            "connectionId",
+            "heartbeatSeconds",
+            "presenceTtlSeconds"
+          ]
+        },
+        {
+          "type": "join",
+          "direction": "client",
+          "fields": [
+            "requestId",
+            "room"
+          ]
+        },
+        {
+          "type": "joined",
+          "direction": "server",
+          "fields": [
+            "requestId",
+            "room",
+            "participants"
+          ]
+        },
+        {
+          "type": "leave",
+          "direction": "client",
+          "fields": [
+            "requestId",
+            "room"
+          ]
+        },
+        {
+          "type": "left",
+          "direction": "server",
+          "fields": [
+            "requestId",
+            "room"
+          ]
+        },
+        {
+          "type": "presence.update",
+          "direction": "client",
+          "fields": [
+            "requestId",
+            "room",
+            "state"
+          ]
+        },
+        {
+          "type": "presence",
+          "direction": "server",
+          "fields": [
+            "room",
+            "presence"
+          ]
+        },
+        {
+          "type": "presence.removed",
+          "direction": "server",
+          "fields": [
+            "room",
+            "participantKey",
+            "reason"
+          ]
+        },
+        {
+          "type": "ping",
+          "direction": "client_or_server",
+          "fields": [
+            "requestId"
+          ]
+        },
+        {
+          "type": "problem",
+          "direction": "server",
+          "fields": [
+            "requestId",
+            "problem"
+          ],
+          "fieldTypes": {
+            "requestId": "uuid|null"
+          }
+        }
+      ],
+      "bounds": {
+        "maxBytes": 65536
+      },
+      "fieldTypes": {
+        "protocolVersion": "integer",
+        "connectionId": "uuid",
+        "heartbeatSeconds": "integer",
+        "presenceTtlSeconds": "integer",
+        "requestId": "uuid",
+        "room": "CollaborationRoom",
+        "participants": "CollaborationPresence[]",
+        "state": "CollaborationPresenceState",
+        "presence": "CollaborationPresence",
+        "participantKey": "uuid",
+        "reason": "enum(left|closed|expired|revoked)",
+        "problem": "Problem"
+      },
+      "description": "Bounded JSON frames on /v1/collaboration: room join/leave and ephemeral presence. Presence is never durable, never replayed and never authority.",
+      "fieldDescriptions": {
+        "protocolVersion": "Collaboration protocol version reported by the server.",
+        "connectionId": "Server-assigned identifier of this connection.",
+        "heartbeatSeconds": "Interval at which the client should refresh its presence.",
+        "presenceTtlSeconds": "Seconds after the last accepted hint at which the server expires a participant.",
+        "requestId": "Client-chosen identifier correlating a reply with its request.",
+        "room": "Room the frame applies to.",
+        "participants": "Current authorized participants of the room at join time.",
+        "state": "Presence hints the client asks the server to relay.",
+        "presence": "Participant presence as the server relays it.",
+        "participantKey": "Key of the participant that left the room.",
+        "reason": "Why the participant left: explicit leave, closed connection, TTL expiry or lost access.",
+        "problem": "Safe standard problem describing why the request was refused."
       }
     },
     "MetricPoint": {

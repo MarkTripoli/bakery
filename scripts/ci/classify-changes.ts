@@ -233,6 +233,13 @@ export const AFFECTED_LANES_TABLE: readonly AffectedPathRule[] = [
     ],
   },
   {
+    // Zero-dependency installer core. Its tests are unit tests, and the fast
+    // lanes run on every change, so no heavy lane is selected.
+    key: "packages/worker-bootstrap/",
+    prefixes: ["packages/worker-bootstrap/"],
+    lanes: [],
+  },
+  {
     key: "tests/browser/",
     prefixes: ["tests/browser/"],
     lanes: ["browser_tests"],

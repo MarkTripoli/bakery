@@ -50,7 +50,15 @@ import { resolvePrincipal } from "./modules/auth/application/identity.ts";
 import { REMOTE_ADDRESS_HEADER } from "./modules/auth/adapters/better-auth.ts";
 import { createMcpMetadataRoutes } from "./platform/mcp/metadata.ts";
 import { createMcpRoutes } from "./platform/mcp/server.ts";
+import {
+  type CollaborationRegistry,
+  type CollaborationSocketHandlerOptions,
+  type CollaborationSocketLimits,
+  createCollaborationRegistry,
+  createCollaborationSocketHandler,
+} from "./modules/knowledge/collaboration-socket.ts";
 import { createMcpToolRunner } from "./platform/mcp/tools.ts";
+import { createMcpCatalogTools } from "./platform/mcp/catalog-tools.ts";
 import { mcpResourceUrl, oauthIssuerUrl } from "./platform/mcp/scopes.ts";
 import {
   type AuthPersistence,
@@ -135,6 +143,13 @@ export function createApp(options: {
   eventsSocket?: {
     registry?: EventsSocketRegistry;
     limits?: Partial<EventsSocketLimits>;
+  };
+  /** Collaboration socket overrides; tests share the registry and tighten the bounds. */
+  collaborationSocket?: {
+    registry?: CollaborationRegistry;
+    limits?: Partial<CollaborationSocketLimits>;
+    now?: () => Date;
+    upgradeWebSocket?: CollaborationSocketHandlerOptions["upgradeWebSocket"];
   };
 }) {
   assertRuntimeConfig(options.config);
@@ -225,6 +240,41 @@ export function createApp(options: {
       ],
     }),
   );
+  // Shared by the REST routers and the MCP catalog tools, so both transports
+  // run the same registry instances.
+  const taskRegistry = createTaskActionRegistry(
+    options.taskHandlers ??
+      createWorkTaskHandlers(options.config.auth.secret, {
+        budget: options.config.budget,
+      }),
+    {
+      authorityRunner: new PostgresAuthorityRunner(options.pgDatabase),
+      commandRunner: createPostgresCommandRunner(),
+    },
+  );
+  const projectsRegistry = createProjectsActionRegistry(
+    createProjectsHandlers(options.config.auth.secret),
+    {
+      authorityRunner: new PostgresAuthorityRunner(options.pgDatabase),
+      commandRunner: createPostgresCommandRunner(),
+    },
+  );
+  // The MCP resource acts as the grant's person, loaded live on every call.
+  const loadMcpSubject = async (providerUserId: string) => {
+    const subject = await resolvePrincipal(persistence, providerUserId);
+    const user = await options.pgDatabase.query<
+      { email: string; twoFactorEnabled: boolean | null }
+    >(
+      'select email, "twoFactorEnabled" from public."user" where id = $1',
+      [providerUserId],
+    );
+    return {
+      ...subject,
+      providerUserId,
+      email: user.rows[0]?.email,
+      twoFactorEnabled: user.rows[0]?.twoFactorEnabled === true,
+    };
+  };
   const authRegistry = createAuthActionRegistry({
     database: options.pgDatabase,
     secret: options.config.auth.secret,
@@ -285,21 +335,12 @@ export function createApp(options: {
       tools: createMcpToolRunner({
         publicOrigin,
         registry: authRegistry,
-        loadSubject: async (providerUserId) => {
-          const subject = await resolvePrincipal(persistence, providerUserId);
-          const user = await options.pgDatabase.query<
-            { email: string; twoFactorEnabled: boolean | null }
-          >(
-            'select email, "twoFactorEnabled" from public."user" where id = $1',
-            [providerUserId],
-          );
-          return {
-            ...subject,
-            providerUserId,
-            email: user.rows[0]?.email,
-            twoFactorEnabled: user.rows[0]?.twoFactorEnabled === true,
-          };
-        },
+        loadSubject: loadMcpSubject,
+      }),
+      catalog: createMcpCatalogTools({
+        publicOrigin,
+        registries: [taskRegistry, projectsRegistry],
+        loadSubject: loadMcpSubject,
       }),
     }),
   );
@@ -348,6 +389,32 @@ export function createApp(options: {
     }),
   );
   app.use("/v1/events", browserSession);
+  const collaborationHandler = createCollaborationSocketHandler({
+    database: options.pgDatabase,
+    store: persistence,
+    secret: options.config.auth.secret,
+    publicBaseUrl: options.config.publicBaseUrl,
+    registry: options.collaborationSocket?.registry ??
+      createCollaborationRegistry(),
+    limits: options.collaborationSocket?.limits,
+    now: options.collaborationSocket?.now,
+    upgradeWebSocket: options.collaborationSocket?.upgradeWebSocket,
+  });
+  app.use(
+    "/v1/collaboration",
+    createOriginGuard({
+      publicBaseUrl: options.config.publicBaseUrl,
+      trustedOrigins: options.config.auth.trustedOrigins,
+    }),
+  );
+  app.use("/v1/collaboration", browserSession);
+  app.get("/v1/collaboration", collaborationHandler);
+  app.all("/v1/collaboration", (context) =>
+    problemResponse(
+      context,
+      new StandardError({ code: "METHOD_NOT_ALLOWED" }),
+      { publicBaseUrl: options.config.publicBaseUrl, allow: "GET" },
+    ));
   app.get("/v1/events", eventsHandler);
   app.all("/v1/events", (context) =>
     problemResponse(
@@ -389,16 +456,7 @@ export function createApp(options: {
   tasks.route(
     "/",
     createApiRouter({
-      registry: createTaskActionRegistry(
-        options.taskHandlers ??
-          createWorkTaskHandlers(options.config.auth.secret, {
-            budget: options.config.budget,
-          }),
-        {
-          authorityRunner: new PostgresAuthorityRunner(options.pgDatabase),
-          commandRunner: createPostgresCommandRunner(),
-        },
-      ),
+      registry: taskRegistry,
       publicBaseUrl: options.config.publicBaseUrl,
       createContext: createActionContext,
     }),
@@ -430,13 +488,7 @@ export function createApp(options: {
   projects.route(
     "/",
     createApiRouter({
-      registry: createProjectsActionRegistry(
-        createProjectsHandlers(options.config.auth.secret),
-        {
-          authorityRunner: new PostgresAuthorityRunner(options.pgDatabase),
-          commandRunner: createPostgresCommandRunner(),
-        },
-      ),
+      registry: projectsRegistry,
       publicBaseUrl: options.config.publicBaseUrl,
       createContext: createActionContext,
     }),

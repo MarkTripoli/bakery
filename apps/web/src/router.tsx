@@ -42,6 +42,7 @@ import { JoinPage } from "./pages/JoinPage.tsx";
 import { RegisterPage } from "./pages/RegisterPage.tsx";
 import { InvitationPage } from "./pages/InvitationPage.tsx";
 import {
+  InOrganization,
   InSettings,
   InstallationBreadcrumbs,
 } from "./shell/SettingsShellSlots.tsx";
@@ -419,6 +420,12 @@ export const routeCoverage = [
     path: "/settings/audit",
     classification: "production",
     states: ["loading", "default", "empty", "error", "forbidden"],
+  },
+  {
+    id: "settings-organization-sso",
+    path: "/settings/organization/sso",
+    classification: "production",
+    states: ["loading", "default", "empty", "busy", "error", "forbidden"],
   },
   {
     id: "settings-scim",
@@ -1099,6 +1106,15 @@ const organizationAccessRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const organizationSsoRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/organization/sso",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: SsoPage,
+  errorComponent: ProtectedRouteError,
+});
+
 const organizationRolesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings/organization/roles",
@@ -1161,9 +1177,9 @@ const settingsScimRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => (
-    <InSettings section="shell.navigation.scim">
+    <InOrganization section="shell.navigation.scimShort">
       <ScimConnectionPage />
-    </InSettings>
+    </InOrganization>
   ),
   errorComponent: ProtectedRouteError,
 });
@@ -1665,6 +1681,7 @@ const routeTree = rootRoute.addChildren([
   organizationAccessRoute,
   organizationIntegrationsRoute,
   organizationRolesRoute,
+  organizationSsoRoute,
   settingsAuditRoute,
   settingsScimRoute,
   projectsOnboardingRoute,

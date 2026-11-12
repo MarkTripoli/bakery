@@ -64,8 +64,13 @@ export const productionSettingsRoutes = [
     href: "/settings/audit",
   },
   {
+    id: "settings-organization-sso",
+    label: <I18nText id="shell.navigation.sso" />,
+    href: "/settings/organization/sso",
+  },
+  {
     id: "settings-scim",
-    label: <I18nText id="shell.navigation.scim" />,
+    label: <I18nText id="shell.navigation.scimShort" />,
     href: "/settings/scim",
   },
 ] satisfies readonly UI.SectionNavigationItem[];
