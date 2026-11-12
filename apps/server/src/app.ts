@@ -37,6 +37,7 @@ import {
   availableLocalesFor,
   type RuntimeConfig,
 } from "@bakery/config";
+import { contractSchemas } from "@bakery/contracts/contracts";
 import { createHealthApp } from "@bakery/contracts/health-app";
 import {
   createApiRouter,
@@ -109,6 +110,7 @@ import {
   createPreviewHostDispatch,
 } from "./modules/knowledge/previews/index.ts";
 import { createDraftIsolation } from "./modules/knowledge/draft-isolation.ts";
+import { createArtifactActions } from "./modules/knowledge/resource-routes.ts";
 import { createDraftResourceRoutes } from "./modules/knowledge/draft-resource-routes.ts";
 import type { DraftIsolation } from "./modules/knowledge/draft-isolation.ts";
 import { createConversationRoutes } from "./modules/conversation/index.ts";
@@ -249,6 +251,12 @@ export function createApp(options: {
   );
   // Shared by the REST routers and the MCP catalog tools, so both transports
   // run the same registry instances.
+  const artifactActions = createArtifactActions({
+    database: options.pgDatabase,
+    publicBaseUrl: options.config.publicBaseUrl,
+    secret: options.config.auth.secret,
+    artifactPreviewOrigin: previewOrigin,
+  });
   const taskRegistry = createTaskActionRegistry(
     options.taskHandlers ??
       createWorkTaskHandlers(options.config.auth.secret, {
@@ -346,8 +354,41 @@ export function createApp(options: {
       }),
       catalog: createMcpCatalogTools({
         publicOrigin,
-        registries: [taskRegistry, projectsRegistry],
+        registries: [taskRegistry, projectsRegistry, artifactActions.registry],
         loadSubject: loadMcpSubject,
+        overrides: {
+          // Content is never returned to a model as bytes: the tool answers
+          // with an authorized reference, read under the content action's own
+          // authority, plus the URI an authenticated client can fetch.
+          "artifactVersions.content": async (
+            { request, principal, params },
+          ) => {
+            // The same parsing as the REST route, so a malformed id is the
+            // same MALFORMED_REQUEST here as there (toProblem maps it).
+            const { id } = contractSchemas.IdPath.parse(params);
+            contractSchemas.ContentRangeQuery.parse({});
+            const reference = await artifactActions.authority.run(
+              artifactActions.registry.get("artifactVersions.content"),
+              {
+                request,
+                params: { id },
+                requestId: crypto.randomUUID(),
+                traceId: crypto.randomUUID().replaceAll("-", ""),
+                signal: AbortSignal.timeout(15_000),
+                principal,
+              } as Parameters<typeof artifactActions.authority.run>[1],
+              {},
+              (context) =>
+                artifactActions.handlers.readArtifactVersionReference(context),
+            ) as { versionId: string };
+            return {
+              ...reference,
+              resourceUri: `bakery://artifact-versions/${reference.versionId}`,
+              contentUrl:
+                `${publicOrigin}/v1/artifact-versions/${reference.versionId}/content`,
+            };
+          },
+        },
       }),
     }),
   );
@@ -446,6 +487,7 @@ export function createApp(options: {
       secretsKey: options.config.secretsKey,
       secretsFetch: options.secretsFetch,
       artifactPreviewOrigin: previewOrigin,
+      artifactActions,
       integrations,
       ...(skillFileStore
         ? {
