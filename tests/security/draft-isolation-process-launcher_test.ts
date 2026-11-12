@@ -119,49 +119,50 @@ Deno.test("the probe fixture is not blind: with every permission it reports acce
 });
 
 Deno.test("a process-launched worker starts with a cleared environment", async () => {
+  // The launched executable is a wrapper that records the environment it was
+  // given, then execs the real Deno: exactly what the server passes on.
   const canaryName = "BAKERY_DRAFT_SECRET_CANARY";
   const canary = `canary-${crypto.randomUUID()}`;
+  const directory = await Deno.makeTempDir({ prefix: "bakery-draft-env-" });
+  const record = `${directory}/environ`;
+  const wrapper = `${directory}/deno`;
+  await Deno.writeTextFile(
+    wrapper,
+    `#!/bin/sh\n/usr/bin/env -0 > '${record}'\nexec '${Deno.execPath()}' "$@"\n`,
+  );
+  await Deno.chmod(wrapper, 0o700);
   Deno.env.set(canaryName, canary);
-  const workerPath = fixture("hold.ts");
   try {
-    const isolation = createDraftIsolation({ launcher: "process", workerPath });
-    const pending = isolation.initialize("x").catch((error) => error);
-    let environ: string | undefined;
-    const deadline = Date.now() + 1_500;
-    while (environ === undefined && Date.now() < deadline) {
-      for await (const entry of Deno.readDir("/proc")) {
-        if (!/^\d+$/.test(entry.name)) continue;
-        try {
-          const cmdline = await Deno.readTextFile(
-            `/proc/${entry.name}/cmdline`,
-          );
-          if (!cmdline.includes(workerPath)) continue;
-          environ = await Deno.readTextFile(`/proc/${entry.name}/environ`);
-          break;
-        } catch {
-          // Exited or not ours.
-        }
-      }
-      if (environ === undefined) {
-        await new Promise((resolve) => setTimeout(resolve, 20));
-      }
-    }
-    const error = await pending;
-    assert(error instanceof DraftIsolationError);
-    assertEquals(error.kind, "timeout");
-    assert(environ !== undefined, "worker process not observed");
+    const isolation = createDraftIsolation({
+      launcher: "process",
+      denoPath: wrapper,
+    });
+    const candidate = await isolation.initialize("cleared");
+    assertEquals(candidate.text, "cleared");
+    const environ = await Deno.readTextFile(record);
+    assert(!environ.includes(canary), "the server environment leaked");
     const names = environ.split("\0").filter(Boolean).map((pair) =>
       pair.slice(0, pair.indexOf("="))
     );
-    assert(!environ.includes(canary), "the server environment leaked");
+    assert(names.length > 0, "no environment recorded");
     for (const name of names) {
       assert(
-        ["DENO_DIR", "HOME", "XDG_CACHE_HOME", "NO_COLOR"].includes(name),
+        [
+          "DENO_DIR",
+          "HOME",
+          "XDG_CACHE_HOME",
+          "NO_COLOR",
+          // Set by the recording shell itself, not passed by the server.
+          "PWD",
+          "SHLVL",
+          "_",
+        ].includes(name),
         `unexpected variable ${name}`,
       );
     }
   } finally {
     Deno.env.delete(canaryName);
+    await Deno.remove(directory, { recursive: true });
   }
 });
 
