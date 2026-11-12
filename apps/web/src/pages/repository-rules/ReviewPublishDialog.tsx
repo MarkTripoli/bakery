@@ -11,6 +11,7 @@ import { failureStatus } from "../../app/async-state.ts";
 import type { ProtectedScope } from "../../app/query-scope.ts";
 import { useShellViewport } from "../../app/responsive.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
+import { focusAfterPaint } from "./focus.ts";
 import type { RuleEntry } from "./presentation.ts";
 
 type PreviewItem = OrganizationRepositoryRulePreviewResponse["items"][number];
@@ -70,6 +71,37 @@ export function ReviewPublishDialog(
     if (!previewStale) return;
     void refreshRules().then(onStale);
   }, [previewStale]);
+  // A retry that works replaces the error with the answer: focus the way forward.
+  const hadError = useRef(false);
+  useEffect(() => {
+    // Only a first read that failed: a failed Load more has its own way on.
+    if (preview.isError && !preview.data) hadError.current = true;
+    else if (preview.isSuccess && hadError.current) {
+      hadError.current = false;
+      focusAfterPaint(() =>
+        document.querySelector<HTMLElement>('[data-testid="org-rules-publish"]')
+      );
+    }
+  }, [preview.isError, preview.isSuccess, preview.data]);
+  // The Load more button became a failure notice: its Try again is the way on.
+  useEffect(() => {
+    if (!preview.isFetchNextPageError) return;
+    focusAfterPaint(() =>
+      document.querySelector<HTMLElement>(
+        '[data-testid="org-rules-loadmore-retry"]',
+      )
+    );
+  }, [preview.isFetchNextPageError]);
+  /** Loads the next page; when that was the last, the button is gone, so focus the rows. */
+  const loadMore = async () => {
+    const result = await preview.fetchNextPage();
+    if (result.isError || result.hasNextPage) return;
+    focusAfterPaint(() =>
+      document.querySelector<HTMLElement>(
+        '[role="dialog"] [data-ui-component="dataTable"], dialog[open] [data-ui-component="dataTable"]',
+      )
+    );
+  };
   const first = preview.data?.pages[0];
   const items = preview.data?.pages.flatMap((page) => page.items) ?? [];
   const affected = items.filter(isAffected);
@@ -244,8 +276,9 @@ export function ReviewPublishDialog(
                 <UI.InlineNotice
                   action={
                     <UI.Button
+                      data-testid="org-rules-loadmore-retry"
                       loading={preview.isFetchingNextPage}
-                      onClick={() => void preview.fetchNextPage()}
+                      onClick={() => void loadMore()}
                       type="button"
                       variant="secondary"
                     >
@@ -261,7 +294,7 @@ export function ReviewPublishDialog(
               ? (
                 <UI.Button
                   loading={preview.isFetchingNextPage}
-                  onClick={() => void preview.fetchNextPage()}
+                  onClick={() => void loadMore()}
                   type="button"
                   variant="secondary"
                 >
@@ -288,6 +321,7 @@ export function ReviewPublishDialog(
           {translate("settings.repositoryRules.publish.back")}
         </UI.Button>
         <UI.Button
+          data-testid="org-rules-publish"
           disabled={!preview.isSuccess}
           loading={publishing}
           onClick={() => void publish()}

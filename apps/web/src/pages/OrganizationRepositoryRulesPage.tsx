@@ -21,6 +21,11 @@ import {
   summarize,
 } from "./repository-rules/presentation.ts";
 import { useRulesDraft } from "./repository-rules/draft.ts";
+import {
+  focusAfterPaint,
+  nextAfterConflict,
+  pageHeading,
+} from "./repository-rules/focus.ts";
 import { LeaveGuard } from "./repository-rules/leave-guard.tsx";
 import { ReviewPublishDialog } from "./repository-rules/ReviewPublishDialog.tsx";
 import { useRulesScope } from "./repository-rules/use-rules-scope.ts";
@@ -258,7 +263,10 @@ export function OrganizationRepositoryRulesPage() {
                           "settings.repositoryRules.stale.useTheirs.named",
                           { revision, rule: name },
                         )}
-                        onClick={() => drafts.resolve(key, "theirs")}
+                        onClick={() => {
+                          drafts.resolve(key, "theirs");
+                          focusAfterPaint(nextAfterConflict);
+                        }}
                         type="button"
                         variant="secondary"
                       >
@@ -271,7 +279,10 @@ export function OrganizationRepositoryRulesPage() {
                           "settings.repositoryRules.stale.keepMine.named",
                           { rule: name },
                         )}
-                        onClick={() => drafts.resolve(key, "mine")}
+                        onClick={() => {
+                          drafts.resolve(key, "mine");
+                          focusAfterPaint(nextAfterConflict);
+                        }}
                         type="button"
                         variant="secondary"
                       >
@@ -662,6 +673,7 @@ export function OrganizationRepositoryRulesPage() {
               })}
               primaryAction={
                 <UI.Button
+                  data-testid="org-rules-review"
                   disabled={drafts.conflicts.length > 0}
                   onClick={() => setReviewing(true)}
                   type="button"
@@ -716,6 +728,8 @@ export function OrganizationRepositoryRulesPage() {
               onClick={() => {
                 drafts.discard();
                 setDiscarding(false);
+                // The draft bar that held Discard is gone: start from the top of the page.
+                focusAfterPaint(pageHeading);
               }}
               type="button"
               variant="destructive"

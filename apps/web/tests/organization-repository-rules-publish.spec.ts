@@ -93,6 +93,8 @@ type Options = {
   staleOn?: "preview" | "publish";
   /** The rules as that revision 4 published them. */
   theirs?: RuleEntry[];
+  /** This page of the preview answers 500 the first time it is asked for. */
+  failPageOnce?: string;
 };
 
 async function publishFixture(page: Page, options: Options = {}) {
@@ -107,6 +109,7 @@ async function publishFixture(page: Page, options: Options = {}) {
   };
   const pages = options.pages ?? { first: FIRST_PAGE };
   let staleOn = options.staleOn;
+  let failPageOnce = options.failPageOnce;
   /** Someone else publishes revision 4 while the draft is open. */
   const bump = () => {
     state.revision = 4;
@@ -175,6 +178,10 @@ async function publishFixture(page: Page, options: Options = {}) {
         return route.fulfill(problem(state.previewStatus));
       }
       const cursor = (body.cursor as string | undefined) ?? "first";
+      if (failPageOnce === cursor) {
+        failPageOnce = undefined;
+        return route.fulfill(problem(500));
+      }
       return route.fulfill(json({
         organizationId: MOCK_ORGANIZATION_ID,
         currentRevision: state.revision,
@@ -575,5 +582,105 @@ test.describe("organization repository rules: a newer revision was published", (
     await expect(ruleRow(page, "Semantic commits")).toContainText("Edited");
     await expect(page.getByRole("button", { name: "Review and publish" }))
       .toBeEnabled();
+  });
+});
+
+/** Revision 4 where both rules this draft edits were changed by someone else. */
+const THEIRS_BOTH: RuleEntry[] = THEIRS.map((entry) =>
+  entry.ruleKey === "code.magicStrings"
+    ? { ...entry, enabled: true, mode: "require" }
+    : entry
+);
+
+test.describe("organization repository rules: focus follows an action that replaces its control", () => {
+  test.beforeEach(() => {
+    test.setTimeout(45_000);
+  });
+
+  test("confirming Discard, which removes the draft bar, moves focus to the page heading", async ({ page }) => {
+    await publishFixture(page);
+    await makeDraft(page);
+    await draftBar(page).locator("..").getByRole("button", { name: "Discard" })
+      .click();
+    await page.getByRole("alertdialog").getByRole("button", {
+      name: "Discard changes",
+    }).click();
+    await expect(draftBar(page)).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "Repository rules", level: 1 }),
+    ).toBeFocused();
+  });
+
+  test("deciding the last conflict moves focus to Review and publish", async ({ page }) => {
+    await publishFixture(page, { staleOn: "preview", theirs: THEIRS });
+    await makeDraft(page);
+    await enableMagicStrings(page);
+    await page.getByRole("button", { name: "Review and publish" }).click();
+    await expect(page.getByTestId("org-rules-conflicts")).toBeVisible();
+    await page.getByRole("button", { name: "Keep mine for Semantic commits" })
+      .click();
+    await expect(page.getByRole("button", { name: "Review and publish" }))
+      .toBeFocused();
+  });
+
+  test("with two conflicts, deciding the first moves focus to the second", async ({ page }) => {
+    await publishFixture(page, { staleOn: "preview", theirs: THEIRS_BOTH });
+    await makeDraft(page);
+    await enableMagicStrings(page);
+    await page.getByRole("button", { name: "Review and publish" }).click();
+    const conflicts = page.getByTestId("org-rules-conflicts");
+    await expect(conflicts).toContainText("Semantic commits");
+    await expect(conflicts).toContainText("Magic strings");
+    await page.getByRole("button", { name: "Keep mine for Semantic commits" })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Use revision 4 for Magic strings" }),
+    ).toBeFocused();
+    // Dropping the rule leaves one edit: focus goes on to Review and publish.
+    await page.getByRole("button", { name: "Use revision 4 for Magic strings" })
+      .click();
+    await expect(page.getByRole("button", { name: "Review and publish" }))
+      .toBeFocused();
+  });
+
+  test("a preview retry that works moves focus to Publish rules", async ({ page }) => {
+    const state = await publishFixture(page, { previewStatus: 500 });
+    await makeDraft(page);
+    const dialog = await review(page);
+    await expect(
+      dialog.getByText("What this change would do could not be checked."),
+    ).toBeVisible();
+    state.previewStatus = 200;
+    await dialog.getByRole("button", { name: "Try again" }).click();
+    await expect(dialog.getByRole("button", { name: "Publish rules" }))
+      .toBeFocused();
+  });
+
+  test("a failed Load more focuses its Try again, and the retry that finishes the list focuses the rows", async ({ page }) => {
+    await publishFixture(page, {
+      failPageOnce: "page-2",
+      pages: {
+        first: { ...FIRST_PAGE, nextCursor: "page-2" },
+        "page-2": {
+          ...FIRST_PAGE,
+          items: [repo(6, { status: "overridden" })],
+          nextCursor: null,
+        },
+      },
+    });
+    await makeDraft(page);
+    const dialog = await review(page);
+    await dialog.getByRole("button", { name: "Load more repositories" })
+      .click();
+    await expect(dialog.getByText("More repositories could not be loaded."))
+      .toBeVisible();
+    const retry = dialog.getByRole("button", { name: "Try again" });
+    await expect(retry).toBeFocused();
+    await retry.click();
+    await expect(dialog.getByRole("table", { name: "Affected repositories" }))
+      .toContainText("acme/service-6");
+    // The button that was pressed is gone, so focus is on the rows it loaded.
+    await expect(dialog.locator('[data-ui-component="dataTable"]'))
+      .toBeFocused();
   });
 });
