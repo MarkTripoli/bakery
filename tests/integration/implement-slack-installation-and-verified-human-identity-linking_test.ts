@@ -439,47 +439,74 @@ Deno.test("a member who is made inactive stops being a human at once, and reconc
   });
 });
 
-Deno.test("reconciling is bounded by its limit and by its organization", async () => {
+Deno.test("reconciling honours its limit whatever the planner statistics say, takes the oldest first, and sweeps only its own organization", async () => {
   await withFixture(async (f) => {
-    const ids = [slackIdentity(), slackIdentity(), slackIdentity()];
-    for (const identity of ids) {
-      assert((await link(f, f.organizationId, f.developerId!, identity)).ok);
+    // The first form of the sweep revoked 3 where the limit was 2 when the table
+    // had been analyzed while empty (the planner then re-ran its subquery per
+    // row), and which regime a run met depended on autovacuum. Both are forced.
+    for (
+      const regime of [
+        "statistics of an empty table",
+        "statistics of a populated table",
+      ] as const
+    ) {
+      await f.pgDatabase.query(
+        `delete from bakery.external_identity_links where organization_id = $1`,
+        [f.organizationId],
+      );
+      if (regime === "statistics of an empty table") {
+        await f.pgDatabase.query(`analyze bakery.external_identity_links`);
+      }
+      const ids = [slackIdentity(), slackIdentity(), slackIdentity()];
+      for (const identity of ids) {
+        assert(
+          (await link(f, f.organizationId, f.developerId!, identity)).ok,
+          regime,
+        );
+        // Distinct creation times, so "oldest first" has an answer.
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+      if (regime === "statistics of a populated table") {
+        await f.pgDatabase.query(`analyze bakery.external_identity_links`);
+      }
+      await setMembership(f, f.developerId!, "inactive");
+      const states = async () =>
+        await Promise.all(
+          ids.map(async (identity) =>
+            (await lookup(f, f.organizationId, identity))?.state
+          ),
+        );
+      const sweep = (organizationId: string, limit: number) =>
+        inTransaction(
+          f,
+          (tx) =>
+            reconcileSlackIdentityLinks(tx, {
+              organizationId,
+              at: now(),
+              limit,
+            }),
+        );
+
+      assertEquals(
+        await sweep(crypto.randomUUID(), 2),
+        { revoked: 0 },
+        `${regime}: another organization's id sweeps nothing here`,
+      );
+      assertEquals(
+        await sweep(f.organizationId, 2),
+        { revoked: 2 },
+        `${regime}: exactly the limit`,
+      );
+      assertEquals(
+        await states(),
+        ["revoked", "revoked", "active"],
+        `${regime}: the two oldest went`,
+      );
+      assertEquals(await sweep(f.organizationId, 2), { revoked: 1 }, regime);
+      assertEquals(await states(), ["revoked", "revoked", "revoked"], regime);
+      assertEquals(await sweep(f.organizationId, 2), { revoked: 0 }, regime);
+      await setMembership(f, f.developerId!, "active");
     }
-    await setMembership(f, f.developerId!, "inactive");
-    const other = await inTransaction(
-      f,
-      (tx) =>
-        reconcileSlackIdentityLinks(tx, {
-          organizationId: crypto.randomUUID(),
-          at: now(),
-        }),
-    );
-    assertEquals(
-      other,
-      { revoked: 0 },
-      "another organization's id sweeps nothing here",
-    );
-    const first = await inTransaction(
-      f,
-      (tx) =>
-        reconcileSlackIdentityLinks(tx, {
-          organizationId: f.organizationId,
-          at: now(),
-          limit: 2,
-        }),
-    );
-    assertEquals(first, { revoked: 2 });
-    const second = await inTransaction(
-      f,
-      (tx) =>
-        reconcileSlackIdentityLinks(tx, {
-          organizationId: f.organizationId,
-          at: now(),
-          limit: 2,
-        }),
-    );
-    assertEquals(second, { revoked: 1 });
-    await setMembership(f, f.developerId!, "active");
   });
 });
 
@@ -655,5 +682,318 @@ Deno.test("a subject that does not name its Slack app finds no link, and a link 
       kind: "human",
       principalId: f.adminId,
     });
+  });
+});
+
+/** Links at a given proof time. */
+async function linkAt(
+  f: Fixture,
+  organizationId: string,
+  principalId: string,
+  identity: SlackLinkIdentity,
+  verifiedAt: Date,
+) {
+  return await inTransaction(
+    f,
+    (tx) =>
+      linkSlackIdentity(tx, {
+        organizationId,
+        principalId,
+        identity,
+        verifiedAt,
+      }),
+  );
+}
+
+function revoke(
+  f: Fixture,
+  linkId: string,
+  overrides: Partial<Parameters<typeof revokeSlackIdentityLink>[1]> = {},
+) {
+  return inTransaction(f, (tx) =>
+    revokeSlackIdentityLink(tx, {
+      organizationId: f.organizationId,
+      linkId,
+      revokedBy: f.adminId,
+      reason: "unlinked_by_member",
+      at: now(),
+      ...overrides,
+    }));
+}
+
+Deno.test("membership is judged in the organization asked about: a member inactive here and active elsewhere is neither linked nor current here", async () => {
+  await withFixture(async (f) => {
+    const developer = f.developerId!;
+    const otherOrganization = crypto.randomUUID();
+    await f.pgDatabase.query(
+      `insert into bakery.organizations (id, name, slug, created_at, updated_at)
+       values ($1, 'org B', $2, now(), now())`,
+      [otherOrganization, `b-${suffix().toLowerCase()}`],
+    );
+    await f.pgDatabase.query(
+      `insert into bakery.organization_memberships
+         (id, organization_id, principal_id, role, status, joined_at, created_at, updated_at)
+       values ($1, $2, $3, 'developer', 'active', now(), now(), now())`,
+      [crypto.randomUUID(), otherOrganization, developer],
+    );
+    try {
+      // Linked while active here; then inactive here, still active in the other.
+      const identity = slackIdentity();
+      const taken = slackIdentity();
+      assert((await link(f, f.organizationId, developer, identity)).ok);
+      assert((await link(f, f.organizationId, developer, taken)).ok);
+      await setMembership(f, developer, "inactive");
+      assertEquals(
+        (await lookup(f, f.organizationId, identity))?.memberCurrent,
+        false,
+        "current in the organization asked about, not in some other",
+      );
+      // A holder who is a member only elsewhere does not keep the link here.
+      const takeover = await link(f, f.organizationId, f.adminId, taken);
+      assert(takeover.ok, "the holder is not a current member of this one");
+      assertEquals(takeover.outcome, "relinked");
+      assertEquals(
+        await inTransaction(
+          f,
+          (tx) =>
+            reconcileSlackIdentityLinks(tx, {
+              organizationId: f.organizationId,
+              at: now(),
+            }),
+        ),
+        { revoked: 1 },
+        "the sweep reads the same organization's membership",
+      );
+      // And a new link is refused here although the member is active elsewhere.
+      assertEquals(
+        await link(f, f.organizationId, developer, slackIdentity()),
+        { ok: false, reason: "not_a_member" },
+      );
+      // Removed from here altogether: a result, not a foreign-key exception.
+      await f.pgDatabase.query(
+        `delete from bakery.organization_memberships where organization_id = $1 and principal_id = $2`,
+        [f.organizationId, developer],
+      );
+      assertEquals(
+        await link(f, f.organizationId, developer, slackIdentity()),
+        { ok: false, reason: "not_a_member" },
+      );
+    } finally {
+      await f.pgDatabase.query(
+        `delete from bakery.organizations where id = $1`,
+        [otherOrganization],
+      );
+    }
+  });
+});
+
+Deno.test("two different current members racing for a revoked identity: exactly one takes it and the other is told so", async () => {
+  await withFixture(async (f) => {
+    for (let round = 0; round < 8; round += 1) {
+      const identity = slackIdentity();
+      const first = await link(f, f.organizationId, f.developerId!, identity);
+      assert(first.ok);
+      assert((await revoke(f, first.link.id)).ok);
+      const [a, b] = await Promise.all([
+        link(f, f.organizationId, f.adminId, identity),
+        link(f, f.organizationId, f.developerId!, identity),
+      ]);
+      const winners = [a, b].filter((result) => result.ok);
+      const losers = [a, b].filter((result) => !result.ok);
+      assertEquals(winners.length, 1, `round ${round}: one winner`);
+      assertEquals(losers, [{ ok: false, reason: "linked_to_another_member" }]);
+      const winner = winners[0]!;
+      assert(winner.ok);
+      assertEquals(winner.outcome, "relinked");
+      // linked (1), revoked (2), relinked (3): a second takeover would be 4.
+      assertEquals(winner.link.version, 3, `round ${round}`);
+      assertEquals(await rowCount(f, f.organizationId, identity), 1);
+    }
+  });
+});
+
+Deno.test("a takeover records the new proof's time, not the old one", async () => {
+  await withFixture(async (f) => {
+    const identity = slackIdentity();
+    const earlier = new Date("2026-01-02T03:04:05.000Z");
+    const later = new Date("2026-06-07T08:09:10.000Z");
+    const first = await linkAt(
+      f,
+      f.organizationId,
+      f.developerId!,
+      identity,
+      earlier,
+    );
+    assert(first.ok);
+    assertEquals(first.link.verifiedAt, earlier.toISOString());
+    assert((await revoke(f, first.link.id)).ok);
+    const again = await linkAt(f, f.organizationId, f.adminId, identity, later);
+    assert(again.ok);
+    assertEquals(again.outcome, "relinked");
+    assertEquals(again.link.verifiedAt, later.toISOString());
+  });
+});
+
+Deno.test("a revocation names one of three reasons and nothing else", async () => {
+  await withFixture(async (f) => {
+    for (
+      const reason of [
+        "revoked_by_admin",
+        "unlinked_by_member",
+        "membership_inactive",
+      ] as const
+    ) {
+      const linked = await link(
+        f,
+        f.organizationId,
+        f.adminId,
+        slackIdentity(),
+      );
+      assert(linked.ok);
+      const revoked = await revoke(f, linked.link.id, { reason });
+      assert(revoked.ok, reason);
+      assertEquals(revoked.link.revokeReason, reason);
+    }
+    const linked = await link(f, f.organizationId, f.adminId, slackIdentity());
+    assert(linked.ok);
+    for (
+      const reason of [
+        "because",
+        "",
+        "REVOKED_BY_ADMIN",
+        "revoked_by_admin ",
+        null,
+        undefined,
+        5,
+        {},
+      ]
+    ) {
+      assertEquals(
+        await revoke(f, linked.link.id, { reason: reason as never }),
+        { ok: false, reason: "malformed" },
+        JSON.stringify(reason),
+      );
+    }
+    const stillActive = await f.runtimePgDatabase.query<
+      { state: string; reason: string | null }
+    >(
+      `select state, revoke_reason as reason from bakery.external_identity_links where id = $1`,
+      [linked.link.id],
+    );
+    assertEquals(stillActive.rows[0], { state: "active", reason: null });
+  });
+});
+
+Deno.test("a time that is not a usable time is refused as malformed instead of aborting the caller's transaction", async () => {
+  await withFixture(async (f) => {
+    const unusable = [
+      new Date(Number.NaN),
+      new Date(-8.64e15),
+      new Date(8.64e15),
+      new Date(Date.UTC(1969, 11, 31, 23, 59, 59, 999)),
+      new Date(Date.UTC(10000, 0, 1)),
+    ];
+    for (const verifiedAt of unusable) {
+      const identity = slackIdentity();
+      assertEquals(
+        await linkAt(f, f.organizationId, f.adminId, identity, verifiedAt),
+        { ok: false, reason: "malformed" },
+        String(verifiedAt.getTime()),
+      );
+      assertEquals(await rowCount(f, f.organizationId, identity), 0);
+    }
+    for (
+      const verifiedAt of [
+        new Date(Date.UTC(1970, 0, 1)),
+        new Date(Date.UTC(9999, 11, 31, 23, 59, 59, 999)),
+      ]
+    ) {
+      assert(
+        (await linkAt(
+          f,
+          f.organizationId,
+          f.adminId,
+          slackIdentity(),
+          verifiedAt,
+        )).ok,
+      );
+    }
+    // The same for a revocation and for a sweep: refused, and nothing changes.
+    const linked = await link(
+      f,
+      f.organizationId,
+      f.developerId!,
+      slackIdentity(),
+    );
+    assert(linked.ok);
+    for (const at of unusable) {
+      assertEquals(await revoke(f, linked.link.id, { at }), {
+        ok: false,
+        reason: "malformed",
+      });
+    }
+    await setMembership(f, f.developerId!, "inactive");
+    for (const at of unusable) {
+      assertEquals(
+        await inTransaction(
+          f,
+          (tx) =>
+            reconcileSlackIdentityLinks(tx, {
+              organizationId: f.organizationId,
+              at,
+            }),
+        ),
+        { revoked: 0 },
+      );
+    }
+    const state = await lookup(f, f.organizationId, {
+      ...(await f.runtimePgDatabase.query<
+        { appId: string; teamId: string; userId: string }
+      >(
+        `select external_app_id as "appId", identity_scope as "teamId", external_user_id as "userId"
+           from bakery.external_identity_links where id = $1`,
+        [linked.link.id],
+      )).rows[0]!,
+    });
+    assertEquals(
+      state?.state,
+      "active",
+      "nothing was revoked by a refused call",
+    );
+    await setMembership(f, f.developerId!, "active");
+  });
+});
+
+Deno.test("a revoker who is not a principal is a refusal in the module and a foreign-key error in the database", async () => {
+  await withFixture(async (f) => {
+    const linked = await link(f, f.organizationId, f.adminId, slackIdentity());
+    assert(linked.ok);
+    assertEquals(
+      await revoke(f, linked.link.id, { revokedBy: crypto.randomUUID() }),
+      { ok: false, reason: "unknown_revoker" },
+    );
+    const untouched = await f.runtimePgDatabase.query<{ state: string }>(
+      `select state from bakery.external_identity_links where id = $1`,
+      [linked.link.id],
+    );
+    assertEquals(untouched.rows[0]?.state, "active");
+    // The table itself holds the rule, for any writer: the owner can write any
+    // column, so this is the foreign key and nothing else.
+    await assertRejects(
+      () =>
+        f.pgDatabase.query(
+          `update bakery.external_identity_links set revoked_by = $2 where id = $1`,
+          [linked.link.id, crypto.randomUUID()],
+        ),
+      Error,
+      "violates foreign key constraint",
+    );
+    // A system revocation has no revoker at all.
+    const system = await revoke(f, linked.link.id, {
+      revokedBy: null,
+      reason: "membership_inactive",
+    });
+    assert(system.ok);
+    assertEquals(system.link.revokedBy, null);
   });
 });

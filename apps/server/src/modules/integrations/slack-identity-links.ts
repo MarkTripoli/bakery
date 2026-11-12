@@ -6,10 +6,12 @@
  * by `slack-identity.ts` before anything here is called and is never stored;
  * a row holds identifiers and times only.
  *
- * Every function takes the caller's transaction and returns a result with a
- * reason code, never an exception for an expected refusal, and none of them
- * puts a name, an email or a token in a result or a reason. Ids are checked
- * before the database is touched.
+ * Every function takes the caller's transaction. Input that is wrong (an id
+ * that is not an id, a time that is not a usable time, a reason outside the
+ * list) is refused with a reason code before the database is touched, and none
+ * of them puts a name, an email or a token in a result or a reason. A failure
+ * of the database itself (a lost connection, a constraint) is not an expected
+ * refusal: it throws, and aborts the caller's transaction as it should.
  */
 import type { PgTransactionClient } from "@bakery/persistence";
 import {
@@ -93,6 +95,19 @@ const record = (row: LinkRow): SlackIdentityLinkRecord => ({
 const isUuid = (value: unknown): value is string =>
   typeof value === "string" && UUID.test(value);
 
+/** Earliest and latest time accepted as a proof or revocation time. */
+const EARLIEST_TIME = Date.UTC(1970, 0, 1);
+const LATEST_TIME = Date.UTC(9999, 11, 31, 23, 59, 59, 999);
+
+/**
+ * A usable time. `Invalid Date` and values outside the range would otherwise
+ * reach the driver, which throws and aborts the caller's transaction; a real
+ * clock is always inside this range.
+ */
+const isUsableTime = (value: unknown): value is Date =>
+  value instanceof Date && Number.isFinite(value.getTime()) &&
+  value.getTime() >= EARLIEST_TIME && value.getTime() <= LATEST_TIME;
+
 function validIdentity(identity: unknown): identity is SlackLinkIdentity {
   if (typeof identity !== "object" || identity === null) return false;
   const value = identity as Record<string, unknown>;
@@ -140,12 +155,15 @@ export async function linkSlackIdentity(
   const { organizationId, principalId, identity, verifiedAt } = input;
   if (
     !isUuid(organizationId) || !isUuid(principalId) ||
-    !validIdentity(identity) || !(verifiedAt instanceof Date) ||
-    Number.isNaN(verifiedAt.getTime())
+    !validIdentity(identity) || !isUsableTime(verifiedAt)
   ) return { ok: false, reason: "malformed" };
 
-  // No lock on the membership: the foreign key on the insert below takes a
-  // key-share lock on the row, which is what stops a concurrent removal.
+  // No lock on the membership. The foreign key on the insert below takes a
+  // key-share lock on the row, which stops a concurrent DELETE of the member
+  // but not a concurrent status UPDATE: a member deactivated while this runs
+  // can still end up holding an active link. That grants nothing, because
+  // findSlackIdentityLink reads the member's status live, and the sweep revokes
+  // the link afterwards.
   const member = await transaction.query(
     `select 1 from bakery.organization_memberships
       where organization_id = $1 and principal_id = $2 and status = 'active'`,
@@ -178,18 +196,21 @@ export async function linkSlackIdentity(
   }
 
   // The identity already has a row, possibly one a concurrent transaction has
-  // only just committed (the insert waited for it). Lock it and decide.
+  // only just committed (the insert waited for it). Lock it alone and decide.
+  //
+  // The row is locked WITHOUT a join to the holder's membership. A transaction
+  // that waits for the lock re-checks the row after the winner commits, keeping
+  // the join partner it first saw; with a join to the old holder's membership
+  // the new holder no longer matched, the left join came back empty, the holder
+  // looked "not current", and two members racing for one revoked identity both
+  // took it. The holder's membership is read afterwards, in its own statement.
   const existing = await transaction.query<LinkRow>(
-    `select ${COLUMNS},
-            coalesce(membership.status = 'active', false) as "holderCurrent"
+    `select ${COLUMNS}, false as "holderCurrent"
        from bakery.external_identity_links as link
-       left join bakery.organization_memberships as membership
-         on membership.organization_id = link.organization_id
-        and membership.principal_id = link.principal_id
       where link.organization_id = $1 and link.provider = $2
         and link.external_app_id = $3 and link.identity_scope = $4
         and link.external_user_id = $5
-        for update of link`,
+        for update`,
     [
       organizationId,
       SLACK_LINK_PROVIDER,
@@ -206,8 +227,17 @@ export async function linkSlackIdentity(
   if (row.state === "active" && row.principalId === principalId) {
     return { ok: true, outcome: "unchanged", link: record(row) };
   }
-  if (row.state === "active" && row.holderCurrent) {
-    return { ok: false, reason: "linked_to_another_member" };
+  if (row.state === "active") {
+    // Held by another member: theirs while they are a current member, up for
+    // takeover once they are not. Read now, with a fresh snapshot.
+    const holder = await transaction.query(
+      `select 1 from bakery.organization_memberships
+        where organization_id = $1 and principal_id = $2 and status = 'active'`,
+      [organizationId, row.principalId],
+    );
+    if (holder.rows.length === 1) {
+      return { ok: false, reason: "linked_to_another_member" };
+    }
   }
 
   const relinked = await transaction.query<LinkRow>(
@@ -285,7 +315,11 @@ export type RevokeSlackIdentityResult =
   | { readonly ok: true; readonly link: SlackIdentityLinkRecord }
   | {
     readonly ok: false;
-    readonly reason: "malformed" | "not_found" | "already_revoked";
+    readonly reason:
+      | "malformed"
+      | "unknown_revoker"
+      | "not_found"
+      | "already_revoked";
   };
 
 /**
@@ -307,9 +341,20 @@ export async function revokeSlackIdentityLink(
   if (
     !isUuid(organizationId) || !isUuid(linkId) ||
     (revokedBy !== null && !isUuid(revokedBy)) ||
-    !REVOKE_REASONS.has(reason) || !(at instanceof Date) ||
-    Number.isNaN(at.getTime())
+    !REVOKE_REASONS.has(reason) || !isUsableTime(at)
   ) return { ok: false, reason: "malformed" };
+
+  // The column is a foreign key to principals, and a violation would abort the
+  // caller's transaction; an unknown revoker is a refusal, checked first.
+  if (revokedBy !== null) {
+    const known = await transaction.query(
+      `select 1 from bakery.principals where id = $1`,
+      [revokedBy],
+    );
+    if (known.rows.length !== 1) {
+      return { ok: false, reason: "unknown_revoker" };
+    }
+  }
 
   const current = await transaction.query<{ state: string }>(
     `select state from bakery.external_identity_links
@@ -333,9 +378,14 @@ export async function revokeSlackIdentityLink(
 
 /**
  * Revokes the active links of an organization whose member is no longer
- * active, at most `limit` of them, oldest first. Returns how many it revoked;
- * call again until it returns 0. A member removed outright takes their links
- * with them (the foreign key), so only inactive members arrive here.
+ * active, at most `limit` of them, oldest first. Returns how many it revoked.
+ * A member removed outright takes their links with them (the foreign key), so
+ * only inactive members arrive here.
+ *
+ * Call it again while it returns anything. A return of 0 means none was free
+ * to revoke, not necessarily that none is left: rows another sweep holds are
+ * skipped, and they stay active (and harmless, since membership is read live)
+ * until a later sweep.
  */
 export async function reconcileSlackIdentityLinks(
   transaction: PgTransactionClient,
@@ -348,26 +398,32 @@ export async function reconcileSlackIdentityLinks(
   const { organizationId, at } = input;
   const limit = input.limit ?? DEFAULT_RECONCILE_LIMIT;
   if (
-    !isUuid(organizationId) || !(at instanceof Date) ||
-    Number.isNaN(at.getTime()) || !Number.isInteger(limit) || limit < 1 ||
-    limit > MAX_RECONCILE_LIMIT
+    !isUuid(organizationId) || !isUsableTime(at) ||
+    !Number.isInteger(limit) || limit < 1 || limit > MAX_RECONCILE_LIMIT
   ) return { revoked: 0 };
 
+  // The picked rows are fixed once, in a materialized CTE. The earlier form,
+  // `where link.id in (select ... limit $3 ...)`, let the planner run the
+  // subquery again for each outer row, and since the rows already revoked drop
+  // out of it, each run returned the next ones: with the statistics of an empty
+  // table it revoked 3 where the limit was 2.
   const result = await transaction.query(
-    `update bakery.external_identity_links as link
+    `with picked as materialized (
+       select candidate.id from bakery.external_identity_links as candidate
+         join bakery.organization_memberships as membership
+           on membership.organization_id = candidate.organization_id
+          and membership.principal_id = candidate.principal_id
+        where candidate.organization_id = $1 and candidate.state = 'active'
+          and membership.status <> 'active'
+        order by candidate.created_at, candidate.id
+        limit $3
+          for update of candidate skip locked)
+     update bakery.external_identity_links as link
         set state = 'revoked', revoked_at = $2, revoked_by = null,
             revoke_reason = 'membership_inactive', updated_at = now(),
             version = link.version + 1
-      where link.id in (
-        select candidate.id from bakery.external_identity_links as candidate
-          join bakery.organization_memberships as membership
-            on membership.organization_id = candidate.organization_id
-           and membership.principal_id = candidate.principal_id
-         where candidate.organization_id = $1 and candidate.state = 'active'
-           and membership.status <> 'active'
-         order by candidate.created_at, candidate.id
-         limit $3
-           for update of candidate skip locked)`,
+       from picked
+      where link.id = picked.id`,
     [organizationId, at, limit],
   );
   return { revoked: result.rowCount ?? 0 };
