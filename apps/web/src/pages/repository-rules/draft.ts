@@ -90,7 +90,9 @@ export function rebaseDraft(
     const changedThere = base && theirs
       ? !sameEntry(base, theirs)
       : Boolean(base) !== Boolean(theirs);
-    if (changedThere) conflicts.push(key);
+    // A conflict nobody has decided yet stays one: the base is now the newer
+    // revision, so "changed there" cannot be read from it a second time.
+    if (changedThere || draft.conflicts.includes(key)) conflicts.push(key);
   }
   if (Object.keys(edited).length === 0) return null;
   return {

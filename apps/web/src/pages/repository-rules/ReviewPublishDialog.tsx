@@ -62,10 +62,18 @@ export function ReviewPublishDialog(
   });
   // A draft made on a revision that is no longer the newest cannot be previewed or published.
   const stale = (error: unknown) => failureStatus(error) === 412;
-  const refreshRules = () =>
-    queryClient.invalidateQueries({
+  // A newer revision is in the rules and in the History under them. The
+  // History is read again in the background: only the rules are waited for,
+  // because what follows closes this dialog and moves focus to the notice, and
+  // a slower History must not let the dialog hand focus back after that.
+  const refreshRules = () => {
+    void queryClient.invalidateQueries({
+      predicate: (query) => query.queryKey[3] === "repositoryRuleVersions.list",
+    });
+    return queryClient.invalidateQueries({
       predicate: (query) => query.queryKey[3] === "repositoryRules.get",
     });
+  };
   const previewStale = preview.isError && stale(preview.error);
   useEffect(() => {
     if (!previewStale) return;

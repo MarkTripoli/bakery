@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useParams } from "@tanstack/react-router";
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, useId, useRef, useState } from "react";
 import type { MessageKey, Translator } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
@@ -9,6 +9,7 @@ import { failureStatus, isForbiddenFailure } from "../app/async-state.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { useRulesDraft } from "./repository-rules/draft.ts";
+import { focusAfterPaint } from "./repository-rules/focus.ts";
 import { LeaveGuard } from "./repository-rules/leave-guard.tsx";
 import {
   blankEntry,
@@ -143,12 +144,20 @@ function RuleForm(
   const [canOverride, setCanOverride] = useState(!entry.locked);
   const [form, setForm] = useState<OptionForm>(() => toForm(entry));
   const [errors, setErrors] = useState<Record<string, FieldError>>({});
+  const formRef = useRef<HTMLFormElement>(null);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const parsed = fromForm(entry.ruleKey, form);
     if ("errors" in parsed) {
       setErrors(parsed.errors);
+      // The first field, in reading order, that the check refused.
+      const refused = parsed.errors;
+      focusAfterPaint(() =>
+        Array.from(
+          formRef.current?.querySelectorAll<HTMLInputElement>("[name]") ?? [],
+        ).find((control) => control.name in refused)
+      );
       return;
     }
     setErrors({});
@@ -164,7 +173,7 @@ function RuleForm(
   };
 
   return (
-    <form noValidate onSubmit={submit}>
+    <form noValidate onSubmit={submit} ref={formRef}>
       <UI.Stack>
         <UI.Switch
           checked={enabled}

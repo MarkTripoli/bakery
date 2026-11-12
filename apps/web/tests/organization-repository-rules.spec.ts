@@ -193,6 +193,9 @@ test.describe("organization repository rules", () => {
     await expect(
       page.getByRole("button", { name: "Load more revisions" }),
     ).toHaveCount(0);
+    // The last page removed the button that had focus: focus goes to the History heading.
+    await expect(page.getByRole("heading", { name: "History", level: 2 }))
+      .toBeFocused();
     expect(state.cursors).toEqual([null, "page-2"]);
   });
 
@@ -368,6 +371,9 @@ test.describe("organization repository rules", () => {
       hasText: "Older revisions could not be loaded.",
     });
     await expect(notice).toBeVisible();
+    // The button became this notice: its Try again takes focus.
+    await expect(notice.getByRole("button", { name: "Try again" }))
+      .toBeFocused();
     await shot(page, "rules-history-load-more-failed");
     // Nothing already shown is lost, and the failure is not offered as another Load more.
     await expect(history).toHaveCount(2);

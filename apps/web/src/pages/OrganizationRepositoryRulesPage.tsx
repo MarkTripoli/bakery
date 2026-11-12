@@ -170,6 +170,23 @@ export function OrganizationRepositoryRulesPage() {
   const history = versions.data?.pages.flatMap((page) => page.items) ?? [];
   const firstReadFailed = versions.isError && !versions.data;
   const moreFailed = versions.isFetchNextPageError;
+  /**
+   * Loads the next page of the History. The button that had focus is gone when
+   * that was the last page, or becomes a notice when it failed: either way
+   * focus goes to what replaced it, never to the page body.
+   */
+  const loadMoreHistory = async () => {
+    const result = await versions.fetchNextPage();
+    focusAfterPaint(() =>
+      document.querySelector<HTMLElement>(
+        result.isError
+          ? '[data-testid="org-rules-history-retry"]'
+          : result.hasNextPage
+          ? '[data-testid="org-rules-history-more"]'
+          : '[data-testid="org-rules-history-title"]',
+      )
+    );
+  };
   // A digest never wraps; the whole value is its title.
   const digestText = (value: string) => (
     <UI.DataText truncate title={value}>
@@ -512,7 +529,10 @@ export function OrganizationRepositoryRulesPage() {
                     {data.revision > 0
                       ? (
                         <>
-                          <UI.Heading level="section">
+                          <UI.Heading
+                            data-testid="org-rules-history-title"
+                            level="section"
+                          >
                             {translate(
                               "settings.repositoryRules.history.title",
                             )}
@@ -639,9 +659,9 @@ export function OrganizationRepositoryRulesPage() {
                               <UI.InlineNotice
                                 action={
                                   <UI.Button
+                                    data-testid="org-rules-history-retry"
                                     loading={versions.isFetchingNextPage}
-                                    onClick={() =>
-                                      void versions.fetchNextPage()}
+                                    onClick={() => void loadMoreHistory()}
                                     type="button"
                                     variant="secondary"
                                   >
@@ -658,8 +678,9 @@ export function OrganizationRepositoryRulesPage() {
                             : versions.hasNextPage
                             ? (
                               <UI.Button
+                                data-testid="org-rules-history-more"
                                 loading={versions.isFetchingNextPage}
-                                onClick={() => void versions.fetchNextPage()}
+                                onClick={() => void loadMoreHistory()}
                                 type="button"
                               >
                                 {translate(

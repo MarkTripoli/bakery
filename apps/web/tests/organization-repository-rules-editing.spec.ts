@@ -208,6 +208,8 @@ test.describe("organization repository rules: editing", () => {
     await expect(
       page.getByText("Enter a whole number between 20 and 200."),
     ).toBeVisible();
+    // A refused Apply puts the person on the first field that needs attention.
+    await expect(page.getByLabel("Allowed types")).toBeFocused();
     await shot(page, "rules-editor-errors");
     await expect(page).toHaveURL(new RegExp(`${LIST_PATH}/commits.semantic$`));
     await page.getByLabel("Allowed types").fill("feat, fix");

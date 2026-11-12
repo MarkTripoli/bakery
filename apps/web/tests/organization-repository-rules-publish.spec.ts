@@ -107,6 +107,8 @@ async function publishFixture(page: Page, options: Options = {}) {
     publishBodies: [] as Record<string, unknown>[],
     publishKeys: [] as (string | undefined)[],
     publishStatus: options.publishStatus ?? 200,
+    /** How many times the page read the history of published revisions. */
+    versionReads: 0,
   };
   const pages = options.pages ?? { first: FIRST_PAGE };
   let staleOn = options.staleOn;
@@ -138,6 +140,7 @@ async function publishFixture(page: Page, options: Options = {}) {
     (route: Route) => {
       const request = route.request();
       if (request.method() !== "POST") {
+        state.versionReads += 1;
         return route.fulfill(json({ items: [], nextCursor: null }));
       }
       const body = request.postDataJSON() as Record<string, unknown>;
@@ -521,6 +524,19 @@ test.describe("organization repository rules: a newer revision was published", (
     );
     await expect(page.getByRole("button", { name: "Review and publish" }))
       .toBeDisabled();
+  });
+
+  test("a stale answer reads the History again, so it shows the revision that was published meanwhile", async ({ page }) => {
+    const state = await publishFixture(page, {
+      staleOn: "preview",
+      theirs: THEIRS,
+    });
+    await makeDraft(page);
+    await expect.poll(() => state.versionReads).toBe(1);
+    await page.getByRole("button", { name: "Review and publish" }).click();
+    await expect(page.getByTestId("org-rules-stale")).toBeVisible();
+    // The rules were read again for revision 4, and so was the History under them.
+    await expect.poll(() => state.versionReads).toBe(2);
   });
 
   test("Keep mine decides the rule and the next review is against the new revision", async ({ page }) => {
