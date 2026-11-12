@@ -251,6 +251,9 @@ export function createProjectsActionRegistry(
     input: contractSchemas.IdPath,
     output: contractSchemas.RepositoryEffectiveRules,
     policy: queryPolicy,
+    // The repository version profile activation checks with If-Match.
+    responseEtag: (output) =>
+      `"v${(output as { repositoryVersion: number }).repositoryVersion}"`,
     handler: handlers.getEffectiveRules,
   });
   // A query carried by POST: no command runner, no replay row, no writes.

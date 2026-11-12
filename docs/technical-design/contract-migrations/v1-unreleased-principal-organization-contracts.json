@@ -1,13 +1,40 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "50f687bac8b52cae6c61c88c799e6467165da7f6"
+    "86dd7889ae8fbd618cd4953635971885841d89c5"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:bd0e5ba6714874734c1938dcbc1120b3e4a8ebaf6631aaa2c0f4e7cd7dab1694",
-  "reason": "B10.03 (#94) contract re-bind by the Claude builder on 2026-11-10 under the owner's standing breaking-change authorization (2026-10-09), for main 50f687bac8b52cae6c61c88c799e6467165da7f6. Retains only exact main base 50f687bac8b52cae6c61c88c799e6467165da7f6 and approves the target sha256:bd0e5ba6714874734c1938dcbc1120b3e4a8ebaf6631aaa2c0f4e7cd7dab1694. The target digest changed from sha256:93d63773a5469970d19d17fe4a8f2422a655b73edd8b984d172dfa9f38a08203 only because this branch merged main's removal of the enterprise edition (#543, #548: the installation licence, seats and organization capabilities actions, the FEATURE_NOT_ENTITLED and SEAT_LIMIT_REACHED errors and the SSO availability fields), which the earlier target still contained; the delta from main to this branch is the review and repair delta alone, unchanged. That review and repair contract delta is described in the prior entries for bases e87c255dd6ee381349a616b4bbd20dbd3ab00255 and 9b29e03a6a5233d8bb4583caea138027a7a19fe3; the bases af0457fd4fbc2e713ca94161cfe39412e0e37c94, a9f939bd0c30b4ea1e3cd56641ce435d66eb94c6, 6097629ff4efcfa29df236362c19398db9a798be, 82f529b5eee6329a1656217f2654b9f4db987c2d, 1ea8ad3d789c28968e453437f068bcf6c1aee1af and 619bcc88cec73b79956b4fa26e47e7f1c5513c74 moved the base with ticket admission (#535, #538), the flaky-test fix (#537), the open-source cleanup (#540), a web spec fix (#545), the public-contribution cleanup (#541) and the enterprise edition removal (#548) before this one. The displaced main approval (Remove the enterprise edition) and this branch's previous approval are the first two prior entries. Main moved from 9ea46dcff71723f89d01016beaeff49e5b0e7b3d with a change to the UI coverage removal ledger only (#551), which touches no contract, so the target digest is unchanged.",
+  "targetCompatibilityDigest": "sha256:1ed6bad0484976eed09deea818a1a340eab2668f5de555c36169c18d611b01a2",
+  "reason": "#138 contract re-bind by dev-server on 2026-11-11 under owner's standing breaking-change authorization (2026-10-09), main 86dd7889ae8fbd618cd4953635971885841d89c5: RepositoryEffectiveRules gains required repositoryVersion, checkers and providerProtection (re-bound after merging main).",
   "priorApprovals": [
+    {
+      "allowBreaking": true,
+      "fromBaseRefs": [
+        "d7f0334f9817f570aa4e1fe2d5e66cf03a004ffa"
+      ],
+      "reason": "#138 contract re-bind by dev-server on 2026-11-11 under owner's standing breaking-change authorization (2026-10-09), main d7f0334f9817f570aa4e1fe2d5e66cf03a004ffa: RepositoryEffectiveRules gains required repositoryVersion, checkers and providerProtection (re-bound after merging main).",
+      "status": "approved",
+      "targetCompatibilityDigest": "sha256:dc18cc1ed5f027113db82e9883fa59f8d9c8d2c5c710b74886f713f0906bb046"
+    },
+    {
+      "allowBreaking": true,
+      "fromBaseRefs": [
+        "f20f7cae2c30437dfcbab095ce5b0a9c0ab333ef"
+      ],
+      "reason": "#138 contract re-bind by dev-server on 2026-11-11 under owner's standing breaking-change authorization (2026-10-09), main f20f7cae2c30437dfcbab095ce5b0a9c0ab333ef: RepositoryEffectiveRules gains required repositoryVersion, checkers and providerProtection (re-bound after merging main).",
+      "status": "approved",
+      "targetCompatibilityDigest": "sha256:c348efc564ffa81a7d0666542b97a81ca920e676a1c098a99e6dc79fb7722464"
+    },
+    {
+      "allowBreaking": true,
+      "fromBaseRefs": [
+        "50f687bac8b52cae6c61c88c799e6467165da7f6"
+      ],
+      "reason": "B10.03 (#94) contract re-bind by the Claude builder on 2026-11-10 under the owner's standing breaking-change authorization (2026-10-09), for main 50f687bac8b52cae6c61c88c799e6467165da7f6. Retains only exact main base 50f687bac8b52cae6c61c88c799e6467165da7f6 and approves the target sha256:bd0e5ba6714874734c1938dcbc1120b3e4a8ebaf6631aaa2c0f4e7cd7dab1694. The target digest changed from sha256:93d63773a5469970d19d17fe4a8f2422a655b73edd8b984d172dfa9f38a08203 only because this branch merged main's removal of the enterprise edition (#543, #548: the installation licence, seats and organization capabilities actions, the FEATURE_NOT_ENTITLED and SEAT_LIMIT_REACHED errors and the SSO availability fields), which the earlier target still contained; the delta from main to this branch is the review and repair delta alone, unchanged. That review and repair contract delta is described in the prior entries for bases e87c255dd6ee381349a616b4bbd20dbd3ab00255 and 9b29e03a6a5233d8bb4583caea138027a7a19fe3; the bases af0457fd4fbc2e713ca94161cfe39412e0e37c94, a9f939bd0c30b4ea1e3cd56641ce435d66eb94c6, 6097629ff4efcfa29df236362c19398db9a798be, 82f529b5eee6329a1656217f2654b9f4db987c2d, 1ea8ad3d789c28968e453437f068bcf6c1aee1af and 619bcc88cec73b79956b4fa26e47e7f1c5513c74 moved the base with ticket admission (#535, #538), the flaky-test fix (#537), the open-source cleanup (#540), a web spec fix (#545), the public-contribution cleanup (#541) and the enterprise edition removal (#548) before this one. The displaced main approval (Remove the enterprise edition) and this branch's previous approval are the first two prior entries. Main moved from 9ea46dcff71723f89d01016beaeff49e5b0e7b3d with a change to the UI coverage removal ledger only (#551), which touches no contract, so the target digest is unchanged.",
+      "status": "approved",
+      "targetCompatibilityDigest": "sha256:bd0e5ba6714874734c1938dcbc1120b3e4a8ebaf6631aaa2c0f4e7cd7dab1694"
+    },
     {
       "allowBreaking": true,
       "fromBaseRefs": [
