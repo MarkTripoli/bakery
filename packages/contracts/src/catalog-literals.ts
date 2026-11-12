@@ -1139,6 +1139,8 @@ export type ContractOutputName =
   | "RepositoryProfile"
   | "RepositoryProfileObservation"
   | "RepositoryProfileObservationPayload"
+  | "RepositoryProviderProtection"
+  | "RepositoryRuleCheckers"
   | "RepositoryRulePreviewCounts"
   | "RepositoryRulePreviewEffective"
   | "RepositoryRulePreviewItem"
