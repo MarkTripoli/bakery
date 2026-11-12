@@ -11,10 +11,12 @@
  *
  * This drops only entries that provably belong to no history the checkout can
  * see: the commit is absent from the repository, or git positively reports that
- * no branch, remote-tracking ref or tag contains it. An entry that some ref
- * reaches is a real boundary and is kept, so a genuinely incomplete checkout
- * still fails the gate. Anything git cannot answer is an error and changes
- * nothing.
+ * no branch, remote-tracking ref or tag contains it and it is not in the
+ * history of `HEAD` either (a detached checkout reaches its history only
+ * through `HEAD`, which `for-each-ref` does not list). An entry that a ref or
+ * `HEAD` reaches is a real boundary and is kept, so a genuinely incomplete
+ * checkout still fails the gate. Anything git cannot answer is an error and
+ * changes nothing.
  */
 
 import { execFile } from "node:child_process";
@@ -143,6 +145,15 @@ export async function healStaleShallow(
       kept.push(sha);
       continue;
     }
+    // `HEAD` is not a ref `for-each-ref` lists. Exit 0 means the entry is in
+    // its history (a real boundary), 1 means it is not, and any other exit is
+    // git failing, which is not an answer.
+    const reachedByHead = await ask("merge-base", "--is-ancestor", sha, "HEAD");
+    if (reachedByHead.code === 0) {
+      kept.push(sha);
+      continue;
+    }
+    if (reachedByHead.code !== 1) throw refusal("GIT_COMMAND_FAILED");
     const subject = await ask("log", "-1", "--format=%s", sha);
     dropped.push({
       sha,
