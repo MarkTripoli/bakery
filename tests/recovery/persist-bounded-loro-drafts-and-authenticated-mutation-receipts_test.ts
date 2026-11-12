@@ -196,6 +196,7 @@ Deno.test("failed isolated worker leaves committed state authoritative for the n
   const isolation: DraftIsolation = {
     initialize: real.initialize,
     slice: real.slice,
+    importUpdate: real.importUpdate,
     async edit(current, source, editInput, signal) {
       if (fail) {
         fail = false;

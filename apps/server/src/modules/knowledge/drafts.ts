@@ -275,6 +275,58 @@ export async function applyDraftEditCandidate(
   };
 }
 
+/**
+ * Imports one client Loro update into the committed state, outside the
+ * request loop. The update is bounded, must not leave pending dependencies,
+ * and must keep the single plain-text `body` root. The stored update is the
+ * normalized delta from the committed version, so a redundant update yields
+ * an empty one.
+ */
+export async function importDraftUpdateCandidate(
+  currentState: Uint8Array,
+  update: Uint8Array,
+): Promise<DraftCandidate> {
+  if (update.byteLength === 0 || update.byteLength > DRAFT_LIMITS.updateBytes) {
+    throw new DraftCandidateError("limit", "UPDATE_SIZE_INVALID");
+  }
+  const document = importDocument(currentState);
+  const from = document.version();
+  const before = JSON.stringify(document.frontiers());
+  let status;
+  try {
+    status = document.import(update);
+  } catch (cause) {
+    throw new DraftCandidateError(
+      "unprocessable",
+      `LORO_UPDATE_INVALID:${cause instanceof Error ? cause.name : "error"}`,
+    );
+  }
+  if (status.pending !== null) {
+    throw new DraftCandidateError("unprocessable", "LORO_PENDING_DEPENDENCIES");
+  }
+  const state = document.export({ mode: "snapshot" });
+  // Re-import the result so extra roots or formatting are rejected exactly
+  // as for any stored state.
+  const checked = importDocument(state);
+  const committedText = checked.getText("body").toString();
+  assertBoundedText(committedText, DRAFT_LIMITS.bodyBytes, "body");
+  // An update holding only committed changes moves no frontier: nothing new.
+  const normalized = JSON.stringify(document.frontiers()) === before
+    ? new Uint8Array()
+    : document.export({ mode: "update", from });
+  if (normalized.byteLength > DRAFT_LIMITS.updateBytes) {
+    throw new DraftCandidateError("limit", "UPDATE_TOO_LARGE");
+  }
+  return {
+    state,
+    update: normalized,
+    frontiers: encodeFrontiers(checked.frontiers()),
+    text: committedText,
+    textDigest: await textDigest(committedText),
+    updateDigest: await digest(normalized),
+  };
+}
+
 export async function createDraftSliceCandidate(
   state: Uint8Array,
   startUtf16: number,
