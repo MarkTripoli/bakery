@@ -2,6 +2,17 @@ import { assert, assertEquals } from "@std/assert";
 import { contractSchemas } from "../../packages/contracts/src/contracts.ts";
 import { compileWorkflowDocument } from "../../packages/contracts/src/workflow-compiler/mod.ts";
 import { defaultWorkflowCompilerCatalog } from "../../packages/contracts/src/workflow-compiler/default-catalog.ts";
+import {
+  type ActionDispatch,
+  type StepRecord,
+} from "../../packages/contracts/src/workflow-interpreter/mod.ts";
+import {
+  compiled,
+  completed,
+  type Dispatch,
+  drive,
+  noop,
+} from "../helpers/workflow-interpreter.ts";
 
 // #30 slice A1: the input and output contracts of rpi.research and the delivery
 // actions, written to the field lists in docs/technical-design/06 ("The
@@ -345,4 +356,108 @@ Deno.test("every status an output declares is accepted, not only the first", () 
       `DeployOutput status ${status}`,
     );
   }
+});
+
+// --- slice E1: the pure interpreter (AC1 and the plan-order requirement of #157)
+
+const counter = (over: Record<string, unknown> = {}) => ({
+  id: "loop",
+  repeat: {
+    max: 3,
+    seed: { currentCandidate: { n: 0 } },
+    until: "$repeat.currentCandidate.n >= 2",
+    steps: [noop("bump", { with: { n: "$repeat.currentCandidate.n" } })],
+    outputs: { currentCandidate: { n: "$step.loop.bump.next" } },
+    ...over,
+  },
+});
+
+const report = noop("report", {
+  with: {
+    outcome: "$step.loop.outcome",
+    iterations: "$step.loop.iterations",
+    candidate: "$step.loop.currentCandidate",
+  },
+});
+
+const grow = (step: Dispatch): StepRecord =>
+  completed({ next: ((step as ActionDispatch).input as { n: number }).n + 1 });
+
+Deno.test("AC1: a clean seed runs zero iterations and is the final result, unchanged", async () => {
+  const document = await compiled([
+    counter({ seed: { currentCandidate: { n: 5 } } }),
+    report,
+  ]);
+  const { trace, dispatched } = drive(document, grow);
+  assertEquals(trace, ["report"]);
+  assertEquals((dispatched[0] as ActionDispatch).input, {
+    outcome: "completed",
+    iterations: 0,
+    candidate: { n: 5 },
+  });
+});
+
+Deno.test("AC1: a failed or canceled iteration preserves the prior completed candidate", async () => {
+  for (const status of ["failed", "canceled", "timed_out"] as const) {
+    const document = await compiled([
+      counter({ until: "$repeat.currentCandidate.n >= 99" }),
+      report,
+    ]);
+    const { dispatched } = drive(
+      document,
+      (step) => step.key === "loop@3.bump" ? { status } : grow(step),
+    );
+    // Two iterations completed (n = 2); the third left that result in place.
+    assertEquals(
+      (dispatched.at(-1) as ActionDispatch).input,
+      { outcome: status, iterations: 2, candidate: { n: 2 } },
+      status,
+    );
+  }
+});
+
+Deno.test("AC1: an exhausted repeat cannot satisfy a delivery gate", async () => {
+  const document = await compiled([
+    counter({ until: "$repeat.currentCandidate.n >= 99" }),
+    noop("deliver", {
+      needs: ["loop"],
+      if: '$step.loop.outcome == "completed"',
+    }),
+    report,
+  ]);
+  const { trace, dispatched } = drive(document, grow);
+  assert(!trace.includes("deliver"), "an exhausted repeat reached delivery");
+  assertEquals((dispatched.at(-1) as ActionDispatch).input, {
+    outcome: "exhausted",
+    iterations: 3,
+    candidate: { n: 3 },
+  });
+});
+
+Deno.test("#157: with no needs edge anywhere the interpreter still runs the plan in plan order", async () => {
+  // doc 06: sequence order is execution order; a step that reads an earlier
+  // one needs no `needs` edge. Merge-then-deploy is the shape that matters.
+  const steps = [
+    noop("implement", { with: { go: true } }),
+    noop("merge", { with: { revision: "$step.implement.sha" } }),
+    noop("prepare", { with: { commit: "$step.merge.commit" } }),
+    noop("deploy", { with: { release: "$step.prepare.release" } }),
+    noop("health", { with: { deployment: "$step.deploy.id" } }),
+  ];
+  const result = await compileWorkflowDocument({
+    apiVersion: "bakery.dev/v1",
+    kind: "workflow",
+    name: "plan-order",
+    description: "A delivery chain with no needs edges.",
+    inputs: {},
+    steps,
+  });
+  assert(result.ok, result.ok ? "" : JSON.stringify(result.diagnostics));
+  assert(result.plan.steps.every((step) => step.position >= 0));
+  const planned = result.plan.steps.map((step) => step.qualifiedId);
+  const { trace } = drive(
+    result.document,
+    () => completed({ sha: "s", commit: "c", release: "r", id: "d" }),
+  );
+  assertEquals(trace, planned);
 });
