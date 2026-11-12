@@ -40,6 +40,11 @@ import {
   workerTransaction,
 } from "./shared.ts";
 import { settleWorkflowAction } from "../work/budget.ts";
+import {
+  emitExecutionEvent,
+  EXECUTION_TELEMETRY_EVENTS,
+  type JobOutcome,
+} from "./telemetry.ts";
 import { reconcileCoordinationForTerminalTask } from "../work/coordination-projection.ts";
 
 import { appendAudit } from "@bakery/persistence/event-audit";
@@ -167,6 +172,16 @@ export async function renewLease(
       return { response, replayed: false };
     },
   );
+  // The renewal has committed. A replay renewed nothing, so it says nothing.
+  if (!result.replayed) {
+    emitExecutionEvent(
+      options.telemetry,
+      EXECUTION_TELEMETRY_EVENTS.leaseRenewed,
+      {
+        "bakery.attempt.id": attemptId,
+      },
+    );
+  }
   return jsonResponse(result.response, 200, result.replayed);
 }
 
@@ -269,11 +284,15 @@ export async function resultRoute(
   );
   const metadata = requestMetadata(context);
   let resultOrganizationId = "";
+  // Set only when this run of the transaction settled usage; reset on entry so a
+  // retried transaction cannot inherit it from an attempt that rolled back.
+  let usageSettled = false;
   const result = await workerTransaction(
     options.database,
     context.req.raw.headers,
     async (transaction, identity) => {
       resultOrganizationId = identity.host.organization_id;
+      usageSettled = false;
       const inspectionJob = await transaction.query<{ action: string }>(
         `select j.action from bakery.jobs j
            join bakery.job_attempts a on a.organization_id = j.organization_id and a.job_id = j.id
@@ -495,6 +514,7 @@ export async function resultRoute(
             resultEventId: eventId,
             receipt: resultInput.usage,
           });
+          usageSettled = true;
         }
         const payload = {
           localSeq: resultInput.localSeq,
@@ -699,6 +719,30 @@ export async function resultRoute(
         traceId: metadata.traceId,
       },
     );
+  }
+  // The result has committed, whatever the grant finalization below does. A
+  // replayed result changed nothing, so it says nothing.
+  // A status the contract gains that the allowlist does not list would lose its
+  // outcome silently; this assignment turns that into a compile error.
+  const outcome: JobOutcome = resultInput.status;
+  if (!result.replayed) {
+    emitExecutionEvent(
+      options.telemetry,
+      EXECUTION_TELEMETRY_EVENTS.jobCompleted,
+      {
+        "bakery.attempt.id": attemptId,
+        "bakery.outcome": outcome,
+      },
+    );
+    if (usageSettled) {
+      emitExecutionEvent(
+        options.telemetry,
+        EXECUTION_TELEMETRY_EVENTS.usageSettled,
+        {
+          "bakery.attempt.id": attemptId,
+        },
+      );
+    }
   }
   for (
     const grantId of ("grantIds" in result ? result.grantIds : undefined) ?? []

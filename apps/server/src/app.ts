@@ -1,3 +1,4 @@
+import type { ExecutionTelemetry } from "./modules/execution/telemetry.ts";
 import {
   createSkillObjectStore,
   type probeSkillStorage,
@@ -36,6 +37,7 @@ import {
   availableLocalesFor,
   type RuntimeConfig,
 } from "@bakery/config";
+import { contractSchemas } from "@bakery/contracts/contracts";
 import { createHealthApp } from "@bakery/contracts/health-app";
 import {
   createApiRouter,
@@ -119,6 +121,11 @@ import { createCoordinationRoutes } from "./modules/work/coordination-routes.ts"
 import { createApprovalRoutes } from "./modules/conversation/approval-routes.ts";
 
 export function createApp(options: {
+  /**
+   * Told of lease renewals, completions and usage settlements after they have
+   * committed. Optional: the server behaves the same without it.
+   */
+  telemetry?: ExecutionTelemetry;
   config: RuntimeConfig;
   database: Database;
   pgDatabase: PgDatabase;
@@ -368,11 +375,15 @@ export function createApp(options: {
           "artifactVersions.content": async (
             { request, principal, params },
           ) => {
+            // The same parsing as the REST route, so a malformed id is the
+            // same MALFORMED_REQUEST here as there (toProblem maps it).
+            const { id } = contractSchemas.IdPath.parse(params);
+            contractSchemas.ContentRangeQuery.parse({});
             const reference = await artifactActions.authority.run(
               artifactActions.registry.get("artifactVersions.content"),
               {
                 request,
-                params,
+                params: { id },
                 requestId: crypto.randomUUID(),
                 traceId: crypto.randomUUID().replaceAll("-", ""),
                 signal: AbortSignal.timeout(15_000),
@@ -477,6 +488,7 @@ export function createApp(options: {
   app.route(
     "/",
     createExecutionRoutes({
+      telemetry: options.telemetry,
       database: options.pgDatabase,
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
@@ -623,6 +635,7 @@ export function createApp(options: {
   app.route(
     "/",
     createExecutionRoutes({
+      telemetry: options.telemetry,
       database: options.pgDatabase,
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,

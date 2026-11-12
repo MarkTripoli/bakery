@@ -344,11 +344,15 @@ export function renderedContainmentIssues() {
     const browserScrollsValue = element.matches(
       "input, textarea, select, option",
     );
-    const allowsTruncation =
-      element.getAttribute("data-rail") === "truncation-allowed" &&
-      style.overflowX === "hidden" &&
-      style.textOverflow === "ellipsis" &&
-      style.whiteSpace === "nowrap";
+    const marked = element.getAttribute("data-rail") === "truncation-allowed";
+    const allowsTruncation = marked &&
+      ((style.overflowX === "hidden" &&
+        style.textOverflow === "ellipsis" &&
+        style.whiteSpace === "nowrap") ||
+        // A line clamp shows its first lines and clips the rest on purpose.
+        (style.overflowY === "hidden" &&
+          style.webkitLineClamp !== "none" &&
+          style.webkitLineClamp !== ""));
     const elementRectangle = element.getBoundingClientRect();
     const isOutOfFlow = (descendant) => {
       if (

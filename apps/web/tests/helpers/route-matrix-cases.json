@@ -100,6 +100,10 @@
     "path": "/settings/organization/roles"
   },
   {
+    "id": "settings-organization-repository-rules",
+    "path": "/settings/organization/repository-rules"
+  },
+  {
     "id": "settings-organization-integrations",
     "path": "/settings/organization/integrations"
   },
