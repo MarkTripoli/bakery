@@ -192,8 +192,17 @@ async function until(
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     const left = deadline - Date.now();
-    if (left <= 0) throw new Error(`no ${type} frame`);
-    const frame = await nextFrame(client, left);
+    if (left <= 0) throw new Error(`no ${type} frame within ${timeoutMs} ms`);
+    let frame: Frame;
+    try {
+      frame = await nextFrame(client, left);
+    } catch (error) {
+      // Name the frame the test was waiting for: a bare read timeout does
+      // not say which step stalled.
+      throw new Error(`waiting for ${type}: ${(error as Error).message}`, {
+        cause: error,
+      });
+    }
     if (frame.type === type) return frame;
   }
 }
@@ -601,7 +610,14 @@ async function untilWithBinary(
   for (;;) {
     const left = deadline - Date.now();
     if (left <= 0) throw new Error(`no ${type} frame`);
-    const value = await client.nextMessage(left);
+    let value: Awaited<ReturnType<WsClient["nextMessage"]>>;
+    try {
+      value = await client.nextMessage(left);
+    } catch (error) {
+      throw new Error(`waiting for ${type}: ${(error as Error).message}`, {
+        cause: error,
+      });
+    }
     if (typeof value === "object" && "binary" in value) {
       binaries.push(value.binary);
       continue;
@@ -1089,7 +1105,10 @@ Deno.test("back-to-back updates with twenty joined peers are all acknowledged", 
     }
     const acked = new Set<string>();
     const binaries: Uint8Array[] = [];
-    const deadline = Date.now() + 20_000;
+    // The updates commit one after another, each in its own isolated worker
+    // that the product allows ACK_WAIT_MS to start, run and commit; a fixed
+    // window shorter than that fails a healthy but busy host.
+    const deadline = Date.now() + ids.length * ACK_WAIT_MS;
     while (acked.size < ids.length && Date.now() < deadline) {
       const ack = await untilWithBinary(
         a,
