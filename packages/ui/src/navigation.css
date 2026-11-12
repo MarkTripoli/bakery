@@ -232,6 +232,15 @@ a.bakery-application-rail__link:hover {
   text-align: start;
 }
 
+/* The name is one truncated line, so these may be narrower than it: a grid or
+   flex parent must not size them to the whole name (200% zoom, a narrow drawer). */
+.bakery-workspace-switcher,
+.bakery-user-menu,
+.bakery-workspace-switcher .ui-popover,
+.bakery-user-menu .ui-popover {
+  min-inline-size: 0;
+}
+
 .bakery-workspace-switcher__trigger,
 .bakery-user-menu__trigger {
   align-items: center;

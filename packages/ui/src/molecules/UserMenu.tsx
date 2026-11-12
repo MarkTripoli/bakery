@@ -45,7 +45,11 @@ export function UserMenu(
         trigger={
           <span className="bakery-user-menu__trigger">
             <Avatar alt={name} aria-hidden="true" size="small" />
-            <span className="bakery-user-menu__name" title={name}>
+            <span
+              className="bakery-user-menu__name"
+              data-rail="truncation-allowed"
+              title={name}
+            >
               {name}
             </span>
             {variant === "full"
