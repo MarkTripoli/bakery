@@ -19,3 +19,12 @@ export {
   type StepRecord,
   type WaitDispatch,
 } from "./interpret.ts";
+export {
+  CURRENT_INTERPRETER_REVISION,
+  INTERPRETER_REVISIONS,
+  type InterpreterRevision,
+  pinWorkflowRuntime,
+  readWorkflowRuntimePin,
+  resolveWorkflowRuntime,
+  type WorkflowRuntimePin,
+} from "./revisions.ts";
