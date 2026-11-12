@@ -5,7 +5,8 @@ import { assert, assertEquals } from "@std/assert";
 // from what it sees (tests/helpers/spawn-capability-report.ts). Only the lane
 // runner can set them, so this runs when the rails test
 // tests/rails/refused-spawn-report_test.ts starts the real runner over this one
-// file with BAKERY_TEST_LANE_PROBE=1, and is ignored in an ordinary lane run.
+// file with BAKERY_TEST_LANE_PROBE=1 and BAKERY_TEST_EXPECT_PATH set to the PATH
+// it gives the runner, and is ignored in an ordinary lane run.
 
 Deno.test({
   name:

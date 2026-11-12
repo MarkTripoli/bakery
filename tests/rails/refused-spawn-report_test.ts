@@ -18,7 +18,20 @@ const [mode, shadow, method] = Deno.args;
 if (mode === "shadow") {
   Deno.env.set("PATH", shadow + ":" + Deno.env.get("PATH"));
 }
-const program = mode === "ungranted" ? "ls" : "git";
+if (mode === "shape") {
+  const prototype = Deno.Command.prototype as unknown as Record<string, unknown>;
+  console.log(JSON.stringify(["output", "outputSync", "spawn"].map((name) => ({
+    name,
+    functionName: (prototype[name] as { name: string }).name,
+    hasPrototype: Object.hasOwn(prototype[name] as object, "prototype"),
+  }))));
+  Deno.exit(0);
+}
+const program = mode === "missing-absolute"
+  ? "/nonexistent/kill"
+  : mode === "ungranted"
+  ? "ls"
+  : "git";
 const command = new Deno.Command(program, {
   args: [mode === "ungranted" ? "/" : "--version"],
   stdout: "null",
@@ -107,6 +120,25 @@ Deno.test("every way of spawning is covered: output, outputSync and spawn each t
       assertEquals(out, "caught NotCapable", method);
       assertStringIncludes(err, "PATH changed since start: YES");
     }
+  });
+});
+
+Deno.test("a deliberate refusal of a path that is not on disk throws the original error and prints nothing", async () => {
+  await withFixture(async (run) => {
+    const { out, err } = await run("missing-absolute");
+    assertEquals(out, "caught NotCapable");
+    assert(!err.includes("[bakery-test]"), `unexpected report:\n${err}`);
+  });
+});
+
+Deno.test("the wrapped methods keep their own names and gain no prototype property", async () => {
+  await withFixture(async (run) => {
+    const { out } = await run("shape");
+    assertEquals(JSON.parse(out), [
+      { name: "output", functionName: "output", hasPrototype: false },
+      { name: "outputSync", functionName: "outputSync", hasPrototype: false },
+      { name: "spawn", functionName: "spawn", hasPrototype: false },
+    ]);
   });
 });
 

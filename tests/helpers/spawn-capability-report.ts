@@ -49,7 +49,11 @@ function line(value: string | undefined): string {
     value,
     (character) => {
       const code = character.codePointAt(0) ?? 0;
-      return code < 32 || code === 127 ? "?" : character;
+      // C0 and C1 controls, DEL, and the two Unicode line separators.
+      return code < 32 || (code >= 127 && code <= 159) || code === 0x2028 ||
+          code === 0x2029
+        ? "?"
+        : character;
     },
   ).join("");
   return flat.length > MAX_VALUE
@@ -239,6 +243,21 @@ export const FULL_REPORTS_PER_PROCESS = 2;
 export type SpawnFailureReporter = (error: unknown) => void;
 
 /**
+ * Whether a path is on disk, a symlink (even a dangling one) included. When it
+ * cannot be told, say a permission refusal, it counts as on disk: a report that
+ * should not have been printed costs a line, one that was hidden could cost the
+ * incident.
+ */
+function pathOnDisk(path: string): boolean {
+  try {
+    Deno.lstatSync(path);
+    return true;
+  } catch (error) {
+    return !(error instanceof Deno.errors.NotFound);
+  }
+}
+
+/**
  * Reports a run-access refusal, once per error and in full for the first few:
  * a failing file can refuse dozens of spawns and the first reports say it all.
  * Anything else, including a refused env or read permission, is ignored. It
@@ -247,6 +266,7 @@ export type SpawnFailureReporter = (error: unknown) => void;
 export function createSpawnFailureReporter(
   write: (text: string) => void,
   gather: (error: Error) => SpawnFacts = gatherSpawnFacts,
+  exists: (path: string) => boolean = pathOnDisk,
 ): SpawnFailureReporter {
   const seen = new WeakSet<object>();
   let full = 0;
@@ -255,6 +275,14 @@ export function createSpawnFailureReporter(
     try {
       if (!(error instanceof Deno.errors.NotCapable)) return;
       if (!/Requires run access/.test(error.message)) return;
+      // An absolute path never depends on the PATH, and one that is not on disk
+      // cannot be a path-resolution problem. Tests refuse such paths on purpose
+      // (`/nonexistent/kill`), and a healthy run must not print what an
+      // incident prints.
+      const program = programOf(error.message);
+      if (program !== undefined && program.includes("/") && !exists(program)) {
+        return;
+      }
       if (seen.has(error)) return;
       seen.add(error);
       if (full < FULL_REPORTS_PER_PROCESS) {

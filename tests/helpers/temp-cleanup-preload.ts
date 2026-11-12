@@ -56,14 +56,18 @@ if (holder[INSTALLED] === undefined) {
   for (const name of ["output", "outputSync", "spawn"]) {
     const original = command[name];
     if (typeof original !== "function") continue;
-    command[name] = function (this: unknown, ...args: unknown[]): unknown {
-      try {
-        return original.apply(this, args);
-      } catch (error) {
-        reportRefusedSpawn(error);
-        throw error;
-      }
-    };
+    // Written as a method so that, like the native one, it is named `name` and
+    // has no `prototype` property.
+    command[name] = {
+      [name](this: unknown, ...args: unknown[]): unknown {
+        try {
+          return original.apply(this, args);
+        } catch (error) {
+          reportRefusedSpawn(error);
+          throw error;
+        }
+      },
+    }[name];
   }
 
   globalThis.addEventListener("unload", () => {

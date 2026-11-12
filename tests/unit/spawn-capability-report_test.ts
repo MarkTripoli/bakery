@@ -230,3 +230,116 @@ Deno.test("the reporter never throws into the spawn it describes", () => {
   );
   report(new Deno.errors.NotCapable('Requires run access to "git"'));
 });
+
+// QA of #304: tests refuse `/nonexistent/kill` on purpose, so a healthy run must
+// not print an incident-shaped report for it. An absolute path never depends on
+// the PATH, and one that is not on disk cannot be a path-resolution problem.
+
+Deno.test("a refusal for an absolute path that is not on disk prints nothing and does not use up the full reports", () => {
+  const written: string[] = [];
+  const report = createSpawnFailureReporter(
+    (text) => written.push(text),
+    () => baseFacts,
+    () => false,
+  );
+  for (let index = 0; index < FULL_REPORTS_PER_PROCESS + 2; index += 1) {
+    report(
+      new Deno.errors.NotCapable(
+        'Requires run access to "/nonexistent/kill", run again with the --allow-run flag',
+      ),
+    );
+  }
+  assertEquals(written, [], "a deliberate refusal was reported");
+  report(
+    new Deno.errors.NotCapable(
+      'Requires run access to "git", run again with the --allow-run flag',
+    ),
+  );
+  assertEquals(written.length, 1);
+  assertStringIncludes(written[0], "PATH changed since start");
+});
+
+Deno.test("a refusal for an absolute path that exists, and for a bare name, is still reported", () => {
+  const written: string[] = [];
+  const report = createSpawnFailureReporter(
+    (text) => written.push(text),
+    () => baseFacts,
+    (path) => path === "/usr/bin/present",
+  );
+  report(
+    new Deno.errors.NotCapable('Requires run access to "/usr/bin/present"'),
+  );
+  report(new Deno.errors.NotCapable('Requires run access to "git"'));
+  report(new Deno.errors.NotCapable('Requires run access to "no-such-bare"'));
+  assertEquals(written.length, 3);
+});
+
+Deno.test("by default a path is on disk when it can be read, a symlink included", async () => {
+  const root = await Deno.makeTempDir({ prefix: "spawn-report-" });
+  const file = join(root, "program");
+  await Deno.writeTextFile(file, "#!/bin/sh\n");
+  await Deno.symlink(file, join(root, "link"));
+  await Deno.symlink(join(root, "nowhere"), join(root, "dangling"));
+  const written: string[] = [];
+  const report = createSpawnFailureReporter(
+    (text) => written.push(text),
+    () => baseFacts,
+  );
+  for (const path of [file, join(root, "link"), join(root, "dangling")]) {
+    report(new Deno.errors.NotCapable(`Requires run access to "${path}"`));
+  }
+  report(
+    new Deno.errors.NotCapable(`Requires run access to "${root}/missing"`),
+  );
+  assertEquals(
+    written.length,
+    3,
+    "the file, the symlink and the dangling symlink are on disk; the missing path is not",
+  );
+});
+
+Deno.test("C1 controls and the line separators are replaced like any other control character", () => {
+  const text = describeSpawnCapability({
+    ...baseFacts,
+    currentPath: "/usr/bin\u0085next\u009b31m\u2028two\u2029three\u007fend",
+  });
+  for (const code of [0x7f, 0x85, 0x9b, 0x2028, 0x2029]) {
+    assert(
+      !text.includes(String.fromCodePoint(code)),
+      `U+${code.toString(16)} reached the report`,
+    );
+  }
+  assertStringIncludes(text, "/usr/bin?next?31m?two?three?end");
+  assertEquals(
+    text.split("\n").length,
+    describeSpawnCapability(baseFacts).split("\n").length,
+    "a separator started a new line",
+  );
+});
+
+Deno.test("when it cannot be told whether a path is on disk the refusal is reported", async () => {
+  const root = await Deno.makeTempDir({ prefix: "spawn-report-" });
+  const locked = join(root, "locked");
+  await Deno.mkdir(locked);
+  await Deno.writeTextFile(join(locked, "program"), "#!/bin/sh\n");
+  await Deno.chmod(locked, 0o000);
+  try {
+    const written: string[] = [];
+    const report = createSpawnFailureReporter(
+      (text) => written.push(text),
+      () => baseFacts,
+    );
+    report(
+      new Deno.errors.NotCapable(
+        `Requires run access to "${join(locked, "program")}"`,
+      ),
+    );
+    assertEquals(
+      written.length,
+      1,
+      "a path that could not be checked was hidden",
+    );
+  } finally {
+    await Deno.chmod(locked, 0o700);
+  }
+});
