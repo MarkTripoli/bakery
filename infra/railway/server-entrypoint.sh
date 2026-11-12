@@ -109,7 +109,7 @@ case "$mode" in
     cd "$root/apps/server"
     # The image clears the Deno base ENTRYPOINT, so this process is PID 1: tini
     # reaps the dispatcher's children and forwards signals.
-    exec /tini -s -- deno run --allow-env --allow-run=deno scripts/run-dispatch.ts src/dispatch.ts
+    exec /tini -s -- deno run --allow-env "--allow-run=$root/infra/server-exec/dispatch.sh" scripts/run-dispatch.ts
     ;;
   predeploy)
     [[ -n "${BAKERY_BOOTSTRAP_DATABASE_URL:-}" ]] || fail 'BAKERY_BOOTSTRAP_DATABASE_URL_REQUIRED'

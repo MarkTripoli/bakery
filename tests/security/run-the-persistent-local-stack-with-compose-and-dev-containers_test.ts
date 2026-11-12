@@ -40,7 +40,7 @@ Deno.test("dispatcher child environment excludes unrelated credentials", () => {
   ) {
     assertEquals(environment[excluded], undefined, `${excluded} leaked`);
   }
-  const launch = createDispatchLaunch("src/dispatch.ts", inherited);
+  const launch = createDispatchLaunch(inherited);
   assertEquals(launch.clearEnv, true);
   assertEquals(launch.env, environment);
 });
@@ -79,7 +79,7 @@ Deno.test("dispatcher child keeps the Deno cache and private Inngest suffix with
     undefined,
   );
   assertEquals(
-    createDispatchLaunch("src/dispatch.ts", inherited).env.DENO_DIR,
+    createDispatchLaunch(inherited).env.DENO_DIR,
     "/deno-dir",
   );
 });
