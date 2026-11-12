@@ -1,5 +1,5 @@
 // Storybook mounts `.storybook-story` after `load`, so every navigation races
-// the first render. The canonical loops walk all 77 stories in sequence while
+// the first render. The canonical loops walk every canonical story in sequence while
 // the other worker does the same, and `packages/ui/playwright.config.ts` sets
 // no retries, so one specimen that paints late fails `ui / storybook browser`
 // — the lane all three `ui / paper parity` lanes gate on. This rail keeps the
@@ -160,6 +160,19 @@ test("a canonical-story sweep budget scales with the catalog", () => {
     harness,
     /catalog\.entries\.length \* passes \* SWEEP_MS_PER_STORY/,
     "sweepTimeoutMs must multiply the catalog size by the per-story allowance",
+  );
+  // A sweep that repeats the catalog once per scenario must budget one pass per
+  // scenario. Without the argument the budget silently halves and every other
+  // check here stays green, because they only look at the call, not its count.
+  assert.match(
+    spec,
+    /for \(const scenario of scenarios\)/,
+    "the multi-scenario sweep this check guards is gone; update the check",
+  );
+  assert.match(
+    spec,
+    /test\.setTimeout\(sweepTimeoutMs\(scenarios\.length\)\)/,
+    "a sweep over scenarios must budget scenarios.length passes",
   );
   const allowance = /export const SWEEP_MS_PER_STORY = ([\d_]+);/.exec(harness);
   assert.ok(allowance, "storybook-harness.ts must export SWEEP_MS_PER_STORY");

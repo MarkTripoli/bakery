@@ -172,8 +172,8 @@ export function runtimeStoryPath(
 }
 
 // Storybook mounts the specimen after `load`, so every navigation races the
-// first render. The catalog loops walk all 77 stories in sequence while the
-// other workers do the same, which is where that race lands, and `expect`'s
+// first render. The catalog loops walk every canonical story in sequence while
+// the other workers do the same, which is where that race lands, and `expect`'s
 // 5 s default is shorter than the budget this harness has always used for the
 // very same element. One shared wait keeps them from drifting apart again.
 export const specimenTimeout = 30_000;
