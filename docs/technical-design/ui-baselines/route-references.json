@@ -4579,7 +4579,7 @@
       "path": "/organization/sso",
       "status": "planned",
       "manifest": "entitlements",
-      "rationale": "Single sign-on providers: E16 route not built yet. Reference renders exist; scoring starts when the route ships and the entry becomes baselined.",
+      "rationale": "Single sign-on providers. The page ships at /settings/organization/sso (route settings-organization-sso) and renders the same component through the development alias /__fixtures__/organization/sso for Paper capture, using the sso capture recipe in packages/ui/scripts/capture-enterprise.mjs. Cases stay planned, as for organization-access, because baselining them changes candidate.route in entitlements-baselines.json, which compare-paper.mjs blocks without a refreshed immutable Paper source identity. Reference renders exist; scoring starts when the entry becomes baselined.",
       "frames": [
         {
           "fileId": "01M1X504XVC45FC0VDK857A37D",
@@ -5068,6 +5068,13 @@
       "path": "/settings/organization/repository-rules",
       "status": "no-mock",
       "rationale": "Organization repository rules page (#65): the published rule baseline rule by rule (enforcement and whether a repository may override) and the history of published revisions. Paper page 61 (Repository rules: organization and overrides, Z-0) draws the organization frames 1JQG-0 desktop and 1JWA-0 phone, kept under docs/technical-design/repository-rules-mocks, but that page is not bound as a scored baseline in any ui-baselines manifest, so no golden exists and none is invented. The page is read only so far; the mock's Publish rules, Configure and Preview impact actions arrive with the editing slices of #65.",
+      "frames": []
+    },
+    {
+      "routeId": "settings-organization-sso",
+      "path": "/settings/organization/sso",
+      "status": "no-mock",
+      "rationale": "Organization single sign-on page (#84): OIDC and SAML providers, domain verification, the require-SSO switch with its break-glass note, and the forbidden, session-required and load-error notices. Its Paper frames stay owned by the planned organization-sso entry (path /organization/sso) and are captured through the development alias /__fixtures__/organization/sso, so no golden is claimed on this production path and none is invented.",
       "frames": []
     },
     {

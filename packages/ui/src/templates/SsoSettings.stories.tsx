@@ -16,13 +16,15 @@ const providers = [
     name: "Okta · OIDC",
     detail: "https://acme.okta.example/oauth2/default",
     status: <StatusBadge status="healthy">Enabled</StatusBadge>,
+    action: <Button variant="outline" aria-label="Edit okta">Edit</Button>,
     onSelect: () => undefined,
   },
   {
     id: "entra",
     name: "Entra · SAML",
     detail: "acme.example",
-    status: <StatusBadge status="needsInput">Disabled</StatusBadge>,
+    status: <StatusBadge status="needsInput">Not verified</StatusBadge>,
+    action: <Button variant="outline" aria-label="Edit entra">Edit</Button>,
     onSelect: () => undefined,
   },
 ];

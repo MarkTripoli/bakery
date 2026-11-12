@@ -45,7 +45,9 @@ export function OrganizationSettingsNavigation(
         label: translate("shell.navigation.audit"),
       }, {
         id: "organization-sso",
-        href: "/__fixtures__/organization/sso",
+        href: currentPath === "/__fixtures__/organization/sso"
+          ? currentPath
+          : "/settings/organization/sso",
         label: translate("shell.navigation.sso"),
       }, {
         id: "organization-scim",

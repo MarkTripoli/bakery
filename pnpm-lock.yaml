@@ -283,6 +283,8 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  packages/worker-bootstrap: {}
+
 packages:
 
   '@adobe/css-tools@4.5.0':

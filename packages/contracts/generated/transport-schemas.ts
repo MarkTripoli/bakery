@@ -4167,6 +4167,17 @@ const transportSchemas = {
       ],
       "description": "Query parameters accompanying the authenticated GET /v1/events upgrade to WebSocket; the resulting connection is read-only and delivers notifications and cursors, never task or artifact mutations."
     },
+    "CollaborationUpgrade": {
+      "fields": [
+        {
+          "name": "organizationId",
+          "type": "uuid",
+          "required": true,
+          "description": "Organization whose rooms the connection may join; browsers pass it as a query parameter because upgrade requests cannot carry the Bakery-Organization-Id header."
+        }
+      ],
+      "description": "Query parameters accompanying the authenticated GET /v1/collaboration upgrade to WebSocket. One connection multiplexes the rooms a client explicitly joins; identity always comes from the session, never from a frame."
+    },
     "WorkerArtifact": {
       "fields": [
         {
@@ -20662,6 +20673,224 @@ const transportSchemas = {
         "streamId": "Stable logical output stream UUID, never an agent-session or worker-session identifier.",
         "batch": "One immutable committed output batch delivered under current reader authority.",
         "resumeAfter": "Exclusive reset position immediately before retainedFrom, so recovery does not skip the first retained batch."
+      }
+    },
+    "CollaborationRoom": {
+      "fields": [
+        "kind",
+        "id"
+      ],
+      "fieldTypes": {
+        "kind": "enum(draft)",
+        "id": "uuid"
+      },
+      "description": "One collaboration room: the live document a participant has open. Joining checks current read access to that resource.",
+      "fieldDescriptions": {
+        "kind": "Room type; only collaborative drafts can be joined.",
+        "id": "Identifier of the draft the room belongs to."
+      }
+    },
+    "CollaborationCursor": {
+      "fields": [
+        "anchor",
+        "head"
+      ],
+      "fieldTypes": {
+        "anchor": "string",
+        "head": "string"
+      },
+      "fieldBounds": {
+        "anchor": {
+          "maxBytes": 512
+        },
+        "head": {
+          "maxBytes": 512
+        }
+      },
+      "description": "Opaque editor cursor or selection hint as encoded relative positions; it is display-only and never addresses committed text.",
+      "fieldDescriptions": {
+        "anchor": "Encoded relative position where the selection starts.",
+        "head": "Encoded relative position where the selection ends; equal to anchor for a caret."
+      }
+    },
+    "CollaborationPresenceState": {
+      "fields": [
+        "activity",
+        "typing",
+        "cursor"
+      ],
+      "fieldTypes": {
+        "activity": "enum(active|background|idle)",
+        "typing": "boolean",
+        "cursor": "CollaborationCursor|null"
+      },
+      "nullableFields": [
+        "cursor"
+      ],
+      "description": "Client-supplied presence hints: activity, typing and an optional cursor. They carry no identity, timestamps or authority.",
+      "fieldDescriptions": {
+        "activity": "Whether the surface is in the foreground, backgrounded, or idle.",
+        "typing": "True while the participant is typing.",
+        "cursor": "Current cursor or selection hint, or null when none is shown."
+      }
+    },
+    "CollaborationPresence": {
+      "fields": [
+        "participantKey",
+        "principalId",
+        "principalType",
+        "displayName",
+        "state",
+        "receivedAt"
+      ],
+      "fieldTypes": {
+        "participantKey": "uuid",
+        "principalId": "uuid",
+        "principalType": "enum(human|service|worker)",
+        "displayName": "string",
+        "state": "CollaborationPresenceState",
+        "receivedAt": "timestamp"
+      },
+      "fieldBounds": {
+        "displayName": {
+          "maxLength": 200
+        }
+      },
+      "description": "One participant's presence in a room as the server relays it. Identity fields are server-assigned from the session; presence is ephemeral and never grants authority or proves a read.",
+      "fieldDescriptions": {
+        "participantKey": "Server-assigned key for one connection in one room; a person with several tabs has several keys.",
+        "principalId": "Authenticated principal the server bound to this connection.",
+        "principalType": "Kind of principal: person, service account or worker.",
+        "displayName": "Trusted display name from the principal record.",
+        "state": "Latest accepted presence hints.",
+        "receivedAt": "Server receipt time of the latest accepted hint; presence expires 30 seconds after it."
+      }
+    },
+    "CollaborationFrames": {
+      "frames": "CollaborationFrame[]",
+      "description": "Catalog wrapper enumerating every bounded frame on /v1/collaboration; it is not a wire batch."
+    },
+    "CollaborationFrame": {
+      "union": [
+        {
+          "type": "hello",
+          "direction": "server",
+          "fields": [
+            "protocolVersion",
+            "connectionId",
+            "heartbeatSeconds",
+            "presenceTtlSeconds"
+          ]
+        },
+        {
+          "type": "join",
+          "direction": "client",
+          "fields": [
+            "requestId",
+            "room"
+          ]
+        },
+        {
+          "type": "joined",
+          "direction": "server",
+          "fields": [
+            "requestId",
+            "room",
+            "participants"
+          ]
+        },
+        {
+          "type": "leave",
+          "direction": "client",
+          "fields": [
+            "requestId",
+            "room"
+          ]
+        },
+        {
+          "type": "left",
+          "direction": "server",
+          "fields": [
+            "requestId",
+            "room"
+          ]
+        },
+        {
+          "type": "presence.update",
+          "direction": "client",
+          "fields": [
+            "requestId",
+            "room",
+            "state"
+          ]
+        },
+        {
+          "type": "presence",
+          "direction": "server",
+          "fields": [
+            "room",
+            "presence"
+          ]
+        },
+        {
+          "type": "presence.removed",
+          "direction": "server",
+          "fields": [
+            "room",
+            "participantKey",
+            "reason"
+          ]
+        },
+        {
+          "type": "ping",
+          "direction": "client_or_server",
+          "fields": [
+            "requestId"
+          ]
+        },
+        {
+          "type": "problem",
+          "direction": "server",
+          "fields": [
+            "requestId",
+            "problem"
+          ],
+          "fieldTypes": {
+            "requestId": "uuid|null"
+          }
+        }
+      ],
+      "bounds": {
+        "maxBytes": 65536
+      },
+      "fieldTypes": {
+        "protocolVersion": "integer",
+        "connectionId": "uuid",
+        "heartbeatSeconds": "integer",
+        "presenceTtlSeconds": "integer",
+        "requestId": "uuid",
+        "room": "CollaborationRoom",
+        "participants": "CollaborationPresence[]",
+        "state": "CollaborationPresenceState",
+        "presence": "CollaborationPresence",
+        "participantKey": "uuid",
+        "reason": "enum(left|closed|expired|revoked)",
+        "problem": "Problem"
+      },
+      "description": "Bounded JSON frames on /v1/collaboration: room join/leave and ephemeral presence. Presence is never durable, never replayed and never authority.",
+      "fieldDescriptions": {
+        "protocolVersion": "Collaboration protocol version reported by the server.",
+        "connectionId": "Server-assigned identifier of this connection.",
+        "heartbeatSeconds": "Interval at which the client should refresh its presence.",
+        "presenceTtlSeconds": "Seconds after the last accepted hint at which the server expires a participant.",
+        "requestId": "Client-chosen identifier correlating a reply with its request.",
+        "room": "Room the frame applies to.",
+        "participants": "Current authorized participants of the room at join time.",
+        "state": "Presence hints the client asks the server to relay.",
+        "presence": "Participant presence as the server relays it.",
+        "participantKey": "Key of the participant that left the room.",
+        "reason": "Why the participant left: explicit leave, closed connection, TTL expiry or lost access.",
+        "problem": "Safe standard problem describing why the request was refused."
       }
     },
     "MetricPoint": {

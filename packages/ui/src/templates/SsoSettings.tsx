@@ -7,8 +7,10 @@ export type SsoProviderEntry = {
   readonly name: string;
   /** Issuer URL or domain under the name. */
   readonly detail: string;
-  /** The enabled/disabled badge. */
+  /** The verified / not verified badge. */
   readonly status: ReactNode;
+  /** An action beside the badge, such as an Edit button. */
+  readonly action?: ReactNode;
   /** Opens the provider for editing. */
   readonly onSelect: () => void;
 };
@@ -92,7 +94,10 @@ export function SsoSettings(
                         </button>
                         <span>{provider.detail}</span>
                       </div>
-                      {provider.status}
+                      <div className="ui-sso-settings__provider-end">
+                        {provider.status}
+                        {provider.action}
+                      </div>
                     </li>
                   ))}
                 </ul>

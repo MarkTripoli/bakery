@@ -211,6 +211,8 @@ async function expectSelectedParent(page: Page, path: string) {
       ? "/settings/organization/repository-rules"
       : path.startsWith("/settings/organization/integrations")
       ? "/settings/organization/integrations"
+      : path.startsWith("/settings/organization/sso")
+      ? "/settings/organization/sso"
       : path.startsWith("/settings/audit")
       ? "/settings/audit"
       : path.startsWith("/settings/scim")
@@ -533,7 +535,8 @@ test.describe("settings routes and navigation", () => {
       "Repository rules",
       "Integrations",
       "Audit log",
-      "SCIM provisioning",
+      "Single sign-on",
+      "SCIM",
     ]);
   });
 
