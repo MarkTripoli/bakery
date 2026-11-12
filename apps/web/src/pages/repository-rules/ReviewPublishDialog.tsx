@@ -6,11 +6,15 @@ import type {
   OrganizationRepositoryRulePreviewResponse,
 } from "../../api/client.ts";
 import { useBakeryApi } from "../../api/context.tsx";
-import { organizationRepositoryRulePreviewQueryOptions } from "../../api/query.ts";
+import {
+  organizationRepositoryRulePreviewQueryOptions,
+  organizationRepositoryRulesQueryOptions,
+} from "../../api/query.ts";
 import { failureStatus } from "../../app/async-state.ts";
 import type { ProtectedScope } from "../../app/query-scope.ts";
 import { useShellViewport } from "../../app/responsive.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
+import { sameEntry } from "./draft.ts";
 import { focusAfterPaint } from "./focus.ts";
 import type { RuleEntry } from "./presentation.ts";
 
@@ -130,6 +134,23 @@ export function ReviewPublishDialog(
     if (!result.ok && stale(result.error)) {
       idempotencyKey.current = null;
       await refreshRules();
+      // A retry after a lost answer finds the first try already published:
+      // the rules now say exactly what this draft says. That is a success.
+      const published = queryClient.getQueryData(
+        organizationRepositoryRulesQueryOptions(api, scope).queryKey,
+      );
+      if (
+        published &&
+        published.entries.length === entries.length &&
+        entries.every((entry) =>
+          published.entries.some((current) =>
+            current.ruleKey === entry.ruleKey && sameEntry(current, entry)
+          )
+        )
+      ) {
+        onPublished(published.revision);
+        return;
+      }
       onStale();
       return;
     }

@@ -96,6 +96,8 @@ type Options = {
   theirs?: RuleEntry[];
   /** This page of the preview answers 500 the first time it is asked for. */
   failPageOnce?: string;
+  /** The first publish is committed but its answer is lost (a gateway 504). */
+  lostAnswer?: boolean;
 };
 
 async function publishFixture(page: Page, options: Options = {}) {
@@ -112,6 +114,7 @@ async function publishFixture(page: Page, options: Options = {}) {
   };
   const pages = options.pages ?? { first: FIRST_PAGE };
   let staleOn = options.staleOn;
+  let lostAnswer = options.lostAnswer;
   let failPageOnce = options.failPageOnce;
   /** Someone else publishes revision 4 while the draft is open. */
   const bump = () => {
@@ -154,8 +157,17 @@ async function publishFixture(page: Page, options: Options = {}) {
       if (state.publishStatus !== 200) {
         return route.fulfill(problem(state.publishStatus));
       }
+      // The server only accepts a publication made on the newest revision.
+      if (body.expectedRevision !== state.revision) {
+        return route.fulfill(problem(412));
+      }
       state.revision = (body.expectedRevision as number) + 1;
       state.entries = body.entries as RuleEntry[];
+      if (lostAnswer) {
+        // Committed, but the answer never arrives.
+        lostAnswer = false;
+        return route.fulfill(problem(504));
+      }
       return route.fulfill(json({
         id: uuid(900),
         organizationId: MOCK_ORGANIZATION_ID,
@@ -539,6 +551,31 @@ test.describe("organization repository rules: a newer revision was published", (
     await expect.poll(() => state.versionReads).toBe(2);
   });
 
+  test("a retry that finds the draft already published says so, like a normal publish", async ({ page }) => {
+    const state = await publishFixture(page, { lostAnswer: true });
+    await makeDraft(page);
+    const dialog = await review(page);
+    await dialog.getByRole("button", { name: "Publish rules" }).click();
+    // The first try was committed, but the person is told it failed.
+    await expect(dialog).toContainText("could not be published");
+    expect(state.publishBodies).toHaveLength(1);
+    // They press Publish again: the server answers 412 because it is already revision 4.
+    await dialog.getByRole("button", { name: "Publish rules" }).click();
+    await expect(page.getByText("Revision 4 published.")).toBeVisible();
+    await shot(page, "rules-published-after-retry");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(draftBar(page)).toHaveCount(0);
+    await expect(page.getByTestId("org-rules-stale")).toHaveCount(0);
+    // The same success path: focus is on the page heading.
+    await expect(
+      page.getByRole("heading", { name: "Repository rules", level: 1 }),
+    ).toBeFocused();
+    expect(state.publishBodies).toHaveLength(2);
+    expect(
+      (state.publishBodies[1] as { expectedRevision: number }).expectedRevision,
+    ).toBe(3);
+  });
+
   test("Keep mine decides the rule and the next review is against the new revision", async ({ page }) => {
     const state = await publishFixture(page, {
       staleOn: "preview",
@@ -706,6 +743,56 @@ test.describe("organization repository rules: focus follows an action that repla
       .click();
     await expect(page.getByRole("button", { name: "Review and publish" }))
       .toBeFocused();
+  });
+
+  // A slow page widens the gap between the click that decides a conflict and
+  // the render that follows it. Focus must land on what the render leaves, not
+  // on the control the render is about to remove.
+  test("deciding conflicts keeps focus on what follows even when the page renders slowly", async ({ page }) => {
+    const slow = await page.context().newCDPSession(page);
+    await publishFixture(page, { staleOn: "preview", theirs: THEIRS_BOTH });
+    await makeDraft(page);
+    await enableMagicStrings(page);
+    await page.getByRole("button", { name: "Review and publish" }).click();
+    await expect(page.getByTestId("org-rules-conflicts")).toContainText(
+      "Magic strings",
+    );
+    await slow.send("Emulation.setCPUThrottlingRate", { rate: 10 });
+    try {
+      await page.getByRole("button", { name: "Keep mine for Semantic commits" })
+        .click();
+      // The next conflict's control, not the one just decided.
+      await expect(
+        page.getByRole("button", { name: "Use revision 4 for Magic strings" }),
+      ).toBeFocused({ timeout: 15_000 });
+      await page.getByRole("button", {
+        name: "Use revision 4 for Magic strings",
+      })
+        .click();
+      // Dropping the rule leaves one edit: on to Review and publish, once it is enabled.
+      await expect(page.getByRole("button", { name: "Review and publish" }))
+        .toBeFocused({ timeout: 15_000 });
+    } finally {
+      await slow.send("Emulation.setCPUThrottlingRate", { rate: 1 });
+    }
+  });
+
+  test("deciding the last conflict keeps focus on Review and publish even when the page renders slowly", async ({ page }) => {
+    const slow = await page.context().newCDPSession(page);
+    await publishFixture(page, { staleOn: "preview", theirs: THEIRS });
+    await makeDraft(page);
+    await enableMagicStrings(page);
+    await page.getByRole("button", { name: "Review and publish" }).click();
+    await expect(page.getByTestId("org-rules-conflicts")).toBeVisible();
+    await slow.send("Emulation.setCPUThrottlingRate", { rate: 10 });
+    try {
+      await page.getByRole("button", { name: "Keep mine for Semantic commits" })
+        .click();
+      await expect(page.getByRole("button", { name: "Review and publish" }))
+        .toBeFocused({ timeout: 15_000 });
+    } finally {
+      await slow.send("Emulation.setCPUThrottlingRate", { rate: 1 });
+    }
   });
 
   test("with two conflicts, deciding the first moves focus to the second", async ({ page }) => {

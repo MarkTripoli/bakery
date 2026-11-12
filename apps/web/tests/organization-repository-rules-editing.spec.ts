@@ -208,8 +208,17 @@ test.describe("organization repository rules: editing", () => {
     await expect(
       page.getByText("Enter a whole number between 20 and 200."),
     ).toBeVisible();
-    // A refused Apply puts the person on the first field that needs attention.
-    await expect(page.getByLabel("Allowed types")).toBeFocused();
+    // A refused Apply puts the person on the first field that needs attention,
+    // and the field says it is invalid and reads its message on focus.
+    const first = page.getByLabel("Allowed types");
+    await expect(first).toBeFocused();
+    await expect(first).toHaveAttribute("aria-invalid", "true");
+    await expect(first).toHaveAccessibleDescription("Enter at least one item.");
+    const second = page.getByLabel("Maximum subject length");
+    await expect(second).toHaveAttribute("aria-invalid", "true");
+    await expect(second).toHaveAccessibleDescription(
+      "Enter a whole number between 20 and 200.",
+    );
     await shot(page, "rules-editor-errors");
     await expect(page).toHaveURL(new RegExp(`${LIST_PATH}/commits.semantic$`));
     await page.getByLabel("Allowed types").fill("feat, fix");

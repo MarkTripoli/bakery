@@ -176,16 +176,24 @@ export function OrganizationRepositoryRulesPage() {
    * focus goes to what replaced it, never to the page body.
    */
   const loadMoreHistory = async () => {
+    const shown = history.length;
     const result = await versions.fetchNextPage();
-    focusAfterPaint(() =>
-      document.querySelector<HTMLElement>(
-        result.isError
-          ? '[data-testid="org-rules-history-retry"]'
-          : result.hasNextPage
-          ? '[data-testid="org-rules-history-more"]'
-          : '[data-testid="org-rules-history-title"]',
-      )
-    );
+    focusAfterPaint(() => {
+      if (result.isError) {
+        return document.querySelector<HTMLElement>(
+          '[data-testid="org-rules-history-retry"]',
+        );
+      }
+      if (result.hasNextPage) {
+        return document.querySelector<HTMLElement>(
+          '[data-testid="org-rules-history-more"]',
+        );
+      }
+      // The last page: the first row it added, so a reader goes on from where they were.
+      return document.querySelector<HTMLElement>(
+        '[data-testid="org-rules-history-rows"]',
+      )?.querySelectorAll<HTMLElement>('tbody tr, [role="listitem"]')[shown];
+    });
   };
   // A digest never wraps; the whole value is its title.
   const digestText = (value: string) => (
@@ -259,6 +267,7 @@ export function OrganizationRepositoryRulesPage() {
                 const revision = drafts.draft?.baseRevision ?? 0;
                 return (
                   <UI.AccessCard
+                    data-conflict-key={key}
                     key={key}
                     title={name}
                     trailing={
@@ -296,7 +305,7 @@ export function OrganizationRepositoryRulesPage() {
                         )}
                         onClick={() => {
                           drafts.resolve(key, "theirs");
-                          focusAfterPaint(nextAfterConflict);
+                          focusAfterPaint(() => nextAfterConflict(key));
                         }}
                         type="button"
                         variant="secondary"
@@ -312,7 +321,7 @@ export function OrganizationRepositoryRulesPage() {
                         )}
                         onClick={() => {
                           drafts.resolve(key, "mine");
-                          focusAfterPaint(nextAfterConflict);
+                          focusAfterPaint(() => nextAfterConflict(key));
                         }}
                         type="button"
                         variant="secondary"
@@ -574,10 +583,11 @@ export function OrganizationRepositoryRulesPage() {
                             : phone && history.length > 0
                             ? (
                               <div
-                                role="list"
                                 aria-label={translate(
                                   "settings.repositoryRules.history.caption",
                                 )}
+                                data-testid="org-rules-history-rows"
+                                role="list"
                               >
                                 {history.map((row) => (
                                   <div key={row.id} role="listitem">
@@ -602,57 +612,61 @@ export function OrganizationRepositoryRulesPage() {
                               </div>
                             )
                             : (
-                              <UI.DataTable<NonNullable<typeof history>[number]>
-                                caption={translate(
-                                  "settings.repositoryRules.history.caption",
-                                )}
-                                captionHidden
-                                columns={[
-                                  {
-                                    id: "revision",
-                                    header: translate(
-                                      "settings.repositoryRules.history.column.revision",
-                                    ),
-                                    cell: (row) => String(row.revision),
-                                  },
-                                  {
-                                    id: "published",
-                                    header: translate(
-                                      "settings.repositoryRules.history.column.published",
-                                    ),
-                                    cell: (row) =>
-                                      when.format(new Date(row.createdAt)),
-                                  },
-                                  {
-                                    id: "rules",
-                                    header: translate(
-                                      "settings.repositoryRules.history.column.rules",
-                                    ),
-                                    cell: (row) => String(row.entries.length),
-                                  },
-                                  {
-                                    id: "digest",
-                                    header: translate(
-                                      "settings.repositoryRules.history.column.digest",
-                                    ),
-                                    cell: (row) => digestText(row.digest),
-                                  },
-                                ]}
-                                emptyMessage={translate(
-                                  "settings.repositoryRules.history.empty",
-                                )}
-                                error={translate(
-                                  "settings.repositoryRules.history.loadError",
-                                )}
-                                getRowKey={(row) => row.id}
-                                rows={history}
-                                state={versions.isPending
-                                  ? "loading"
-                                  : history.length === 0
-                                  ? "empty"
-                                  : "ready"}
-                                variant="table"
-                              />
+                              <div data-testid="org-rules-history-rows">
+                                <UI.DataTable<
+                                  NonNullable<typeof history>[number]
+                                >
+                                  caption={translate(
+                                    "settings.repositoryRules.history.caption",
+                                  )}
+                                  captionHidden
+                                  columns={[
+                                    {
+                                      id: "revision",
+                                      header: translate(
+                                        "settings.repositoryRules.history.column.revision",
+                                      ),
+                                      cell: (row) => String(row.revision),
+                                    },
+                                    {
+                                      id: "published",
+                                      header: translate(
+                                        "settings.repositoryRules.history.column.published",
+                                      ),
+                                      cell: (row) =>
+                                        when.format(new Date(row.createdAt)),
+                                    },
+                                    {
+                                      id: "rules",
+                                      header: translate(
+                                        "settings.repositoryRules.history.column.rules",
+                                      ),
+                                      cell: (row) => String(row.entries.length),
+                                    },
+                                    {
+                                      id: "digest",
+                                      header: translate(
+                                        "settings.repositoryRules.history.column.digest",
+                                      ),
+                                      cell: (row) => digestText(row.digest),
+                                    },
+                                  ]}
+                                  emptyMessage={translate(
+                                    "settings.repositoryRules.history.empty",
+                                  )}
+                                  error={translate(
+                                    "settings.repositoryRules.history.loadError",
+                                  )}
+                                  getRowKey={(row) => row.id}
+                                  rows={history}
+                                  state={versions.isPending
+                                    ? "loading"
+                                    : history.length === 0
+                                    ? "empty"
+                                    : "ready"}
+                                  variant="table"
+                                />
+                              </div>
                             )}
                           {moreFailed
                             ? (

@@ -71,6 +71,11 @@ function OptionInput(
   const hint = FIELDS_WITH_HINT.has(field.id) ? translate(hintKey) : undefined;
   const value = form[field.id] ?? "";
   const message = error ? translate(error.key, error.values) : undefined;
+  // The message has an id so the control can point at it: it is read on focus.
+  const messageId = `${id}-error`;
+  const shownMessage = message
+    ? <span id={messageId}>{message}</span>
+    : undefined;
 
   if (field.kind === "choice") {
     return (
@@ -92,7 +97,7 @@ function OptionInput(
   if (field.kind === "text" && field.multiline) {
     return (
       <UI.Field
-        error={message}
+        error={shownMessage}
         hint={hint}
         htmlFor={id}
         label={label}
@@ -100,6 +105,8 @@ function OptionInput(
         variant="textarea"
       >
         <textarea
+          aria-describedby={message ? messageId : undefined}
+          aria-invalid={message ? true : undefined}
           id={id}
           name={field.id}
           onChange={(event) => onChange(field.id, event.target.value)}
@@ -110,7 +117,7 @@ function OptionInput(
   }
   return (
     <UI.Field
-      error={message}
+      error={shownMessage}
       hint={hint}
       htmlFor={id}
       label={label}
@@ -118,6 +125,7 @@ function OptionInput(
     >
       <UI.TextInput
         autoComplete="off"
+        describedBy={message ? messageId : undefined}
         id={id}
         inputMode={field.kind === "integer" ? "numeric" : "text"}
         invalid={Boolean(message)}

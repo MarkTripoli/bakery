@@ -193,9 +193,9 @@ test.describe("organization repository rules", () => {
     await expect(
       page.getByRole("button", { name: "Load more revisions" }),
     ).toHaveCount(0);
-    // The last page removed the button that had focus: focus goes to the History heading.
-    await expect(page.getByRole("heading", { name: "History", level: 2 }))
-      .toBeFocused();
+    // The last page removed the button that had focus: focus goes to the first
+    // row that load added, so a reader goes on from where they were.
+    await expect(history.nth(2)).toBeFocused();
     expect(state.cursors).toEqual([null, "page-2"]);
   });
 
@@ -384,6 +384,8 @@ test.describe("organization repository rules", () => {
     await notice.getByRole("button", { name: "Try again" }).click();
     await expect(history).toHaveCount(3);
     await expect(notice).toHaveCount(0);
+    // A Try again that works is a successful load: the first row it added.
+    await expect(history.nth(2)).toBeFocused();
     expect(state.cursors).toEqual([null, "page-2", "page-2"]);
   });
 

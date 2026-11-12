@@ -7,11 +7,19 @@
  */
 export function focusAfterPaint(
   find: () => HTMLElement | null | undefined,
+  /** How many more frames to wait for a target that is missing or still disabled. */
+  patience = 30,
 ): void {
   requestAnimationFrame(() =>
-    requestAnimationFrame(() => {
+    requestAnimationFrame(function settle() {
       const target = find();
-      if (!target) return;
+      // A target that is not there yet, or is disabled until the render this
+      // waits for, is retried; focusing it now would only be undone.
+      if ((!target || target.matches(":disabled")) && patience-- > 0) {
+        requestAnimationFrame(settle);
+        return;
+      }
+      if (!target || target.matches(":disabled")) return;
       if (
         !target.matches("button, a[href], input, select, textarea, [tabindex]")
       ) target.tabIndex = -1;
@@ -26,10 +34,15 @@ export const pageHeading = () =>
     '[data-testid="org-repository-rules"] h1',
   );
 
-/** The first thing to act on once a conflict has been decided. */
-export const nextAfterConflict = () =>
+/**
+ * The first thing to act on once a conflict has been decided: the next
+ * conflict's control, else Review and publish, else the page heading. The card
+ * just decided can still be on screen when this runs, so it is skipped by its
+ * key rather than found first.
+ */
+export const nextAfterConflict = (decided: string) =>
   document.querySelector<HTMLElement>(
-    '[data-testid="org-rules-conflicts"] button',
+    `[data-testid="org-rules-conflicts"] [data-conflict-key]:not([data-conflict-key="${decided}"]) button`,
   ) ??
     document.querySelector<HTMLElement>('[data-testid="org-rules-review"]') ??
     pageHeading();
