@@ -1,0 +1,257 @@
+import { assert, assertEquals, assertThrows } from "@std/assert";
+import { join } from "node:path";
+import {
+  CODEX_TEST_AUTH_DIR_ENV,
+  codexTestCredentialGate,
+  dedicatedCodexTestAuthSource,
+} from "../helpers/codex-harness.ts";
+
+// #207: the real-Codex cases used to run whenever a `codex` executable
+// resolved, against the operator's own login ($HOME/.codex by default), so a
+// local `pnpm test:security` or full lane could spend the owner's personal
+// account. They now run only when BAKERY_TEST_CODEX_AUTH_DIR names a dedicated
+// test credential directory. These cases use only temporary directories and an
+// injected environment and probe: none of them reads or runs anything of the
+// operator's. The rail in tests/rails/codex-test-credentials_test.ts holds the
+// rest of the line (no other test reaches the login; the real gate touches
+// nothing it may not).
+
+type Env = Record<string, string | undefined>;
+const reader = (env: Env) => (name: string) => env[name];
+
+/** A pretend operator: HOME with a login, and every variable that could point at it. */
+async function sentinelOperator() {
+  const home = await Deno.makeTempDir({ prefix: "bakery-sentinel-home-" });
+  const login = join(home, ".codex");
+  await Deno.mkdir(login);
+  await Deno.writeTextFile(join(login, "auth.json"), "SENTINEL-DO-NOT-READ");
+  const env: Env = {
+    HOME: home,
+    CODEX_HOME: login,
+    BAKERY_CODEX_AUTH_SOURCE_DIR: login,
+  };
+  return { home, login, env };
+}
+
+/** A dedicated test credential directory: absolute, existing, holding auth.json. */
+async function dedicatedDirectory() {
+  const dir = await Deno.makeTempDir({ prefix: "bakery-dedicated-codex-" });
+  await Deno.writeTextFile(join(dir, "auth.json"), "{}");
+  return dir;
+}
+
+function spyProbe(result: string | true = true) {
+  const calls: { executable: string; env: Record<string, string> }[] = [];
+  return {
+    calls,
+    probe: (executable: string, env: Record<string, string>) => {
+      calls.push({ executable, env });
+      return Promise.resolve(result);
+    },
+  };
+}
+
+const EXECUTABLE = "codex";
+
+Deno.test("without the opt-in nothing resolves the operator's login: the gate skips and probes nothing", async () => {
+  const operator = await sentinelOperator();
+  try {
+    // Every variable that points at the login is set, and none is an opt-in.
+    const spy = spyProbe();
+    const result = await codexTestCredentialGate(
+      reader(operator.env),
+      spy.probe,
+      EXECUTABLE,
+    );
+    assert(typeof result === "string", "the gate must skip, not pass");
+    assert(result.includes(CODEX_TEST_AUTH_DIR_ENV), result);
+    assert(
+      result.includes("is not set"),
+      `skipped for the wrong reason: ${result}`,
+    );
+    assertEquals(spy.calls.length, 0, "the CLI was probed without the opt-in");
+    assert(!result.includes(operator.home), "the skip reason names the login");
+
+    const error = assertThrows(() =>
+      dedicatedCodexTestAuthSource(reader(operator.env))
+    );
+    assert(error instanceof Error);
+    assert(error.message.includes(CODEX_TEST_AUTH_DIR_ENV));
+    assert(!error.message.includes(operator.home), error.message);
+    // A blank opt-in is no opt-in.
+    for (const blank of ["", "   "]) {
+      const again = await codexTestCredentialGate(
+        reader({ ...operator.env, [CODEX_TEST_AUTH_DIR_ENV]: blank }),
+        spy.probe,
+        EXECUTABLE,
+      );
+      assert(typeof again === "string");
+    }
+    assertEquals(spy.calls.length, 0);
+    assertEquals(
+      await Deno.readTextFile(join(operator.login, "auth.json")),
+      "SENTINEL-DO-NOT-READ",
+    );
+  } finally {
+    await Deno.remove(operator.home, { recursive: true });
+  }
+});
+
+Deno.test("the old variables are no opt-in, even when they name a perfectly good dedicated directory", async () => {
+  // This is the case where a fallback would actually run the cases: the
+  // directory is not the operator's login, so only the missing opt-in stops it.
+  const other = await dedicatedDirectory();
+  try {
+    for (const name of ["CODEX_HOME", "BAKERY_CODEX_AUTH_SOURCE_DIR"]) {
+      const spy = spyProbe();
+      const env = { HOME: "/nonexistent-home", [name]: other };
+      const result = await codexTestCredentialGate(
+        reader(env),
+        spy.probe,
+        EXECUTABLE,
+      );
+      assert(
+        typeof result === "string" && result.includes("is not set"),
+        `${name} counted as an opt-in: ${result}`,
+      );
+      assertEquals(spy.calls.length, 0, `${name} was probed`);
+      assertThrows(
+        () => dedicatedCodexTestAuthSource(reader(env)),
+        Error,
+        "is not set",
+      );
+    }
+  } finally {
+    await Deno.remove(other, { recursive: true });
+  }
+});
+
+Deno.test("an opt-in that is the operator's own login, or inside it, is refused", async () => {
+  const operator = await sentinelOperator();
+  const inside = join(operator.login, "profiles");
+  await Deno.mkdir(inside);
+  await Deno.writeTextFile(join(inside, "auth.json"), "{}");
+  const viaLink = join(operator.home, "innocent-looking");
+  await Deno.symlink(operator.login, viaLink);
+  try {
+    // Each way the operator's login can be named, taken as the opt-in.
+    const refused: { name: string; env: Env; optIn: string }[] = [
+      { name: "HOME/.codex", env: operator.env, optIn: operator.login },
+      { name: "a subdirectory of it", env: operator.env, optIn: inside },
+      { name: "a symlink to it", env: operator.env, optIn: viaLink },
+      {
+        name: "CODEX_HOME",
+        env: { HOME: "/nonexistent-home", CODEX_HOME: operator.login },
+        optIn: operator.login,
+      },
+      {
+        name: "BAKERY_CODEX_AUTH_SOURCE_DIR",
+        env: {
+          HOME: "/nonexistent-home",
+          BAKERY_CODEX_AUTH_SOURCE_DIR: operator.login,
+        },
+        optIn: operator.login,
+      },
+    ];
+    for (const { name, env: base, optIn } of refused) {
+      const spy = spyProbe();
+      const env = { ...base, [CODEX_TEST_AUTH_DIR_ENV]: optIn };
+      const result = await codexTestCredentialGate(
+        reader(env),
+        spy.probe,
+        EXECUTABLE,
+      );
+      assert(typeof result === "string", `${name} was accepted`);
+      assertEquals(spy.calls.length, 0, `${name} was probed`);
+      assertThrows(() => dedicatedCodexTestAuthSource(reader(env)), Error);
+    }
+  } finally {
+    await Deno.remove(operator.home, { recursive: true });
+  }
+});
+
+Deno.test("an opt-in must be an absolute existing directory that holds auth.json", async () => {
+  const empty = await Deno.makeTempDir({ prefix: "bakery-empty-codex-" });
+  const file = await Deno.makeTempFile({ prefix: "bakery-not-a-dir-" });
+  const here = await dedicatedDirectory();
+  const cwd = Deno.cwd();
+  try {
+    // A relative path that does exist from the working directory, and holds an
+    // auth.json, is still not an absolute path.
+    Deno.chdir(here);
+    for (const relative of [".", "./"]) {
+      const spy = spyProbe();
+      const env = {
+        HOME: "/nonexistent-home",
+        [CODEX_TEST_AUTH_DIR_ENV]: relative,
+      };
+      const result = await codexTestCredentialGate(
+        reader(env),
+        spy.probe,
+        EXECUTABLE,
+      );
+      assert(
+        typeof result === "string" && result.includes("absolute"),
+        `${relative} was accepted: ${result}`,
+      );
+      assertEquals(spy.calls.length, 0);
+    }
+    Deno.chdir(cwd);
+    for (
+      const value of [
+        "relative/path",
+        "./auth",
+        `${empty}-does-not-exist`,
+        file,
+        empty,
+      ]
+    ) {
+      const spy = spyProbe();
+      const env = {
+        HOME: "/nonexistent-home",
+        [CODEX_TEST_AUTH_DIR_ENV]: value,
+      };
+      const result = await codexTestCredentialGate(
+        reader(env),
+        spy.probe,
+        EXECUTABLE,
+      );
+      assert(typeof result === "string", `${value} was accepted`);
+      assertEquals(spy.calls.length, 0, `${value} was probed`);
+      assertThrows(() => dedicatedCodexTestAuthSource(reader(env)), Error);
+    }
+  } finally {
+    Deno.chdir(cwd);
+    await Deno.remove(empty, { recursive: true });
+    await Deno.remove(here, { recursive: true });
+    await Deno.remove(file);
+  }
+});
+
+Deno.test("a dedicated directory is probed with HOME and CODEX_HOME pointed at it, and is the only source used", async () => {
+  const operator = await sentinelOperator();
+  const dedicated = await dedicatedDirectory();
+  try {
+    const env = { ...operator.env, [CODEX_TEST_AUTH_DIR_ENV]: dedicated };
+    const spy = spyProbe(true);
+    assertEquals(
+      await codexTestCredentialGate(reader(env), spy.probe, EXECUTABLE),
+      true,
+    );
+    assertEquals(spy.calls.length, 1);
+    assertEquals(spy.calls[0]!.executable, EXECUTABLE);
+    // The probe must not see the operator's HOME or login either.
+    assertEquals(spy.calls[0]!.env, { HOME: dedicated, CODEX_HOME: dedicated });
+    assertEquals(dedicatedCodexTestAuthSource(reader(env)), dedicated);
+
+    // What the probe says is passed on: a CLI that will not run is a skip.
+    const failing = spyProbe("the pinned codex CLI is not runnable");
+    assertEquals(
+      await codexTestCredentialGate(reader(env), failing.probe, EXECUTABLE),
+      "the pinned codex CLI is not runnable",
+    );
+  } finally {
+    await Deno.remove(operator.home, { recursive: true });
+    await Deno.remove(dedicated, { recursive: true });
+  }
+});
