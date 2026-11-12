@@ -415,6 +415,11 @@
 .ui-description-item__action {
   flex: none;
 }
+/* A value beside a button in an item's action takes the room it needs, not a line to itself. */
+.ui-description-item__action .ui-inline > .ui-data-text {
+  flex: 0 1 auto;
+  inline-size: auto;
+}
 .ui-description-item__avatar {
   align-items: center;
   background: var(--color-surface-subtle); /* auth.css:8 .avatar */
