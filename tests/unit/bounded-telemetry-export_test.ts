@@ -1467,6 +1467,15 @@ Deno.test("an outside awaiter fed by a sink that answers and then fails cannot s
     LIMIT,
   );
   await until(() => timerFiredAtCall >= 0, "an ordinary 20 ms timer", 10_000);
+  // The test needs the sink to have been failing batches while the timer waited.
+  // How many sends fit into 20 ms belongs to the machine: on a starved runner the
+  // timer can fire after only a few, so wait for the work (the feeder is still
+  // running) instead of asserting it happened in the time the timer took.
+  await until(
+    () => exporter.stats().failedBatches > 3,
+    "the sink to fail a few batches",
+    10_000,
+  );
   await feeder.stop();
   await exporter.close(100);
   assert(exporter.stats().failedBatches > 3, "the batches really failed");
