@@ -115,12 +115,15 @@ export function harnessExecutablePath(
 export async function harnessAvailable(
   name: string,
   executable = harnessExecutablePath(name),
+  /** Variables set over the inherited environment for the version probe. */
+  env?: Readonly<Record<string, string>>,
 ): Promise<string | true> {
   if (executable !== "/" && !executable.includes("/")) {
     const probe = new Deno.Command(executable, {
       args: ["--version"],
       stdout: "piped",
       stderr: "piped",
+      ...(env === undefined ? {} : { env: { ...env } }),
     });
     try {
       const result = await probe.output();
