@@ -278,16 +278,9 @@
   display: none;
   font: var(--type-caption);
   inline-size: max-content;
-  /* Placed against the window by HelpTip: --help-tip-x is the button's start
-     edge and the panel opens above it (--help-tip-bottom) or, near the top of
-     the window, below it (--help-tip-top). The gap is the padding of the
-     offsets, so the panel touches no scroll container's clip. */
-  inset-block-end: var(--help-tip-bottom, auto);
-  inset-block-start: var(--help-tip-top, auto);
-  inset-inline-start: min(
-    var(--help-tip-x),
-    calc(100dvi - var(--layout-inspector) - var(--space-4))
-  );
+  /* Placed against the window by HelpTip, which sets its start edge and its
+     top or bottom edge from the button, so no scroll container clips it; the
+     margin is the gap to the button. */
   margin-block: var(--space-2);
   max-inline-size: min(var(--layout-inspector), calc(100dvi - var(--space-8)));
   padding: var(--space-2) var(--space-3);

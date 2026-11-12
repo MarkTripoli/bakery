@@ -80,14 +80,16 @@ export function HelpTip(
       const box = button.getBoundingClientRect();
       const rtl = getComputedStyle(button).direction === "rtl";
       const below = box.top < globalThis.innerHeight / 2;
-      const vars: Record<string, string> = {
-        "--help-tip-x": `${
-          rtl ? document.documentElement.clientWidth - box.right : box.left
-        }px`,
-      };
-      if (below) vars["--help-tip-top"] = `${box.bottom}px`;
-      else vars["--help-tip-bottom"] = `${globalThis.innerHeight - box.top}px`;
-      setPlace(vars as CSSProperties);
+      // The start edge of the button, kept 16px inside the window for the widest panel.
+      const width = document.documentElement.clientWidth;
+      const room = Math.min(320, width - 32);
+      const start = rtl ? width - box.right : box.left;
+      setPlace({
+        insetInlineStart: Math.max(16, Math.min(start, width - room - 16)),
+        ...(below
+          ? { insetBlockStart: box.bottom }
+          : { insetBlockEnd: globalThis.innerHeight - box.top }),
+      });
     };
     place();
     globalThis.addEventListener("resize", place);
