@@ -96,7 +96,7 @@ const permissions = lane === "native" ? ["--allow-all"] : [
     ? [
       `--allow-write=${temporaryDirectory},tests/fixtures/scripted-coordinator`,
     ]
-    : lane === "integration" || lane === "security"
+    : lane === "integration" || lane === "security" || lane === "rails"
     ? [`--allow-write=${temporaryDirectory}`]
     : []),
   ...(lane === "contract" ? ["--allow-sys=statfs"] : []),
@@ -123,9 +123,87 @@ const permissions = lane === "native" ? ["--allow-all"] : [
 // request gate needs. Lanes that share a database (contract), own a resource
 // (rails, e2e) or drive a real stack stay sequential.
 const parallel = lane === "unit" ? ["--parallel"] : [];
+
+// Test temp dirs (#242). On the rig host /tmp is RAM-backed, and suites that
+// leaked `bakery-*` dirs filled it. Every lane preloads a wrapper that removes
+// what the test process made through Deno's temp calls when it exits, pass or
+// fail. The unit lane also gets a temp root of its own (short, so path-length
+// sensitive tests behave as they do under /tmp): whatever is still in it
+// afterwards was left by a killed worker or a call the wrapper cannot see, and
+// is reported and removed. BAKERY_TEST_TMP_STRICT=1 turns a non-empty root into
+// a failed run, which is how the temp hygiene rail checks the lane.
+const rootTool = async (...args: string[]) => {
+  const output = await new Deno.Command(Deno.execPath(), {
+    args: [
+      "run",
+      "--allow-read",
+      `--allow-write=${temporaryDirectory}`,
+      "scripts/ci/test-temp-root.ts",
+      ...args,
+    ],
+    stdin: "null",
+    stdout: "piped",
+    stderr: "inherit",
+  }).output();
+  return {
+    code: output.code,
+    text: new TextDecoder().decode(output.stdout).trim(),
+  };
+};
+let laneRoot: string | undefined;
+if (lane === "unit") {
+  const created = await rootTool("create", temporaryDirectory);
+  if (created.code === 0 && created.text.length > 0) laneRoot = created.text;
+  else {console.error(
+      "test temp root: could not create one; using the system temp dir",
+    );}
+}
+
 const process = new Deno.Command(Deno.execPath(), {
-  args: ["test", ...permissions, ...parallel, ...paths],
+  args: [
+    "test",
+    "--preload",
+    "tests/helpers/temp-cleanup-preload.ts",
+    ...permissions,
+    ...parallel,
+    ...paths,
+  ],
+  ...(laneRoot === undefined ? {} : { env: { TMPDIR: laneRoot } }),
   stdout: "inherit",
   stderr: "inherit",
 }).spawn();
-Deno.exit((await process.status).code);
+// A terminated run still sweeps its root: pass the signal on and carry on.
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  Deno.addSignalListener(signal, () => {
+    try {
+      process.kill(signal);
+    } catch {
+      // Already gone.
+    }
+  });
+}
+let code = (await process.status).code;
+if (laneRoot !== undefined) {
+  const swept = await rootTool("sweep", temporaryDirectory, laneRoot);
+  try {
+    const { leaked, prefixes } = JSON.parse(swept.text) as {
+      leaked: number;
+      prefixes: Record<string, number>;
+    };
+    if (leaked > 0) {
+      console.error(
+        `test temp root: ${leaked} entries were still there after the run and were removed; by prefix ${
+          JSON.stringify(prefixes)
+        }`,
+      );
+      if (Deno.env.get("BAKERY_TEST_TMP_STRICT") === "1" && code === 0) {
+        code = 3;
+      }
+    }
+  } catch {
+    console.error(
+      "test temp root: the sweep did not report; the root may remain",
+    );
+  }
+}
+Deno.exit(code);

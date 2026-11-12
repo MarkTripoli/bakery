@@ -518,8 +518,10 @@ export function registerRunnerBoundaryCases(): void {
       const ran = join(scratch.markers, "ran");
       const run = await runCheckExecutor({
         scratch,
-        // The checkout has its own deadline: the git deadline stays generous.
-        limits: { checkoutMs: 1 },
+        // The checkout has its own deadline: the git deadline stays generous. A
+        // bound of zero has already passed, so the checkout is cut off whatever
+        // git does; a 1 ms bound raced real git and lost under load.
+        limits: { checkoutMs: 0 },
         commands: [
           { id: "one", argv: sh(`echo ran >> '${ran}'`) },
           { id: "two", argv: sh(`echo ran >> '${ran}'`), mode: "guide" },

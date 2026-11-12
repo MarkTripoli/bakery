@@ -1,7 +1,4 @@
-import {
-  WORKFLOW_COMPILER_VERSION,
-  workflowSemanticDigest,
-} from "../workflow-compiler/digest.ts";
+import { workflowSemanticDigest } from "../workflow-compiler/digest.ts";
 import type { WorkflowSemanticDocument } from "../workflow-compiler/schema.ts";
 import { WorkflowInterpreterError } from "./errors.ts";
 import { type NextStep, nextStep, type RunState } from "./interpret.ts";
@@ -42,7 +39,7 @@ export async function pinWorkflowRuntime(
   document: WorkflowSemanticDocument,
 ): Promise<WorkflowRuntimePin> {
   return {
-    compilerVersion: WORKFLOW_COMPILER_VERSION,
+    compilerVersion: String(document.compilerVersion),
     interpreterRevision: CURRENT_INTERPRETER_REVISION,
     semanticDigest: await workflowSemanticDigest(document),
   };
