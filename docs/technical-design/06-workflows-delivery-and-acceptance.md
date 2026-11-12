@@ -280,8 +280,12 @@ Parallel = {id, needs?, if?, parallel: {maxConcurrency, join: all-required, fail
 Lane    = {id, needs?, repository, steps: Node[]}
 ```
 
-A step `agentVersionId` is forbidden (`step_agent_version_forbidden`) until the
-catalog gains step agent fields; agent bindings are the top-level `agents` map.
+A step `agentVersionId` selects the agent version for that step only, and is
+allowed on an action node whose registry capabilities include `model`; on any
+other action, container or wait it is `step_agent_version_forbidden`, and a
+value that is not a uuid is `agent_binding_invalid`. It is normalized to lower
+case, part of the digest and carried on the plan step. Workflow-wide bindings
+are the top-level `agents` map.
 
 `Seed` has exactly two exclusive authoring forms, told apart by key set: the
 mapping `{currentCandidate: Value}`, or the sequence
@@ -309,9 +313,12 @@ they cannot invoke an action or read a secret.
   strings, `in` requires a typed list on its right side, and `&&`, `||`, and
   `!` require booleans. Structured values are addressable only through typed
   fields.
-- `$input.*`, `$task.*`, `$step.<qualified-id>.*`, and the current loop's
-  `$repeat.currentCandidate.*`
-  are typed references. Secret values are never valid expression outputs or
+- `$input.*`, `$task.*`, `$step.<qualified-id>.*`, the current loop's
+  `$repeat.currentCandidate.*`, and `$delivery.*` (`headSha`, `checkIds`,
+  `failedChecks`, `blockingFindings`: run state the runtime resolves at claim
+  time, see [Step input resolvers](#step-input-resolvers))
+  are typed references. A `$delivery` field has the type of the action input
+  it feeds, and an unrecognized `$delivery` field is `reference_field_unknown`. Secret values are never valid expression outputs or
   serialized workflow inputs.
 - Every action has a finite timeout. Every retry has a finite attempt count,
   bounded backoff, and named retryable fault codes. No unbounded retry or loop
@@ -728,7 +735,9 @@ implemented by that library: scoped skill, agent and integration resolution
 checks that the event exists); resolving a lane `repository` alias to a task
 repository and profile; the wider workflow input-schema subset above (the
 compiler accepts scalar `uuid|string|integer|number|boolean` inputs with
-optional string `enum`; an enum on any other type is `input_type_unsupported`, a duplicate member is `field_invalid`, and members sort because an enum is a set); a registry of check names; and equivalence with an SDK
+optional string `enum`, and the structured input type `TaskBrief` (the
+registered contract of that name, resolved by the catalog; a closed list, so a
+new entry is a compiler version bump); an enum on any other type is `input_type_unsupported`, a duplicate member is `field_invalid`, and members sort because an enum is a set); a registry of check names; and equivalence with an SDK
 emitter (see the next section), which has no package yet.
 
 ### Tagged values, references and conditions
@@ -807,7 +816,12 @@ of nodes reached through `needs`, because skipping propagates only through
 `needs`. The failing reason selects the diagnostic: `reference_future`,
 `reference_self`, `reference_skipped_step`, `reference_unselected_branch`,
 `reference_parallel_sibling`, `reference_parallel_scope` or
-`reference_repeat_scope`.
+`reference_repeat_scope`. A read needs no `needs` edge to be ordered: sequence
+order is execution order, so a read of an earlier sibling runs after it by
+position, and the plan lists steps in that order. `needs` adds a dependency a
+read does not imply, and is what carries a skip guard to the reader. An
+executor therefore runs a sequence in plan order and never infers parallelism
+from the absence of `needs`.
 
 A container's direct children and its exported names share one namespace.
 Step references are absolute: the first segment names a top-level node, and
@@ -900,8 +914,9 @@ value differs from its double (`1.00000000000000001`) is
 **Agent bindings.** The top-level `agents` map binds a registered action to an
 agent version uuid, and is part of the digest. A key that is not a registered
 action is `action_unknown` at `/agents`; a non-uuid value is
-`agent_binding_invalid`. A step `agentVersionId` stays forbidden. Whether the
-agent version exists and is authorized is resolution work, deferred.
+`agent_binding_invalid`. A step `agentVersionId` follows the rule in the
+grammar section above. Whether an agent version exists and is authorized is
+resolution work, deferred.
 
 **Secrets.** A sensitive field has a secret word segment in its name
 (`secret`, `password`, `passphrase`, `credential`, `apiKey`, `privateKey`,
