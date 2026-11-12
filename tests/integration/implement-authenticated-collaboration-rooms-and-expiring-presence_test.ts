@@ -204,6 +204,14 @@ async function until(
       });
     }
     if (frame.type === type) return frame;
+    // Waiting for an ack, a refusal is the answer: report it, don't wait out
+    // the window (the problem says why, e.g. a worker that timed out).
+    if (
+      type === "ack" &&
+      (frame.type === "problem" || frame.type === "resync_required")
+    ) {
+      throw new Error(`expected ack, got ${JSON.stringify(frame)}`);
+    }
   }
 }
 
