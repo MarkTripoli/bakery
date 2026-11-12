@@ -187,3 +187,105 @@ Deno.test("malformed counts and duplicate item ids are rejected", () => {
     })
   );
 });
+
+Deno.test("maxInputTokens caps input below what the window minus reserves allows (#154)", () => {
+  // The doc 19 specimen: window 100k, input cap 60k, reserves 30k.
+  const policy = {
+    modelContextTokens: 100_000,
+    reserved: {
+      output: 20_000,
+      toolResults: 0,
+      compaction: 0,
+      safetyMargin: 10_000,
+    },
+    maxInputTokens: 60_000,
+  };
+  const capped = resolveContextEnvelope({
+    ...policy,
+    counts: { base: { state: "measured", tokens: 10_000 } },
+  });
+  assertEquals(capped.availableTokens, 60_000 - 10_000);
+  assertEquals(capped.decision, ContextDecision.Ready);
+  // Without the cap the window minus reserves applies (70k - 10k).
+  const { maxInputTokens: _cap, ...uncapped } = policy;
+  assertEquals(
+    resolveContextEnvelope({
+      ...uncapped,
+      counts: { base: { state: "measured", tokens: 10_000 } },
+    }).availableTokens,
+    60_000,
+  );
+  // A cap above the reserve-limited budget changes nothing.
+  assertEquals(
+    resolveContextEnvelope({
+      ...policy,
+      maxInputTokens: 500_000,
+      counts: { base: { state: "measured", tokens: 10_000 } },
+    }).availableTokens,
+    60_000,
+  );
+  // Base input over the cap needs bounding even though the window has room.
+  assertEquals(
+    resolveContextEnvelope({
+      ...policy,
+      counts: { base: { state: "measured", tokens: 61_000 } },
+    }).decision,
+    ContextDecision.NeedsBounding,
+  );
+  // The specimen allocation: 14,000 tokens selected, the session log omitted.
+  const allocation = allocateContext({
+    envelope: { ...policy, counts: {} },
+    items: [
+      {
+        id: "policy-task-tools",
+        count: { state: "measured", tokens: 8_000 },
+        required: true,
+        priority: 100,
+      },
+      {
+        id: "approved-plan-v3",
+        count: { state: "measured", tokens: 4_000 },
+        required: true,
+        priority: 100,
+      },
+      {
+        id: "failing-test-excerpt",
+        count: { state: "measured", tokens: 2_000 },
+        required: false,
+        priority: 90,
+      },
+      {
+        id: "whole-session-log",
+        count: { state: "estimated", tokens: 90_000 },
+        required: false,
+        priority: 10,
+      },
+    ],
+  });
+  assertEquals(allocation.decision, ContextDecision.Ready);
+  assertEquals(allocation.selectedTokens, 14_000);
+  assertEquals(allocation.omitted, [{
+    id: "whole-session-log",
+    reason: "over_budget",
+  }]);
+  // A zero or negative cap is invalid.
+  assertThrows(() =>
+    resolveContextEnvelope({ ...policy, maxInputTokens: 0, counts: {} })
+  );
+});
+
+Deno.test("an overflowing base wins over required items: needs_bounding, not handoff_required (#155)", () => {
+  const allocation = allocateContext({
+    envelope: envelope({ conversation: { state: "measured", tokens: 95_000 } }),
+    items: [
+      {
+        id: "required-plan",
+        count: { state: "measured", tokens: 4_000 },
+        required: true,
+        priority: 100,
+      },
+    ],
+  });
+  assertEquals(allocation.decision, ContextDecision.NeedsBounding);
+  assertEquals(allocation.selected, []);
+});
