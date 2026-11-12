@@ -287,22 +287,50 @@ test("loading and saving disable duplicate submission", async ({ page }) => {
   expect(f.writes).toHaveLength(1);
 });
 
+/**
+ * Opens a page of the app and waits until its startup has finished changing it.
+ *
+ * Opened directly, a protected page is first drawn under a provisional scope
+ * with no organization. When the organization resolves, the scope changes and
+ * the app drops that scope's queries (`QueryScopeController.setIdentity`), so
+ * the page loses its data and is built again: in a trace of a failing run the
+ * radios of this page were added, removed 87 ms later and added again 205 ms
+ * after that, and a box read from the first node came back null (#307). The
+ * preferences are requested only once an organization is known, so in a fresh
+ * browser context their answer is the end of that change.
+ */
+async function openSettled(page: Page, path: string) {
+  const preferences = page.waitForResponse((response) =>
+    response.request().method() === "GET" &&
+    new URL(response.url()).pathname === "/v1/user-preferences"
+  );
+  await page.goto(path);
+  await preferences;
+}
+
 for (
   const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]
 ) {
   test(`installation settings keyboard, accessibility and reflow at ${viewport.width}`, async ({ page }) => {
     await settingsFixture(page);
     await page.setViewportSize(viewport);
-    await page.goto("/installation/settings");
+    await openSettled(page, "/installation/settings");
     const invitation = page.getByRole("radio", { name: /^Invitation only/ });
-    const target = await invitation.boundingBox();
-    expect(target?.width).toBeGreaterThanOrEqual(44);
-    expect(target?.height).toBeGreaterThanOrEqual(44);
-    const glyph = await invitation.locator(
+    await expect(invitation).toBeVisible();
+    // Retrying reads: each attempt finds the element again, so a node that has
+    // been replaced is not the one measured.
+    const sizeOf = async (target: typeof invitation) => {
+      const box = await target.boundingBox();
+      return box === null ? null : { width: box.width, height: box.height };
+    };
+    await expect.poll(async () => (await sizeOf(invitation))?.width ?? 0)
+      .toBeGreaterThanOrEqual(44);
+    await expect.poll(async () => (await sizeOf(invitation))?.height ?? 0)
+      .toBeGreaterThanOrEqual(44);
+    const glyph = invitation.locator(
       "+ .ui-installation-settings__radio-glyph",
-    ).boundingBox();
-    expect(glyph?.width).toBe(18);
-    expect(glyph?.height).toBe(18);
+    );
+    await expect.poll(() => sizeOf(glyph)).toEqual({ width: 18, height: 18 });
     await invitation.focus();
     await page.keyboard.press("ArrowDown");
     await expect(page.getByRole("radio", { name: /^Closed/ })).toBeChecked();
