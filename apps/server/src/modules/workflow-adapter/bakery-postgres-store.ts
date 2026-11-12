@@ -707,13 +707,38 @@ async function endPlanRunFailed(
   owner: EngineOwner | undefined,
   code: string,
 ): Promise<void> {
+  await finishPlanRunIn(transaction, context, "failed", owner, code);
+}
+
+/**
+ * The one place a compiled-plan run ends, inside a caller's transaction:
+ * `finishPlanRun`, the engine's finished and halted answers, an unreadable
+ * plan and an engine failure all come through here, so the closed outcome
+ * set, the plan-run requirement and the shared run-end statements are
+ * enforced once. A failure that belongs to no step passes its stable `code`,
+ * which goes to the audit log because the run has no reason column.
+ */
+async function finishPlanRunIn(
+  transaction: PgTransactionClient,
+  context: RunEndRow,
+  outcome: PlanRunOutcome,
+  owner: EngineOwner | undefined,
+  code?: string,
+): Promise<void> {
+  if (typeof outcome !== "string" || !Object.hasOwn(RUN_END_STATUS, outcome)) {
+    throw new Error("WORKFLOW_PLAN_OUTCOME_INVALID");
+  }
+  if (!carriesPlanRuntime(context.runSnapshot)) {
+    throw new Error("WORKFLOW_PLAN_RUN_REQUIRED");
+  }
   await projectRunEnd(
     transaction,
     context,
-    "failed",
+    outcome,
     owner,
     "WORKFLOW_PLAN_PROJECTION_CONFLICT",
   );
+  if (code === undefined) return;
   await appendAudit(transaction, {
     organizationId: context.organizationId,
     principalId: context.requestedBy,
@@ -775,22 +800,15 @@ async function findNextPlanKey(
     throw error;
   }
   if (answer.kind === "finished") {
-    await projectRunEnd(
-      transaction,
-      context,
-      "completed",
-      activeOwner,
-      "WORKFLOW_PLAN_PROJECTION_CONFLICT",
-    );
+    await finishPlanRunIn(transaction, context, "completed", activeOwner);
     return undefined;
   }
   if (answer.kind === "halted") {
-    await projectRunEnd(
+    await finishPlanRunIn(
       transaction,
       context,
       answer.outcome === "canceled" ? "canceled" : "failed",
       activeOwner,
-      "WORKFLOW_PLAN_PROJECTION_CONFLICT",
     );
     return undefined;
   }
@@ -1614,23 +1632,16 @@ export function createBakeryPostgresWorkflowRepository(options: {
       });
     },
     async finishPlanRun(runId, outcome, owner) {
-      if (!Object.hasOwn(RUN_END_STATUS, outcome)) {
+      if (
+        typeof outcome !== "string" || !Object.hasOwn(RUN_END_STATUS, outcome)
+      ) {
         throw new Error("WORKFLOW_PLAN_OUTCOME_INVALID");
       }
       await withPgTransaction(options.database, async (transaction) => {
         const context = await loadRunEndContext(transaction, runId);
         if (!context) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
         await requireEngineOwner(transaction, runId, requireOwnerValue(owner));
-        if (!carriesPlanRuntime(context.runSnapshot)) {
-          throw new Error("WORKFLOW_PLAN_RUN_REQUIRED");
-        }
-        await projectRunEnd(
-          transaction,
-          context,
-          outcome,
-          owner,
-          "WORKFLOW_PLAN_PROJECTION_CONFLICT",
-        );
+        await finishPlanRunIn(transaction, context, outcome, owner);
       });
     },
     async markEngineFailure(runId, reason, ownerReference) {
