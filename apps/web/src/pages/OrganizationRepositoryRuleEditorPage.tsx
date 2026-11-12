@@ -23,6 +23,7 @@ import {
   isRuleKey,
   RULE_NAME,
   type RuleEntry,
+  summarize,
 } from "./repository-rules/presentation.ts";
 import { useRulesScope } from "./repository-rules/use-rules-scope.ts";
 
@@ -288,6 +289,15 @@ export function OrganizationRepositoryRuleEditorPage() {
             {translate("settings.repositoryRules.description")}
           </UI.Text>
         </UI.Stack>
+        {start && !isNew
+          ? (
+            // The list clamps this line; here it is whole, for keyboard and
+            // touch users who cannot open a title tooltip.
+            <UI.Text data-testid="org-rule-summary" variant="muted">
+              {summarize(start, translate)}
+            </UI.Text>
+          )
+          : null}
         {waiting && refused
           ? (
             <UI.AlertBanner tone="information">

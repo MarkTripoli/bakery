@@ -271,6 +271,34 @@ test.describe("organization repository rules: editing", () => {
     await expect(draftBar(page)).toHaveCount(0);
   });
 
+  test("the editor shows the whole rule summary that the list clamps, without a hover", async ({ page }) => {
+    const sections = Array.from(
+      { length: 16 },
+      (_, index) => `Required section number ${index + 1}`,
+    );
+    const entries = RULE_ENTRIES.map((entry) =>
+      entry.ruleKey === "changeRequest.description"
+        ? {
+          ...entry,
+          options: { ...(entry.options as object), requiredSections: sections },
+        }
+        : entry
+    );
+    await editingFixture(page, { entries });
+    await page.goto(LIST_PATH);
+    await openEditor(page, "Merge descriptions");
+    const summary = page.getByTestId("org-rule-summary");
+    await expect(summary).toBeVisible();
+    // The last item is there in the text, on screen, not only in a tooltip.
+    await expect(summary).toContainText("Required section number 16");
+    const { height, lineHeight } = await summary.evaluate((node) => ({
+      height: node.getBoundingClientRect().height,
+      lineHeight: parseFloat(getComputedStyle(node).lineHeight),
+    }));
+    // More than the two lines the list allows: nothing is clamped here.
+    expect(height).toBeGreaterThan(lineHeight * 2);
+  });
+
   test("an unknown rule key says so", async ({ page }) => {
     await editingFixture(page);
     await page.goto(`${LIST_PATH}/not-a-rule`);
