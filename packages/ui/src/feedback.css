@@ -245,6 +245,31 @@
   display: none;
 }
 
+/* A popover at the end of an `Inline between` header opens toward the start, so
+   its panel stays inside the column instead of running past the window edge. */
+.ui-inline--between > .ui-popover .ui-popover__content {
+  inset-inline-end: 0;
+  inset-inline-start: auto;
+}
+/* A menu inside a popover rides the popover's frame; it needs none of its own. */
+.ui-popover__content > .ui-menu {
+  border: var(--border-none);
+  padding: var(--space-0);
+}
+@media (max-width: 743px) {
+  /* A popover that is the actions of an `Inline between` header spans the row. */
+  .ui-inline--between > .ui-popover {
+    display: block;
+  }
+  .ui-inline--between > .ui-popover > .ui-popover__trigger {
+    inline-size: 100%;
+  }
+  .ui-inline--between > .ui-popover .ui-popover__content {
+    inline-size: auto;
+    inset-inline: 0;
+    max-inline-size: none;
+  }
+}
 .ui-popover {
   display: inline-block;
   max-inline-size: 100%;
@@ -462,5 +487,55 @@
 @media (max-width: 420px) {
   .ui-inline-notice--bar {
     flex-wrap: wrap;
+  }
+}
+
+/* DraftBar: the strip that holds a page's unpublished edits. It sticks to the
+   bottom of the content column so its actions stay in reach of a long table. */
+.ui-draft-bar {
+  align-items: center;
+  background: var(--color-surface-raised);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-overlay);
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  inset-block-end: var(--space-3);
+  justify-content: space-between;
+  min-inline-size: 0;
+  padding: var(--space-3) var(--space-4);
+  position: sticky;
+}
+.ui-draft-bar__text {
+  display: flex;
+  flex: 1 1 16rem;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+.ui-draft-bar__summary {
+  color: var(--color-fg);
+  font: var(--type-notice);
+  overflow-wrap: anywhere;
+}
+.ui-draft-bar__detail {
+  color: var(--color-fg-muted);
+  font: var(--type-hint);
+  overflow-wrap: anywhere;
+}
+.ui-draft-bar__actions {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+/* On a phone the summary sits over two equal actions. */
+@media (max-width: 743px) {
+  .ui-draft-bar__actions {
+    flex: 1 1 100%;
+  }
+  .ui-draft-bar__actions > * {
+    flex: 1 1 0;
   }
 }

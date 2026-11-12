@@ -182,3 +182,62 @@ Deno.test("what the preload cannot see is swept from the run's own temp root, re
   );
   assertEquals(lenient.left, []);
 });
+
+Deno.test("the root tool sweeps a lane root that is a symlink as a link, and never touches what it points at", async () => {
+  const base = await Deno.makeTempDir({ prefix: "bkl-" });
+  try {
+    const outside = `${base}/outside`;
+    await Deno.mkdir(`${outside}/inner`, { recursive: true });
+    await Deno.writeTextFile(`${outside}/inner/keep`, "keep");
+    await Deno.chmod(`${outside}/inner`, 0o755);
+    await Deno.chmod(outside, 0o755);
+    const link = `${base}/bakery-lane-link`;
+    // The rails lane's write grant is scoped to the temp dir, and Deno refuses a
+    // symlink under a scoped grant, so the link is made by `ln`.
+    const made = await new Deno.Command("ln", {
+      args: ["-s", outside, link],
+      stdin: "null",
+      stdout: "null",
+      stderr: "piped",
+    }).output();
+    assertEquals(made.code, 0, new TextDecoder().decode(made.stderr));
+    const run = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        "--allow-read",
+        `--allow-write=${base}`,
+        "scripts/ci/test-temp-root.ts",
+        "sweep",
+        base,
+        link,
+      ],
+      stdin: "null",
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    assertEquals(run.code, 0, new TextDecoder().decode(run.stderr));
+    assertEquals(
+      JSON.parse(new TextDecoder().decode(run.stdout)).leaked,
+      0,
+      "the link's target was counted as leaked",
+    );
+    assertEquals(
+      entriesOf(base),
+      ["outside"],
+      "the link was not removed, or more than the link was",
+    );
+    assertEquals(entriesOf(`${outside}/inner`), ["keep"]);
+    assertEquals(
+      (await Deno.stat(outside)).mode! & 0o777,
+      0o755,
+      "the target's mode was changed",
+    );
+    assertEquals(
+      (await Deno.stat(`${outside}/inner`)).mode! & 0o777,
+      0o755,
+      "a directory below the target was changed",
+    );
+  } finally {
+    removeTreeSync(base);
+  }
+});

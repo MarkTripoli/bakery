@@ -77,3 +77,69 @@ Deno.test("leaked entries are grouped by their name without the random suffix, m
   const many = Array.from({ length: 40 }, (_, i) => `bakery-p${i}-ab12cd34`);
   assert(Object.keys(prefixesOf(many)).length <= 12);
 });
+
+// #252: a temp path that a test swapped for a symlink must be removed as the
+// link it is. `chmod` follows a link, so acting on the path first would change
+// the modes of whatever it points at, outside the tree being cleaned.
+
+const modeOf = async (path: string) => (await Deno.stat(path)).mode! & 0o777;
+
+Deno.test("a temp path that is itself a symlink to a directory is removed as a link: its target keeps its contents and its modes", async () => {
+  await scratch(async (dir) => {
+    const target = join(dir, "target");
+    const inner = join(target, "inner");
+    await Deno.mkdir(inner, { recursive: true });
+    await Deno.writeTextFile(join(inner, "keep"), "keep");
+    await Deno.chmod(inner, 0o755);
+    await Deno.chmod(target, 0o755);
+    const link = join(dir, "link");
+    await Deno.symlink(target, link);
+    removeTreeSync(link);
+    assertEquals(entriesOf(dir), ["target"], "only the link was removed");
+    assertEquals(entriesOf(inner), ["keep"]);
+    assertEquals(await modeOf(target), 0o755, "the target's mode was changed");
+    assertEquals(
+      await modeOf(inner),
+      0o755,
+      "a directory below the target was changed",
+    );
+  });
+});
+
+Deno.test("a temp path that is a symlink to a file is removed as a link, and the file keeps its mode", async () => {
+  await scratch(async (dir) => {
+    const file = join(dir, "file");
+    await Deno.writeTextFile(file, "keep");
+    await Deno.chmod(file, 0o444);
+    const link = join(dir, "link");
+    await Deno.symlink(file, link);
+    removeTreeSync(link);
+    assertEquals(entriesOf(dir), ["file"]);
+    assertEquals(await modeOf(file), 0o444, "the file's mode was changed");
+  });
+});
+
+Deno.test("a dangling symlink as the temp path is removed without error", async () => {
+  await scratch(async (dir) => {
+    const link = join(dir, "link");
+    await Deno.symlink(join(dir, "nowhere"), link);
+    removeTreeSync(link);
+    assertEquals(entriesOf(dir), []);
+  });
+});
+
+Deno.test("nothing is reported inside a symlink, only inside the directory it was made as", async () => {
+  await scratch(async (dir) => {
+    const target = join(dir, "target");
+    await Deno.mkdir(target);
+    await Deno.writeTextFile(join(target, "inside"), "x");
+    const link = join(dir, "link");
+    await Deno.symlink(target, link);
+    assertEquals(entriesOf(target), ["inside"]);
+    assertEquals(
+      entriesOf(link),
+      [],
+      "a link's target was listed as if it were inside the link",
+    );
+  });
+});
