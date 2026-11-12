@@ -70,16 +70,17 @@ export function drive(
   document: WorkflowSemanticDocument,
   script: Script,
   over: Partial<RunState> = {},
+  interpreter: typeof nextStep = nextStep,
 ) {
   const steps = new Map<string, StepRecord>();
   const trace: string[] = [];
   const dispatched: Dispatch[] = [];
   for (let guard = 0; guard < 2000; guard += 1) {
     const state = stateOf({ ...over, steps });
-    const next = nextStep(document, state);
+    const next = interpreter(document, state);
     if (next.kind !== "dispatch") return { next, trace, dispatched, steps };
     // A duplicate call must not change the answer.
-    assertEquals(nextStep(document, stateOf({ ...over, steps })), next);
+    assertEquals(interpreter(document, stateOf({ ...over, steps })), next);
     assert(!steps.has(next.step.key), `${next.step.key} dispatched twice`);
     trace.push(next.step.key);
     dispatched.push(next.step);

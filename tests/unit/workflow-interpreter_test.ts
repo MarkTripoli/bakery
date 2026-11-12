@@ -1088,3 +1088,116 @@ Deno.test("an error never echoes what the workflow or the run carried", () => {
     assert(!(error.stack ?? "").includes(sentinel));
   }
 });
+
+// --- #197: a dispatch shares nothing with the run state or the document
+
+Deno.test("mutating a dispatched input changes neither the recorded output nor the next answer", async () => {
+  const document = await compiled([
+    noop("xx"),
+    noop("use", { needs: ["xx"], with: { whole: "$step.xx.payload" } }),
+  ]);
+  const recorded = completed({ payload: { deep: { v: 1 }, list: [1] } });
+  const state = stateOf({ steps: new Map([["xx", recorded]]) });
+  const first = nextStep(document, state);
+  assert(first.kind === "dispatch");
+  const input = (first.step as ActionDispatch).input as {
+    whole: { deep: { v: number }; list: number[] };
+  };
+  input.whole.deep.v = 999;
+  input.whole.list.push(2);
+  input.whole = { deep: { v: -1 }, list: [] };
+
+  assertEquals(recorded, completed({ payload: { deep: { v: 1 }, list: [1] } }));
+  const again = nextStep(document, state);
+  assert(again.kind === "dispatch");
+  assertEquals((again.step as ActionDispatch).input, {
+    whole: { deep: { v: 1 }, list: [1] },
+  });
+  assert(again !== first && again.step !== first.step, "answers are shared");
+});
+
+Deno.test("mutating a dispatched policy changes neither the document nor the next answer", async () => {
+  const document = await compiled([
+    noop("seed"),
+    {
+      id: "build",
+      needs: ["seed"],
+      uses: "harness.implement",
+      with: { repositoryId: "$input.repo", planArtifact: "$step.seed.plan" },
+      timeout: "10m",
+      retry: { maxAttempts: 1, backoff: "30s", on: ["WORKER_UNAVAILABLE"] },
+    },
+  ], { repo: { type: "uuid", required: true } });
+  const before = structuredClone(document);
+  const state = stateOf({
+    inputs: { repo: REPO_ID },
+    steps: new Map([["seed", completed({ plan: "p" })]]),
+  });
+  const first = nextStep(document, state);
+  assert(first.kind === "dispatch");
+  const build = first.step as ActionDispatch;
+  const expected = structuredClone(build);
+  (build.requires as string[]).push("injected");
+  (build.retry as { on: string[] }).on.push("INJECTED");
+  (build.retry as { maxAttempts: number }).maxAttempts = 99;
+
+  assertEquals(document, before);
+  const again = nextStep(document, state);
+  assert(again.kind === "dispatch");
+  assertEquals(again.step, expected);
+});
+
+// --- #196: assertions the interpreter's own mutants showed were missing
+
+Deno.test("ordering is strict where it should be: 5 < 5 is false and 5 <= 5 is true", () => {
+  const lit = (value: string | number) => ({ kind: "literal", value }) as const;
+  const cmp = (
+    op: "lt" | "le" | "gt" | "ge",
+    left: string | number,
+    right: string | number,
+  ) =>
+    evaluateExpression(
+      { kind: "compare", op, left: lit(left), right: lit(right) },
+      read(),
+    );
+  assertEquals(cmp("lt", 5, 5), false);
+  assertEquals(cmp("le", 5, 5), true);
+  assertEquals(cmp("gt", 5, 5), false);
+  assertEquals(cmp("ge", 5, 5), true);
+  assertEquals(cmp("lt", 4, 5), true);
+  assertEquals(cmp("gt", 6, 5), true);
+  assertEquals(cmp("lt", "a", "a"), false);
+  assertEquals(cmp("le", "a", "a"), true);
+});
+
+Deno.test("'in' does not coerce: 1 is not in ['1'] and '1' is not in [1]", () => {
+  const lit = (value: string | number) => ({ kind: "literal", value }) as const;
+  const within = (left: string | number, items: (string | number)[]) =>
+    evaluateExpression({
+      kind: "compare",
+      op: "in",
+      left: lit(left),
+      right: { kind: "list", items: items.map(lit) },
+    }, read());
+  assertEquals(within(1, ["1"]), false);
+  assertEquals(within("1", [1]), false);
+  assertEquals(within(1, [1, 2]), true);
+  assertEquals(within("b", ["a", "b"]), true);
+  assertEquals(within(3, [1, 2]), false);
+});
+
+Deno.test("an absent optional input reads as null, never as an empty string", async () => {
+  const document = await compiled(
+    [noop("use", { with: { x: "$input.opt" } })],
+    { opt: { type: "string", required: false } },
+  );
+  const dispatched = (inputs: Record<string, JsonValue>) => {
+    const next = nextStep(document, stateOf({ inputs }));
+    assert(next.kind === "dispatch");
+    return (next.step as ActionDispatch).input;
+  };
+  assertEquals(dispatched({}), { x: null });
+  assertEquals(dispatched({ opt: "v" }), { x: "v" });
+  // An empty string the caller supplied is a value, and is not null.
+  assertEquals(dispatched({ opt: "" }), { x: "" });
+});
