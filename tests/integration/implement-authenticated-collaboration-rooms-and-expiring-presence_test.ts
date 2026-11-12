@@ -1,3 +1,4 @@
+import { DRAFT_LIMITS } from "../../apps/server/src/modules/knowledge/drafts.ts";
 import { assert, assertEquals, assertExists } from "@std/assert";
 import {
   cleanupDraftFixture,
@@ -21,6 +22,19 @@ import {
 } from "../../apps/server/src/modules/knowledge/collaboration-socket.ts";
 import { LoroDoc } from "loro-crdt";
 
+// An update is acknowledged only after its isolated worker starts and
+// finishes. The product allows start-up workerStartupMs and the work
+// workerRuntimeMs; an ack wait shorter than that budget fails a slow-but-
+// healthy update on a busy host. Two seconds more cover the commit.
+const ACK_WAIT_MS = DRAFT_LIMITS.workerStartupMs +
+  DRAFT_LIMITS.workerRuntimeMs + 2_000;
+// With two writers in one room, the second's prepared candidate can be stale
+// once the first commits; the server re-prepares it, each attempt another
+// isolated worker, up to DRAFT_LIMITS.staleAttempts times.
+const CONTENDED_ACK_WAIT_MS = DRAFT_LIMITS.staleAttempts *
+    (DRAFT_LIMITS.workerStartupMs + DRAFT_LIMITS.workerRuntimeMs) +
+  2_000;
+
 type Frame = Record<string, unknown> & { type: string };
 type Member = {
   providerUserId: string;
@@ -37,6 +51,8 @@ type Harness = {
   owner: Member;
   extra: Member[];
   clients: Set<WsClient>;
+  /** Presence heartbeats started by keepPresent; cleared on close. */
+  heartbeats: ReturnType<typeof setInterval>[];
   server: Deno.HttpServer;
 };
 
@@ -133,6 +149,7 @@ async function openHarness(
     owner,
     extra: [],
     clients: new Set(),
+    heartbeats: [],
     server,
     url: (organizationId = fixture.ids.organizationId) => {
       const url = new URL(`ws://127.0.0.1:${port}/v1/collaboration`);
@@ -184,9 +201,26 @@ async function until(
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     const left = deadline - Date.now();
-    if (left <= 0) throw new Error(`no ${type} frame`);
-    const frame = await nextFrame(client, left);
+    if (left <= 0) throw new Error(`no ${type} frame within ${timeoutMs} ms`);
+    let frame: Frame;
+    try {
+      frame = await nextFrame(client, left);
+    } catch (error) {
+      // Name the frame the test was waiting for: a bare read timeout does
+      // not say which step stalled.
+      throw new Error(`waiting for ${type}: ${(error as Error).message}`, {
+        cause: error,
+      });
+    }
     if (frame.type === type) return frame;
+    // Waiting for an ack, a refusal is the answer: report it, don't wait out
+    // the window (the problem says why, e.g. a worker that timed out).
+    if (
+      type === "ack" &&
+      (frame.type === "problem" || frame.type === "resync_required")
+    ) {
+      throw new Error(`expected ack, got ${JSON.stringify(frame)}`);
+    }
   }
 }
 
@@ -225,6 +259,18 @@ async function join(client: WsClient, harness: Harness, id?: string) {
   return requestId;
 }
 
+/**
+ * Keeps a joined client present, as a real client's heartbeat does. A test
+ * that runs longer than the presence TTL on a busy host would otherwise see
+ * its sender expire out of the room, and its next update refused as not
+ * found. Tests about expiry leave their subjects silent instead.
+ */
+function keepPresent(harness: Harness, client: WsClient): void {
+  harness.heartbeats.push(setInterval(() => {
+    client.send(presence(harness, {})).catch(() => {});
+  }, 1_000));
+}
+
 function presence(harness: Harness, state: Record<string, unknown>) {
   return JSON.stringify({
     type: "presence.update",
@@ -235,39 +281,32 @@ function presence(harness: Harness, state: Record<string, unknown>) {
 }
 
 async function closeHarness(harness: Harness) {
+  for (const timer of harness.heartbeats) clearInterval(timer);
   for (const client of harness.clients) {
     await client.close().catch(() => {});
   }
   await harness.server.shutdown();
-  for (const member of harness.extra) {
-    const db = harness.fixture.pgDatabase;
-    await db.query(
-      "delete from bakery.artifact_draft_receipts where actor_id=$1",
-      [member.principalId],
-    );
-    await db.query(
-      "delete from bakery.artifact_draft_updates where actor_id=$1",
-      [member.principalId],
-    );
-    await db.query('delete from public.session where "userId"=$1', [
-      member.providerUserId,
-    ]);
-    await db.query(
-      "delete from bakery.organization_memberships where principal_id=$1",
-      [member.principalId],
-    );
-    await db.query('delete from public.member where "userId"=$1', [
-      member.providerUserId,
-    ]);
-    await db.query("delete from bakery.principals where id=$1", [
-      member.principalId,
-    ]);
-    await db.query('delete from public."user" where id=$1', [
-      member.providerUserId,
-    ]);
-  }
+  // Closing a socket does not stop an admission already running on the
+  // server, so a late update may still commit. Deleting the organization
+  // first cascades every draft, update and receipt (and makes a straggling
+  // commit fail on its missing draft), so no row references a member below.
   try {
     await cleanupDraftFixture(harness.fixture);
+    const db = harness.fixture.pgDatabase;
+    for (const member of harness.extra) {
+      await db.query('delete from public.session where "userId"=$1', [
+        member.providerUserId,
+      ]);
+      await db.query('delete from public.member where "userId"=$1', [
+        member.providerUserId,
+      ]);
+      await db.query("delete from bakery.principals where id=$1", [
+        member.principalId,
+      ]);
+      await db.query('delete from public."user" where id=$1', [
+        member.providerUserId,
+      ]);
+    }
   } finally {
     await harness.fixture.close();
   }
@@ -457,11 +496,19 @@ async function observeExpiryAndRevocation(
     const c = await open(harness, third);
     await join(c, harness);
     await until(c, "joined");
+    // c keeps its presence fresh, so only the revocation can remove it: a
+    // silent c could expire first on a busy host, and "expired" (also true)
+    // would then pre-empt the "revoked" this step is about.
+    const cKeepAlive = setInterval(() => {
+      c.send(presence(harness, {})).catch(() => {});
+    }, 250);
     await harness.fixture.pgDatabase.query(
       "delete from public.session where token=$1",
       [third.sessionToken],
     );
-    const ended = await drain(c, 2_000);
+    const ended = await drain(c, 2_000).finally(() =>
+      clearInterval(cKeepAlive)
+    );
     assertExists(ended.closed);
     assertEquals(ended.closed.code, 1008);
     const removedReasons: unknown[] = [];
@@ -480,15 +527,24 @@ async function observeExpiryAndRevocation(
     const b = await open(harness, second);
     await join(b, harness);
     await until(b, "joined");
-    await harness.fixture.pgDatabase.query(
-      "delete from bakery.organization_memberships where principal_id=$1",
-      [second.principalId],
-    );
-    for (;;) {
-      const frame = await until(a, "presence.removed", 3_000);
-      if (frame.reason === "revoked") break;
+    // As for c above: b stays fresh so only the lost membership removes it.
+    const bKeepAlive = setInterval(() => {
+      b.send(presence(harness, {})).catch(() => {});
+    }, 250);
+    let problem: Frame;
+    try {
+      await harness.fixture.pgDatabase.query(
+        "delete from bakery.organization_memberships where principal_id=$1",
+        [second.principalId],
+      );
+      for (;;) {
+        const frame = await until(a, "presence.removed", 3_000);
+        if (frame.reason === "revoked") break;
+      }
+      problem = await until(b, "problem", 3_000);
+    } finally {
+      clearInterval(bKeepAlive);
     }
-    const problem = await until(b, "problem", 3_000);
     assert(
       ["AUTH_FORBIDDEN", "RESOURCE_NOT_FOUND"].includes(
         (problem.problem as { code: string }).code,
@@ -601,7 +657,14 @@ async function untilWithBinary(
   for (;;) {
     const left = deadline - Date.now();
     if (left <= 0) throw new Error(`no ${type} frame`);
-    const value = await client.nextMessage(left);
+    let value: Awaited<ReturnType<WsClient["nextMessage"]>>;
+    try {
+      value = await client.nextMessage(left);
+    } catch (error) {
+      throw new Error(`waiting for ${type}: ${(error as Error).message}`, {
+        cause: error,
+      });
+    }
     if (typeof value === "object" && "binary" in value) {
       binaries.push(value.binary);
       continue;
@@ -611,6 +674,13 @@ async function untilWithBinary(
     }
     const frame = JSON.parse(value) as Frame;
     if (frame.type === type) return frame;
+    // Waiting for an ack, a refusal is the answer: report it, don't time out.
+    if (
+      type === "ack" &&
+      (frame.type === "problem" || frame.type === "resync_required")
+    ) {
+      throw new Error(`expected ack, got ${JSON.stringify(frame)}`);
+    }
   }
 }
 
@@ -695,9 +765,11 @@ Deno.test("an update is acknowledged only after its receipt commits, then relaye
     harness.extra.push(second, watcher);
     const a = await open(harness, harness.owner);
     const synced = await joinAndSync(a, harness);
+    keepPresent(harness, a);
     assertEquals(synced.doc.getText("body").toString(), "alpha target omega");
     const b = await open(harness, second);
     const bState = await joinAndSync(b, harness);
+    keepPresent(harness, b);
     const outside = await open(harness, watcher);
 
     const mutationId = crypto.randomUUID();
@@ -706,7 +778,7 @@ Deno.test("an update is acknowledged only after its receipt commits, then relaye
       0x2,
       updateFrame(harness, synced.epoch, mutationId, update),
     );
-    const ack = await until(a, "ack");
+    const ack = await until(a, "ack", ACK_WAIT_MS);
     const receipt = ack.receipt as { serverSequence: string; actorId: string };
     assertEquals(ack.mutationId, mutationId);
     assertEquals(receipt.serverSequence, "1");
@@ -731,7 +803,7 @@ Deno.test("an update is acknowledged only after its receipt commits, then relaye
       0x2,
       updateFrame(harness, synced.epoch, mutationId, update),
     );
-    assertEquals((await until(a, "ack")).receipt, ack.receipt);
+    assertEquals((await until(a, "ack", ACK_WAIT_MS)).receipt, ack.receipt);
     // The same mutation id with different bytes is refused.
     const other = localEdit(new LoroDoc(), 0, "x");
     await a.sendRaw(0x2, updateFrame(harness, synced.epoch, mutationId, other));
@@ -744,7 +816,7 @@ Deno.test("an update is acknowledged only after its receipt commits, then relaye
       0x2,
       updateFrame(harness, synced.epoch, crypto.randomUUID(), update),
     );
-    assertEquals((await until(a, "ack")).receipt, null);
+    assertEquals((await until(a, "ack", ACK_WAIT_MS)).receipt, null);
     assertEquals(await receiptCount(harness), 1);
   } finally {
     await closeHarness(harness);
@@ -877,8 +949,10 @@ Deno.test("concurrent updates from two clients serialize, converge and match the
     harness.extra.push(second);
     const a = await open(harness, harness.owner);
     const aState = await joinAndSync(a, harness);
+    keepPresent(harness, a);
     const b = await open(harness, second);
     const bState = await joinAndSync(b, harness);
+    keepPresent(harness, b);
 
     const aId = crypto.randomUUID();
     const bId = crypto.randomUUID();
@@ -894,8 +968,18 @@ Deno.test("concurrent updates from two clients serialize, converge and match the
     ]);
     const aBinaries: Uint8Array[] = [];
     const bBinaries: Uint8Array[] = [];
-    const aAck = await untilWithBinary(a, "ack", aBinaries);
-    const bAck = await untilWithBinary(b, "ack", bBinaries);
+    const aAck = await untilWithBinary(
+      a,
+      "ack",
+      aBinaries,
+      CONTENDED_ACK_WAIT_MS,
+    );
+    const bAck = await untilWithBinary(
+      b,
+      "ack",
+      bBinaries,
+      CONTENDED_ACK_WAIT_MS,
+    );
     const sequences = [aAck, bAck].map((ack) =>
       (ack.receipt as { serverSequence: string }).serverSequence
     ).sort();
@@ -962,6 +1046,7 @@ Deno.test("a peer revoked between sweeps receives no draft bytes (AC1)", async (
     harness.extra.push(second);
     const a = await open(harness, harness.owner);
     const aState = await joinAndSync(a, harness);
+    keepPresent(harness, a);
     const b = await open(harness, second);
     await joinAndSync(b, harness);
     await harness.fixture.pgDatabase.query(
@@ -977,7 +1062,7 @@ Deno.test("a peer revoked between sweeps receives no draft bytes (AC1)", async (
         localEdit(aState.doc, 0, "secret "),
       ),
     );
-    assertEquals((await until(a, "ack")).type, "ack");
+    assertEquals((await until(a, "ack", ACK_WAIT_MS)).type, "ack");
     const binaries: Uint8Array[] = [];
     let closed: { code: number; reason: string } | undefined;
     const deadline = Date.now() + 1_500;
@@ -1051,6 +1136,7 @@ Deno.test("back-to-back updates with twenty joined peers are all acknowledged", 
   try {
     const a = await open(harness, harness.owner);
     const aState = await joinAndSync(a, harness);
+    keepPresent(harness, a);
     // Twenty other connections of members join the room.
     const peers: WsClient[] = [];
     for (let index = 0; index < 4; index += 1) {
@@ -1082,7 +1168,10 @@ Deno.test("back-to-back updates with twenty joined peers are all acknowledged", 
     }
     const acked = new Set<string>();
     const binaries: Uint8Array[] = [];
-    const deadline = Date.now() + 20_000;
+    // The updates commit one after another, each in its own isolated worker
+    // that the product allows ACK_WAIT_MS to start, run and commit; a fixed
+    // window shorter than that fails a healthy but busy host.
+    const deadline = Date.now() + ids.length * ACK_WAIT_MS;
     while (acked.size < ids.length && Date.now() < deadline) {
       const ack = await untilWithBinary(
         a,
