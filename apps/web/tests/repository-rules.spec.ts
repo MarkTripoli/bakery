@@ -443,6 +443,34 @@ test.describe("repository rules: the effective rules of one repository", () => {
     await expect(page).toHaveURL(/\/settings\/organization\/repository-rules$/);
   });
 
+  test("View organization rules ends the title row on a wide screen and spans under it on a phone", async ({ page }) => {
+    await rulesFixture(page);
+    await page.goto(RULES_PATH);
+    const heading = region(page).getByRole("heading", {
+      name: "Rules",
+      level: 1,
+    });
+    const link = region(page).getByRole("link", {
+      name: "View organization rules",
+    });
+    const head = await heading.boundingBox();
+    const found = await link.boundingBox();
+    const column = await region(page).boundingBox();
+    if (!head || !found || !column) throw new Error("a box is missing");
+    if (isPhone(page)) {
+      // Stacked under the title block, across the column.
+      expect(found.y).toBeGreaterThanOrEqual(head.y + head.height);
+      expect(found.width).toBeGreaterThan(column.width * 0.9);
+    } else {
+      // Beside the title, at the end of its row.
+      expect(found.x).toBeGreaterThanOrEqual(head.x + head.width);
+      expect(found.y).toBeLessThan(head.y + head.height);
+      expect(
+        Math.abs(column.x + column.width - (found.x + found.width)),
+      ).toBeLessThanOrEqual(32);
+    }
+  });
+
   test("View organization rules goes to the organization's rules", async ({ page }) => {
     await rulesFixture(page);
     await page.goto(RULES_PATH);

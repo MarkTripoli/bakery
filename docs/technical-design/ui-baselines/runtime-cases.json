@@ -4605,6 +4605,13 @@
       "requiredCaseId": "contract",
       "storyId": "bakery-templates-integrationappregistration--contract",
       "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.draftBar.contract.desktop-light-fine",
+      "catalogId": "ui.draftBar",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-draftbar--contract",
+      "context": "desktop-light-fine"
     }
   ]
 }

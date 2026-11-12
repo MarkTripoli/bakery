@@ -241,24 +241,24 @@ export function RepositoryRulesPage(
         />
       </ShellSlot>
       <UI.SettingsContent data-testid="repository-rules">
-        <UI.Stack gap="tight">
-          <UI.Heading level="page">
-            {translate("repository.rules.title")}
-          </UI.Heading>
-          {repositoryName
-            ? (
-              <UI.Text variant="muted">
-                {translate("repository.rules.description", {
-                  repository: repositoryName,
-                })}
-              </UI.Text>
-            )
-            : null}
+        <UI.Inline variant="between">
+          <UI.Stack gap="tight">
+            <UI.Heading level="page">
+              {translate("repository.rules.title")}
+            </UI.Heading>
+            {repositoryName
+              ? (
+                <UI.Text variant="muted">
+                  {translate("repository.rules.description", {
+                    repository: repositoryName,
+                  })}
+                </UI.Text>
+              )
+              : null}
+          </UI.Stack>
           {/* With no rules the empty state carries this link, so it appears once. */}
-          {data && rows.length > 0
-            ? <UI.Inline>{organizationRulesLink}</UI.Inline>
-            : null}
-        </UI.Stack>
+          {data && rows.length > 0 ? organizationRulesLink : null}
+        </UI.Inline>
         {waiting && refused
           ? (
             <UI.AlertBanner

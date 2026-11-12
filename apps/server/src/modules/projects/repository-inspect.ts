@@ -1,8 +1,9 @@
-import { createHash } from "node:crypto";
 import {
-  REPOSITORY_INSPECTION_EXECUTABLES,
-  REPOSITORY_INSPECTION_LIMITS as LIMITS,
-} from "@bakery/config";
+  gitLauncherArgs,
+  SERVER_GIT_LAUNCHER,
+} from "../../platform/server-exec.ts";
+import { createHash } from "node:crypto";
+import { REPOSITORY_INSPECTION_LIMITS as LIMITS } from "@bakery/config";
 import {
   type RepositoryInspectionCheck,
   type RepositoryInspectionJobInput,
@@ -35,16 +36,9 @@ function fail(code: RepositoryInspectionError["code"]): never {
   throw new RepositoryInspectionError(code);
 }
 const decoder = new TextDecoder("utf-8", { fatal: true });
-// RLIMIT_AS bounds Git's decompression/pack allocations before any stdout.
-const gitAddressSpaceBytes = 256 * 1024 * 1024;
-const environment = Object.freeze({
-  GIT_CONFIG_NOSYSTEM: "1",
-  GIT_CONFIG_GLOBAL: "/dev/null",
-  GIT_NO_REPLACE_OBJECTS: "1",
-  GIT_NO_LAZY_FETCH: "1",
-  GIT_ALLOW_PROTOCOL: "",
-  GIT_TERMINAL_PROMPT: "0",
-});
+// The git launcher (infra/server-exec/git.sh) sets RLIMIT_AS (256 MiB), which
+// bounds decompression and pack allocations before any stdout, and git's clean
+// environment.
 
 async function readBounded(
   stream: ReadableStream<Uint8Array>,
@@ -81,22 +75,13 @@ async function git(
   signal.throwIfAborted();
   let child: Deno.ChildProcess;
   try {
-    child = new Deno.Command("/usr/bin/prlimit", {
-      args: [
-        `--as=${gitAddressSpaceBytes}:${gitAddressSpaceBytes}`,
-        "--",
-        REPOSITORY_INSPECTION_EXECUTABLES.git,
-        "-c",
-        "core.hooksPath=/dev/null",
-        "-c",
-        "core.fsmonitor=false",
-        "-c",
-        "protocol.allow=never",
-        ...args,
-      ],
+    // The fixed git launcher applies the address-space limit, hooks and
+    // fsmonitor off, protocol.allow=never and the clean environment itself.
+    child = new Deno.Command(SERVER_GIT_LAUNCHER, {
+      args: gitLauncherArgs(cwd, args),
       cwd,
       clearEnv: true,
-      env: environment,
+      env: {},
       stdin: "null",
       stdout: "piped",
       stderr: "null",

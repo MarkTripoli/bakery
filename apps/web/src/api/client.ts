@@ -178,14 +178,23 @@ export type ApplicationResponse = ClientOutputMap["Application"];
 export type WorkflowDefinitionResponse = ClientOutputMap["Workflow"];
 export type RepositoryResponse = ClientOutputMap["Repository"];
 export type RepositoryProfileResponse = ClientOutputMap["RepositoryProfile"];
-/** The latest published organization rules baseline, or the empty one at revision 0. */
-export type OrganizationRepositoryRulesResponse =
-  ClientOutputMap["OrganizationRepositoryRulesRead"];
 /** The rules in force for one repository, each with where it came from, and what could check them. */
 export type RepositoryEffectiveRulesResponse =
   ClientOutputMap["RepositoryEffectiveRules"];
+/** The latest published organization rules baseline, or the empty one at revision 0. */
+export type OrganizationRepositoryRulesResponse =
+  ClientOutputMap["OrganizationRepositoryRulesRead"];
 export type OrganizationRepositoryRuleVersionListResponse =
   ClientOutputMap["Page<OrganizationRepositoryRuleVersion>"];
+/** What publishing a draft would do to the organization's repositories: counts, and one page of them. */
+export type OrganizationRepositoryRulePreviewResponse =
+  ClientOutputMap["RepositoryRulePreviewOrganization"];
+/** A published revision of the organization's rules. */
+export type OrganizationRepositoryRuleVersionResponse =
+  ClientOutputMap["OrganizationRepositoryRuleVersion"];
+/** The entries of a draft, as the preview and publication take them. */
+export type OrganizationRepositoryRuleEntries =
+  ClientInputMap["RepositoryRuleVersionCreate"]["entries"];
 export type ApplicationCreate = ClientInputMap["ApplicationCreate"];
 export type ApplicationUpdate = ClientInputMap["ApplicationUpdate"];
 export type RepositoryCreate = ClientInputMap["RepositoryCreate"];
@@ -1031,12 +1040,6 @@ export type BakeryApiClient = {
     readonly organizationId: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<OrganizationRepositoryRulesResponse>>;
-  /** `GET /v1/repositories/:id/rules`: the rules in force for one repository (Developer access). */
-  readonly getRepositoryEffectiveRules: (options: {
-    readonly organizationId: string;
-    readonly repositoryId: string;
-    readonly signal?: AbortSignal;
-  }) => Promise<ApiResult<RepositoryEffectiveRulesResponse>>;
   /** `GET /v1/organizations/:id/repository-rule-versions`: published revisions, newest first. */
   readonly listOrganizationRepositoryRuleVersions: (options: {
     readonly organizationId: string;
@@ -1044,6 +1047,29 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<OrganizationRepositoryRuleVersionListResponse>>;
+  /** `POST /v1/organizations/:id/repository-rule-previews`: what a draft would do, one page of repositories. Writes nothing. */
+  readonly previewOrganizationRepositoryRules: (options: {
+    readonly organizationId: string;
+    readonly expectedRevision: number;
+    readonly entries: OrganizationRepositoryRuleEntries;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<OrganizationRepositoryRulePreviewResponse>>;
+  /** `GET /v1/repositories/:id/rules`: the rules in force for one repository (Developer access). */
+  readonly getRepositoryEffectiveRules: (options: {
+    readonly organizationId: string;
+    readonly repositoryId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<RepositoryEffectiveRulesResponse>>;
+  /** `POST /v1/organizations/:id/repository-rule-versions`: publishes a draft as the next revision. */
+  readonly publishOrganizationRepositoryRules: (options: {
+    readonly organizationId: string;
+    readonly expectedRevision: number;
+    readonly entries: OrganizationRepositoryRuleEntries;
+    readonly idempotencyKey: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<OrganizationRepositoryRuleVersionResponse>>;
   readonly startRepositoryOnboarding: (options: {
     readonly organizationId: string;
     readonly repositoryId: string;
@@ -3753,6 +3779,29 @@ export function createBakeryApiClient({
       }
     },
 
+    async previewOrganizationRepositoryRules(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions[
+          "repositoryRulePreviews.createForOrganization"
+        ](
+          {
+            id: options.organizationId,
+            expectedRevision: options.expectedRevision,
+            entries: options.entries,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
     async getRepositoryEffectiveRules(options) {
       organizationId = options.organizationId;
       try {
@@ -3763,6 +3812,25 @@ export function createBakeryApiClient({
         if (data.repositoryId !== options.repositoryId) {
           throw new ApiTransportError("protocol", 200);
         }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async publishOrganizationRepositoryRules(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["repositoryRuleVersions.create"](
+          {
+            id: options.organizationId,
+            expectedRevision: options.expectedRevision,
+            entries: options.entries,
+          },
+          { idempotencyKey: options.idempotencyKey, signal: options.signal },
+        );
         return { ok: true, data };
       } catch (error) {
         return failed(error);

@@ -1,5 +1,5 @@
 {
-  "revision": "5aaaae6b9b721258084d6e376423fc8121e9d458eb351d585b1b5a84afd53863",
+  "revision": "57d41cce8d1a5ecdfb36753a8d3f271a51c805232fc7c8d5bd08e01073866091",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -1008,7 +1008,9 @@
         "spacious",
         "actions",
         "split",
-        "thirds"
+        "thirds",
+        "end",
+        "between"
       ],
       "states": [
         "default",
@@ -1044,7 +1046,9 @@
             "spacious",
             "actions",
             "split",
-            "thirds"
+            "thirds",
+            "end",
+            "between"
           ],
           "states": [
             "default",
@@ -6315,6 +6319,137 @@
           "desktop-light-fine"
         ]
       }
+    },
+    {
+      "id": "ui.draftBar",
+      "name": "DraftBar",
+      "description": "Holds a page's unpublished edits at the bottom of the column: what is pending, the way out and the next step.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/DraftBar",
+      "usage": {
+        "whenToUse": "Keep edits that are not applied yet in reach while a person reviews a long list, with Discard and the next step.",
+        "whenNotToUse": "Do not use for a result that already happened (AlertBanner) or for a form's own Save row.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "The message is a condition on the page, not pending edits",
+            "use": "ui.alertBanner"
+          },
+          {
+            "when": "The actions belong to one form",
+            "use": "ui.handoffForm"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "status",
+        "accessibleName": "content",
+        "keyboard": [
+          "Tab reaches the two actions after the page content; Enter/Space activates a native button"
+        ],
+        "notes": "Only the summary is a polite live region; the actions are not announced when the count changes."
+      },
+      "tokens": [
+        "--border-default",
+        "--color-border",
+        "--color-fg",
+        "--color-fg-muted",
+        "--color-surface-raised",
+        "--radius-overlay",
+        "--space-2",
+        "--space-3",
+        "--space-4",
+        "--type-hint",
+        "--type-notice"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "default"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises the documented DraftBar states across required contexts: a short summary and a worst-case long one, with and without a disabled primary action.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "default"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.auth"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.draftBar.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.draftBar.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.draftBar.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the #65 UX design comment (design-65/mock.html); no Paper frame names it."
     },
     {
       "id": "ui.toast",

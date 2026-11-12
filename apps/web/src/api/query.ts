@@ -35,6 +35,8 @@ import type {
   OrganizationInvitationPreview,
   OrganizationInvitationRecipient,
   OrganizationRecord,
+  OrganizationRepositoryRuleEntries,
+  OrganizationRepositoryRulePreviewResponse,
   OrganizationRepositoryRulesResponse,
   OrganizationRepositoryRuleVersionListResponse,
   PlanRevisionListResponse,
@@ -1071,6 +1073,60 @@ export function organizationRepositoryRuleVersionsQueryOptions(
       ),
     enabled: Boolean(scope.organizationId),
     retry: false,
+  });
+}
+
+/**
+ * What publishing a draft would do to the organization's repositories, a page
+ * at a time. A query by shape only: the preview is carried by POST, writes
+ * nothing, and is asked again whenever the draft or the revision under it
+ * changes, so nothing is kept once the dialog closes.
+ */
+export function organizationRepositoryRulePreviewQueryOptions(
+  client: Pick<BakeryApiClient, "previewOrganizationRepositoryRules">,
+  scope: ApiScope,
+  draft: {
+    readonly expectedRevision: number;
+    readonly entries: OrganizationRepositoryRuleEntries;
+  },
+  limit = 25,
+) {
+  return infiniteQueryOptions<
+    OrganizationRepositoryRulePreviewResponse,
+    ApiFailure,
+    {
+      pages: OrganizationRepositoryRulePreviewResponse[];
+      pageParams: (string | null)[];
+    },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(
+      scope,
+      "repositoryRulePreviews.createForOrganization",
+      {
+        expectedRevision: draft.expectedRevision,
+        entries: draft.entries,
+        limit,
+      },
+    ),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.previewOrganizationRepositoryRules({
+          organizationId: requireOrganization(scope),
+          expectedRevision: draft.expectedRevision,
+          entries: draft.entries,
+          cursor: pageParam ?? undefined,
+          limit,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    gcTime: 0,
+    retry: false,
+    staleTime: 0,
   });
 }
 
