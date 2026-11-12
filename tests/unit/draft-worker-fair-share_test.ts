@@ -9,27 +9,36 @@ import {
 } from "../../apps/server/src/modules/knowledge/draft-isolation.ts";
 import { StandardError } from "../../packages/contracts/src/http.ts";
 
-Deno.test("one organization holds at most half the pool, and the rest stays for others", () => {
+Deno.test("an organization may exceed its half share only while one slot stays free", () => {
   const limiter = createDraftWorkerLimiter(4);
   assertEquals(limiter.organizationShare, 2);
+  // Alone on an idle pool, "a" gets its share and one more: 3 of 4.
   assertEquals(limiter.tryAcquire("a"), undefined);
   assertEquals(limiter.tryAcquire("a"), undefined);
+  assertEquals(limiter.tryAcquire("a"), undefined);
+  // The last slot is kept for someone else.
   assertEquals(limiter.tryAcquire("a"), "share");
-  // Another organization still gets workers while "a" holds its share.
-  assertEquals(limiter.tryAcquire("b"), undefined);
   assertEquals(limiter.tryAcquire("b"), undefined);
   // Now the pool itself is full: every caller hears "pool".
-  assertEquals(limiter.tryAcquire("c"), "pool");
+  assertEquals(limiter.tryAcquire("b"), "pool");
   assertEquals(limiter.tryAcquire("a"), "pool");
   assertEquals(limiter.tryAcquire(), "pool");
   assertEquals(limiter.active, 4);
-  // A refusal takes nothing; releases give the share back.
-  limiter.release("a");
-  assertEquals(limiter.tryAcquire("a"), undefined);
-  for (const owner of ["a", "a", "b", "b"]) limiter.release(owner);
+  // A refusal takes nothing; releases give the slots back.
+  for (const owner of ["a", "a", "a", "b"]) limiter.release(owner);
   assertEquals(limiter.active, 0);
+});
+
+Deno.test("within its share an organization is never refused while the pool has room", () => {
+  const limiter = createDraftWorkerLimiter(4);
+  // "b" holds 2 (its share), then "a" takes its share: the pool is full.
+  assertEquals(limiter.tryAcquire("b"), undefined);
+  assertEquals(limiter.tryAcquire("b"), undefined);
   assertEquals(limiter.tryAcquire("a"), undefined);
+  // "b" is beyond its share and only one slot is left: kept for others.
+  assertEquals(limiter.tryAcquire("b"), "share");
   assertEquals(limiter.tryAcquire("a"), undefined);
+  assertEquals(limiter.active, 4);
 });
 
 Deno.test("the share is half the pool rounded up, and never zero", () => {
@@ -45,6 +54,11 @@ Deno.test("the share is half the pool rounded up, and never zero", () => {
   const one = createDraftWorkerLimiter(1);
   assertEquals(one.tryAcquire("a"), undefined);
   assertEquals(one.tryAcquire("b"), "pool");
+  // A pool of 2 keeps its second slot from an organization holding the first.
+  const two = createDraftWorkerLimiter(2);
+  assertEquals(two.tryAcquire("a"), undefined);
+  assertEquals(two.tryAcquire("a"), "share");
+  assertEquals(two.tryAcquire("b"), undefined);
 });
 
 Deno.test("unscoped calls count toward the pool only", () => {

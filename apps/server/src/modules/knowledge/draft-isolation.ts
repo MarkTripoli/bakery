@@ -1145,9 +1145,12 @@ export type DraftWorkerRefusal = "pool" | "share";
 
 /**
  * Bounds how many isolated draft workers run at the same time (#243) and
- * shares them fairly across organizations (#297): one organization may hold
- * at most half the pool (rounded up, at least 1), so it cannot starve the
- * others. There is no queue; a refusal is immediate.
+ * shares them fairly across organizations (#297). An organization always
+ * gets up to its share, half the pool (rounded up, at least 1); beyond that
+ * it may take more only while at least one slot stays free for another
+ * organization, so a single-organization install is not throttled to half
+ * yet no organization can starve the others. There is no queue; a refusal
+ * is immediate.
  */
 export type DraftWorkerLimiter = {
   /** A slot for `organizationId` (or an unscoped one), or why not. */
@@ -1166,7 +1169,8 @@ export function createDraftWorkerLimiter(max: number): DraftWorkerLimiter {
       if (active >= max) return "pool";
       if (organizationId !== undefined) {
         const held = byOrganization.get(organizationId) ?? 0;
-        if (held >= share) return "share";
+        // Beyond the share only while a slot would still be left free.
+        if (held >= share && active + 1 >= max) return "share";
         byOrganization.set(organizationId, held + 1);
       }
       active += 1;

@@ -311,12 +311,12 @@ Deno.test("the default pool is process-wide: shared by instances, sized from DRA
 
 Deno.test("one organization saturating draft work cannot starve another (#297)", async () => {
   // The default, process-wide pool. Organization A asks for the whole pool at
-  // once and gets only its share; B's edit still gets a worker meanwhile.
+  // once and gets all but one slot; B's edit still gets that one meanwhile.
   const hold = await launcherCopy({ workerPath: fixture("timeout.ts") });
   const real = await launcherCopy({});
   try {
     const cap = DRAFT_LIMITS.maxConcurrentWorkers;
-    const share = Math.ceil(cap / 2);
+    const admitted = cap - 1;
     const busy = createDraftIsolation({
       launcher: "process",
       workerLauncherPath: hold.path,
@@ -348,15 +348,15 @@ Deno.test("one organization saturating draft work cannot starve another (#297)",
     assertEquals(
       outcomes.filter((m) => m === "WORKER_ORGANIZATION_SHARE_EXHAUSTED")
         .length,
-      cap - share,
+      cap - admitted,
       JSON.stringify(outcomes),
     );
     assertEquals(
       outcomes.filter((m) => m === "WORKER_DEADLINE_EXCEEDED").length,
-      share,
+      admitted,
       JSON.stringify(outcomes),
     );
-    // Every slot came back: A gets its full share again.
+    // Every slot came back: A gets a worker again.
     const again = await worker.initialize("a again", undefined, "org-a");
     assertEquals(again.text, "a again");
   } finally {

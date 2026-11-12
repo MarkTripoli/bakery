@@ -1,8 +1,5 @@
 import { assert, assertEquals, assertExists } from "@std/assert";
-import {
-  createDraftIsolation,
-  createDraftWorkerLimiter,
-} from "../../apps/server/src/modules/knowledge/draft-isolation.ts";
+import { createDraftIsolation } from "../../apps/server/src/modules/knowledge/draft-isolation.ts";
 import type { DraftIsolation } from "../../apps/server/src/modules/knowledge/draft-isolation.ts";
 import { DRAFT_LIMITS } from "../../apps/server/src/modules/knowledge/drafts.ts";
 import {
@@ -368,14 +365,7 @@ Deno.test("one and two stale highwaters reload, while three discard exactly thre
 });
 
 Deno.test("concurrent, duplicated and reordered edits from one checkpoint converge with exact receipts", async () => {
-  // Three edits from one organization run at once. The default pool's
-  // per-organization share (#297) is 2, so this test, which is about
-  // convergence and receipts rather than capacity, uses a pool of 6.
-  const fixture = await openDraftFixture(undefined, {
-    draftIsolation: createDraftIsolation({
-      workerLimiter: createDraftWorkerLimiter(6),
-    }),
-  });
+  const fixture = await openDraftFixture();
   try {
     const draft = await openDraft(fixture);
     const left = await slice(fixture, draft, 0, 5);
