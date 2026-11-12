@@ -1,4 +1,5 @@
 import { createSuperuser } from "../../apps/server/src/modules/auth/index.ts";
+import { registerOAuthClient } from "../../apps/server/src/modules/auth/oauth-clients.ts";
 import {
   cleanupAuthFixture,
   nextClientEnv,
@@ -127,6 +128,48 @@ try {
       rememberMe: false,
     },
   });
+  // OAuth for the MCP spec: one pre-registered public client whose redirect
+  // URI is the callback fixture, the consent page at the provider's
+  // configured path, and the callback that shows the code or error.
+  const mcpRedirectUri = `${origin}/__test__/mcp/callback`;
+  const mcpClientId = await registerOAuthClient(
+    { pgDatabase: fixture.pgDatabase, config: fixture.config.auth! },
+    {
+      name: "Browser MCP client",
+      redirectUris: [mcpRedirectUri],
+      scopes: ["bakery:read", "bakery:operate"],
+    },
+  );
+  const consentHtml = await Deno.readTextFile(
+    new URL("./fixtures/oauth-consent.html", import.meta.url),
+  );
+  const callbackHtml = await Deno.readTextFile(
+    new URL("./fixtures/oauth-callback.html", import.meta.url),
+  );
+  fixture.app.get(
+    "/oauth/consent",
+    (context) =>
+      context.html(consentHtml, 200, { "cache-control": "no-store" }),
+  );
+  fixture.app.get(
+    "/__test__/mcp/callback",
+    (context) =>
+      context.html(callbackHtml, 200, { "cache-control": "no-store" }),
+  );
+  fixture.app.get(
+    "/__test__/mcp/credentials",
+    (context) =>
+      context.json(
+        {
+          email,
+          password,
+          clientId: mcpClientId,
+          redirectUri: mcpRedirectUri,
+        },
+        200,
+        { "cache-control": "no-store" },
+      ),
+  );
   const passkeysHtml = await Deno.readTextFile(
     new URL("./fixtures/passkeys.html", import.meta.url),
   );
@@ -193,6 +236,14 @@ try {
     Deno.removeSignalListener("SIGINT", stop);
   }
 } finally {
+  // The client and its grants are this run's own rows.
+  await fixture.pgDatabase.query(
+    `delete from public."oauthConsent" where "clientId" in
+       (select "clientId" from public."oauthClient" where name = 'Browser MCP client')`,
+  ).catch(() => {});
+  await fixture.pgDatabase.query(
+    `delete from public."oauthClient" where name = 'Browser MCP client'`,
+  ).catch(() => {});
   await cleanupAuthFixture(fixture.pgDatabase, [
     email,
     totpEmail,
