@@ -1,4 +1,5 @@
 import { removeTreeSync } from "../../scripts/ci/temp-tree.ts";
+import { createSpawnFailureReporter } from "./spawn-capability-report.ts";
 
 /**
  * Preloaded into every test process by `scripts/run-tests.ts` (`--preload`).
@@ -10,6 +11,8 @@ import { removeTreeSync } from "../../scripts/ci/temp-tree.ts";
  * remembers what they made, and removes it when the process unloads, pass or
  * fail, including a directory a test locked on purpose. It changes nothing a
  * test can observe while it runs: paths, options and results are the originals.
+ *
+ * It also reports, on stderr, a spawn that the lane's --allow-run refuses (#229).
  *
  * It cannot help a process that is killed outright; the lane runner sweeps the
  * run's own temp root for that, and for anything made another way (Node's
@@ -37,6 +40,35 @@ if (holder[INSTALLED] === undefined) {
   wrap("makeTempFile", false);
   wrap("makeTempDirSync", true);
   wrap("makeTempFileSync", true);
+
+  // #229: a spawn the lane's --allow-run refuses prints what the process saw
+  // (spawn-capability-report.ts), then throws the same error it was going to.
+  // Only the failure path changes: results, options and errors are the originals.
+  // On the pinned Deno all three methods throw a run refusal synchronously, never
+  // as a rejected promise (tests/rails/refused-spawn-report_test.ts covers each).
+  const reportRefusedSpawn = createSpawnFailureReporter((text) =>
+    console.error(text)
+  );
+  const command = Deno.Command.prototype as unknown as Record<
+    string,
+    (...args: unknown[]) => unknown
+  >;
+  for (const name of ["output", "outputSync", "spawn"]) {
+    const original = command[name];
+    if (typeof original !== "function") continue;
+    // Written as a method so that, like the native one, it is named `name` and
+    // has no `prototype` property.
+    command[name] = {
+      [name](this: unknown, ...args: unknown[]): unknown {
+        try {
+          return original.apply(this, args);
+        } catch (error) {
+          reportRefusedSpawn(error);
+          throw error;
+        }
+      },
+    }[name];
+  }
 
   globalThis.addEventListener("unload", () => {
     for (const path of made) {
