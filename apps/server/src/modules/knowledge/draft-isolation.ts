@@ -2,7 +2,6 @@ import {
   SERVER_DRAFT_SYSTEMD_LAUNCHER,
   systemdLauncherArgs,
 } from "../../platform/server-exec.ts";
-import { readDraftIsolationLauncher } from "@bakery/config";
 import { DRAFT_LIMITS, type DraftCandidate } from "./drafts.ts";
 
 const encoder = new TextEncoder();
@@ -1157,7 +1156,9 @@ const sharedWorkerLimiter = createDraftWorkerLimiter(
 export function createDraftIsolation(
   options: IsolationOptions = {},
 ): DraftIsolation {
-  const launcher = options.launcher ?? readDraftIsolationLauncher();
+  // The server passes its configured launcher (RuntimeConfig); this module
+  // never reads the environment, so an app with a scoped --allow-env starts.
+  const launcher = options.launcher ?? "systemd";
   const workerLauncherPath = options.workerLauncherPath ??
     DRAFT_WORKER_LAUNCHER;
   // In production every systemd call goes through the fixed launcher, the

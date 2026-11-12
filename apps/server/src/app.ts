@@ -423,7 +423,10 @@ export function createApp(options: {
     acceptAccessTokens: true,
   });
   // One isolation for REST draft edits and collaboration-socket updates.
-  const draftIsolation = options.draftIsolation ?? createDraftIsolation();
+  const draftIsolation = options.draftIsolation ??
+    createDraftIsolation({
+      launcher: options.config.draftIsolationLauncher ?? "systemd",
+    });
   app.route(
     "/",
     createDraftResourceRoutes({
