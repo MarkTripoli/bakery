@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>#57 UX design mock: delivery</title>
+<style>
+/* Values copied from packages/ui/src/foundations/tokens.css and theme.css (light). */
+:root{
+  --color-border:#E3E6EB;--color-border-strong:#CBD0D8;--color-canvas:#F5F6F8;--color-control-border:#8A939F;
+  --color-destructive:#BE3341;--color-destructive-surface:#FCEEEF;--color-fg:#141A24;--color-fg-muted:#5D6675;
+  --color-fg-disabled:#9AA3B1;--color-focus:#0B63C6;--color-primary:#141A24;--color-primary-foreground:#FFFFFF;
+  --color-selection:#0B63C6;--color-selection-surface:#ECF1F8;--color-status-neutral:#374151;
+  --color-status-neutral-surface:#E5E7EB;--color-status-success:#17784B;--color-status-success-surface:#E8F5EE;
+  --color-status-warning:#8F5A0B;--color-status-warning-surface:#FBF3E4;--color-surface:#FFFFFF;
+  --color-surface-subtle:#EEF0F4;
+  --font-sans:Geist,system-ui,sans-serif;--font-mono:"Geist Mono",ui-monospace,monospace;
+  --radius-control:4px;--radius-surface:6px;--radius-overlay:8px;--radius-pill:999px;
+  --size-control:36px;--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--space-8:32px;--space-10:40px;
+  --type-body:400 14px/20px var(--font-sans);--type-caption:400 12px/18px var(--font-sans);
+  --type-control:500 14px/20px var(--font-sans);--type-data:400 13px/20px var(--font-mono);
+  --type-heading-page:600 24px/32px var(--font-sans);--type-field:400 16px/24px var(--font-sans);
+  --shadow-overlay:0 8px 24px rgba(20,26,36,.16);
+}
+*{box-sizing:border-box}
+body{margin:0;background:#D9DCE2;font:var(--type-body);color:var(--color-fg);padding:24px;display:flex;flex-direction:column;gap:32px;align-items:flex-start}
+.frame{background:var(--color-surface);position:relative;overflow:hidden}
+.frame.desktop{width:1040px}
+.frame.phone{width:390px}
+.label{font:600 12px/18px var(--font-sans);letter-spacing:.06em;text-transform:uppercase;color:#3b4350;margin:0 0 8px}
+.crumbs{height:56px;display:flex;align-items:center;gap:10px;padding:0 var(--space-10);border-bottom:1px solid var(--color-border);color:var(--color-fg-muted)}
+.crumbs b{font-weight:400;color:var(--color-fg)}
+.phone .crumbs{padding:0 var(--space-4);font:600 18px/24px var(--font-sans);color:var(--color-fg)}
+.content{padding:var(--space-10);display:flex;flex-direction:column;gap:var(--space-6);max-width:960px}
+.phone .content{padding:var(--space-6) var(--space-4)}
+h1{font:var(--type-heading-page);letter-spacing:-.02em;margin:0}
+h2{font:600 16px/24px var(--font-sans);letter-spacing:-.015em;margin:0}
+.muted{color:var(--color-fg-muted)}
+.cap{font:var(--type-caption);color:var(--color-fg-muted)}
+.head{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--space-4)}
+.head p{margin:4px 0 0}
+.btn{font:var(--type-control);height:var(--size-control);padding:0 14px;border-radius:var(--radius-control);border:1px solid var(--color-border-strong);background:var(--color-surface);color:var(--color-fg);display:inline-flex;align-items:center;white-space:nowrap}
+.btn.primary{background:var(--color-primary);border-color:var(--color-primary);color:var(--color-primary-foreground)}
+.btn.link{border-color:transparent;color:var(--color-selection);padding:0 8px}
+.btn.danger{color:var(--color-destructive)}
+.btn[disabled]{color:var(--color-fg-disabled);background:var(--color-surface-subtle);border-color:var(--color-border)}
+.phone .btn{height:44px}
+.banner{border:1px solid;border-radius:var(--radius-surface);padding:var(--space-3) var(--space-4);display:flex;gap:var(--space-3);align-items:flex-start}
+.banner.info{background:var(--color-selection-surface);border-color:#B9CDE8}
+.banner.warn{background:var(--color-status-warning-surface);border-color:#E7CF9E;color:#5d3a05}
+.banner.error{background:var(--color-destructive-surface);border-color:#EBB6BC}
+.banner .grow{flex:1}
+.banner strong{display:block;font-weight:600}
+table{width:100%;border-collapse:collapse}
+th{font:var(--type-caption);color:var(--color-fg-muted);text-align:left;font-weight:400;padding:8px 12px 8px 0;border-bottom:1px solid var(--color-border)}
+td{padding:14px 12px 14px 0;border-bottom:1px solid var(--color-border);vertical-align:middle}
+td:last-child,th:last-child{padding-right:0;text-align:right}
+.rule b{font-weight:500;display:block}
+.badge{font:500 12px/18px var(--font-sans);padding:1px 8px;border-radius:var(--radius-pill);display:inline-block;white-space:nowrap}
+.badge.neutral{background:var(--color-status-neutral-surface);color:var(--color-status-neutral)}
+.badge.info{background:var(--color-selection-surface);color:var(--color-selection)}
+.badge.warn{background:var(--color-status-warning-surface);color:var(--color-status-warning)}
+.badge.ok{background:var(--color-status-success-surface);color:var(--color-status-success)}
+.badge.bad{background:var(--color-destructive-surface);color:var(--color-destructive)}
+.draftbar{position:sticky;bottom:0;border-top:1px solid var(--color-border-strong);background:var(--color-surface);padding:var(--space-3) var(--space-10);display:flex;align-items:center;gap:var(--space-3);box-shadow:0 -2px 8px rgba(20,26,36,.06)}
+.draftbar .grow{flex:1}
+.phone .draftbar{padding:var(--space-3) var(--space-4);flex-wrap:wrap}
+.phone .draftbar .grow{flex-basis:100%}
+.phone .draftbar .btn{flex:1;justify-content:center}
+.mono{font:var(--type-data)}
+.row{display:flex;gap:var(--space-4);align-items:center}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font:500 14px/20px var(--font-sans)}
+.input{font:var(--type-field);border:1px solid var(--color-control-border);border-radius:var(--radius-control);padding:5px 12px;min-height:var(--size-control);background:var(--color-surface)}
+.input.area{font:var(--type-data);white-space:pre;min-height:176px;padding:12px}
+.seg{display:inline-flex;border:1px solid var(--color-control-border);border-radius:var(--radius-control);overflow:hidden}
+.seg span{padding:7px 14px;font:var(--type-control);border-right:1px solid var(--color-border-strong)}
+.seg span:last-child{border-right:0}
+.seg .on{background:var(--color-primary);color:#fff}
+.switch{width:32px;height:18px;border-radius:9px;background:var(--color-selection);position:relative;flex:none}
+.switch::after{content:"";position:absolute;right:2px;top:2px;width:14px;height:14px;border-radius:50%;background:#fff}
+.switch.off{background:#8A939F}.switch.off::after{right:auto;left:2px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-8)}
+.card{border:1px solid var(--color-border);border-radius:var(--radius-surface);padding:var(--space-4)}
+.scrim{background:rgba(20,26,36,.36);padding:48px 0;display:flex;justify-content:center}
+.dialog{background:var(--color-surface);border-radius:var(--radius-overlay);box-shadow:var(--shadow-overlay);width:600px;padding:var(--space-6);display:flex;flex-direction:column;gap:var(--space-4)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-3)}
+.stat{border:1px solid var(--color-border);border-radius:var(--radius-surface);padding:var(--space-3)}
+.stat b{font:600 20px/28px var(--font-sans);display:block}
+.actions{display:flex;justify-content:flex-end;gap:var(--space-2)}
+dl{margin:0;display:grid;grid-template-columns:200px 1fr;row-gap:0}
+dt,dd{margin:0;padding:12px 0;border-bottom:1px solid var(--color-border)}
+dt{color:var(--color-fg-muted)}
+.li{padding:14px 0;border-bottom:1px solid var(--color-border);display:flex;flex-direction:column;gap:4px}
+.li .top{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.li b{font-weight:500}
+.foot{display:flex;flex-direction:column;gap:6px;padding-top:var(--space-2)}
+.kv{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+.steps{border:1px solid var(--color-border);border-radius:var(--radius-surface)}
+.step{display:grid;grid-template-columns:28px 1fr auto;gap:var(--space-3);padding:var(--space-4);border-bottom:1px solid var(--color-border);align-items:start}
+.step:last-child{border-bottom:0}
+.dot{width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font:600 12px/1 var(--font-sans);margin-top:2px}
+.dot.ok{background:var(--color-status-success-surface);color:var(--color-status-success)}
+.dot.bad{background:var(--color-destructive-surface);color:var(--color-destructive)}
+.dot.wait{background:var(--color-status-warning-surface);color:var(--color-status-warning)}
+.dot.todo{border:1.5px solid var(--color-border-strong);color:var(--color-fg-disabled)}
+.dot.run{background:var(--color-selection-surface);color:var(--color-selection)}
+.step b{font-weight:500}
+.step p{margin:2px 0 0}
+.step.todo b,.step.todo p{color:var(--color-fg-muted)}
+.sub{margin-top:var(--space-3);border-top:1px solid var(--color-border);padding-top:var(--space-3);display:flex;flex-direction:column;gap:var(--space-2)}
+.line{display:grid;grid-template-columns:1fr auto;gap:var(--space-3);align-items:baseline}
+.find{display:grid;grid-template-columns:72px 1fr;gap:var(--space-3);align-items:baseline}
+.now{border:1px solid var(--color-border-strong);border-radius:var(--radius-surface);padding:var(--space-4);display:flex;gap:var(--space-4);align-items:center}
+.now .grow{flex:1}.now strong{display:block;font:600 16px/24px var(--font-sans)}
+.phone .now{flex-direction:column;align-items:stretch}.phone .now .row{flex-wrap:wrap}.phone .now .btn{flex:1;justify-content:center}
+.phone .step{grid-template-columns:28px 1fr}.phone .step>.act{grid-column:2}
+.i{display:inline-flex;width:16px;height:16px;border:1.5px solid var(--color-fg-muted);border-radius:50%;font:600 10px/1 var(--font-sans);align-items:center;justify-content:center;color:var(--color-fg-muted);vertical-align:-2px;margin-left:4px}
+</style></head><body><div><p class="label">A. Waiting for approval, desktop</p><div class="frame desktop" id="wait-desktop"><div class="crumbs">Work <span>/</span> <b>Add partial refunds</b></div><div class="content"><div class="head"><div><h2>Delivery</h2><p class="muted">From finished changes to a running release.</p></div></div>
+<div class="now"><div class="grow"><strong>Waiting for your approval</strong><span class="muted">Checks passed and the reviewer found nothing blocking. Approving lets Bakery open the pull request.</span></div>
+<div class="row"><span class="btn">Request changes</span><span class="btn primary">Approve</span></div></div>
+<div class="steps">
+<div class="step"><span class="dot ok">✓</span><div><b>Changes</b><p class="muted">3 files changed · commit <span class="mono">4be19c2</span> on top of <span class="mono">main</span> at <span class="mono">a7254e7</span></p></div><span class="btn link act">View changes</span></div>
+<div class="step"><span class="dot ok">✓</span><div><b>Checks</b><span class="i">i</span><p class="muted">5 of 5 passed</p>
+<div class="sub"><div class="line"><span>Tests <span class="cap">pnpm test:unit · 1m 42s</span></span><span class="badge ok">Passed</span></div><div class="line"><span>Commit messages</span><span class="badge ok">Passed</span></div><div class="line"><span>Pull request title</span><span class="badge ok">Passed</span></div><span class="cap">2 more passed · <u>Show all</u></span></div></div><span></span></div>
+<div class="step"><span class="dot ok">✓</span><div><b>Review</b><span class="i">i</span><p class="muted">Approved by the reviewing agent · 2 notes, nothing blocking</p></div><span class="btn link act">Read review</span></div>
+<div class="step"><span class="dot wait">!</span><div><b>Approval</b><p>Waiting for you. Your workflow asks a person to approve before a pull request is opened.</p></div><span></span></div>
+<div class="step todo"><span class="dot todo"></span><div><b>Pull request and merge</b><p>Starts after approval.</p></div><span></span></div>
+<div class="step todo"><span class="dot todo"></span><div><b>Release</b><p>Starts after the merge.</p></div><span></span></div>
+</div></div></div></div><div><p class="label">B. Review failed, fixing; results out of date, desktop</p><div class="frame desktop" id="fix-desktop"><div class="crumbs">Work <span>/</span> <b>Add partial refunds</b></div><div class="content"><div class="head"><div><h2>Delivery</h2><p class="muted">From finished changes to a running release.</p></div></div>
+<div class="banner warn"><div class="grow"><strong>The changes were updated after these results</strong>Checks and review below are for an older commit and no longer count. Bakery is running them again.</div></div>
+<div class="now"><div class="grow"><strong>Fixing review findings · attempt 2 of 2</strong><span class="muted">Nothing for you to do yet. If this attempt fails, Bakery stops and asks you.</span></div>
+<div class="row"><span class="btn">Pause</span><span class="btn danger">Cancel run</span></div></div>
+<div class="steps">
+<div class="step"><span class="dot ok">✓</span><div><b>Changes</b><p class="muted">4 files changed · commit <span class="mono">91d0aa3</span> on top of <span class="mono">main</span> at <span class="mono">a7254e7</span></p></div><span class="btn link act">View changes</span></div>
+<div class="step"><span class="dot bad">×</span><div><b>Checks</b><span class="i">i</span><p>1 of 5 failed <span class="badge neutral">Older commit 4be19c2</span></p>
+<div class="sub"><div class="line"><span>Tests <span class="cap">pnpm test:unit · exit 1 · 2m 03s</span></span><span class="badge bad">Failed</span></div><span class="cap">4 passed · <u>Show all</u></span></div></div><span class="btn link act">View output</span></div>
+<div class="step"><span class="dot bad">×</span><div><b>Review</b><span class="i">i</span><p>Changes requested · 2 blocking, 1 note <span class="badge neutral">Older commit 4be19c2</span></p>
+<div class="sub"><div class="find"><span class="badge bad">Blocker</span><span>Refund amount is not validated against the original charge. <span class="cap mono">src/payments/refund.ts:88</span></span></div><div class="find"><span class="badge warn">Major</span><span>No test covers the partial refund path. <span class="cap mono">tests/refund_test.ts</span></span></div><div class="find"><span class="badge neutral">Note</span><span>Consider naming the constant for the retry limit.</span></div></div></div><span></span></div>
+<div class="step"><span class="dot run">…</span><div><b>Fixing</b><p>Attempt 2 of 2 is running. Attempt 1 fixed 1 of 3 findings.</p></div><span class="btn link act">View attempts</span></div>
+<div class="step todo"><span class="dot todo"></span><div><b>Approval</b><p>After checks and review pass.</p></div><span></span></div>
+<div class="step todo"><span class="dot todo"></span><div><b>Pull request and merge</b><p>Starts after approval.</p></div><span></span></div>
+</div></div></div></div><div><p class="label">C. Waiting for approval, phone 390</p><div class="frame phone" id="wait-phone"><div class="crumbs">Add partial refunds</div><div class="content"><div class="head"><div><h2>Delivery</h2><p class="muted">From finished changes to a running release.</p></div></div>
+<div class="now"><div class="grow"><strong>Waiting for your approval</strong><span class="muted">Checks passed and the reviewer found nothing blocking. Approving lets Bakery open the pull request.</span></div>
+<div class="row"><span class="btn">Request changes</span><span class="btn primary">Approve</span></div></div>
+<div class="steps">
+<div class="step"><span class="dot ok">✓</span><div><b>Changes</b><p class="muted">3 files changed · commit <span class="mono">4be19c2</span> on top of <span class="mono">main</span> at <span class="mono">a7254e7</span></p></div><span class="btn link act">View changes</span></div>
+<div class="step"><span class="dot ok">✓</span><div><b>Checks</b><span class="i">i</span><p class="muted">5 of 5 passed</p>
+<div class="sub"><div class="line"><span>Tests <span class="cap">pnpm test:unit · 1m 42s</span></span><span class="badge ok">Passed</span></div><div class="line"><span>Commit messages</span><span class="badge ok">Passed</span></div><div class="line"><span>Pull request title</span><span class="badge ok">Passed</span></div><span class="cap">2 more passed · <u>Show all</u></span></div></div><span></span></div>
+<div class="step"><span class="dot ok">✓</span><div><b>Review</b><span class="i">i</span><p class="muted">Approved by the reviewing agent · 2 notes, nothing blocking</p></div><span class="btn link act">Read review</span></div>
+<div class="step"><span class="dot wait">!</span><div><b>Approval</b><p>Waiting for you. Your workflow asks a person to approve before a pull request is opened.</p></div><span></span></div>
+<div class="step todo"><span class="dot todo"></span><div><b>Pull request and merge</b><p>Starts after approval.</p></div><span></span></div>
+<div class="step todo"><span class="dot todo"></span><div><b>Release</b><p>Starts after the merge.</p></div><span></span></div>
+</div></div></div></div></body></html>
