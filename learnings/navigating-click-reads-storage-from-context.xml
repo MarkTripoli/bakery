@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="navigating-click-reads-storage-from-context" project="bakery" issue="85">
+  <title>After a click that navigates, read browser storage from the context, not with page.evaluate</title>
+  <trigger>A Playwright spec clicks a control that submits to another origin (the GitHub App manifest form) and then asserts on localStorage or another page-side value, and CI fails with "page.evaluate: Execution context was destroyed, most likely because of a navigation".</trigger>
+  <mistake>expect.poll on the intercepted request resolves while the page is still replacing its document, so page.evaluate raced the navigation (1 failure in 430 cases on a loaded runner, none in 30 local repeats). When it won the race it read the destination origin's storage, so the check was blind to a leak into Bakery's own storage: with the value seeded into Bakery's localStorage the old assertion still passed.</mistake>
+  <rule>Assert storage with page.context().storageState(), which reads every origin the page visited without needing a live execution context. A race that does not reproduce locally is argued from the CI stack trace, so prove the new assertion is not vacuous instead: seed the value into Bakery's storage before the click and see the case fail.</rule>
+  <verification>
+    <requirement>With the value seeded into Bakery's localStorage the AC2 case fails; without it 30 repeats pass.</requirement>
+  </verification>
+</learning>
