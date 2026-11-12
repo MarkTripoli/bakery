@@ -1,3 +1,4 @@
+import type { RuntimeConfig } from "@bakery/config";
 import {
   SERVER_DRAFT_SYSTEMD_LAUNCHER,
   systemdLauncherArgs,
@@ -1152,6 +1153,17 @@ export function createDraftWorkerLimiter(max: number): DraftWorkerLimiter {
 const sharedWorkerLimiter = createDraftWorkerLimiter(
   DRAFT_LIMITS.maxConcurrentWorkers,
 );
+
+/**
+ * The isolation options the server builds from its runtime config (#306): the
+ * configured launcher, or `systemd` when none is set. createApp uses this, so
+ * the config, not the environment, decides how workers start.
+ */
+export function draftIsolationOptionsFor(
+  config: Pick<RuntimeConfig, "draftIsolationLauncher">,
+): IsolationOptions {
+  return { launcher: config.draftIsolationLauncher ?? "systemd" };
+}
 
 export function createDraftIsolation(
   options: IsolationOptions = {},

@@ -931,7 +931,9 @@ export type DraftIsolationLauncher = "systemd" | "process";
  * without systemd.
  */
 export function readDraftIsolationLauncher(
-  env: Record<string, string | undefined> = Deno.env.toObject(),
+  // No default: a whole-environment read here crashed apps run with a scoped
+  // --allow-env (#306). readRuntimeConfig passes its env.
+  env: Record<string, string | undefined>,
 ): DraftIsolationLauncher {
   const value = env.BAKERY_DRAFT_ISOLATION?.trim() || "systemd";
   if (value !== "systemd" && value !== "process") {

@@ -109,7 +109,10 @@ import {
   createArtifactPreviewHost,
   createPreviewHostDispatch,
 } from "./modules/knowledge/previews/index.ts";
-import { createDraftIsolation } from "./modules/knowledge/draft-isolation.ts";
+import {
+  createDraftIsolation,
+  draftIsolationOptionsFor,
+} from "./modules/knowledge/draft-isolation.ts";
 import { createArtifactActions } from "./modules/knowledge/resource-routes.ts";
 import { createDraftResourceRoutes } from "./modules/knowledge/draft-resource-routes.ts";
 import type { DraftIsolation } from "./modules/knowledge/draft-isolation.ts";
@@ -424,9 +427,7 @@ export function createApp(options: {
   });
   // One isolation for REST draft edits and collaboration-socket updates.
   const draftIsolation = options.draftIsolation ??
-    createDraftIsolation({
-      launcher: options.config.draftIsolationLauncher ?? "systemd",
-    });
+    createDraftIsolation(draftIsolationOptionsFor(options.config));
   app.route(
     "/",
     createDraftResourceRoutes({
