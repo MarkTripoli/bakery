@@ -20,6 +20,10 @@ export const DRAFT_LIMITS = Object.freeze({
   processHeapMegabytes: 192,
   processWasmPages: 4_096,
   workerTasks: 32,
+  // Isolated workers allowed at once, process-wide (#243). With the process
+  // launcher each may reach RLIMIT_DATA (1 GiB), so worst-case draft memory
+  // is this times that bound; a full pool answers DEPENDENCY_UNAVAILABLE.
+  maxConcurrentWorkers: 4,
   workerRuntimeMs: 1_000,
   workerStartupMs: 5_000,
   workerKillMs: 100,
