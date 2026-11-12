@@ -279,6 +279,68 @@ Deno.test("an entry held only by leftover PR-merge refs is dropped and those ref
   });
 });
 
+Deno.test("an entry a local branch holds is kept even when a PR-merge ref holds it too", async () => {
+  await withDir(async (dir) => {
+    const repo = await makeRepo(dir);
+    const shared = await danglingCommit(repo, "held by a branch");
+    await git(repo, "update-ref", "refs/heads/keep-me", shared);
+    await git(repo, "update-ref", "refs/remotes/pull/9/merge", shared);
+    await writeFile(shallowFile(repo), `${shared}\n`);
+    const before = await readShallow(repo);
+
+    const result = await healStaleShallow(repo);
+
+    assertEquals(result.dropped, []);
+    assertEquals(result.kept, [shared]);
+    assertEquals(await readShallow(repo), before);
+    assertEquals(
+      await git(repo, "rev-parse", "refs/remotes/pull/9/merge"),
+      shared,
+    );
+  });
+});
+
+Deno.test("a removal that fails part-way leaves the shallow file unchanged and a rerun finishes the repair", async () => {
+  await withDir(async (dir) => {
+    const repo = await makeRepo(dir);
+    const old = await danglingCommit(repo, "from the archived repo");
+    await git(repo, "update-ref", "refs/remotes/pull/546/merge", old);
+    await git(repo, "update-ref", "refs/remotes/pull/552/merge", old);
+    await writeFile(shallowFile(repo), `${old}\n`);
+    const before = await readShallow(repo);
+    // The first removal succeeds, the second hits a lock: a consistent
+    // partial state (one ref gone, the entry still listed), not a corrupt one.
+    let removals = 0;
+    const lockOnSecond: GitRunner = async (cwd, args) => {
+      if (args[0] === "update-ref" && args[1] === "-d") {
+        removals += 1;
+        if (removals === 2) return { code: 128, stdout: "", stderr: "lock" };
+      }
+      return await runGit(cwd, args);
+    };
+
+    await assertRejects(
+      () => healStaleShallow(repo, { git: lockOnSecond }),
+      Error,
+      "GIT_COMMAND_FAILED",
+    );
+    assertEquals(await readShallow(repo), before);
+    const left = (await git(
+      repo,
+      "for-each-ref",
+      "--format=%(refname)",
+      "refs/remotes/pull",
+    )).split("\n").filter(Boolean);
+    assertEquals(left.length, 1);
+
+    const rerun = await healStaleShallow(repo);
+    assertEquals(rerun.shallowAfter, false);
+    assertEquals(rerun.dropped.map((d) => d.sha), [old]);
+    assertEquals(rerun.dropped[0].removedRefs, left);
+    assertEquals(await readShallow(repo), null);
+  });
+});
+
 Deno.test("an entry a PR-merge ref and a real remote-tracking ref both hold is kept and no ref is removed", async () => {
   await withDir(async (dir) => {
     const repo = await makeRepo(dir);
