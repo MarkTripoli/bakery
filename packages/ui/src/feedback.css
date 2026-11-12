@@ -265,6 +265,7 @@
   color: var(--color-fg);
 }
 .ui-help-tip .ui-tooltip__content {
+  box-sizing: border-box;
   inline-size: max-content;
   max-inline-size: min(var(--layout-inspector), calc(100vw - var(--space-8)));
   text-align: start;
