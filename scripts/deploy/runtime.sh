@@ -34,7 +34,7 @@ case "$action" in
   dispatch)
     api_environment
     cd "$root/background/apps/server"
-    exec deno run --allow-env --allow-run=deno scripts/run-dispatch.ts src/dispatch.ts
+    exec deno run --allow-env "--allow-run=$root/background/infra/server-exec/dispatch.sh" scripts/run-dispatch.ts
     ;;
   worker)
     export HOME=/home/bakery-worker
@@ -218,7 +218,7 @@ JS
     sha=${1:?sha required}
     valid_sha "$sha" || exit 64
     api_environment
-    (cd "$root/releases/$sha" && runuser --preserve-environment -u bakery-api -- deno run --no-prompt --allow-env --allow-read --allow-run=/usr/bin/systemd-run,/usr/bin/systemctl,/usr/bin/journalctl --allow-sys=uid scripts/deploy/probe-native.mjs api)
+    (cd "$root/releases/$sha" && runuser --preserve-environment -u bakery-api -- deno run --no-prompt --allow-env --allow-read "--allow-run=$root/releases/$sha/infra/server-exec/draft-systemd.sh" --allow-sys=uid scripts/deploy/probe-native.mjs api)
     systemd-run --wait --pipe --collect --unit="bakery-native-probe-$(cat /proc/sys/kernel/random/uuid)" \
       --property=User=bakery-worker --property=Group=bakery-worker --property='Delegate=memory pids' \
       --property=DelegateSubgroup=supervisor --property=EnvironmentFile=/etc/bakery/worker.env \
