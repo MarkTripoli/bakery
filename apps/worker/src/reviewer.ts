@@ -286,6 +286,10 @@ export async function boundedGit(
   const deadline = setTimeout(requestStop, timeoutMs);
   if (signal.aborted) requestStop();
   else signal.addEventListener("abort", requestStop, { once: true });
+  // A bound of zero or less has already passed. Left to the timer it would race
+  // a process that finishes at once, and under load the process wins. An abort
+  // still ranks first: it is checked again once the read has ended.
+  if (timeoutMs <= 0) requestStop();
   const timers: Array<{ cancel: () => void }> = [];
   const reader = child.stdout.getReader();
   // Once a stop is requested the child and its group are stopped, and the

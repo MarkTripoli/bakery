@@ -28,3 +28,4 @@ export {
   resolveWorkflowRuntime,
   type WorkflowRuntimePin,
 } from "./revisions.ts";
+export { cloneJson } from "./clone.ts";
