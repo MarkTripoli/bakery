@@ -45,7 +45,10 @@ export type ActionDispatch = Readonly<{
   key: string;
   id: string;
   action: string;
-  /** The resolved `with` object, plus `checks` when the step names them. */
+  /**
+   * The resolved `with` object, plus `checks` when the step names them. A
+   * copy: the host may edit it without touching the run's recorded state.
+   */
   input: JsonValue;
   /**
    * The effect key, parts joined with a colon, when the step has one. It is not
@@ -478,10 +481,17 @@ class Run {
  * state. Calling it again with the same state gives the same answer, so a
  * replay or a duplicate call is harmless; the caller records a step's result
  * and calls again.
+ *
+ * The answer is a copy that shares nothing with `state` or `document`: a
+ * reference such as `$step.x.payload` is resolved to the very object the run
+ * recorded, and a dispatch also carries the document's own `retry` and
+ * `requires`. Without the copy, a host that edited a dispatch (to inject a
+ * field, say) would silently edit the recorded output, the document and every
+ * later answer.
  */
 export function nextStep(
   document: WorkflowSemanticDocument,
   state: RunState,
 ): NextStep {
-  return new Run(document, state).next();
+  return structuredClone(new Run(document, state).next());
 }
