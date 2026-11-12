@@ -1476,3 +1476,102 @@ Deno.test("an outside awaiter fed by a sink that answers and then fails cannot s
   );
   conserved(exporter.stats());
 });
+
+// ---- review and QA of #191: the yield belongs to a running exporter only -----
+// A closing exporter refuses every offer, so nothing can refill its queue and
+// the yield between batches only burns the close deadline: close(0) with an
+// instant sink flushed 10 of 1000 where it had flushed all 1000.
+
+/** Runs `work` while counting every setTimeout made with a delay of 0. */
+async function countingZeroDelayTimers<T>(
+  work: () => Promise<T>,
+): Promise<{ result: T; zeroDelay: number }> {
+  const realSet = globalThis.setTimeout;
+  let zeroDelay = 0;
+  globalThis.setTimeout =
+    ((handler: () => void, ms?: number, ...rest: unknown[]) => {
+      if (ms === 0) zeroDelay += 1;
+      return (realSet as (...a: unknown[]) => ReturnType<typeof setTimeout>)(
+        handler,
+        ms,
+        ...rest,
+      );
+    }) as typeof setTimeout;
+  try {
+    return { result: await work(), zeroDelay };
+  } finally {
+    globalThis.setTimeout = realSet;
+  }
+}
+
+Deno.test("close flushes a full queue completely even with no time to spare", async () => {
+  for (const deadline of [0, 1, 50, 5_000]) {
+    const exported: number[] = [];
+    const exporter = make<number>(
+      (batch) => {
+        exported.push(...batch);
+      },
+      { capacity: 1000, batchSize: 10, intervalMs: 10_000, maxAttempts: 1 },
+    );
+    for (let item = 0; item < 1000; item += 1) exporter.offer(item);
+    await exporter.close(deadline);
+    assertEquals(
+      exported.length,
+      1000,
+      `close(${deadline}) flushed ${exported.length} of 1000`,
+    );
+    assertEquals(exported[999], 999, "in order");
+    conserved(exporter.stats());
+  }
+});
+
+Deno.test("a closing exporter never yields: no zero-delay timer is made while it flushes", async () => {
+  const exporter = make<number>(() => {}, {
+    capacity: 100,
+    batchSize: 5,
+    intervalMs: 10_000,
+    maxAttempts: 1,
+  });
+  for (let item = 0; item < 100; item += 1) exporter.offer(item);
+  const { zeroDelay } = await countingZeroDelayTimers(() =>
+    exporter.close(1_000)
+  );
+  assertEquals(exporter.stats().exported, 100);
+  assertEquals(
+    zeroDelay,
+    0,
+    "20 batches flushed by close, and none of them waited a tick",
+  );
+});
+
+Deno.test("a close that aborts a hung send makes no zero-delay timer after the abort", async () => {
+  const exporter = make<number>(() => new Promise(() => {}), {
+    capacity: 100,
+    batchSize: 5,
+    sendTimeoutMs: 60_000,
+    intervalMs: 1,
+    maxAttempts: 1,
+  });
+  for (let item = 0; item < 50; item += 1) exporter.offer(item);
+  await until(() => exporter.stats().inFlight === 5, "a batch in flight");
+  const { zeroDelay } = await countingZeroDelayTimers(() => exporter.close(20));
+  assertEquals(zeroDelay, 0, "nothing yielded on the way out");
+  conserved(exporter.stats());
+});
+
+Deno.test("a running exporter yields exactly once between batches: one fewer than it has batches", async () => {
+  const exporter = make<number>(() => {}, {
+    capacity: 100,
+    batchSize: 5,
+    intervalMs: 1,
+    maxAttempts: 1,
+  });
+  const { zeroDelay } = await countingZeroDelayTimers(async () => {
+    for (let item = 0; item < 20; item += 1) exporter.offer(item);
+    await until(() => exporter.stats().exported === 20, "all four batches");
+  });
+  // Four batches: a yield after each of the first three, none after the last,
+  // because nothing is left to wait for.
+  assertEquals(zeroDelay, 3);
+  await exporter.close(100);
+});
