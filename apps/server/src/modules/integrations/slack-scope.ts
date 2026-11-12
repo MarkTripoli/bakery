@@ -42,6 +42,18 @@ const TEAM_ID = /^T[A-Z0-9]{2,31}$/;
 const ENTERPRISE_ID = /^E[A-Z0-9]{2,31}$/;
 const USER_ID = /^[UW][A-Z0-9]{2,31}$/;
 const CHANNEL_ID = /^[CG][A-Z0-9]{2,31}$/;
+/** Whether `value` is a Slack app id (`A...`), as a plain string. */
+export const isSlackAppId = (value: unknown): value is string =>
+  typeof value === "string" && APP_ID.test(value);
+
+/** Whether `value` is a Slack workspace id (`T...`). */
+export const isSlackTeamId = (value: unknown): value is string =>
+  typeof value === "string" && TEAM_ID.test(value);
+
+/** Whether `value` is a Slack user id (`U...` or `W...`). */
+export const isSlackUserId = (value: unknown): value is string =>
+  typeof value === "string" && USER_ID.test(value);
+
 /**
  * A Slack scope: dot-separated parts, optionally followed by a colon and more
  * dot-separated parts, each part starting with a lowercase letter and then
@@ -251,6 +263,11 @@ export type SlackSubject = {
   readonly teamId: string;
   readonly userId: string;
   readonly enterpriseId?: string;
+  /**
+   * The Slack app the event arrived through. A link is unique per app, so a
+   * lookup that cannot name the app finds nothing rather than guessing one.
+   */
+  readonly appId?: string;
 };
 
 export type SlackActor =
@@ -294,12 +311,16 @@ export async function resolveSlackActor(
         !ENTERPRISE_ID.test(candidate.enterpriseId)
       ) return service("malformed");
     }
+    if (candidate.appId !== undefined && !isSlackAppId(candidate.appId)) {
+      return service("malformed");
+    }
     const key: SlackSubject = {
       teamId: candidate.teamId,
       userId: candidate.userId,
       ...(candidate.enterpriseId === undefined
         ? {}
         : { enterpriseId: candidate.enterpriseId }),
+      ...(candidate.appId === undefined ? {} : { appId: candidate.appId }),
     };
     if (typeof lookup !== "function") return service("lookup_failed");
 
