@@ -7770,6 +7770,173 @@
         }
       ]
     },
+    "ResearchInput": {
+      "description": "Input to the rpi.research workflow action: the task to research and the repository whose code the research reads, from which the step produces its research artifact.",
+      "fields": [
+        {
+          "name": "taskId",
+          "type": "uuid",
+          "required": true,
+          "description": "Task the research is for; the step reads the task brief and scope from it."
+        },
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": true,
+          "description": "Repository the research inspects through a detached worktree."
+        }
+      ]
+    },
+    "PrepareInput": {
+      "description": "Input to the delivery.prepare workflow action: the exact merged commit to turn into a release candidate and the repository profile revision that governs how it is built.",
+      "fields": [
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": true,
+          "description": "Repository whose merged commit is prepared for release."
+        },
+        {
+          "name": "headSha",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1
+          },
+          "description": "Full commit SHA of the merged candidate to prepare, normally the commitSha a preceding delivery.merge step confirmed."
+        },
+        {
+          "name": "profileRevision",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1
+          },
+          "description": "Revision of the repository profile the release is prepared under; the server rejects a revision that is not the active one at prepare time."
+        }
+      ]
+    },
+    "MergeInput": {
+      "description": "Input to the delivery.merge workflow action: the repository to merge into and the candidate evidence that justifies the merge. The effect key makes a retried merge reconcile with the first attempt and never merge twice.",
+      "fields": [
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": true,
+          "description": "Repository the candidate is merged into."
+        },
+        {
+          "name": "candidate",
+          "type": "CandidateEvidence",
+          "required": true,
+          "description": "Evidence for the exact candidate being merged: its head and base commits, the policy it was checked under, the check runs and the independent review. The merge step refuses evidence that does not match the repository's current candidate."
+        },
+        {
+          "name": "effectKey",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1
+          },
+          "description": "Stable key for this merge effect, so a retry after an uncertain response reconciles with the first attempt instead of repeating the mutation."
+        }
+      ]
+    },
+    "DeployInput": {
+      "description": "Input to the delivery.deploy workflow action: the prepared release to roll out and the environment to roll it out to. The effect key makes a retried deploy reconcile with the first attempt.",
+      "fields": [
+        {
+          "name": "releaseId",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1
+          },
+          "description": "Identifier of the release a preceding delivery.prepare step produced."
+        },
+        {
+          "name": "environment",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1
+          },
+          "description": "Name of the environment to deploy to, such as production; it must be one the repository profile allows."
+        },
+        {
+          "name": "effectKey",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1
+          },
+          "description": "Stable key for this deploy effect, so a retry after an uncertain response reconciles with the first attempt instead of deploying twice."
+        }
+      ]
+    },
+    "HealthInput": {
+      "description": "Input to the delivery.health workflow action: the deployment whose health is observed.",
+      "fields": [
+        {
+          "name": "deploymentId",
+          "type": "uuid",
+          "required": true,
+          "description": "Deployment a preceding delivery.deploy step accepted; the step reads its observed health and records the evidence."
+        }
+      ]
+    },
+    "ArtifactPublishInput": {
+      "description": "Input to the artifact.publish workflow action: the artifact version a preceding step produced, which this step publishes so it becomes a retained, addressable artifact of the run.",
+      "fields": [
+        {
+          "name": "artifact",
+          "type": "ArtifactRef",
+          "required": true,
+          "description": "Immutable artifact version to publish, normally the artifact a preceding step emitted; the step records it as published without changing its content."
+        }
+      ]
+    },
+    "MemoryPromoteInput": {
+      "description": "Input to the memory.promote workflow action: the artifact version to promote into project memory and the repository revision that evidence was drawn from.",
+      "fields": [
+        {
+          "name": "artifact",
+          "type": "ArtifactRef",
+          "required": true,
+          "description": "Immutable artifact version to promote into project memory, normally a research or review artifact a preceding step produced."
+        },
+        {
+          "name": "sourceRevision",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1
+          },
+          "description": "Repository revision the promoted artifact describes, kept with the memory so a later reader can tell when it was true."
+        }
+      ]
+    },
+    "EvaluationInput": {
+      "description": "Input to the evaluation.sample workflow action: the completed run to sample and the fraction of its outcomes to evaluate.",
+      "fields": [
+        {
+          "name": "runId",
+          "type": "uuid",
+          "required": true,
+          "description": "Workflow run whose outcomes are sampled for evaluation."
+        },
+        {
+          "name": "sampleRate",
+          "type": "number",
+          "required": true,
+          "bounds": {
+            "min": 0,
+            "max": 1
+          },
+          "description": "Fraction of the run's outcomes to evaluate, from 0 (none) to 1 (all)."
+        }
+      ]
+    },
     "WorkflowActionsListQuery": {
       "fields": [
         {
