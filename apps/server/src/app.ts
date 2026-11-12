@@ -1,3 +1,4 @@
+import type { ExecutionTelemetry } from "./modules/execution/telemetry.ts";
 import {
   createSkillObjectStore,
   type probeSkillStorage,
@@ -115,6 +116,11 @@ import { createCoordinationRoutes } from "./modules/work/coordination-routes.ts"
 import { createApprovalRoutes } from "./modules/conversation/approval-routes.ts";
 
 export function createApp(options: {
+  /**
+   * Told of lease renewals, completions and usage settlements after they have
+   * committed. Optional: the server behaves the same without it.
+   */
+  telemetry?: ExecutionTelemetry;
   config: RuntimeConfig;
   database: Database;
   pgDatabase: PgDatabase;
@@ -429,6 +435,7 @@ export function createApp(options: {
   app.route(
     "/",
     createExecutionRoutes({
+      telemetry: options.telemetry,
       database: options.pgDatabase,
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
@@ -573,6 +580,7 @@ export function createApp(options: {
   app.route(
     "/",
     createExecutionRoutes({
+      telemetry: options.telemetry,
       database: options.pgDatabase,
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
