@@ -1,0 +1,14 @@
+{
+  "name": "@bakery/worker-bootstrap",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Verified installer core for the Bakery native worker. Not published: publication needs the B00.04 allowlist.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "deno check src/index.ts",
+    "build": "deno check src/index.ts"
+  }
+}

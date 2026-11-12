@@ -55,7 +55,7 @@ const problem = (status: number, code: string) => ({
 
 async function scimFixture(
   page: Page,
-  options: { initial: Status; forbidden?: boolean },
+  options: { initial: Status; forbidden?: boolean; hidden?: boolean },
 ) {
   await mockAuthenticatedSession(page);
   const state = { current: options.initial, calls: [] as string[] };
@@ -64,6 +64,10 @@ async function scimFixture(
     const path = new URL(request.url()).pathname;
     state.calls.push(`${request.method()} ${path}`);
     if (options.forbidden) return route.fulfill(problem(403, "AUTH_FORBIDDEN"));
+    // The real server answers a plain member's read with 404.
+    if (options.hidden) {
+      return route.fulfill(problem(404, "RESOURCE_NOT_FOUND"));
+    }
     if (request.method() === "GET") {
       return route.fulfill(json(200, connection(state.current)));
     }
@@ -99,13 +103,13 @@ for (
       });
       await page.goto("/settings/scim");
       await expect(
-        page.getByRole("heading", { name: "SCIM provisioning" })
+        page.getByRole("heading", { name: "SCIM", exact: true })
           .first(),
       ).toBeVisible();
       await page.getByRole("button", { name: "Create connection" }).click();
       const once = page.getByTestId("scim-token-once");
       await expect(once).toContainText(SECRET);
-      await expect(once).toContainText("shown once");
+      await expect(once).toContainText("not shown again");
       expect(state.calls).toContain("POST /v1/scim-connection");
       await page.getByRole("button", { name: "I have stored the token" })
         .click();
@@ -127,23 +131,27 @@ for (
         initial: "active",
       });
       await page.goto("/settings/scim");
-      await page.getByRole("button", { name: "Rotate credential" }).click();
+      await page.getByRole("button", { name: "Rotate token", exact: true })
+        .click();
       const dialog = page.getByRole("alertdialog", {
-        name: "Rotate the SCIM credential?",
+        name: "Rotate the SCIM token?",
       });
       await expect(dialog).toBeVisible();
       await dialog.getByRole("button", { name: "Cancel" }).click();
       expect(state.calls.filter((call) => call.includes("rotate"))).toEqual([]);
-      await page.getByRole("button", { name: "Rotate credential" }).click();
-      await dialog.getByRole("button", { name: "Rotate", exact: true }).click();
+      await page.getByRole("button", { name: "Rotate token", exact: true })
+        .click();
+      await dialog.getByRole("button", { name: "Rotate token", exact: true })
+        .click();
       await expect(page.getByTestId("scim-token-once")).toContainText(SECRET);
       await page.getByRole("button", { name: "I have stored the token" })
         .click();
-      await page.getByRole("button", { name: "Revoke connection" }).click();
+      await page.getByRole("button", { name: "Revoke token", exact: true })
+        .click();
       await page.getByRole("alertdialog", {
-        name: "Revoke the SCIM connection?",
+        name: "Revoke the SCIM token?",
       })
-        .getByRole("button", { name: "Revoke", exact: true }).click();
+        .getByRole("button", { name: "Revoke token", exact: true }).click();
       await expect(page.getByText("Revoked").first()).toBeVisible();
       expect(state.calls).toContain("POST /v1/scim-connection/revoke");
     });
@@ -162,6 +170,59 @@ for (
             ),
           ).toBeVisible({ timeout }),
       );
+      await expect(page.getByRole("button", { name: "Create connection" }))
+        .toHaveCount(0);
+    });
+
+    test("sits under the Organization breadcrumb, as the Paper frames draw it", async ({ page }) => {
+      test.skip(viewport.name === "phone", "a phone shows the section title");
+      await scimFixture(page, { initial: "none" });
+      await page.goto("/settings/scim");
+      const trail = page.getByRole("navigation", { name: "Breadcrumb" });
+      await expect(trail.getByText("SCIM", { exact: true })).toBeVisible();
+      await expect(trail.getByText("Organization", { exact: true }))
+        .toBeVisible();
+      await expect(trail.getByText("Settings", { exact: true })).toHaveCount(0);
+    });
+
+    test("the lifetime select and Create connection have a gap between them", async ({ page }) => {
+      await scimFixture(page, { initial: "none" });
+      await page.goto("/settings/scim");
+      // The create form's own select; the rotate dialog holds another one.
+      const select = page.getByRole("combobox", { name: "Credential lifetime" })
+        .first();
+      const create = page.getByRole("button", { name: "Create connection" });
+      await expect(create).toBeVisible();
+      const selectBox = (await select.boundingBox())!;
+      const createBox = (await create.boundingBox())!;
+      const gap = createBox.y - (selectBox.y + selectBox.height);
+      // The standard field gap, not touching.
+      expect(gap).toBeGreaterThanOrEqual(8);
+    });
+
+    test("a refused read is an information notice, not an error alert", async ({ page }) => {
+      await scimFixture(page, { initial: "none", forbidden: true });
+      await page.goto("/settings/scim");
+      const refusal =
+        "Only organization administrators can manage SCIM provisioning.";
+      await expect(page.getByText(refusal)).toBeVisible();
+      await expect(
+        page.getByRole("status").filter({ hasText: refusal }),
+      ).toHaveCount(1);
+      await expect(page.getByRole("alert").filter({ hasText: refusal }))
+        .toHaveCount(0);
+    });
+
+    test("a member whose read the server answers with 404 sees the forbidden notice", async ({ page }) => {
+      await scimFixture(page, { initial: "none", hidden: true });
+      await page.goto("/settings/scim");
+      await expect(
+        page.getByText(
+          "Only organization administrators can manage SCIM provisioning.",
+        ),
+      ).toBeVisible();
+      await expect(page.getByText("could not be loaded", { exact: false }))
+        .toHaveCount(0);
       await expect(page.getByRole("button", { name: "Create connection" }))
         .toHaveCount(0);
     });
