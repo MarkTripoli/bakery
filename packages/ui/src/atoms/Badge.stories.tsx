@@ -12,6 +12,8 @@ export const Contract: StoryObj = {
     <Inline>
       <Badge>Password</Badge>
       <Badge tone="success">Current</Badge>
+      <Badge tone="warning">1 rule has no working check</Badge>
+      <Badge tone="danger">No working check</Badge>
     </Inline>
   ),
 };

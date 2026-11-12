@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { MessageKey } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
 import type { RepositoryEffectiveRulesResponse } from "../api/client.ts";
@@ -94,7 +94,16 @@ export function RepositoryRulesPage(
   const phone = useShellViewport() === "phone";
   const navigate = useNavigate();
   const { scope, waiting } = useRulesScope();
-  const [copied, setCopied] = useState(false);
+  const [copyResult, setCopyResult] = useState<"idle" | "copied" | "failed">(
+    "idle",
+  );
+  const copied = copyResult === "copied";
+  // The result is announced and then forgotten, so the label returns to "Copy".
+  useEffect(() => {
+    if (copyResult === "idle") return;
+    const timer = globalThis.setTimeout(() => setCopyResult("idle"), 2500);
+    return () => globalThis.clearTimeout(timer);
+  }, [copyResult]);
 
   const rules = useQuery(
     repositoryEffectiveRulesQueryOptions(api, scope, repositoryId),
@@ -118,9 +127,9 @@ export function RepositoryRulesPage(
   const copyFingerprint = async () => {
     try {
       await navigator.clipboard.writeText(data?.digest ?? "");
-      setCopied(true);
+      setCopyResult("copied");
     } catch {
-      setCopied(false);
+      setCopyResult("failed");
     }
   };
   /** A link that navigates inside the app and is still a real link. */
@@ -181,11 +190,11 @@ export function RepositoryRulesPage(
       ? (
         <>
           <UI.Inline>
-            <UI.StatusBadge
-              status={row.entry.mode === "require" ? "failed" : "needsInput"}
+            <UI.Badge
+              tone={row.entry.mode === "require" ? "danger" : "warning"}
             >
               {translate("repository.rules.check.unavailable")}
-            </UI.StatusBadge>
+            </UI.Badge>
           </UI.Inline>
           {row.entry.mode === "require"
             ? (
@@ -446,17 +455,17 @@ export function RepositoryRulesPage(
                   <UI.DescriptionItem
                     action={checks?.state === "unavailable"
                       ? (
-                        <UI.StatusBadge status="needsInput">
+                        <UI.Badge tone="warning">
                           {translate("repository.rules.checks.unavailable", {
                             count: checks.unavailableRuleKeys.length,
                           })}
-                        </UI.StatusBadge>
+                        </UI.Badge>
                       )
                       : checks?.state === "configured"
                       ? (
-                        <UI.StatusBadge status="healthy">
+                        <UI.Badge tone="success">
                           {translate("repository.rules.checks.configured")}
-                        </UI.StatusBadge>
+                        </UI.Badge>
                       )
                       : (
                         <UI.Badge>
@@ -538,6 +547,13 @@ export function RepositoryRulesPage(
                     }
                     title={
                       <>
+                        <UI.VisuallyHidden as="div" role="status">
+                          {copyResult === "copied"
+                            ? translate("repository.rules.details.copied")
+                            : copyResult === "failed"
+                            ? translate("repository.rules.details.copyFailed")
+                            : ""}
+                        </UI.VisuallyHidden>
                         {translate("repository.rules.details.fingerprint")}
                         <UI.HelpTip
                           closeLabel={translate("repository.rules.help.close")}

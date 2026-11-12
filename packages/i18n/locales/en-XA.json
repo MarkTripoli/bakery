@@ -2729,5 +2729,6 @@
   "repository.rules.help.close": "⟦Çļôšë ĥëļþ ŧ⟧",
   "repository.rules.unavailable.back": "⟦Ɓàçķ ŧô þŕôĵëçŧš ŧëš⟧",
   "repository.rules.error.body": "⟦Çĥëçķ ÿôûŕ çôññëçŧïôñ, ŧĥëñ ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧ⟧",
-  "repository.rules.list.title": "⟦Ŕûļëš⟧"
+  "repository.rules.list.title": "⟦Ŕûļëš⟧",
+  "repository.rules.details.copyFailed": "⟦Çôûļð ñôŧ çôþÿ ŧĥë ƒïñĝëŕþŕïñŧ. ŧëšŧ çôþ⟧"
 }

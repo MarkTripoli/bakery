@@ -44,6 +44,9 @@ export type HelpTipProps =
     label: string;
   };
 
+/** Fired on the window when a HelpTip opens, so the others close. */
+const OPENED = "bakery:help-tip-opened";
+
 /**
  * Explains the label it sits after: an information button that shows its help
  * text on hover, on keyboard focus and on a tap. From 744px up the text is a
@@ -100,6 +103,22 @@ export function HelpTip(
     };
   }, [open]);
 
+  // Never two at once: opening one closes any other that is open.
+  useEffect(() => {
+    if (!open) return;
+    globalThis.dispatchEvent(new CustomEvent(OPENED, { detail: id }));
+  }, [open, id]);
+  useEffect(() => {
+    const closeForAnother = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === id) return;
+      setHovered(false);
+      setTapped(false);
+      setDismissed(true);
+    };
+    globalThis.addEventListener(OPENED, closeForAnother);
+    return () => globalThis.removeEventListener(OPENED, closeForAnother);
+  }, [id]);
+
   useEffect(() => {
     if (!open) return;
     const outside = (event: globalThis.PointerEvent) => {
@@ -109,7 +128,9 @@ export function HelpTip(
         setDismissed(true);
       }
     };
-    const scrolled = () => {
+    const scrolled = (event: Event) => {
+      // Scrolling the panel's own long text is reading it, not leaving it.
+      if (rootRef.current?.contains(event.target as Node)) return;
       if (globalThis.matchMedia("(max-width: 743px)").matches) {
         setDismissed(true);
       }

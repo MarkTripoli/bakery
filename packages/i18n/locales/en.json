@@ -2722,6 +2722,7 @@
   "repository.rules.details.fingerprint.help": "Identifies the exact rules in force. Each run records the same value, so you can tell which rules it used.",
   "repository.rules.details.copy": "Copy",
   "repository.rules.details.copied": "Copied",
+  "repository.rules.details.copyFailed": "Could not copy the fingerprint.",
   "repository.rules.details.none": "None",
   "repository.rules.help.enforcement": "About enforcement",
   "repository.rules.help.source": "About source",

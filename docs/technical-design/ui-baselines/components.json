@@ -1,5 +1,5 @@
 {
-  "revision": "57d41cce8d1a5ecdfb36753a8d3f271a51c805232fc7c8d5bd08e01073866091",
+  "revision": "7c39c5cb17cc226333d3de8ed5827d5721c4ccbc2cd07648a5226de5a7913df1",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -5352,12 +5352,12 @@
     {
       "id": "ui.badge",
       "name": "Badge",
-      "description": "Tags a row with a short caption on a plate, e.g. \"Current\" on the active session.",
+      "description": "Tags a row with a short caption on a plate, e.g. \"Current\" on the active session; the tone can be success, warning or danger.",
       "level": "atom",
       "owner": "Mark Tripoli",
       "storyTitle": "Bakery/Atoms/Badge",
       "usage": {
-        "whenToUse": "Tag a row with a short caption on a plate (Paper auth.css:8 .badge, .badge.success).",
+        "whenToUse": "Tag a row with a short caption on a plate (Paper auth.css:8 .badge, .badge.success), or mark what needs care (warning) or blocks something (danger).",
         "whenNotToUse": "Use StatusBadge for the runtime lifecycle vocabulary and Label for field metadata.",
         "ruleIds": [
           "ui.semantic-import",
@@ -5391,16 +5391,22 @@
         "keyboard": []
       },
       "tokens": [
+        "--color-destructive",
+        "--color-destructive-surface",
         "--color-fg",
         "--color-status-success",
         "--color-status-success-surface",
+        "--color-status-warning",
+        "--color-status-warning-surface",
         "--color-surface-subtle",
         "--radius-control",
         "--type-caption"
       ],
       "variants": [
         "neutral",
-        "success"
+        "success",
+        "warning",
+        "danger"
       ],
       "states": [
         "default"
@@ -5431,7 +5437,9 @@
           "description": "Exercises the documented Badge variants and observable states across required contexts.",
           "variants": [
             "neutral",
-            "success"
+            "success",
+            "warning",
+            "danger"
           ],
           "states": [
             "default"

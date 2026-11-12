@@ -857,6 +857,94 @@ test.describe("repository rules: the effective rules of one repository", () => {
     }
   });
 
+  test("on a phone, scrolling the panel's own long text does not close it", async ({ page }) => {
+    test.skip(!isPhone(page), "the panel is the phone behaviour");
+    await rulesFixture(page);
+    // A short window makes the help text longer than half the screen.
+    await page.setViewportSize({ width: 195, height: 240 });
+    await page.goto(RULES_PATH);
+    const trigger = region(page).getByRole("button", {
+      name: "About enforcement",
+    });
+    // Bring the button into the window first and let that scroll settle: a scroll
+    // after the panel opens would close it, which is the other behaviour.
+    await trigger.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
+    await trigger.click();
+    const panel = page.locator(
+      '[data-ui-component="helpTip"] .ui-help-tip__panel',
+    ).filter({
+      has: page.getByText("Require blocks delivery until the check passes."),
+    });
+    await expect(panel).toBeVisible();
+    expect(
+      await panel.evaluate((node) => node.scrollHeight > node.clientHeight),
+    ).toBe(true);
+    const scrolled = await panel.evaluate((node) => {
+      node.scrollTop = 12;
+      return node.scrollTop;
+    });
+    expect(scrolled).toBeGreaterThan(0);
+    await page.evaluate(() =>
+      new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve))
+      )
+    );
+    await expect(panel).toBeVisible();
+  });
+
+  test("on a wide screen opening one help closes the other", async ({ page }) => {
+    test.skip(isPhone(page), "the phone panel is covered by its own test");
+    await rulesFixture(page);
+    await page.goto(RULES_PATH);
+    await region(page).getByRole("button", { name: "About enforcement" })
+      .click();
+    await expect(page.getByRole("tooltip").filter({ visible: true }))
+      .toHaveCount(1);
+    await region(page).getByRole("button", { name: "About source" }).hover();
+    await expect(
+      page.getByRole("tooltip").filter({
+        visible: true,
+        hasText: "Who decides this rule's setting.",
+      }),
+    ).toHaveCount(1);
+    await expect(page.getByRole("tooltip").filter({ visible: true }))
+      .toHaveCount(1);
+  });
+
+  test("Copy says it copied, then goes back to Copy; a refused copy says so", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await rulesFixture(page);
+    await page.goto(RULES_PATH);
+    await details(page).getByRole("button", { name: "Copy" }).click();
+    await expect(details(page).getByRole("status")).toHaveText("Copied");
+    await expect(details(page).getByRole("button", { name: "Copied" }))
+      .toBeVisible();
+    // The label returns and the announcement is forgotten.
+    await expect(details(page).getByRole("button", { name: "Copy" }))
+      .toBeVisible(
+        { timeout: 6000 },
+      );
+    await expect(details(page).getByRole("status")).toHaveText("");
+  });
+
+  test("a refused clipboard write leaves Copy and says it could not copy", async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText: () => Promise.reject(new Error("denied")) },
+      });
+    });
+    await rulesFixture(page);
+    await page.goto(RULES_PATH);
+    await details(page).getByRole("button", { name: "Copy" }).click();
+    await expect(details(page).getByRole("status")).toHaveText(
+      "Could not copy the fingerprint.",
+    );
+    await expect(details(page).getByRole("button", { name: "Copy" }))
+      .toBeVisible();
+  });
+
   test("has no accessibility violations", async ({ page }) => {
     await rulesFixture(page);
     await page.goto(RULES_PATH);

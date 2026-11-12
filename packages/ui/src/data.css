@@ -220,6 +220,14 @@
   background: var(--color-status-success-surface); /* auth.css:8 .badge.success */
   color: var(--color-status-success);
 }
+.ui-badge--warning {
+  background: var(--color-status-warning-surface);
+  color: var(--color-status-warning);
+}
+.ui-badge--danger {
+  background: var(--color-destructive-surface);
+  color: var(--color-destructive);
+}
 .ui-status-label::before {
   content: "●";
 }
