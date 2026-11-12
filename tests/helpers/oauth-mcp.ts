@@ -237,6 +237,9 @@ export function mcpRequest(
   if (method === "tools/call" && typeof params.name === "string") {
     headers.set("mcp-name", params.name);
   }
+  if (method === "resources/read" && typeof params.uri === "string") {
+    headers.set("mcp-name", params.uri);
+  }
   if (options.token) {
     headers.set(
       "authorization",
