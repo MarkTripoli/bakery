@@ -1,3 +1,8 @@
+import {
+  ISOLATED_HOME_LANES,
+  isolatedLaneEnvironment,
+} from "./ci/lane-environment.ts";
+
 const lane = Deno.args[0];
 const knownLanes = new Set([
   "rails",
@@ -159,6 +164,54 @@ if (lane === "unit") {
     );}
 }
 
+// The lanes that run a real stack start with an empty HOME and no path to the
+// operator's Codex login (#246). The module and browser caches are pinned where
+// they are so the lane does not download them again; see
+// scripts/ci/lane-environment.ts.
+let isolatedRoot: string | undefined;
+let isolatedEnv: Record<string, string> | undefined;
+if (ISOLATED_HOME_LANES.includes(lane)) {
+  const created = await rootTool("create", temporaryDirectory);
+  if (created.code !== 0 || created.text.length === 0) {
+    console.error(
+      "lane HOME: could not create an isolated root; refusing to run",
+    );
+    Deno.exit(3);
+  }
+  isolatedRoot = created.text;
+  const made = await rootTool("skeleton", temporaryDirectory, isolatedRoot);
+  if (made.code !== 0) {
+    console.error(
+      "lane HOME: could not prepare the isolated home; refusing to run",
+    );
+    Deno.exit(3);
+  }
+  const pinned: Record<string, string> = {};
+  const denoDir = Deno.env.get("DENO_DIR") ?? JSON.parse(
+    new TextDecoder().decode(
+      (await new Deno.Command(Deno.execPath(), {
+        args: ["info", "--json"],
+        stdin: "null",
+        stdout: "piped",
+        stderr: "null",
+      }).output()).stdout,
+    ),
+  ).denoDir;
+  if (typeof denoDir === "string" && denoDir.length > 0) {
+    pinned.DENO_DIR = denoDir;
+  }
+  const home = Deno.env.get("HOME");
+  const browsers = Deno.env.get("PLAYWRIGHT_BROWSERS_PATH") ??
+    (home === undefined ? undefined : `${home}/.cache/ms-playwright`);
+  if (browsers !== undefined) pinned.PLAYWRIGHT_BROWSERS_PATH = browsers;
+  isolatedEnv = isolatedLaneEnvironment({
+    lane,
+    environment: Deno.env.toObject(),
+    root: isolatedRoot,
+    pinned,
+  }) ?? undefined;
+}
+
 const process = new Deno.Command(Deno.execPath(), {
   args: [
     "test",
@@ -168,7 +221,11 @@ const process = new Deno.Command(Deno.execPath(), {
     ...parallel,
     ...paths,
   ],
-  ...(laneRoot === undefined ? {} : { env: { TMPDIR: laneRoot } }),
+  ...(isolatedEnv !== undefined
+    ? { clearEnv: true, env: isolatedEnv }
+    : laneRoot === undefined
+    ? {}
+    : { env: { TMPDIR: laneRoot } }),
   stdout: "inherit",
   stderr: "inherit",
 }).spawn();
@@ -183,6 +240,20 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) {
   });
 }
 let code = (await process.status).code;
+if (isolatedRoot !== undefined) {
+  const swept = await rootTool("sweep", temporaryDirectory, isolatedRoot);
+  try {
+    const { homeEntries } = JSON.parse(swept.text) as { homeEntries?: number };
+    // What a lane writes into its isolated HOME is what depended on a real one.
+    if (homeEntries !== undefined && homeEntries > 0) {
+      console.error(
+        `lane HOME: ${homeEntries} entries were written to the isolated home`,
+      );
+    }
+  } catch {
+    console.error("lane HOME: the sweep did not report; the root may remain");
+  }
+}
 if (laneRoot !== undefined) {
   const swept = await rootTool("sweep", temporaryDirectory, laneRoot);
   try {

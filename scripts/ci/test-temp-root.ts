@@ -5,11 +5,16 @@
  * worker, Node's `mkdtemp`). The sweep reports it and removes it.
  *
  *   create <base>          prints the path of a new `<base>/bakery-lane-XXXXXX`
- *   sweep <base> <root>    prints {"leaked":n,"prefixes":{...}} and removes <root>
+ *   skeleton <base> <root> makes the isolated HOME, XDG directories and git
+ *                          config of #246 under `<root>/env`
+ *   sweep <base> <root>    prints {"leaked":n,"prefixes":{...}} and removes <root>;
+ *                          `<root>/env` is the lane's own home, not a leak, and
+ *                          its entry count is reported as `homeEntries`
  *
  * Run with `--allow-read --allow-write=<base>`; it touches nothing else.
  */
 import { basename, dirname, isAbsolute } from "node:path";
+import { laneEnvPaths, MINIMAL_GIT_CONFIG } from "./lane-environment.ts";
 import { entriesOf, removeTreeSync } from "./temp-tree.ts";
 
 export const LANE_ROOT_PREFIX = "bakery-lane-";
@@ -36,25 +41,42 @@ if (import.meta.main) {
     console.log(
       await Deno.makeTempDir({ dir: base, prefix: LANE_ROOT_PREFIX }),
     );
-  } else if (command === "sweep") {
+  } else if (command === "skeleton" || command === "sweep") {
     // Only ever a root this tool made, directly under the base it was given.
     if (
       !root || dirname(root) !== base.replace(/\/+$/, "") ||
       !basename(root).startsWith(LANE_ROOT_PREFIX)
     ) {
       console.error(
-        "test-temp-root: refusing to sweep a path that is not a lane root",
+        `test-temp-root: refusing to ${command} a path that is not a lane root`,
       );
       Deno.exit(2);
     }
-    const left = entriesOf(root);
-    removeTreeSync(root);
-    console.log(
-      JSON.stringify({ leaked: left.length, prefixes: prefixesOf(left) }),
-    );
+    if (command === "skeleton") {
+      const paths = laneEnvPaths(root);
+      for (const directory of paths.directories) {
+        Deno.mkdirSync(directory, { recursive: true });
+      }
+      Deno.writeTextFileSync(paths.gitconfig, MINIMAL_GIT_CONFIG);
+    } else {
+      const paths = laneEnvPaths(root);
+      const isolated = entriesOf(root).includes("env");
+      const homeEntries = isolated ? entriesOf(paths.home).length : undefined;
+      const left = entriesOf(root).filter((name) =>
+        !(isolated && name === "env")
+      );
+      removeTreeSync(root);
+      console.log(
+        JSON.stringify({
+          leaked: left.length,
+          prefixes: prefixesOf(left),
+          ...(homeEntries === undefined ? {} : { homeEntries }),
+        }),
+      );
+    }
   } else {
     console.error(
-      "usage: test-temp-root.ts create <base> | sweep <base> <root>",
+      "usage: test-temp-root.ts create <base> | skeleton <base> <root> | sweep <base> <root>",
     );
     Deno.exit(2);
   }
