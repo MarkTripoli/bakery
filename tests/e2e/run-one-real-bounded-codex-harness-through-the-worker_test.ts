@@ -16,8 +16,8 @@ import {
 } from "../helpers/worker-execution/scenarios.ts";
 import {
   codexExecutablePath,
+  dedicatedCodexTestAuthSource,
   gitText,
-  operatorCodexAuthSource,
   prepareScratchRepository,
 } from "../helpers/codex-harness.ts";
 
@@ -112,7 +112,7 @@ Deno.test(
         repositoryFor: () => scratch.dir,
         timeLimitMs: 300_000,
         codexExecutable: codexExecutablePath(),
-        authSourceDir: operatorCodexAuthSource(),
+        authSourceDir: dedicatedCodexTestAuthSource(),
       });
       // The production supervisor renews the lease while the harness runs.
       const renewals = setInterval(() => {

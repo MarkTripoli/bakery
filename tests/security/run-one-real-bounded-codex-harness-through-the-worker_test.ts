@@ -8,8 +8,9 @@ import {
   CapturingOutputSink,
   codexExecutablePath,
   codexProcessesAlive,
+  dedicatedCodexTestAuthSource,
   gitText,
-  operatorCodexAuthSource,
+  isOperatorCodexLogin,
   prepareScratchRepository,
 } from "../helpers/codex-harness.ts";
 import { syntheticAuthSource } from "../helpers/harness-auth.ts";
@@ -84,7 +85,7 @@ function executorFor(
     repositoryFor: () => dir,
     timeLimitMs,
     codexExecutable: codexExecutablePath(),
-    authSourceDir: operatorCodexAuthSource(),
+    authSourceDir: dedicatedCodexTestAuthSource(),
   });
 }
 
@@ -330,7 +331,7 @@ Deno.test({
     );
     assert(
       childVariables["CODEX_HOME"] !== undefined &&
-        childVariables["CODEX_HOME"] !== `${Deno.env.get("HOME")}/.codex`,
+        !isOperatorCodexLogin(childVariables["CODEX_HOME"]),
       "CODEX_HOME missing or pointing at the operator login",
     );
   },
