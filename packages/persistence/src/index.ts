@@ -96,7 +96,7 @@ export {
   createWorkerSessionRepository,
   loadWorkerIdentity,
 } from "./worker-session.ts";
-export { createResultsRepository } from "./results.ts";
+export { carriesPlanRuntime, createResultsRepository } from "./results.ts";
 export {
   beginPreparedIdentityInvocation,
   completePreparedIdentityInvocation,

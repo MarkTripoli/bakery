@@ -14,6 +14,7 @@ import {
   appendDomainEvent,
   assertActionAgentPolicy,
   assertActionInput,
+  carriesPlanRuntime,
   type PgDatabase,
   type PgTransactionClient,
   withPgTransaction,
@@ -236,7 +237,21 @@ export type BakeryPostgresWorkflowRepository = Readonly<{
     reason: string,
     owner?: string | EngineOwner,
   ): Promise<void>;
+  /**
+   * Ends a compiled-plan run the interpreter has finished or halted: the run,
+   * its task, their events and the coordination projection, in one
+   * transaction fenced by the engine owner. Refuses a run that was not
+   * admitted under a plan, whose end the worker result path decides from its
+   * rows.
+   */
+  finishPlanRun(
+    runId: string,
+    outcome: PlanRunOutcome,
+    owner: EngineOwner,
+  ): Promise<void>;
 }>;
+
+export type PlanRunOutcome = "completed" | "failed" | "canceled";
 
 function isTerminal(
   row: Pick<
@@ -496,9 +511,21 @@ function originalTraceId(row: Pick<LogicalRow, "originalTraceId">): string {
   return row.originalTraceId;
 }
 
+/** What ending a run needs to know about it: its scope, task and original trace. */
+type RunEndContext = Pick<
+  LogicalRow,
+  | "organizationId"
+  | "runId"
+  | "taskId"
+  | "applicationId"
+  | "repositoryId"
+  | "conversationId"
+  | "originalTraceId"
+>;
+
 function appendRunUpdated(
   transaction: PgTransactionClient,
-  row: AdmissionStepRow,
+  row: RunEndContext,
   version: number,
 ): Promise<string> {
   return appendDomainEvent(transaction, {
@@ -619,6 +646,41 @@ function requireOwnerValue(owner: EngineOwner | undefined): EngineOwner {
   return owner;
 }
 
+/** The run, its task and its original trace, locked, with the snapshot to classify it. */
+async function loadRunEndContext(
+  transaction: PgTransactionClient,
+  runId: string,
+): Promise<RunEndContext & { runSnapshot: unknown }> {
+  const result = await transaction.query<
+    RunEndContext & { runSnapshot: unknown }
+  >(
+    `select run.organization_id as "organizationId", run.id as "runId",
+            run.snapshot as "runSnapshot",
+            task.id as "taskId", task.application_id as "applicationId",
+            task.repository_id as "repositoryId",
+            task.conversation_id as "conversationId",
+            original_request.trace_id as "originalTraceId"
+       from bakery.workflow_runs run
+       join bakery.tasks task
+         on task.organization_id = run.organization_id and task.id = run.task_id
+       left join lateral (
+         select event.trace_id
+           from bakery.domain_events event
+          where event.organization_id = run.organization_id
+            and event.aggregate_id = run.id
+            and event.event_type = 'run.requested'
+          order by event.organization_sequence asc
+          limit 1
+       ) original_request on true
+      where run.id = $1
+        for update of run, task`,
+    [runId],
+  );
+  const row = result.rows[0];
+  if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  return row;
+}
+
 async function projectFailure(
   transaction: PgTransactionClient,
   row: AdmissionStepRow,
@@ -698,9 +760,41 @@ async function projectFailure(
         JSON.stringify({ code: failure.code, message: failure.message }),
       ],
   );
+  await projectRunEnd(
+    transaction,
+    row,
+    "failed",
+    owner,
+    "WORKFLOW_FAILURE_PROJECTION_CONFLICT",
+  );
+}
+
+/**
+ * The statements every run end shares: the run row (status, `finished_at`, the
+ * engine owner cleared, fenced by the owner when there is one), its
+ * `run.updated` event, the task row and its `tasks.updated` event, and the
+ * coordination plan/lane projection. A failed step reaches it through
+ * `projectFailure`; a compiled plan reaches it when the interpreter says the
+ * plan is finished or halted. `conflict` names the error when the run or the
+ * task is no longer open.
+ */
+const RUN_END_STATUS: Readonly<
+  Record<"completed" | "failed" | "canceled", string>
+> = { completed: "completed", failed: "failed", canceled: "canceled" };
+
+async function projectRunEnd(
+  transaction: PgTransactionClient,
+  row: RunEndContext,
+  status: "completed" | "failed" | "canceled",
+  owner: EngineOwner | undefined,
+  conflict: string,
+): Promise<void> {
+  // A closed set of literals: the status is never taken from outside.
+  const literal = RUN_END_STATUS[status];
+  if (literal === undefined) throw new Error(conflict);
   const runUpdate = await transaction.query<{ version: number }>(
     `update bakery.workflow_runs
-        set status = 'failed', finished_at = now(), updated_at = now(),
+        set status = '${literal}', finished_at = now(), updated_at = now(),
             engine_owner_token = null, engine_owner_lease_expires_at = null,
             version = version + 1
       where organization_id = $1 and id = $2
@@ -717,12 +811,12 @@ async function projectFailure(
       : [row.organizationId, row.runId],
   );
   if (!runUpdate.rows[0]) {
-    throw new Error("WORKFLOW_FAILURE_PROJECTION_CONFLICT");
+    throw new Error(conflict);
   }
   await appendRunUpdated(transaction, row, runUpdate.rows[0].version);
   const taskUpdate = await transaction.query<{ version: number }>(
     `update bakery.tasks
-        set status = 'failed', updated_at = now(), version = version + 1
+        set status = '${literal}', updated_at = now(), version = version + 1
       where organization_id = $1 and id = $2
         and current_run_id = $3
         and status not in ('completed', 'failed', 'canceled')
@@ -730,7 +824,7 @@ async function projectFailure(
     [row.organizationId, row.taskId, row.runId],
   );
   if (!taskUpdate.rows[0]) {
-    throw new Error("WORKFLOW_FAILURE_PROJECTION_CONFLICT");
+    throw new Error(conflict);
   }
   await appendDomainEvent(transaction, {
     organizationId: row.organizationId,
@@ -1370,6 +1464,25 @@ export function createBakeryPostgresWorkflowRepository(options: {
           ) return;
         }
         await projectFailure(transaction, row, reason, owner);
+      });
+    },
+    async finishPlanRun(runId, outcome, owner) {
+      if (!Object.hasOwn(RUN_END_STATUS, outcome)) {
+        throw new Error("WORKFLOW_PLAN_OUTCOME_INVALID");
+      }
+      await withPgTransaction(options.database, async (transaction) => {
+        const context = await loadRunEndContext(transaction, runId);
+        await requireEngineOwner(transaction, runId, requireOwnerValue(owner));
+        if (!carriesPlanRuntime(context.runSnapshot)) {
+          throw new Error("WORKFLOW_PLAN_RUN_REQUIRED");
+        }
+        await projectRunEnd(
+          transaction,
+          context,
+          outcome,
+          owner,
+          "WORKFLOW_PLAN_PROJECTION_CONFLICT",
+        );
       });
     },
     async markEngineFailure(runId, reason, ownerReference) {
