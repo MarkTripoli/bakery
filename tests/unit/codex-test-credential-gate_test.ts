@@ -255,3 +255,165 @@ Deno.test("a dedicated directory is probed with HOME and CODEX_HOME pointed at i
     await Deno.remove(dedicated, { recursive: true });
   }
 });
+
+// --- QA round 1: a link to the operator's login file is the operator's login
+
+Deno.test("an auth.json that links to the operator's own login file is refused, however it is linked", async () => {
+  const operator = await sentinelOperator();
+  // A second login the operator could have named through CODEX_HOME or
+  // BAKERY_CODEX_AUTH_SOURCE_DIR instead of HOME.
+  const elsewhere = await Deno.makeTempDir({ prefix: "bakery-other-login-" });
+  await Deno.writeTextFile(join(elsewhere, "auth.json"), "OTHER-LOGIN");
+  const made: string[] = [];
+  try {
+    const targets: { name: string; env: Env; file: string }[] = [
+      {
+        name: "HOME/.codex",
+        env: operator.env,
+        file: join(operator.login, "auth.json"),
+      },
+      {
+        name: "CODEX_HOME",
+        env: { HOME: "/nonexistent-home", CODEX_HOME: elsewhere },
+        file: join(elsewhere, "auth.json"),
+      },
+      {
+        name: "BAKERY_CODEX_AUTH_SOURCE_DIR",
+        env: {
+          HOME: "/nonexistent-home",
+          BAKERY_CODEX_AUTH_SOURCE_DIR: elsewhere,
+        },
+        file: join(elsewhere, "auth.json"),
+      },
+    ];
+    const linkers: [string, (to: string, at: string) => Promise<void>][] = [
+      ["a symbolic link", (to, at) => Deno.symlink(to, at)],
+      ["a hard link", (to, at) => Deno.link(to, at)],
+    ];
+    for (const target of targets) {
+      for (const [how, link] of linkers) {
+        const dir = await Deno.makeTempDir({ prefix: "bakery-linked-codex-" });
+        made.push(dir);
+        await link(target.file, join(dir, "auth.json"));
+        const spy = spyProbe();
+        const env = { ...target.env, [CODEX_TEST_AUTH_DIR_ENV]: dir };
+        const result = await codexTestCredentialGate(
+          reader(env),
+          spy.probe,
+          EXECUTABLE,
+        );
+        assert(
+          typeof result === "string",
+          `${how} to ${target.name} was accepted`,
+        );
+        assertEquals(
+          spy.calls.length,
+          0,
+          `${how} to ${target.name} was probed`,
+        );
+        assertThrows(() => dedicatedCodexTestAuthSource(reader(env)), Error);
+      }
+    }
+  } finally {
+    for (const dir of made) await Deno.remove(dir, { recursive: true });
+    await Deno.remove(elsewhere, { recursive: true });
+    await Deno.remove(operator.home, { recursive: true });
+  }
+});
+
+Deno.test("any auth.json that is a link or has more than one link is refused, the operator's or not", async () => {
+  const other = await Deno.makeTempDir({ prefix: "bakery-unrelated-" });
+  await Deno.writeTextFile(join(other, "unrelated.json"), "{}");
+  const made: string[] = [];
+  try {
+    for (
+      const [how, link] of [
+        [
+          "a symlink to an unrelated file",
+          (at: string) => Deno.symlink(join(other, "unrelated.json"), at),
+        ],
+        [
+          "a second hard link to an unrelated file",
+          (at: string) => Deno.link(join(other, "unrelated.json"), at),
+        ],
+      ] as [string, (at: string) => Promise<void>][]
+    ) {
+      const dir = await Deno.makeTempDir({ prefix: "bakery-linked-codex-" });
+      made.push(dir);
+      await link(join(dir, "auth.json"));
+      const spy = spyProbe();
+      const env = { HOME: "/nonexistent-home", [CODEX_TEST_AUTH_DIR_ENV]: dir };
+      const result = await codexTestCredentialGate(
+        reader(env),
+        spy.probe,
+        EXECUTABLE,
+      );
+      assert(typeof result === "string", `${how} was accepted`);
+      assertEquals(spy.calls.length, 0, how);
+    }
+    // Not a regular file at all: refused as holding no auth.json, by that
+    // reason and not by the link count a directory happens to have.
+    const notAFile = await Deno.makeTempDir({ prefix: "bakery-notafile-" });
+    made.push(notAFile);
+    await Deno.mkdir(join(notAFile, "auth.json"));
+    const notAFileSpy = spyProbe();
+    const notAFileResult = await codexTestCredentialGate(
+      reader({
+        HOME: "/nonexistent-home",
+        [CODEX_TEST_AUTH_DIR_ENV]: notAFile,
+      }),
+      notAFileSpy.probe,
+      EXECUTABLE,
+    );
+    assert(
+      typeof notAFileResult === "string" &&
+        notAFileResult.includes("holds no auth.json"),
+      `a directory named auth.json: ${notAFileResult}`,
+    );
+    assertEquals(notAFileSpy.calls.length, 0);
+    // And the plain case still passes: one regular file, one link.
+    const plain = await dedicatedDirectory();
+    made.push(plain);
+    const spy = spyProbe(true);
+    assertEquals(
+      await codexTestCredentialGate(
+        reader({ HOME: "/nonexistent-home", [CODEX_TEST_AUTH_DIR_ENV]: plain }),
+        spy.probe,
+        EXECUTABLE,
+      ),
+      true,
+    );
+  } finally {
+    for (const dir of made) await Deno.remove(dir, { recursive: true });
+    await Deno.remove(other, { recursive: true });
+  }
+});
+
+Deno.test("the login is known even when HOME is unset or points elsewhere", async () => {
+  // The account's own home directory counts as well as the HOME variable.
+  const operator = await sentinelOperator();
+  try {
+    for (const home of [undefined, "/nonexistent-home"]) {
+      const spy = spyProbe();
+      const env: Env = { [CODEX_TEST_AUTH_DIR_ENV]: operator.login };
+      if (home !== undefined) env["HOME"] = home;
+      const result = await codexTestCredentialGate(
+        reader(env),
+        spy.probe,
+        EXECUTABLE,
+        () => operator.home,
+      );
+      assert(
+        typeof result === "string" && result.includes("operator's own"),
+        `HOME=${home} let the login through: ${result}`,
+      );
+      assertEquals(spy.calls.length, 0);
+      assertThrows(
+        () => dedicatedCodexTestAuthSource(reader(env), () => operator.home),
+        Error,
+      );
+    }
+  } finally {
+    await Deno.remove(operator.home, { recursive: true });
+  }
+});

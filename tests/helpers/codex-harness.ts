@@ -1,3 +1,4 @@
+import { userInfo } from "node:os";
 import { isAbsolute, join, resolve, sep } from "node:path";
 import {
   harnessAvailable,
@@ -49,15 +50,30 @@ function realPathOrResolved(path: string): string {
   }
 }
 
+/** The account's own home directory, which HOME may not name (unset, or elsewhere). */
+type AccountHome = () => string | undefined;
+
+const accountHomeDirectory: AccountHome = () => {
+  try {
+    return userInfo().homedir || undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 /** Every place the operator's own Codex login can be named. */
-function operatorLoginDirectories(env: EnvReader): string[] {
-  const home = env("HOME")?.trim();
+function operatorLoginDirectories(
+  env: EnvReader,
+  accountHome: AccountHome,
+): string[] {
+  const homes = [env("HOME")?.trim(), accountHome()?.trim()];
   return [
-    home ? join(home, ".codex") : undefined,
+    ...homes.map((home) => home ? join(home, ".codex") : undefined),
     env("CODEX_HOME")?.trim(),
     env("BAKERY_CODEX_AUTH_SOURCE_DIR")?.trim(),
   ].filter((path): path is string => Boolean(path))
-    .map(realPathOrResolved);
+    .map(realPathOrResolved)
+    .filter((path, index, all) => all.indexOf(path) === index);
 }
 
 /**
@@ -68,11 +84,34 @@ function operatorLoginDirectories(env: EnvReader): string[] {
 export function isOperatorCodexLogin(
   path: string,
   env: EnvReader = processEnv,
+  accountHome: AccountHome = accountHomeDirectory,
 ): boolean {
   const real = realPathOrResolved(path);
-  return operatorLoginDirectories(env).some((login) =>
+  return operatorLoginDirectories(env, accountHome).some((login) =>
     real === login || real.startsWith(login + sep)
   );
+}
+
+/**
+ * Whether a file is the operator's login file itself, by identity and not by
+ * path: a link to it is the same file under another name. Only metadata of the
+ * operator's files is looked at, and only once an opt-in is present.
+ */
+function isOperatorAuthFile(
+  info: Deno.FileInfo,
+  env: EnvReader,
+  accountHome: AccountHome,
+): boolean {
+  if (info.ino === null) return false;
+  for (const login of operatorLoginDirectories(env, accountHome)) {
+    try {
+      const operator = Deno.statSync(join(login, AUTH_FILE));
+      if (operator.dev === info.dev && operator.ino === info.ino) return true;
+    } catch {
+      // No login file there; nothing to be the same as.
+    }
+  }
+  return false;
 }
 
 /**
@@ -82,6 +121,7 @@ export function isOperatorCodexLogin(
  */
 function dedicatedDirectory(
   env: EnvReader,
+  accountHome: AccountHome,
 ): { readonly dir: string } | { readonly reason: string } {
   const raw = env(CODEX_TEST_AUTH_DIR_ENV)?.trim();
   if (!raw) {
@@ -103,18 +143,40 @@ function dedicatedDirectory(
       reason: `${CODEX_TEST_AUTH_DIR_ENV} is not an existing directory`,
     };
   }
-  if (isOperatorCodexLogin(real, env)) {
+  if (isOperatorCodexLogin(real, env, accountHome)) {
     return {
       reason: `${CODEX_TEST_AUTH_DIR_ENV} is the operator's own Codex login ` +
         "or inside it; use a separate dedicated directory",
     };
   }
+  let info: Deno.FileInfo;
   try {
-    if (!Deno.statSync(join(real, AUTH_FILE)).isFile) {
-      throw new Error("no file");
-    }
+    // lstat: a link is looked at, not followed. The login file reached through
+    // a symlink or a second hard link is still the operator's login.
+    info = Deno.lstatSync(join(real, AUTH_FILE));
   } catch {
     return { reason: `${CODEX_TEST_AUTH_DIR_ENV} holds no ${AUTH_FILE}` };
+  }
+  if (info.isSymlink) {
+    return {
+      reason: `${CODEX_TEST_AUTH_DIR_ENV}'s ${AUTH_FILE} is a symbolic link; ` +
+        "it must be a regular file of its own",
+    };
+  }
+  if (!info.isFile) {
+    return { reason: `${CODEX_TEST_AUTH_DIR_ENV} holds no ${AUTH_FILE}` };
+  }
+  if ((info.nlink ?? 1) > 1) {
+    return {
+      reason: `${CODEX_TEST_AUTH_DIR_ENV}'s ${AUTH_FILE} has more than one ` +
+        "hard link; it must be a file of its own",
+    };
+  }
+  if (isOperatorAuthFile(info, env, accountHome)) {
+    return {
+      reason: `${CODEX_TEST_AUTH_DIR_ENV}'s ${AUTH_FILE} is the operator's ` +
+        "own login file",
+    };
   }
   return { dir: raw };
 }
@@ -129,8 +191,9 @@ export async function codexTestCredentialGate(
   env: EnvReader,
   probe: CodexProbe,
   executable: string,
+  accountHome: AccountHome = accountHomeDirectory,
 ): Promise<string | true> {
-  const resolved = dedicatedDirectory(env);
+  const resolved = dedicatedDirectory(env, accountHome);
   if ("reason" in resolved) return resolved.reason;
   return await probe(executable, {
     HOME: resolved.dir,
@@ -155,8 +218,9 @@ export function codexHarnessAvailable(): Promise<string | true> {
  */
 export function dedicatedCodexTestAuthSource(
   env: EnvReader = processEnv,
+  accountHome: AccountHome = accountHomeDirectory,
 ): string {
-  const resolved = dedicatedDirectory(env);
+  const resolved = dedicatedDirectory(env, accountHome);
   if ("reason" in resolved) {
     throw new Error(`CODEX_TEST_CREDENTIALS_REQUIRED: ${resolved.reason}`);
   }

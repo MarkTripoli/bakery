@@ -232,27 +232,52 @@ async function* testFiles(dir: string): AsyncGenerator<string> {
   }
 }
 
-/** Ways a test can name the operator's own Codex login. */
-const OPERATOR_LOGIN: readonly [string, RegExp][] = [
-  ["the removed operator-login resolver", /operatorCodexAuthSource/],
-  [
-    "a read of CODEX_HOME from the environment",
-    /Deno\.env\.get\(\s*["']CODEX_HOME["']\s*\)/,
-  ],
-  [
-    "a read of BAKERY_CODEX_AUTH_SOURCE_DIR from the environment",
-    /Deno\.env\.get\(\s*["']BAKERY_CODEX_AUTH_SOURCE_DIR["']\s*\)/,
-  ],
-  [
-    "HOME joined with .codex",
-    /join\(\s*home\s*,\s*["']\.codex["']\s*\)|\$\{\s*home\s*\}\/\.codex|\$\{\s*Deno\.env\.get\(\s*["']HOME["']\s*\)\s*\}\/\.codex/,
-  ],
-];
+/** Adjacent string literals joined, so ".cod" + "ex" is seen as ".codex". */
+export function withLiteralsJoined(source: string): string {
+  return source.replace(/(["'`])\s*\+\s*\1/g, "");
+}
 
-// The only places allowed to name it, and why.
+type Reason = "path" | "variable" | "environment";
+
+/** Test or worker code that can start the Codex harness from configuration. */
+const ENABLES_CODEX_HARNESS =
+  /\b(?:createCodexHarnessExecutor|readWorkerConfig|loadWorkerConfig|BAKERY_CODEX_HARNESS|BAKERY_CODING_HARNESS)\b/;
+
+/** Reading HOME, or the whole process environment, which hands a child the operator's. */
+const READS_ENVIRONMENT =
+  /Deno\.env\.toObject\s*\(|\bprocess\.env\b|\bhomedir\s*\(|\buserInfo\s*\(|Deno\.env\.get\(\s*["'`]HOME["'`]/;
+
+/**
+ * Every way a test can reach the operator's own Codex login that a source scan
+ * can see:
+ * - `path`: the literal path segment `.codex` (any spelling that ends up as one
+ *   string once adjacent literals are joined), or the removed resolver;
+ * - `variable`: a mention of CODEX_HOME or BAKERY_CODEX_AUTH_SOURCE_DIR, which
+ *   the worker falls back through before `$HOME/.codex`;
+ * - `environment`: a file that can start the Codex harness from configuration
+ *   AND reads HOME or the whole process environment, without going through
+ *   `dedicatedCodexTestAuthSource()`. That pair is what lets worker code
+ *   resolve `$HOME/.codex` for itself; reading HOME on its own is not it.
+ */
+export function operatorLoginReasons(source: string): Reason[] {
+  const text = withLiteralsJoined(source);
+  const found = new Set<Reason>();
+  if (/["'`/]\.codex(?:["'`/]|\b)/.test(text)) found.add("path");
+  if (/\boperatorCodexAuthSource\b/.test(text)) found.add("path");
+  if (/\b(?:CODEX_HOME|BAKERY_CODEX_AUTH_SOURCE_DIR)\b/.test(text)) {
+    found.add("variable");
+  }
+  if (
+    READS_ENVIRONMENT.test(text) && ENABLES_CODEX_HARNESS.test(text) &&
+    !/\bdedicatedCodexTestAuthSource\s*\(/.test(text)
+  ) found.add("environment");
+  return [...found];
+}
+
+// The only places allowed to name it at all, and why.
 const ALLOWED: Record<string, string> = {
   "tests/helpers/codex-harness.ts":
-    "the one door: it reads these names only to refuse them as an opt-in",
+    "the one door: it names these only to refuse them as an opt-in",
   "tests/provider/real-cli-conformance_test.ts":
     "has its own explicit opt-in, BAKERY_PROVIDER_REAL_CLI, checked by realHarnessGate",
   "tests/rails/codex-test-credentials_test.ts": "this rail names the patterns",
@@ -260,30 +285,174 @@ const ALLOWED: Record<string, string> = {
     "builds sentinel homes in temporary directories to prove the gate refuses them",
 };
 
+// Files that name `.codex` as a path inside a home directory they invent. Each
+// says why that is not the operator's.
+const MAY_NAME_PATH: Record<string, string> = {
+  "tests/provider/harness-credential-isolation_test.ts":
+    "plants .codex/auth.json in a temporary home it builds, to prove the harness never copies it",
+  "tests/unit/worker-codex-harness-config_test.ts":
+    "resolves paths from literal environment maps with fake directories like /home/bakery; touches no real environment",
+  "tests/unit/worker-codex-harness_test.ts":
+    "builds a temporary 'operator home' with a .codex in it and proves the Codex child never sees it",
+};
+
+// Files that mention the two login variables without reading the operator's
+// environment for them. Each says what it does with them.
+const MAY_NAME_VARIABLES: Record<string, string> = {
+  "tests/e2e/implement-independent-review-and-bounded-repair-loops.child.ts":
+    "sets BAKERY_CODEX_AUTH_SOURCE_DIR to ${scratch}/codex-auth, a directory it creates",
+  "tests/e2e/run-deterministic-checks-bound-to-candidate-and-metadata.child.ts":
+    "sets BAKERY_CODEX_AUTH_SOURCE_DIR to ${scratch}/codex-auth, a directory it creates",
+  "tests/helpers/deterministic-checks/runner-cases.ts":
+    "sets BAKERY_CODEX_AUTH_SOURCE_DIR to syntheticAuthSource(), a generated stand-in",
+  "tests/helpers/harness-conformance.ts":
+    "names CODEX_HOME as the variable the harness sets for its child, and probes inside the child's own home",
+  "tests/provider/harness-credential-isolation_test.ts":
+    "lists the variable names a harness must scrub from a child's environment",
+  "tests/security/run-one-real-bounded-codex-harness-through-the-worker_test.ts":
+    "reads CODEX_HOME from the environment a child process reported, and asks the door whether it is the login",
+  "tests/unit/worker-codex-harness-config_test.ts":
+    "feeds literal environment maps to readWorkerConfig; touches no real environment",
+  "tests/unit/worker-codex-harness_test.ts":
+    "asserts what CODEX_HOME the fake Codex child received",
+};
+
+// Files that start the harness from configuration and read HOME. Each says what for.
+const MAY_READ_ENVIRONMENT: Record<string, string> = {
+  "tests/unit/worker-codex-harness_test.ts":
+    "points HOME at a temporary 'operator home' for the test and restores it; the real HOME is never used",
+};
+
+const ALLOW_BY_REASON: Record<Reason, Record<string, string>> = {
+  path: MAY_NAME_PATH,
+  variable: MAY_NAME_VARIABLES,
+  environment: MAY_READ_ENVIRONMENT,
+};
+
+/**
+ * What is wrong with one file's raw source. A file the comment scanner cannot
+ * read to the end is reported, never skipped: a scan that quietly passes what
+ * it could not read proves nothing.
+ */
+export function offendersOfSource(relative: string, raw: string): string[] {
+  let source: string;
+  try {
+    source = withoutComments(raw);
+  } catch (error) {
+    return [`${relative}: ${error instanceof Error ? error.message : error}`];
+  }
+  return offendersOf(relative, source);
+}
+
+function offendersOf(relative: string, source: string): string[] {
+  return operatorLoginReasons(source)
+    .filter((reason) => !Object.hasOwn(ALLOW_BY_REASON[reason], relative))
+    .map((reason) => `${relative}: ${reason}`);
+}
+
+Deno.test("the patterns see every way QA found to reach the login, and nothing harmless", () => {
+  const shapes: [string, string][] = [
+    ["join with a HOME variable", 'join(home, ".codex")'],
+    ["join with HOME read inline", 'join(Deno.env.get("HOME")!, ".codex")'],
+    ["a template with another variable name", "`${h}/.codex`"],
+    ["HOME plus a slash path", 'HOME + "/.codex"'],
+    ["a name split across literals", '".cod" + "ex"'],
+    ["a split single-quoted name", "'.co' + 'dex'"],
+    [
+      "the whole environment, then CODEX_HOME",
+      "Deno.env.toObject().CODEX_HOME",
+    ],
+    ["Node's environment", "process.env.CODEX_HOME"],
+    ["the home directory function", 'join(homedir(), ".codex")'],
+    ["resolve with a HOME variable", 'resolve(HOME, ".codex")'],
+    ["a tilde path", '"~/.codex"'],
+    [
+      "the old auth-source variable",
+      "Deno.env.get('BAKERY_CODEX_AUTH_SOURCE_DIR')",
+    ],
+    ["CODEX_HOME read directly", 'Deno.env.get("CODEX_HOME")'],
+    [
+      "the account's home directory handed to the harness",
+      "createCodexHarnessExecutor({ authSourceDir: os.userInfo().homedir })",
+    ],
+    [
+      "worker config built from the whole environment",
+      "readWorkerConfig(Deno.env.toObject())",
+    ],
+    [
+      "worker config built from process.env",
+      "loadWorkerConfig(process.env)",
+    ],
+    [
+      "the harness enabled with HOME read",
+      'env: { BAKERY_CODEX_HARNESS: "1", HOME: Deno.env.get("HOME") }',
+    ],
+    ["the removed resolver", "operatorCodexAuthSource()"],
+  ];
+  for (const [name, code] of shapes) {
+    assert(
+      operatorLoginReasons(withoutComments(code)).length > 0,
+      `not seen: ${name}: ${code}`,
+    );
+  }
+  // The same shapes in a comment are nothing, and ordinary code is nothing.
+  for (const [, code] of shapes) {
+    assertEquals(operatorLoginReasons(withoutComments(`// ${code}\n`)), []);
+  }
+  for (
+    const harmless of [
+      "const config = { codexHarness: { repository: dir } };",
+      "assertEquals(plain.codexHarness, undefined);",
+      'const harness = "codex"; const exe = codexExecutablePath();',
+      "const homeless = 1; const dotted = x.codex.y;",
+      'join(scratch, ".git")',
+      "const note = `home is ${dir}`;",
+    ]
+  ) {
+    assertEquals(operatorLoginReasons(withoutComments(harmless)), [], harmless);
+  }
+});
+
+Deno.test("a file the scanner cannot read is reported, not skipped", () => {
+  for (
+    const broken of [
+      'const s = "never closed',
+      "/* never closed",
+      "const t = `never closed",
+    ]
+  ) {
+    const found = offendersOfSource("tests/unit/some_test.ts", broken);
+    assertEquals(found.length, 1, broken);
+    assert(found[0]!.startsWith("tests/unit/some_test.ts: cannot scan source"));
+  }
+  // And a readable file with a problem is still reported as before.
+  assertEquals(
+    offendersOfSource("tests/unit/some_test.ts", 'join(home, ".codex")'),
+    ["tests/unit/some_test.ts: path"],
+  );
+  assertEquals(
+    offendersOfSource("tests/unit/some_test.ts", "const a = 1;"),
+    [],
+  );
+});
+
 Deno.test("no test file reaches the operator's Codex login except the sanctioned ones", async () => {
   const offenders: string[] = [];
   for await (const path of testFiles(join(REPO, "tests"))) {
     const relative = path.slice(REPO.length);
     if (Object.hasOwn(ALLOWED, relative)) continue;
-    let source: string;
-    try {
-      source = withoutComments(await Deno.readTextFile(path));
-    } catch (error) {
-      offenders.push(
-        `${relative}: ${error instanceof Error ? error.message : error}`,
-      );
-      continue;
-    }
-    for (const [what, pattern] of OPERATOR_LOGIN) {
-      if (pattern.test(source)) offenders.push(`${relative}: ${what}`);
-    }
+    offenders.push(
+      ...offendersOfSource(relative, await Deno.readTextFile(path)),
+    );
   }
   assertEquals(
     offenders,
     [],
-    "A test resolves the operator's own Codex login. Use " +
-      "dedicatedCodexTestAuthSource() from tests/helpers/codex-harness.ts, which " +
-      `requires ${CODEX_TEST_AUTH_DIR_ENV}.`,
+    "A test reaches the operator's own Codex login, or reads the environment " +
+      "that would let it. Use dedicatedCodexTestAuthSource() from " +
+      `tests/helpers/codex-harness.ts, which requires ${CODEX_TEST_AUTH_DIR_ENV}; ` +
+      "or, for a file that only passes a variable to a child it spawns, add it " +
+      "to MAY_NAME_VARIABLES or MAY_READ_ENVIRONMENT with the reason.",
   );
 });
 
