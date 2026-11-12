@@ -108,9 +108,14 @@ export function usePagedFocus(
     }
   }, [name, pending, failed, rowCount, hasMore]);
   return {
-    /** Call from the click that loads more (`"more"`) or retries a failed first read (`"first"`). */
-    ask: (kind: "more" | "first" = "more") => {
-      asked.current = { rows: settled.current, kind };
+    /**
+     * Call from the click that loads more (`"more"`) or retries a failed first
+     * read (`"first"`). `firstNew` is the index of the first row the load adds
+     * when that is not just after the rows drawn now: a list that swaps its
+     * continuation page for the next one keeps the first page and replaces the rest.
+     */
+    ask: (kind: "more" | "first" = "more", firstNew?: number) => {
+      asked.current = { rows: firstNew ?? settled.current, kind };
     },
   };
 }

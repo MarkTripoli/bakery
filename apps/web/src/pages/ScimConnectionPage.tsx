@@ -276,7 +276,9 @@ export function ScimConnectionPage() {
                                     : "neutral"}
                                 >
                                   <UI.VisuallyHidden>
-                                    {translate("settings.scim.column.status")}:
+                                    {`${
+                                      translate("settings.scim.column.status")
+                                    }: `}
                                   </UI.VisuallyHidden>
                                   {translate(
                                     `settings.scim.credential.${row.status}`,

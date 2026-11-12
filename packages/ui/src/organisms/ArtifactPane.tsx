@@ -142,7 +142,6 @@ export function ArtifactPane(
           {versions.length > 0 && (
             <Combobox
               appearance="filter"
-              data-paged-list="versions"
               disabled={state === "loading"}
               label={labels.versionSelect}
               onChange={(event) => onVersionChange(event.target.value)}

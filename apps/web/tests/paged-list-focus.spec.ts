@@ -141,13 +141,17 @@ const worker = (index: number) => ({
   version: 1,
 });
 
-/** Machines: `builder-1, builder-2`, then `builder-3`. `failContinuation` fails the second page once. */
+/**
+ * Machines: `builder-1, builder-2`, then `builder-3` (the page reads this
+ * continuation by itself), then `builder-4` behind Load more, which replaces
+ * the continuation. `failLastPage` fails the Load more request once.
+ */
 async function machinesFixture(
   page: Page,
-  options: { failContinuation?: boolean } = {},
+  options: { failLastPage?: boolean } = {},
 ) {
   await mockAuthenticatedSession(page);
-  let failures = options.failContinuation ? 1 : 0;
+  let failures = options.failLastPage ? 1 : 0;
   await page.route(
     `**/v1/organizations/${MOCK_ORGANIZATION_ID}/effective-access`,
     (route) =>
@@ -165,7 +169,7 @@ async function machinesFixture(
     (url) => url.pathname === "/v1/workers",
     (route) => {
       const cursor = new URL(route.request().url()).searchParams.get("cursor");
-      if (cursor && failures > 0) {
+      if (cursor === "w3" && failures > 0) {
         failures -= 1;
         return route.fulfill(problem(500, "INTERNAL_ERROR"));
       }
@@ -173,8 +177,10 @@ async function machinesFixture(
         status: 200,
         contentType: "application/json",
         body: JSON.stringify(
-          cursor
-            ? { items: [worker(3)], nextCursor: null }
+          cursor === "w3"
+            ? { items: [worker(4)], nextCursor: null }
+            : cursor === "w2"
+            ? { items: [worker(3)], nextCursor: "w3" }
             : { items: [worker(1), worker(2)], nextCursor: "w2" },
         ),
       });
@@ -207,13 +213,13 @@ for (
       await more.click();
       await expect(more).toHaveCount(0);
       const added = viewport.name === "phone"
-        ? page.getByRole("listitem").filter({ hasText: "builder-3" })
-        : page.getByRole("row").filter({ hasText: "builder-3" });
+        ? page.getByRole("listitem").filter({ hasText: "builder-4" })
+        : page.getByRole("row").filter({ hasText: "builder-4" });
       await expect(added).toBeFocused();
     });
 
     test("a failed load of more machines leaves focus on the button that retries it", async ({ page }) => {
-      await machinesFixture(page, { failContinuation: true });
+      await machinesFixture(page, { failLastPage: true });
       await page.goto("/machines");
       const more = page.getByRole("button", { name: "Load more" });
       await more.click();
@@ -222,8 +228,8 @@ for (
       await expect(more).toBeFocused();
       await more.click();
       const added = viewport.name === "phone"
-        ? page.getByRole("listitem").filter({ hasText: "builder-3" })
-        : page.getByRole("row").filter({ hasText: "builder-3" });
+        ? page.getByRole("listitem").filter({ hasText: "builder-4" })
+        : page.getByRole("row").filter({ hasText: "builder-4" });
       await expect(added).toBeFocused();
     });
   });

@@ -122,7 +122,8 @@ for (
       await page.goto("/installation/audit");
       const more = page.getByRole("button", { name: "Load older events" });
       await more.click();
-      await expect(page.getByText("The audit log could not be loaded."))
+      // The banner and the table both say so.
+      await expect(page.getByText("The audit log could not be loaded.").first())
         .toBeVisible();
       await expect(more).toBeFocused();
       await more.click();

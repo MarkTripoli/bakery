@@ -730,7 +730,7 @@ function EnrollmentPanel({
               : undefined}
             disabled={enrollmentContinuation.isFetching}
             onClick={() => {
-              enrollmentPaging.ask();
+              enrollmentPaging.ask("more", enrollments.data?.items.length);
               if (enrollmentContinuation.isError) {
                 void enrollmentContinuation.refetch();
               } else setEnrollmentCursor(nextEnrollmentCursor);
@@ -1093,7 +1093,7 @@ export function MachinesPage() {
                       : undefined}
                     disabled={workerContinuation.isFetching}
                     onClick={() => {
-                      workerPaging.ask();
+                      workerPaging.ask("more", workers.data?.items.length);
                       if (workerContinuation.isError) {
                         void workerContinuation.refetch();
                       } else setWorkerCursor(nextWorkerCursor);
