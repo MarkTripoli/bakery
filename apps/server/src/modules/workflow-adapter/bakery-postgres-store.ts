@@ -6,6 +6,7 @@ import {
   assertSecretIdentityRepositoryAdmission,
   executionJobInputFitsTransport,
   loadExecutableRepositoryProfile,
+  planDispatchFromRow,
   repositoryExecutionRequirements,
 } from "@bakery/persistence/repository-admission";
 import { StandardError } from "@bakery/contracts/http";
@@ -130,6 +131,8 @@ type LogicalRow = {
   stepStatus: string;
   stepOutput: unknown;
   stepError: unknown;
+  /** What the engine decided for a compiled-plan step; null for a flat run's. */
+  stepDispatch: unknown;
   jobId: string | null;
   action: string | null;
   jobStatus: string | null;
@@ -178,6 +181,7 @@ type AdmissionStepRow = Pick<
   | "stepStatus"
   | "stepOutput"
   | "stepError"
+  | "stepDispatch"
   | "jobId"
   | "jobStatus"
   | "cancelRequestedAt"
@@ -382,6 +386,7 @@ async function loadLogical(
             step.id as "runStepId", step.step_key as "stepKey",
             step.iteration, step.status as "stepStatus",
             step.output as "stepOutput", step.error as "stepError",
+            step.dispatch as "stepDispatch",
             job.id as "jobId", job.action,
             job.status as "jobStatus",
             job.cancel_requested_at as "cancelRequestedAt",
@@ -753,6 +758,33 @@ async function finishPlanRunIn(
 }
 
 /**
+ * Asks a plan run's own interpreter revision what to do next, from the frozen
+ * document, inputs and task and the stored step rows. Throws the adapter's or
+ * the interpreter's stable error when the plan cannot be read.
+ */
+async function askPlan(
+  transaction: PgTransactionClient,
+  run: Pick<RunEndRow, "organizationId" | "runId" | "runSnapshot">,
+) {
+  const runtime = await planRuntimeFromSnapshot(run.runSnapshot);
+  if (runtime === null) throw new PlanStateError("plan_snapshot_invalid");
+  const rows = await transaction.query<
+    { stepKey: string; iteration: number; status: string; output: unknown }
+  >(
+    `select step_key as "stepKey", iteration, status, output
+       from bakery.run_steps
+      where organization_id = $1 and run_id = $2
+      order by position, id`,
+    [run.organizationId, run.runId],
+  );
+  return nextPlanStep(runtime, {
+    inputs: planInputsFromSnapshot(run.runSnapshot),
+    task: planTaskFromSnapshot(run.runSnapshot),
+    rows: rows.rows,
+  });
+}
+
+/**
  * What the engine does next for a compiled-plan run, or `null` for a flat run,
  * which keeps the row-order loop. The run's own interpreter revision answers
  * from the frozen document and the stored rows: a dispatch gets its step row
@@ -773,22 +805,7 @@ async function findNextPlanKey(
   const activeOwner = requireOwnerValue(owner);
   let answer;
   try {
-    const runtime = await planRuntimeFromSnapshot(context.runSnapshot);
-    if (runtime === null) throw new PlanStateError("plan_snapshot_invalid");
-    const rows = await transaction.query<
-      { stepKey: string; iteration: number; status: string; output: unknown }
-    >(
-      `select step_key as "stepKey", iteration, status, output
-         from bakery.run_steps
-        where organization_id = $1 and run_id = $2
-        order by position, id`,
-      [context.organizationId, context.runId],
-    );
-    answer = nextPlanStep(runtime, {
-      inputs: planInputsFromSnapshot(context.runSnapshot),
-      task: planTaskFromSnapshot(context.runSnapshot),
-      rows: rows.rows,
-    });
+    answer = await askPlan(transaction, context);
   } catch (error) {
     if (
       error instanceof PlanStateError ||
@@ -823,9 +840,11 @@ async function findNextPlanKey(
   }
   await transaction.query(
     `insert into bakery.run_steps (
-       organization_id, run_id, step_key, position, iteration, status, input
+       organization_id, run_id, step_key, position, iteration, status, input,
+       dispatch
      )
-     select $1, $2, $3, coalesce(max(position), 0) + 1, 0, 'pending', $4::jsonb
+     select $1, $2, $3, coalesce(max(position), 0) + 1, 0, 'pending', $4::jsonb,
+            $5::jsonb
        from bakery.run_steps
       where organization_id = $1 and run_id = $2
      on conflict (run_id, step_key, iteration) do nothing`,
@@ -834,6 +853,7 @@ async function findNextPlanKey(
       context.runId,
       answer.step.key,
       JSON.stringify(answer.step.input),
+      JSON.stringify(answer.step),
     ],
   );
   return {
@@ -1384,6 +1404,12 @@ export function createBakeryPostgresWorkflowRepository(options: {
         ) {
           return { key, terminal: true };
         }
+        // A compiled-plan step carries the dispatch the engine recorded with
+        // its row; actionAndInputFromSnapshot reads it, and the step's own
+        // declared attempts become the job's.
+        const planDispatch = carriesPlanRuntime(row.runSnapshot)
+          ? planDispatchFromRow(row.stepDispatch)
+          : null;
         const {
           action,
           input: resolvedInput,
@@ -1487,7 +1513,9 @@ export function createBakeryPostgresWorkflowRepository(options: {
             row.runStepId,
             action,
             JSON.stringify(input ?? {}),
-            action === "secret.identity.read" ? 1 : options.maxAttempts,
+            action === "secret.identity.read"
+              ? 1
+              : planDispatch?.retry.maxAttempts ?? options.maxAttempts,
             row.runApplicationId,
             row.runRepositoryId,
             row.runRepositoryProfileId,

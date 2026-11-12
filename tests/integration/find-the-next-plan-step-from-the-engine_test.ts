@@ -1,12 +1,14 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { createBakeryPostgresWorkflowRepository } from "../../apps/server/src/modules/workflow-adapter/bakery-postgres-store.ts";
-import {
-  nextPlanStep,
-  planRuntimeFromSnapshot,
-} from "../../apps/server/src/modules/workflow-adapter/plan-state.ts";
 import { pinWorkflowRuntime } from "../../packages/contracts/src/workflow-interpreter/mod.ts";
 import { seedFundedModelJob } from "../helpers/funded-model-job.ts";
-import type { WorkerFixture } from "../helpers/worker-execution.ts";
+import {
+  audit,
+  rows,
+  seedPlanRun,
+  setRow,
+  state,
+} from "../helpers/plan-run.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import { compiled, noop } from "../helpers/workflow-interpreter.ts";
 
@@ -14,8 +16,6 @@ import { compiled, noop } from "../helpers/workflow-interpreter.ts";
 // interpreter revision, appends the next step row on demand, and ends the run
 // when the plan is finished or halted. The funded fixture gives a run with one
 // open row; the plan is shaped so that row is the plan's first dispatch.
-
-type Document = Awaited<ReturnType<typeof compiled>>;
 
 const chain = () =>
   compiled([
@@ -34,111 +34,6 @@ const repeating = () =>
       outputs: { currentCandidate: { n: "$step.loop.bump.next" } },
     },
   }, noop("report", { with: { outcome: "$step.loop.outcome" } })]);
-
-async function seedPlanRun(fixture: WorkerFixture, document: Document) {
-  const job = await seedFundedModelJob(
-    fixture.pgDatabase,
-    fixture.organizationId,
-    fixture.principalId,
-  );
-  const pin = await pinWorkflowRuntime(document);
-  await fixture.pgDatabase.query(
-    `update bakery.workflow_runs
-        set status = 'running',
-            snapshot = snapshot || jsonb_build_object(
-              'inputs', '{}'::jsonb, 'task', '{}'::jsonb,
-              'runtime', jsonb_build_object('pin', $3::jsonb, 'document', $4::jsonb))
-      where organization_id = $1 and id = $2`,
-    [
-      fixture.organizationId,
-      job.runId,
-      JSON.stringify(pin),
-      JSON.stringify(document),
-    ],
-  );
-  await fixture.pgDatabase.query(
-    `update bakery.tasks set status = 'active' where organization_id = $1 and id = $2`,
-    [fixture.organizationId, job.taskId],
-  );
-  // The fixture's one open row becomes the plan's first step.
-  const snapshot = (await fixture.pgDatabase.query<{ snapshot: unknown }>(
-    `select snapshot from bakery.workflow_runs where id = $1`,
-    [job.runId],
-  )).rows[0].snapshot;
-  const runtime = await planRuntimeFromSnapshot(snapshot);
-  assert(runtime !== null);
-  const first = nextPlanStep(runtime, { inputs: {}, task: {}, rows: [] });
-  assert(first.kind === "dispatch");
-  await fixture.pgDatabase.query(
-    `update bakery.run_steps set step_key = $2 where run_id = $1`,
-    [job.runId, first.step.key],
-  );
-  const repository = createBakeryPostgresWorkflowRepository({
-    database: fixture.pgDatabase,
-    maxAttempts: 3,
-  });
-  const owner = await repository.acquireEngineOwner(
-    job.runId,
-    `e3b2a-${crypto.randomUUID()}`,
-    60_000,
-  );
-  assert(owner !== undefined);
-  const versionId = (await fixture.pgDatabase.query<{ id: string }>(
-    `select workflow_version_id as id from bakery.workflow_runs where id = $1`,
-    [job.runId],
-  )).rows[0].id;
-  return { job, repository, owner, firstKey: first.step.key, versionId };
-}
-
-type Seeded = Awaited<ReturnType<typeof seedPlanRun>>;
-
-async function rows(fixture: WorkerFixture, seeded: Seeded) {
-  return (await fixture.pgDatabase.query<
-    { stepKey: string; status: string; position: number; input: unknown }
-  >(
-    `select step_key as "stepKey", status, position, input
-       from bakery.run_steps where run_id = $1 order by position, id`,
-    [seeded.job.runId],
-  )).rows;
-}
-
-async function state(fixture: WorkerFixture, seeded: Seeded) {
-  const run = (await fixture.pgDatabase.query<
-    { status: string; finishedAt: string | null; owner: string | null }
-  >(
-    `select status, finished_at::text as "finishedAt",
-            engine_owner_token as owner
-       from bakery.workflow_runs where id = $1`,
-    [seeded.job.runId],
-  )).rows[0];
-  const task = (await fixture.pgDatabase.query<{ status: string }>(
-    `select status from bakery.tasks where id = $1`,
-    [seeded.job.taskId],
-  )).rows[0];
-  return { run, task };
-}
-
-const setRow = (
-  fixture: WorkerFixture,
-  seeded: Seeded,
-  key: string,
-  status: string,
-  output: unknown = null,
-) =>
-  fixture.pgDatabase.query(
-    `update bakery.run_steps
-        set status = $3, output = $4::jsonb,
-            finished_at = case when $3 in ('completed','failed','canceled') then now() else null end
-      where run_id = $1 and step_key = $2`,
-    [seeded.job.runId, key, status, JSON.stringify(output)],
-  );
-
-const audit = async (fixture: WorkerFixture, seeded: Seeded) =>
-  (await fixture.pgDatabase.query<{ code: string }>(
-    `select details->>'code' as code from bakery.audit_events
-      where resource_id = $1 and operation = 'workflow.plan_failed'`,
-    [seeded.job.runId],
-  )).rows.map((row) => row.code);
 
 Deno.test("the first dispatch finds its row and returns its key, again and again", () =>
   withWorkerFixture(async (fixture) => {
