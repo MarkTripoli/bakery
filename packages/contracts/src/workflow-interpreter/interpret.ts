@@ -1,3 +1,4 @@
+import { cloneJson } from "./clone.ts";
 import type {
   WorkflowActionNode,
   WorkflowNode,
@@ -487,11 +488,14 @@ class Run {
  * recorded, and a dispatch also carries the document's own `retry` and
  * `requires`. Without the copy, a host that edited a dispatch (to inject a
  * field, say) would silently edit the recorded output, the document and every
- * later answer.
+ * later answer. State must be plain JSON: a recorded value that is not makes
+ * this throw `state_not_json`. The copy costs time linear in the size of the
+ * answer, which includes any large payload the step references, and the host
+ * calls this once per step.
  */
 export function nextStep(
   document: WorkflowSemanticDocument,
   state: RunState,
 ): NextStep {
-  return structuredClone(new Run(document, state).next());
+  return cloneJson(new Run(document, state).next()) as NextStep;
 }
