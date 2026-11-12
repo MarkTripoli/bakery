@@ -1,3 +1,4 @@
+import { SERVER_DISPATCH_LAUNCHER } from "../src/platform/server-exec.ts";
 import { SENTRY_SERVER_ENVIRONMENT_NAMES } from "@bakery/config/sentry";
 
 const allowedNames = [
@@ -60,17 +61,24 @@ export function dispatchEnvironment(
   return environment;
 }
 
+/**
+ * The dispatcher child. The supervisor's only run grant is the fixed
+ * launcher infra/server-exec/dispatch.sh, which execs this same Deno on
+ * src/dispatch.ts with --allow-env --allow-net; granting Deno itself would let
+ * the supervisor run anything through `deno eval`.
+ */
 export function createDispatchLaunch(
-  target = Deno.args[0] ?? "src/dispatch.ts",
   inherited: Record<string, string | undefined> =
     inheritedDispatchEnvironment(),
 ): {
+  command: string;
   args: readonly string[];
   clearEnv: true;
   env: Record<string, string>;
 } {
   return {
-    args: ["run", "--allow-env", "--allow-net", target],
+    command: SERVER_DISPATCH_LAUNCHER,
+    args: [],
     clearEnv: true,
     env: dispatchEnvironment(inherited),
   };
@@ -78,7 +86,7 @@ export function createDispatchLaunch(
 
 if (import.meta.main) {
   const launch = createDispatchLaunch();
-  const child = new Deno.Command("deno", {
+  const child = new Deno.Command(launch.command, {
     args: [...launch.args],
     clearEnv: launch.clearEnv,
     env: launch.env,

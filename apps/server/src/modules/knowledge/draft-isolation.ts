@@ -1,3 +1,7 @@
+import {
+  SERVER_DRAFT_SYSTEMD_LAUNCHER,
+  systemdLauncherArgs,
+} from "../../platform/server-exec.ts";
 import { readDraftIsolationLauncher } from "@bakery/config";
 import { DRAFT_LIMITS, type DraftCandidate } from "./drafts.ts";
 
@@ -200,6 +204,8 @@ type IsolationOptions = {
    * file, FFI, import or subprocess access.
    */
   launcher?: "systemd" | "process";
+  /** systemd launcher (infra/server-exec/draft-systemd.sh); tests point at a copy. */
+  systemdLauncherPath?: string;
   /** Process launcher only: the fixed launcher script (tests point at a copy). */
   workerLauncherPath?: string;
   systemdRunPath?: string;
@@ -408,7 +414,9 @@ async function boundedCommand(
   let child: Deno.ChildProcess;
   try {
     child = new Deno.Command(executable, {
-      args: [...args],
+      args: executable === SERVER_DRAFT_SYSTEMD_LAUNCHER
+        ? systemdLauncherArgs(args)
+        : [...args],
       stdin: "null",
       stdout: "piped",
       stderr: "piped",
@@ -1001,7 +1009,9 @@ async function systemctl(
 ): Promise<Deno.CommandOutput> {
   try {
     return await new Deno.Command(executable, {
-      args: ["--user", ...args],
+      args: executable === SERVER_DRAFT_SYSTEMD_LAUNCHER
+        ? systemdLauncherArgs(["--user", ...args])
+        : ["--user", ...args],
       stdout: "piped",
       stderr: "piped",
     }).output();
@@ -1082,6 +1092,35 @@ async function verifyBoundaryRemoved(
  * everything else it is given, and execs Deno on the fixed worker module with
  * pinned flags; see infra/draft-worker/launch.sh.
  */
+
+/**
+ * The draft worker unit's fixed properties. RuntimeMaxSec is not among them:
+ * it is the per-isolation backstop above both deadlines (runtimeMaxSeconds),
+ * passed to infra/server-exec/draft-systemd.sh as its `run` operand. The
+ * launcher pins the same list (tests/unit/server-exec-launchers_test.ts).
+ */
+export const SYSTEMD_UNIT_PROPERTIES: readonly string[] = Object.freeze([
+  `--property=MemoryMax=${DRAFT_LIMITS.workerMemoryBytes}`,
+  "--property=MemorySwapMax=0",
+  `--property=TasksMax=${DRAFT_LIMITS.workerTasks}`,
+  "--property=CPUQuota=100%",
+  "--property=TimeoutStopSec=100ms",
+  "--property=KillMode=control-group",
+  "--property=SendSIGKILL=yes",
+  "--property=OOMPolicy=kill",
+  "--property=PrivateNetwork=yes",
+  "--property=RestrictAddressFamilies=AF_UNIX",
+  "--property=ProtectSystem=strict",
+  "--property=ProtectHome=read-only",
+  "--property=PrivateDevices=yes",
+  "--property=NoNewPrivileges=yes",
+  "--property=LockPersonality=yes",
+  "--property=RestrictSUIDSGID=yes",
+  "--property=RemoveIPC=yes",
+  "--property=TemporaryFileSystem=/tmp:ro",
+  "--property=InaccessiblePaths=/var/tmp",
+]);
+
 export const DRAFT_WORKER_LAUNCHER = "/workspace/infra/draft-worker/launch.sh";
 
 export function createDraftIsolation(
@@ -1090,9 +1129,19 @@ export function createDraftIsolation(
   const launcher = options.launcher ?? readDraftIsolationLauncher();
   const workerLauncherPath = options.workerLauncherPath ??
     DRAFT_WORKER_LAUNCHER;
+  // In production every systemd call goes through the fixed launcher, the
+  // only systemd path the server may run. Tests that inject their own
+  // systemd-run, worker or Deno use the tools directly (their lanes grant
+  // --allow-run broadly); the launcher pins the real worker and Deno.
+  const systemdLauncher = options.systemdRunPath === undefined &&
+    options.workerPath === undefined && options.denoPath === undefined;
+  const systemdLauncherPath = options.systemdLauncherPath ??
+    SERVER_DRAFT_SYSTEMD_LAUNCHER;
   const systemdRunPath = options.systemdRunPath ?? "/usr/bin/systemd-run";
-  const systemctlPath = options.systemctlPath ?? "/usr/bin/systemctl";
-  const journalctlPath = options.journalctlPath ?? "/usr/bin/journalctl";
+  const systemctlPath = options.systemctlPath ??
+    (systemdLauncher ? SERVER_DRAFT_SYSTEMD_LAUNCHER : "/usr/bin/systemctl");
+  const journalctlPath = options.journalctlPath ??
+    (systemdLauncher ? SERVER_DRAFT_SYSTEMD_LAUNCHER : "/usr/bin/journalctl");
   const denoPath = options.denoPath ?? Deno.execPath();
   const workerPath = options.workerPath ??
     new URL("./draft-import-worker.ts", import.meta.url).pathname;
@@ -1125,26 +1174,8 @@ export function createDraftIsolation(
       "--wait",
       "--quiet",
       `--unit=${unit}`,
-      `--property=MemoryMax=${DRAFT_LIMITS.workerMemoryBytes}`,
-      "--property=MemorySwapMax=0",
-      `--property=TasksMax=${DRAFT_LIMITS.workerTasks}`,
-      "--property=CPUQuota=100%",
+      ...SYSTEMD_UNIT_PROPERTIES,
       `--property=RuntimeMaxSec=${runtimeMaxSeconds}s`,
-      "--property=TimeoutStopSec=100ms",
-      "--property=KillMode=control-group",
-      "--property=SendSIGKILL=yes",
-      "--property=OOMPolicy=kill",
-      "--property=PrivateNetwork=yes",
-      "--property=RestrictAddressFamilies=AF_UNIX",
-      "--property=ProtectSystem=strict",
-      "--property=ProtectHome=read-only",
-      "--property=PrivateDevices=yes",
-      "--property=NoNewPrivileges=yes",
-      "--property=LockPersonality=yes",
-      "--property=RestrictSUIDSGID=yes",
-      "--property=RemoveIPC=yes",
-      "--property=TemporaryFileSystem=/tmp:ro",
-      "--property=InaccessiblePaths=/var/tmp",
       denoPath,
       "run",
       "--cached-only",
@@ -1156,17 +1187,26 @@ export function createDraftIsolation(
     const systemd = launcher === "systemd";
     let child: Deno.ChildProcess;
     try {
-      child = new Deno.Command(systemd ? systemdRunPath : workerLauncherPath, {
-        args: systemd ? systemdArgs : [jobId],
-        stdin: "piped",
-        stdout: "piped",
-        stderr: "piped",
-        // systemd-run needs the session bus from the environment, and the
-        // transient unit does not inherit it. The launcher gets nothing: it
-        // sets the worker's few variables itself, so no server secret can
-        // reach the worker even if the launcher were changed to pass its own.
-        ...(systemd ? {} : { clearEnv: true, env: {} }),
-      }).spawn();
+      child = new Deno.Command(
+        systemd
+          ? systemdLauncher ? systemdLauncherPath : systemdRunPath
+          : workerLauncherPath,
+        {
+          args: systemd
+            ? systemdLauncher
+              ? ["run", jobId, String(runtimeMaxSeconds)]
+              : systemdArgs
+            : [jobId],
+          stdin: "piped",
+          stdout: "piped",
+          stderr: "piped",
+          // systemd-run needs the session bus from the environment, and the
+          // transient unit does not inherit it. The launcher gets nothing: it
+          // sets the worker's few variables itself, so no server secret can
+          // reach the worker even if the launcher were changed to pass its own.
+          ...(systemd ? {} : { clearEnv: true, env: {} }),
+        },
+      ).spawn();
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
         throw hostIsolationUnavailable();
@@ -1219,6 +1259,10 @@ export function createDraftIsolation(
               "timeout",
               "WORKER_DEADLINE_EXCEEDED",
             );
+          }
+          // The systemd launcher's EX_UNAVAILABLE: no systemd on this host.
+          if (systemd && systemdLauncher && status.code === 69) {
+            throw hostIsolationUnavailable();
           }
           const namespacePrerequisites = systemd && status.code === 226
             ? await collectNamespacePrerequisites(
