@@ -414,22 +414,23 @@ function EnrollmentPanel({
       queryKey: enrollmentsOptions.queryKey,
     });
   };
+  // The last page of the continuation ends the list: its null cursor must not
+  // fall back to the first page's cursor, which would offer Load more forever.
+  const nextEnrollmentCursor = enrollmentContinuation.data
+    ? enrollmentContinuation.data.nextCursor
+    : enrollments.data?.nextCursor;
   const enrollmentPaging = usePagedFocus("enrollments", {
     pending: enrollmentContinuation.isFetching,
     failed: enrollmentContinuation.isError,
     rowCount: (enrollments.data?.items.length ?? 0) +
       (enrollmentContinuation.data?.items.length ?? 0),
-    hasMore: Boolean(
-      enrollmentContinuation.data?.nextCursor ?? enrollments.data?.nextCursor,
-    ),
+    hasMore: Boolean(nextEnrollmentCursor),
   });
   if (!isAdmin) return null;
   const rows = [
     ...(enrollments.data?.items ?? []),
     ...(enrollmentContinuation.data?.items ?? []),
   ];
-  const nextEnrollmentCursor = enrollmentContinuation.data?.nextCursor ??
-    enrollments.data?.nextCursor;
   const tableState = enrollments.isPending && rows.length === 0
     ? "loading"
     : enrollments.isError
@@ -867,21 +868,21 @@ export function MachinesPage() {
       timeZone,
       translate("machines.never" as never),
     );
+  // As above: the continuation's null cursor ends the list.
+  const nextWorkerCursor = workerContinuation.data
+    ? workerContinuation.data.nextCursor
+    : workers.data?.nextCursor;
   const workerPaging = usePagedFocus("machines", {
     pending: workerContinuation.isFetching,
     failed: workerContinuation.isError,
     rowCount: (workers.data?.items.length ?? 0) +
       (workerContinuation.data?.items.length ?? 0),
-    hasMore: Boolean(
-      workerContinuation.data?.nextCursor ?? workers.data?.nextCursor,
-    ),
+    hasMore: Boolean(nextWorkerCursor),
   });
   const rows = [
     ...(workers.data?.items ?? []),
     ...(workerContinuation.data?.items ?? []),
   ];
-  const nextWorkerCursor = workerContinuation.data?.nextCursor ??
-    workers.data?.nextCursor;
   const forbidden = workers.isError && isForbiddenFailure(workers.error);
   const connectivityKind = asyncKindForConnectivity(connectivity);
   const phone = useShellViewport() === "phone";

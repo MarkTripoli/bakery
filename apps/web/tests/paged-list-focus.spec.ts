@@ -120,7 +120,7 @@ for (
 }
 
 const worker = (index: number) => ({
-  id: `00000000-0000-4000-8000-0000000000b${index}`,
+  id: `00000000-0000-4000-8000-0000000000${String(index).padStart(2, "0")}`,
   principalId: "00000000-0000-4000-8000-0000000000b0",
   name: `builder-${index}`,
   os: "macos",
@@ -142,9 +142,9 @@ const worker = (index: number) => ({
 });
 
 /**
- * Machines: `builder-1, builder-2`, then `builder-3` (the page reads this
- * continuation by itself), then `builder-4` behind Load more, which replaces
- * the continuation. `failLastPage` fails the Load more request once.
+ * Machines: a chain of twelve one-machine pages. The page collects up to ten
+ * pages by itself, so Load more is offered after `builder-10` and reads the
+ * rest, `builder-11` and `builder-12`. `failLastPage` fails that request once.
  */
 async function machinesFixture(
   page: Page,
@@ -169,20 +169,18 @@ async function machinesFixture(
     (url) => url.pathname === "/v1/workers",
     (route) => {
       const cursor = new URL(route.request().url()).searchParams.get("cursor");
-      if (cursor === "w3" && failures > 0) {
+      const index = cursor ? Number(cursor.slice(1)) : 1;
+      if (index === 11 && failures > 0) {
         failures -= 1;
         return route.fulfill(problem(500, "INTERNAL_ERROR"));
       }
       return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(
-          cursor === "w3"
-            ? { items: [worker(4)], nextCursor: null }
-            : cursor === "w2"
-            ? { items: [worker(3)], nextCursor: "w3" }
-            : { items: [worker(1), worker(2)], nextCursor: "w2" },
-        ),
+        body: JSON.stringify({
+          items: [worker(index)],
+          nextCursor: index < 12 ? `c${index + 1}` : null,
+        }),
       });
     },
   );
@@ -205,6 +203,10 @@ for (
 ) {
   test.describe(`${viewport.name}: machines`, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
+    const added = (page: Page) =>
+      viewport.name === "phone"
+        ? page.getByRole("listitem").filter({ hasText: "builder-11" })
+        : page.getByRole("row").filter({ hasText: "builder-11" });
 
     test("the last page of machines puts focus on the first machine it added", async ({ page }) => {
       await machinesFixture(page);
@@ -212,10 +214,7 @@ for (
       const more = page.getByRole("button", { name: "Load more" });
       await more.click();
       await expect(more).toHaveCount(0);
-      const added = viewport.name === "phone"
-        ? page.getByRole("listitem").filter({ hasText: "builder-4" })
-        : page.getByRole("row").filter({ hasText: "builder-4" });
-      await expect(added).toBeFocused();
+      await expect(added(page)).toBeFocused();
     });
 
     test("a failed load of more machines leaves focus on the button that retries it", async ({ page }) => {
@@ -227,10 +226,7 @@ for (
         .toBeVisible();
       await expect(more).toBeFocused();
       await more.click();
-      const added = viewport.name === "phone"
-        ? page.getByRole("listitem").filter({ hasText: "builder-4" })
-        : page.getByRole("row").filter({ hasText: "builder-4" });
-      await expect(added).toBeFocused();
+      await expect(added(page)).toBeFocused();
     });
   });
 }
