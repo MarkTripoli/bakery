@@ -12,6 +12,7 @@ import {
   registeredActionMetadata,
 } from "../registry.ts";
 import { WORKFLOW_ACTION_REGISTRY_VERSION } from "../../workflow-action-registry.ts";
+import { WORKFLOW_STRUCTURED_INPUT_TYPES } from "../schema.ts";
 import type {
   WorkflowActionNode,
   WorkflowBranchNode,
@@ -164,6 +165,7 @@ const INPUT_TYPES: ReadonlySet<string> = new Set([
   "integer",
   "number",
   "boolean",
+  ...WORKFLOW_STRUCTURED_INPUT_TYPES,
 ]);
 const MAX_NEEDS = 64;
 const MAX_SET_ITEMS = 32;
@@ -512,7 +514,32 @@ function shapeAction(
     }
   }
 
+  let agentVersionId: string | undefined;
+  if (Object.hasOwn(raw, "agentVersionId")) {
+    const selected = raw["agentVersionId"];
+    if (typeof selected === "string" && AGENT_VERSION_ID.test(selected)) {
+      agentVersionId = selected.toLowerCase();
+    } else {
+      report(context, [...path, "agentVersionId"], "agent_binding_invalid");
+      failed = true;
+    }
+  }
+
   const registry = registeredActionMetadata(action);
+  // Capabilities are registry facts, so this needs no catalog: only an action
+  // that runs a model has an agent version to select. (An unknown action is
+  // already reported above.)
+  if (
+    agentVersionId !== undefined && registry &&
+    !registry.capabilities.includes("model")
+  ) {
+    report(
+      context,
+      [...path, "agentVersionId"],
+      "step_agent_version_forbidden",
+    );
+    failed = true;
+  }
   let declared: string[] = [];
   if (Object.hasOwn(raw, "requires")) {
     const parsed = readStringSet(
@@ -595,6 +622,7 @@ function shapeAction(
     retry,
   };
   if (condition) node.if = condition;
+  if (agentVersionId) node.agentVersionId = agentVersionId;
   if (checks) node.checks = checks;
   if (effectKey) node.effectKey = effectKey;
   if (limits) node.limits = limits;
@@ -1159,7 +1187,10 @@ function shapeNode(
     report(context, path, "field_invalid");
     return undefined;
   }
-  if (Object.hasOwn(raw, "agentVersionId")) {
+  // Only an action node may select an agent version, and only a model action
+  // (checked against the registry in the actions pass). Every container, and
+  // a wait, is refused here.
+  if (Object.hasOwn(raw, "agentVersionId") && !Object.hasOwn(raw, "uses")) {
     report(
       context,
       [...path, "agentVersionId"],
@@ -1425,7 +1456,7 @@ export function shapeWorkflow(
     return { document: undefined, locations };
   }
   const document: WorkflowSemanticDocument = {
-    compilerVersion: 1,
+    compilerVersion: 2,
     registryVersion: WORKFLOW_ACTION_REGISTRY_VERSION,
     apiVersion: "bakery.dev/v1",
     kind: "workflow",

@@ -5,7 +5,7 @@ import type { WorkflowSemanticDocument } from "./schema.ts";
  * Identity of the compiler's normalization and digest rules. Bump when a
  * change alters the semantic digest of an unchanged definition.
  */
-export const WORKFLOW_COMPILER_VERSION = "1";
+export const WORKFLOW_COMPILER_VERSION = "2";
 
 /**
  * Semantic digest: lowercase sha256 of the canonical JSON of the normalized

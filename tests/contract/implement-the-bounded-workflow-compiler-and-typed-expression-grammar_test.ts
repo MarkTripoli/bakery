@@ -331,8 +331,10 @@ steps:
     timeout: 45m
 `;
 
+// Compiler version 2. The version is part of the digest: this document at
+// version 1 hashed to c7c1e23e…, and the version is the only difference.
 const PINNED_BASE_DIGEST =
-  "c7c1e23e9b65230a5383a7d6924ac0116e76be792fa07ab36a6bc8405f12f4fc";
+  "f3c185f2d74ba2211d080b0e1aa44f1ec6dc9a4c64e7295603c5ee897da3c41f";
 
 async function digestOf(definition: unknown): Promise<string> {
   const result = await compileWorkflowDocument(
@@ -622,9 +624,11 @@ Deno.test("the doc 06 specimen compiles against the design catalog", async () =>
   });
   assert(result.ok, result.ok ? "" : JSON.stringify(result.diagnostics));
   assertEquals(result.diagnostics, []);
+  // Compiler version 2; at version 1 this specimen hashed to 4970b2af…, and the
+  // version is the only difference.
   assertEquals(
     result.digest,
-    "4970b2af726d1b7f2db8a49d39d83e976f5afee9270b33981358ad37ed5ad4e4",
+    "47cc133bd335b1190d758de7fb386efcd2ffde022517fd7e29c88c8f47189e35",
   );
 });
 

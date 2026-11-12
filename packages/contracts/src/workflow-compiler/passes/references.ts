@@ -23,6 +23,12 @@ export type FlowEnv = {
   readonly catalog: WorkflowCompilerCatalog;
   readonly inputs: ReadonlyMap<string, ValueType>;
   /**
+   * Declared structured inputs whose type the catalog does not resolve (or
+   * that were compiled without a catalog). Their fields are of unknown type,
+   * so a read through one resolves untyped rather than as an error.
+   */
+  readonly opaqueInputs: ReadonlySet<string>;
+  /**
    * False when the compile has no catalog: action outputs, event payloads and
    * `$task` are of unknown type, and reads of them resolve to an untyped value
    * instead of a diagnostic. Flow and scope rules apply either way.
@@ -77,11 +83,18 @@ export function waitOutputType(
   };
 }
 
-/** Builds the type of each declared workflow input; optional ones are nullable. */
+/**
+ * Builds the type of each declared workflow input; optional ones are nullable.
+ * A structured input takes the catalog's type for its contract; when the
+ * catalog has none it is listed as opaque and typed `json` so nothing reads a
+ * field through it.
+ */
 export function inputTypesOf(
   document: WorkflowSemanticDocument,
-): Map<string, ValueType> {
+  catalog?: WorkflowCompilerCatalog,
+): { types: Map<string, ValueType>; opaque: Set<string> } {
   const types = new Map<string, ValueType>();
+  const opaque = new Set<string>();
   for (const name of Object.keys(document.inputs)) {
     const declared = document.inputs[name]!;
     let type: ValueType;
@@ -103,13 +116,22 @@ export function inputTypesOf(
       case "boolean":
         type = { kind: "boolean" };
         break;
+      default: {
+        const resolved = catalog?.inputType(declared.type);
+        if (resolved) {
+          type = resolved;
+        } else {
+          opaque.add(name);
+          type = { kind: "json" };
+        }
+      }
     }
     types.set(
       name,
       declared.required ? type : { kind: "nullable", inner: type },
     );
   }
-  return types;
+  return { types, opaque };
 }
 
 function nullableOf(type: ValueType): ValueType {
@@ -404,7 +426,19 @@ export function resolveReference(
     case "input": {
       const type = env.inputs.get(path[0]!);
       if (!type) return { ok: false, code: "reference_input_unknown" };
+      if (env.opaqueInputs.has(path[0]!)) {
+        return untypedResolution(path.slice(1));
+      }
       return walkFields(type, path.slice(1));
+    }
+    case "delivery": {
+      const delivery = env.catalog.delivery();
+      if (!delivery) {
+        return env.typed
+          ? { ok: false, code: "reference_field_unknown" }
+          : untypedResolution(path);
+      }
+      return walkFields(delivery, path);
     }
     case "task": {
       const task = env.catalog.task();

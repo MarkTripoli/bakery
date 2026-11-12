@@ -41,6 +41,35 @@ function defaultLimitFields(): Record<
   return Object.freeze(table);
 }
 
+type JsonProperties = { properties?: Record<string, unknown> };
+
+/**
+ * The `$delivery` object: run state the runtime resolves at claim time. Each
+ * field takes the exact schema of the action input it feeds (`headSha` and
+ * `failedChecks` and `blockingFindings` the repair input, `checkIds` the check
+ * input), so a read and the field it fills agree by construction and cannot
+ * drift. Unresolved, and so unreadable, when any of those schemas is missing.
+ */
+function liveDeliverySchema(): unknown {
+  const repair = liveSchema("RepairInput") as JsonProperties | undefined;
+  const checks = liveSchema("CheckInput") as JsonProperties | undefined;
+  const properties = {
+    headSha: repair?.properties?.["revision"],
+    checkIds: checks?.properties?.["checks"],
+    failedChecks: repair?.properties?.["failedChecks"],
+    blockingFindings: repair?.properties?.["findings"],
+  };
+  if (Object.values(properties).some((schema) => schema === undefined)) {
+    return undefined;
+  }
+  return {
+    type: "object",
+    properties,
+    required: Object.keys(properties),
+    additionalProperties: false,
+  };
+}
+
 let cached: WorkflowCompilerCatalog | undefined;
 
 /**
@@ -59,6 +88,7 @@ export function defaultWorkflowCompilerCatalog(): WorkflowCompilerCatalog {
       events: Readonly<Record<string, WorkflowCatalogEvent>>;
     }).events,
     taskSchema: () => liveSchema("Task"),
+    deliverySchema: liveDeliverySchema,
     checkNames: null,
     actionLimitFields: defaultLimitFields(),
   });

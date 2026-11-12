@@ -307,12 +307,24 @@ export function checkWorkflowFlow(
   collector: DiagnosticCollector,
   index: FlowIndex = buildFlowIndex(document, locations),
 ): void {
+  const { types, opaque } = inputTypesOf(document, catalog);
   const env: AnalysisEnv = {
     index,
     catalog: catalog ?? UNTYPED_CATALOG,
     typed: catalog !== undefined,
-    inputs: inputTypesOf(document),
+    inputs: types,
+    opaqueInputs: opaque,
     collector,
   };
+  // A catalog that cannot type a declared structured input is a catalog
+  // problem, reported once at the declaration instead of at every read.
+  if (catalog) {
+    for (const name of opaque) {
+      collector.add(
+        pointerOf(["inputs", name, "type"]),
+        "input_type_unsupported",
+      );
+    }
+  }
   visitScope(env, index.root);
 }

@@ -356,7 +356,7 @@ Deno.test("canonical JSON equals the server helper", async () => {
 
 Deno.test("semantic document schema accepts a minimal document", () => {
   const parsed = WorkflowSemanticDocumentSchema.safeParse({
-    compilerVersion: 1,
+    compilerVersion: 2,
     registryVersion: 1,
     apiVersion: "bakery.dev/v1",
     kind: "workflow",
@@ -783,7 +783,7 @@ async function runCases(cases: Case[]): Promise<void> {
 
 Deno.test("a minimal workflow normalizes with defaults applied", async () => {
   const result = await accepted(workflow([noop("first")]));
-  assertEquals(result.document.compilerVersion, 1);
+  assertEquals(result.document.compilerVersion, 2);
   assertEquals(result.document.limits, {
     wallClockMs: 86_400_000,
     maxAttempts: 1000,
@@ -2036,9 +2036,11 @@ Deno.test("semantic document digest ignores key order and pins a fixture", async
     left.digest,
     await sha256Hex(canonicalJson(left.document)),
   );
+  // Compiler version 2. The version is part of the digest: this document at
+  // version 1 hashed to 6898ca7f…, and the version is the only difference.
   assertEquals(
     left.digest,
-    "6898ca7fa046345f6baab59d1397207f01ccf2e42693b80effa7be28a0a80802",
+    "7aec146310d3d35519b5352ca52382b508629393bc2f6d85f4e5bcccdd047743",
   );
 });
 
