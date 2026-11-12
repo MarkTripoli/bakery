@@ -8,7 +8,12 @@ export type TextProps =
     children: ReactNode;
     state?: "default" | "truncated" | "long-content";
     truncate?: boolean;
-    /** Clamps the text to this many lines, then an ellipsis; give it a `title` with the whole text. */
+    /**
+     * Clamps the text to this many lines, then an ellipsis. Give it a `title`
+     * with the whole text, but do not rely on the `title` alone: a tooltip
+     * cannot be opened by keyboard or touch, so the whole text must also be
+     * reachable another way (open the item, a disclosure).
+     */
     lines?: 2;
     variant?:
       | "body"

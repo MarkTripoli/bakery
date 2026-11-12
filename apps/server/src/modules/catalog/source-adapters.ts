@@ -1,3 +1,7 @@
+import {
+  gitLauncherArgs,
+  SERVER_GIT_LAUNCHER,
+} from "../../platform/server-exec.ts";
 import type { JsonValue } from "@bakery/contracts/contracts";
 import { canonicalJson } from "../../platform/canonical-json.ts";
 import {
@@ -380,11 +384,14 @@ const productionGitRunner: GitCommandRunner = {
   async run(invocation) {
     let child: Deno.ChildProcess;
     try {
-      child = new Deno.Command(invocation.executable, {
-        args: [...invocation.args],
+      // Never /usr/bin/git itself: the fixed launcher re-validates the
+      // invocation, chooses the allowed protocols from the URL and sets git's
+      // clean environment (the invocation's env is what the launcher pins).
+      child = new Deno.Command(SERVER_GIT_LAUNCHER, {
+        args: gitLauncherArgs(invocation.cwd, invocation.args),
         cwd: invocation.cwd,
-        clearEnv: invocation.clearEnv,
-        env: { ...invocation.env },
+        clearEnv: true,
+        env: {},
         stdin: invocation.stdin,
         stdout: invocation.stdout,
         stderr: invocation.stderr,
