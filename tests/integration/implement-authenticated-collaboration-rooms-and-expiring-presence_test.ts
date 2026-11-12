@@ -13,7 +13,13 @@ import {
   type WebSocketNext,
   type WsClient,
 } from "../helpers/ws-client.ts";
-import type { CollaborationSocketLimits } from "../../apps/server/src/modules/knowledge/collaboration-socket.ts";
+import {
+  BinaryFrameKind,
+  type CollaborationSocketLimits,
+  decodeBinaryFrame,
+  encodeBinaryFrame,
+} from "../../apps/server/src/modules/knowledge/collaboration-socket.ts";
+import { LoroDoc } from "loro-crdt";
 
 type Frame = Record<string, unknown> & { type: string };
 type Member = {
@@ -235,6 +241,14 @@ async function closeHarness(harness: Harness) {
   await harness.server.shutdown();
   for (const member of harness.extra) {
     const db = harness.fixture.pgDatabase;
+    await db.query(
+      "delete from bakery.artifact_draft_receipts where actor_id=$1",
+      [member.principalId],
+    );
+    await db.query(
+      "delete from bakery.artifact_draft_updates where actor_id=$1",
+      [member.principalId],
+    );
     await db.query('delete from public.session where "userId"=$1', [
       member.providerUserId,
     ]);
@@ -574,6 +588,341 @@ Deno.test("a slow peer gets no presence past the buffer budget and is closed aft
   }
 });
 
+const ZERO = "00000000-0000-0000-0000-000000000000";
+
+/** Next text frame of `type`, collecting any binary messages on the way. */
+async function untilWithBinary(
+  client: WsClient,
+  type: string,
+  binaries: Uint8Array[],
+  timeoutMs = 5_000,
+): Promise<Frame> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const left = deadline - Date.now();
+    if (left <= 0) throw new Error(`no ${type} frame`);
+    const value = await client.nextMessage(left);
+    if (typeof value === "object" && "binary" in value) {
+      binaries.push(value.binary);
+      continue;
+    }
+    if (typeof value !== "string") {
+      throw new Error(`socket closed ${value.code} ${value.reason}`);
+    }
+    const frame = JSON.parse(value) as Frame;
+    if (frame.type === type) return frame;
+  }
+}
+
+async function nextBinary(client: WsClient, timeoutMs = 5_000) {
+  const value = await client.nextMessage(timeoutMs);
+  assert(typeof value === "object" && "binary" in value, JSON.stringify(value));
+  return decodeBinaryFrame(value.binary);
+}
+
+/** Joins, syncs and returns a local document holding the committed state. */
+async function joinAndSync(client: WsClient, harness: Harness) {
+  await join(client, harness);
+  await until(client, "joined");
+  await client.send(JSON.stringify({
+    type: "sync",
+    requestId: crypto.randomUUID(),
+    room: room(harness),
+  }));
+  const synced = await until(client, "synced");
+  const snapshot = await nextBinary(client);
+  assertEquals(snapshot.kind, BinaryFrameKind.ServerSnapshot);
+  assertEquals(snapshot.payload.length, synced.byteLength);
+  const doc = new LoroDoc();
+  doc.import(snapshot.payload);
+  return { doc, epoch: synced.epoch as number, synced };
+}
+
+/** A local edit exported as one update from the version before it. */
+function localEdit(doc: LoroDoc, at: number, text: string): Uint8Array {
+  const from = doc.version();
+  doc.getText("body").insert(at, text);
+  doc.commit();
+  return doc.export({ mode: "update", from });
+}
+
+function updateFrame(
+  harness: Harness,
+  epoch: number,
+  mutationId: string,
+  payload: Uint8Array,
+) {
+  return encodeBinaryFrame({
+    kind: BinaryFrameKind.ClientUpdate,
+    epoch,
+    draftId: harness.draftId,
+    mutationId,
+    sequence: 0n,
+    payload,
+  });
+}
+
+async function committedText(harness: Harness) {
+  const read = await harness.fixture.app.fetch(draftRequest(
+    harness.fixture,
+    `/v1/drafts/${harness.draftId}`,
+  ));
+  assertEquals(read.status, 200);
+  return (await responseJson(read) as { text: string; serverSequence: string });
+}
+
+async function receiptCount(harness: Harness) {
+  const rows = await harness.fixture.pgDatabase.query<{ count: number }>(
+    "select count(*)::int as count from bakery.artifact_draft_receipts where draft_id=$1",
+    [harness.draftId],
+  );
+  return rows.rows[0]!.count;
+}
+
+Deno.test("an update is acknowledged only after its receipt commits, then relayed to joined peers and replayed exactly", async () => {
+  const harness = await openHarness();
+  try {
+    const second = await addMember(
+      harness.fixture,
+      harness.fixture.ids.organizationId,
+      "Second Person",
+    );
+    const watcher = await addMember(
+      harness.fixture,
+      harness.fixture.ids.organizationId,
+      "Not Joined",
+    );
+    harness.extra.push(second, watcher);
+    const a = await open(harness, harness.owner);
+    const synced = await joinAndSync(a, harness);
+    assertEquals(synced.doc.getText("body").toString(), "alpha target omega");
+    const b = await open(harness, second);
+    const bState = await joinAndSync(b, harness);
+    const outside = await open(harness, watcher);
+
+    const mutationId = crypto.randomUUID();
+    const update = localEdit(synced.doc, 0, "Hello ");
+    await a.sendRaw(
+      0x2,
+      updateFrame(harness, synced.epoch, mutationId, update),
+    );
+    const ack = await until(a, "ack");
+    const receipt = ack.receipt as { serverSequence: string; actorId: string };
+    assertEquals(ack.mutationId, mutationId);
+    assertEquals(receipt.serverSequence, "1");
+    assertEquals(receipt.actorId, harness.owner.principalId);
+    const committed = await committedText(harness);
+    assertEquals(committed.text, "Hello alpha target omega");
+
+    // The joined peer receives the committed bytes and converges.
+    const relayedFrame = await until(b, "committed");
+    assertEquals(relayedFrame.mutationId, mutationId);
+    const relayed = await nextBinary(b);
+    assertEquals(relayed.kind, BinaryFrameKind.ServerUpdate);
+    assertEquals(relayed.sequence, 1n);
+    bState.doc.import(relayed.payload);
+    assertEquals(bState.doc.getText("body").toString(), committed.text);
+    // A member who never joined the room receives no draft bytes.
+    const leaked = await outside.nextMessage(500).catch(() => undefined);
+    assertEquals(leaked, undefined);
+
+    // The same mutation and bytes replay the exact receipt; nothing new commits.
+    await a.sendRaw(
+      0x2,
+      updateFrame(harness, synced.epoch, mutationId, update),
+    );
+    assertEquals((await until(a, "ack")).receipt, ack.receipt);
+    // The same mutation id with different bytes is refused.
+    const other = localEdit(new LoroDoc(), 0, "x");
+    await a.sendRaw(0x2, updateFrame(harness, synced.epoch, mutationId, other));
+    assertEquals(
+      ((await until(a, "problem")).problem as { code: string }).code,
+      "IDEMPOTENCY_PAYLOAD_MISMATCH",
+    );
+    // Already-committed bytes under a new id add nothing and save nothing.
+    await a.sendRaw(
+      0x2,
+      updateFrame(harness, synced.epoch, crypto.randomUUID(), update),
+    );
+    assertEquals((await until(a, "ack")).receipt, null);
+    assertEquals(await receiptCount(harness), 1);
+  } finally {
+    await closeHarness(harness);
+  }
+});
+
+Deno.test("hostile updates are refused before anything is saved or relayed", async () => {
+  const harness = await openHarness();
+  try {
+    const second = await addMember(
+      harness.fixture,
+      harness.fixture.ids.organizationId,
+      "Second Person",
+    );
+    harness.extra.push(second);
+    const a = await open(harness, harness.owner);
+    const { doc, epoch } = await joinAndSync(a, harness);
+    const b = await open(harness, second);
+    await joinAndSync(b, harness);
+
+    // Declared length does not match the payload.
+    const good = localEdit(doc.fork(), 0, "x");
+    const truncated = updateFrame(harness, epoch, crypto.randomUUID(), good)
+      .slice(0, -1);
+    await a.sendRaw(0x2, truncated);
+    assertEquals(
+      ((await until(a, "problem")).problem as { code: string }).code,
+      "MALFORMED_REQUEST",
+    );
+    // Pending dependencies: the second of two updates without the first.
+    const fork = doc.fork();
+    localEdit(fork, 0, "first ");
+    const dependent = localEdit(fork, 0, "second ");
+    await a.sendRaw(
+      0x2,
+      updateFrame(harness, epoch, crypto.randomUUID(), dependent),
+    );
+    assertEquals((await until(a, "resync_required")).reason, "rejected");
+    // An extra shared root is not a plain-text draft.
+    const rooted = doc.fork();
+    const from = rooted.version();
+    rooted.getMap("extra").set("k", "v");
+    rooted.commit();
+    await a.sendRaw(
+      0x2,
+      updateFrame(
+        harness,
+        epoch,
+        crypto.randomUUID(),
+        rooted.export({ mode: "update", from }),
+      ),
+    );
+    assertEquals((await until(a, "resync_required")).reason, "rejected");
+    // Garbage bytes.
+    await a.sendRaw(
+      0x2,
+      updateFrame(
+        harness,
+        epoch,
+        crypto.randomUUID(),
+        new Uint8Array([1, 2, 3]),
+      ),
+    );
+    assertEquals((await until(a, "resync_required")).reason, "rejected");
+    // An oversized update.
+    await a.sendRaw(
+      0x2,
+      updateFrame(harness, epoch, crypto.randomUUID(), new Uint8Array(65_537)),
+    );
+    assertEquals(
+      ((await until(a, "problem")).problem as { code: string }).code,
+      "BODY_TOO_LARGE",
+    );
+    // Another epoch must resynchronize.
+    await a.sendRaw(
+      0x2,
+      updateFrame(harness, epoch + 1, crypto.randomUUID(), good),
+    );
+    assertEquals((await until(a, "resync_required")).reason, "epoch");
+    // An update for a room that was never joined.
+    await a.sendRaw(
+      0x2,
+      encodeBinaryFrame({
+        kind: BinaryFrameKind.ClientUpdate,
+        epoch,
+        draftId: crypto.randomUUID(),
+        mutationId: crypto.randomUUID(),
+        sequence: 0n,
+        payload: good,
+      }),
+    );
+    assertEquals(
+      ((await until(a, "problem")).problem as { code: string }).code,
+      "RESOURCE_NOT_FOUND",
+    );
+    // A server-kind frame from a client.
+    await a.sendRaw(
+      0x2,
+      encodeBinaryFrame({
+        kind: BinaryFrameKind.ServerUpdate,
+        epoch,
+        draftId: harness.draftId,
+        mutationId: ZERO,
+        sequence: 5n,
+        payload: good,
+      }),
+    );
+    assertEquals(
+      ((await until(a, "problem")).problem as { code: string }).code,
+      "MALFORMED_REQUEST",
+    );
+
+    assertEquals(await receiptCount(harness), 0);
+    assertEquals((await committedText(harness)).text, "alpha target omega");
+    const relayed = await b.nextMessage(500).catch(() => undefined);
+    assertEquals(relayed, undefined);
+  } finally {
+    await closeHarness(harness);
+  }
+});
+
+Deno.test("concurrent updates from two clients serialize, converge and match the committed text", async () => {
+  const harness = await openHarness();
+  try {
+    const second = await addMember(
+      harness.fixture,
+      harness.fixture.ids.organizationId,
+      "Second Person",
+    );
+    harness.extra.push(second);
+    const a = await open(harness, harness.owner);
+    const aState = await joinAndSync(a, harness);
+    const b = await open(harness, second);
+    const bState = await joinAndSync(b, harness);
+
+    const aId = crypto.randomUUID();
+    const bId = crypto.randomUUID();
+    const aUpdate = localEdit(aState.doc, 0, "A:");
+    const bUpdate = localEdit(
+      bState.doc,
+      bState.doc.getText("body").length,
+      ":B",
+    );
+    await Promise.all([
+      a.sendRaw(0x2, updateFrame(harness, aState.epoch, aId, aUpdate)),
+      b.sendRaw(0x2, updateFrame(harness, bState.epoch, bId, bUpdate)),
+    ]);
+    const aBinaries: Uint8Array[] = [];
+    const bBinaries: Uint8Array[] = [];
+    const aAck = await untilWithBinary(a, "ack", aBinaries);
+    const bAck = await untilWithBinary(b, "ack", bBinaries);
+    const sequences = [aAck, bAck].map((ack) =>
+      (ack.receipt as { serverSequence: string }).serverSequence
+    ).sort();
+    assertEquals(sequences, ["1", "2"]);
+
+    // Each side applies the other's relayed bytes.
+    const drain = async (client: WsClient, binaries: Uint8Array[]) => {
+      while (binaries.length === 0) {
+        const value = await client.nextMessage(3_000);
+        if (typeof value === "object" && "binary" in value) {
+          binaries.push(value.binary);
+        }
+      }
+      return decodeBinaryFrame(binaries[0]!).payload;
+    };
+    aState.doc.import(await drain(a, aBinaries));
+    bState.doc.import(await drain(b, bBinaries));
+    const committed = await committedText(harness);
+    assertEquals(committed.serverSequence, "2");
+    assertEquals(committed.text, "A:alpha target omega:B");
+    assertEquals(aState.doc.getText("body").toString(), committed.text);
+    assertEquals(bState.doc.getText("body").toString(), committed.text);
+  } finally {
+    await closeHarness(harness);
+  }
+});
+
 Deno.test("concurrent upgrades from one principal cannot exceed the connection cap", async () => {
   const harness = await openHarness({ maxConnectionsPerPrincipal: 4 });
   try {
@@ -596,6 +945,57 @@ Deno.test("concurrent upgrades from one principal cannot exceed the connection c
     const over = await connect(harness, harness.owner);
     assert(!("send" in over));
     assertEquals(over.status, 429);
+  } finally {
+    await closeHarness(harness);
+  }
+});
+
+Deno.test("a peer revoked between sweeps receives no draft bytes (AC1)", async () => {
+  // The sweep is held far away, so only the relay-time check can stop it.
+  const harness = await openHarness({ sweepMilliseconds: 600_000 });
+  try {
+    const second = await addMember(
+      harness.fixture,
+      harness.fixture.ids.organizationId,
+      "Revoked Person",
+    );
+    harness.extra.push(second);
+    const a = await open(harness, harness.owner);
+    const aState = await joinAndSync(a, harness);
+    const b = await open(harness, second);
+    await joinAndSync(b, harness);
+    await harness.fixture.pgDatabase.query(
+      "delete from public.session where token=$1",
+      [second.sessionToken],
+    );
+    await a.sendRaw(
+      0x2,
+      updateFrame(
+        harness,
+        aState.epoch,
+        crypto.randomUUID(),
+        localEdit(aState.doc, 0, "secret "),
+      ),
+    );
+    assertEquals((await until(a, "ack")).type, "ack");
+    const binaries: Uint8Array[] = [];
+    let closed: { code: number; reason: string } | undefined;
+    const deadline = Date.now() + 1_500;
+    while (Date.now() < deadline) {
+      const value = await b.nextMessage(deadline - Date.now()).catch(() =>
+        undefined
+      );
+      if (value === undefined) break;
+      if (typeof value === "object" && "binary" in value) {
+        binaries.push(value.binary);
+      } else if (typeof value === "object" && "code" in value) {
+        closed = value;
+        break;
+      }
+    }
+    assertEquals(binaries.length, 0);
+    assertExists(closed);
+    assertEquals(closed.code, 1008);
   } finally {
     await closeHarness(harness);
   }
@@ -638,6 +1038,63 @@ Deno.test("frames queued behind a slow join are bounded and the connection is cl
       after === undefined || (typeof after === "object" && "code" in after),
       `frame after refusal: ${JSON.stringify(after)}`,
     );
+  } finally {
+    await closeHarness(harness);
+  }
+});
+
+// Smoke test for back-to-back updates with many joined peers. It passes with
+// the relay inside or outside the admission section on a fast local database,
+// so it does not by itself prove the ordering fix; see PR #140 round 1 notes.
+Deno.test("back-to-back updates with twenty joined peers are all acknowledged", async () => {
+  const harness = await openHarness({ maxConnectionsPerPrincipal: 32 });
+  try {
+    const a = await open(harness, harness.owner);
+    const aState = await joinAndSync(a, harness);
+    // Twenty other connections of members join the room.
+    const peers: WsClient[] = [];
+    for (let index = 0; index < 4; index += 1) {
+      const member = await addMember(
+        harness.fixture,
+        harness.fixture.ids.organizationId,
+        `Peer ${index}`,
+      );
+      harness.extra.push(member);
+      for (let tab = 0; tab < 5; tab += 1) {
+        const peer = await open(harness, member);
+        await join(peer, harness);
+        await until(peer, "joined");
+        peers.push(peer);
+      }
+    }
+    // Twelve updates back to back; every one is acknowledged in time.
+    const ids = Array.from({ length: 12 }, () => crypto.randomUUID());
+    for (const [index, id] of ids.entries()) {
+      await a.sendRaw(
+        0x2,
+        updateFrame(
+          harness,
+          aState.epoch,
+          id,
+          localEdit(aState.doc, 0, `${index}`),
+        ),
+      );
+    }
+    const acked = new Set<string>();
+    const binaries: Uint8Array[] = [];
+    const deadline = Date.now() + 20_000;
+    while (acked.size < ids.length && Date.now() < deadline) {
+      const ack = await untilWithBinary(
+        a,
+        "ack",
+        binaries,
+        deadline - Date.now(),
+      );
+      acked.add(ack.mutationId as string);
+    }
+    assertEquals(acked.size, ids.length);
+    const committed = await committedText(harness);
+    assertEquals(committed.serverSequence, "12");
   } finally {
     await closeHarness(harness);
   }

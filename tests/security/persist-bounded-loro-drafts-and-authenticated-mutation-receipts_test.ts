@@ -2503,6 +2503,7 @@ Deno.test("revocation between preparation and commit discards the isolated candi
   const isolation: DraftIsolation = {
     initialize: real.initialize,
     slice: real.slice,
+    importUpdate: real.importUpdate,
     async edit(current, source, input, signal) {
       const candidate = await real.edit(current, source, input, signal);
       if (revoke) {
@@ -2574,6 +2575,7 @@ exec "$@"`);
     initialize: (...args) => active.initialize(...args),
     slice: (...args) => active.slice(...args),
     edit: (...args) => active.edit(...args),
+    importUpdate: (...args) => active.importUpdate(...args),
   };
   const fixture = await openDraftFixture(undefined, {
     draftIsolation: isolation,

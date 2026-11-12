@@ -107,6 +107,7 @@ import {
   createArtifactPreviewHost,
   createPreviewHostDispatch,
 } from "./modules/knowledge/previews/index.ts";
+import { createDraftIsolation } from "./modules/knowledge/draft-isolation.ts";
 import { createDraftResourceRoutes } from "./modules/knowledge/draft-resource-routes.ts";
 import type { DraftIsolation } from "./modules/knowledge/draft-isolation.ts";
 import { createConversationRoutes } from "./modules/conversation/index.ts";
@@ -362,13 +363,15 @@ export function createApp(options: {
     secret: options.config.auth.secret,
     acceptAccessTokens: true,
   });
+  // One isolation for REST draft edits and collaboration-socket updates.
+  const draftIsolation = options.draftIsolation ?? createDraftIsolation();
   app.route(
     "/",
     createDraftResourceRoutes({
       database: options.pgDatabase,
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
-      isolation: options.draftIsolation,
+      isolation: draftIsolation,
     }),
   );
   const eventsRegistry = options.eventsSocket?.registry ??
@@ -390,6 +393,7 @@ export function createApp(options: {
   );
   app.use("/v1/events", browserSession);
   const collaborationHandler = createCollaborationSocketHandler({
+    isolation: draftIsolation,
     database: options.pgDatabase,
     store: persistence,
     secret: options.config.auth.secret,
