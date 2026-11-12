@@ -631,15 +631,34 @@ Deno.test("repository rule overrides and effective reads hold tenant isolation a
         adminA,
       );
       const body = await response.json() as Record<string, unknown>;
+      // Each field is this repository's or its organization's own:
+      // - checkers: derived only from the resolved entries (this repository's
+      //   profile over its organization's baseline) and this repository's
+      //   active-profile command ids; it carries rule keys, never ids.
+      // - providerProtection: a constant state plus whether this repository's
+      //   own connection (organization predicate) is enabled; no ids.
+      // - repositoryVersion: this repository row's version.
       assertEquals(Object.keys(body).sort(), [
+        "checkers",
         "digest",
         "entries",
         "organizationRevision",
         "profileId",
         "profileRevision",
+        "providerProtection",
         "repositoryId",
+        "repositoryVersion",
         "supersededOverrides",
       ]);
+      assertEquals(
+        Object.keys(body.checkers as object).sort(),
+        ["state", "unavailableRuleKeys"],
+      );
+      assertEquals(
+        Object.keys(body.providerProtection as object).sort(),
+        ["reason", "state"],
+      );
+      assertEquals(typeof body.repositoryVersion, "number");
       const text = JSON.stringify(body);
       assert(!text.includes(repoB.repositoryId));
       assert(!text.includes(organizationBId));

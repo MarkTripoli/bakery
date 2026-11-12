@@ -10,6 +10,8 @@ export type ListRowProps =
     /** Muted line under the title; `warning` tints it. */
     detail?: ReactNode;
     detailTone?: "default" | "warning" | "code";
+    /** Clamps the detail to this many lines, then an ellipsis; a text detail is also its own `title`. */
+    detailLines?: 2;
     onSelect?: () => void;
     /** `tall` rows hold a status pill and are 60px; `regular` rows are 56px. */
     size?: "regular" | "tall";
@@ -24,6 +26,7 @@ export function ListRow(
   {
     controlLabel,
     detail,
+    detailLines,
     detailTone = "default",
     onSelect,
     selected = false,
@@ -39,7 +42,15 @@ export function ListRow(
         <span className="ui-list-row__title">{title}</span>
         {detail
           ? (
-            <span className="ui-list-row__detail" data-tone={detailTone}>
+            <span
+              className="ui-list-row__detail"
+              data-lines={detailLines}
+              data-rail={detailLines ? "truncation-allowed" : undefined}
+              data-tone={detailTone}
+              title={detailLines && typeof detail === "string"
+                ? detail
+                : undefined}
+            >
               {detail}
             </span>
           )

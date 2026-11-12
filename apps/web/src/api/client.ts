@@ -178,6 +178,11 @@ export type ApplicationResponse = ClientOutputMap["Application"];
 export type WorkflowDefinitionResponse = ClientOutputMap["Workflow"];
 export type RepositoryResponse = ClientOutputMap["Repository"];
 export type RepositoryProfileResponse = ClientOutputMap["RepositoryProfile"];
+/** The latest published organization rules baseline, or the empty one at revision 0. */
+export type OrganizationRepositoryRulesResponse =
+  ClientOutputMap["OrganizationRepositoryRulesRead"];
+export type OrganizationRepositoryRuleVersionListResponse =
+  ClientOutputMap["Page<OrganizationRepositoryRuleVersion>"];
 export type ApplicationCreate = ClientInputMap["ApplicationCreate"];
 export type ApplicationUpdate = ClientInputMap["ApplicationUpdate"];
 export type RepositoryCreate = ClientInputMap["RepositoryCreate"];
@@ -1018,6 +1023,18 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<RepositoryProfileResponse>>;
+  /** `GET /v1/organizations/:id/repository-rules`: the current baseline (revision 0 when none). */
+  readonly getOrganizationRepositoryRules: (options: {
+    readonly organizationId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<OrganizationRepositoryRulesResponse>>;
+  /** `GET /v1/organizations/:id/repository-rule-versions`: published revisions, newest first. */
+  readonly listOrganizationRepositoryRuleVersions: (options: {
+    readonly organizationId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<OrganizationRepositoryRuleVersionListResponse>>;
   readonly startRepositoryOnboarding: (options: {
     readonly organizationId: string;
     readonly repositoryId: string;
@@ -3699,6 +3716,40 @@ export function createBakeryApiClient({
         const data = await client.actions["repositoryProfiles.list"](
           {
             id: options.repositoryId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getOrganizationRepositoryRules(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["repositoryRules.get"](
+          { id: options.organizationId },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listOrganizationRepositoryRuleVersions(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["repositoryRuleVersions.list"](
+          {
+            id: options.organizationId,
             ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
             ...(options.limit === undefined ? {} : { limit: options.limit }),
           },
