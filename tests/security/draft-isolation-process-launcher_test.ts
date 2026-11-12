@@ -4,6 +4,7 @@ import {
   createDraftWorkerLimiter,
   DraftIsolationError,
 } from "../../apps/server/src/modules/knowledge/draft-isolation.ts";
+import { DRAFT_LIMITS } from "../../apps/server/src/modules/knowledge/drafts.ts";
 import { readDraftIsolationLauncher } from "../../packages/config/src/env.ts";
 import {
   launcherCopy,
@@ -68,8 +69,9 @@ Deno.test("process-launched workers that hang, exhaust memory, trap or flood are
         DraftIsolationError,
       );
       assertEquals(error.kind, kind, `${name}: ${error.message}`);
+      // The work budget from READY, plus start-up and the kill and reap.
       assert(
-        performance.now() - started < 3_000,
+        performance.now() - started < DRAFT_LIMITS.workerRuntimeMs + 2_000,
         `${name} was not stopped within the deadline`,
       );
     });

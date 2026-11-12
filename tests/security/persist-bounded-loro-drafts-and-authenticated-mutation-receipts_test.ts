@@ -2384,8 +2384,9 @@ Deno.test("timeout, memory pressure, trap, and protocol overflow kill and reap b
         JSON.stringify(prerequisiteDiagnostic ?? null)
       }`,
     );
+    // The work budget from READY, plus start-up and the kill and reap.
     assert(
-      performance.now() - started < 2_000,
+      performance.now() - started < DRAFT_LIMITS.workerRuntimeMs + 1_000,
       `${name} exceeded the total scheduler-variance boundary`,
     );
   }
