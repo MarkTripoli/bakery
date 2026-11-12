@@ -1,5 +1,11 @@
 import { createHash, randomBytes } from "node:crypto";
-import { expect, type Page, test } from "@playwright/test";
+import {
+  type APIRequestContext,
+  expect,
+  type Page,
+  request,
+  test,
+} from "@playwright/test";
 
 type Credentials = {
   email: string;
@@ -54,8 +60,8 @@ async function authorizeInBrowser(
   };
 }
 
-async function mcpToolsList(page: Page, token: string) {
-  return await page.request.post("/mcp", {
+async function mcpToolsList(client: APIRequestContext, token: string) {
+  return await client.post("/mcp", {
     headers: {
       authorization: `Bearer ${token}`,
       "content-type": "application/json",
@@ -109,7 +115,10 @@ test("a person consents in the browser, the client calls MCP, and revoking the c
   );
   expect(allowed.error).toBe("");
   expect(allowed.code.length).toBeGreaterThan(10);
-  const token = await page.request.post("/api/auth/oauth2/token", {
+  // The MCP client is its own process: it never holds the person's browser
+  // cookies, so its token exchange and tool calls use a separate context.
+  const client = await request.newContext({ baseURL });
+  const token = await client.post("/api/auth/oauth2/token", {
     form: {
       grant_type: "authorization_code",
       code: allowed.code,
@@ -119,13 +128,13 @@ test("a person consents in the browser, the client calls MCP, and revoking the c
       resource: `${baseURL}/mcp`,
     },
   });
-  expect(token.status()).toBe(200);
+  expect(token.status(), await token.text()).toBe(200);
   const { access_token: accessToken } = await token.json() as {
     access_token: string;
   };
 
-  const listed = await mcpToolsList(page, accessToken);
-  expect(listed.status()).toBe(200);
+  const listed = await mcpToolsList(client, accessToken);
+  expect(listed.status(), await listed.text()).toBe(200);
   const names = ((await listed.json()) as {
     result: { tools: { name: string }[] };
   }).result.tools.map((tool) => tool.name);
@@ -143,7 +152,7 @@ test("a person consents in the browser, the client calls MCP, and revoking the c
 
   // The person sees the connection and revokes it; the token stops at once.
   const connections = await page.request.get("/v1/me/connected-clients");
-  expect(connections.status()).toBe(200);
+  expect(connections.status(), await connections.text()).toBe(200);
   const items = (await connections.json() as {
     items: { id: string; clientId: string }[];
   }).items.filter((item) => item.clientId === credentials.clientId);
@@ -153,6 +162,7 @@ test("a person consents in the browser, the client calls MCP, and revoking the c
     { headers: { origin: baseURL! } },
   );
   expect(revoked.ok()).toBe(true);
-  const after = await mcpToolsList(page, accessToken);
-  expect(after.status()).toBe(401);
+  const after = await mcpToolsList(client, accessToken);
+  expect(after.status(), await after.text()).toBe(401);
+  await client.dispose();
 });
