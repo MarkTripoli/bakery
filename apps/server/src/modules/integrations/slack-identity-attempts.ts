@@ -131,14 +131,23 @@ function isBinding(value: unknown): value is SlackAttemptBinding {
     (b.enterpriseId === undefined || isSlackEnterpriseId(b.enterpriseId));
 }
 
+/**
+ * A session id the database can store: non-empty, bounded, and without NUL,
+ * which a text column cannot hold and which would otherwise surface as a
+ * database error that aborts the caller's transaction instead of a refusal.
+ */
+function isSessionId(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 &&
+    value.length <= MAX_SESSION_ID_LENGTH && !value.includes("\u0000");
+}
+
 function isCreateInput(
   value: unknown,
 ): value is CreateSlackIdentityAttemptInput {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
   return isUuid(v.organizationId) && isUuid(v.principalId) &&
-    typeof v.sessionId === "string" && v.sessionId.length > 0 &&
-    v.sessionId.length <= MAX_SESSION_ID_LENGTH && isBinding(v.binding) &&
+    isSessionId(v.sessionId) && isBinding(v.binding) &&
     typeof v.secretsKey === "object" && v.secretsKey !== null &&
     typeof v.keyId === "string" && v.keyId.length > 0 &&
     v.keyId.length <= MAX_KEY_ID_LENGTH;
@@ -147,7 +156,10 @@ function isCreateInput(
 /**
  * Starts an attempt for a current member. An earlier pending attempt of the
  * same member for the same workspace is superseded, so a member has one live
- * state per workspace and a loop of requests leaves no pile of live ones.
+ * state per workspace and a loop of requests leaves no pile of live ones, also
+ * when the requests race: creates for one member and workspace take a
+ * transaction-scoped lock, held until the caller's transaction ends, so the
+ * caller should commit promptly.
  */
 export async function createSlackIdentityAttempt(
   transaction: PgTransactionClient,
@@ -178,6 +190,18 @@ export async function createSlackIdentityAttempt(
     [organizationId, principalId],
   );
   if (member.rows.length !== 1) return { ok: false, reason: "not_a_member" };
+
+  // Two creates for one member and workspace must not both pass the supersede
+  // below before either insert is visible: under READ COMMITTED each update
+  // would find nothing and both attempts would stay pending. The second create
+  // waits here for the first to commit, and its update, a new statement, then
+  // sees the first attempt. A mutex only: it decides nothing about the data.
+  await transaction.query(
+    `select pg_advisory_xact_lock(hashtextextended($1, 0))`,
+    [
+      `slack-identity-attempt:${organizationId}:${principalId}:${binding.appId}:${binding.teamId}`,
+    ],
+  );
 
   await transaction.query(
     `update bakery.slack_identity_attempts
@@ -267,9 +291,7 @@ export async function claimSlackIdentityAttempt(
     typeof input !== "object" || input === null ||
     typeof input.state !== "string" || input.state.length === 0 ||
     input.state.length > MAX_STATE_LENGTH ||
-    typeof input.sessionId !== "string" || input.sessionId.length === 0 ||
-    input.sessionId.length > MAX_SESSION_ID_LENGTH ||
-    !isUuid(input.principalId)
+    !isSessionId(input.sessionId) || !isUuid(input.principalId)
   ) return REFUSED;
 
   const stateHash = await sha256Hex(input.state);
