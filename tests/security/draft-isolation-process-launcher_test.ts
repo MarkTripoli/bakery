@@ -1,6 +1,7 @@
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import {
   createDraftIsolation,
+  createDraftWorkerLimiter,
   DraftIsolationError,
 } from "../../apps/server/src/modules/knowledge/draft-isolation.ts";
 import { DRAFT_LIMITS } from "../../apps/server/src/modules/knowledge/drafts.ts";
@@ -179,6 +180,132 @@ Deno.test("a worker never writes the project lockfile", async () => {
     ) {
       await Deno.writeFile(lock, before).catch(() => {});
     }
+  }
+});
+
+Deno.test("more concurrent workers than the cap: exactly the excess is refused, at once, and the pool recovers (#243)", async () => {
+  const limiter = createDraftWorkerLimiter(2);
+  const hold = await launcherCopy({ workerPath: fixture("timeout.ts") });
+  const real = await launcherCopy({});
+  try {
+    // timeout.ts signals READY and then spins, so each admitted worker holds
+    // its slot for the whole work budget.
+    const busy = createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: hold.path,
+      workerLimiter: limiter,
+    });
+    const started = performance.now();
+    const outcomes = await Promise.all(
+      [0, 1, 2].map(async () => {
+        try {
+          await busy.initialize("x");
+          return { message: "succeeded", at: performance.now() - started };
+        } catch (error) {
+          assert(error instanceof DraftIsolationError, String(error));
+          return {
+            kind: error.kind,
+            message: error.message,
+            at: performance.now() - started,
+          };
+        }
+      }),
+    );
+    const refused = outcomes.filter((outcome) =>
+      outcome.message === "WORKER_CAPACITY_EXHAUSTED"
+    );
+    const timedOut = outcomes.filter((outcome) =>
+      outcome.message === "WORKER_DEADLINE_EXCEEDED"
+    );
+    assertEquals(refused.length, 1, JSON.stringify(outcomes));
+    assertEquals(timedOut.length, 2, JSON.stringify(outcomes));
+    // The refusal is typed (maps to DEPENDENCY_UNAVAILABLE) and immediate:
+    // nothing waits in an unbounded queue.
+    assertEquals(refused[0]!.kind, "unavailable");
+    assert(refused[0]!.at < 500, `refused after ${refused[0]!.at} ms`);
+    assertEquals(limiter.active, 0, "slots were not released");
+    // The pool recovers: a real worker runs through the same limiter.
+    const candidate = await createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: real.path,
+      workerLimiter: limiter,
+    }).initialize("after the burst");
+    assertEquals(candidate.text, "after the burst");
+    assertEquals(limiter.active, 0);
+  } finally {
+    await hold.cleanup();
+    await real.cleanup();
+  }
+});
+
+type Outcome = { message: string; kind?: string };
+
+async function wave(
+  isolations: ReturnType<typeof createDraftIsolation>[],
+  perIsolation: number[],
+): Promise<Outcome[]> {
+  const calls: Promise<Outcome>[] = [];
+  isolations.forEach((isolation, index) => {
+    for (let i = 0; i < perIsolation[index]!; i++) {
+      calls.push(
+        isolation.initialize("x").then(
+          () => ({ message: "succeeded" }),
+          (error) => {
+            assert(error instanceof DraftIsolationError, String(error));
+            return { message: error.message, kind: error.kind };
+          },
+        ),
+      );
+    }
+  });
+  return await Promise.all(calls);
+}
+
+const tally = (outcomes: Outcome[]) => {
+  const counts: Record<string, number> = {};
+  for (const outcome of outcomes) {
+    counts[outcome.message] = (counts[outcome.message] ?? 0) + 1;
+  }
+  return counts;
+};
+
+Deno.test("the default pool is process-wide: shared by instances, sized from DRAFT_LIMITS, exact and leak-free (#243)", async () => {
+  // No injected limiter: this is the wiring production uses. Calls are spread
+  // over two isolation instances, which must share one pool. Test by qa-qa.
+  const cap = DRAFT_LIMITS.maxConcurrentWorkers;
+  const half = Math.floor(cap / 2);
+  const hold = await launcherCopy({ workerPath: fixture("timeout.ts") });
+  const real = await launcherCopy({});
+  try {
+    const a = createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: hold.path,
+    });
+    const b = createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: hold.path,
+    });
+    const w4 = tally(await wave([a, b], [half, cap - half]));
+    assertEquals(w4["WORKER_CAPACITY_EXHAUSTED"] ?? 0, 0, JSON.stringify(w4));
+    const w5 = tally(await wave([a, b], [half + 1, cap - half]));
+    assertEquals(w5["WORKER_CAPACITY_EXHAUSTED"], 1, JSON.stringify(w5));
+    const again = tally(await wave([a, b], [half, cap - half]));
+    assertEquals(
+      again["WORKER_CAPACITY_EXHAUSTED"] ?? 0,
+      0,
+      JSON.stringify(again),
+    );
+    const fresh = createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: real.path,
+    });
+    assertEquals(
+      (await fresh.initialize("after the waves")).text,
+      "after the waves",
+    );
+  } finally {
+    await hold.cleanup();
+    await real.cleanup();
   }
 });
 
