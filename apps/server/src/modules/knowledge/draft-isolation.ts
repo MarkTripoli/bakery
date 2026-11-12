@@ -1,3 +1,4 @@
+import { readDraftIsolationLauncher } from "@bakery/config";
 import { DRAFT_LIMITS, type DraftCandidate } from "./drafts.ts";
 
 const encoder = new TextEncoder();
@@ -186,6 +187,21 @@ export type DraftIsolation = {
 };
 
 type IsolationOptions = {
+  /**
+   * `systemd` (default): a transient systemd unit with cgroup memory, task and
+   * runtime limits and a sandboxed filesystem. `process`: for containers
+   * without systemd, the fixed launcher (DRAFT_WORKER_LAUNCHER) execs Deno on
+   * the fixed worker module with pinned flags; V8 caps its heap and
+   * WebAssembly memory, the wall-clock deadline kills it, and it starts with
+   * an empty environment. The launcher is the server's only run grant and
+   * cannot be repurposed: it takes one UUID and nothing else (Deno itself
+   * would be exec-anything through `deno eval`). In both, the worker runs with
+   * no permission flags and remote imports denied: no network, environment,
+   * file, FFI, import or subprocess access.
+   */
+  launcher?: "systemd" | "process";
+  /** Process launcher only: the fixed launcher script (tests point at a copy). */
+  workerLauncherPath?: string;
   systemdRunPath?: string;
   systemctlPath?: string;
   journalctlPath?: string;
@@ -997,6 +1013,20 @@ async function systemctl(
   }
 }
 
+/**
+ * Ends a process-launched worker. The launcher execs Deno in place, so the
+ * child pid is the worker; it has no run permission and can start nothing,
+ * so killing the child ends the whole boundary.
+ */
+async function terminateProcess(child: Deno.ChildProcess): Promise<void> {
+  try {
+    child.kill("SIGKILL");
+  } catch {
+    // Already exited.
+  }
+  await child.status.catch(() => undefined);
+}
+
 async function terminateBoundary(
   child: Deno.ChildProcess,
   systemctlPath: string,
@@ -1046,9 +1076,20 @@ async function verifyBoundaryRemoved(
   }
 }
 
+/**
+ * The fixed launcher the process launcher starts, and the only path the
+ * server's `--allow-run` grant names. It takes one UUID job id, ignores
+ * everything else it is given, and execs Deno on the fixed worker module with
+ * pinned flags; see infra/draft-worker/launch.sh.
+ */
+export const DRAFT_WORKER_LAUNCHER = "/workspace/infra/draft-worker/launch.sh";
+
 export function createDraftIsolation(
   options: IsolationOptions = {},
 ): DraftIsolation {
+  const launcher = options.launcher ?? readDraftIsolationLauncher();
+  const workerLauncherPath = options.workerLauncherPath ??
+    DRAFT_WORKER_LAUNCHER;
   const systemdRunPath = options.systemdRunPath ?? "/usr/bin/systemd-run";
   const systemctlPath = options.systemctlPath ?? "/usr/bin/systemctl";
   const journalctlPath = options.journalctlPath ?? "/usr/bin/journalctl";
@@ -1076,8 +1117,9 @@ export function createDraftIsolation(
     if (frames[0]?.length > DRAFT_LIMITS.metadataBytes) {
       throw new DraftIsolationError("limit", "WORKER_METADATA_TOO_LARGE");
     }
-    const unit = `bakery-draft-${crypto.randomUUID()}`;
-    const args = [
+    const jobId = crypto.randomUUID();
+    const unit = `bakery-draft-${jobId}`;
+    const systemdArgs = [
       "--user",
       "--pipe",
       "--wait",
@@ -1107,15 +1149,23 @@ export function createDraftIsolation(
       "run",
       "--cached-only",
       "--no-prompt",
+      "--deny-import",
+      "--frozen",
       workerPath,
     ];
+    const systemd = launcher === "systemd";
     let child: Deno.ChildProcess;
     try {
-      child = new Deno.Command(systemdRunPath, {
-        args,
+      child = new Deno.Command(systemd ? systemdRunPath : workerLauncherPath, {
+        args: systemd ? systemdArgs : [jobId],
         stdin: "piped",
         stdout: "piped",
         stderr: "piped",
+        // systemd-run needs the session bus from the environment, and the
+        // transient unit does not inherit it. The launcher gets nothing: it
+        // sets the worker's few variables itself, so no server secret can
+        // reach the worker even if the launcher were changed to pass its own.
+        ...(systemd ? {} : { clearEnv: true, env: {} }),
       }).spawn();
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
@@ -1139,7 +1189,9 @@ export function createDraftIsolation(
     let aborted = false;
     let cleanup: Promise<void> | undefined;
     const cleanupBoundary = () =>
-      cleanup ??= terminateBoundary(child, systemctlPath, unit);
+      cleanup ??= systemd
+        ? terminateBoundary(child, systemctlPath, unit)
+        : terminateProcess(child);
     const expire = () => {
       timedOut = true;
       void cleanupBoundary();
@@ -1168,7 +1220,7 @@ export function createDraftIsolation(
               "WORKER_DEADLINE_EXCEEDED",
             );
           }
-          const namespacePrerequisites = status.code === 226
+          const namespacePrerequisites = systemd && status.code === 226
             ? await collectNamespacePrerequisites(
               systemctlPath,
               journalctlPath,
@@ -1201,7 +1253,10 @@ export function createDraftIsolation(
       if (!status.success) {
         const elapsed = performance.now() - readyAt;
         throw new DraftIsolationError(
-          elapsed >= deadlineMs * 0.9 ? "timeout" : "unavailable",
+          // Only systemd kills on its own clock (RuntimeMaxSec). A process
+          // child is time-killed only by our timer, reported above, so its
+          // failed exit is a crash or a memory-cap kill, never a timeout.
+          systemd && elapsed >= deadlineMs * 0.9 ? "timeout" : "unavailable",
           `WORKER_EXIT_${status.code}`,
         );
       }
@@ -1222,7 +1277,7 @@ export function createDraftIsolation(
       stdout.releaseLock();
       stderr.releaseLock();
       await cleanupBoundary();
-      await verifyBoundaryRemoved(systemctlPath, unit);
+      if (systemd) await verifyBoundaryRemoved(systemctlPath, unit);
     }
   };
 

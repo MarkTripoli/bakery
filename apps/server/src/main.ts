@@ -17,6 +17,10 @@ import {
 } from "./modules/execution/control.ts";
 import { createApp } from "./app.ts";
 import {
+  createServerTelemetry,
+  SERVER_TELEMETRY_CLOSE_MS,
+} from "./platform/telemetry.ts";
+import {
   isPreviewRequestHost,
   previewHostname,
 } from "./modules/knowledge/previews/shared.ts";
@@ -179,7 +183,11 @@ async function runServer(config: RuntimeConfig): Promise<void> {
   });
   const eventsSocketRegistry = createEventsSocketRegistry();
   const secretsFetch = createSecretIdentityProviderFixtureFetch(config);
+  // No sink yet: events cost a counter and nothing is queued. A sink is wired
+  // by the slice that adds one, and nothing here depends on it.
+  const telemetry = createServerTelemetry();
   const app = createApp({
+    telemetry,
     config,
     database,
     pgDatabase,
@@ -220,6 +228,7 @@ async function runServer(config: RuntimeConfig): Promise<void> {
           eventsSocketRegistry.closeAll(1001, "server shutdown");
           await server.shutdown();
         } finally {
+          await telemetry.close(SERVER_TELEMETRY_CLOSE_MS).catch(() => {});
           await Promise.all([
             closePgDatabase(pgDatabase),
             closeDatabase(database),
