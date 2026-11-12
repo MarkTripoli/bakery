@@ -28,6 +28,14 @@ import { AsyncLocalStorage } from "node:async_hooks";
  *   `offered = queued + inFlight + exported + discarded + dropped.*`.
  * - No timer exists unless there is something to flush or report, and none
  *   outlives a call or `close`.
+ * - The pump gives the event loop a turn between batches. Code that waits for
+ *   the sink and then offers again (a producer awaiting a promise the sink
+ *   resolves) would otherwise get its next batch taken in the same burst of
+ *   microtasks as the sink's answer, and no timer would ever run: 200,000 sink
+ *   calls went by before a 20 ms timer fired. The cost is one timer turn per
+ *   batch, so `batchSize` sets the throughput. A closing exporter does not
+ *   yield: it refuses offers, so nothing can be feeding it, and `close` flushes
+ *   as fast as the sink answers.
  *
  * Loss is reported, never hidden: each drop is counted by reason and passed to
  * `onLoss`, which is where an export-loss metric attaches. Reports are totals
@@ -437,6 +445,15 @@ export function createBoundedExporter<T>(
           dropped.sendFailed += size;
           failedBatches += 1;
           lost("send-failed", size);
+        }
+        // Whatever became of the batch, let timers and I/O run before the next.
+        // Not while closing: a closing exporter refuses every offer, so nothing
+        // can refill the queue, and a turn per batch would only spend the close
+        // deadline (close(0) flushed 10 of 1000 queued items with it). The
+        // shutdown signal is aborted only by close(), after `closing` is set, so
+        // an abort is covered by the same test.
+        if (ring.size > 0 && !closing) {
+          await after(0).promise;
         }
       }
     } finally {

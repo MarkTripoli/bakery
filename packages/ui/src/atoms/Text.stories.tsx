@@ -30,6 +30,15 @@ const BaseContract: StoryObj = {
         repeated repeated repeated repeated.
       </Text>
       <Text state="long-content">{PSEUDO_COPY.repeat(8)}</Text>
+      <Text
+        lines={2}
+        title="A clamped text keeps its first two lines and ends in an ellipsis, however long the copy runs, and the whole sentence stays available as the element's title for anyone who needs it."
+        variant="muted"
+      >
+        A clamped text keeps its first two lines and ends in an ellipsis,
+        however long the copy runs, and the whole sentence stays available as
+        the element's title for anyone who needs it.
+      </Text>
     </Stack>
   ),
 };

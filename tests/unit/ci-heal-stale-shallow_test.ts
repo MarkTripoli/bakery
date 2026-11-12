@@ -190,6 +190,76 @@ Deno.test("an entry reached only through a tag or a remote-tracking ref is kept"
   });
 });
 
+Deno.test("a boundary reachable only from a detached HEAD is real and kept", async () => {
+  await withDir(async (dir) => {
+    const repo = await makeRepo(dir);
+    // No branch, remote-tracking ref or tag has these two commits: only the
+    // detached HEAD does, as in a shallow checkout of a bare commit. `for-each-ref`
+    // alone would call the boundary stale and drop it.
+    await git(repo, "checkout", "-q", "--detach");
+    for (const n of ["4", "5"]) {
+      await writeFile(join(repo, "f"), n);
+      await git(repo, "add", "f");
+      await git(repo, "commit", "-q", "-m", `c${n}`);
+    }
+    const boundary = await git(repo, "rev-parse", "HEAD~1");
+    assertEquals(
+      await git(repo, "for-each-ref", "--contains", boundary, "refs/heads"),
+      "",
+      "precondition: no branch holds the boundary",
+    );
+    await writeFile(shallowFile(repo), `${boundary}\n`);
+    const before = await readShallow(repo);
+    const visible = await git(repo, "rev-list", "--count", "HEAD");
+
+    const result = await healStaleShallow(repo);
+
+    assertEquals(result.kept, [boundary]);
+    assertEquals(result.dropped, []);
+    assertEquals(result.shallowAfter, true);
+    assertEquals(await readShallow(repo), before);
+    // Nothing was truncated by the heal: the visible history is unchanged.
+    assertEquals(await git(repo, "rev-list", "--count", "HEAD"), visible);
+  });
+});
+
+Deno.test("an entry outside the history of HEAD and of every ref is still dropped", async () => {
+  await withDir(async (dir) => {
+    const repo = await makeRepo(dir);
+    await git(repo, "checkout", "-q", "--detach");
+    const stale = await danglingCommit(repo, "from the old repository");
+    await writeFile(shallowFile(repo), `${stale}\n`);
+
+    const result = await healStaleShallow(repo);
+
+    assertEquals(result.dropped.map((d) => d.sha), [stale]);
+    assertEquals(result.kept, []);
+    assertEquals(result.shallowAfter, false);
+  });
+});
+
+Deno.test("when git cannot answer whether HEAD reaches an entry nothing is dropped", async () => {
+  await withDir(async (dir) => {
+    const repo = await makeRepo(dir);
+    const stale = await danglingCommit(repo, "leftover");
+    await writeFile(shallowFile(repo), `${stale}\n`);
+    const before = await readShallow(repo);
+    // `merge-base --is-ancestor` exits 1 for "no" and 0 for "yes"; any other
+    // exit is git failing, which is not a "no".
+    const failing: GitRunner = async (cwd, args) =>
+      args[0] === "merge-base"
+        ? { code: 128, stdout: "", stderr: "boom" }
+        : await runGit(cwd, args);
+    await assertRejects(
+      () => healStaleShallow(repo, { git: failing }),
+      Error,
+      "GIT_COMMAND_FAILED",
+    );
+    assertEquals(await readShallow(repo), before);
+    assertEquals(await isShallow(repo), true);
+  });
+});
+
 Deno.test("a shallow file with nothing to drop is not rewritten at all", async () => {
   await withDir(async (dir) => {
     const repo = await makeRepo(dir);

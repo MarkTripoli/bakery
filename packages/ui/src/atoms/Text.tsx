@@ -8,6 +8,8 @@ export type TextProps =
     children: ReactNode;
     state?: "default" | "truncated" | "long-content";
     truncate?: boolean;
+    /** Clamps the text to this many lines, then an ellipsis; give it a `title` with the whole text. */
+    lines?: 2;
     variant?:
       | "body"
       | "caption"
@@ -22,7 +24,7 @@ export type TextProps =
   };
 
 export function Text(
-  { state = "default", truncate = false, variant = "body", ...props }:
+  { lines, state = "default", truncate = false, variant = "body", ...props }:
     TextProps,
 ) {
   return (
@@ -33,7 +35,8 @@ export function Text(
         (truncate || state === "truncated") &&
         "ui-text--truncate",
       ].filter(Boolean).join(" ")}
-      data-rail={truncate || state === "truncated"
+      data-lines={lines}
+      data-rail={truncate || state === "truncated" || lines
         ? "truncation-allowed"
         : undefined}
       {...props}
