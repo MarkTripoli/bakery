@@ -474,11 +474,19 @@ async function observeExpiryAndRevocation(
     const c = await open(harness, third);
     await join(c, harness);
     await until(c, "joined");
+    // c keeps its presence fresh, so only the revocation can remove it: a
+    // silent c could expire first on a busy host, and "expired" (also true)
+    // would then pre-empt the "revoked" this step is about.
+    const cKeepAlive = setInterval(() => {
+      c.send(presence(harness, {})).catch(() => {});
+    }, 250);
     await harness.fixture.pgDatabase.query(
       "delete from public.session where token=$1",
       [third.sessionToken],
     );
-    const ended = await drain(c, 2_000);
+    const ended = await drain(c, 2_000).finally(() =>
+      clearInterval(cKeepAlive)
+    );
     assertExists(ended.closed);
     assertEquals(ended.closed.code, 1008);
     const removedReasons: unknown[] = [];
