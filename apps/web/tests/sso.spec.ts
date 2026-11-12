@@ -587,6 +587,7 @@ test.describe("single sign-on settings", () => {
         return color;
       }, token);
     // No verified provider: neutral surface, and the switch and its label are disabled.
+    await expect(page.getByLabel(REQUIRE)).toBeDisabled();
     await shot(page, "sso-require-unavailable");
     expect(await background()).toBe(await tokenColor("--color-surface"));
     const label = page.locator(".ui-switch").filter({ hasText: REQUIRE });
@@ -595,6 +596,7 @@ test.describe("single sign-on settings", () => {
     // Verified, off: still neutral, and the label is back to the normal colour.
     state.providers = [VERIFIED];
     await page.reload();
+    await expect(page.getByLabel(REQUIRE)).toBeEnabled();
     await shot(page, "sso-require-off");
     expect(await background()).toBe(await tokenColor("--color-surface"));
     expect(await label.evaluate((node) => getComputedStyle(node).color))
@@ -637,6 +639,8 @@ test.describe("single sign-on settings", () => {
   test("sits in the same column and uses the same buttons as the SCIM page", async ({ page, isMobile }) => {
     await ssoFixture(page, { providers: [VERIFIED] });
     await page.goto("/settings/organization/sso");
+    await expect(page.getByRole("button", { name: "okta · OIDC" }))
+      .toBeVisible();
     await shot(page, "sso-list");
     const column = (await page.getByTestId("organization-sso").boundingBox())!;
     // The settings column every settings page shares: 760 px on a wide screen.

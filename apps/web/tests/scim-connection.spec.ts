@@ -193,6 +193,8 @@ for (
     test("sits in the same column and uses the same buttons as the SSO page", async ({ page }) => {
       await scimFixture(page, { initial: "active" });
       await page.goto("/settings/scim");
+      await expect(page.getByRole("button", { name: "Rotate token" }))
+        .toBeVisible();
       await shot(page, "scim-connection");
       const column = (await page.getByTestId("scim-connection").boundingBox())!;
       if (viewport.name === "desktop") {

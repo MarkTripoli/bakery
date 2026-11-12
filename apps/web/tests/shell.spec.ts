@@ -632,7 +632,9 @@ test("the account and organization triggers stay one row when a name is long, an
       }),
     }));
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto("/settings/sso");
+  await page.goto("/settings/sessions");
+  await expect(page.getByRole("heading", { name: "Active sessions" }).first())
+    .toBeVisible();
   for (
     const trigger of [
       ".bakery-user-menu__trigger",
