@@ -106,6 +106,12 @@ export async function forwardToApi(
 }
 
 const evidenceDirectory = process.env.BAKERY_EVIDENCE_DIR;
+/** `dark` or `light`: capture the stills under that color scheme (default: the browser's). */
+const evidenceScheme = process.env.BAKERY_EVIDENCE_SCHEME === "dark"
+  ? "dark"
+  : process.env.BAKERY_EVIDENCE_SCHEME === "light"
+  ? "light"
+  : null;
 const EVIDENCE_VIEWPORTS = [
   { name: "desktop", width: 1440, height: 900 },
   { name: "mobile", width: 390, height: 844 },
@@ -118,6 +124,7 @@ const EVIDENCE_VIEWPORTS = [
  */
 export async function shot(page: Page, name: string, mask: Locator[] = []) {
   if (!evidenceDirectory) return;
+  if (evidenceScheme) await page.emulateMedia({ colorScheme: evidenceScheme });
   const original = page.viewportSize();
   for (const { name: viewport, ...size } of EVIDENCE_VIEWPORTS) {
     await page.setViewportSize(size);

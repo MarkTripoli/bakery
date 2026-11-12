@@ -1,6 +1,5 @@
 import { assert, assertEquals, assertThrows } from "@std/assert";
 import {
-  SYSTEMD_RUNTIME_SECONDS,
   SYSTEMD_UNIT_PROPERTIES,
 } from "../../apps/server/src/modules/knowledge/draft-isolation.ts";
 import {
@@ -33,16 +32,17 @@ Deno.test("the systemd draft launcher pins the server's unit properties", async 
     commands.indexOf("  run)"),
     commands.indexOf("\n    ;;", commands.indexOf("  run)")),
   );
+  // The fixed list plus RuntimeMaxSec, which the server passes per call.
   assertEquals(
     run.match(/--property=/g)?.length,
-    SYSTEMD_UNIT_PROPERTIES.length,
+    SYSTEMD_UNIT_PROPERTIES.length + 1,
     "the launcher sets a property the server does not",
   );
   assertEquals(
-    SYSTEMD_UNIT_PROPERTIES.includes(
-      `--property=RuntimeMaxSec=${SYSTEMD_RUNTIME_SECONDS}s`,
+    SYSTEMD_UNIT_PROPERTIES.some((property) =>
+      property.startsWith("--property=RuntimeMaxSec=")
     ),
-    true,
+    false,
   );
   // The worker gets the same flags as the server's own systemd arguments.
   assert(

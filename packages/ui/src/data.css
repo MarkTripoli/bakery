@@ -1498,6 +1498,13 @@
 .ui-list-row__detail {
   overflow-wrap: anywhere;
 }
+.ui-list-row__headline {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
 .ui-list-row__title {
   color: var(--color-fg);
   font: var(--type-control);

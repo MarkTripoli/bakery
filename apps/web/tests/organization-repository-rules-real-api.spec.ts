@@ -197,4 +197,113 @@ test.describe("organization repository rules against the real API", () => {
     ).toHaveCount(0);
     await shot(page, "rules-forbidden");
   });
+
+  /** Edits one rule through the page's editor and applies it to the draft. */
+  async function editRule(
+    page: import("@playwright/test").Page,
+    rule: string,
+    change: (page: import("@playwright/test").Page) => Promise<void>,
+  ) {
+    await page.getByRole("button", { name: `Edit ${rule}` }).click();
+    await expect(
+      page.getByRole("heading", { name: `Edit ${rule}`, level: 1 }),
+    ).toBeVisible();
+    await change(page);
+    await page.getByRole("button", { name: "Apply to draft" }).click();
+  }
+  const chooseMode =
+    (mode: string) => async (page: import("@playwright/test").Page) => {
+      await page.getByRole("group", { name: "Enforcement" }).getByRole(
+        "radio",
+        {
+          name: mode,
+          exact: true,
+        },
+      ).check({ force: true });
+    };
+
+  test("edits a rule, reviews what it would do and publishes it against the real server", async ({ page, baseURL }) => {
+    await openAsAdmin(page, baseURL);
+    await expect(page.getByTestId("org-rules-current")).toContainText(
+      `Published revision ${TOTAL_REVISIONS}`,
+    );
+    await editRule(page, "Magic strings", async (editor) => {
+      await editor.getByRole("switch", { name: "Rule enabled" }).check();
+    });
+    await expect(
+      page.getByRole("status").filter({ hasText: "unpublished change" }),
+    ).toContainText("1 unpublished change");
+    await shot(page, "rules-draft");
+
+    // The real preview answers: the dialog can publish only after it has.
+    await page.getByRole("button", { name: "Review and publish" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText(
+      `Publish revision ${TOTAL_REVISIONS + 1}?`,
+    );
+    await expect(dialog.getByRole("button", { name: "Publish rules" }))
+      .toBeEnabled();
+    await expect(dialog).toContainText(/Applies to \d+ repositor(y|ies) now/);
+    await shot(page, "rules-review");
+
+    await dialog.getByRole("button", { name: "Publish rules" }).click();
+    await expect(
+      page.getByText(`Revision ${TOTAL_REVISIONS + 1} published.`),
+    ).toBeVisible();
+    // The server stored it, and the page now reads what the server stored.
+    const stored = (await state()).versions;
+    expect(stored.at(-1)).toMatchObject({
+      revision: TOTAL_REVISIONS + 1,
+      entries: 5,
+    });
+    await expect(page.getByTestId("org-rules-current")).toContainText(
+      `Published revision ${TOTAL_REVISIONS + 1}`,
+    );
+    await expect(ruleRow(page, "Magic strings")).not.toContainText("Edited");
+    await expect(ruleRow(page, "Magic strings")).toContainText("Warn");
+    await shot(page, "rules-published");
+  });
+
+  test("a revision published meanwhile makes the real server refuse the review, and the draft is reconciled", async ({ page, baseURL }) => {
+    const current = TOTAL_REVISIONS + 1;
+    await openAsAdmin(page, baseURL);
+    await editRule(page, "Semantic commits", chooseMode("Warn"));
+    await expect(
+      page.getByRole("status").filter({ hasText: "unpublished change" }),
+    ).toContainText("1 unpublished change");
+
+    // Someone else publishes the next revision, changing the same rule.
+    const theirs = RULE_ENTRIES.map((entry) =>
+      entry.ruleKey === "commits.semantic" ? { ...entry, mode: "guide" } : entry
+    );
+    const next = await publish(current, theirs);
+    expect(next.revision).toBe(current + 1);
+
+    // The real preview answers 412 for the revision this draft was made on.
+    await page.getByRole("button", { name: "Review and publish" }).click();
+    const notice = page.getByTestId("org-rules-stale");
+    await expect(notice).toContainText(
+      `Revision ${current + 1} was published while you were editing.`,
+    );
+    const conflicts = page.getByTestId("org-rules-conflicts");
+    await expect(conflicts).toContainText("Semantic commits");
+    await expect(conflicts).toContainText(`Changed in revision ${current + 1}`);
+    await expect(page.getByRole("button", { name: "Review and publish" }))
+      .toBeDisabled();
+    await shot(page, "rules-stale");
+
+    await page.getByRole("button", { name: "Keep mine for Semantic commits" })
+      .click();
+    await page.getByRole("button", { name: "Review and publish" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText(`Publish revision ${current + 2}?`);
+    await dialog.getByRole("button", { name: "Publish rules" }).click();
+    await expect(page.getByText(`Revision ${current + 2} published.`))
+      .toBeVisible();
+    const stored = (await state()).versions;
+    expect(stored.at(-1)?.revision).toBe(current + 2);
+    // Mine won: the published rule is the one edited here, not the other revision's.
+    await expect(ruleRow(page, "Semantic commits")).toContainText("Warn");
+    await shot(page, "rules-stale-resolved");
+  });
 });

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { IconGlyph, ListRow, StatusDot } from "@bakery/ui";
+import { Badge, IconGlyph, ListRow, StatusDot } from "@bakery/ui";
 
 const meta = {
   title: "Bakery/Molecules/ListRow",
@@ -29,6 +29,11 @@ export const Contract: StoryObj = {
         detail="A detail that runs long keeps its first two lines and ends in an ellipsis, with the whole text as its title, so one row never grows without limit however much it has to say."
         detailLines={2}
         title="Northwind long detail"
+      />
+      <ListRow
+        badge={<Badge>Edited</Badge>}
+        detail="Require · Locked"
+        title="Semantic commits"
       />
       <ListRow
         detail="Revision 7 · enforced"
