@@ -245,24 +245,28 @@ export function OrganizationRepositoryRulesPage() {
                                   openEditor(row.ruleKey)}
                                 title={translate(RULE_NAME[row.ruleKey])}
                                 trailing={
-                                  <UI.Inline>
-                                    {editedBadge(row)}
-                                    <span>
-                                      {translate(
-                                        "settings.repositoryRules.enforcementAccess",
-                                        {
-                                          enforcement: translate(
-                                            enforcementOf(row),
-                                          ),
-                                          access: translate(
-                                            row.locked
-                                              ? "settings.repositoryRules.access.locked"
-                                              : "settings.repositoryRules.access.override",
-                                          ),
-                                        },
-                                      )}
-                                    </span>
-                                  </UI.Inline>
+                                  <UI.Stack gap="tight">
+                                    <UI.Inline>
+                                      {editedBadge(row)}
+                                      <span>
+                                        {translate(
+                                          "settings.repositoryRules.enforcementAccess",
+                                          {
+                                            enforcement: translate(
+                                              enforcementOf(row),
+                                            ),
+                                            access: translate(
+                                              row.locked
+                                                ? "settings.repositoryRules.access.locked"
+                                                : "settings.repositoryRules.access.override",
+                                            ),
+                                          },
+                                        )}
+                                      </span>
+                                    </UI.Inline>
+                                    {was(row, enforcementOf)}
+                                    {was(row, accessOf)}
+                                  </UI.Stack>
                                 }
                               />
                             </div>

@@ -304,12 +304,13 @@ test.describe("organization repository rules", () => {
     await page.goto(PAGE_PATH);
     // The right edge of what is drawn: a block-level table box spans the
     // column whatever its cells do, so measure the last column header.
-    const rightEdge = async (name: string) => {
-      const box = await page.getByRole("columnheader", { name }).boundingBox();
+    const rightEdge = async (table: string) => {
+      const box = await page.getByRole("table", { name: table })
+        .getByRole("columnheader").last().boundingBox();
       return box!.x + box!.width;
     };
-    const rules = await rightEdge("Repository access");
-    const history = await rightEdge("Digest");
+    const rules = await rightEdge("Organization rules");
+    const history = await rightEdge("Published revisions");
     expect(Math.abs(rules - history)).toBeLessThanOrEqual(1);
   });
 
