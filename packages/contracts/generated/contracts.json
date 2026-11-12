@@ -139263,6 +139263,78 @@
               "type": "string",
               "pattern": "^[a-f0-9]{64}$",
               "description": "Lowercase SHA-256 of the canonical effective entries and organization revision; superseded overrides are excluded."
+            },
+            "repositoryVersion": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Current repository version; the response ETag is \"v<version>\", the If-Match value profile activation requires."
+            },
+            "checkers": {
+              "type": "object",
+              "properties": {
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "configured",
+                    "unavailable",
+                    "not_required"
+                  ],
+                  "description": "configured when every checker-backed rule names an active fixed-policy command, unavailable when at least one does not (a require rule then blocks delivery), not_required when no enabled rule needs a checker."
+                },
+                "unavailableRuleKeys": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Rule keys whose checker is missing or unbound, in canonical order; empty unless state is unavailable. Each array item follows this format."
+                  },
+                  "description": "Rule keys whose checker is missing or unbound, in canonical order; empty unless state is unavailable."
+                }
+              },
+              "required": [
+                "state",
+                "unavailableRuleKeys"
+              ],
+              "additionalProperties": false,
+              "description": "Bakery checker availability for the effective rules."
+            },
+            "providerProtection": {
+              "type": "object",
+              "properties": {
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "verified",
+                    "not_configured",
+                    "unknown"
+                  ],
+                  "description": "verified or not_configured once read from the provider; unknown when it has not been read."
+                },
+                "reason": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "provider_not_connected",
+                        "not_checked"
+                      ],
+                      "description": "Why the state is unknown: the repository has no enabled provider connection, or Bakery has not checked protection; null when the state is known."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "RepositoryProviderProtection.reason may be null in this transport value."
+                }
+              },
+              "required": [
+                "state",
+                "reason"
+              ],
+              "additionalProperties": false,
+              "description": "Git provider branch protection state, separate from Bakery enforcement."
             }
           },
           "required": [
@@ -139272,10 +139344,81 @@
             "organizationRevision",
             "entries",
             "supersededOverrides",
-            "digest"
+            "digest",
+            "repositoryVersion",
+            "checkers",
+            "providerProtection"
           ],
           "additionalProperties": false,
           "description": "The rules in force for one repository: the organization's latest published baseline layered with the overrides of the repository's active profile, one entry per applicable rule with its provenance, plus overrides inactive under an organization lock. Resolved in one snapshot, so every entry's organization revision equals the response's organizationRevision. A repository with no active profile resolves with no overrides."
+        },
+        "RepositoryRuleCheckers": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "configured",
+                "unavailable",
+                "not_required"
+              ],
+              "description": "configured when every checker-backed rule names an active fixed-policy command, unavailable when at least one does not (a require rule then blocks delivery), not_required when no enabled rule needs a checker."
+            },
+            "unavailableRuleKeys": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Rule keys whose checker is missing or unbound, in canonical order; empty unless state is unavailable. Each array item follows this format."
+              },
+              "description": "Rule keys whose checker is missing or unbound, in canonical order; empty unless state is unavailable."
+            }
+          },
+          "required": [
+            "state",
+            "unavailableRuleKeys"
+          ],
+          "additionalProperties": false,
+          "description": "Whether the rules that need a Bakery checker have one: every enabled warn or require rule with a check binding must name a command of the active profile fixed policy."
+        },
+        "RepositoryProviderProtection": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "verified",
+                "not_configured",
+                "unknown"
+              ],
+              "description": "verified or not_configured once read from the provider; unknown when it has not been read."
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "provider_not_connected",
+                    "not_checked"
+                  ],
+                  "description": "Why the state is unknown: the repository has no enabled provider connection, or Bakery has not checked protection; null when the state is known."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "RepositoryProviderProtection.reason may be null in this transport value."
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "additionalProperties": false,
+          "description": "Git provider branch protection for the repository, reported independently of Bakery rule status. Bakery does not yet read provider protection, so it is unknown rather than assumed absent."
         },
         "OrganizationRepositoryRulesRead": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -175298,9 +175441,12 @@
                       "left",
                       "closed",
                       "expired",
-                      "revoked"
+                      "revoked",
+                      "stale",
+                      "epoch",
+                      "rejected"
                     ],
-                    "description": "Why the participant left: explicit leave, closed connection, TTL expiry or lost access."
+                    "description": "Why a participant left (left, closed, expired, revoked), or why an update must be resynchronized: stale highwater after the retry budget, another epoch, or rejected bytes."
                   },
                   "type": {
                     "type": "string",
@@ -175533,9 +175679,392 @@
                 ],
                 "additionalProperties": false,
                 "description": "CollaborationFrame problem frame."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "requestId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Client-chosen identifier correlating a reply with its request."
+                  },
+                  "room": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "draft"
+                        ],
+                        "description": "Room type; only collaborative drafts can be joined."
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Identifier of the draft the room belongs to."
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Room the frame applies to."
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "sync",
+                    "description": "CollaborationFrame.sync discriminator."
+                  }
+                },
+                "required": [
+                  "requestId",
+                  "room",
+                  "type"
+                ],
+                "additionalProperties": false,
+                "description": "CollaborationFrame sync frame."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "requestId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Client-chosen identifier correlating a reply with its request."
+                  },
+                  "room": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "draft"
+                        ],
+                        "description": "Room type; only collaborative drafts can be joined."
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Identifier of the draft the room belongs to."
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Room the frame applies to."
+                  },
+                  "epoch": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Draft epoch of the state or update."
+                  },
+                  "serverSequence": {
+                    "type": "string",
+                    "pattern": "^(?:0|[1-9][0-9]*)$",
+                    "description": "Committed server sequence (decimal string) the state or update reaches."
+                  },
+                  "checkpointId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Checkpoint the synced state was read from."
+                  },
+                  "byteLength": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "Exact length of the binary frame that immediately follows this frame."
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "synced",
+                    "description": "CollaborationFrame.synced discriminator."
+                  }
+                },
+                "required": [
+                  "requestId",
+                  "room",
+                  "epoch",
+                  "serverSequence",
+                  "checkpointId",
+                  "byteLength",
+                  "type"
+                ],
+                "additionalProperties": false,
+                "description": "CollaborationFrame synced frame."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "room": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "draft"
+                        ],
+                        "description": "Room type; only collaborative drafts can be joined."
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Identifier of the draft the room belongs to."
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Room the frame applies to."
+                  },
+                  "mutationId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Client mutation id the frame refers to."
+                  },
+                  "receipt": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "mutationId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "description": "Caller-generated identifier bound to one canonical guarded edit payload."
+                          },
+                          "draftId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "description": "Authorized draft changed by this committed mutation."
+                          },
+                          "epoch": {
+                            "type": "integer",
+                            "minimum": -9007199254740991,
+                            "maximum": 9007199254740991,
+                            "description": "Draft epoch in which this mutation committed."
+                          },
+                          "serverSequence": {
+                            "type": "string",
+                            "pattern": "^(?:0|[1-9][0-9]*)$",
+                            "description": "Monotonic decimal sequence assigned by the server transaction."
+                          },
+                          "checkpointId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "description": "Full Loro checkpoint committed with this update."
+                          },
+                          "actorId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "description": "Authenticated principal accepted as submitter; never caller-selected."
+                          },
+                          "mutationDigest": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$",
+                            "description": "SHA-256 of the canonical guarded-edit request used for conflicting retry detection."
+                          },
+                          "updateDigest": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$",
+                            "description": "SHA-256 of the exact generated Loro update bytes stored for this sequence."
+                          },
+                          "textDigest": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$",
+                            "description": "SHA-256 of the complete UTF-8 body text after the edit."
+                          },
+                          "committedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                            "description": "UTC database commit record timestamp for the accepted mutation."
+                          }
+                        },
+                        "required": [
+                          "mutationId",
+                          "draftId",
+                          "epoch",
+                          "serverSequence",
+                          "checkpointId",
+                          "actorId",
+                          "mutationDigest",
+                          "updateDigest",
+                          "textDigest",
+                          "committedAt"
+                        ],
+                        "additionalProperties": false,
+                        "description": "Committed mutation receipt, replayed exactly for a duplicate; null when the update added nothing new to the committed state."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "CollaborationFrame.ack.receipt may be null in this transport value."
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "ack",
+                    "description": "CollaborationFrame.ack discriminator."
+                  }
+                },
+                "required": [
+                  "room",
+                  "mutationId",
+                  "receipt",
+                  "type"
+                ],
+                "additionalProperties": false,
+                "description": "CollaborationFrame ack frame."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "room": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "draft"
+                        ],
+                        "description": "Room type; only collaborative drafts can be joined."
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Identifier of the draft the room belongs to."
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Room the frame applies to."
+                  },
+                  "mutationId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Client mutation id the frame refers to."
+                  },
+                  "serverSequence": {
+                    "type": "string",
+                    "pattern": "^(?:0|[1-9][0-9]*)$",
+                    "description": "Committed server sequence (decimal string) the state or update reaches."
+                  },
+                  "byteLength": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "Exact length of the binary frame that immediately follows this frame."
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "committed",
+                    "description": "CollaborationFrame.committed discriminator."
+                  }
+                },
+                "required": [
+                  "room",
+                  "mutationId",
+                  "serverSequence",
+                  "byteLength",
+                  "type"
+                ],
+                "additionalProperties": false,
+                "description": "CollaborationFrame committed frame."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "room": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "draft"
+                        ],
+                        "description": "Room type; only collaborative drafts can be joined."
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Identifier of the draft the room belongs to."
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Room the frame applies to."
+                  },
+                  "mutationId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Client mutation id the frame refers to."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "CollaborationFrame.resync_required.mutationId may be null in this transport value."
+                  },
+                  "reason": {
+                    "type": "string",
+                    "enum": [
+                      "left",
+                      "closed",
+                      "expired",
+                      "revoked",
+                      "stale",
+                      "epoch",
+                      "rejected"
+                    ],
+                    "description": "Why a participant left (left, closed, expired, revoked), or why an update must be resynchronized: stale highwater after the retry budget, another epoch, or rejected bytes."
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "resync_required",
+                    "description": "CollaborationFrame.resync_required discriminator."
+                  }
+                },
+                "required": [
+                  "room",
+                  "mutationId",
+                  "reason",
+                  "type"
+                ],
+                "additionalProperties": false,
+                "description": "CollaborationFrame resync_required frame."
               }
             ],
-            "description": "Bounded JSON frames on /v1/collaboration: room join/leave and ephemeral presence. Presence is never durable, never replayed and never authority.",
+            "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, and committed draft sync. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
             "x-utf8-max-bytes": 65536
           },
           "description": "CollaborationFrames frames."
@@ -176283,9 +176812,12 @@
                     "left",
                     "closed",
                     "expired",
-                    "revoked"
+                    "revoked",
+                    "stale",
+                    "epoch",
+                    "rejected"
                   ],
-                  "description": "Why the participant left: explicit leave, closed connection, TTL expiry or lost access."
+                  "description": "Why a participant left (left, closed, expired, revoked), or why an update must be resynchronized: stale highwater after the retry budget, another epoch, or rejected bytes."
                 },
                 "type": {
                   "type": "string",
@@ -176518,9 +177050,392 @@
               ],
               "additionalProperties": false,
               "description": "CollaborationFrame problem frame."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "requestId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Client-chosen identifier correlating a reply with its request."
+                },
+                "room": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "draft"
+                      ],
+                      "description": "Room type; only collaborative drafts can be joined."
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Identifier of the draft the room belongs to."
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Room the frame applies to."
+                },
+                "type": {
+                  "type": "string",
+                  "const": "sync",
+                  "description": "CollaborationFrame.sync discriminator."
+                }
+              },
+              "required": [
+                "requestId",
+                "room",
+                "type"
+              ],
+              "additionalProperties": false,
+              "description": "CollaborationFrame sync frame."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "requestId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Client-chosen identifier correlating a reply with its request."
+                },
+                "room": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "draft"
+                      ],
+                      "description": "Room type; only collaborative drafts can be joined."
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Identifier of the draft the room belongs to."
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Room the frame applies to."
+                },
+                "epoch": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Draft epoch of the state or update."
+                },
+                "serverSequence": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9][0-9]*)$",
+                  "description": "Committed server sequence (decimal string) the state or update reaches."
+                },
+                "checkpointId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Checkpoint the synced state was read from."
+                },
+                "byteLength": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Exact length of the binary frame that immediately follows this frame."
+                },
+                "type": {
+                  "type": "string",
+                  "const": "synced",
+                  "description": "CollaborationFrame.synced discriminator."
+                }
+              },
+              "required": [
+                "requestId",
+                "room",
+                "epoch",
+                "serverSequence",
+                "checkpointId",
+                "byteLength",
+                "type"
+              ],
+              "additionalProperties": false,
+              "description": "CollaborationFrame synced frame."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "room": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "draft"
+                      ],
+                      "description": "Room type; only collaborative drafts can be joined."
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Identifier of the draft the room belongs to."
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Room the frame applies to."
+                },
+                "mutationId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Client mutation id the frame refers to."
+                },
+                "receipt": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "mutationId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "description": "Caller-generated identifier bound to one canonical guarded edit payload."
+                        },
+                        "draftId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "description": "Authorized draft changed by this committed mutation."
+                        },
+                        "epoch": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991,
+                          "description": "Draft epoch in which this mutation committed."
+                        },
+                        "serverSequence": {
+                          "type": "string",
+                          "pattern": "^(?:0|[1-9][0-9]*)$",
+                          "description": "Monotonic decimal sequence assigned by the server transaction."
+                        },
+                        "checkpointId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "description": "Full Loro checkpoint committed with this update."
+                        },
+                        "actorId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "description": "Authenticated principal accepted as submitter; never caller-selected."
+                        },
+                        "mutationDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$",
+                          "description": "SHA-256 of the canonical guarded-edit request used for conflicting retry detection."
+                        },
+                        "updateDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$",
+                          "description": "SHA-256 of the exact generated Loro update bytes stored for this sequence."
+                        },
+                        "textDigest": {
+                          "type": "string",
+                          "pattern": "^[a-f0-9]{64}$",
+                          "description": "SHA-256 of the complete UTF-8 body text after the edit."
+                        },
+                        "committedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                          "description": "UTC database commit record timestamp for the accepted mutation."
+                        }
+                      },
+                      "required": [
+                        "mutationId",
+                        "draftId",
+                        "epoch",
+                        "serverSequence",
+                        "checkpointId",
+                        "actorId",
+                        "mutationDigest",
+                        "updateDigest",
+                        "textDigest",
+                        "committedAt"
+                      ],
+                      "additionalProperties": false,
+                      "description": "Committed mutation receipt, replayed exactly for a duplicate; null when the update added nothing new to the committed state."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "CollaborationFrame.ack.receipt may be null in this transport value."
+                },
+                "type": {
+                  "type": "string",
+                  "const": "ack",
+                  "description": "CollaborationFrame.ack discriminator."
+                }
+              },
+              "required": [
+                "room",
+                "mutationId",
+                "receipt",
+                "type"
+              ],
+              "additionalProperties": false,
+              "description": "CollaborationFrame ack frame."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "room": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "draft"
+                      ],
+                      "description": "Room type; only collaborative drafts can be joined."
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Identifier of the draft the room belongs to."
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Room the frame applies to."
+                },
+                "mutationId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Client mutation id the frame refers to."
+                },
+                "serverSequence": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9][0-9]*)$",
+                  "description": "Committed server sequence (decimal string) the state or update reaches."
+                },
+                "byteLength": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991,
+                  "description": "Exact length of the binary frame that immediately follows this frame."
+                },
+                "type": {
+                  "type": "string",
+                  "const": "committed",
+                  "description": "CollaborationFrame.committed discriminator."
+                }
+              },
+              "required": [
+                "room",
+                "mutationId",
+                "serverSequence",
+                "byteLength",
+                "type"
+              ],
+              "additionalProperties": false,
+              "description": "CollaborationFrame committed frame."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "room": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "draft"
+                      ],
+                      "description": "Room type; only collaborative drafts can be joined."
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Identifier of the draft the room belongs to."
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Room the frame applies to."
+                },
+                "mutationId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Client mutation id the frame refers to."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "CollaborationFrame.resync_required.mutationId may be null in this transport value."
+                },
+                "reason": {
+                  "type": "string",
+                  "enum": [
+                    "left",
+                    "closed",
+                    "expired",
+                    "revoked",
+                    "stale",
+                    "epoch",
+                    "rejected"
+                  ],
+                  "description": "Why a participant left (left, closed, expired, revoked), or why an update must be resynchronized: stale highwater after the retry budget, another epoch, or rejected bytes."
+                },
+                "type": {
+                  "type": "string",
+                  "const": "resync_required",
+                  "description": "CollaborationFrame.resync_required discriminator."
+                }
+              },
+              "required": [
+                "room",
+                "mutationId",
+                "reason",
+                "type"
+              ],
+              "additionalProperties": false,
+              "description": "CollaborationFrame resync_required frame."
             }
           ],
-          "description": "Bounded JSON frames on /v1/collaboration: room join/leave and ephemeral presence. Presence is never durable, never replayed and never authority.",
+          "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, and committed draft sync. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
           "x-utf8-max-bytes": 65536
         },
         "CollaborationFrame____schema0": {
@@ -196250,7 +197165,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:32350a15e27bcf5a088d03ddbd40bb1a9dac4c96afeeacac83f4b5cb6530ad96",
+  "compatibilityDigest": "sha256:31d3904ac4c659daa7b1ca9d17749d0d3a23dfbdb137967b7bc98ed36592886a",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -304817,6 +305732,78 @@
           "type": "string",
           "pattern": "^[a-f0-9]{64}$",
           "description": "Lowercase SHA-256 of the canonical effective entries and organization revision; superseded overrides are excluded."
+        },
+        "repositoryVersion": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Current repository version; the response ETag is \"v<version>\", the If-Match value profile activation requires."
+        },
+        "checkers": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "configured",
+                "unavailable",
+                "not_required"
+              ],
+              "description": "configured when every checker-backed rule names an active fixed-policy command, unavailable when at least one does not (a require rule then blocks delivery), not_required when no enabled rule needs a checker."
+            },
+            "unavailableRuleKeys": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Rule keys whose checker is missing or unbound, in canonical order; empty unless state is unavailable. Each array item follows this format."
+              },
+              "description": "Rule keys whose checker is missing or unbound, in canonical order; empty unless state is unavailable."
+            }
+          },
+          "required": [
+            "state",
+            "unavailableRuleKeys"
+          ],
+          "additionalProperties": false,
+          "description": "Bakery checker availability for the effective rules."
+        },
+        "providerProtection": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "verified",
+                "not_configured",
+                "unknown"
+              ],
+              "description": "verified or not_configured once read from the provider; unknown when it has not been read."
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "provider_not_connected",
+                    "not_checked"
+                  ],
+                  "description": "Why the state is unknown: the repository has no enabled provider connection, or Bakery has not checked protection; null when the state is known."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "RepositoryProviderProtection.reason may be null in this transport value."
+            }
+          },
+          "required": [
+            "state",
+            "reason"
+          ],
+          "additionalProperties": false,
+          "description": "Git provider branch protection state, separate from Bakery enforcement."
         }
       },
       "required": [
@@ -304826,10 +305813,81 @@
         "organizationRevision",
         "entries",
         "supersededOverrides",
-        "digest"
+        "digest",
+        "repositoryVersion",
+        "checkers",
+        "providerProtection"
       ],
       "additionalProperties": false,
       "description": "The rules in force for one repository: the organization's latest published baseline layered with the overrides of the repository's active profile, one entry per applicable rule with its provenance, plus overrides inactive under an organization lock. Resolved in one snapshot, so every entry's organization revision equals the response's organizationRevision. A repository with no active profile resolves with no overrides."
+    },
+    "RepositoryRuleCheckers": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "configured",
+            "unavailable",
+            "not_required"
+          ],
+          "description": "configured when every checker-backed rule names an active fixed-policy command, unavailable when at least one does not (a require rule then blocks delivery), not_required when no enabled rule needs a checker."
+        },
+        "unavailableRuleKeys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 65536,
+            "description": "Rule keys whose checker is missing or unbound, in canonical order; empty unless state is unavailable. Each array item follows this format."
+          },
+          "description": "Rule keys whose checker is missing or unbound, in canonical order; empty unless state is unavailable."
+        }
+      },
+      "required": [
+        "state",
+        "unavailableRuleKeys"
+      ],
+      "additionalProperties": false,
+      "description": "Whether the rules that need a Bakery checker have one: every enabled warn or require rule with a check binding must name a command of the active profile fixed policy."
+    },
+    "RepositoryProviderProtection": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "verified",
+            "not_configured",
+            "unknown"
+          ],
+          "description": "verified or not_configured once read from the provider; unknown when it has not been read."
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "provider_not_connected",
+                "not_checked"
+              ],
+              "description": "Why the state is unknown: the repository has no enabled provider connection, or Bakery has not checked protection; null when the state is known."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "RepositoryProviderProtection.reason may be null in this transport value."
+        }
+      },
+      "required": [
+        "state",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "description": "Git provider branch protection for the repository, reported independently of Bakery rule status. Bakery does not yet read provider protection, so it is unknown rather than assumed absent."
     },
     "OrganizationRepositoryRulesRead": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -340888,9 +341946,12 @@
                   "left",
                   "closed",
                   "expired",
-                  "revoked"
+                  "revoked",
+                  "stale",
+                  "epoch",
+                  "rejected"
                 ],
-                "description": "Why the participant left: explicit leave, closed connection, TTL expiry or lost access."
+                "description": "Why a participant left (left, closed, expired, revoked), or why an update must be resynchronized: stale highwater after the retry budget, another epoch, or rejected bytes."
               },
               "type": {
                 "type": "string",
@@ -341123,9 +342184,392 @@
             ],
             "additionalProperties": false,
             "description": "CollaborationFrame problem frame."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "requestId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Client-chosen identifier correlating a reply with its request."
+              },
+              "room": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "draft"
+                    ],
+                    "description": "Room type; only collaborative drafts can be joined."
+                  },
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Identifier of the draft the room belongs to."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false,
+                "description": "Room the frame applies to."
+              },
+              "type": {
+                "type": "string",
+                "const": "sync",
+                "description": "CollaborationFrame.sync discriminator."
+              }
+            },
+            "required": [
+              "requestId",
+              "room",
+              "type"
+            ],
+            "additionalProperties": false,
+            "description": "CollaborationFrame sync frame."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "requestId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Client-chosen identifier correlating a reply with its request."
+              },
+              "room": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "draft"
+                    ],
+                    "description": "Room type; only collaborative drafts can be joined."
+                  },
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Identifier of the draft the room belongs to."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false,
+                "description": "Room the frame applies to."
+              },
+              "epoch": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Draft epoch of the state or update."
+              },
+              "serverSequence": {
+                "type": "string",
+                "pattern": "^(?:0|[1-9][0-9]*)$",
+                "description": "Committed server sequence (decimal string) the state or update reaches."
+              },
+              "checkpointId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Checkpoint the synced state was read from."
+              },
+              "byteLength": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Exact length of the binary frame that immediately follows this frame."
+              },
+              "type": {
+                "type": "string",
+                "const": "synced",
+                "description": "CollaborationFrame.synced discriminator."
+              }
+            },
+            "required": [
+              "requestId",
+              "room",
+              "epoch",
+              "serverSequence",
+              "checkpointId",
+              "byteLength",
+              "type"
+            ],
+            "additionalProperties": false,
+            "description": "CollaborationFrame synced frame."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "room": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "draft"
+                    ],
+                    "description": "Room type; only collaborative drafts can be joined."
+                  },
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Identifier of the draft the room belongs to."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false,
+                "description": "Room the frame applies to."
+              },
+              "mutationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Client mutation id the frame refers to."
+              },
+              "receipt": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "mutationId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Caller-generated identifier bound to one canonical guarded edit payload."
+                      },
+                      "draftId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Authorized draft changed by this committed mutation."
+                      },
+                      "epoch": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Draft epoch in which this mutation committed."
+                      },
+                      "serverSequence": {
+                        "type": "string",
+                        "pattern": "^(?:0|[1-9][0-9]*)$",
+                        "description": "Monotonic decimal sequence assigned by the server transaction."
+                      },
+                      "checkpointId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Full Loro checkpoint committed with this update."
+                      },
+                      "actorId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Authenticated principal accepted as submitter; never caller-selected."
+                      },
+                      "mutationDigest": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$",
+                        "description": "SHA-256 of the canonical guarded-edit request used for conflicting retry detection."
+                      },
+                      "updateDigest": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$",
+                        "description": "SHA-256 of the exact generated Loro update bytes stored for this sequence."
+                      },
+                      "textDigest": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$",
+                        "description": "SHA-256 of the complete UTF-8 body text after the edit."
+                      },
+                      "committedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC database commit record timestamp for the accepted mutation."
+                      }
+                    },
+                    "required": [
+                      "mutationId",
+                      "draftId",
+                      "epoch",
+                      "serverSequence",
+                      "checkpointId",
+                      "actorId",
+                      "mutationDigest",
+                      "updateDigest",
+                      "textDigest",
+                      "committedAt"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Committed mutation receipt, replayed exactly for a duplicate; null when the update added nothing new to the committed state."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "CollaborationFrame.ack.receipt may be null in this transport value."
+              },
+              "type": {
+                "type": "string",
+                "const": "ack",
+                "description": "CollaborationFrame.ack discriminator."
+              }
+            },
+            "required": [
+              "room",
+              "mutationId",
+              "receipt",
+              "type"
+            ],
+            "additionalProperties": false,
+            "description": "CollaborationFrame ack frame."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "room": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "draft"
+                    ],
+                    "description": "Room type; only collaborative drafts can be joined."
+                  },
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Identifier of the draft the room belongs to."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false,
+                "description": "Room the frame applies to."
+              },
+              "mutationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Client mutation id the frame refers to."
+              },
+              "serverSequence": {
+                "type": "string",
+                "pattern": "^(?:0|[1-9][0-9]*)$",
+                "description": "Committed server sequence (decimal string) the state or update reaches."
+              },
+              "byteLength": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Exact length of the binary frame that immediately follows this frame."
+              },
+              "type": {
+                "type": "string",
+                "const": "committed",
+                "description": "CollaborationFrame.committed discriminator."
+              }
+            },
+            "required": [
+              "room",
+              "mutationId",
+              "serverSequence",
+              "byteLength",
+              "type"
+            ],
+            "additionalProperties": false,
+            "description": "CollaborationFrame committed frame."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "room": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "draft"
+                    ],
+                    "description": "Room type; only collaborative drafts can be joined."
+                  },
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Identifier of the draft the room belongs to."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false,
+                "description": "Room the frame applies to."
+              },
+              "mutationId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Client mutation id the frame refers to."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "CollaborationFrame.resync_required.mutationId may be null in this transport value."
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "left",
+                  "closed",
+                  "expired",
+                  "revoked",
+                  "stale",
+                  "epoch",
+                  "rejected"
+                ],
+                "description": "Why a participant left (left, closed, expired, revoked), or why an update must be resynchronized: stale highwater after the retry budget, another epoch, or rejected bytes."
+              },
+              "type": {
+                "type": "string",
+                "const": "resync_required",
+                "description": "CollaborationFrame.resync_required discriminator."
+              }
+            },
+            "required": [
+              "room",
+              "mutationId",
+              "reason",
+              "type"
+            ],
+            "additionalProperties": false,
+            "description": "CollaborationFrame resync_required frame."
           }
         ],
-        "description": "Bounded JSON frames on /v1/collaboration: room join/leave and ephemeral presence. Presence is never durable, never replayed and never authority.",
+        "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, and committed draft sync. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
         "x-utf8-max-bytes": 65536
       },
       "description": "CollaborationFrames frames.",
@@ -341875,9 +343319,12 @@
                 "left",
                 "closed",
                 "expired",
-                "revoked"
+                "revoked",
+                "stale",
+                "epoch",
+                "rejected"
               ],
-              "description": "Why the participant left: explicit leave, closed connection, TTL expiry or lost access."
+              "description": "Why a participant left (left, closed, expired, revoked), or why an update must be resynchronized: stale highwater after the retry budget, another epoch, or rejected bytes."
             },
             "type": {
               "type": "string",
@@ -342110,9 +343557,392 @@
           ],
           "additionalProperties": false,
           "description": "CollaborationFrame problem frame."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "requestId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Client-chosen identifier correlating a reply with its request."
+            },
+            "room": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "draft"
+                  ],
+                  "description": "Room type; only collaborative drafts can be joined."
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Identifier of the draft the room belongs to."
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "additionalProperties": false,
+              "description": "Room the frame applies to."
+            },
+            "type": {
+              "type": "string",
+              "const": "sync",
+              "description": "CollaborationFrame.sync discriminator."
+            }
+          },
+          "required": [
+            "requestId",
+            "room",
+            "type"
+          ],
+          "additionalProperties": false,
+          "description": "CollaborationFrame sync frame."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "requestId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Client-chosen identifier correlating a reply with its request."
+            },
+            "room": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "draft"
+                  ],
+                  "description": "Room type; only collaborative drafts can be joined."
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Identifier of the draft the room belongs to."
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "additionalProperties": false,
+              "description": "Room the frame applies to."
+            },
+            "epoch": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Draft epoch of the state or update."
+            },
+            "serverSequence": {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Committed server sequence (decimal string) the state or update reaches."
+            },
+            "checkpointId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Checkpoint the synced state was read from."
+            },
+            "byteLength": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Exact length of the binary frame that immediately follows this frame."
+            },
+            "type": {
+              "type": "string",
+              "const": "synced",
+              "description": "CollaborationFrame.synced discriminator."
+            }
+          },
+          "required": [
+            "requestId",
+            "room",
+            "epoch",
+            "serverSequence",
+            "checkpointId",
+            "byteLength",
+            "type"
+          ],
+          "additionalProperties": false,
+          "description": "CollaborationFrame synced frame."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "room": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "draft"
+                  ],
+                  "description": "Room type; only collaborative drafts can be joined."
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Identifier of the draft the room belongs to."
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "additionalProperties": false,
+              "description": "Room the frame applies to."
+            },
+            "mutationId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Client mutation id the frame refers to."
+            },
+            "receipt": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "mutationId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Caller-generated identifier bound to one canonical guarded edit payload."
+                    },
+                    "draftId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Authorized draft changed by this committed mutation."
+                    },
+                    "epoch": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "Draft epoch in which this mutation committed."
+                    },
+                    "serverSequence": {
+                      "type": "string",
+                      "pattern": "^(?:0|[1-9][0-9]*)$",
+                      "description": "Monotonic decimal sequence assigned by the server transaction."
+                    },
+                    "checkpointId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Full Loro checkpoint committed with this update."
+                    },
+                    "actorId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Authenticated principal accepted as submitter; never caller-selected."
+                    },
+                    "mutationDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$",
+                      "description": "SHA-256 of the canonical guarded-edit request used for conflicting retry detection."
+                    },
+                    "updateDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$",
+                      "description": "SHA-256 of the exact generated Loro update bytes stored for this sequence."
+                    },
+                    "textDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$",
+                      "description": "SHA-256 of the complete UTF-8 body text after the edit."
+                    },
+                    "committedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "description": "UTC database commit record timestamp for the accepted mutation."
+                    }
+                  },
+                  "required": [
+                    "mutationId",
+                    "draftId",
+                    "epoch",
+                    "serverSequence",
+                    "checkpointId",
+                    "actorId",
+                    "mutationDigest",
+                    "updateDigest",
+                    "textDigest",
+                    "committedAt"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Committed mutation receipt, replayed exactly for a duplicate; null when the update added nothing new to the committed state."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "CollaborationFrame.ack.receipt may be null in this transport value."
+            },
+            "type": {
+              "type": "string",
+              "const": "ack",
+              "description": "CollaborationFrame.ack discriminator."
+            }
+          },
+          "required": [
+            "room",
+            "mutationId",
+            "receipt",
+            "type"
+          ],
+          "additionalProperties": false,
+          "description": "CollaborationFrame ack frame."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "room": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "draft"
+                  ],
+                  "description": "Room type; only collaborative drafts can be joined."
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Identifier of the draft the room belongs to."
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "additionalProperties": false,
+              "description": "Room the frame applies to."
+            },
+            "mutationId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Client mutation id the frame refers to."
+            },
+            "serverSequence": {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Committed server sequence (decimal string) the state or update reaches."
+            },
+            "byteLength": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Exact length of the binary frame that immediately follows this frame."
+            },
+            "type": {
+              "type": "string",
+              "const": "committed",
+              "description": "CollaborationFrame.committed discriminator."
+            }
+          },
+          "required": [
+            "room",
+            "mutationId",
+            "serverSequence",
+            "byteLength",
+            "type"
+          ],
+          "additionalProperties": false,
+          "description": "CollaborationFrame committed frame."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "room": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "draft"
+                  ],
+                  "description": "Room type; only collaborative drafts can be joined."
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Identifier of the draft the room belongs to."
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "additionalProperties": false,
+              "description": "Room the frame applies to."
+            },
+            "mutationId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Client mutation id the frame refers to."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "CollaborationFrame.resync_required.mutationId may be null in this transport value."
+            },
+            "reason": {
+              "type": "string",
+              "enum": [
+                "left",
+                "closed",
+                "expired",
+                "revoked",
+                "stale",
+                "epoch",
+                "rejected"
+              ],
+              "description": "Why a participant left (left, closed, expired, revoked), or why an update must be resynchronized: stale highwater after the retry budget, another epoch, or rejected bytes."
+            },
+            "type": {
+              "type": "string",
+              "const": "resync_required",
+              "description": "CollaborationFrame.resync_required discriminator."
+            }
+          },
+          "required": [
+            "room",
+            "mutationId",
+            "reason",
+            "type"
+          ],
+          "additionalProperties": false,
+          "description": "CollaborationFrame resync_required frame."
         }
       ],
-      "description": "Bounded JSON frames on /v1/collaboration: room join/leave and ephemeral presence. Presence is never durable, never replayed and never authority.",
+      "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, and committed draft sync. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
       "x-utf8-max-bytes": 65536,
       "$defs": {
         "__schema0": {

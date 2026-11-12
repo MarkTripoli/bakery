@@ -247,10 +247,13 @@ test("AC2 Create GitHub App submits the manifest and state to GitHub", async ({ 
   expect(post?.body.get("state")).toBe("state-from-bakery");
   // The prefilled name is Bakery plus this deployment's host.
   expect(f.begins).toEqual([{ name: "Bakery 127-0-0-1" }]);
-  // The single-use state never reaches the address bar or storage.
-  expect(
-    await page.evaluate(() => JSON.stringify({ ...localStorage })),
-  ).not.toContain("state-from-bakery");
+  // The single-use state never reaches storage. The click navigates the page to
+  // GitHub, so evaluating in the page races that navigation ("Execution context
+  // was destroyed") and, when it wins, reads GitHub's storage instead of
+  // Bakery's. The context's storage state reads every origin the page visited,
+  // Bakery's included, without needing a live execution context.
+  const storage = await page.context().storageState();
+  expect(JSON.stringify(storage.origins)).not.toContain("state-from-bakery");
 });
 
 test("the App name the administrator types is the name the manifest asks GitHub for", async ({ page }) => {

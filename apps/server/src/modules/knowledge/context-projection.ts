@@ -238,12 +238,17 @@ export type CitationCheck =
  * entry never carries an authorization decision of its own.
  */
 export function verifyCitation(
-  citation: ContextCitation,
+  input: unknown,
   current: { authorized: boolean; sha256: string | null },
 ): CitationCheck {
   // Authorization first, so an unauthorized caller learns nothing about the
   // version (not even whether it still exists).
   if (!current.authorized) return { valid: false, reason: "not_authorized" };
+  // Stored or cached citations are untrusted input: anything the schema
+  // rejects (bad offsets, wrong shapes, a missing location) is not reused.
+  const parsed = ContextCitationSchema.safeParse(input);
+  if (!parsed.success) return { valid: false, reason: "extractor_changed" };
+  const citation = parsed.data;
   if (current.sha256 === null) {
     return { valid: false, reason: "version_missing" };
   }

@@ -11,6 +11,7 @@ import {
   servedBuildIdentityIssues,
   storyPath,
   storyUrl,
+  sweepTimeoutMs,
   waitForSpecimen,
 } from "./storybook-harness.ts";
 
@@ -38,7 +39,7 @@ test.describe("canonical Storybook catalog", () => {
   });
 
   test("renders every approved semantic variant and state", async ({ page }) => {
-    test.setTimeout(360_000);
+    test.setTimeout(sweepTimeoutMs());
     for (const entry of catalog.entries) {
       const runtimeCase = runtime.cases.find((candidate) =>
         candidate.catalogId === entry.id
@@ -69,9 +70,9 @@ test.describe("canonical Storybook catalog", () => {
   });
 
   test("has no axe violations in any canonical story", async ({ page }) => {
-    // 77 canonical stories, each navigated and analysed by axe: ~2 s per
-    // story on a CI runner.
-    test.setTimeout(360_000);
+    // Every canonical story is navigated and analysed by axe: about 2 s each
+    // on a fast host, several times that on a slow runner under load.
+    test.setTimeout(sweepTimeoutMs());
     for (const story of await canonicalStories(page)) {
       await openStory(page, story.id, storyPath(story.id));
       const results = await analyzeAxe(page);
@@ -80,7 +81,7 @@ test.describe("canonical Storybook catalog", () => {
   });
 
   test("has no axe violations in the dark theme for every canonical story", async ({ page }) => {
-    test.setTimeout(360_000);
+    test.setTimeout(sweepTimeoutMs());
     for (const story of await canonicalStories(page)) {
       const specimen = await openStory(
         page,
@@ -95,11 +96,12 @@ test.describe("canonical Storybook catalog", () => {
   });
 
   test("keeps every canonical story contained at sheet and pane widths", async ({ page }) => {
-    test.setTimeout(360_000);
     const scenarios = [
       { width: 320, height: 844, viewportMode: "zoom-200" },
       { width: 744, height: 900, viewportMode: "pane" },
     ];
+    // Each scenario visits every canonical story.
+    test.setTimeout(sweepTimeoutMs(scenarios.length));
     for (const scenario of scenarios) {
       await page.setViewportSize({
         width: scenario.width,

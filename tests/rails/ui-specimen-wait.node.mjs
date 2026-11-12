@@ -141,6 +141,37 @@ test("the catalog loops that exposed the race all use it", () => {
   );
 });
 
+test("a canonical-story sweep budget scales with the catalog", () => {
+  // The sweeps visit every canonical story inside one test. A fixed 360 s
+  // budget passed on the fast CI hosts and timed out on a slow one under load,
+  // so the budget is the catalog size times an allowance, never a constant.
+  const spec = read("storybook.spec.ts");
+  const call = "test.setTimeout(";
+  const fixed = occurrences(spec, call)
+    .filter((at) => !spec.startsWith("sweepTimeoutMs(", at + call.length))
+    .map((at) => `storybook.spec.ts:${lineOf(spec, at)}`);
+  assert.deepEqual(
+    fixed,
+    [],
+    "these sweeps fix their budget; use test.setTimeout(sweepTimeoutMs(...)) " +
+      "so it grows with the catalog",
+  );
+  assert.match(
+    harness,
+    /catalog\.entries\.length \* passes \* SWEEP_MS_PER_STORY/,
+    "sweepTimeoutMs must multiply the catalog size by the per-story allowance",
+  );
+  const allowance = /export const SWEEP_MS_PER_STORY = ([\d_]+);/.exec(harness);
+  assert.ok(allowance, "storybook-harness.ts must export SWEEP_MS_PER_STORY");
+  const perStory = Number(allowance[1].replaceAll("_", ""));
+  assert.ok(
+    perStory >= 10_000,
+    `SWEEP_MS_PER_STORY ${perStory}ms is below the 10 s that keeps a slow ` +
+      "runner under load inside the budget (the fixed 360 s it replaced was " +
+      "about 4.7 s per story)",
+  );
+});
+
 test("openStory waits through the shared specimen wait", () => {
   const body = /export async function openStory\([\s\S]*?\n}\n/.exec(harness)
     ?.[0] ?? "";

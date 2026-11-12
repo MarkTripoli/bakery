@@ -196,6 +196,22 @@ export async function waitForSpecimen(scope: Page | FrameLocator) {
   }
 }
 
+/**
+ * Allowance per story for a test that visits every canonical story in one go.
+ * The CI hosts differ: the Intel Skylake runners take 1.4 to 2.1 times as long
+ * as the AMD EPYC ones on the same job, and the axe sweep that takes 2.6 min on
+ * a loaded development host ran past a fixed 360 s budget on a slow runner
+ * under load (run 43041438162). A story that is genuinely stuck still fails on
+ * its own `specimenTimeout`; this bounds only the total, so it has to scale
+ * with the catalog rather than be a guess about how many stories there are.
+ */
+export const SWEEP_MS_PER_STORY = 15_000;
+
+/** Whole-sweep budget for `passes` visits to each canonical story. */
+export function sweepTimeoutMs(passes = 1): number {
+  return catalog.entries.length * passes * SWEEP_MS_PER_STORY;
+}
+
 export async function openByTitle(
   page: Page,
   title: string,

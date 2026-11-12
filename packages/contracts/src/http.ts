@@ -692,6 +692,8 @@ function emitSuccess(
   if (action.output === contractSchemas.NoContent) {
     return context.body(null, 204);
   }
+  const etag = action.responseEtag?.(result);
+  if (etag !== undefined) context.header("ETag", etag);
   return context.json(
     result,
     action.successStatus ?? (action.method === "POST" ? 201 : 200),
