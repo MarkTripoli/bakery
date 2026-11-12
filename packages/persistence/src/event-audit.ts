@@ -1,3 +1,7 @@
+import {
+  formatTraceparent,
+  operationTraceContext,
+} from "@bakery/config/telemetry-trace";
 import { StandardError } from "@bakery/contracts/http";
 import { domainEventPayloadSchema } from "@bakery/contracts/contracts";
 import type { PgTransactionClient } from "./postgres.ts";
@@ -15,6 +19,12 @@ export type EventScope = {
   aggregateVersion: number;
   payload: unknown;
   traceId: string;
+  /**
+   * The `traceparent` the writing request was sent, if any. The event is stored
+   * as a child span of it; without it the event gets a span in `traceId`'s
+   * trace, or in a new trace when `traceId` is not a usable trace id.
+   */
+  traceparent?: string;
   outboxDeliveryKey?: string;
 };
 
@@ -84,8 +94,8 @@ export async function appendDomainEvent(
        organization_id, organization_sequence, event_type, schema_version,
        application_id, repository_id, task_id, conversation_id,
        worker_host_id, worker_enrollment_id, aggregate_id,
-       aggregate_version, payload, trace_id
-     ) values ($1, $2, $3, 1, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13)
+       aggregate_version, payload, trace_id, traceparent
+     ) values ($1, $2, $3, 1, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14)
      returning id`,
     [
       options.organizationId,
@@ -101,6 +111,7 @@ export async function appendDomainEvent(
       options.aggregateVersion,
       JSON.stringify(options.payload),
       options.traceId,
+      formatTraceparent(operationTraceContext(options)),
     ],
   );
   const eventId = event.rows[0]?.id;
