@@ -1469,18 +1469,24 @@ test.describe("artifact retrieval states", () => {
 
   test("stops animating the loading skeleton when reduced motion is requested", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
-    // Never fulfilled: the route stays on its loading surface so the skeleton
-    // can be inspected.
-    await page.route("**/v1/artifacts**", () => {});
+    // The skeleton on this route is the router's pending state (`RoutePending`),
+    // shown while the root `beforeLoad` awaits `GET /v1/installation/status`.
+    // The router shows it at once (`defaultPendingMs: 0`) and keeps it for at
+    // least `defaultPendingMinMs` (500 ms by default), then it is gone: the
+    // artifact page's own loading view draws no skeleton, so holding the
+    // artifact requests kept nothing on screen. With the status stubbed by
+    // `mockAuthenticatedSession` that left a window of about half a second, and
+    // a runner that finishes `goto` after it never sees the skeleton, whatever
+    // the wait. Never answering the status request keeps the pending state, and
+    // its skeleton, for the whole test. Registered after the describe's stubs,
+    // so it takes precedence.
+    await page.route("**/v1/installation/status", () => {});
 
     const skeleton = page.locator(
       '[data-ui-component="skeleton"][data-state="loading"]',
     ).last();
-    // Under CPU pressure this is the one test in this file whose first render
-    // outlasts the 5 s default: a 40% CPU quota reproduces it with the whole
-    // group running, and it failed in main runs 43166064823 and 43183997740 with
-    // `element(s) not found`. It gets the suite's first-render budget, like the
-    // other specs; the animation assertion below is unchanged.
+    // The app still has to boot first, which is what the suite's first-render
+    // budget is for.
     await firstRender(() => page.goto(ARTIFACT_PATH), async (timeout) => {
       await expect(skeleton).toBeVisible({ timeout });
     });
