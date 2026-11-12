@@ -80,6 +80,22 @@ export function OrganizationRepositoryRulesPage() {
     heading?.setAttribute("tabindex", "-1");
     heading?.focus();
   }, [published]);
+  // A newer revision than the one the draft was made on: move the draft onto it.
+  useEffect(() => {
+    if (data && drafts.draft && drafts.draft.baseRevision !== data.revision) {
+      drafts.rebase(data.revision, data.entries);
+    }
+  }, [data?.revision, drafts.draft?.baseRevision]);
+  // The notice replaces what the person was doing, so it takes focus.
+  const staleRevision = drafts.draft?.staleRevision ?? null;
+  useEffect(() => {
+    if (staleRevision === null) return;
+    const notice = document.querySelector<HTMLElement>(
+      '[data-testid="org-rules-stale"]',
+    );
+    notice?.setAttribute("tabindex", "-1");
+    notice?.focus();
+  }, [staleRevision]);
   // The rules as they would be once the draft is published.
   const shown = data ? drafts.entries : [];
   const changedKeys = new Set<string>(drafts.changed);
@@ -107,6 +123,13 @@ export function OrganizationRepositoryRulesPage() {
       </UI.Text>
     );
   };
+  /** A rule on one line, for comparing two versions of it. */
+  const describe = (entry: RuleEntry) =>
+    [
+      translate(enforcementOf(entry)),
+      translate(accessOf(entry)),
+      summarize(entry, translate),
+    ].join(" · ");
   const editedBadge = (row: RuleEntry) =>
     changedKeys.has(row.ruleKey)
       ? <UI.Badge>{translate("settings.repositoryRules.edited")}</UI.Badge>
@@ -178,6 +201,87 @@ export function OrganizationRepositoryRulesPage() {
                 revision: published,
               })}
             </UI.AlertBanner>
+          )
+          : null}
+        {drafts.draft && drafts.draft.staleRevision !== null
+          ? (
+            <UI.AlertBanner
+              data-testid="org-rules-stale"
+              onDismiss={() => drafts.acknowledge()}
+              tone="warning"
+            >
+              <UI.Stack gap="tight">
+                <UI.Text variant="strong">
+                  {translate("settings.repositoryRules.stale.title", {
+                    revision: drafts.draft.staleRevision,
+                  })}
+                </UI.Text>
+                <UI.Text>
+                  {translate("settings.repositoryRules.stale.body")}
+                </UI.Text>
+              </UI.Stack>
+            </UI.AlertBanner>
+          )
+          : null}
+        {drafts.draft && drafts.conflicts.length > 0
+          ? (
+            <UI.Stack data-testid="org-rules-conflicts">
+              {drafts.conflicts.map((key) => {
+                const mine = drafts.draft?.edited[key];
+                const theirs = publishedBy.get(key);
+                const name = translate(RULE_NAME[key]);
+                const revision = drafts.draft?.baseRevision ?? 0;
+                return (
+                  <UI.Stack gap="tight" key={key}>
+                    <UI.Inline>
+                      <UI.Text variant="strong">{name}</UI.Text>
+                      <UI.Badge>
+                        {translate("settings.repositoryRules.stale.badge", {
+                          revision,
+                        })}
+                      </UI.Badge>
+                    </UI.Inline>
+                    {mine && theirs
+                      ? (
+                        <UI.Text variant="muted">
+                          {translate("settings.repositoryRules.stale.compare", {
+                            mine: describe(mine),
+                            revision,
+                            theirs: describe(theirs),
+                          })}
+                        </UI.Text>
+                      )
+                      : null}
+                    <UI.Inline>
+                      <UI.Button
+                        aria-label={translate(
+                          "settings.repositoryRules.stale.useTheirs.named",
+                          { revision, rule: name },
+                        )}
+                        onClick={() => drafts.resolve(key, "theirs")}
+                        type="button"
+                        variant="secondary"
+                      >
+                        {translate("settings.repositoryRules.stale.useTheirs", {
+                          revision,
+                        })}
+                      </UI.Button>
+                      <UI.Button
+                        aria-label={translate(
+                          "settings.repositoryRules.stale.keepMine.named",
+                          { rule: name },
+                        )}
+                        onClick={() => drafts.resolve(key, "mine")}
+                        type="button"
+                        variant="secondary"
+                      >
+                        {translate("settings.repositoryRules.stale.keepMine")}
+                      </UI.Button>
+                    </UI.Inline>
+                  </UI.Stack>
+                );
+              })}
+            </UI.Stack>
           )
           : null}
         {shown.length > 0 ? addControl : null}
@@ -557,7 +661,11 @@ export function OrganizationRepositoryRulesPage() {
                 revision: drafts.draft.baseRevision,
               })}
               primaryAction={
-                <UI.Button onClick={() => setReviewing(true)} type="button">
+                <UI.Button
+                  disabled={drafts.conflicts.length > 0}
+                  onClick={() => setReviewing(true)}
+                  type="button"
+                >
                   {translate("settings.repositoryRules.draft.review")}
                 </UI.Button>
               }
@@ -582,6 +690,7 @@ export function OrganizationRepositoryRulesPage() {
               baseRevision={drafts.draft.baseRevision}
               entries={drafts.entries}
               onOpenChange={setReviewing}
+              onStale={() => setReviewing(false)}
               onPublished={(revision) => {
                 setReviewing(false);
                 drafts.discard();

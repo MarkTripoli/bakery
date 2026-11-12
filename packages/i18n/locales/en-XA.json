@@ -2666,5 +2666,13 @@
   "settings.repositoryRules.publish.column.effect": "⟦Ŵĥàŧ çĥàñĝëš ŧë⟧",
   "settings.repositoryRules.publish.noneAffected": "⟦Ñô ŕëþôšïŧôŕÿ çĥàñĝëš ƀëÿôñð ïñĥëŕïŧïñĝ ŧĥë ñëŵ ŕûļëš. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "settings.repositoryRules.publish.loadMore": "⟦Ļôàð ɱôŕë ŕëþôšïŧôŕïëš ŧëšŧŧ⟧",
-  "settings.repositoryRules.publish.loadMoreError": "⟦Ṁôŕë ŕëþôšïŧôŕïëš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ ŧ⟧"
+  "settings.repositoryRules.publish.loadMoreError": "⟦Ṁôŕë ŕëþôšïŧôŕïëš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿ ŧ⟧",
+  "settings.repositoryRules.stale.title": "⟦Ŕëṽïšïôñ {revision} ŵàš þûƀļïšĥëð ŵĥïļë ÿôû ŵëŕë ëðïŧïñĝ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "settings.repositoryRules.stale.body": "⟦Ÿôûŕ çĥàñĝëš àŕë ķëþŧ. Çĥôôšë ŵĥàŧ ŧô ðô ŵïŧĥ ŧĥë ŕûļëš ŧĥàŧ çĥàñĝëð ïñ ƀôŧĥ, ŧĥëñ ŕëṽïëŵ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "settings.repositoryRules.stale.badge": "⟦Çĥàñĝëð ïñ ŕëṽïšïôñ {revision} ŧëšŧ çôþ⟧",
+  "settings.repositoryRules.stale.compare": "⟦Ÿôûŕš: {mine}. Ŕëṽïšïôñ {revision}: {theirs}. ŧëšŧ çôþÿ ŧëš⟧",
+  "settings.repositoryRules.stale.useTheirs": "⟦Ûšë ŕëṽïšïôñ {revision} ŧëšŧ ç⟧",
+  "settings.repositoryRules.stale.useTheirs.named": "⟦Ûšë ŕëṽïšïôñ {revision} ƒôŕ {rule} ŧëšŧ çôþÿ⟧",
+  "settings.repositoryRules.stale.keepMine": "⟦Ķëëþ ɱïñë ŧ⟧",
+  "settings.repositoryRules.stale.keepMine.named": "⟦Ķëëþ ɱïñë ƒôŕ {rule} ŧëšŧ⟧"
 }

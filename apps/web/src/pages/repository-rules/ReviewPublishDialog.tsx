@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as UI from "@bakery/ui";
 import type {
   OrganizationRepositoryRuleEntries,
@@ -29,13 +29,15 @@ function isAffected(item: PreviewItem): boolean {
  * exists to prevent.
  */
 export function ReviewPublishDialog(
-  { baseRevision, entries, onOpenChange, onPublished, open, scope }: {
+  { baseRevision, entries, onOpenChange, onPublished, onStale, open, scope }: {
     /** The published revision the draft was made against. */
     baseRevision: number;
     /** The rules as they would be once published. */
     entries: readonly RuleEntry[];
     onOpenChange: (open: boolean) => void;
     onPublished: (revision: number) => void;
+    /** A newer revision was published meanwhile (the server answered 412). */
+    onStale: () => void;
     open: boolean;
     scope: ProtectedScope;
   },
@@ -57,6 +59,17 @@ export function ReviewPublishDialog(
     }),
     enabled: open && Boolean(scope.organizationId),
   });
+  // A draft made on a revision that is no longer the newest cannot be previewed or published.
+  const stale = (error: unknown) => failureStatus(error) === 412;
+  const refreshRules = () =>
+    queryClient.invalidateQueries({
+      predicate: (query) => query.queryKey[3] === "repositoryRules.get",
+    });
+  const previewStale = preview.isError && stale(preview.error);
+  useEffect(() => {
+    if (!previewStale) return;
+    void refreshRules().then(onStale);
+  }, [previewStale]);
   const first = preview.data?.pages[0];
   const items = preview.data?.pages.flatMap((page) => page.items) ?? [];
   const affected = items.filter(isAffected);
@@ -74,6 +87,12 @@ export function ReviewPublishDialog(
       idempotencyKey: idempotencyKey.current,
     });
     setPublishing(false);
+    if (!result.ok && stale(result.error)) {
+      idempotencyKey.current = null;
+      await refreshRules();
+      onStale();
+      return;
+    }
     if (!result.ok) {
       // A definite answer ends the attempt; no answer may be retried as the same one.
       if (failureStatus(result.error) !== null) idempotencyKey.current = null;
@@ -127,7 +146,7 @@ export function ReviewPublishDialog(
           </div>
         )
         : null}
-      {preview.isError && !preview.data
+      {preview.isError && !preview.data && !previewStale
         ? (
           <UI.ErrorState
             action={

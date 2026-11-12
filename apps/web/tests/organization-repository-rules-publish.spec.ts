@@ -89,6 +89,10 @@ type Options = {
   holdPreview?: Promise<void>;
   previewStatus?: number;
   publishStatus?: number;
+  /** The first preview (or publish) answers 412 because someone else published revision 4. */
+  staleOn?: "preview" | "publish";
+  /** The rules as that revision 4 published them. */
+  theirs?: RuleEntry[];
 };
 
 async function publishFixture(page: Page, options: Options = {}) {
@@ -102,6 +106,12 @@ async function publishFixture(page: Page, options: Options = {}) {
     publishStatus: options.publishStatus ?? 200,
   };
   const pages = options.pages ?? { first: FIRST_PAGE };
+  let staleOn = options.staleOn;
+  /** Someone else publishes revision 4 while the draft is open. */
+  const bump = () => {
+    state.revision = 4;
+    state.entries = options.theirs ?? state.entries;
+  };
   await mockAuthenticatedSession(page);
   await page.route(
     `**/v1/organizations/${MOCK_ORGANIZATION_ID}/**`,
@@ -129,6 +139,11 @@ async function publishFixture(page: Page, options: Options = {}) {
       const body = request.postDataJSON() as Record<string, unknown>;
       state.publishBodies.push(body);
       state.publishKeys.push(request.headers()["idempotency-key"]);
+      if (staleOn === "publish") {
+        staleOn = undefined;
+        bump();
+        return route.fulfill(problem(412));
+      }
       if (state.publishStatus !== 200) {
         return route.fulfill(problem(state.publishStatus));
       }
@@ -151,6 +166,11 @@ async function publishFixture(page: Page, options: Options = {}) {
       const body = route.request().postDataJSON() as Record<string, unknown>;
       state.previewBodies.push(body);
       await options.holdPreview;
+      if (staleOn === "preview") {
+        staleOn = undefined;
+        bump();
+        return route.fulfill(problem(412));
+      }
       if (state.previewStatus !== 200) {
         return route.fulfill(problem(state.previewStatus));
       }
@@ -385,5 +405,175 @@ test.describe("organization repository rules: review and publish", () => {
     await expect(page.getByText("Revision 4 published.")).toBeVisible();
     expect(state.publishKeys).toHaveLength(2);
     expect(state.publishKeys[0]).not.toEqual(state.publishKeys[1]);
+  });
+});
+
+/** Revision 4 as someone else published it: they changed Semantic commits and PR / MR titles. */
+const THEIRS: RuleEntry[] = RULE_ENTRIES.map((entry) => {
+  if (entry.ruleKey === "commits.semantic") {
+    return { ...entry, mode: "guide" };
+  }
+  if (entry.ruleKey === "changeRequest.semanticTitle") {
+    return {
+      ...entry,
+      options: { ...(entry.options as object), maxSubjectLength: 100 },
+    };
+  }
+  return entry;
+});
+/** Revision 4 where only PR / MR titles changed: nothing the draft touches. */
+const THEIRS_UNRELATED: RuleEntry[] = RULE_ENTRIES.map((entry) =>
+  entry.ruleKey === "changeRequest.semanticTitle"
+    ? {
+      ...entry,
+      options: { ...(entry.options as object), maxSubjectLength: 100 },
+    }
+    : entry
+);
+
+/** A second edit, to a rule nobody else touches: Magic strings switched on. */
+async function enableMagicStrings(page: Page) {
+  await page.getByRole("button", { name: "Edit Magic strings" }).click();
+  await page.getByRole("switch", { name: "Rule enabled" }).check();
+  await page.getByRole("button", { name: "Apply to draft" }).click();
+  await expect(draftBar(page)).toContainText("2 unpublished changes");
+}
+
+test.describe("organization repository rules: a newer revision was published", () => {
+  // Each of these edits a rule or two, opens the review and then reconciles: a
+  // longer path than the default 15 s allows on a busy host. Every assertion stays.
+  test.beforeEach(() => {
+    test.setTimeout(45_000);
+  });
+
+  test("a stale preview keeps the draft and asks only about the rules changed in both", async ({ page }) => {
+    await publishFixture(page, { staleOn: "preview", theirs: THEIRS });
+    await makeDraft(page);
+    await enableMagicStrings(page);
+    await page.getByRole("button", { name: "Review and publish" }).click();
+
+    const notice = page.getByTestId("org-rules-stale");
+    await expect(notice).toContainText(
+      "Revision 4 was published while you were editing.",
+    );
+    await expect(notice).toContainText("Your changes are kept.");
+    await expect(notice).toBeFocused();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    // Both edits are still there, on top of revision 4.
+    await expect(draftBar(page)).toContainText("2 unpublished changes");
+    await expect(draftBar(page)).toContainText("based on revision 4");
+    // Only the rule changed in both is a question; the other edit carried over.
+    const conflicts = page.getByTestId("org-rules-conflicts");
+    await expect(conflicts).toContainText("Semantic commits");
+    await expect(conflicts).toContainText("Changed in revision 4");
+    await expect(conflicts).toContainText("Yours: Warn");
+    await expect(conflicts).toContainText("Revision 4: Guide");
+    await expect(conflicts).not.toContainText("Magic strings");
+    await expect(ruleRow(page, "Magic strings")).toContainText("Edited");
+    // What someone else changed shows as published now.
+    await expect(ruleRow(page, "PR / MR titles")).toContainText(
+      "100-character subject",
+    );
+    await expect(page.getByRole("button", { name: "Review and publish" }))
+      .toBeDisabled();
+  });
+
+  test("Keep mine decides the rule and the next review is against the new revision", async ({ page }) => {
+    const state = await publishFixture(page, {
+      staleOn: "preview",
+      theirs: THEIRS,
+    });
+    await makeDraft(page);
+    await enableMagicStrings(page);
+    await page.getByRole("button", { name: "Review and publish" }).click();
+    await expect(page.getByTestId("org-rules-conflicts")).toBeVisible();
+
+    await page.getByRole("button", { name: "Keep mine for Semantic commits" })
+      .click();
+    await expect(page.getByTestId("org-rules-conflicts")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Review and publish" }))
+      .toBeEnabled();
+    await page.getByRole("button", { name: "Review and publish" }).click();
+    await expect(page.getByRole("dialog")).toContainText("Publish revision 5?");
+
+    const asked = state.previewBodies.at(-1) as {
+      expectedRevision: number;
+      entries: RuleEntry[];
+    };
+    expect(asked.expectedRevision).toBe(4);
+    // Mine stays; what someone else changed in a rule I did not edit is theirs.
+    expect(asked.entries[0]).toMatchObject({
+      ruleKey: "commits.semantic",
+      mode: "warn",
+    });
+    expect(asked.entries[1]).toMatchObject({
+      ruleKey: "changeRequest.semanticTitle",
+      options: { maxSubjectLength: 100 },
+    });
+    await page.getByRole("dialog").getByRole("button", {
+      name: "Publish rules",
+    }).click();
+    await expect(page.getByText("Revision 5 published.")).toBeVisible();
+    expect(
+      (state.publishBodies[0] as { expectedRevision: number })
+        .expectedRevision,
+    ).toBe(4);
+  });
+
+  test("Use the other revision drops my edit to that rule", async ({ page }) => {
+    await publishFixture(page, { staleOn: "preview", theirs: THEIRS });
+    await makeDraft(page);
+    await enableMagicStrings(page);
+    await page.getByRole("button", { name: "Review and publish" }).click();
+    await expect(page.getByTestId("org-rules-conflicts")).toBeVisible();
+
+    await page.getByRole("button", {
+      name: "Use revision 4 for Semantic commits",
+    }).click();
+    await expect(page.getByTestId("org-rules-conflicts")).toHaveCount(0);
+    // The rule is revision 4's again, and only the other edit is left.
+    await expect(ruleRow(page, "Semantic commits")).toContainText("Guide");
+    await expect(ruleRow(page, "Semantic commits")).not.toContainText("Edited");
+    await expect(draftBar(page)).toContainText("1 unpublished change");
+    await expect(page.getByRole("button", { name: "Review and publish" }))
+      .toBeEnabled();
+  });
+
+  test("a stale publish is handled the same way and publishes nothing", async ({ page }) => {
+    const state = await publishFixture(page, {
+      staleOn: "publish",
+      theirs: THEIRS,
+    });
+    await makeDraft(page);
+    const dialog = await review(page);
+    await dialog.getByRole("button", { name: "Publish rules" }).click();
+    await expect(page.getByTestId("org-rules-stale")).toContainText(
+      "Revision 4 was published while you were editing.",
+    );
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByText("Revision 4 published.")).toHaveCount(0);
+    await expect(page.getByTestId("org-rules-conflicts")).toContainText(
+      "Semantic commits",
+    );
+    // The one attempt was refused; nothing was published.
+    expect(state.publishBodies).toHaveLength(1);
+    expect(state.revision).toBe(4);
+  });
+
+  test("when nobody else touched the rules I edited, they carry over without a question", async ({ page }) => {
+    await publishFixture(page, {
+      staleOn: "preview",
+      theirs: THEIRS_UNRELATED,
+    });
+    await makeDraft(page);
+    await page.getByRole("button", { name: "Review and publish" }).click();
+    await expect(page.getByTestId("org-rules-stale")).toContainText(
+      "Revision 4 was published while you were editing.",
+    );
+    await expect(page.getByTestId("org-rules-conflicts")).toHaveCount(0);
+    await expect(draftBar(page)).toContainText("1 unpublished change");
+    await expect(ruleRow(page, "Semantic commits")).toContainText("Edited");
+    await expect(page.getByRole("button", { name: "Review and publish" }))
+      .toBeEnabled();
   });
 });
