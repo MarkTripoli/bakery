@@ -62,6 +62,31 @@ Deno.test("the systemd draft launcher pins the server's unit properties", async 
   }
 });
 
+Deno.test("the git launcher bounds every local read with a 256 MiB address-space limit", async () => {
+  // This limit is what stops a hostile repository from making git allocate
+  // without bound; it moved here from repository-inspect.ts.
+  const commands = commandsOf(await Deno.readTextFile(SERVER_GIT_LAUNCHER));
+  const local = commands.slice(
+    commands.indexOf("local_git() {"),
+    commands.indexOf("\n}", commands.indexOf("local_git() {")),
+  );
+  assert(
+    local.includes("/usr/bin/prlimit --as=268435456:268435456 -- \\"),
+    "local_git lost its address-space limit",
+  );
+  assert(
+    local.indexOf("/usr/bin/prlimit") < local.indexOf("/usr/bin/git "),
+    "the limit must wrap git",
+  );
+  // Every local operation goes through local_git; only fetch runs git
+  // directly (network reads are bounded by depth=1 and blob:none).
+  assertEquals(
+    commands.split("\n").filter((line) => /^\s+\/usr\/bin\/git /.test(line))
+      .length,
+    2,
+  );
+});
+
 Deno.test("every systemctl and journalctl call maps onto a launcher operation", () => {
   const cases: [string[], string[]][] = [
     [["--user", "show", "--property=Version", "--value"], ["manager-version"]],

@@ -53,13 +53,21 @@ if (lane === "connected" || lane === "native" || lane === "r2") {
   const result = await preflight.status;
   if (!result.success) Deno.exit(result.code);
 }
+function serverLauncher(name: string): string {
+  return new URL(`../infra/server-exec/${name}`, import.meta.url).pathname;
+}
 const permissions = lane === "native" ? ["--allow-all"] : [
   "--allow-read",
   "--allow-env",
   ...(lane === "unit"
     ? [
       "--allow-write",
-      "--allow-run=zip,unzip,node,git,/usr/bin/git,/usr/bin/stat,/usr/bin/prlimit,/usr/bin/setsid,/usr/bin/kill",
+      // The server's fixed launchers (infra/server-exec) are how its git and
+      // systemd calls run; the unit tests exercise them through the real
+      // spawn path, so the lane names them exactly.
+      `--allow-run=zip,unzip,node,git,/usr/bin/git,/usr/bin/stat,/usr/bin/prlimit,/usr/bin/setsid,/usr/bin/kill,${
+        serverLauncher("git.sh")
+      },${serverLauncher("draft-systemd.sh")}`,
     ]
     : []),
   // Provider conformance runs fixtures only: no bare --allow-run and no

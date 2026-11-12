@@ -133,3 +133,60 @@ Deno.test("a draft runs through the systemd launcher, and a host without systemd
     await Deno.remove(directory, { recursive: true });
   }
 });
+
+Deno.test("on a host without systemd, bad input is still 64 and only valid calls are 69", async () => {
+  const directory = await Deno.makeTempDir({ prefix: "bakery-no-systemd-" });
+  try {
+    const copy = `${directory}/draft-systemd.sh`;
+    await Deno.writeTextFile(
+      copy,
+      (await Deno.readTextFile(SERVER_DRAFT_SYSTEMD_LAUNCHER)).replaceAll(
+        "/usr/bin/systemd-run",
+        "/nonexistent/systemd-run",
+      ),
+    );
+    await Deno.chmod(copy, 0o700);
+    const code = async (args: string[]) =>
+      (await new Deno.Command(copy, {
+        args,
+        clearEnv: true,
+        stdout: "null",
+        stderr: "null",
+      }).output()).code;
+    assertEquals(await code(["link", "/tmp/x.service"]), 64);
+    assertEquals(await code(["run", "not-a-uuid", "1"]), 64);
+    assertEquals(await code(["stop", crypto.randomUUID()]), 69);
+    assertEquals(await code(["run", crypto.randomUUID(), "1"]), 69);
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("dispatch.sh takes no arguments and the systemd launcher only runs under Deno", async () => {
+  const dispatch = SERVER_DRAFT_SYSTEMD_LAUNCHER.replace(
+    "draft-systemd.sh",
+    "dispatch.sh",
+  );
+  for (const args of [["x"], ["eval", "Deno.exit(7)"], ["--allow-all"]]) {
+    const { code } = await new Deno.Command(dispatch, {
+      args,
+      clearEnv: true,
+      stdout: "null",
+      stderr: "null",
+    }).output();
+    assertEquals(code, 64, JSON.stringify(args));
+  }
+  // Started from a shell (not the server's Deno), `run` must refuse rather
+  // than exec whatever its parent is. `; exit $?` keeps the shell resident,
+  // so the shell, not Deno, is the launcher's parent.
+  const { code } = await new Deno.Command("/bin/sh", {
+    args: [
+      "-c",
+      `'${SERVER_DRAFT_SYSTEMD_LAUNCHER}' run ${crypto.randomUUID()} 1; exit $?`,
+    ],
+    clearEnv: true,
+    stdout: "null",
+    stderr: "null",
+  }).output();
+  assertEquals(code, 70);
+});

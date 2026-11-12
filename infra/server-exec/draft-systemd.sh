@@ -14,9 +14,6 @@
 op=$1
 shift
 
-# No systemd on this host (a container): exit 69 (EX_UNAVAILABLE), which the
-# server reports as host isolation unavailable rather than a worker failure.
-[ -x /usr/bin/systemd-run ] && [ -x /usr/bin/systemctl ] || exit 69
 
 uid=$(/usr/bin/id -u) || exit 70
 case "$uid" in *[!0-9]* | "") exit 70 ;; esac
@@ -32,7 +29,15 @@ unit_for() {
   unit="bakery-draft-$1"
 }
 
+# Every operation reaches user_exec only after its arguments are valid, so
+# bad input is always 64. No systemd on this host (a container): exit 69
+# (EX_UNAVAILABLE), which the server reports as host isolation unavailable.
+need_systemd() {
+  [ -x /usr/bin/systemd-run ] && [ -x /usr/bin/systemctl ] || exit 69
+}
+
 user_exec() {
+  need_systemd
   exec /usr/bin/env -i XDG_RUNTIME_DIR="$runtime_dir" \
     DBUS_SESSION_BUS_ADDRESS="$bus" LC_ALL=C "$@"
 }
@@ -43,6 +48,7 @@ case "$op" in
     unit_for "$1"
     case "$2" in [1-9] | 1[0-9] | 2[0-9] | 30) ;; *) exit 64 ;; esac
     runtime_seconds=$2
+    need_systemd
     deno=$(/usr/bin/readlink "/proc/$PPID/exe") || exit 70
     case "$deno" in /*/deno) ;; *) exit 70 ;; esac
     here=$(cd "$(/usr/bin/dirname "$0")" && pwd -P) || exit 70
