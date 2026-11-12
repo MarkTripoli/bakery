@@ -267,8 +267,10 @@
 .ui-help-tip .ui-tooltip__content {
   box-sizing: border-box;
   inline-size: max-content;
-  max-inline-size: min(var(--layout-inspector), calc(100vw - var(--space-8)));
+  inset-inline-start: 0;
+  max-inline-size: min(var(--layout-inspector), calc(100dvi - var(--space-8)));
   text-align: start;
+  transform: none;
 }
 .ui-popover {
   display: inline-block;
