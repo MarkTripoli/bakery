@@ -1,4 +1,5 @@
 import { expect, type Page, type Route, test } from "@playwright/test";
+import { shot } from "./helpers/real-api.ts";
 import {
   MOCK_ORGANIZATION_ID,
   mockAuthenticatedSession,
@@ -97,6 +98,7 @@ test.describe("organization repository rules: editing", () => {
       "feat, fix, docs",
     );
     await expect(page.getByLabel("Maximum subject length")).toHaveValue("72");
+    await shot(page, "rules-editor");
     await expect(
       page.getByRole("group", { name: "Enforcement" }).getByRole("radio", {
         name: "Require",
@@ -124,6 +126,7 @@ test.describe("organization repository rules: editing", () => {
     await expect(row).toContainText("Warn");
     // The old value is text beside the new one, never colour alone.
     await expect(row).toContainText("was Require");
+    await shot(page, "rules-draft");
     // The other rules are untouched.
     await expect(ruleRow(page, "PR / MR titles")).not.toContainText("Edited");
     expect(writes).toEqual([]);
@@ -171,6 +174,7 @@ test.describe("organization repository rules: editing", () => {
       .click();
     const dialog = page.getByRole("alertdialog");
     await expect(dialog).toContainText("Discard 1 unpublished change?");
+    await shot(page, "rules-discard-confirm");
     await dialog.getByRole("button", { name: "Keep editing" }).click();
     await expect(draftBar(page)).toContainText("1 unpublished change");
 
@@ -195,6 +199,7 @@ test.describe("organization repository rules: editing", () => {
     await expect(
       page.getByText("Enter a whole number between 20 and 200."),
     ).toBeVisible();
+    await shot(page, "rules-editor-errors");
     await expect(page).toHaveURL(new RegExp(`${LIST_PATH}/commits.semantic$`));
     await page.getByLabel("Allowed types").fill("feat, fix");
     await page.getByLabel("Maximum subject length").fill("100");
@@ -212,6 +217,7 @@ test.describe("organization repository rules: editing", () => {
       "Magic numbers",
       "Magic strings",
     ]);
+    await shot(page, "rules-add-menu");
     await menu.getByRole("button", { name: "Magic numbers" }).click();
     await expect(page.getByRole("heading", { name: "Add Magic numbers" }))
       .toBeVisible();
@@ -256,6 +262,7 @@ test.describe("organization repository rules: editing", () => {
     const dialog = page.getByRole("alertdialog");
     await expect(dialog).toContainText("Leave without publishing?");
     await expect(dialog).toContainText("You have 1 unpublished change.");
+    await shot(page, "rules-leave-confirm");
     await dialog.getByRole("button", { name: "Stay" }).click();
     await expect(page).toHaveURL(new RegExp(`${LIST_PATH}$`));
     await expect(draftBar(page)).toContainText("1 unpublished change");

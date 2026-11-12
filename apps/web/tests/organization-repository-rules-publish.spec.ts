@@ -1,4 +1,5 @@
 import { expect, type Page, type Route, test } from "@playwright/test";
+import { shot } from "./helpers/real-api.ts";
 import {
   MOCK_ORGANIZATION_ID,
   mockAuthenticatedSession,
@@ -241,6 +242,7 @@ test.describe("organization repository rules: review and publish", () => {
     await expect(table).toContainText("acme/service-4");
     await expect(table).not.toContainText("acme/service-3");
     await expect(table).toContainText("Override active again");
+    await shot(page, "rules-review");
     // What the server was asked: the draft against the revision it was made on.
     expect(state.previewBodies).toHaveLength(1);
     const asked = state.previewBodies[0] as {
@@ -272,6 +274,7 @@ test.describe("organization repository rules: review and publish", () => {
     await expect(page.getByTestId("org-rules-preview-loading")).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Publish rules" }))
       .toBeDisabled();
+    await shot(page, "rules-review-loading");
     release();
     await expect(page.getByTestId("org-rules-preview-loading")).toHaveCount(0);
     await expect(dialog.getByRole("button", { name: "Publish rules" }))
@@ -300,6 +303,7 @@ test.describe("organization repository rules: review and publish", () => {
     ).toBeVisible();
     await expect(dialog.getByRole("table", { name: "Affected repositories" }))
       .toContainText("No working check");
+    await shot(page, "rules-review-blocked");
   });
 
   test("more repositories load with the server's cursor", async ({ page }) => {
@@ -339,6 +343,7 @@ test.describe("organization repository rules: review and publish", () => {
     ).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Publish rules" }))
       .toBeDisabled();
+    await shot(page, "rules-review-error");
     state.previewStatus = 200;
     await dialog.getByRole("button", { name: "Try again" }).click();
     await expect(dialog).toContainText("Applies to 5 repositories now");
@@ -366,6 +371,7 @@ test.describe("organization repository rules: review and publish", () => {
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(page.getByText("Revision 4 published.")).toBeVisible();
     await expect(draftBar(page)).toHaveCount(0);
+    await shot(page, "rules-published");
     await expect(
       page.getByRole("heading", { name: "Repository rules", level: 1 }),
     ).toBeFocused();
@@ -400,6 +406,7 @@ test.describe("organization repository rules: review and publish", () => {
       ),
     ).toBeVisible();
     await expect(page.getByText("Revision 4 published.")).toHaveCount(0);
+    await shot(page, "rules-publish-failed");
     await dialog.getByRole("button", { name: "Back to editing" }).click();
     await expect(draftBar(page)).toContainText("1 unpublished change");
 
@@ -475,6 +482,7 @@ test.describe("organization repository rules: a newer revision was published", (
     await expect(conflicts).toContainText("Changed in revision 4");
     await expect(conflicts).toContainText("Yours: Warn");
     await expect(conflicts).toContainText("Revision 4: Guide");
+    await shot(page, "rules-stale");
     await expect(conflicts).not.toContainText("Magic strings");
     await expect(ruleRow(page, "Magic strings")).toContainText("Edited");
     // What someone else changed shows as published now.
