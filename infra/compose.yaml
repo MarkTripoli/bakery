@@ -203,10 +203,13 @@ services:
               set -- "$$@" "--allow-read=$$fixture_path"
             fi
           done
-          exec deno run "$$@" --allow-env --allow-net --allow-sys=uid apps/server/src/main.ts
+          # Draft isolation runs each Loro worker under prlimit (no systemd in
+          # the container); only that one executable may be spawned.
+          exec deno run "$$@" --allow-env --allow-net --allow-sys=uid --allow-run=/usr/bin/prlimit apps/server/src/main.ts
     environment:
       BAKERY_ENV: ${BAKERY_ENV:-development}
       BAKERY_SERVER_HOST: 0.0.0.0
+      BAKERY_DRAFT_ISOLATION: process
       BAKERY_SERVER_SENTRY_DSN: ${BAKERY_SERVER_SENTRY_DSN:-}
       BAKERY_SENTRY_ENABLED: ${BAKERY_SENTRY_ENABLED:-}
       BAKERY_SENTRY_ENVIRONMENT: ${BAKERY_SENTRY_ENVIRONMENT:-}

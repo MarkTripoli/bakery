@@ -909,6 +909,24 @@ export const REPOSITORY_INSPECTION_EXECUTABLES = Object.freeze({
   node: "/usr/bin/node",
 });
 
+/** How draft isolation starts its worker; see apps/server/src/modules/knowledge/draft-isolation.ts. */
+export type DraftIsolationLauncher = "systemd" | "process";
+
+/**
+ * `BAKERY_DRAFT_ISOLATION`: `systemd` (default) runs each draft worker in a
+ * transient systemd unit; `process` runs it under prlimit as a bounded child
+ * process, for containers without systemd.
+ */
+export function readDraftIsolationLauncher(
+  env: Record<string, string | undefined> = Deno.env.toObject(),
+): DraftIsolationLauncher {
+  const value = env.BAKERY_DRAFT_ISOLATION?.trim() || "systemd";
+  if (value !== "systemd" && value !== "process") {
+    throw new Error("DRAFT_ISOLATION_CONFIG_INVALID");
+  }
+  return value;
+}
+
 export type ArtifactStorageConfig = {
   readonly collectionEnabled: boolean;
   readonly warnPercent: number;

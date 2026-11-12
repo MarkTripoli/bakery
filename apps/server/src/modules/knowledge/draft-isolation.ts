@@ -1,3 +1,4 @@
+import { readDraftIsolationLauncher } from "@bakery/config";
 import { DRAFT_LIMITS, type DraftCandidate } from "./drafts.ts";
 
 const encoder = new TextEncoder();
@@ -186,6 +187,15 @@ export type DraftIsolation = {
 };
 
 type IsolationOptions = {
+  /**
+   * `systemd` (default): a transient systemd unit with cgroup memory, task and
+   * runtime limits and a sandboxed filesystem. `process`: a direct child under
+   * prlimit (data and CPU limits) with a V8 heap cap, for containers without
+   * systemd. In both, the worker runs `deno run --no-prompt` with no
+   * permission flags: no network, environment, file or subprocess access.
+   */
+  launcher?: "systemd" | "process";
+  prlimitPath?: string;
   systemdRunPath?: string;
   systemctlPath?: string;
   journalctlPath?: string;
@@ -994,6 +1004,19 @@ async function systemctl(
   }
 }
 
+/**
+ * Ends a process-launched worker. prlimit execs Deno, and the worker has no
+ * permission to spawn anything, so the child is the whole boundary.
+ */
+async function terminateProcess(child: Deno.ChildProcess): Promise<void> {
+  try {
+    child.kill("SIGKILL");
+  } catch {
+    // Already exited.
+  }
+  await child.status.catch(() => undefined);
+}
+
 async function terminateBoundary(
   child: Deno.ChildProcess,
   systemctlPath: string,
@@ -1046,6 +1069,8 @@ async function verifyBoundaryRemoved(
 export function createDraftIsolation(
   options: IsolationOptions = {},
 ): DraftIsolation {
+  const launcher = options.launcher ?? readDraftIsolationLauncher();
+  const prlimitPath = options.prlimitPath ?? "/usr/bin/prlimit";
   const systemdRunPath = options.systemdRunPath ?? "/usr/bin/systemd-run";
   const systemctlPath = options.systemctlPath ?? "/usr/bin/systemctl";
   const journalctlPath = options.journalctlPath ?? "/usr/bin/journalctl";
@@ -1063,7 +1088,7 @@ export function createDraftIsolation(
       throw new DraftIsolationError("limit", "WORKER_METADATA_TOO_LARGE");
     }
     const unit = `bakery-draft-${crypto.randomUUID()}`;
-    const args = [
+    const systemdArgs = [
       "--user",
       "--pipe",
       "--wait",
@@ -1095,11 +1120,24 @@ export function createDraftIsolation(
       "--no-prompt",
       workerPath,
     ];
+    const processArgs = [
+      `--data=${DRAFT_LIMITS.processDataBytes}`,
+      `--cpu=${DRAFT_LIMITS.processCpuSeconds}`,
+      "--core=0",
+      "--",
+      denoPath,
+      "run",
+      "--cached-only",
+      "--no-prompt",
+      `--v8-flags=--max-old-space-size=${DRAFT_LIMITS.processHeapMegabytes}`,
+      workerPath,
+    ];
+    const systemd = launcher === "systemd";
     const startedAt = performance.now();
     let child: Deno.ChildProcess;
     try {
-      child = new Deno.Command(systemdRunPath, {
-        args,
+      child = new Deno.Command(systemd ? systemdRunPath : prlimitPath, {
+        args: systemd ? systemdArgs : processArgs,
         stdin: "piped",
         stdout: "piped",
         stderr: "piped",
@@ -1126,7 +1164,9 @@ export function createDraftIsolation(
     let aborted = false;
     let cleanup: Promise<void> | undefined;
     const cleanupBoundary = () =>
-      cleanup ??= terminateBoundary(child, systemctlPath, unit);
+      cleanup ??= systemd
+        ? terminateBoundary(child, systemctlPath, unit)
+        : terminateProcess(child);
     const timeout = setTimeout(() => {
       timedOut = true;
       void cleanupBoundary();
@@ -1154,7 +1194,7 @@ export function createDraftIsolation(
               "WORKER_DEADLINE_EXCEEDED",
             );
           }
-          const namespacePrerequisites = status.code === 226
+          const namespacePrerequisites = systemd && status.code === 226
             ? await collectNamespacePrerequisites(
               systemctlPath,
               journalctlPath,
@@ -1207,7 +1247,7 @@ export function createDraftIsolation(
       stdout.releaseLock();
       stderr.releaseLock();
       await cleanupBoundary();
-      await verifyBoundaryRemoved(systemctlPath, unit);
+      if (systemd) await verifyBoundaryRemoved(systemctlPath, unit);
     }
   };
 
