@@ -189,13 +189,15 @@ export type DraftIsolation = {
 type IsolationOptions = {
   /**
    * `systemd` (default): a transient systemd unit with cgroup memory, task and
-   * runtime limits and a sandboxed filesystem. `process`: a direct child under
-   * prlimit (data and CPU limits) with a V8 heap cap, for containers without
-   * systemd. In both, the worker runs `deno run --no-prompt` with no
-   * permission flags: no network, environment, file or subprocess access.
+   * runtime limits and a sandboxed filesystem. `process`: Deno itself as a
+   * direct child, for containers without systemd; V8 caps its heap and
+   * WebAssembly memory, the wall-clock deadline kills it, and it starts with
+   * a cleared environment. The server's only run grant is the Deno
+   * executable: no exec-anything wrapper. In both, the worker runs with no
+   * permission flags and remote imports denied: no network, environment,
+   * file, FFI, import or subprocess access.
    */
   launcher?: "systemd" | "process";
-  prlimitPath?: string;
   systemdRunPath?: string;
   systemctlPath?: string;
   journalctlPath?: string;
@@ -1005,8 +1007,9 @@ async function systemctl(
 }
 
 /**
- * Ends a process-launched worker. prlimit execs Deno, and the worker has no
- * permission to spawn anything, so the child is the whole boundary.
+ * Ends a process-launched worker. The child is Deno itself and the worker has
+ * no run permission, so it can start nothing: the child is its whole process
+ * group, and killing it ends the boundary.
  */
 async function terminateProcess(child: Deno.ChildProcess): Promise<void> {
   try {
@@ -1066,11 +1069,20 @@ async function verifyBoundaryRemoved(
   }
 }
 
+/** The only variables a process-launched worker sees: its module cache location. */
+function workerEnvironment(): Record<string, string> {
+  const env: Record<string, string> = { NO_COLOR: "1" };
+  for (const name of ["DENO_DIR", "HOME", "XDG_CACHE_HOME"]) {
+    const value = Deno.env.get(name);
+    if (value !== undefined) env[name] = value;
+  }
+  return env;
+}
+
 export function createDraftIsolation(
   options: IsolationOptions = {},
 ): DraftIsolation {
   const launcher = options.launcher ?? readDraftIsolationLauncher();
-  const prlimitPath = options.prlimitPath ?? "/usr/bin/prlimit";
   const systemdRunPath = options.systemdRunPath ?? "/usr/bin/systemd-run";
   const systemctlPath = options.systemctlPath ?? "/usr/bin/systemctl";
   const journalctlPath = options.journalctlPath ?? "/usr/bin/journalctl";
@@ -1118,29 +1130,32 @@ export function createDraftIsolation(
       "run",
       "--cached-only",
       "--no-prompt",
+      "--deny-import",
+      "--frozen",
       workerPath,
     ];
     const processArgs = [
-      `--data=${DRAFT_LIMITS.processDataBytes}`,
-      `--cpu=${DRAFT_LIMITS.processCpuSeconds}`,
-      "--core=0",
-      "--",
-      denoPath,
       "run",
       "--cached-only",
       "--no-prompt",
-      `--v8-flags=--max-old-space-size=${DRAFT_LIMITS.processHeapMegabytes}`,
+      "--deny-import",
+      "--frozen",
+      `--v8-flags=--max-old-space-size=${DRAFT_LIMITS.processHeapMegabytes},--wasm-max-mem-pages=${DRAFT_LIMITS.processWasmPages}`,
       workerPath,
     ];
     const systemd = launcher === "systemd";
     const startedAt = performance.now();
     let child: Deno.ChildProcess;
     try {
-      child = new Deno.Command(systemd ? systemdRunPath : prlimitPath, {
+      child = new Deno.Command(systemd ? systemdRunPath : denoPath, {
         args: systemd ? systemdArgs : processArgs,
         stdin: "piped",
         stdout: "piped",
         stderr: "piped",
+        // systemd-run needs the session bus from the environment, and the
+        // transient unit does not inherit it. A direct Deno child would, so it
+        // gets only where its module cache lives: never the server's secrets.
+        ...(systemd ? {} : { clearEnv: true, env: workerEnvironment() }),
       }).spawn();
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
@@ -1224,7 +1239,10 @@ export function createDraftIsolation(
       if (!status.success) {
         const elapsed = performance.now() - startedAt;
         throw new DraftIsolationError(
-          elapsed >= DRAFT_LIMITS.workerRuntimeMs * 0.9
+          // Only systemd kills on its own clock (RuntimeMaxSec). A process
+          // child is time-killed only by our timer, reported above, so its
+          // failed exit is a crash or a memory-cap kill, never a timeout.
+          systemd && elapsed >= DRAFT_LIMITS.workerRuntimeMs * 0.9
             ? "timeout"
             : "unavailable",
           `WORKER_EXIT_${status.code}`,

@@ -12,9 +12,8 @@ export const DRAFT_LIMITS = Object.freeze({
    * Process launcher bounds (no systemd): RLIMIT_DATA, below which the Deno
    * runtime cannot start, and the V8 heap cap that kills a growing worker.
    */
-  processDataBytes: 1_073_741_824,
   processHeapMegabytes: 192,
-  processCpuSeconds: 2,
+  processWasmPages: 4_096,
   workerTasks: 32,
   workerRuntimeMs: 1_000,
   workerKillMs: 100,
