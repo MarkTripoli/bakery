@@ -47,7 +47,7 @@ Deno.test("dispatch receives API telemetry configuration while excluding browser
     SENTRY_AUTH_TOKEN: "build-secret-sentinel",
     BETTER_AUTH_SECRET: "auth-secret-sentinel",
   };
-  const launch = createDispatchLaunch("src/dispatch.ts", inherited);
+  const launch = createDispatchLaunch(inherited);
   assertEquals(launch.clearEnv, true);
   assertEquals(
     launch.env.BAKERY_SERVER_SENTRY_DSN,

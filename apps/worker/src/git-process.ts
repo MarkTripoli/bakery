@@ -220,6 +220,10 @@ export async function runGitRaw(
   const onAbort = () => stop("signal");
   if (signal?.aborted) onAbort();
   else signal?.addEventListener("abort", onAbort, { once: true });
+  // A bound of zero or less has already passed. Left to the timer it would race
+  // the child, and a child that has already finished wins that race whenever
+  // the event loop reaches both at once. Cancellation, if any, still ranks first.
+  if (timeoutMs <= 0) stop("deadline");
   const timers: Array<{ cancel: () => void }> = [];
   try {
     const first = await Promise.race([settled, stopRequested]);

@@ -193,6 +193,9 @@ test.describe("organization repository rules", () => {
     await expect(
       page.getByRole("button", { name: "Load more revisions" }),
     ).toHaveCount(0);
+    // The last page removed the button that had focus: focus goes to the first
+    // row that load added, so a reader goes on from where they were.
+    await expect(history.nth(2)).toBeFocused();
     expect(state.cursors).toEqual([null, "page-2"]);
   });
 
@@ -304,12 +307,13 @@ test.describe("organization repository rules", () => {
     await page.goto(PAGE_PATH);
     // The right edge of what is drawn: a block-level table box spans the
     // column whatever its cells do, so measure the last column header.
-    const rightEdge = async (name: string) => {
-      const box = await page.getByRole("columnheader", { name }).boundingBox();
+    const rightEdge = async (table: string) => {
+      const box = await page.getByRole("table", { name: table })
+        .getByRole("columnheader").last().boundingBox();
       return box!.x + box!.width;
     };
-    const rules = await rightEdge("Repository access");
-    const history = await rightEdge("Digest");
+    const rules = await rightEdge("Organization rules");
+    const history = await rightEdge("Published revisions");
     expect(Math.abs(rules - history)).toBeLessThanOrEqual(1);
   });
 
@@ -367,6 +371,9 @@ test.describe("organization repository rules", () => {
       hasText: "Older revisions could not be loaded.",
     });
     await expect(notice).toBeVisible();
+    // The button became this notice: its Try again takes focus.
+    await expect(notice.getByRole("button", { name: "Try again" }))
+      .toBeFocused();
     await shot(page, "rules-history-load-more-failed");
     // Nothing already shown is lost, and the failure is not offered as another Load more.
     await expect(history).toHaveCount(2);
@@ -377,6 +384,8 @@ test.describe("organization repository rules", () => {
     await notice.getByRole("button", { name: "Try again" }).click();
     await expect(history).toHaveCount(3);
     await expect(notice).toHaveCount(0);
+    // A Try again that works is a successful load: the first row it added.
+    await expect(history.nth(2)).toBeFocused();
     expect(state.cursors).toEqual([null, "page-2", "page-2"]);
   });
 

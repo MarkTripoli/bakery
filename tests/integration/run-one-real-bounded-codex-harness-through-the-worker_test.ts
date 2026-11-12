@@ -15,8 +15,8 @@ import {
 } from "../helpers/worker-execution/scenarios.ts";
 import {
   codexExecutablePath,
+  dedicatedCodexTestAuthSource,
   gitText,
-  operatorCodexAuthSource,
   prepareScratchRepository,
 } from "../helpers/codex-harness.ts";
 
@@ -136,7 +136,7 @@ Deno.test(
         repositoryFor: () => scratch.dir,
         timeLimitMs: 300_000,
         codexExecutable: codexExecutablePath(),
-        authSourceDir: operatorCodexAuthSource(),
+        authSourceDir: dedicatedCodexTestAuthSource(),
       });
 
       const outcome = await executor.execute(

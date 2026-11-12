@@ -144,6 +144,23 @@
     flex-basis: 120px; /* auth.css:13 .two-actions>.btn */
   }
 }
+.ui-inline--end {
+  justify-content: flex-end;
+}
+.ui-inline--between {
+  align-items: flex-start;
+  gap: var(--space-4);
+  justify-content: space-between;
+}
+@media (max-width: 743px) {
+  .ui-inline--between {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .ui-inline--between > .ui-button {
+    inline-size: 100%;
+  }
+}
 .ui-inline--split {
   align-items: start;
   display: grid;

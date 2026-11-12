@@ -7,10 +7,17 @@ export type ListRowProps =
   & {
     /** Accessible name of the row control when `onSelect` is set. */
     controlLabel?: string;
+    /** A short caption on the title's line, such as "Edited". */
+    badge?: ReactNode;
     /** Muted line under the title; `warning` tints it. */
     detail?: ReactNode;
     detailTone?: "default" | "warning" | "code";
-    /** Clamps the detail to this many lines, then an ellipsis; a text detail is also its own `title`. */
+    /**
+     * Clamps the detail to this many lines, then an ellipsis; a text detail is
+     * also its own `title`. The `title` alone is not an accessible way to show
+     * the hidden text (keyboard and touch cannot open it): make the whole text
+     * reachable another way, for example by opening the row.
+     */
     detailLines?: 2;
     onSelect?: () => void;
     /** `tall` rows hold a status pill and are 60px; `regular` rows are 56px. */
@@ -25,6 +32,7 @@ export type ListRowProps =
 export function ListRow(
   {
     controlLabel,
+    badge,
     detail,
     detailLines,
     detailTone = "default",
@@ -39,7 +47,14 @@ export function ListRow(
   const content = (
     <>
       <span className="ui-list-row__lead">
-        <span className="ui-list-row__title">{title}</span>
+        {badge
+          ? (
+            <span className="ui-list-row__headline">
+              <span className="ui-list-row__title">{title}</span>
+              {badge}
+            </span>
+          )
+          : <span className="ui-list-row__title">{title}</span>}
         {detail
           ? (
             <span

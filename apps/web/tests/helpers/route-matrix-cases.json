@@ -104,6 +104,10 @@
     "path": "/settings/organization/repository-rules"
   },
   {
+    "id": "settings-organization-repository-rule-editor",
+    "path": "/settings/organization/repository-rules/$ruleKey"
+  },
+  {
     "id": "settings-organization-integrations",
     "path": "/settings/organization/integrations"
   },
