@@ -7,6 +7,7 @@ import {
   createDraftIsolation,
   DraftIsolationError,
 } from "../../apps/server/src/modules/knowledge/draft-isolation.ts";
+import { DRAFT_LIMITS } from "../../apps/server/src/modules/knowledge/drafts.ts";
 import {
   SERVER_DRAFT_SYSTEMD_LAUNCHER,
 } from "../../apps/server/src/platform/server-exec.ts";
@@ -189,4 +190,39 @@ Deno.test("dispatch.sh takes no arguments and the systemd launcher only runs und
     stderr: "null",
   }).output();
   assertEquals(code, 70);
+});
+
+Deno.test("the server hands the launcher the per-isolation backstop as its run operand", async () => {
+  // The slow-start tests use the raw systemd-run path (they inject a worker);
+  // production goes through the launcher, whose own 1-30 check cannot tell 7
+  // from 1. A recording stub shows exactly what the server passes.
+  const directory = await Deno.makeTempDir({ prefix: "bakery-operand-" });
+  try {
+    const log = `${directory}/calls`;
+    const stub = `${directory}/draft-systemd.sh`;
+    await Deno.writeTextFile(
+      stub,
+      `#!/bin/sh\nprintf '%s\\n' "$*" >> '${log}'\nexit 69\n`,
+    );
+    await Deno.chmod(stub, 0o700);
+    await createDraftIsolation({
+      launcher: "systemd",
+      systemdLauncherPath: stub,
+    })
+      .initialize("x").catch(() => undefined);
+    const runs = (await Deno.readTextFile(log)).split("\n").filter((line) =>
+      line.startsWith("run ")
+    );
+    assertEquals(runs.length, 1, runs.join("|"));
+    const match =
+      /^run [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} (\d+)$/
+        .exec(runs[0]);
+    assert(match !== null, `launcher got: ${runs[0]}`);
+    const expected = Math.ceil(
+      (DRAFT_LIMITS.workerStartupMs + DRAFT_LIMITS.workerRuntimeMs) / 1_000,
+    ) + 1;
+    assertEquals(Number(match[1]), expected);
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
 });
