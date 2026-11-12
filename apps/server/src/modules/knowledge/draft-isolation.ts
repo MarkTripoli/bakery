@@ -191,6 +191,9 @@ type IsolationOptions = {
   journalctlPath?: string;
   denoPath?: string;
   workerPath?: string;
+  /** Wall-clock budget from spawn to the worker's READY (no client bytes yet). */
+  startupDeadlineMs?: number;
+  /** Wall-clock budget for the work, from READY to exit. */
   totalDeadlineMs?: number;
   namespaceFileReader?: (
     path: NamespacePrerequisitePath,
@@ -1052,7 +1055,18 @@ export function createDraftIsolation(
   const denoPath = options.denoPath ?? Deno.execPath();
   const workerPath = options.workerPath ??
     new URL("./draft-import-worker.ts", import.meta.url).pathname;
-  const deadlineMs = options.totalDeadlineMs ?? 2_000;
+  // Start-up and work are metered apart. Before READY the worker has read
+  // nothing from the client, so its start-up time is the host's (a cold Deno
+  // start can exceed a second under load), not something a client controls.
+  // Only the work after READY spends workerRuntimeMs.
+  const startupDeadlineMs = options.startupDeadlineMs ??
+    DRAFT_LIMITS.workerStartupMs;
+  const deadlineMs = options.totalDeadlineMs ?? DRAFT_LIMITS.workerRuntimeMs;
+  // systemd's own wall-clock cap is the backstop if this process dies: both
+  // budgets plus a second of slack, so the parent's deadline always fires first.
+  const runtimeMaxSeconds = Math.ceil(
+    (startupDeadlineMs + deadlineMs) / 1_000,
+  ) + 1;
   const namespaceFileReader = options.namespaceFileReader ?? readBoundedFile;
 
   const run = async (
@@ -1073,7 +1087,7 @@ export function createDraftIsolation(
       "--property=MemorySwapMax=0",
       `--property=TasksMax=${DRAFT_LIMITS.workerTasks}`,
       "--property=CPUQuota=100%",
-      "--property=RuntimeMaxSec=1s",
+      `--property=RuntimeMaxSec=${runtimeMaxSeconds}s`,
       "--property=TimeoutStopSec=100ms",
       "--property=KillMode=control-group",
       "--property=SendSIGKILL=yes",
@@ -1095,7 +1109,6 @@ export function createDraftIsolation(
       "--no-prompt",
       workerPath,
     ];
-    const startedAt = performance.now();
     let child: Deno.ChildProcess;
     try {
       child = new Deno.Command(systemdRunPath, {
@@ -1127,10 +1140,11 @@ export function createDraftIsolation(
     let cleanup: Promise<void> | undefined;
     const cleanupBoundary = () =>
       cleanup ??= terminateBoundary(child, systemctlPath, unit);
-    const timeout = setTimeout(() => {
+    const expire = () => {
       timedOut = true;
       void cleanupBoundary();
-    }, deadlineMs);
+    };
+    let timeout = setTimeout(expire, startupDeadlineMs);
     const abort = () => {
       aborted = true;
       void cleanupBoundary();
@@ -1166,6 +1180,9 @@ export function createDraftIsolation(
         }
         throw error;
       }
+      clearTimeout(timeout);
+      timeout = setTimeout(expire, deadlineMs);
+      const readyAt = performance.now();
       const input = encodeFrames(frames);
       const writer = child.stdin.getWriter();
       await writer.write(input);
@@ -1182,11 +1199,9 @@ export function createDraftIsolation(
         throw new DraftIsolationError("unavailable", "WORKER_STDERR_OVERFLOW");
       }
       if (!status.success) {
-        const elapsed = performance.now() - startedAt;
+        const elapsed = performance.now() - readyAt;
         throw new DraftIsolationError(
-          elapsed >= DRAFT_LIMITS.workerRuntimeMs * 0.9
-            ? "timeout"
-            : "unavailable",
+          elapsed >= deadlineMs * 0.9 ? "timeout" : "unavailable",
           `WORKER_EXIT_${status.code}`,
         );
       }

@@ -10,6 +10,7 @@ export const DRAFT_LIMITS = Object.freeze({
   workerMemoryBytes: 268_435_456,
   workerTasks: 32,
   workerRuntimeMs: 1_000,
+  workerStartupMs: 5_000,
   workerKillMs: 100,
   staleAttempts: 3,
 });

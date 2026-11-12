@@ -239,35 +239,27 @@ async function closeHarness(harness: Harness) {
     await client.close().catch(() => {});
   }
   await harness.server.shutdown();
-  for (const member of harness.extra) {
-    const db = harness.fixture.pgDatabase;
-    await db.query(
-      "delete from bakery.artifact_draft_receipts where actor_id=$1",
-      [member.principalId],
-    );
-    await db.query(
-      "delete from bakery.artifact_draft_updates where actor_id=$1",
-      [member.principalId],
-    );
-    await db.query('delete from public.session where "userId"=$1', [
-      member.providerUserId,
-    ]);
-    await db.query(
-      "delete from bakery.organization_memberships where principal_id=$1",
-      [member.principalId],
-    );
-    await db.query('delete from public.member where "userId"=$1', [
-      member.providerUserId,
-    ]);
-    await db.query("delete from bakery.principals where id=$1", [
-      member.principalId,
-    ]);
-    await db.query('delete from public."user" where id=$1', [
-      member.providerUserId,
-    ]);
-  }
+  // Closing a socket does not stop an admission already running on the
+  // server, so a late update may still commit. Deleting the organization
+  // first cascades every draft, update and receipt (and makes a straggling
+  // commit fail on its missing draft), so no row references a member below.
   try {
     await cleanupDraftFixture(harness.fixture);
+    const db = harness.fixture.pgDatabase;
+    for (const member of harness.extra) {
+      await db.query('delete from public.session where "userId"=$1', [
+        member.providerUserId,
+      ]);
+      await db.query('delete from public.member where "userId"=$1', [
+        member.providerUserId,
+      ]);
+      await db.query("delete from bakery.principals where id=$1", [
+        member.principalId,
+      ]);
+      await db.query('delete from public."user" where id=$1', [
+        member.providerUserId,
+      ]);
+    }
   } finally {
     await harness.fixture.close();
   }
@@ -611,6 +603,13 @@ async function untilWithBinary(
     }
     const frame = JSON.parse(value) as Frame;
     if (frame.type === type) return frame;
+    // Waiting for an ack, a refusal is the answer: report it, don't time out.
+    if (
+      type === "ack" &&
+      (frame.type === "problem" || frame.type === "resync_required")
+    ) {
+      throw new Error(`expected ack, got ${JSON.stringify(frame)}`);
+    }
   }
 }
 

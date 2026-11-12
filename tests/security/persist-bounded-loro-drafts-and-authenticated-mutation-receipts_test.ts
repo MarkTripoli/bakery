@@ -2310,6 +2310,37 @@ Deno.test("real isolated adapter rejects malformed, oversized, wrong-root, and p
   );
 });
 
+Deno.test("worker start-up does not spend the work budget: a slow start still completes", async () => {
+  // Start-up happens before any client bytes reach the worker, and on a busy
+  // host a cold Deno start alone can take over a second. Only the work after
+  // READY is metered against workerRuntimeMs.
+  const isolation = createDraftIsolation({
+    workerPath: new URL(
+      "../fixtures/draft-workers/slow-start.ts",
+      import.meta.url,
+    ).pathname,
+  });
+  const candidate = await isolation.initialize("slow start");
+  assertEquals(candidate.text, "slow start");
+});
+
+Deno.test("a worker that never becomes ready times out at the start-up deadline", async () => {
+  const isolation = createDraftIsolation({
+    workerPath: new URL(
+      "../fixtures/draft-workers/never-ready.ts",
+      import.meta.url,
+    ).pathname,
+    startupDeadlineMs: 1_500,
+  });
+  const started = performance.now();
+  const error = await assertRejects(
+    () => isolation.initialize("x"),
+    DraftIsolationError,
+  );
+  assertEquals(error.kind, "timeout", error.message);
+  assert(performance.now() - started < 3_000, "start-up deadline not applied");
+});
+
 Deno.test("timeout, memory pressure, trap, and protocol overflow kill and reap boundaries", async () => {
   const fixtures = [
     ["timeout.ts", "timeout"],
