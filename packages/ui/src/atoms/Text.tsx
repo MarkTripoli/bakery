@@ -24,6 +24,7 @@ export type TextProps =
       | "hintInk"
       | "captionInk"
       | "positive"
+      | "error"
       | "field-preview"
       | "responsive-hint";
   };

@@ -100,7 +100,8 @@ export function RepositoryRulesPage(
   const copied = copyResult === "copied";
   // The result is announced and then forgotten, so the label returns to "Copy".
   useEffect(() => {
-    if (copyResult === "idle") return;
+    // A refused copy stays, with the whole value to select, until the next copy works.
+    if (copyResult !== "copied") return;
     const timer = globalThis.setTimeout(() => setCopyResult("idle"), 2500);
     return () => globalThis.clearTimeout(timer);
   }, [copyResult]);
@@ -525,13 +526,15 @@ export function RepositoryRulesPage(
                   <UI.DescriptionItem
                     action={
                       <UI.Inline gap="compact">
-                        <UI.DataText
-                          data-testid="repository-rules-digest"
-                          title={data.digest}
-                          variant="code"
-                        >
-                          {data.digest.slice(0, FINGERPRINT_CHARS)}
-                        </UI.DataText>
+                        {copyResult === "failed" ? null : (
+                          <UI.DataText
+                            data-testid="repository-rules-digest"
+                            title={data.digest}
+                            variant="code"
+                          >
+                            {data.digest.slice(0, FINGERPRINT_CHARS)}
+                          </UI.DataText>
+                        )}
                         <UI.Button
                           onClick={() => void copyFingerprint()}
                           type="button"
@@ -545,13 +548,26 @@ export function RepositoryRulesPage(
                         </UI.Button>
                       </UI.Inline>
                     }
+                    description={copyResult === "failed"
+                      ? (
+                        <UI.Stack gap="tight">
+                          <UI.Text role="alert" variant="error">
+                            {translate("repository.rules.details.copyFailed")}
+                          </UI.Text>
+                          <UI.DataText
+                            data-testid="repository-rules-digest"
+                            variant="code"
+                          >
+                            {data.digest}
+                          </UI.DataText>
+                        </UI.Stack>
+                      )
+                      : undefined}
                     title={
                       <>
                         <UI.VisuallyHidden as="div" role="status">
                           {copyResult === "copied"
                             ? translate("repository.rules.details.copied")
-                            : copyResult === "failed"
-                            ? translate("repository.rules.details.copyFailed")
                             : ""}
                         </UI.VisuallyHidden>
                         {translate("repository.rules.details.fingerprint")}

@@ -928,21 +928,58 @@ test.describe("repository rules: the effective rules of one repository", () => {
     await expect(details(page).getByRole("status")).toHaveText("");
   });
 
-  test("a refused clipboard write leaves Copy and says it could not copy", async ({ page }) => {
+  test("a refused clipboard write is visible: a caption and the whole fingerprint to select, until the next copy works", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    // The first write is refused, the next one goes through.
     await page.addInitScript(() => {
+      let writes = 0;
+      const real = navigator.clipboard;
       Object.defineProperty(navigator, "clipboard", {
         configurable: true,
-        value: { writeText: () => Promise.reject(new Error("denied")) },
+        value: {
+          readText: () => real.readText(),
+          writeText: (text: string) =>
+            writes++ === 0
+              ? Promise.reject(new Error("denied"))
+              : real.writeText(text),
+        },
       });
     });
     await rulesFixture(page);
     await page.goto(RULES_PATH);
-    await details(page).getByRole("button", { name: "Copy" }).click();
-    await expect(details(page).getByRole("status")).toHaveText(
-      "Could not copy the fingerprint.",
+    const row = details(page);
+    await row.getByRole("button", { name: "Copy" }).click();
+    // Said out loud and shown, in the error colour, under the fingerprint row.
+    const caption = row.getByRole("alert");
+    await expect(caption).toHaveText(
+      "Could not copy the fingerprint. Select it and copy it yourself.",
     );
-    await expect(details(page).getByRole("button", { name: "Copy" }))
-      .toBeVisible();
+    const error = await page.evaluate(() => {
+      const probe = document.createElement("span");
+      probe.style.color = "var(--color-destructive)";
+      document.body.append(probe);
+      const color = getComputedStyle(probe).color;
+      probe.remove();
+      return color;
+    });
+    expect(await caption.evaluate((node) => getComputedStyle(node).color))
+      .toBe(error);
+    // The whole value replaces the short form, so there is something to select.
+    await expect(page.getByTestId("repository-rules-digest")).toHaveText(
+      DIGEST,
+    );
+    // The label stays Copy, and the caption does not time out.
+    await expect(row.getByRole("button", { name: "Copy" })).toBeVisible();
+    await page.waitForTimeout(3200);
+    await expect(caption).toBeVisible();
+    await shot(page, "repository-rules-copy-failed");
+    // The next copy that works clears it and the short form returns.
+    await row.getByRole("button", { name: "Copy" }).click();
+    await expect(row.getByRole("button", { name: "Copied" })).toBeVisible();
+    await expect(row.getByRole("alert")).toHaveCount(0);
+    await expect(page.getByTestId("repository-rules-digest")).toHaveText(
+      "9f2c41ab",
+    );
   });
 
   test("has no accessibility violations", async ({ page }) => {

@@ -2730,5 +2730,5 @@
   "repository.rules.unavailable.back": "⟪Back to projects⟫",
   "repository.rules.error.body": "⟪Check your connection, then try again.⟫",
   "repository.rules.list.title": "⟪Rules⟫",
-  "repository.rules.details.copyFailed": "⟪Could not copy the fingerprint.⟫"
+  "repository.rules.details.copyFailed": "⟪Could not copy the fingerprint. Select it and copy it yourself.⟫"
 }
