@@ -1,3 +1,4 @@
+import { workerActionCapabilities } from "@bakery/contracts/contracts";
 import {
   WORKFLOW_ACTION_METADATA,
   type WorkflowActionName,
@@ -233,17 +234,28 @@ export async function findTrustedPricingSnapshot(
 }
 
 /**
- * True when the action runs a model. The action registry is the one source of
- * truth for this, the same one the workflow compiler reads to decide which
- * steps may select an agent version, so the budget and the executor can never
- * disagree with it. An unregistered action is refused, not assumed free.
+ * True when the action runs a model. There are two tables and each holds
+ * actions the other lacks: the workflow action registry (the one the compiler
+ * reads to decide which steps may select an agent version) and the worker
+ * transport table (the actions a worker runs, among them `mcp.discover`,
+ * `secret.identity.read`, `repository.inspect` and `coordinator.turn`, which a
+ * repository profile or admission names but which are not workflow steps).
+ * The registry answers first, then the worker table; where both hold an action
+ * they agree, which a unit test checks so the order cannot matter. An action
+ * neither holds is refused with a typed error, never assumed free.
  */
 export function isModelAction(action: string): boolean {
-  if (!Object.hasOwn(WORKFLOW_ACTION_METADATA, action)) {
-    throw new Error(`unsupported workflow action: ${action}`);
+  if (Object.hasOwn(WORKFLOW_ACTION_METADATA, action)) {
+    return WORKFLOW_ACTION_METADATA[action as WorkflowActionName].capabilities
+      .includes("model");
   }
-  return WORKFLOW_ACTION_METADATA[action as WorkflowActionName].capabilities
-    .includes("model");
+  let capabilities: readonly string[];
+  try {
+    capabilities = workerActionCapabilities(action);
+  } catch {
+    return conflict("workflow_action_unsupported");
+  }
+  return capabilities.includes("model");
 }
 
 function requirePolicy(policy: BudgetPolicy | undefined): BudgetPolicy {
