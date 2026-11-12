@@ -207,6 +207,8 @@ async function expectSelectedParent(page: Page, path: string) {
       ? "/settings/organization/access"
       : path.startsWith("/settings/organization/roles")
       ? "/settings/organization/roles"
+      : path.startsWith("/settings/organization/repository-rules")
+      ? "/settings/organization/repository-rules"
       : path.startsWith("/settings/organization/integrations")
       ? "/settings/organization/integrations"
       : path.startsWith("/settings/organization/sso")
@@ -530,6 +532,7 @@ test.describe("settings routes and navigation", () => {
       "Your access",
       "Organization access",
       "Custom roles",
+      "Repository rules",
       "Integrations",
       "Audit log",
       "Single sign-on",

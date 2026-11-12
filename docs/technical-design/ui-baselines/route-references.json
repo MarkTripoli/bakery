@@ -5064,6 +5064,13 @@
       "frames": []
     },
     {
+      "routeId": "settings-organization-repository-rules",
+      "path": "/settings/organization/repository-rules",
+      "status": "no-mock",
+      "rationale": "Organization repository rules page (#65): the published rule baseline rule by rule (enforcement and whether a repository may override) and the history of published revisions. Paper page 61 (Repository rules: organization and overrides, Z-0) draws the organization frames 1JQG-0 desktop and 1JWA-0 phone, kept under docs/technical-design/repository-rules-mocks, but that page is not bound as a scored baseline in any ui-baselines manifest, so no golden exists and none is invented. The page is read only so far; the mock's Publish rules, Configure and Preview impact actions arrive with the editing slices of #65.",
+      "frames": []
+    },
+    {
       "routeId": "settings-organization-sso",
       "path": "/settings/organization/sso",
       "status": "no-mock",

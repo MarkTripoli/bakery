@@ -22,8 +22,12 @@
  *   sink first reads them, and records read while nothing has changed share one
  *   frozen snapshot. A full queue of them costs the queue, not a copy of every
  *   series per entry.
- * - A call made from inside the sink (it logs, it counts an event) is refused
- *   and counted as `reentrant`, so a sink cannot feed itself.
+ * - A call made from inside the sink's own call tree (it logs, it counts an
+ *   event, after an await or in a timer it started) is refused and counted as
+ *   `reentrant`. That is all this covers: outer code that is merely waiting on
+ *   a promise the sink resolves is not attributed to the sink, and what keeps
+ *   that from starving the process is the exporter yielding a macrotask between
+ *   batches.
  *
  * An event or a flush after `close` is refused by the exporter and counted as a
  * shutdown loss, like anything else that never reached the sink.
