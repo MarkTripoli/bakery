@@ -34,6 +34,12 @@ export type WorkflowCompilerCatalogInput = {
   /** JSON Schema of the `$task` object, or a thunk producing it. */
   readonly taskSchema: unknown;
   /**
+   * JSON Schema of the `$delivery` object (run state the runtime resolves at
+   * claim time), or a thunk producing it. Absent when the host has none: every
+   * read of `$delivery` is then an unknown field.
+   */
+  readonly deliverySchema?: unknown;
+  /**
    * Exact registered check names, or `null` for pattern-only validation (no
    * check registry exists yet; repository profiles define checks at runtime).
    */
@@ -68,6 +74,13 @@ export interface WorkflowCompilerCatalog {
   event(name: string): ResolvedWorkflowEvent | undefined;
   /** Type of the `$task` object, or undefined when unresolved. */
   task(): ValueType | undefined;
+  /** Type of the `$delivery` object, or undefined when the host describes none. */
+  delivery(): ValueType | undefined;
+  /**
+   * Type of a structured run input (a registered contract such as `TaskBrief`),
+   * or undefined when the catalog has no schema for that name.
+   */
+  inputType(name: string): ValueType | undefined;
 }
 
 function lookupSchema(source: WorkflowSchemaSource, name: string): unknown {
@@ -136,6 +149,8 @@ export function createWorkflowCompilerCatalog(
   const actions = new Map<string, ResolvedWorkflowAction | null>();
   const events = new Map<string, ResolvedWorkflowEvent | null>();
   let task: { value: ValueType | undefined } | undefined;
+  let delivery: { value: ValueType | undefined } | undefined;
+  const inputTypes = new Map<string, ValueType | undefined>();
   return {
     checkNames: input.checkNames,
     limitFields(action) {
@@ -187,6 +202,26 @@ export function createWorkflowCompilerCatalog(
       }
       return task.value;
     },
+    delivery() {
+      if (!delivery) {
+        const schema = typeof input.deliverySchema === "function"
+          ? (input.deliverySchema as () => unknown)()
+          : input.deliverySchema;
+        delivery = {
+          value: schema === undefined ? undefined : schemaToValueType(schema),
+        };
+      }
+      return delivery.value;
+    },
+    inputType(name) {
+      if (!inputTypes.has(name)) {
+        inputTypes.set(
+          name,
+          schemaToValueType(lookupSchema(input.schemas, name)),
+        );
+      }
+      return inputTypes.get(name);
+    },
   };
 }
 
@@ -200,4 +235,6 @@ export const UNTYPED_CATALOG: WorkflowCompilerCatalog = Object.freeze({
   resolveAction: () => undefined,
   event: () => undefined,
   task: () => undefined,
+  delivery: () => undefined,
+  inputType: () => undefined,
 });

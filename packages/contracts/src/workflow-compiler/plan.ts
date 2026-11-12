@@ -50,6 +50,9 @@ function pushStep(
       parent: frame.parent,
       position,
       action: node.action,
+      ...(node.agentVersionId === undefined
+        ? {}
+        : { agentVersionId: node.agentVersionId }),
       timeoutMs: node.timeoutMs,
       retry: node.retry,
       loops: [...frame.loops],
