@@ -65,6 +65,8 @@ export type ArtifactResourceRouteOptions = {
   secret: string;
   /** Validated `BAKERY_ARTIFACT_PREVIEW_ORIGIN`; absent fails previews closed. */
   artifactPreviewOrigin?: string;
+  /** A registry already built for MCP; omitted, the routes build their own. */
+  artifactActions?: ArtifactActions;
 };
 
 const readPolicy = {
@@ -156,9 +158,23 @@ function actionContext(
   };
 }
 
-export function createArtifactResourceRoutes(
-  options: ArtifactResourceRouteOptions,
-) {
+/** The artifact action registry with the authority and handlers its routes share. */
+export type ArtifactActions = {
+  readonly registry: ActionRegistry;
+  readonly authority: ActionAuthorityRunner;
+  readonly handlers: ReturnType<typeof createArtifactReadHandlers>;
+};
+
+/**
+ * Builds the artifact action registry once, so the REST router and the MCP
+ * catalog tools run the same instance.
+ */
+export function createArtifactActions(
+  options: Omit<
+    ArtifactResourceRouteOptions,
+    "browserSession" | "artifactActions"
+  >,
+): ArtifactActions {
   const handlers = createArtifactReadHandlers(options.secret);
   const trustedRepositoryResolver = createTrustedRepositoryResolver();
   const postgresAuthority = new PostgresAuthorityRunner(options.database);
@@ -406,7 +422,14 @@ export function createArtifactResourceRoutes(
   registerCommentActions(registry, options.secret);
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, artifactImplementedActions);
+  return { registry, authority, handlers };
+}
 
+export function createArtifactResourceRoutes(
+  options: ArtifactResourceRouteOptions,
+) {
+  const { registry, authority, handlers } = options.artifactActions ??
+    createArtifactActions(options);
   const app = new Hono<{ Variables: AuthVariables }>();
   const session = options.browserSession;
   app.use("/v1/artifact-comments/*", session);
