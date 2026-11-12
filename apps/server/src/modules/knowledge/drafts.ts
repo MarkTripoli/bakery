@@ -9,9 +9,14 @@ export const DRAFT_LIMITS = Object.freeze({
   queuedMutations: 100,
   workerMemoryBytes: 268_435_456,
   /**
-   * Process launcher bounds (no systemd): RLIMIT_DATA, below which the Deno
-   * runtime cannot start, and the V8 heap cap that kills a growing worker.
+   * Process launcher bounds (no systemd), set by infra/draft-worker/launch.sh:
+   * RLIMIT_DATA for all memory, including off-heap typed arrays (Deno needs
+   * about 1 GiB of address space to start, so it cannot go lower), CPU
+   * seconds, and the V8 caps on the JavaScript heap and WebAssembly pages
+   * that end a growing worker sooner.
    */
+  processDataBytes: 1_073_741_824,
+  processCpuSeconds: 2,
   processHeapMegabytes: 192,
   processWasmPages: 4_096,
   workerTasks: 32,

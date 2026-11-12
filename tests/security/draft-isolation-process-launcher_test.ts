@@ -75,10 +75,11 @@ Deno.test("process-launched workers that hang, exhaust memory, trap or flood are
   }
 });
 
-Deno.test("the V8 heap cap alone ends a worker that outgrows it", async () => {
-  // Near the cap V8 spends its time collecting, so at the normal deadline the
-  // time bound ends this worker first. With the deadline lifted, the heap cap
-  // must end it by itself: a fatal out-of-memory exit, not a timeout.
+Deno.test("a worker whose JavaScript heap keeps growing is ended by its memory bounds", async () => {
+  // Both the V8 old-space cap and RLIMIT_DATA apply; whichever fires first,
+  // the worker must end by a memory bound (a crash exit, not a timeout) with
+  // the deadline lifted. The V8 flag itself is pinned by the launcher unit
+  // test.
   await withLauncher(
     { workerPath: fixture("heap.ts"), totalDeadlineMs: 60_000 },
     async (isolation) => {
@@ -90,6 +91,52 @@ Deno.test("the V8 heap cap alone ends a worker that outgrows it", async () => {
       assert(error.message.startsWith("WORKER_EXIT_"), error.message);
     },
   );
+});
+
+Deno.test("off-heap memory is bounded too: an ArrayBuffer flood ends the worker", async () => {
+  // Typed arrays live outside the V8 heap and WebAssembly caps; RLIMIT_DATA
+  // set by the launcher must end this worker by itself, well before the time
+  // bound (deadline lifted), not after it has allocated gigabytes.
+  await withLauncher(
+    { workerPath: fixture("memory.ts"), totalDeadlineMs: 30_000 },
+    async (isolation) => {
+      const started = performance.now();
+      const error = await assertRejects(
+        () => isolation.initialize("x"),
+        DraftIsolationError,
+      );
+      assertEquals(error.kind, "unavailable", error.message);
+      assert(error.message.startsWith("WORKER_EXIT_"), error.message);
+      assert(performance.now() - started < 15_000, "not ended by the limit");
+    },
+  );
+});
+
+Deno.test("the launcher execs in place: the worker's parent is the server", async () => {
+  // Without exec the shell would stay between them, and the kill timer would
+  // end the shell while the worker kept running.
+  const recorded = await Deno.makeTempDir({ prefix: "bakery-draft-pid-" });
+  const stand = `${recorded}/deno`;
+  await Deno.writeTextFile(
+    stand,
+    `#!/bin/sh\nprintf '%s' "$PPID" > '${recorded}/parent'\n`,
+  );
+  await Deno.chmod(stand, 0o700);
+  const copy = await launcherCopy({ denoPath: stand });
+  try {
+    const { code } = await new Deno.Command(copy.path, {
+      args: [crypto.randomUUID()],
+      clearEnv: true,
+    }).output();
+    assertEquals(code, 0);
+    assertEquals(
+      await Deno.readTextFile(`${recorded}/parent`),
+      String(Deno.pid),
+    );
+  } finally {
+    await copy.cleanup();
+    await Deno.remove(recorded, { recursive: true });
+  }
 });
 
 Deno.test("a process-launched worker has no environment, file, subprocess, network, FFI or import access", async () => {
@@ -226,6 +273,10 @@ Deno.test("the launcher refuses anything but exactly one lower-case UUID", async
         ["eval"],
         [uuid, "extra"],
         [uuid.toUpperCase()],
+        ["-".repeat(36)],
+        ["00000000000000000000000000000000-000"],
+        [`${uuid.slice(0, 7)}-${uuid.slice(7, 8)}${uuid.slice(9)}`],
+        ["g".repeat(8) + uuid.slice(8)],
         ["eval", "console.log(1)"],
         ["../../etc/passwd-aaaa-bbbb-cccc-dddddddddddd"],
         [`${uuid}\n`],

@@ -27,6 +27,12 @@ Deno.test("the launcher pins the worker module, cache and limits the server expe
       `--v8-flags=--max-old-space-size=${DRAFT_LIMITS.processHeapMegabytes},--wasm-max-mem-pages=${DRAFT_LIMITS.processWasmPages}`,
     ),
   );
+  assert(
+    script.includes(
+      `  /usr/bin/prlimit --data=${DRAFT_LIMITS.processDataBytes} --cpu=${DRAFT_LIMITS.processCpuSeconds} --core=0 -- \\`,
+    ),
+    "prlimit bounds",
+  );
   for (
     const flag of ["--cached-only", "--no-prompt", "--deny-import", "--frozen"]
   ) {
