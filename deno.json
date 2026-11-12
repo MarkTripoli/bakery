@@ -8,6 +8,7 @@
     "@bakery/config/sentry-deno": "./packages/config/src/sentry-deno.ts",
     "@bakery/config/telemetry": "./packages/config/src/telemetry.ts",
     "@bakery/config/telemetry-attributes": "./packages/config/src/telemetry-attributes.ts",
+    "@bakery/config/telemetry-trace": "./packages/config/src/telemetry-trace.ts",
     "@bakery/integration-sdk": "./packages/integration-sdk/mod.ts",
     "@bakery/integration-sdk/testing": "./packages/integration-sdk/testing.ts",
     "@sentry/core": "npm:@sentry/core@11.6.0",

@@ -204,6 +204,8 @@ type IsolationOptions = {
    * file, FFI, import or subprocess access.
    */
   launcher?: "systemd" | "process";
+  /** Concurrent-worker cap; defaults to the process-wide pool (tests inject one). */
+  workerLimiter?: DraftWorkerLimiter;
   /** systemd launcher (infra/server-exec/draft-systemd.sh); tests point at a copy. */
   systemdLauncherPath?: string;
   /** Process launcher only: the fixed launcher script (tests point at a copy). */
@@ -1123,6 +1125,35 @@ export const SYSTEMD_UNIT_PROPERTIES: readonly string[] = Object.freeze([
 
 export const DRAFT_WORKER_LAUNCHER = "/workspace/infra/draft-worker/launch.sh";
 
+/** Bounds how many isolated draft workers run at the same time. */
+export type DraftWorkerLimiter = {
+  tryAcquire(): boolean;
+  release(): void;
+  readonly active: number;
+};
+
+export function createDraftWorkerLimiter(max: number): DraftWorkerLimiter {
+  let active = 0;
+  return {
+    tryAcquire() {
+      if (active >= max) return false;
+      active += 1;
+      return true;
+    },
+    release() {
+      if (active > 0) active -= 1;
+    },
+    get active() {
+      return active;
+    },
+  };
+}
+
+/** One pool for the whole server process, whatever isolation instance spawns. */
+const sharedWorkerLimiter = createDraftWorkerLimiter(
+  DRAFT_LIMITS.maxConcurrentWorkers,
+);
+
 export function createDraftIsolation(
   options: IsolationOptions = {},
 ): DraftIsolation {
@@ -1159,13 +1190,35 @@ export function createDraftIsolation(
   ) + 1;
   const namespaceFileReader = options.namespaceFileReader ?? readBoundedFile;
 
+  const limiter = options.workerLimiter ?? sharedWorkerLimiter;
+  // At most limiter-many workers run at once, process-wide: each may hold a
+  // full per-worker memory bound, so a burst of draft writes cannot multiply
+  // it without limit. A full pool refuses at once (no unbounded queue).
   const run = async (
     frames: readonly Uint8Array[],
     signal?: AbortSignal,
   ): Promise<Uint8Array[]> => {
+    // A permanent refusal first: an oversize request is a 422 whatever the
+    // pool's state, never a retryable "busy".
     if (frames[0]?.length > DRAFT_LIMITS.metadataBytes) {
       throw new DraftIsolationError("limit", "WORKER_METADATA_TOO_LARGE");
     }
+    if (!limiter.tryAcquire()) {
+      throw new DraftIsolationError(
+        "unavailable",
+        "WORKER_CAPACITY_EXHAUSTED",
+      );
+    }
+    try {
+      return await runWorker(frames, signal);
+    } finally {
+      limiter.release();
+    }
+  };
+  const runWorker = async (
+    frames: readonly Uint8Array[],
+    signal?: AbortSignal,
+  ): Promise<Uint8Array[]> => {
     const jobId = crypto.randomUUID();
     const unit = `bakery-draft-${jobId}`;
     const systemdArgs = [
