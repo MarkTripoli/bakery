@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="heavy-lane-label-is-pool-not-cpu" project="bakery" issue="85">
+  <title>The amd runner label names the heavy-lane pool, not an AMD CPU; size lane budgets for the slow hosts</title>
+  <trigger>A heavy full lane (storybook browser sweeps, paper parity, integration, web shell shards) times out, or runs far longer on one runner than on another, or a change adds a fixed timeout to a lane that asks for the amd label.</trigger>
+  <mistake>Treated amd as a promise of fast hosts. d05a5de9 registered every host with hetzner,amd. cpuinfo, read on 2026-11-11: hetzner-1 and -2 are AMD EPYC-Rome, hetzner-4 and -5 are Intel Skylake, all four 4 vCPU and 7 GB. The same job took 1.4 to 2.1 times as long on the Intel hosts across three runs (full / integration 2783 s against 5321 s, ui / paper parity runtime 1946 s against 3795 s, ui / storybook browser 966 s against 1409 s). A fixed 360 s budget for the storybook axe sweep passed on a fast host in 160 s and timed out on hetzner-5, at 357 of 358 cases passed.</mistake>
+  <rule>All four runners stay in the heavy pool for capacity and are not re-provisioned to change labels. Read amd as a pool name. Size a fixed budget for the slow hosts: scale a whole-sweep budget with the work it covers (sweepTimeoutMs in packages/ui/tests/storybook-harness.ts is stories times an allowance) instead of a guessed constant, and keep each item's own wait tight so a stuck item still fails fast on that wait.</rule>
+  <verification>
+    <requirement>Before calling a lane timeout a defect in the test, compare the same job name across runners: gh api repos/MarkTripoli/bakery/actions/runs/&lt;id&gt;/jobs gives runner_name, started_at and completed_at.</requirement>
+  </verification>
+  <boundary>Capacity is still the limit: nine lanes ask for amd and four runners serve them, so a full dispatch competes with every pull request run for the same pool.</boundary>
+</learning>

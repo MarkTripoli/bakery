@@ -49,11 +49,11 @@ export const WorkflowJsonValueSchema: z.ZodType<WorkflowJsonValue> = z.lazy(
 );
 
 export const WORKFLOW_REFERENCE_ROOTS = Object.freeze(
-  ["input", "task", "step", "repeat"] as const,
+  ["input", "task", "step", "repeat", "delivery"] as const,
 );
 
 const referenceRootSchema = z.enum(WORKFLOW_REFERENCE_ROOTS).describe(
-  "Namespace a reference reads: workflow input, task, completed step or enclosing repeat.",
+  "Namespace a reference reads: workflow input, task, completed step, enclosing repeat or the run's delivery state.",
 );
 
 const referencePathSchema = z.array(
@@ -275,6 +275,8 @@ export type WorkflowActionNode = {
   if?: WorkflowExpressionNode | undefined;
   action: string;
   with: WorkflowValueNode;
+  /** Agent version this step runs, for actions with the `model` capability. */
+  agentVersionId?: string | undefined;
   requires: string[];
   checks?: string[] | undefined;
   effectKey?: z.infer<typeof WorkflowEffectKeySchema> | undefined;
@@ -368,6 +370,9 @@ const actionNodeSchema = z.object({
   ),
   with: z.lazy(() => WorkflowValueNodeSchema).describe(
     "Tagged action input value; checks and effect key stay separate node fields that the executor injects.",
+  ),
+  agentVersionId: z.string().regex(UUID).optional().describe(
+    "Lower-case immutable agent version this step runs, an override of the workflow agents map; only actions with the model capability take one.",
   ),
   requires: z.array(described(z.string().max(64), "Capability name.")).max(32)
     .describe(
@@ -518,9 +523,24 @@ export const WorkflowNodeSchema: z.ZodType<WorkflowNode> = z.lazy(() =>
   "Normalized workflow node: action, sequence, branch, repeat, wait or parallel.",
 );
 
+/**
+ * Structured run-input types, each a registered contract the catalog resolves.
+ * The set is closed: a new entry is a compiler change and a version bump.
+ */
+export const WORKFLOW_STRUCTURED_INPUT_TYPES = Object.freeze(
+  ["TaskBrief"] as const,
+);
+
 const inputSchema = z.object({
-  type: z.enum(["uuid", "string", "integer", "number", "boolean"]).describe(
-    "Workflow input type from the supported subset.",
+  type: z.enum([
+    "uuid",
+    "string",
+    "integer",
+    "number",
+    "boolean",
+    ...WORKFLOW_STRUCTURED_INPUT_TYPES,
+  ]).describe(
+    "Workflow input type: a scalar from the supported subset or a structured contract type.",
   ),
   required: z.boolean().describe("Whether the run must supply this input."),
   enum: z.array(described(z.string(), "One allowed enumeration value."))
@@ -530,7 +550,7 @@ const inputSchema = z.object({
 }).strict().describe("Declared workflow input.");
 
 export const WorkflowSemanticDocumentSchema = z.object({
-  compilerVersion: z.literal(1).describe(
+  compilerVersion: z.literal(2).describe(
     "Compiler semantics version; changing it changes every digest.",
   ),
   registryVersion: z.number().int().min(1).describe(
@@ -596,6 +616,9 @@ export const WorkflowPlanStepSchema = z.object({
   ),
   action: z.string().max(64).optional().describe(
     "Registered action name for action steps.",
+  ),
+  agentVersionId: z.string().regex(UUID).optional().describe(
+    "Agent version the step selects for itself, when it selects one.",
   ),
   timeoutMs: durationMsSchema.describe("Timeout applied to each attempt."),
   retry: retrySchema,

@@ -1,3 +1,5 @@
+# `amd` names the heavy-lane pool, not a CPU: two of the four runners are Intel.
+# See learnings/heavy-lane-label-is-pool-not-cpu.xml.
 self-hosted-runner:
   labels:
     - ovh

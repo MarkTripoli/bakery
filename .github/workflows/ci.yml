@@ -763,6 +763,9 @@ jobs:
     name: full / integration
     needs: [changes, format, typecheck, contract, unit]
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'integration_tests'))) && needs.format.result == 'success' && needs.typecheck.result == 'success' && needs.contract.result == 'success' && needs.unit.result == 'success' }}
+    # `amd` is the heavy-lane pool label, not a CPU guarantee: all four runners
+    # carry it and two are Intel, so heavy lanes budget for the slower hosts
+    # (learnings/heavy-lane-label-is-pool-not-cpu.xml).
     runs-on: [self-hosted, hetzner, amd, linux, x64]
     env:
       BAKERY_TEST_DATABASE_RESET_CONFIRMATION: RESET_BAKERY_TEST_DATABASE
@@ -2043,6 +2046,16 @@ jobs:
       - name: Stop web dev server
         if: always()
         run: kill "$(cat "$RUNNER_TEMP/web-dev.pid")" || true
+      - name: Complete git history before the provenance gate
+        # A persistent runner can carry a leftover .git/shallow entry from the
+        # repository's pre-recreation history (bakery-hetzner-4, runs
+        # 43023722608 and 43056515091): no ref reaches it and the server does
+        # not have it, so `git fetch --unshallow` cannot clear it and the Paper
+        # provenance gate refuses the repository as shallow. This drops only
+        # entries no ref contains, logs each one, and still fails on a real
+        # boundary (learnings/stale-shallow-entry-survives-unshallow.xml).
+        # NODE_V8_COVERAGE: Deno's node:child_process reads it on every spawn.
+        run: deno run --allow-run=git --allow-read --allow-write=.git --allow-env=RUNNER_NAME,NODE_V8_COVERAGE scripts/ci/heal-stale-shallow.ts
       - name: Compare owned Paper references
         # On a pull request the base SHA lets compare-paper.mjs skip
         # re-rendering references that no changed path produces or pins (the
@@ -2165,6 +2178,16 @@ jobs:
       - name: Stop web dev server
         if: always()
         run: kill "$(cat "$RUNNER_TEMP/web-dev.pid")" || true
+      - name: Complete git history before the provenance gate
+        # A persistent runner can carry a leftover .git/shallow entry from the
+        # repository's pre-recreation history (bakery-hetzner-4, runs
+        # 43023722608 and 43056515091): no ref reaches it and the server does
+        # not have it, so `git fetch --unshallow` cannot clear it and the Paper
+        # provenance gate refuses the repository as shallow. This drops only
+        # entries no ref contains, logs each one, and still fails on a real
+        # boundary (learnings/stale-shallow-entry-survives-unshallow.xml).
+        # NODE_V8_COVERAGE: Deno's node:child_process reads it on every spawn.
+        run: deno run --allow-run=git --allow-read --allow-write=.git --allow-env=RUNNER_NAME,NODE_V8_COVERAGE scripts/ci/heal-stale-shallow.ts
       - name: Compare owned Paper references
         # On a pull request the base SHA lets compare-paper.mjs skip
         # re-rendering references that no changed path produces or pins (the
@@ -2301,6 +2324,16 @@ jobs:
       - name: Stop web dev server
         if: always()
         run: kill "$(cat "$RUNNER_TEMP/web-dev.pid")" || true
+      - name: Complete git history before the provenance gate
+        # A persistent runner can carry a leftover .git/shallow entry from the
+        # repository's pre-recreation history (bakery-hetzner-4, runs
+        # 43023722608 and 43056515091): no ref reaches it and the server does
+        # not have it, so `git fetch --unshallow` cannot clear it and the Paper
+        # provenance gate refuses the repository as shallow. This drops only
+        # entries no ref contains, logs each one, and still fails on a real
+        # boundary (learnings/stale-shallow-entry-survives-unshallow.xml).
+        # NODE_V8_COVERAGE: Deno's node:child_process reads it on every spawn.
+        run: deno run --allow-run=git --allow-read --allow-write=.git --allow-env=RUNNER_NAME,NODE_V8_COVERAGE scripts/ci/heal-stale-shallow.ts
       - name: Compare owned Paper references
         # On a pull request the base SHA lets compare-paper.mjs skip
         # re-rendering references that no changed path produces or pins (the

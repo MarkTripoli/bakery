@@ -168,6 +168,11 @@ export type ActionDefinition<
    * that only queues work for later (an accepted receipt) pins 202.
    */
   successStatus?: 200 | 201 | 202;
+  /**
+   * Strong validator a query returns in the ETag header, derived from its
+   * validated output; the If-Match value a later command must send.
+   */
+  responseEtag?: (output: unknown) => string | undefined;
   handler: (
     context: ActionContext,
     input: z.output<InputSchema>,

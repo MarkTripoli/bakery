@@ -113,6 +113,9 @@ Deno.test("effective output is typed with all five rule keys and provenance", as
     profileId: crypto.randomUUID(),
     profileRevision: 2,
     ...resolved,
+    repositoryVersion: 1,
+    checkers: { state: "not_required", unavailableRuleKeys: [] },
+    providerProtection: { state: "unknown", reason: "provider_not_connected" },
   };
   assertEquals(resolved.entries.map(({ ruleKey }) => ruleKey), [
     ...REPOSITORY_RULE_KEYS,
