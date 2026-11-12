@@ -1,4 +1,9 @@
-import { assertEquals, assertNotEquals, assertThrows } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertNotEquals,
+  assertThrows,
+} from "@std/assert";
 import {
   allocateContext,
   ContextDecision,
@@ -7,6 +12,7 @@ import {
 } from "../../apps/server/src/modules/knowledge/context-budget.ts";
 import {
   CONTEXT_EXTRACTOR_VERSION,
+  ContextCitationSchema,
   extractCacheKey,
   MAX_PROJECTION_BYTES,
   projectArtifactVersion,
@@ -356,5 +362,105 @@ Deno.test("a citation or cached extract is reused only while digest, extractor a
   assertNotEquals(
     extractCacheKey("org", citation),
     extractCacheKey("other-org", citation),
+  );
+});
+
+Deno.test("inconsistent citations are refused at the schema and by verifyCitation (AC2)", () => {
+  const ranged = {
+    artifactId: entry("text/plain").artifactId,
+    versionId: entry("text/plain").versionId,
+    sha256: DIGEST,
+    mediaType: "text/plain",
+    location: { startByte: 0, endByteExclusive: 5 },
+    extractorVersion: CONTEXT_EXTRACTOR_VERSION,
+  };
+  const live = { authorized: true, sha256: DIGEST };
+  const bad = [
+    { ...ranged, extractorVersion: null },
+    { ...ranged, location: { startByte: 10, endByteExclusive: 2 } },
+    { ...ranged, location: null },
+  ];
+  for (const citation of bad) {
+    assertEquals(
+      ContextCitationSchema.safeParse(citation).success,
+      false,
+      JSON.stringify(citation),
+    );
+    // A value that bypassed the schema is still not trusted.
+    assertEquals(
+      verifyCitation(citation as never, live),
+      { valid: false, reason: "extractor_changed" },
+      JSON.stringify(citation),
+    );
+  }
+  assertEquals(ContextCitationSchema.safeParse(ranged).success, true);
+  assertEquals(verifyCitation(ranged, live), { valid: true });
+});
+
+Deno.test("an unauthorized caller learns nothing about the version", () => {
+  const citation = projectArtifactVersion(entry("text/plain"), {
+    startByte: 0,
+    endByteExclusive: 5,
+    text: "hello",
+    hasMore: false,
+  }).citation;
+  for (const sha256 of [null, DIGEST, "b".repeat(64)]) {
+    assertEquals(verifyCitation(citation, { authorized: false, sha256 }), {
+      valid: false,
+      reason: "not_authorized",
+    });
+  }
+});
+
+Deno.test("a required unindexed item blocks dispatch instead of being omitted (AC1)", () => {
+  const allocation = allocateContext({
+    envelope: envelope({}),
+    items: [unboundedItem("u", { required: true })],
+  });
+  assertEquals(allocation.decision, ContextDecision.BoundMoreBeforeDispatch);
+  assertEquals(allocation.selected, []);
+});
+
+Deno.test("references are never free and media types normalize", () => {
+  assert(REFERENCE_TOKENS > 0);
+  const window = (text: string) => ({
+    startByte: 0,
+    endByteExclusive: new TextEncoder().encode(text).byteLength,
+    text,
+    hasMore: false,
+  });
+  for (
+    const [mediaType, kind] of [
+      ["application/json", "text_window"],
+      ["application/xml", "text_window"],
+      ["TEXT/PLAIN; charset=utf-8", "text_window"],
+      ["application/pdf; version=1.7", "pdf_reference"],
+      ["IMAGE/PNG", "image_reference"],
+    ] as const
+  ) {
+    assertEquals(
+      projectArtifactVersion(entry(mediaType), window("{}")).kind,
+      kind,
+      mediaType,
+    );
+  }
+});
+
+Deno.test("a window of exactly the maximum size is accepted", () => {
+  const text = "x".repeat(MAX_PROJECTION_BYTES);
+  const projection = projectArtifactVersion(entry("text/plain"), {
+    startByte: 0,
+    endByteExclusive: MAX_PROJECTION_BYTES,
+    text,
+    hasMore: false,
+  });
+  assertEquals(projection.text?.length, MAX_PROJECTION_BYTES);
+  assertThrows(() =>
+    projectArtifactVersion(entry("text/plain"), {
+      startByte: -1,
+      endByteExclusive: 4,
+      text: "abcde",
+      hasMore: false,
+    })
   );
 });

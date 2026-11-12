@@ -53,7 +53,20 @@ export const ContextCitationSchema = z.object({
   extractorVersion: z.string().min(1).max(100).nullable().describe(
     "Extractor that produced the excerpt, or null for a reference without content.",
   ),
-}).strict().describe(
+}).strict().refine(
+  (citation) =>
+    (citation.location === null) === (citation.extractorVersion === null),
+  {
+    message:
+      "A ranged excerpt names its extractor; a whole-version reference names none.",
+    path: ["extractorVersion"],
+  },
+).refine(
+  (citation) =>
+    citation.location === null ||
+    citation.location.endByteExclusive >= citation.location.startByte,
+  { message: "An excerpt cannot end before it starts.", path: ["location"] },
+).describe(
   "Reproducible citation: version, digest, media type, location and extractor.",
 );
 export type ContextCitation = z.infer<typeof ContextCitationSchema>;
@@ -228,6 +241,8 @@ export function verifyCitation(
   citation: ContextCitation,
   current: { authorized: boolean; sha256: string | null },
 ): CitationCheck {
+  // Authorization first, so an unauthorized caller learns nothing about the
+  // version (not even whether it still exists).
   if (!current.authorized) return { valid: false, reason: "not_authorized" };
   if (current.sha256 === null) {
     return { valid: false, reason: "version_missing" };
@@ -235,10 +250,16 @@ export function verifyCitation(
   if (current.sha256 !== citation.sha256) {
     return { valid: false, reason: "digest_mismatch" };
   }
+  // The inferred type does not tie location to extractor, so check the pair
+  // here too: an excerpt without a known extractor has unverified provenance.
   if (
-    citation.extractorVersion !== null &&
-    citation.extractorVersion !== CONTEXT_EXTRACTOR_VERSION
+    citation.location !== null &&
+    (citation.extractorVersion !== CONTEXT_EXTRACTOR_VERSION ||
+      citation.location.endByteExclusive < citation.location.startByte)
   ) return { valid: false, reason: "extractor_changed" };
+  if (citation.location === null && citation.extractorVersion !== null) {
+    return { valid: false, reason: "extractor_changed" };
+  }
   return { valid: true };
 }
 
