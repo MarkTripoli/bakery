@@ -250,7 +250,7 @@
    button is hovered or focused. From 744px the text is a tooltip anchored to
    the start of the button, up to 320px wide; below that it is a panel pinned
    to the bottom of the screen with the label as its first line and a close
-   button (design-ux, #214). It is help, not a dialog: no backdrop. */
+   button (design-ux). It is help, not a dialog: no backdrop. */
 .ui-help-tip {
   display: inline-flex;
   margin-inline-start: var(--space-1);
