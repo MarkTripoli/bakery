@@ -214,12 +214,12 @@ function RuleForm(
         <UI.Text variant="hint">
           {translate("settings.repositoryRules.editor.applyHint")}
         </UI.Text>
-        <UI.Inline>
-          <UI.Button type="submit">
-            {translate("settings.repositoryRules.editor.apply")}
-          </UI.Button>
+        <UI.Inline variant="end">
           <UI.Button onClick={onCancel} type="button" variant="secondary">
             {translate("settings.repositoryRules.editor.cancel")}
+          </UI.Button>
+          <UI.Button type="submit">
+            {translate("settings.repositoryRules.editor.apply")}
           </UI.Button>
         </UI.Inline>
       </UI.Stack>
@@ -285,9 +285,11 @@ export function OrganizationRepositoryRuleEditorPage() {
               )
               : translate("settings.repositoryRules.title")}
           </UI.Heading>
-          <UI.Text variant="muted">
-            {translate("settings.repositoryRules.description")}
-          </UI.Text>
+          {ruleKey ? null : (
+            <UI.Text variant="muted">
+              {translate("settings.repositoryRules.description")}
+            </UI.Text>
+          )}
         </UI.Stack>
         {start && !isNew
           ? (

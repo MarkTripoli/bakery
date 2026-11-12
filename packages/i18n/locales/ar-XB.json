@@ -2670,9 +2670,11 @@
   "settings.repositoryRules.stale.title": "⟪Revision {revision} was published while you were editing.⟫",
   "settings.repositoryRules.stale.body": "⟪Your changes are kept. Choose what to do with the rules that changed in both, then review again.⟫",
   "settings.repositoryRules.stale.badge": "⟪Changed in revision {revision}⟫",
-  "settings.repositoryRules.stale.compare": "⟪Yours: {mine}. Revision {revision}: {theirs}.⟫",
   "settings.repositoryRules.stale.useTheirs": "⟪Use revision {revision}⟫",
   "settings.repositoryRules.stale.useTheirs.named": "⟪Use revision {revision} for {rule}⟫",
   "settings.repositoryRules.stale.keepMine": "⟪Keep mine⟫",
-  "settings.repositoryRules.stale.keepMine.named": "⟪Keep mine for {rule}⟫"
+  "settings.repositoryRules.stale.keepMine.named": "⟪Keep mine for {rule}⟫",
+  "settings.repositoryRules.draft.blocked": "⟪Decide {count, plural, one {# rule} other {# rules}} above to review.⟫",
+  "settings.repositoryRules.stale.mine": "⟪Yours⟫",
+  "settings.repositoryRules.stale.theirs": "⟪Revision {revision}⟫"
 }

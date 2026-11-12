@@ -312,7 +312,7 @@ export function ReviewPublishDialog(
           </UI.AlertBanner>
         )
         : null}
-      <UI.Inline>
+      <UI.Inline variant="end">
         <UI.Button
           onClick={() => onOpenChange(false)}
           type="button"

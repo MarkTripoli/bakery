@@ -141,27 +141,26 @@ export function OrganizationRepositoryRulesPage() {
       : null;
   const addControl = data && missing.length > 0
     ? (
-      <UI.Stack gap="tight">
-        <UI.Inline>
-          <UI.Button
-            aria-expanded={adding}
-            onClick={() => setAdding((open) => !open)}
-            type="button"
-            variant="outline"
-          >
-            {translate("settings.repositoryRules.add")}
-          </UI.Button>
-        </UI.Inline>
+      <UI.Popover
+        label={translate("settings.repositoryRules.add.menu")}
+        onOpenChange={setAdding}
+        open={adding}
+        trigger={translate("settings.repositoryRules.add")}
+        triggerAppearance="toolbar"
+        variant="interactive"
+      >
         <UI.Menu
           aria-label={translate("settings.repositoryRules.add.menu")}
           items={missing.map((key) => ({
             id: key,
             label: translate(RULE_NAME[key]),
           }))}
-          onSelect={openEditor}
-          open={adding}
+          onSelect={(key) => {
+            setAdding(false);
+            openEditor(key);
+          }}
         />
-      </UI.Stack>
+      </UI.Popover>
     )
     : null;
   const refusal = waiting && forbidden
@@ -191,14 +190,17 @@ export function OrganizationRepositoryRulesPage() {
         />
       </ShellSlot>
       <UI.SettingsContent data-testid="org-repository-rules">
-        <UI.Stack gap="tight">
-          <UI.Heading level="page">
-            {translate("settings.repositoryRules.title")}
-          </UI.Heading>
-          <UI.Text variant="muted">
-            {translate("settings.repositoryRules.description")}
-          </UI.Text>
-        </UI.Stack>
+        <UI.Inline variant="between">
+          <UI.Stack gap="tight">
+            <UI.Heading level="page">
+              {translate("settings.repositoryRules.title")}
+            </UI.Heading>
+            <UI.Text variant="muted">
+              {translate("settings.repositoryRules.description")}
+            </UI.Text>
+          </UI.Stack>
+          {shown.length > 0 ? addControl : null}
+        </UI.Inline>
         {published !== null
           ? (
             <UI.AlertBanner onDismiss={() => setPublished(null)} tone="success">
@@ -212,7 +214,9 @@ export function OrganizationRepositoryRulesPage() {
           ? (
             <UI.AlertBanner
               data-testid="org-rules-stale"
-              onDismiss={() => drafts.acknowledge()}
+              onDismiss={drafts.conflicts.length === 0
+                ? () => drafts.acknowledge()
+                : undefined}
               tone="warning"
             >
               <UI.Stack gap="tight">
@@ -237,27 +241,37 @@ export function OrganizationRepositoryRulesPage() {
                 const name = translate(RULE_NAME[key]);
                 const revision = drafts.draft?.baseRevision ?? 0;
                 return (
-                  <UI.Stack gap="tight" key={key}>
-                    <UI.Inline>
-                      <UI.Text variant="strong">{name}</UI.Text>
+                  <UI.AccessCard
+                    key={key}
+                    title={name}
+                    trailing={
                       <UI.Badge>
                         {translate("settings.repositoryRules.stale.badge", {
                           revision,
                         })}
                       </UI.Badge>
-                    </UI.Inline>
+                    }
+                  >
                     {mine && theirs
                       ? (
-                        <UI.Text variant="muted">
-                          {translate("settings.repositoryRules.stale.compare", {
-                            mine: describe(mine),
-                            revision,
-                            theirs: describe(theirs),
-                          })}
-                        </UI.Text>
+                        <UI.DescriptionList>
+                          <UI.DescriptionItem
+                            description={describe(mine)}
+                            title={translate(
+                              "settings.repositoryRules.stale.mine",
+                            )}
+                          />
+                          <UI.DescriptionItem
+                            description={describe(theirs)}
+                            title={translate(
+                              "settings.repositoryRules.stale.theirs",
+                              { revision },
+                            )}
+                          />
+                        </UI.DescriptionList>
                       )
                       : null}
-                    <UI.Inline>
+                    <UI.Inline variant="end">
                       <UI.Button
                         aria-label={translate(
                           "settings.repositoryRules.stale.useTheirs.named",
@@ -289,13 +303,12 @@ export function OrganizationRepositoryRulesPage() {
                         {translate("settings.repositoryRules.stale.keepMine")}
                       </UI.Button>
                     </UI.Inline>
-                  </UI.Stack>
+                  </UI.AccessCard>
                 );
               })}
             </UI.Stack>
           )
           : null}
-        {shown.length > 0 ? addControl : null}
         {refusal
           ? <UI.AlertBanner tone="information">{refusal}</UI.AlertBanner>
           : null}
@@ -372,6 +385,7 @@ export function OrganizationRepositoryRulesPage() {
                           {shown.map((row) => (
                             <div key={row.ruleKey} role="listitem">
                               <UI.ListRow
+                                badge={editedBadge(row)}
                                 controlLabel={translate(
                                   "settings.repositoryRules.edit.named",
                                   { rule: translate(RULE_NAME[row.ruleKey]) },
@@ -383,24 +397,21 @@ export function OrganizationRepositoryRulesPage() {
                                 title={translate(RULE_NAME[row.ruleKey])}
                                 trailing={
                                   <UI.Stack gap="tight">
-                                    <UI.Inline>
-                                      {editedBadge(row)}
-                                      <span>
-                                        {translate(
-                                          "settings.repositoryRules.enforcementAccess",
-                                          {
-                                            enforcement: translate(
-                                              enforcementOf(row),
-                                            ),
-                                            access: translate(
-                                              row.locked
-                                                ? "settings.repositoryRules.access.locked"
-                                                : "settings.repositoryRules.access.override",
-                                            ),
-                                          },
-                                        )}
-                                      </span>
-                                    </UI.Inline>
+                                    <span>
+                                      {translate(
+                                        "settings.repositoryRules.enforcementAccess",
+                                        {
+                                          enforcement: translate(
+                                            enforcementOf(row),
+                                          ),
+                                          access: translate(
+                                            row.locked
+                                              ? "settings.repositoryRules.access.locked"
+                                              : "settings.repositoryRules.access.override",
+                                          ),
+                                        },
+                                      )}
+                                    </span>
                                     {was(row, enforcementOf)}
                                     {was(row, accessOf)}
                                   </UI.Stack>
@@ -668,9 +679,13 @@ export function OrganizationRepositoryRulesPage() {
         {drafts.count > 0 && drafts.draft
           ? (
             <UI.DraftBar
-              detail={translate("settings.repositoryRules.draft.basis", {
-                revision: drafts.draft.baseRevision,
-              })}
+              detail={drafts.conflicts.length > 0
+                ? translate("settings.repositoryRules.draft.blocked", {
+                  count: drafts.conflicts.length,
+                })
+                : translate("settings.repositoryRules.draft.basis", {
+                  revision: drafts.draft.baseRevision,
+                })}
               primaryAction={
                 <UI.Button
                   data-testid="org-rules-review"

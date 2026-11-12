@@ -245,6 +245,15 @@
   display: none;
 }
 
+@media (max-width: 743px) {
+  /* A popover that is the actions of an `Inline between` header spans the row. */
+  .ui-inline--between > .ui-popover {
+    display: block;
+  }
+  .ui-inline--between > .ui-popover > .ui-popover__trigger {
+    inline-size: 100%;
+  }
+}
 .ui-popover {
   display: inline-block;
   max-inline-size: 100%;

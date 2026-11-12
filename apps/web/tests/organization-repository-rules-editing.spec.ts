@@ -1,4 +1,10 @@
-import { expect, type Page, type Route, test } from "@playwright/test";
+import {
+  expect,
+  type Locator,
+  type Page,
+  type Route,
+  test,
+} from "@playwright/test";
 import { shot } from "./helpers/real-api.ts";
 import {
   MOCK_ORGANIZATION_ID,
@@ -58,6 +64,9 @@ async function editingFixture(
   });
   return { writes };
 }
+
+/** Whether the page is laid out for a phone (the single 743px breakpoint). */
+const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 744;
 
 const draftBar = (page: Page) =>
   page.getByRole("status").filter({ hasText: "unpublished change" });
@@ -235,6 +244,99 @@ test.describe("organization repository rules: editing", () => {
         "button",
       ),
     ).toHaveText(["Magic strings"]);
+  });
+
+  test("Add rule sits with the title and its list opens over the page without moving it", async ({ page }) => {
+    await editingFixture(page, { entries: RULE_ENTRIES.slice(0, 3) });
+    await page.goto(LIST_PATH);
+    const heading = page.getByRole("heading", {
+      name: "Repository rules",
+      level: 1,
+    });
+    const add = page.getByRole("button", { name: "Add rule" });
+    const row = ruleRow(page, "Semantic commits");
+    await expect(row).toBeVisible();
+    const box = async (locator: Locator) => {
+      const found = await locator.boundingBox();
+      if (!found) throw new Error("the element has no box");
+      return found;
+    };
+    const head = await box(heading);
+    const button = await box(add);
+    if (isPhone(page)) {
+      // Under the description, across the column.
+      const column = await box(page.getByTestId("org-repository-rules"));
+      expect(button.y).toBeGreaterThanOrEqual(head.y + head.height);
+      expect(button.width).toBeGreaterThan(column.width * 0.9);
+    } else {
+      // Beside the title, at the end of its row.
+      expect(button.x).toBeGreaterThanOrEqual(head.x + head.width);
+      expect(button.y).toBeLessThan(head.y + head.height);
+    }
+
+    const before = await box(row);
+    await add.click();
+    const menu = page.getByRole("navigation", { name: "Rules you can add" });
+    await expect(menu).toBeVisible();
+    // An overlay: nothing under it moved.
+    expect((await box(row)).y).toBe(before.y);
+    await shot(page, "rules-add-menu-open");
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+    await expect(add).toBeFocused();
+    expect((await box(row)).y).toBe(before.y);
+  });
+
+  test("the editor does not repeat the list description and ends with Cancel, then Apply to draft", async ({ page }) => {
+    await editingFixture(page);
+    await page.goto(LIST_PATH);
+    await openEditor(page, "Semantic commits");
+    await expect(
+      page.getByText(
+        "A shared starting point for every repository in this organization.",
+      ),
+    ).toHaveCount(0);
+    const cancel = page.getByRole("button", { name: "Cancel" });
+    const apply = page.getByRole("button", { name: "Apply to draft" });
+    const first = await cancel.boundingBox();
+    const last = await apply.boundingBox();
+    if (!first || !last) throw new Error("the actions have no box");
+    // Secondary first, primary last: left to right, or top to bottom when they stack.
+    expect(
+      first.y < last.y || (first.y === last.y && first.x < last.x),
+    ).toBe(true);
+    if (!isPhone(page)) {
+      const form = await page.locator("form").boundingBox();
+      if (!form) throw new Error("the form has no box");
+      // Right-aligned like the other settings forms.
+      expect(form.x + form.width - (last.x + last.width)).toBeLessThan(2);
+    }
+  });
+
+  test("the Edited badge sits beside the rule's name", async ({ page }) => {
+    await editingFixture(page);
+    await page.goto(LIST_PATH);
+    await openEditor(page, "Semantic commits");
+    await choose(page, "Enforcement", "Warn");
+    await page.getByRole("button", { name: "Apply to draft" }).click();
+    const row = ruleRow(page, "Semantic commits");
+    await expect(row).toContainText("was Require");
+    const name = await row.getByText("Semantic commits", { exact: true })
+      .first()
+      .boundingBox();
+    const badge = await row.getByText("Edited", { exact: true }).boundingBox();
+    if (!name || !badge) throw new Error("the name or the badge has no box");
+    // Same line, and right behind the name rather than at the far end of the row.
+    expect(Math.abs((badge.y + badge.height / 2) - (name.y + name.height / 2)))
+      .toBeLessThan(name.height);
+    expect(badge.x).toBeGreaterThanOrEqual(name.x + name.width - 1);
+    expect(badge.x - (name.x + name.width)).toBeLessThanOrEqual(16);
+    if (isPhone(page)) {
+      // One headline: the name and its badge are a single unit in the row.
+      const headline = row.locator("[class*='list-row__headline']");
+      await expect(headline).toContainText("Semantic commits");
+      await expect(headline).toContainText("Edited");
+    }
   });
 
   test("with all five rules there is nothing to add", async ({ page }) => {

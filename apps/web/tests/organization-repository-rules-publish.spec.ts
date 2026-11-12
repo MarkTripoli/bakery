@@ -362,6 +362,24 @@ test.describe("organization repository rules: review and publish", () => {
     expect(state.publishBodies).toEqual([]);
   });
 
+  test("the review's actions end the row: Back to editing first, Publish rules last", async ({ page }) => {
+    await publishFixture(page);
+    await makeDraft(page);
+    const dialog = await review(page);
+    const publish = dialog.getByRole("button", { name: "Publish rules" });
+    await expect(publish).toBeVisible();
+    const back = await dialog.getByRole("button", { name: "Back to editing" })
+      .boundingBox();
+    const last = await publish.boundingBox();
+    const frame = await dialog.boundingBox();
+    if (!back || !last || !frame) throw new Error("the dialog has no box");
+    expect(back.y < last.y || (back.y === last.y && back.x < last.x)).toBe(
+      true,
+    );
+    // The primary action ends the row, a dialog's padding from the edge.
+    expect(frame.x + frame.width - (last.x + last.width)).toBeLessThan(48);
+  });
+
   test("publishing sends the draft with a key, clears it, says so and moves focus to the heading", async ({ page }) => {
     const state = await publishFixture(page);
     await makeDraft(page);
@@ -475,13 +493,25 @@ test.describe("organization repository rules: a newer revision was published", (
     await expect(page.getByRole("dialog")).toHaveCount(0);
     // Both edits are still there, on top of revision 4.
     await expect(draftBar(page)).toContainText("2 unpublished changes");
-    await expect(draftBar(page)).toContainText("based on revision 4");
+    // While a question is open the bar says what to do, not where the draft started.
+    await expect(draftBar(page)).not.toContainText("based on revision 4");
     // Only the rule changed in both is a question; the other edit carried over.
     const conflicts = page.getByTestId("org-rules-conflicts");
     await expect(conflicts).toContainText("Semantic commits");
     await expect(conflicts).toContainText("Changed in revision 4");
-    await expect(conflicts).toContainText("Yours: Warn");
-    await expect(conflicts).toContainText("Revision 4: Guide");
+    // Two labelled lines, one per side, each with the whole summary.
+    await expect(conflicts.locator("[class*='description-item__title']"))
+      .toHaveText(["Yours", "Revision 4"]);
+    const sides = conflicts.locator("[class*='description-item__description']");
+    await expect(sides.nth(0)).toContainText("Warn");
+    await expect(sides.nth(1)).toContainText("Guide");
+    // Why the review is off, in words, on the bar.
+    await expect(draftBar(page)).toContainText(
+      "Decide 1 rule above to review.",
+    );
+    // The notice cannot be closed while a question is open.
+    await expect(notice.getByRole("button", { name: "Dismiss alert" }))
+      .toHaveCount(0);
     await shot(page, "rules-stale");
     await expect(conflicts).not.toContainText("Magic strings");
     await expect(ruleRow(page, "Magic strings")).toContainText("Edited");
@@ -506,6 +536,8 @@ test.describe("organization repository rules: a newer revision was published", (
     await page.getByRole("button", { name: "Keep mine for Semantic commits" })
       .click();
     await expect(page.getByTestId("org-rules-conflicts")).toHaveCount(0);
+    // Decided: the bar is back to saying where the draft starts.
+    await expect(draftBar(page)).toContainText("based on revision 4");
     await expect(page.getByRole("button", { name: "Review and publish" }))
       .toBeEnabled();
     await page.getByRole("button", { name: "Review and publish" }).click();
@@ -587,9 +619,15 @@ test.describe("organization repository rules: a newer revision was published", (
     );
     await expect(page.getByTestId("org-rules-conflicts")).toHaveCount(0);
     await expect(draftBar(page)).toContainText("1 unpublished change");
+    await expect(draftBar(page)).not.toContainText("Decide");
     await expect(ruleRow(page, "Semantic commits")).toContainText("Edited");
     await expect(page.getByRole("button", { name: "Review and publish" }))
       .toBeEnabled();
+    // With nothing left to decide the notice can be closed.
+    await page.getByTestId("org-rules-stale").getByRole("button", {
+      name: "Dismiss alert",
+    }).click();
+    await expect(page.getByTestId("org-rules-stale")).toHaveCount(0);
   });
 });
 
@@ -617,6 +655,29 @@ test.describe("organization repository rules: focus follows an action that repla
     await expect(
       page.getByRole("heading", { name: "Repository rules", level: 1 }),
     ).toBeFocused();
+  });
+
+  test("closing the review by Back to editing, the close button or Escape returns focus to Review and publish", async ({ page }) => {
+    await publishFixture(page);
+    await makeDraft(page);
+    const opener = page.getByRole("button", { name: "Review and publish" });
+    const dialog = await review(page);
+    await dialog.getByRole("button", { name: "Back to editing" }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(opener).toBeFocused();
+
+    await opener.click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(opener).toBeFocused();
+
+    await opener.click();
+    await page.getByRole("dialog").getByRole("button", {
+      name: /^Close (dialog|sheet)$/,
+    }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(opener).toBeFocused();
   });
 
   test("deciding the last conflict moves focus to Review and publish", async ({ page }) => {

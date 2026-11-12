@@ -7,6 +7,8 @@ export type ListRowProps =
   & {
     /** Accessible name of the row control when `onSelect` is set. */
     controlLabel?: string;
+    /** A short caption on the title's line, such as "Edited". */
+    badge?: ReactNode;
     /** Muted line under the title; `warning` tints it. */
     detail?: ReactNode;
     detailTone?: "default" | "warning" | "code";
@@ -30,6 +32,7 @@ export type ListRowProps =
 export function ListRow(
   {
     controlLabel,
+    badge,
     detail,
     detailLines,
     detailTone = "default",
@@ -44,7 +47,14 @@ export function ListRow(
   const content = (
     <>
       <span className="ui-list-row__lead">
-        <span className="ui-list-row__title">{title}</span>
+        {badge
+          ? (
+            <span className="ui-list-row__headline">
+              <span className="ui-list-row__title">{title}</span>
+              {badge}
+            </span>
+          )
+          : <span className="ui-list-row__title">{title}</span>}
         {detail
           ? (
             <span

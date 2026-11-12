@@ -1,5 +1,5 @@
 {
-  "revision": "02b2aaa2f7f639cee81a6fe8d02e8a0539b60ded57785a9b5b8de1ea10baa497",
+  "revision": "7ea8a3dae5efff05d84ddbe95f307e3f5fd64c042eae8fb1d091c58e587035dc",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -1008,7 +1008,9 @@
         "spacious",
         "actions",
         "split",
-        "thirds"
+        "thirds",
+        "end",
+        "between"
       ],
       "states": [
         "default",
@@ -1044,7 +1046,9 @@
             "spacious",
             "actions",
             "split",
-            "thirds"
+            "thirds",
+            "end",
+            "between"
           ],
           "states": [
             "default",
