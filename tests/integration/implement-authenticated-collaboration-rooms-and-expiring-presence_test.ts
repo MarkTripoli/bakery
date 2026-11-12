@@ -1,3 +1,4 @@
+import { DRAFT_LIMITS } from "../../apps/server/src/modules/knowledge/drafts.ts";
 import { assert, assertEquals, assertExists } from "@std/assert";
 import {
   cleanupDraftFixture,
@@ -20,6 +21,13 @@ import {
   encodeBinaryFrame,
 } from "../../apps/server/src/modules/knowledge/collaboration-socket.ts";
 import { LoroDoc } from "loro-crdt";
+
+// An update is acknowledged only after its isolated worker starts and
+// finishes. The product allows start-up workerStartupMs and the work
+// workerRuntimeMs; an ack wait shorter than that budget fails a slow-but-
+// healthy update on a busy host. Two seconds more cover the commit.
+const ACK_WAIT_MS = DRAFT_LIMITS.workerStartupMs +
+  DRAFT_LIMITS.workerRuntimeMs + 2_000;
 
 type Frame = Record<string, unknown> & { type: string };
 type Member = {
@@ -705,7 +713,7 @@ Deno.test("an update is acknowledged only after its receipt commits, then relaye
       0x2,
       updateFrame(harness, synced.epoch, mutationId, update),
     );
-    const ack = await until(a, "ack");
+    const ack = await until(a, "ack", ACK_WAIT_MS);
     const receipt = ack.receipt as { serverSequence: string; actorId: string };
     assertEquals(ack.mutationId, mutationId);
     assertEquals(receipt.serverSequence, "1");
@@ -730,7 +738,7 @@ Deno.test("an update is acknowledged only after its receipt commits, then relaye
       0x2,
       updateFrame(harness, synced.epoch, mutationId, update),
     );
-    assertEquals((await until(a, "ack")).receipt, ack.receipt);
+    assertEquals((await until(a, "ack", ACK_WAIT_MS)).receipt, ack.receipt);
     // The same mutation id with different bytes is refused.
     const other = localEdit(new LoroDoc(), 0, "x");
     await a.sendRaw(0x2, updateFrame(harness, synced.epoch, mutationId, other));
@@ -743,7 +751,7 @@ Deno.test("an update is acknowledged only after its receipt commits, then relaye
       0x2,
       updateFrame(harness, synced.epoch, crypto.randomUUID(), update),
     );
-    assertEquals((await until(a, "ack")).receipt, null);
+    assertEquals((await until(a, "ack", ACK_WAIT_MS)).receipt, null);
     assertEquals(await receiptCount(harness), 1);
   } finally {
     await closeHarness(harness);
@@ -893,8 +901,8 @@ Deno.test("concurrent updates from two clients serialize, converge and match the
     ]);
     const aBinaries: Uint8Array[] = [];
     const bBinaries: Uint8Array[] = [];
-    const aAck = await untilWithBinary(a, "ack", aBinaries);
-    const bAck = await untilWithBinary(b, "ack", bBinaries);
+    const aAck = await untilWithBinary(a, "ack", aBinaries, ACK_WAIT_MS);
+    const bAck = await untilWithBinary(b, "ack", bBinaries, ACK_WAIT_MS);
     const sequences = [aAck, bAck].map((ack) =>
       (ack.receipt as { serverSequence: string }).serverSequence
     ).sort();
@@ -976,7 +984,7 @@ Deno.test("a peer revoked between sweeps receives no draft bytes (AC1)", async (
         localEdit(aState.doc, 0, "secret "),
       ),
     );
-    assertEquals((await until(a, "ack")).type, "ack");
+    assertEquals((await until(a, "ack", ACK_WAIT_MS)).type, "ack");
     const binaries: Uint8Array[] = [];
     let closed: { code: number; reason: string } | undefined;
     const deadline = Date.now() + 1_500;
