@@ -17,6 +17,17 @@
  * `HEAD` reaches is a real boundary and is kept, so a genuinely incomplete
  * checkout still fails the gate. Anything git cannot answer is an error and
  * changes nothing.
+ *
+ * One namespace is not counted as history: `refs/remotes/pull/*`. actions/checkout
+ * writes `refs/remotes/pull/<n>/merge` for each pull_request run so it can check
+ * the merge commit out, and nothing ever prunes them: they outlive their PRs and,
+ * on bakery-hetzner-5, the repository itself. Runs 43166064823 and 43183997740
+ * failed there because `pull/546/merge` and `pull/552/merge` (PRs of the archived
+ * repository) held the entry 50f687bac8b5, so it counted as a real boundary. An
+ * entry that only such refs hold, and that `HEAD` does not reach, is stale. The
+ * refs that hold it are removed first, so no ref is left with a missing parent,
+ * then the entry is dropped. A checked-out PR-merge commit is `HEAD`, so a
+ * boundary in its history is still real and kept.
  */
 
 import { execFile } from "node:child_process";
@@ -57,7 +68,9 @@ export const runGit: GitRunner = (cwd, args) =>
 
 export type DroppedEntry = Readonly<{
   sha: string;
-  reason: "object-absent" | "no-ref-contains-it";
+  reason: "object-absent" | "no-ref-contains-it" | "only-pull-refs-contain-it";
+  /** The leftover PR-merge refs removed with this entry; empty for the other reasons. */
+  removedRefs: readonly string[];
   /** Subject line of the commit when it exists locally, to say where it came from. */
   subject: string | null;
 }>;
@@ -73,6 +86,9 @@ export type HealResult = Readonly<{
 export type HealOptions = Readonly<{ git?: GitRunner }>;
 
 const SHA = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/;
+
+/** actions/checkout's cache of pull_request merge commits; never pruned. */
+const PULL_MERGE_NAMESPACE = "refs/remotes/pull/";
 
 /** Fixed text only: a path, a git message or a hash never appears in an error. */
 function refusal(code: "GIT_COMMAND_FAILED" | "SHALLOW_FILE_MALFORMED") {
@@ -126,22 +142,29 @@ export async function healStaleShallow(
       throw refusal("GIT_COMMAND_FAILED");
     }
     if (exists.code === 1) {
-      dropped.push({ sha, reason: "object-absent", subject: null });
+      dropped.push({
+        sha,
+        reason: "object-absent",
+        subject: null,
+        removedRefs: [],
+      });
       continue;
     }
     // Which branch, remote-tracking ref or tag has the entry in its history.
     // Exit 0 with no output is git's positive "none"; a non-zero exit is not.
-    const holders = await mustSucceed(
+    const holders = (await mustSucceed(
       "for-each-ref",
       "--contains",
       sha,
-      "--count=1",
       "--format=%(refname)",
       "refs/heads",
       "refs/remotes",
       "refs/tags",
+    )).split("\n").filter((ref) => ref.length > 0);
+    const pullHolders = holders.filter((ref) =>
+      ref.startsWith(PULL_MERGE_NAMESPACE)
     );
-    if (holders.length > 0) {
+    if (holders.length > pullHolders.length) {
       kept.push(sha);
       continue;
     }
@@ -157,12 +180,20 @@ export async function healStaleShallow(
     const subject = await ask("log", "-1", "--format=%s", sha);
     dropped.push({
       sha,
-      reason: "no-ref-contains-it",
+      reason: pullHolders.length > 0
+        ? "only-pull-refs-contain-it"
+        : "no-ref-contains-it",
       subject: subject.code === 0 ? subject.stdout.trim() || null : null,
+      removedRefs: pullHolders,
     });
   }
 
   if (dropped.length > 0) {
+    // Remove the leftover refs before the entry goes: a ref left holding a
+    // commit whose parents are neither present nor marked shallow would make
+    // later fetches and walks fail. If a removal fails nothing else changed.
+    const staleRefs = [...new Set(dropped.flatMap((d) => d.removedRefs))];
+    for (const ref of staleRefs) await mustSucceed("update-ref", "-d", ref);
     if (kept.length === 0) {
       await rm(file);
     } else {
@@ -207,6 +238,13 @@ async function main(): Promise<number> {
         entry.subject === null ? "" : `: "${entry.subject}"`
       })`,
     );
+    for (const ref of entry.removedRefs) {
+      console.log(
+        `history: removed leftover PR-merge ref ${ref} (held ${
+          short(entry.sha)
+        })`,
+      );
+    }
   }
   for (const sha of result.kept) {
     console.log(`history: kept real shallow boundary ${short(sha)}`);
