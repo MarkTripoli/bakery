@@ -9,6 +9,7 @@ import {
 import {
   type ActionContextSeed,
   createApiRouter,
+  toProblem,
 } from "@bakery/contracts/http";
 import type { McpGrant } from "./guard.ts";
 
@@ -75,6 +76,13 @@ export type McpCatalogTool = Readonly<{
   discoverySchema: McpDiscoverySchema;
   description: string;
 }>;
+
+/** Runs one action outside the REST router; throws a StandardError on refusal. */
+export type McpToolOverride = (call: {
+  request: Request;
+  principal: unknown;
+  params: Record<string, string>;
+}) => Promise<unknown>;
 
 /** Success of a tool call: the REST status, body and the headers a client needs to continue. */
 export type McpToolSuccess = {
@@ -154,6 +162,11 @@ export function createMcpCatalogTools(options: {
   /** The authenticated subject the registries expect, loaded live for the provider user. */
   loadSubject(providerUserId: string): Promise<unknown>;
   deadlineMs?: number;
+  /**
+   * Actions whose REST response is not a JSON body (byte streams). The tool
+   * runs this instead, under the action's own authority, and returns JSON.
+   */
+  overrides?: Readonly<Record<string, McpToolOverride>>;
 }): McpCatalogToolRunner {
   const origin = new URL(options.publicOrigin).origin;
   const seeds = new WeakMap<Request, ActionContextSeed>();
@@ -268,6 +281,26 @@ export function createMcpCatalogTools(options: {
         );
       }
       const request = new Request(url, { method: tool.method, headers, body });
+      const override = options.overrides?.[tool.action];
+      if (override) {
+        const params = Object.fromEntries(
+          tool.pathNames.map((name) => [name, String(fields[name])]),
+        );
+        try {
+          const result = await override({ request, principal, params });
+          return { ok: true, result: { status: 200, body: result } };
+        } catch (error) {
+          const problem = toProblem(error, {
+            requestId: crypto.randomUUID(),
+            traceId: crypto.randomUUID().replaceAll("-", ""),
+            publicBaseUrl: origin,
+          });
+          return {
+            ok: false,
+            problem: problem as unknown as Record<string, unknown>,
+          };
+        }
+      }
       seeds.set(request, { principal } as ActionContextSeed);
       const response = await routerFor.get(tool.action)!(request);
       const text = await response.text();

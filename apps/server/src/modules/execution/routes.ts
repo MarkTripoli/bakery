@@ -1,4 +1,5 @@
 import { type Context, Hono } from "hono";
+import type { ArtifactActions } from "../knowledge/resource-routes.ts";
 import type { InngestRuntimeConfig } from "@bakery/config";
 import { problemResponse, StandardError } from "@bakery/contracts/http";
 import type { AuthVariables } from "../auth/middleware.ts";
@@ -78,6 +79,8 @@ export type ExecutionRoutesOptions = ExecutionRouteOptions & {
   integrations?: IntegrationsBackgroundDependencies;
   /** Validated artifact preview origin; absent fails previews closed. */
   artifactPreviewOrigin?: string;
+  /** Artifact registry shared with the MCP catalog tools. */
+  artifactActions?: ArtifactActions;
 };
 
 /**

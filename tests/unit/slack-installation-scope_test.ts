@@ -888,3 +888,39 @@ Deno.test("a scope string over the size limit is refused without being split or 
     String.prototype.split = realSplit;
   }
 });
+
+Deno.test("the app id travels to the lookup when the subject names one, and a malformed one never reaches it", async () => {
+  const seen: unknown[] = [];
+  const spy = (key: unknown) => {
+    seen.push(key);
+    return Promise.resolve(undefined);
+  };
+  await resolveSlackActor({ ...subject, appId: "A0APP123" }, spy);
+  await resolveSlackActor(
+    { ...subject, appId: "A0APP123", enterpriseId: "E0ENT1234" },
+    spy,
+  );
+  assertEquals(seen, [
+    { teamId: "T0ABC123", userId: "U0USER123", appId: "A0APP123" },
+    {
+      teamId: "T0ABC123",
+      userId: "U0USER123",
+      enterpriseId: "E0ENT1234",
+      appId: "A0APP123",
+    },
+  ]);
+  seen.length = 0;
+  for (
+    const appId of ["a0app123", "", "app", "A", "A0APP123\n", 5, null, [
+      "A0APP123",
+    ]]
+  ) {
+    const actor = await resolveSlackActor({ ...subject, appId } as never, spy);
+    assertEquals(
+      actor,
+      { kind: "service", verifiedHuman: false, reason: "malformed" },
+      JSON.stringify(appId),
+    );
+  }
+  assertEquals(seen, [], "a malformed app id never reaches the lookup");
+});

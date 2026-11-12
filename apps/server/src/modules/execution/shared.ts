@@ -1,3 +1,4 @@
+import type { ExecutionTelemetry } from "./telemetry.ts";
 import { type Context, type MiddlewareHandler } from "hono";
 import type { BudgetRuntimeConfig, SecretsKeyConfig } from "@bakery/config";
 import { z } from "zod";
@@ -117,6 +118,11 @@ const WORKER_EVENT_PAYLOAD_SCHEMAS: Readonly<Record<string, z.ZodType>> = {
 };
 
 type ExecutionRouteOptions = {
+  /**
+   * Told of lease renewals, completions and usage settlements after they have
+   * committed. Optional: the routes behave identically without it.
+   */
+  telemetry?: ExecutionTelemetry;
   database: PgDatabase;
   browserSession: MiddlewareHandler<{ Variables: AuthVariables }>;
   publicBaseUrl: string;
