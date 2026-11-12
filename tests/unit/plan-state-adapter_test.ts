@@ -6,6 +6,7 @@ import {
   pinWorkflowRuntime,
   WorkflowInterpreterError,
 } from "../../packages/contracts/src/workflow-interpreter/mod.ts";
+import { carriesPlanRuntime } from "../../packages/persistence/src/results.ts";
 import {
   nextPlanStep,
   planInputsFromSnapshot,
@@ -88,6 +89,46 @@ Deno.test("a run admitted before plans has no runtime and stays on the flat loop
     await planRuntimeFromSnapshot({ schemaVersion: 1, inputs: {} }),
     null,
   );
+});
+
+Deno.test("the persistence marker and the adapter agree on which snapshots belong to a plan", async () => {
+  // persistence ends a flat run from its rows and leaves a plan run to the
+  // engine; the adapter decides how the engine reads that run. They must
+  // never disagree about which kind of run a snapshot describes.
+  const valid = stored(await snapshotFor(await looping()));
+  const flat: unknown[] = [
+    { schemaVersion: 1, inputs: {} },
+    {},
+    // An inherited key is not the run's own section.
+    Object.create({ runtime: valid.runtime }),
+  ];
+  for (const snapshot of flat) {
+    assertEquals(carriesPlanRuntime(snapshot), false);
+    assertEquals(await planRuntimeFromSnapshot(snapshot), null);
+  }
+  const plan: [string, unknown][] = [
+    ["a valid runtime", valid],
+    ["an empty runtime section", { runtime: {} }],
+    ["a null runtime section", { runtime: null }],
+    ["a runtime with a half-written pin", { runtime: { pin: {} } }],
+  ];
+  for (const [name, snapshot] of plan) {
+    assertEquals(carriesPlanRuntime(snapshot), true, name);
+    const outcome = await planRuntimeFromSnapshot(snapshot).then(
+      (runtime) => runtime,
+      (error) => error,
+    );
+    // Never read as a flat run: it resolves, or it is refused by name.
+    assert(outcome !== null, name);
+  }
+  // Not an object: persistence calls it flat, the adapter refuses it by name.
+  for (const snapshot of [null, [], "runtime", 3]) {
+    assertEquals(carriesPlanRuntime(snapshot), false);
+    await assertRejects(
+      () => planRuntimeFromSnapshot(snapshot),
+      PlanStateError,
+    );
+  }
 });
 
 Deno.test("a plan's runtime survives storage and resolves to the pinned revision", async () => {

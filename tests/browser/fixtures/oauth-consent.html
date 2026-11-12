@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Bakery OAuth consent fixture</title>
+  </head>
+  <body>
+    <main>
+      <h1>Authorize client</h1>
+      <p>A client is asking to act for you in this organization.</p>
+      <button id="allow" type="button">Allow</button>
+      <button id="deny" type="button">Deny</button>
+      <p id="status" role="status" aria-live="polite"></p>
+    </main>
+    <script type="module">
+    // The provider's signed query is the whole consent context; the page
+    // only sends the person's decision back with it, same-origin.
+    const oauthQuery = location.search.slice(1);
+    const status = document.querySelector("#status");
+    async function decide(accept) {
+      status.textContent = "Submitting…";
+      const response = await fetch("/api/auth/oauth2/consent", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ accept, oauth_query: oauthQuery }),
+      });
+      if (response.redirected) return location.assign(response.url);
+      const body = await response.json().catch(() => ({}));
+      if (typeof body.url === "string") return location.assign(body.url);
+      status.textContent = `Consent failed (${response.status}).`;
+    }
+    document.querySelector("#allow").addEventListener("click", () => decide(true));
+    document.querySelector("#deny").addEventListener("click", () => decide(false));
+    </script>
+  </body>
+</html>

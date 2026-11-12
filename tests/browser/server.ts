@@ -1,4 +1,5 @@
 import { createSuperuser } from "../../apps/server/src/modules/auth/index.ts";
+import { registerOAuthClient } from "../../apps/server/src/modules/auth/oauth-clients.ts";
 import {
   cleanupAuthFixture,
   nextClientEnv,
@@ -42,6 +43,11 @@ const fixture = await openAuthFixture({
 });
 
 try {
+  // This server owns the lane's database. An OAuth token makes better-auth
+  // store a signing key in public.jwks, encrypted with this run's random
+  // secret; any key left by another lane (or an earlier run) cannot be
+  // decrypted here, and ours could not be decrypted there. Clear it both ways.
+  await fixture.pgDatabase.query("delete from public.jwks").catch(() => {});
   await createSuperuser({
     pgDatabase: fixture.pgDatabase,
     config: fixture.config.auth!,
@@ -127,6 +133,48 @@ try {
       rememberMe: false,
     },
   });
+  // OAuth for the MCP spec: one pre-registered public client whose redirect
+  // URI is the callback fixture, the consent page at the provider's
+  // configured path, and the callback that shows the code or error.
+  const mcpRedirectUri = `${origin}/__test__/mcp/callback`;
+  const mcpClientId = await registerOAuthClient(
+    { pgDatabase: fixture.pgDatabase, config: fixture.config.auth! },
+    {
+      name: "Browser MCP client",
+      redirectUris: [mcpRedirectUri],
+      scopes: ["bakery:read", "bakery:operate"],
+    },
+  );
+  const consentHtml = await Deno.readTextFile(
+    new URL("./fixtures/oauth-consent.html", import.meta.url),
+  );
+  const callbackHtml = await Deno.readTextFile(
+    new URL("./fixtures/oauth-callback.html", import.meta.url),
+  );
+  fixture.app.get(
+    "/oauth/consent",
+    (context) =>
+      context.html(consentHtml, 200, { "cache-control": "no-store" }),
+  );
+  fixture.app.get(
+    "/__test__/mcp/callback",
+    (context) =>
+      context.html(callbackHtml, 200, { "cache-control": "no-store" }),
+  );
+  fixture.app.get(
+    "/__test__/mcp/credentials",
+    (context) =>
+      context.json(
+        {
+          email,
+          password,
+          clientId: mcpClientId,
+          redirectUri: mcpRedirectUri,
+        },
+        200,
+        { "cache-control": "no-store" },
+      ),
+  );
   const passkeysHtml = await Deno.readTextFile(
     new URL("./fixtures/passkeys.html", import.meta.url),
   );
@@ -193,6 +241,15 @@ try {
     Deno.removeSignalListener("SIGINT", stop);
   }
 } finally {
+  await fixture.pgDatabase.query("delete from public.jwks").catch(() => {});
+  // The client and its grants are this run's own rows.
+  await fixture.pgDatabase.query(
+    `delete from public."oauthConsent" where "clientId" in
+       (select "clientId" from public."oauthClient" where name = 'Browser MCP client')`,
+  ).catch(() => {});
+  await fixture.pgDatabase.query(
+    `delete from public."oauthClient" where name = 'Browser MCP client'`,
+  ).catch(() => {});
   await cleanupAuthFixture(fixture.pgDatabase, [
     email,
     totpEmail,

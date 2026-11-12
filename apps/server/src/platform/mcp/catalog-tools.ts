@@ -194,6 +194,9 @@ export function createMcpCatalogTools(options: {
     for (const action of registry.list()) {
       const catalog = byAction.get(action.name as CatalogAction["action"]);
       if (!catalog?.mcp || !catalog.permission) continue;
+      // Access-management actions refuse token-authenticated callers; an MCP
+      // grant is token authentication, so they are never tools.
+      if (action.policy.sessionOnly === true) continue;
       const pathNames = routeParameterNames(action.path);
       const schema = toolInputSchema(catalog, action.input, pathNames);
       tools.push(Object.freeze({
