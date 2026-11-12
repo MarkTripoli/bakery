@@ -2676,5 +2676,16 @@
   "settings.repositoryRules.stale.keepMine.named": "⟪Keep mine for {rule}⟫",
   "settings.repositoryRules.draft.blocked": "⟪Decide {count, plural, one {# rule} other {# rules}} above to review.⟫",
   "settings.repositoryRules.stale.mine": "⟪Yours⟫",
-  "settings.repositoryRules.stale.theirs": "⟪Revision {revision}⟫"
+  "settings.repositoryRules.stale.theirs": "⟪Revision {revision}⟫",
+  "settings.scim.credential.expires": "⟪Expires {date}⟫",
+  "settings.scim.credential.lastUsed": "⟪Last used {date}⟫",
+  "settings.scim.credential.neverUsed": "⟪Never used⟫",
+  "settings.sso.field.keepClientId": "⟪Leave blank to keep the current client ID.⟫",
+  "settings.sso.field.keepSecret": "⟪Leave blank to keep the current secret.⟫",
+  "settings.sso.require.confirm.title": "⟪Require single sign-on for everyone?⟫",
+  "settings.sso.require.confirm.body": "⟪Members of {organization} will have to sign in through {provider}. Signing in with a password stops working for them. Organization administrators who still have a password or passkey can always sign in with it, so a broken provider cannot lock everyone out.⟫",
+  "settings.sso.require.confirm.bodyMany": "⟪Members of {organization} will have to sign in through one of your providers. Signing in with a password stops working for them. Organization administrators who still have a password or passkey can always sign in with it, so a broken provider cannot lock everyone out.⟫",
+  "settings.sso.require.confirm.confirm": "⟪Require SSO⟫",
+  "settings.sso.require.confirm.thisOrganization": "⟪this organization⟫",
+  "settings.sso.require.help": "⟪Everyone in this organization must sign in through your provider. Organization administrators who still have a password or passkey can always sign in with it.⟫"
 }

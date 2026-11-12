@@ -45,7 +45,9 @@ export function UserMenu(
         trigger={
           <span className="bakery-user-menu__trigger">
             <Avatar alt={name} aria-hidden="true" size="small" />
-            <span className="bakery-user-menu__name">{name}</span>
+            <span className="bakery-user-menu__name" title={name}>
+              {name}
+            </span>
             {variant === "full"
               ? <IconGlyph name="chevron-down" size="small" />
               : null}

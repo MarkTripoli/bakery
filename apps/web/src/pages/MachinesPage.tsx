@@ -26,6 +26,7 @@ import { useConnectivity } from "../app/connectivity.ts";
 import { useShellViewport } from "../app/responsive.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
+import { usePagedFocus } from "../app/focus.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 
@@ -413,6 +414,15 @@ function EnrollmentPanel({
       queryKey: enrollmentsOptions.queryKey,
     });
   };
+  const enrollmentPaging = usePagedFocus("enrollments", {
+    pending: enrollmentContinuation.isFetching,
+    failed: enrollmentContinuation.isError,
+    rowCount: (enrollments.data?.items.length ?? 0) +
+      (enrollmentContinuation.data?.items.length ?? 0),
+    hasMore: Boolean(
+      enrollmentContinuation.data?.nextCursor ?? enrollments.data?.nextCursor,
+    ),
+  });
   if (!isAdmin) return null;
   const rows = [
     ...(enrollments.data?.items ?? []),
@@ -633,6 +643,7 @@ function EnrollmentPanel({
           <UI.Stack
             gap="none"
             role="list"
+            data-paged-list="enrollments"
             aria-label={translate("machines.enrollment.table" as never)}
             aria-busy={tableState === "loading" || undefined}
           >
@@ -662,43 +673,45 @@ function EnrollmentPanel({
           </UI.Stack>
         )
         : (
-          <UI.DataTable<EnrollmentRow>
-            caption={translate("machines.enrollment.table" as never)}
-            rows={rows}
-            state={tableState}
-            error={translate("machines.error.description" as never)}
-            emptyMessage={translate("machines.enrollment.empty" as never)}
-            getRowKey={(row) => row.enrollmentId}
-            getRowAttributes={(row) => ({ "data-enrollment-name": row.name })}
-            columns={[
-              {
-                id: "name",
-                header: translate("machines.enrollment.name" as never),
-                cell: (row) => row.name,
-              },
-              {
-                id: "status",
-                header: translate("machines.status.label" as never),
-                cell: (row) => (
-                  <UI.StatusBadge status={statusForEnrollment(row.state)}>
-                    {labelForEnrollmentState(row.state, translate)}
-                  </UI.StatusBadge>
-                ),
-              },
-              {
-                id: "expires",
-                header: translate("machines.enrollment.expires" as never),
-                cell: (row) => formatDate(row.expiresAt),
-              },
-              {
-                id: "actions",
-                header: translate("machines.enrollment.actions" as never),
-                cell: (row) => (
-                  actions(row)
-                ),
-              },
-            ]}
-          />
+          <div data-paged-list="enrollments">
+            <UI.DataTable<EnrollmentRow>
+              caption={translate("machines.enrollment.table" as never)}
+              rows={rows}
+              state={tableState}
+              error={translate("machines.error.description" as never)}
+              emptyMessage={translate("machines.enrollment.empty" as never)}
+              getRowKey={(row) => row.enrollmentId}
+              getRowAttributes={(row) => ({ "data-enrollment-name": row.name })}
+              columns={[
+                {
+                  id: "name",
+                  header: translate("machines.enrollment.name" as never),
+                  cell: (row) => row.name,
+                },
+                {
+                  id: "status",
+                  header: translate("machines.status.label" as never),
+                  cell: (row) => (
+                    <UI.StatusBadge status={statusForEnrollment(row.state)}>
+                      {labelForEnrollmentState(row.state, translate)}
+                    </UI.StatusBadge>
+                  ),
+                },
+                {
+                  id: "expires",
+                  header: translate("machines.enrollment.expires" as never),
+                  cell: (row) => formatDate(row.expiresAt),
+                },
+                {
+                  id: "actions",
+                  header: translate("machines.enrollment.actions" as never),
+                  cell: (row) => (
+                    actions(row)
+                  ),
+                },
+              ]}
+            />
+          </div>
         )}
       {enrollmentContinuation.isError
         ? (
@@ -711,11 +724,17 @@ function EnrollmentPanel({
         ? (
           <UI.Button
             variant="secondary"
+            data-paged-more="enrollments"
+            data-paged-retry={enrollmentContinuation.isError
+              ? "enrollments"
+              : undefined}
             disabled={enrollmentContinuation.isFetching}
-            onClick={() =>
-              enrollmentContinuation.isError
-                ? void enrollmentContinuation.refetch()
-                : setEnrollmentCursor(nextEnrollmentCursor)}
+            onClick={() => {
+              enrollmentPaging.ask();
+              if (enrollmentContinuation.isError) {
+                void enrollmentContinuation.refetch();
+              } else setEnrollmentCursor(nextEnrollmentCursor);
+            }}
           >
             {enrollmentContinuation.isFetching
               ? translate("machines.pagination.loadingMore" as never)
@@ -728,7 +747,9 @@ function EnrollmentPanel({
 }
 
 function MachineCards(
-  { rows, loading, stale, date, onOpen, translate }: {
+  { pagedList, rows, loading, stale, date, onOpen, translate }: {
+    /** Marks the list for the paged-list focus rule. */
+    pagedList: string;
     rows: readonly MachineRow[];
     loading: boolean;
     stale: boolean;
@@ -749,6 +770,7 @@ function MachineCards(
       <UI.Stack
         gap="none"
         role="list"
+        data-paged-list={pagedList}
         aria-label={translate("machines.table" as never)}
         aria-busy={loading || undefined}
         data-list-state={loading ? "loading" : stale ? "stale" : "ready"}
@@ -845,6 +867,15 @@ export function MachinesPage() {
       timeZone,
       translate("machines.never" as never),
     );
+  const workerPaging = usePagedFocus("machines", {
+    pending: workerContinuation.isFetching,
+    failed: workerContinuation.isError,
+    rowCount: (workers.data?.items.length ?? 0) +
+      (workerContinuation.data?.items.length ?? 0),
+    hasMore: Boolean(
+      workerContinuation.data?.nextCursor ?? workers.data?.nextCursor,
+    ),
+  });
   const rows = [
     ...(workers.data?.items ?? []),
     ...(workerContinuation.data?.items ?? []),
@@ -937,6 +968,7 @@ export function MachinesPage() {
               {phone
                 ? (
                   <MachineCards
+                    pagedList="machines"
                     rows={rows}
                     loading={workers.isPending}
                     stale={connectivity !== "online"}
@@ -946,94 +978,103 @@ export function MachinesPage() {
                   />
                 )
                 : (
-                  <UI.DataTable<MachineRow>
-                    caption={translate("machines.table" as never)}
-                    rows={rows}
-                    state={workers.isPending
-                      ? "loading"
-                      : connectivity !== "online"
-                      ? "stale"
-                      : "ready"}
-                    emptyMessage={translate(
-                      "machines.empty.description" as never,
-                    )}
-                    getRowKey={(row) => row.id}
-                    columns={[
-                      {
-                        id: "name",
-                        header: translate("machines.name" as never),
-                        cell: (row) => (
-                          <UI.ObjectRow
-                            variant="compact"
-                            identity={
-                              <UI.Button
-                                variant="text"
-                                onClick={() => openMachine(row)}
-                              >
-                                {row.name}
-                              </UI.Button>
-                            }
-                            metadata={`${row.os} · ${row.architecture}`}
-                            status={
-                              <UI.StatusBadge
-                                status={statusForReadiness(row.readiness)}
-                              >
-                                {labelForReadiness(row.readiness, translate)}
-                              </UI.StatusBadge>
-                            }
-                          />
-                        ),
-                      },
-                      {
-                        id: "readiness",
-                        header: translate("machines.readiness.label" as never),
-                        cell: (row) => (
-                          <UI.StatusBadge
-                            status={statusForReadiness(row.readiness)}
-                          >
-                            {labelForReadiness(row.readiness, translate)}
-                          </UI.StatusBadge>
-                        ),
-                      },
-                      {
-                        id: "connectivity",
-                        header: translate(
-                          "machines.connectivity.label" as never,
-                        ),
-                        cell: (row) => (
-                          <UI.StatusDot
-                            tone={toneForConnectivity(row.connectivity)}
-                            size="small"
-                          >
-                            {labelForConnectivity(row.connectivity, translate)}
-                          </UI.StatusDot>
-                        ),
-                      },
-                      {
-                        id: "status",
-                        header: translate("machines.status.label" as never),
-                        cell: (row) => (
-                          <UI.StatusBadge status={statusForWorker(row.status)}>
-                            {labelForWorkerStatus(row.status, translate)}
-                          </UI.StatusBadge>
-                        ),
-                      },
-                      {
-                        id: "capabilities",
-                        header: translate("machines.capabilities" as never),
-                        cell: (row) =>
-                          machineCapabilities(
-                            row,
-                            translate("machines.unknown" as never),
+                  <div data-paged-list="machines">
+                    <UI.DataTable<MachineRow>
+                      caption={translate("machines.table" as never)}
+                      rows={rows}
+                      state={workers.isPending
+                        ? "loading"
+                        : connectivity !== "online"
+                        ? "stale"
+                        : "ready"}
+                      emptyMessage={translate(
+                        "machines.empty.description" as never,
+                      )}
+                      getRowKey={(row) => row.id}
+                      columns={[
+                        {
+                          id: "name",
+                          header: translate("machines.name" as never),
+                          cell: (row) => (
+                            <UI.ObjectRow
+                              variant="compact"
+                              identity={
+                                <UI.Button
+                                  variant="text"
+                                  onClick={() => openMachine(row)}
+                                >
+                                  {row.name}
+                                </UI.Button>
+                              }
+                              metadata={`${row.os} · ${row.architecture}`}
+                              status={
+                                <UI.StatusBadge
+                                  status={statusForReadiness(row.readiness)}
+                                >
+                                  {labelForReadiness(row.readiness, translate)}
+                                </UI.StatusBadge>
+                              }
+                            />
                           ),
-                      },
-                      {
-                        id: "heartbeat",
-                        header: translate("machines.lastHeartbeat" as never),
-                        cell: (row) => date(row.lastHeartbeatAt),
-                      },
-                    ]}
-                  />
+                        },
+                        {
+                          id: "readiness",
+                          header: translate(
+                            "machines.readiness.label" as never,
+                          ),
+                          cell: (row) => (
+                            <UI.StatusBadge
+                              status={statusForReadiness(row.readiness)}
+                            >
+                              {labelForReadiness(row.readiness, translate)}
+                            </UI.StatusBadge>
+                          ),
+                        },
+                        {
+                          id: "connectivity",
+                          header: translate(
+                            "machines.connectivity.label" as never,
+                          ),
+                          cell: (row) => (
+                            <UI.StatusDot
+                              tone={toneForConnectivity(row.connectivity)}
+                              size="small"
+                            >
+                              {labelForConnectivity(
+                                row.connectivity,
+                                translate,
+                              )}
+                            </UI.StatusDot>
+                          ),
+                        },
+                        {
+                          id: "status",
+                          header: translate("machines.status.label" as never),
+                          cell: (row) => (
+                            <UI.StatusBadge
+                              status={statusForWorker(row.status)}
+                            >
+                              {labelForWorkerStatus(row.status, translate)}
+                            </UI.StatusBadge>
+                          ),
+                        },
+                        {
+                          id: "capabilities",
+                          header: translate("machines.capabilities" as never),
+                          cell: (row) =>
+                            machineCapabilities(
+                              row,
+                              translate("machines.unknown" as never),
+                            ),
+                        },
+                        {
+                          id: "heartbeat",
+                          header: translate("machines.lastHeartbeat" as never),
+                          cell: (row) => date(row.lastHeartbeatAt),
+                        },
+                      ]}
+                    />
+                  </div>
                 )}
               {workerContinuation.isError
                 ? (
@@ -1046,11 +1087,17 @@ export function MachinesPage() {
                 ? (
                   <UI.Button
                     variant="secondary"
+                    data-paged-more="machines"
+                    data-paged-retry={workerContinuation.isError
+                      ? "machines"
+                      : undefined}
                     disabled={workerContinuation.isFetching}
-                    onClick={() =>
-                      workerContinuation.isError
-                        ? void workerContinuation.refetch()
-                        : setWorkerCursor(nextWorkerCursor)}
+                    onClick={() => {
+                      workerPaging.ask();
+                      if (workerContinuation.isError) {
+                        void workerContinuation.refetch();
+                      } else setWorkerCursor(nextWorkerCursor);
+                    }}
                   >
                     {workerContinuation.isFetching
                       ? translate("machines.pagination.loadingMore" as never)

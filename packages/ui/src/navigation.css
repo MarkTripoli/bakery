@@ -237,17 +237,25 @@ a.bakery-application-rail__link:hover {
   align-items: center;
   box-sizing: border-box;
   display: flex;
-  flex-wrap: wrap; /* the name drops below the avatar when zoom leaves no room */
-  gap: var(--space-3);
+  flex-wrap: nowrap; /* one row: avatar, the name (truncated), chevron */
+  gap: var(--space-2);
   inline-size: 100%;
   min-block-size: var(--target-min);
   padding: var(--space-2);
+}
+/* The icon and chevron keep their size; only the name gives way. */
+.bakery-workspace-switcher__trigger > .ui-icon,
+.bakery-user-menu__trigger > .ui-icon {
+  flex: none;
 }
 
 .bakery-workspace-switcher__name {
   flex: 1 1 auto;
   font: var(--type-control);
   min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 5J-0 footer avatar: neutral initials disc, not the selection tint. */
@@ -263,6 +271,9 @@ a.bakery-application-rail__link:hover {
   flex: 1 1 auto;
   font: var(--type-hint);
   min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bakery-workspace-switcher--compact .bakery-workspace-switcher__trigger,
