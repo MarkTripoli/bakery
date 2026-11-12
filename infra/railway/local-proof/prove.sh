@@ -762,7 +762,7 @@ step_isolation() {
   local out
   out="$(dc exec -T -w /workspace/apps/server api deno run --cached-only --no-prompt \
     --allow-read=/workspace --allow-env --allow-sys=uid,statfs,osRelease \
-    --allow-run=/usr/bin/systemd-run,/usr/bin/systemctl,/usr/bin/journalctl - << 'EOS' 2>&1
+    --allow-run=/workspace/infra/server-exec/draft-systemd.sh - << 'EOS' 2>&1
 import { createDraftIsolation } from "file:///workspace/apps/server/src/modules/knowledge/draft-isolation.ts";
 try {
   await createDraftIsolation().initialize("x");
