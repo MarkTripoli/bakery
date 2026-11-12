@@ -16,11 +16,16 @@ export const DRAFT_LIMITS = Object.freeze({
    * that end a growing worker sooner.
    */
   processDataBytes: 1_073_741_824,
-  processCpuSeconds: 2,
+  // A backstop above start-up CPU plus the 2 s work budget, so the wall-clock
+  // deadline (a typed timeout) fires first for a CPU-bound runaway.
+  processCpuSeconds: 4,
   processHeapMegabytes: 192,
   processWasmPages: 4_096,
   workerTasks: 32,
-  workerRuntimeMs: 1_000,
+  // Work budget per isolated worker, measured from READY (start-up has its
+  // own workerStartupMs). Sized from measured worst-case bounded work with
+  // headroom (PM decision on #270); applies to both launchers.
+  workerRuntimeMs: 2_000,
   workerStartupMs: 5_000,
   workerKillMs: 100,
   staleAttempts: 3,
