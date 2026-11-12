@@ -5,6 +5,7 @@ import { AxeBuilder } from "@axe-core/playwright";
 import { expect, type Page, type Request, test } from "@playwright/test";
 import { setArtifactLocale } from "./helpers/artifact-live-preferences.ts";
 import { submitUntilAccepted } from "./helpers/api-retry.ts";
+import { firstRender } from "./helpers/first-render.ts";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
 import { openAccountMenu } from "./helpers/shell-navigation.ts";
 
@@ -1471,12 +1472,18 @@ test.describe("artifact retrieval states", () => {
     // Never fulfilled: the route stays on its loading surface so the skeleton
     // can be inspected.
     await page.route("**/v1/artifacts**", () => {});
-    await page.goto(ARTIFACT_PATH);
 
     const skeleton = page.locator(
       '[data-ui-component="skeleton"][data-state="loading"]',
     ).last();
-    await expect(skeleton).toBeVisible();
+    // Under CPU pressure this is the one test in this file whose first render
+    // outlasts the 5 s default: a 40% CPU quota reproduces it with the whole
+    // group running, and it failed in main runs 43166064823 and 43183997740 with
+    // `element(s) not found`. It gets the suite's first-render budget, like the
+    // other specs; the animation assertion below is unchanged.
+    await firstRender(() => page.goto(ARTIFACT_PATH), async (timeout) => {
+      await expect(skeleton).toBeVisible({ timeout });
+    });
     await expect.poll(() =>
       skeleton.evaluate((element) => getComputedStyle(element).animationName)
     ).toBe("none");
