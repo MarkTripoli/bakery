@@ -31,10 +31,21 @@ export function focusAfterPaint(
 }
 
 /** The rows of a paged list, in order, whatever it is drawn with (a table or a list). */
-const ROWS =
-  'tbody tr, [role="listitem"], li, [data-ui-component="descriptionItem"]';
-const rowsOf = (list: Element | null, selector = ROWS): HTMLElement[] =>
-  list ? [...list.querySelectorAll<HTMLElement>(selector)] : [];
+/** What a row is, most specific first: the first kind present in the list is the one counted. */
+const ROW_KINDS = [
+  "tbody tr",
+  '[role="listitem"]',
+  "li",
+  '[data-ui-component="descriptionItem"]',
+];
+const rowsOf = (list: Element | null, selector?: string): HTMLElement[] => {
+  if (!list) return [];
+  for (const kind of selector ? [selector] : ROW_KINDS) {
+    const found = list.querySelectorAll<HTMLElement>(kind);
+    if (found.length > 0) return [...found];
+  }
+  return [];
+};
 
 /**
  * Where focus goes after a paged list asked for more, so a keyboard or screen

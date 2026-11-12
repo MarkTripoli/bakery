@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
+import { shot } from "./helpers/real-api.ts";
 
 type Provider = {
   providerId: string;
@@ -461,13 +462,31 @@ test.describe("single sign-on settings", () => {
       }],
     });
     await page.goto("/settings/organization/sso");
+    // Verified and off: the box says what turning it on does.
+    await expect(
+      page.getByText("Everyone in this organization must sign in through", {
+        exact: false,
+      }),
+    ).toBeVisible();
+    await page.getByLabel("Require SSO for all members").click();
+    // Turning it on asks first, naming the provider; the switch has not moved.
+    const confirm = page.getByRole("alertdialog", {
+      name: "Require single sign-on for everyone?",
+    });
+    await expect(confirm).toContainText("through okta");
+    await shot(page, "sso-require-confirm");
+    await expect(page.getByLabel("Require SSO for all members"))
+      .not.toBeChecked();
+    expect(state.enforcement).toEqual([]);
+    await confirm.getByRole("button", { name: "Require SSO" }).click();
+    await expect.poll(() => state.enforcement).toEqual([true]);
+    // Required: the break-glass note shows.
     await expect(
       page.getByText("organization administrators who still hold a password", {
         exact: false,
       }),
     ).toBeVisible();
-    await page.getByLabel("Require SSO for all members").click();
-    await expect.poll(() => state.enforcement).toEqual([true]);
+    await shot(page, "sso-require-on");
     await expect(page.getByLabel("Require SSO for all members"))
       .toBeChecked();
     await page.getByRole("button", { name: "okta · OIDC" }).click();
@@ -484,6 +503,152 @@ test.describe("single sign-on settings", () => {
       .getByRole("button", { name: "Remove provider" }).click();
     await expect(page.getByText("Provider removed.")).toBeVisible();
     expect(state.removed).toEqual(["okta"]);
+  });
+
+  const VERIFIED = { ...OKTA_UNVERIFIED, domainVerified: true };
+  const REQUIRE = "Require SSO for all members";
+  const dialogName = "Require single sign-on for everyone?";
+
+  test("Cancel and Escape on the Require SSO question leave it off and return focus to the switch", async ({ page }) => {
+    const state = await ssoFixture(page, { providers: [VERIFIED] });
+    await page.goto("/settings/organization/sso");
+    const switchControl = page.getByLabel(REQUIRE);
+    await switchControl.click();
+    const confirm = page.getByRole("alertdialog", { name: dialogName });
+    await confirm.getByRole("button", { name: "Cancel" }).click();
+    await expect(confirm).toHaveCount(0);
+    await expect(switchControl).toBeFocused();
+    await expect(switchControl).not.toBeChecked();
+    await switchControl.click();
+    await expect(confirm).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(confirm).toHaveCount(0);
+    await expect(switchControl).toBeFocused();
+    await expect(switchControl).not.toBeChecked();
+    expect(state.enforcement).toEqual([]);
+  });
+
+  test("turning Require SSO off asks nothing", async ({ page }) => {
+    const state = await ssoFixture(page, {
+      enforce: true,
+      providers: [VERIFIED],
+    });
+    await page.goto("/settings/organization/sso");
+    await page.getByLabel(REQUIRE).click();
+    await expect.poll(() => state.enforcement).toEqual([false]);
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(page.getByLabel(REQUIRE)).not.toBeChecked();
+  });
+
+  test("the Require SSO question names every verified provider as one of yours", async ({ page }) => {
+    await ssoFixture(page, {
+      providers: [
+        VERIFIED,
+        { ...VERIFIED, providerId: "entra", domain: "acme.test" },
+      ],
+    });
+    await page.goto("/settings/organization/sso");
+    await page.getByLabel(REQUIRE).click();
+    await expect(page.getByRole("alertdialog", { name: dialogName }))
+      .toContainText("through one of your providers");
+  });
+
+  test("a failed Require SSO request leaves it off with the page's error notice", async ({ page }) => {
+    await ssoFixture(page, { providers: [VERIFIED] });
+    await page.route(
+      "**/api/auth/bakery-sso/enforcement",
+      (route) => route.fulfill(json({ code: "INTERNAL_ERROR" }, 500)),
+    );
+    await page.goto("/settings/organization/sso");
+    await page.getByLabel(REQUIRE).click();
+    await page.getByRole("alertdialog", { name: dialogName })
+      .getByRole("button", { name: "Require SSO" }).click();
+    await expect(
+      page.getByText("Single sign-on enforcement could not be changed."),
+    ).toBeVisible();
+    await expect(page.getByLabel(REQUIRE)).not.toBeChecked();
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    await expect(page.getByLabel(REQUIRE)).toBeFocused();
+  });
+
+  test("the Require SSO box is neutral until it is on, and a disabled switch reads as disabled", async ({ page }) => {
+    const state = await ssoFixture(page, { providers: [OKTA_UNVERIFIED] });
+    await page.goto("/settings/organization/sso");
+    const box = page.locator(".ui-sso-settings__enforcement");
+    const background = () =>
+      box.evaluate((node) => getComputedStyle(node).backgroundColor);
+    const tokenColor = (token: string) =>
+      page.evaluate((name) => {
+        const probe = document.createElement("span");
+        probe.style.color = `var(${name})`;
+        document.body.append(probe);
+        const color = getComputedStyle(probe).color;
+        probe.remove();
+        return color;
+      }, token);
+    // No verified provider: neutral surface, and the switch and its label are disabled.
+    await shot(page, "sso-require-unavailable");
+    expect(await background()).toBe(await tokenColor("--color-surface"));
+    const label = page.locator(".ui-switch").filter({ hasText: REQUIRE });
+    expect(await label.evaluate((node) => getComputedStyle(node).color))
+      .toBe(await tokenColor("--color-fg-disabled"));
+    // Verified, off: still neutral, and the label is back to the normal colour.
+    state.providers = [VERIFIED];
+    await page.reload();
+    await shot(page, "sso-require-off");
+    expect(await background()).toBe(await tokenColor("--color-surface"));
+    expect(await label.evaluate((node) => getComputedStyle(node).color))
+      .not.toBe(await tokenColor("--color-fg-disabled"));
+    // On: the warning tone.
+    await page.getByLabel(REQUIRE).click();
+    await page.getByRole("alertdialog", { name: dialogName })
+      .getByRole("button", { name: "Require SSO" }).click();
+    await expect(page.getByLabel(REQUIRE)).toBeChecked();
+    expect(await background()).toBe(
+      await tokenColor("--color-status-warning-surface"),
+    );
+  });
+
+  test("editing an OIDC provider says a blank client ID or secret keeps the stored one", async ({ page }) => {
+    await ssoFixture(page, { providers: [VERIFIED] });
+    await page.goto("/settings/organization/sso");
+    await page.getByRole("button", { name: "okta · OIDC" }).click();
+    const secretHint = page.getByText(
+      "Leave blank to keep the current secret.",
+    );
+    const idHint = page.getByText("Leave blank to keep the current client ID.");
+    await expect(secretHint).toBeVisible();
+    await expect(idHint).toBeVisible();
+    await shot(page, "sso-edit-oidc-keep-secret");
+    // The hints are tied to their inputs.
+    await expect(page.getByLabel("Client secret", { exact: true }))
+      .toHaveAccessibleDescription("Leave blank to keep the current secret.");
+    await expect(page.getByLabel("Client ID"))
+      .toHaveAccessibleDescription(
+        "Leave blank to keep the current client ID.",
+      );
+    // Adding a provider has no such helper: both fields are required there.
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await page.getByRole("button", { name: "Add OIDC" }).click();
+    await expect(secretHint).toHaveCount(0);
+    await expect(idHint).toHaveCount(0);
+  });
+
+  test("sits in the same column and uses the same buttons as the SCIM page", async ({ page, isMobile }) => {
+    await ssoFixture(page, { providers: [VERIFIED] });
+    await page.goto("/settings/organization/sso");
+    await shot(page, "sso-list");
+    const column = (await page.getByTestId("organization-sso").boundingBox())!;
+    // The settings column every settings page shares: 760 px on a wide screen.
+    if (!isMobile) expect(Math.round(column.width)).toBe(760);
+    // Every button on the page is the default Button inside a settings page: 44 px.
+    const buttons = page.getByTestId("organization-sso").locator(".ui-button");
+    const count = await buttons.count();
+    expect(count).toBeGreaterThan(0);
+    for (let index = 0; index < count; index += 1) {
+      const box = await buttons.nth(index).boundingBox();
+      if (box) expect(Math.round(box.height)).toBe(44);
+    }
   });
 
   test("a refusal clears the page to the forbidden notice", async ({ page }) => {
