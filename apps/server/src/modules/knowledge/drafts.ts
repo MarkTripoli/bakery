@@ -16,7 +16,9 @@ export const DRAFT_LIMITS = Object.freeze({
    * that end a growing worker sooner.
    */
   processDataBytes: 1_073_741_824,
-  processCpuSeconds: 2,
+  // A backstop above start-up CPU plus the 2 s work budget, so the wall-clock
+  // deadline (a typed timeout) fires first for a CPU-bound runaway.
+  processCpuSeconds: 4,
   processHeapMegabytes: 192,
   processWasmPages: 4_096,
   workerTasks: 32,
