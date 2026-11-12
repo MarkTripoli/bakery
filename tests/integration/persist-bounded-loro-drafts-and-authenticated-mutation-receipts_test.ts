@@ -1,5 +1,8 @@
 import { assert, assertEquals, assertExists } from "@std/assert";
-import { createDraftIsolation } from "../../apps/server/src/modules/knowledge/draft-isolation.ts";
+import {
+  createDraftIsolation,
+  createDraftWorkerLimiter,
+} from "../../apps/server/src/modules/knowledge/draft-isolation.ts";
 import type { DraftIsolation } from "../../apps/server/src/modules/knowledge/draft-isolation.ts";
 import { DRAFT_LIMITS } from "../../apps/server/src/modules/knowledge/drafts.ts";
 import {
@@ -365,7 +368,14 @@ Deno.test("one and two stale highwaters reload, while three discard exactly thre
 });
 
 Deno.test("concurrent, duplicated and reordered edits from one checkpoint converge with exact receipts", async () => {
-  const fixture = await openDraftFixture();
+  // Three edits from one organization run at once. The default pool's
+  // per-organization share (#297) is 2, so this test, which is about
+  // convergence and receipts rather than capacity, uses a pool of 6.
+  const fixture = await openDraftFixture(undefined, {
+    draftIsolation: createDraftIsolation({
+      workerLimiter: createDraftWorkerLimiter(6),
+    }),
+  });
   try {
     const draft = await openDraft(fixture);
     const left = await slice(fixture, draft, 0, 5);
@@ -425,6 +435,43 @@ Deno.test("concurrent, duplicated and reordered edits from one checkpoint conver
       [draft.id],
     );
     assertEquals(receipts.rows[0]?.count, 2);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+Deno.test("open, slice and edit each count toward the caller's organization share (#297)", async () => {
+  const real = createDraftIsolation();
+  const seen: [string, string | undefined][] = [];
+  const isolation: DraftIsolation = {
+    importUpdate: real.importUpdate,
+    initialize(text, signal, organizationId) {
+      seen.push(["initialize", organizationId]);
+      return real.initialize(text, signal, organizationId);
+    },
+    slice(state, start, end, signal, organizationId) {
+      seen.push(["slice", organizationId]);
+      return real.slice(state, start, end, signal, organizationId);
+    },
+    edit(current, source, input, signal, organizationId) {
+      seen.push(["edit", organizationId]);
+      return real.edit(current, source, input, signal, organizationId);
+    },
+  };
+  const fixture = await openDraftFixture("alpha target omega", {
+    draftIsolation: isolation,
+  });
+  try {
+    const draft = await openDraft(fixture);
+    const selected = await slice(fixture, draft);
+    const response = await edit(fixture, draft, selected, crypto.randomUUID());
+    assertEquals(response.status, 201, await response.clone().text());
+    const organizationId = fixture.ids.organizationId;
+    assertEquals(seen, [
+      ["initialize", organizationId],
+      ["slice", organizationId],
+      ["edit", organizationId],
+    ]);
   } finally {
     await cleanup(fixture);
   }

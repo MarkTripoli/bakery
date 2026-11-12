@@ -1,3 +1,4 @@
+import process from "node:process";
 import { z } from "zod";
 import { readSentryConfig, type SentryConfig } from "./sentry.ts";
 import {
@@ -926,6 +927,22 @@ export function readDraftIsolationLauncher(
     throw new Error("DRAFT_ISOLATION_CONFIG_INVALID");
   }
   return value;
+}
+
+/**
+ * `BAKERY_DRAFT_WORKER_POOL_SIZE`: how many isolated draft workers may run at
+ * once, process-wide (#243, #297). Unset means the built-in default. Each
+ * organization may hold at most half of it (rounded up, at least 1).
+ */
+export function readDraftWorkerPoolSize(
+  env: Record<string, string | undefined> = process.env,
+): number | undefined {
+  const raw = env.BAKERY_DRAFT_WORKER_POOL_SIZE?.trim();
+  if (!raw) return undefined;
+  if (!/^[1-9][0-9]?$/.test(raw)) {
+    throw new Error("DRAFT_WORKER_POOL_SIZE_INVALID");
+  }
+  return Number(raw);
 }
 
 export type ArtifactStorageConfig = {

@@ -2,7 +2,10 @@ import {
   SERVER_DRAFT_SYSTEMD_LAUNCHER,
   systemdLauncherArgs,
 } from "../../platform/server-exec.ts";
-import { readDraftIsolationLauncher } from "@bakery/config";
+import {
+  readDraftIsolationLauncher,
+  readDraftWorkerPoolSize,
+} from "@bakery/config";
 import { DRAFT_LIMITS, type DraftCandidate } from "./drafts.ts";
 
 const encoder = new TextEncoder();
@@ -168,25 +171,37 @@ export type IsolatedDraftSlice = {
   endCursor: string;
 };
 
+/**
+ * Every operation takes the calling organization last: it is what the
+ * worker pool's per-organization share (#297) counts. Omitted only by tests
+ * and tooling, which then count toward the pool alone.
+ */
 export type DraftIsolation = {
-  initialize(text: string, signal?: AbortSignal): Promise<DraftCandidate>;
+  initialize(
+    text: string,
+    signal?: AbortSignal,
+    organizationId?: string,
+  ): Promise<DraftCandidate>;
   edit(
     currentState: Uint8Array,
     sourceState: Uint8Array,
     input: IsolatedDraftEdit,
     signal?: AbortSignal,
+    organizationId?: string,
   ): Promise<DraftCandidate>;
   slice(
     state: Uint8Array,
     startUtf16: number,
     endUtf16: number,
     signal?: AbortSignal,
+    organizationId?: string,
   ): Promise<IsolatedDraftSlice>;
   /** Imports one untrusted collaboration update into the committed state. */
   importUpdate(
     currentState: Uint8Array,
     update: Uint8Array,
     signal?: AbortSignal,
+    organizationId?: string,
   ): Promise<DraftCandidate>;
 };
 
@@ -1125,34 +1140,84 @@ export const SYSTEMD_UNIT_PROPERTIES: readonly string[] = Object.freeze([
 
 export const DRAFT_WORKER_LAUNCHER = "/workspace/infra/draft-worker/launch.sh";
 
-/** Bounds how many isolated draft workers run at the same time. */
+/** Why a worker slot was refused: the whole pool, or the caller's share. */
+export type DraftWorkerRefusal = "pool" | "share";
+
+/**
+ * Bounds how many isolated draft workers run at the same time (#243) and
+ * shares them fairly across organizations (#297): one organization may hold
+ * at most half the pool (rounded up, at least 1), so it cannot starve the
+ * others. There is no queue; a refusal is immediate.
+ */
 export type DraftWorkerLimiter = {
-  tryAcquire(): boolean;
-  release(): void;
+  /** A slot for `organizationId` (or an unscoped one), or why not. */
+  tryAcquire(organizationId?: string): DraftWorkerRefusal | undefined;
+  release(organizationId?: string): void;
   readonly active: number;
+  readonly organizationShare: number;
 };
 
 export function createDraftWorkerLimiter(max: number): DraftWorkerLimiter {
+  const share = Math.max(1, Math.ceil(max / 2));
+  const byOrganization = new Map<string, number>();
   let active = 0;
   return {
-    tryAcquire() {
-      if (active >= max) return false;
+    tryAcquire(organizationId) {
+      if (active >= max) return "pool";
+      if (organizationId !== undefined) {
+        const held = byOrganization.get(organizationId) ?? 0;
+        if (held >= share) return "share";
+        byOrganization.set(organizationId, held + 1);
+      }
       active += 1;
-      return true;
+      return undefined;
     },
-    release() {
+    release(organizationId) {
       if (active > 0) active -= 1;
+      if (organizationId === undefined) return;
+      const held = byOrganization.get(organizationId) ?? 0;
+      if (held <= 1) byOrganization.delete(organizationId);
+      else byOrganization.set(organizationId, held - 1);
     },
     get active() {
       return active;
+    },
+    get organizationShare() {
+      return share;
     },
   };
 }
 
 /** One pool for the whole server process, whatever isolation instance spawns. */
 const sharedWorkerLimiter = createDraftWorkerLimiter(
-  DRAFT_LIMITS.maxConcurrentWorkers,
+  readDraftWorkerPoolSize() ?? DRAFT_LIMITS.maxConcurrentWorkers,
 );
+
+/** Isolation error messages for a refused worker slot (no other org's data). */
+export const DRAFT_WORKER_REFUSAL_MESSAGES = Object.freeze(
+  {
+    pool: "WORKER_CAPACITY_EXHAUSTED",
+    share: "WORKER_ORGANIZATION_SHARE_EXHAUSTED",
+  } as const,
+);
+
+/**
+ * A refused worker slot (#243, #297) is a retryable 503 that names its cause:
+ * the pool is busy, or this organization's share is in use. Nothing about
+ * another organization is said.
+ */
+export function workerRefusalParams(
+  error: DraftIsolationError,
+): { params?: { reason: string; retryAfterSeconds: number } } {
+  const reason = error.message === DRAFT_WORKER_REFUSAL_MESSAGES.pool
+    ? "draft_worker_pool_busy"
+    : error.message === DRAFT_WORKER_REFUSAL_MESSAGES.share
+    ? "draft_worker_organization_share_used"
+    : undefined;
+  return reason === undefined
+    ? {}
+    : { params: { reason, retryAfterSeconds: 1 } };
+}
 
 export function createDraftIsolation(
   options: IsolationOptions = {},
@@ -1197,22 +1262,24 @@ export function createDraftIsolation(
   const run = async (
     frames: readonly Uint8Array[],
     signal?: AbortSignal,
+    organizationId?: string,
   ): Promise<Uint8Array[]> => {
     // A permanent refusal first: an oversize request is a 422 whatever the
     // pool's state, never a retryable "busy".
     if (frames[0]?.length > DRAFT_LIMITS.metadataBytes) {
       throw new DraftIsolationError("limit", "WORKER_METADATA_TOO_LARGE");
     }
-    if (!limiter.tryAcquire()) {
+    const refused = limiter.tryAcquire(organizationId);
+    if (refused) {
       throw new DraftIsolationError(
         "unavailable",
-        "WORKER_CAPACITY_EXHAUSTED",
+        DRAFT_WORKER_REFUSAL_MESSAGES[refused],
       );
     }
     try {
       return await runWorker(frames, signal);
     } finally {
-      limiter.release();
+      limiter.release(organizationId);
     }
   };
   const runWorker = async (
@@ -1381,49 +1448,65 @@ export function createDraftIsolation(
   };
 
   return {
-    async initialize(text, signal) {
+    async initialize(text, signal, organizationId) {
       return parseCandidate(
-        await run([
-          encoder.encode(JSON.stringify({ operation: "initialize" })),
-          encoder.encode(text),
-        ], signal),
+        await run(
+          [
+            encoder.encode(JSON.stringify({ operation: "initialize" })),
+            encoder.encode(text),
+          ],
+          signal,
+          organizationId,
+        ),
       );
     },
-    async edit(currentState, sourceState, input, signal) {
+    async edit(currentState, sourceState, input, signal, organizationId) {
       return parseCandidate(
-        await run([
+        await run(
+          [
+            encoder.encode(JSON.stringify({
+              operation: "edit",
+              mutationId: input.mutationId,
+              startCursor: input.startCursor,
+              endCursor: input.endCursor,
+              expectedDigest: input.expectedDigest,
+            })),
+            sourceState,
+            currentState,
+            encoder.encode(input.expectedText),
+            encoder.encode(input.replacement),
+          ],
+          signal,
+          organizationId,
+        ),
+      );
+    },
+    async importUpdate(currentState, update, signal, organizationId) {
+      return parseCandidate(
+        await run(
+          [
+            encoder.encode(JSON.stringify({ operation: "import" })),
+            currentState,
+            update,
+          ],
+          signal,
+          organizationId,
+        ),
+      );
+    },
+    async slice(state, startUtf16, endUtf16, signal, organizationId) {
+      const frames = await run(
+        [
           encoder.encode(JSON.stringify({
-            operation: "edit",
-            mutationId: input.mutationId,
-            startCursor: input.startCursor,
-            endCursor: input.endCursor,
-            expectedDigest: input.expectedDigest,
+            operation: "slice",
+            startUtf16,
+            endUtf16,
           })),
-          sourceState,
-          currentState,
-          encoder.encode(input.expectedText),
-          encoder.encode(input.replacement),
-        ], signal),
+          state,
+        ],
+        signal,
+        organizationId,
       );
-    },
-    async importUpdate(currentState, update, signal) {
-      return parseCandidate(
-        await run([
-          encoder.encode(JSON.stringify({ operation: "import" })),
-          currentState,
-          update,
-        ], signal),
-      );
-    },
-    async slice(state, startUtf16, endUtf16, signal) {
-      const frames = await run([
-        encoder.encode(JSON.stringify({
-          operation: "slice",
-          startUtf16,
-          endUtf16,
-        })),
-        state,
-      ], signal);
       if (frames.length !== 2) {
         throw new DraftIsolationError(
           "unavailable",

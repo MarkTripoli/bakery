@@ -309,6 +309,62 @@ Deno.test("the default pool is process-wide: shared by instances, sized from DRA
   }
 });
 
+Deno.test("one organization saturating draft work cannot starve another (#297)", async () => {
+  // The default, process-wide pool. Organization A asks for the whole pool at
+  // once and gets only its share; B's edit still gets a worker meanwhile.
+  const hold = await launcherCopy({ workerPath: fixture("timeout.ts") });
+  const real = await launcherCopy({});
+  try {
+    const cap = DRAFT_LIMITS.maxConcurrentWorkers;
+    const share = Math.ceil(cap / 2);
+    const busy = createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: hold.path,
+    });
+    const worker = createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: real.path,
+    });
+    const flood = Array.from(
+      { length: cap },
+      () =>
+        busy.initialize("x", undefined, "org-a").then(
+          () => "succeeded",
+          (error) => {
+            assert(error instanceof DraftIsolationError, String(error));
+            return error.message;
+          },
+        ),
+    );
+    // Let A's admitted workers take their slots before B arrives.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const other = await worker.initialize(
+      "org b still works",
+      undefined,
+      "org-b",
+    );
+    assertEquals(other.text, "org b still works");
+    const outcomes = await Promise.all(flood);
+    assertEquals(
+      outcomes.filter((m) => m === "WORKER_ORGANIZATION_SHARE_EXHAUSTED")
+        .length,
+      cap - share,
+      JSON.stringify(outcomes),
+    );
+    assertEquals(
+      outcomes.filter((m) => m === "WORKER_DEADLINE_EXCEEDED").length,
+      share,
+      JSON.stringify(outcomes),
+    );
+    // Every slot came back: A gets its full share again.
+    const again = await worker.initialize("a again", undefined, "org-a");
+    assertEquals(again.text, "a again");
+  } finally {
+    await hold.cleanup();
+    await real.cleanup();
+  }
+});
+
 Deno.test("a missing launcher reports host isolation unavailable, not a crash", async () => {
   const isolation = createDraftIsolation({
     launcher: "process",
