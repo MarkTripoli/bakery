@@ -111,7 +111,7 @@ import {
 } from "./modules/knowledge/previews/index.ts";
 import {
   createDraftIsolation,
-  createDraftWorkerLimiter,
+  draftIsolationOptionsFor,
 } from "./modules/knowledge/draft-isolation.ts";
 import { createArtifactActions } from "./modules/knowledge/resource-routes.ts";
 import { createDraftResourceRoutes } from "./modules/knowledge/draft-resource-routes.ts";
@@ -426,16 +426,8 @@ export function createApp(options: {
     acceptAccessTokens: true,
   });
   // One isolation for REST draft edits and collaboration-socket updates.
-  // A configured pool size gets this app's own limiter; the app builds the
-  // only isolation, so it is still one pool for the process.
   const draftIsolation = options.draftIsolation ??
-    createDraftIsolation(
-      options.config.draftWorkerPoolSize === undefined ? {} : {
-        workerLimiter: createDraftWorkerLimiter(
-          options.config.draftWorkerPoolSize,
-        ),
-      },
-    );
+    createDraftIsolation(draftIsolationOptionsFor(options.config));
   app.route(
     "/",
     createDraftResourceRoutes({

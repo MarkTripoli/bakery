@@ -275,6 +275,12 @@ export type RuntimeConfig = {
    * only. Absent means the built-in default pool.
    */
   draftWorkerPoolSize?: number;
+  /**
+   * How draft isolation workers start (`BAKERY_DRAFT_ISOLATION`); server
+   * only. Read here with the rest of the configuration, so the app never
+   * reads the environment itself (#306).
+   */
+  draftIsolationLauncher?: DraftIsolationLauncher;
 };
 
 const BUDGET_INSTALLATION_LIMIT =
@@ -830,8 +836,14 @@ export function readRuntimeConfig(
   const draftWorkerPoolSize = kind === "server"
     ? readDraftWorkerPoolSize(env)
     : undefined;
+  // An unknown launcher fails start-up (DRAFT_ISOLATION_CONFIG_INVALID), as
+  // it did when the app read it: never fall back to a weaker isolation.
+  const draftIsolationLauncher = kind === "server"
+    ? readDraftIsolationLauncher(env)
+    : undefined;
   const config: RuntimeConfig = {
     sentry: readSentryConfig(env, kind, environment),
+    ...(draftIsolationLauncher ? { draftIsolationLauncher } : {}),
     ...(draftWorkerPoolSize === undefined ? {} : { draftWorkerPoolSize }),
     ...(budget ? { budget } : {}),
     ...(configuredSecretsKey?.success
@@ -929,7 +941,9 @@ export type DraftIsolationLauncher = "systemd" | "process";
  * without systemd.
  */
 export function readDraftIsolationLauncher(
-  env: Record<string, string | undefined> = Deno.env.toObject(),
+  // No default: a whole-environment read here crashed apps run with a scoped
+  // --allow-env (#306). readRuntimeConfig passes its env.
+  env: Record<string, string | undefined>,
 ): DraftIsolationLauncher {
   const value = env.BAKERY_DRAFT_ISOLATION?.trim() || "systemd";
   if (value !== "systemd" && value !== "process") {

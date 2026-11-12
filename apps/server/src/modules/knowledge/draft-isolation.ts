@@ -1,8 +1,8 @@
+import type { RuntimeConfig } from "@bakery/config";
 import {
   SERVER_DRAFT_SYSTEMD_LAUNCHER,
   systemdLauncherArgs,
 } from "../../platform/server-exec.ts";
-import { readDraftIsolationLauncher } from "@bakery/config";
 import { DRAFT_LIMITS, type DraftCandidate } from "./drafts.ts";
 
 const encoder = new TextEncoder();
@@ -1224,10 +1224,31 @@ export function workerRefusalParams(
     : { params: { reason, retryAfterSeconds: 1 } };
 }
 
+/**
+ * The isolation options the server builds from its runtime config (#306,
+ * #297): the configured launcher (`systemd` when none is set) and, when
+ * BAKERY_DRAFT_WORKER_POOL_SIZE is set, a worker pool of that size. createApp
+ * calls this once for its single isolation, so that pool is the process's
+ * pool; unset, the default shared pool is used. The config, not the
+ * environment, decides both.
+ */
+export function draftIsolationOptionsFor(
+  config: Pick<RuntimeConfig, "draftIsolationLauncher" | "draftWorkerPoolSize">,
+): IsolationOptions {
+  return {
+    launcher: config.draftIsolationLauncher ?? "systemd",
+    ...(config.draftWorkerPoolSize === undefined ? {} : {
+      workerLimiter: createDraftWorkerLimiter(config.draftWorkerPoolSize),
+    }),
+  };
+}
+
 export function createDraftIsolation(
   options: IsolationOptions = {},
 ): DraftIsolation {
-  const launcher = options.launcher ?? readDraftIsolationLauncher();
+  // The server passes its configured launcher (RuntimeConfig); this module
+  // never reads the environment, so an app with a scoped --allow-env starts.
+  const launcher = options.launcher ?? "systemd";
   const workerLauncherPath = options.workerLauncherPath ??
     DRAFT_WORKER_LAUNCHER;
   // In production every systemd call goes through the fixed launcher, the

@@ -161,3 +161,14 @@ Deno.test("the pool size reaches the server config, never read by the app itself
     undefined,
   );
 });
+
+Deno.test("the app's isolation gets a pool of the configured size, else the shared default", async () => {
+  const { draftIsolationOptionsFor } = await import(
+    "../../apps/server/src/modules/knowledge/draft-isolation.ts"
+  );
+  const sized = draftIsolationOptionsFor({ draftWorkerPoolSize: 6 });
+  assertEquals(sized.launcher, "systemd");
+  assertEquals(sized.workerLimiter?.organizationShare, 3);
+  // Unset: no own limiter, so the isolation uses the shared default pool.
+  assertEquals(draftIsolationOptionsFor({}), { launcher: "systemd" });
+});
