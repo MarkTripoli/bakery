@@ -28,6 +28,12 @@ import { LoroDoc } from "loro-crdt";
 // healthy update on a busy host. Two seconds more cover the commit.
 const ACK_WAIT_MS = DRAFT_LIMITS.workerStartupMs +
   DRAFT_LIMITS.workerRuntimeMs + 2_000;
+// With two writers in one room, the second's prepared candidate can be stale
+// once the first commits; the server re-prepares it, each attempt another
+// isolated worker, up to DRAFT_LIMITS.staleAttempts times.
+const CONTENDED_ACK_WAIT_MS = DRAFT_LIMITS.staleAttempts *
+    (DRAFT_LIMITS.workerStartupMs + DRAFT_LIMITS.workerRuntimeMs) +
+  2_000;
 
 type Frame = Record<string, unknown> & { type: string };
 type Member = {
@@ -962,8 +968,18 @@ Deno.test("concurrent updates from two clients serialize, converge and match the
     ]);
     const aBinaries: Uint8Array[] = [];
     const bBinaries: Uint8Array[] = [];
-    const aAck = await untilWithBinary(a, "ack", aBinaries, ACK_WAIT_MS);
-    const bAck = await untilWithBinary(b, "ack", bBinaries, ACK_WAIT_MS);
+    const aAck = await untilWithBinary(
+      a,
+      "ack",
+      aBinaries,
+      CONTENDED_ACK_WAIT_MS,
+    );
+    const bAck = await untilWithBinary(
+      b,
+      "ack",
+      bBinaries,
+      CONTENDED_ACK_WAIT_MS,
+    );
     const sequences = [aAck, bAck].map((ack) =>
       (ack.receipt as { serverSequence: string }).serverSequence
     ).sort();
