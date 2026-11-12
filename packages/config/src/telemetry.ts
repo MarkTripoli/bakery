@@ -10,8 +10,25 @@
  * wiser. A disabled sink costs a counter. Everything that goes wrong is counted
  * in the telemetry's own metrics (`bakery_telemetry_*`) so an operator can see
  * that telemetry is losing data, which is how export loss becomes visible
- * without ever blocking work.
+ * without ever blocking work: events by outcome, fields the allowlist removed,
+ * records lost on the way to the sink, and metric updates the registry refused.
+ *
+ * Three rules keep it from becoming a problem of its own:
+ *
+ * - The telemetry's own series cannot be written through `metrics`: a name with
+ *   the reserved prefix is refused and counted as overflow, so those series say
+ *   what the telemetry did and nothing else.
+ * - A flushed metrics record is a small object that takes its samples when a
+ *   sink first reads them, and records read while nothing has changed share one
+ *   frozen snapshot. A full queue of them costs the queue, not a copy of every
+ *   series per entry.
+ * - A call made from inside the sink (it logs, it counts an event) is refused
+ *   and counted as `reentrant`, so a sink cannot feed itself.
+ *
+ * An event or a flush after `close` is refused by the exporter and counted as a
+ * shutdown loss, like anything else that never reached the sink.
  */
+import { AsyncLocalStorage } from "node:async_hooks";
 import type {
   BoundedExporter,
   BoundedExporterOptions,
@@ -21,6 +38,8 @@ import type {
 import { createBoundedExporter } from "./telemetry-export.ts";
 import {
   createMetricsRegistry,
+  MAX_METRICS,
+  MAX_TOTAL_SERIES,
   type MetricSample,
   type MetricSpecs,
   type MetricsRegistry,
@@ -94,6 +113,7 @@ export const TELEMETRY_META_METRICS = Object.freeze({
   lost: "bakery_telemetry_export_lost_total",
   redacted: "bakery_telemetry_redacted_fields_total",
   queueDepth: "bakery_telemetry_queue_depth",
+  overflow: "bakery_telemetry_metrics_overflow_total",
 });
 
 /** Application metrics may not use this prefix. */
@@ -112,7 +132,14 @@ const metaSpecs: MetricSpecs = {
     kind: "counter",
     help: "Events handed to telemetry, by what became of them.",
     labels: {
-      outcome: ["recorded", "discarded", "unknown_event", "dropped", "failed"],
+      outcome: [
+        "recorded",
+        "discarded",
+        "unknown_event",
+        "dropped",
+        "failed",
+        "reentrant",
+      ],
     },
   },
   [TELEMETRY_META_METRICS.lost]: {
@@ -129,7 +156,29 @@ const metaSpecs: MetricSpecs = {
     kind: "gauge",
     help: "Records waiting to be exported.",
   },
+  [TELEMETRY_META_METRICS.overflow]: {
+    kind: "counter",
+    help: "Metric updates refused or folded into other, by the registry.",
+  },
 };
+
+/** Series one definition can hold: every label's values plus `other`. */
+const seriesOfSpec = (spec: MetricSpecs[string]): number =>
+  Object.values(spec.labels ?? {}).reduce(
+    (product, values) => product * (values.length + 1),
+    1,
+  );
+
+/**
+ * What the application may define. The telemetry's own metrics and series count
+ * against the same caps as the application's, so the room left is the caps less
+ * theirs: {@link MAX_METRICS} and {@link MAX_TOTAL_SERIES} are totals.
+ */
+export const APPLICATION_METRIC_LIMITS = Object.freeze({
+  metrics: MAX_METRICS - Object.keys(metaSpecs).length,
+  series: MAX_TOTAL_SERIES -
+    Object.values(metaSpecs).reduce((sum, spec) => sum + seriesOfSpec(spec), 0),
+});
 
 function eventNames(events: Iterable<string>): ReadonlySet<string> {
   const names = new Set<string>();
@@ -191,14 +240,25 @@ export function createTelemetry(options: TelemetryOptions): Telemetry {
       );
     }
   }
+  if (Object.keys(application).length > APPLICATION_METRIC_LIMITS.metrics) {
+    throw new RangeError(
+      "telemetry metrics: too many metrics (the telemetry's own share the limit)",
+    );
+  }
   const registry = createMetricsRegistry({ ...application, ...metaSpecs });
+  // Set while the sink runs, and by everything the sink starts: a call made
+  // from there is the sink talking to itself.
+  const inSink = new AsyncLocalStorage<true>();
   // No loss callback is registered. The exporter counts every drop by reason in
   // its stats, and the loss metric is brought up to those counts whenever the
   // metrics are read, so it is exact at that moment, needs no timer and cannot
   // be re-entered by the code that reports it.
+  const sink = options.send;
   const exporter: BoundedExporter<TelemetryRecord> = createBoundedExporter({
     ...options.exporter,
-    send: options.send,
+    send: sink === undefined
+      ? undefined
+      : (batch, signal) => inSink.run(true, () => sink(batch, signal)),
   });
   const lostReasons = [
     ["queueFull", "queue_full"],
@@ -221,6 +281,67 @@ export function createTelemetry(options: TelemetryOptions): Telemetry {
       // Counting is best effort; the exporter's own stats stay exact.
     }
   };
+  // Updates the public handle refused because they named a reserved series.
+  let refusedReserved = 0;
+  let accountedOverflow = 0;
+  /** Adds to the overflow metric what the registry has refused since the last read. */
+  const syncOverflow = () => {
+    try {
+      const total = registry.overflow() + refusedReserved;
+      const delta = total - accountedOverflow;
+      if (delta > 0) {
+        accountedOverflow = total;
+        registry.inc(TELEMETRY_META_METRICS.overflow, {}, delta);
+      }
+    } catch {
+      // Counting is best effort.
+    }
+  };
+  const reserved = (name: unknown): boolean =>
+    typeof name === "string" && name.startsWith(RESERVED_METRIC_PREFIX);
+  /** Brings every meta metric that is read, not pushed, up to date. */
+  const syncMeta = () => {
+    syncLoss();
+    syncOverflow();
+  };
+
+  // One frozen snapshot is shared by every read made while nothing changed, so
+  // a sink that serializes a batch of flush records holds one copy of the series.
+  let shared: { version: number; samples: readonly MetricSample[] } | undefined;
+  const currentSamples = (): readonly MetricSample[] => {
+    try {
+      syncMeta();
+      registry.set(
+        TELEMETRY_META_METRICS.queueDepth,
+        {},
+        exporter.stats().queued,
+      );
+      const version = registry.version();
+      if (shared?.version !== version) {
+        const samples = registry.snapshot();
+        for (const sample of samples) {
+          Object.freeze(sample.labels);
+          Object.freeze(sample);
+        }
+        shared = { version, samples: Object.freeze(samples) };
+      }
+      return shared.samples;
+    } catch {
+      return Object.freeze([]);
+    }
+  };
+  /** A metrics record that takes its samples when a sink first reads them. */
+  const lazyMetricsRecord = (time: number): TelemetryRecord => {
+    let samples: readonly MetricSample[] | undefined;
+    return {
+      kind: "metrics",
+      time,
+      get samples() {
+        return samples ??= currentSamples();
+      },
+    };
+  };
+
   const clock = options.now ?? Date.now;
   const count = (outcome: string) =>
     registry.inc(TELEMETRY_META_METRICS.events, { outcome });
@@ -228,9 +349,10 @@ export function createTelemetry(options: TelemetryOptions): Telemetry {
   const timeNow = (): number => {
     try {
       const value = clock();
-      return typeof value === "number" && Number.isSafeInteger(value) &&
-          value >= 0
-        ? value
+      // A clock with sub-millisecond precision still has a millisecond.
+      return typeof value === "number" && Number.isFinite(value) &&
+          value >= 0 && value <= Number.MAX_SAFE_INTEGER
+        ? Math.floor(value)
         : 0;
     } catch {
       return 0;
@@ -240,6 +362,10 @@ export function createTelemetry(options: TelemetryOptions): Telemetry {
   return {
     event(name, attributes, trace) {
       try {
+        if (inSink.getStore() === true) {
+          count("reentrant");
+          return;
+        }
         if (typeof name !== "string" || !names.has(name)) {
           count("unknown_event");
           return;
@@ -292,29 +418,37 @@ export function createTelemetry(options: TelemetryOptions): Telemetry {
     },
 
     metrics: {
-      inc: (name, labels, by) => registry.inc(name, labels, by),
-      set: (name, labels, value) => registry.set(name, labels, value),
+      inc: (name, labels, by) => {
+        if (reserved(name)) {
+          refusedReserved += 1;
+          return;
+        }
+        registry.inc(name, labels, by);
+      },
+      set: (name, labels, value) => {
+        if (reserved(name)) {
+          refusedReserved += 1;
+          return;
+        }
+        registry.set(name, labels, value);
+      },
       snapshot: () => {
-        syncLoss();
+        syncMeta();
         return registry.snapshot();
       },
     },
 
     flushMetrics() {
       try {
-        syncLoss();
-        registry.set(
-          TELEMETRY_META_METRICS.queueDepth,
-          {},
-          exporter.stats().queued,
-        );
-        exporter.offer({
-          kind: "metrics",
-          time: timeNow(),
-          samples: registry.snapshot(),
-        });
+        if (inSink.getStore() === true) {
+          count("reentrant");
+          return;
+        }
+        // The samples are taken when the sink reads them, so a flush queues a
+        // few bytes however many series there are.
+        exporter.offer(lazyMetricsRecord(timeNow()));
       } catch {
-        // A snapshot that cannot be taken is simply not sent.
+        // A record that cannot be made is simply not sent.
       }
     },
 

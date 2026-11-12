@@ -70,6 +70,11 @@ export type MetricsRegistry = {
   snapshot(): MetricSample[];
   /** Calls refused or folded into `other`; the registry's own error count. */
   overflow(): number;
+  /**
+   * Changes whenever a snapshot would differ: a series gained a value or
+   * appeared. Equal versions mean equal snapshots, so one can be shared.
+   */
+  version(): number;
 };
 
 type Definition = {
@@ -148,6 +153,7 @@ export function createMetricsRegistry(specs: MetricSpecs): MetricsRegistry {
 
   const series = new Map<string, Series>();
   let overflow = 0;
+  let version = 0;
 
   /** Resolves labels to the series they name, or counts why they cannot. */
   function seriesFor(
@@ -200,6 +206,7 @@ export function createMetricsRegistry(specs: MetricSpecs): MetricsRegistry {
     if (!existing) {
       existing = { definition, labels: resolved, value: 0 };
       series.set(key, existing);
+      version += 1;
     }
     return existing;
   }
@@ -212,7 +219,13 @@ export function createMetricsRegistry(specs: MetricSpecs): MetricsRegistry {
           return;
         }
         const target = seriesFor(name, "counter", labels);
-        if (target) target.value = Math.min(target.value + by, MAX_GAUGE);
+        if (target) {
+          const next = Math.min(target.value + by, MAX_GAUGE);
+          if (next !== target.value) {
+            target.value = next;
+            version += 1;
+          }
+        }
       } catch {
         overflow += 1;
       }
@@ -228,7 +241,10 @@ export function createMetricsRegistry(specs: MetricSpecs): MetricsRegistry {
           return;
         }
         const target = seriesFor(name, "gauge", labels);
-        if (target) target.value = value;
+        if (target && target.value !== value) {
+          target.value = value;
+          version += 1;
+        }
       } catch {
         overflow += 1;
       }
@@ -252,5 +268,7 @@ export function createMetricsRegistry(specs: MetricSpecs): MetricsRegistry {
     },
 
     overflow: () => overflow,
+
+    version: () => version,
   };
 }

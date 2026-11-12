@@ -383,3 +383,110 @@ Deno.test("the definition is copied, so changing it afterwards cannot widen the 
   registry.inc("jobs_total", { outcome: "sneaky" });
   assertEquals(registry.snapshot()[0].labels, { outcome: OTHER_LABEL_VALUE });
 });
+
+Deno.test("the version changes exactly when a snapshot would, so equal versions mean equal snapshots", () => {
+  const registry = createMetricsRegistry(specs);
+  const start = registry.version();
+  const versions: number[] = [start];
+  const step = (what: string, act: () => void, changes: boolean) => {
+    const before = registry.version();
+    act();
+    const after = registry.version();
+    assertEquals(after !== before, changes, what);
+    versions.push(after);
+  };
+  step(
+    "a new series appears",
+    () => registry.inc("jobs_total", { outcome: "done" }),
+    true,
+  );
+  step(
+    "a counter grows",
+    () => registry.inc("jobs_total", { outcome: "done" }, 2),
+    true,
+  );
+  step(
+    "a counter grows by nothing",
+    () => registry.inc("jobs_total", { outcome: "done" }, 0),
+    false,
+  );
+  step("a snapshot is read", () => void registry.snapshot(), false);
+  step("overflow is read", () => void registry.overflow(), false);
+  step("an unknown metric is refused", () => registry.inc("nope", {}), false);
+  step(
+    "a negative increment is refused",
+    () => registry.inc("jobs_total", { outcome: "done" }, -1),
+    false,
+  );
+  step(
+    "a non-number increment is refused",
+    () => registry.inc("jobs_total", { outcome: "done" }, "1"),
+    false,
+  );
+  step(
+    "a value folds into other, which is a new series",
+    () => registry.inc("jobs_total", { outcome: "weird" }),
+    true,
+  );
+  step(
+    "that same fold again only grows it",
+    () => registry.inc("jobs_total", { outcome: "weird" }, 0),
+    false,
+  );
+  assert(
+    versions.every((v, i) => i === 0 || v >= versions[i - 1]!),
+    "the version never goes back",
+  );
+});
+
+Deno.test("a gauge set to the value it already has does not change the version, and a different one does", () => {
+  const registry = createMetricsRegistry({
+    depth: { kind: "gauge", help: "Depth." },
+  });
+  registry.set("depth", {}, 3);
+  const after = registry.version();
+  registry.set("depth", {}, 3);
+  assertEquals(registry.version(), after);
+  registry.set("depth", {}, 4);
+  assert(registry.version() > after);
+  registry.set("depth", {}, Number.NaN);
+  const refused = registry.version();
+  registry.set("depth", {}, Number.NaN);
+  assertEquals(registry.version(), refused, "a refused value changes nothing");
+});
+
+Deno.test("a counter pinned at its ceiling stops changing the version", () => {
+  const registry = createMetricsRegistry({
+    big: { kind: "counter", help: "Big." },
+  });
+  registry.inc("big", {}, Number.MAX_SAFE_INTEGER);
+  const pinned = registry.version();
+  registry.inc("big", {}, 5);
+  assertEquals(registry.version(), pinned, "at the ceiling nothing changes");
+});
+
+Deno.test("a series created at zero changes the version, because the snapshot now has an entry it did not have", () => {
+  const registry = createMetricsRegistry({
+    jobs_total: {
+      kind: "counter",
+      help: "Jobs.",
+      labels: { outcome: ["done"] },
+    },
+    depth: { kind: "gauge", help: "Depth." },
+  });
+  const empty = registry.version();
+  assertEquals(registry.snapshot().length, 0);
+  registry.inc("jobs_total", { outcome: "done" }, 0);
+  assertEquals(registry.snapshot().length, 1, "the series exists, at zero");
+  assert(
+    registry.version() > empty,
+    "a counter series created by an increment of nothing",
+  );
+  const afterCounter = registry.version();
+  registry.set("depth", {}, 0);
+  assertEquals(registry.snapshot().length, 2);
+  assert(
+    registry.version() > afterCounter,
+    "a gauge series created by a write of zero",
+  );
+});

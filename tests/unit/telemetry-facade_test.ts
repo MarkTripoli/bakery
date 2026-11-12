@@ -1,5 +1,6 @@
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertThrows } from "@std/assert";
 import {
+  APPLICATION_METRIC_LIMITS,
   createTelemetry,
   TELEMETRY_META_METRICS,
   type TelemetryOptions,
@@ -7,7 +8,13 @@ import {
 } from "../../packages/config/src/telemetry.ts";
 import { createTelemetryRedactor } from "../../packages/config/src/telemetry-attributes.ts";
 import { MAX_TRACE_LINKS } from "../../packages/config/src/telemetry-trace.ts";
-import type { MetricSample } from "../../packages/config/src/telemetry-metrics.ts";
+import {
+  MAX_METRICS,
+  MAX_TOTAL_SERIES,
+  type MetricSample,
+  type MetricSpecs,
+} from "../../packages/config/src/telemetry-metrics.ts";
+import process from "node:process";
 
 // The facade is what code on the lease, completion and settlement paths calls.
 // It has one job beyond composing the pieces: whatever the sink, the redactor,
@@ -720,4 +727,444 @@ Deno.test("dropping events and reading the metrics schedules no timer: the facad
     globalThis.clearTimeout = realClear;
     for (const id of live) realClear(id as ReturnType<typeof setTimeout>);
   }
+});
+
+// ---- QA round 1 on #171 -----------------------------------------------------
+
+const metaNames = Object.values(TELEMETRY_META_METRICS);
+
+/** Every meta series as `name{labels}=value`, so two readings compare whole. */
+function metaSeries(samples: readonly MetricSample[]): string[] {
+  return samples
+    .filter((s) => s.name.startsWith("bakery_telemetry_"))
+    .map((s) => `${s.name}${JSON.stringify(s.labels)}=${s.value}`)
+    .sort();
+}
+
+Deno.test("the telemetry's own series cannot be written through the public handle", () => {
+  const { telemetry } = make({ send: undefined });
+  telemetry.event("job.completed", {});
+  const before = metaSeries(telemetry.metrics.snapshot());
+  // QA's two attacks, then the same against every meta name and a bare prefix.
+  telemetry.metrics.inc(
+    TELEMETRY_META_METRICS.lost,
+    { reason: "queue_full" },
+    5,
+  );
+  telemetry.metrics.inc(
+    TELEMETRY_META_METRICS.events,
+    { outcome: "recorded" },
+    1000,
+  );
+  for (
+    const name of [
+      ...metaNames,
+      "bakery_telemetry_",
+      "bakery_telemetry_made_up",
+    ]
+  ) {
+    telemetry.metrics.inc(name, {
+      outcome: "recorded",
+      reason: "queue_full",
+      kind: "invalid",
+    }, 7);
+    telemetry.metrics.set(name, {}, 123);
+  }
+  const after = metaSeries(telemetry.metrics.snapshot());
+  // The only difference is the overflow counter, which says these were refused.
+  const strip = (series: string[]) =>
+    series.filter((s) => !s.startsWith(TELEMETRY_META_METRICS.overflow));
+  assertEquals(strip(after), strip(before), "no meta series moved");
+  const refused = meta(
+    telemetry.metrics.snapshot(),
+    TELEMETRY_META_METRICS.overflow,
+  );
+  assertEquals(
+    refused,
+    2 + (metaNames.length + 2) * 2,
+    "every refusal is counted",
+  );
+  assertEquals(
+    meta(
+      telemetry.metrics.snapshot(),
+      TELEMETRY_META_METRICS.events,
+      "recorded",
+    ),
+    0,
+  );
+});
+
+Deno.test("an application metric is still written through the same handle", () => {
+  const { telemetry } = make();
+  telemetry.metrics.inc("jobs_total", { outcome: "done" }, 3);
+  assertEquals(meta(telemetry.metrics.snapshot(), "jobs_total", "done"), 3);
+  assertEquals(
+    meta(telemetry.metrics.snapshot(), TELEMETRY_META_METRICS.overflow),
+    0,
+    "a good write is not an overflow",
+  );
+});
+
+Deno.test("refusals the registry makes are visible in a metric, exactly, and counted once", () => {
+  const { telemetry } = make();
+  const overflow = () =>
+    meta(telemetry.metrics.snapshot(), TELEMETRY_META_METRICS.overflow);
+  assertEquals(overflow(), 0);
+  telemetry.metrics.inc("not_a_metric", {});
+  assertEquals(overflow(), 1, "an unknown metric name");
+  telemetry.metrics.inc("jobs_total", { outcome: "done" }, -1);
+  assertEquals(overflow(), 2, "a negative increment");
+  telemetry.metrics.inc("jobs_total", { outcome: "done" }, "1");
+  assertEquals(overflow(), 3, "an increment that is not a number");
+  telemetry.metrics.inc("jobs_total", { outcome: "weird" });
+  assertEquals(overflow(), 4, "a label value outside its vocabulary");
+  telemetry.metrics.inc("jobs_total", { outcome: "done", bogus: "x" });
+  assertEquals(overflow(), 5, "a label key the metric does not have");
+  telemetry.metrics.inc(TELEMETRY_META_METRICS.lost, { reason: "queue_full" });
+  assertEquals(overflow(), 6, "a reserved name");
+  // Reading is not an overflow, and neither is reading twice.
+  assertEquals(overflow(), 6);
+  assertEquals(overflow(), 6);
+  telemetry.metrics.set("jobs_total", {}, 1);
+  assertEquals(overflow(), 7, "a gauge write to a counter");
+});
+
+Deno.test("the overflow metric travels in the flushed record as well", async () => {
+  const { telemetry, sent } = make();
+  for (let index = 0; index < 4; index += 1) {
+    telemetry.metrics.inc("not_a_metric", {});
+  }
+  telemetry.flushMetrics();
+  await telemetry.close(500);
+  const record = sent.find((r) => r.kind === "metrics");
+  assert(record && record.kind === "metrics");
+  assertEquals(meta(record.samples, TELEMETRY_META_METRICS.overflow), 4);
+});
+
+/** Four wide metrics with 225 touchable series each: 900 series in all. */
+function wideMetrics(): MetricSpecs {
+  const values = (n: number) => Array.from({ length: n }, (_, i) => `v${i}`);
+  const specs: Record<string, MetricSpecs[string]> = {};
+  for (let index = 0; index < 4; index += 1) {
+    specs[`wide_${index}_total`] = {
+      kind: "counter",
+      help: "A wide metric.",
+      labels: { first: values(15), second: values(15) },
+    };
+  }
+  return specs;
+}
+
+function touchWide(telemetry: ReturnType<typeof make>["telemetry"]) {
+  for (let metric = 0; metric < 4; metric += 1) {
+    for (let a = 0; a < 15; a += 1) {
+      for (let b = 0; b < 15; b += 1) {
+        telemetry.metrics.inc(`wide_${metric}_total`, {
+          first: `v${a}`,
+          second: `v${b}`,
+        });
+      }
+    }
+  }
+}
+
+Deno.test("flooding flushMetrics against a hung sink keeps memory flat however many series there are", async () => {
+  const { telemetry } = make({
+    send: () => new Promise(() => {}),
+    metrics: wideMetrics(),
+    exporter: {
+      ...baseExporter,
+      capacity: 1000,
+      batchSize: 10,
+      sendTimeoutMs: 60_000,
+    },
+  });
+  touchWide(telemetry);
+  assert(telemetry.metrics.snapshot().length >= 900, "setup: the series exist");
+  for (let index = 0; index < 50; index += 1) telemetry.flushMetrics();
+  const before = process.memoryUsage().heapUsed;
+  for (let index = 0; index < 20_000; index += 1) telemetry.flushMetrics();
+  const grown = (process.memoryUsage().heapUsed - before) / 1024 / 1024;
+  const stats = telemetry.stats();
+  assert(
+    stats.queued >= 900,
+    `the queue really holds flush records: ${stats.queued}`,
+  );
+  // 1000 full snapshots of 900 series are over 100 MB; 1000 small records are well under 10.
+  assert(
+    grown < 30,
+    `${grown.toFixed(1)} MB grown holding ${stats.queued} queued flush records`,
+  );
+  await telemetry.close(20);
+});
+
+Deno.test("flush records read while nothing has changed share one snapshot, and it cannot be edited", async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const received: TelemetryRecord[] = [];
+  const { telemetry } = make({
+    send: async (batch) => {
+      await gate;
+      received.push(...batch);
+    },
+    exporter: { ...baseExporter, capacity: 100, batchSize: 100, intervalMs: 1 },
+  });
+  telemetry.metrics.inc("jobs_total", { outcome: "done" });
+  for (let index = 0; index < 40; index += 1) telemetry.flushMetrics();
+  await until(() => telemetry.stats().inFlight > 0, "a batch in flight");
+  release();
+  await telemetry.close(500);
+  const records = received.filter((r) => r.kind === "metrics");
+  assertEquals(records.length, 40);
+  const arrays = new Set(
+    records.map((r) => r.kind === "metrics" ? r.samples : null),
+  );
+  assert(
+    arrays.size <= 2,
+    `${arrays.size} distinct snapshots for 40 reads with no change between`,
+  );
+  const first = records[0]!;
+  assert(first.kind === "metrics");
+  assert(Object.isFrozen(first.samples));
+  assert(
+    first.samples.every((s) => Object.isFrozen(s) && Object.isFrozen(s.labels)),
+  );
+  assertThrows(() => (first.samples as MetricSample[]).push(first.samples[0]!));
+  assertThrows(() => {
+    (first.samples[0] as { value: number }).value = 99;
+  });
+});
+
+Deno.test("a flush record takes its samples when it is read, and reads of one record agree", async () => {
+  const { telemetry, sent } = make({
+    exporter: { ...baseExporter, intervalMs: 10_000 },
+  });
+  telemetry.flushMetrics();
+  // After the flush, before the sink reads: the value belongs in the record.
+  telemetry.metrics.inc("jobs_total", { outcome: "failed" }, 4);
+  await telemetry.close(500);
+  const record = sent.find((r) => r.kind === "metrics");
+  assert(record && record.kind === "metrics");
+  assertEquals(meta(record.samples, "jobs_total", "failed"), 4);
+  telemetry.metrics.inc("jobs_total", { outcome: "failed" }, 100);
+  assertEquals(
+    meta(record.samples, "jobs_total", "failed"),
+    4,
+    "a second read of one record agrees with the first",
+  );
+  assert(record.samples === record.samples, "and is the same array");
+});
+
+Deno.test("a flush record serializes to JSON with its samples, and keeps the time of the flush", async () => {
+  let now = 1_700_000_000_000;
+  const { telemetry, sent } = make({
+    now: () => now,
+    exporter: { ...baseExporter, intervalMs: 10_000 },
+  });
+  telemetry.metrics.inc("jobs_total", { outcome: "done" });
+  telemetry.flushMetrics();
+  now += 60_000;
+  await telemetry.close(500);
+  const parsed = JSON.parse(
+    JSON.stringify(sent.find((r) => r.kind === "metrics")),
+  );
+  assertEquals(parsed.kind, "metrics");
+  assertEquals(
+    parsed.time,
+    1_700_000_000_000,
+    "the flush's own time, not the read's",
+  );
+  assert(Array.isArray(parsed.samples) && parsed.samples.length > 0);
+});
+
+Deno.test("a sink that records an event or flushes from inside itself is refused, counted, and cannot sustain a loop", async () => {
+  let sends = 0;
+  // The sink runs later, so it may name the telemetry that is being made.
+  const made = make({
+    send: async () => {
+      sends += 1;
+      made.telemetry.event("job.completed", {}); // synchronously
+      await null;
+      made.telemetry.event("job.completed", {}); // and after an await
+      made.telemetry.flushMetrics();
+      await pause(1);
+      made.telemetry.event("usage.settled", {}); // and after a timer
+    },
+  });
+  const telemetry = made.telemetry;
+  telemetry.event("job.completed", {});
+  await until(() => sends >= 1, "the first send");
+  await pause(150);
+  assertEquals(sends, 1, "the sink's own events did not become more sends");
+  await telemetry.close(100);
+  const samples = telemetry.metrics.snapshot();
+  assertEquals(meta(samples, TELEMETRY_META_METRICS.events, "reentrant"), 4);
+  assertEquals(meta(samples, TELEMETRY_META_METRICS.events, "recorded"), 1);
+  assertEquals(
+    telemetry.stats().offered,
+    1,
+    "nothing the sink did reached the exporter",
+  );
+});
+
+Deno.test("an event from the application while the sink is busy is not refused", async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const { telemetry } = make({
+    send: async () => {
+      await gate;
+    },
+    exporter: {
+      ...baseExporter,
+      capacity: 50,
+      batchSize: 1,
+      sendTimeoutMs: 5000,
+    },
+  });
+  telemetry.event("job.completed", {});
+  await until(() => telemetry.stats().inFlight === 1, "a send in progress");
+  for (let index = 0; index < 5; index += 1) {
+    telemetry.event("usage.settled", {});
+  }
+  const samples = telemetry.metrics.snapshot();
+  assertEquals(meta(samples, TELEMETRY_META_METRICS.events, "reentrant"), 0);
+  assertEquals(meta(samples, TELEMETRY_META_METRICS.events, "recorded"), 6);
+  release();
+  await telemetry.close(500);
+});
+
+Deno.test("a clock with sub-millisecond precision gives its millisecond, and a clock that is not usable gives 0", async () => {
+  const times: Array<[unknown, number]> = [
+    [1_700_000_000_123.456, 1_700_000_000_123],
+    [1_700_000_000_123.999, 1_700_000_000_123],
+    [0.4, 0],
+    [5, 5],
+    [Number.NaN, 0],
+    [Number.POSITIVE_INFINITY, 0],
+    [-1, 0],
+    [-0.5, 0],
+    [2 ** 60, 0],
+    ["1700000000000", 0],
+    [null, 0],
+    [undefined, 0],
+  ];
+  for (const [value, expected] of times) {
+    const { telemetry, sent } = make({ now: () => value as number });
+    telemetry.event("job.completed", {});
+    await telemetry.close(200);
+    const record = sent[0];
+    assert(record && record.kind === "event");
+    assertEquals(record.time, expected, String(value));
+  }
+});
+
+Deno.test("the room the application has for metrics is the caps less the telemetry's own, exactly", () => {
+  assertEquals(
+    APPLICATION_METRIC_LIMITS.metrics,
+    MAX_METRICS - metaNames.length,
+  );
+  assert(APPLICATION_METRIC_LIMITS.series < MAX_TOTAL_SERIES);
+  assert(
+    APPLICATION_METRIC_LIMITS.series > MAX_TOTAL_SERIES - 40,
+    "a few dozen series, not hundreds",
+  );
+  const plain = (count: number): MetricSpecs =>
+    Object.fromEntries(
+      Array.from(
+        { length: count },
+        (
+          _,
+          i,
+        ) => [`m_${i}_total`, { kind: "counter" as const, help: "Plain." }],
+      ),
+    );
+  const build = (metrics: MetricSpecs) =>
+    createTelemetry({
+      send: undefined,
+      exporter: baseExporter,
+      redact,
+      events: ["job.completed"],
+      metrics,
+    });
+  build(plain(APPLICATION_METRIC_LIMITS.metrics));
+  assertThrows(
+    () => build(plain(APPLICATION_METRIC_LIMITS.metrics + 1)),
+    RangeError,
+    "share the limit",
+  );
+  // Series: seven metrics of 256 and one of 240 use exactly what is left.
+  const values = (n: number) => Array.from({ length: n }, (_, i) => `v${i}`);
+  const wide: Record<string, MetricSpecs[string]> = {};
+  let used = 0;
+  for (let index = 0; index < 7; index += 1) {
+    wide[`wide_${index}_total`] = {
+      kind: "counter",
+      help: "Wide.",
+      labels: { first: values(15), second: values(15) },
+    };
+    used += 256;
+  }
+  const remaining = APPLICATION_METRIC_LIMITS.series - used;
+  assertEquals(remaining, 240, "the arithmetic this test assumes");
+  wide["last_total"] = {
+    kind: "counter",
+    help: "Last.",
+    labels: { first: values(14), second: values(15) },
+  };
+  build(wide);
+  wide["one_more_total"] = { kind: "counter", help: "One more." };
+  assertThrows(() => build(wide), RangeError, "too many series");
+});
+
+Deno.test("an event and a flush after close are refused and counted as shutdown losses, and reach nothing", async () => {
+  const { telemetry, sent } = make();
+  await telemetry.close(100);
+  telemetry.event("job.completed", {});
+  telemetry.flushMetrics();
+  const stats = telemetry.stats();
+  assertEquals(stats.dropped.shutdown, 2);
+  assertEquals(
+    meta(telemetry.metrics.snapshot(), TELEMETRY_META_METRICS.lost, "shutdown"),
+    2,
+  );
+  assertEquals(sent.length, 0);
+});
+
+Deno.test("a flush record read later shows what changed since an earlier one was read", async () => {
+  const { telemetry, sent } = make({
+    exporter: {
+      ...baseExporter,
+      capacity: 10,
+      batchSize: 10,
+      intervalMs: 10_000,
+    },
+  });
+  telemetry.flushMetrics();
+  telemetry.flushMetrics();
+  await telemetry.close(500);
+  const [first, second] = sent.filter((r) => r.kind === "metrics");
+  assert(
+    first && second && first.kind === "metrics" && second.kind === "metrics",
+  );
+  // Nothing has been read yet. Read one, change something, read the other.
+  assertEquals(meta(first.samples, "jobs_total", "done"), 0);
+  telemetry.metrics.inc("jobs_total", { outcome: "done" }, 7);
+  assertEquals(
+    meta(second.samples, "jobs_total", "done"),
+    7,
+    "the later read sees the later value",
+  );
+  assertEquals(
+    meta(first.samples, "jobs_total", "done"),
+    0,
+    "the earlier record keeps what it read",
+  );
+  assert(
+    first.samples !== second.samples,
+    "a change means a new snapshot, not the old one",
+  );
 });
