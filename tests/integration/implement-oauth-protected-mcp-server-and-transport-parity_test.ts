@@ -1337,6 +1337,42 @@ Deno.test("conversation tools run the REST operation: an MCP-created conversatio
       unknown.structuredContent?.problem?.code,
       "RESOURCE_NOT_FOUND",
     );
+
+    // Cursors interoperate: a cursor from an MCP page continues over REST and
+    // over MCP to the same next page (one cursor secret for both).
+    for (const title of ["Planned over MCP", "Planned over MCP"]) {
+      const more = await tool(
+        fixture,
+        accessToken,
+        "bakery_conversations_create",
+        { title, idempotencyKey: crypto.randomUUID() },
+      );
+      assertEquals(more.structuredContent?.status, 201, JSON.stringify(more));
+    }
+    const page1 = await tool(
+      fixture,
+      accessToken,
+      "bakery_conversations_list",
+      { limit: 1 },
+    );
+    const next = (page1.structuredContent?.body as { nextCursor?: string })
+      ?.nextCursor;
+    assert(typeof next === "string", JSON.stringify(page1));
+    const restPage2 = await call(
+      fixture,
+      "GET",
+      `/v1/conversations?limit=1&cursor=${encodeURIComponent(next)}`,
+      seeded.adminCookie,
+      { headers: { "bakery-organization-id": seeded.organizationId } },
+    );
+    assertEquals(restPage2.status, 200, await restPage2.clone().text());
+    const mcpPage2 = await tool(
+      fixture,
+      accessToken,
+      "bakery_conversations_list",
+      { limit: 1, cursor: next },
+    );
+    assertEquals(mcpPage2.structuredContent?.body, await restPage2.json());
   } finally {
     await fixture.pgDatabase.query(
       "delete from bakery.conversations where title = 'Planned over MCP'",

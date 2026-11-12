@@ -43,6 +43,11 @@ const fixture = await openAuthFixture({
 });
 
 try {
+  // This server owns the lane's database. An OAuth token makes better-auth
+  // store a signing key in public.jwks, encrypted with this run's random
+  // secret; any key left by another lane (or an earlier run) cannot be
+  // decrypted here, and ours could not be decrypted there. Clear it both ways.
+  await fixture.pgDatabase.query("delete from public.jwks").catch(() => {});
   await createSuperuser({
     pgDatabase: fixture.pgDatabase,
     config: fixture.config.auth!,
@@ -236,6 +241,7 @@ try {
     Deno.removeSignalListener("SIGINT", stop);
   }
 } finally {
+  await fixture.pgDatabase.query("delete from public.jwks").catch(() => {});
   // The client and its grants are this run's own rows.
   await fixture.pgDatabase.query(
     `delete from public."oauthConsent" where "clientId" in
