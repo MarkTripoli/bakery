@@ -35,6 +35,8 @@ import type {
   OrganizationInvitationPreview,
   OrganizationInvitationRecipient,
   OrganizationRecord,
+  OrganizationRepositoryRulesResponse,
+  OrganizationRepositoryRuleVersionListResponse,
   PlanRevisionListResponse,
   QuestionListResponse,
   RepositoryListResponse,
@@ -991,6 +993,60 @@ export function installationCapabilitiesQueryOptions(
     queryFn: async ({ signal }) =>
       unwrap(await client.installationCapabilities.get(signal)),
     retry: retryNetworkOnce,
+  });
+}
+
+/** The organization's current repository rules baseline (revision 0 when none is published). */
+export function organizationRepositoryRulesQueryOptions(
+  client: Pick<BakeryApiClient, "getOrganizationRepositoryRules">,
+  scope: ApiScope,
+) {
+  return queryOptions<OrganizationRepositoryRulesResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "repositoryRules.get", {}),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.getOrganizationRepositoryRules({
+          organizationId: requireOrganization(scope),
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: false,
+  });
+}
+
+/** Published repository rule revisions of the organization, newest first. */
+export function organizationRepositoryRuleVersionsQueryOptions(
+  client: Pick<BakeryApiClient, "listOrganizationRepositoryRuleVersions">,
+  scope: ApiScope,
+  limit = 25,
+) {
+  return infiniteQueryOptions<
+    OrganizationRepositoryRuleVersionListResponse,
+    ApiFailure,
+    {
+      pages: OrganizationRepositoryRuleVersionListResponse[];
+      pageParams: (string | null)[];
+    },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "repositoryRuleVersions.list", {
+      limit,
+    }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.listOrganizationRepositoryRuleVersions({
+          organizationId: requireOrganization(scope),
+          cursor: pageParam ?? undefined,
+          limit,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: false,
   });
 }
 

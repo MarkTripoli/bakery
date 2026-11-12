@@ -13,6 +13,12 @@ export type DataTableColumn<Row> = {
 };
 export type DataTableProps<Row> = {
   caption: string;
+  /**
+   * Keeps the caption for assistive technology and hides it visually, for a
+   * table a heading or a sentence beside it already names. The `ruled`
+   * variant always does this.
+   */
+  captionHidden?: boolean;
   columns: DataTableColumn<Row>[];
   emptyMessage?: ReactNode;
   error?: ReactNode;
@@ -54,6 +60,7 @@ export type DataTableProps<Row> = {
 export function DataTable<Row>(
   {
     caption,
+    captionHidden = false,
     columns,
     emptyMessage = "No results.",
     error,
@@ -86,6 +93,7 @@ export function DataTable<Row>(
     <div
       aria-label={caption}
       className={`ui-data-table ui-data-table--${variant}`}
+      data-caption={captionHidden ? "hidden" : undefined}
       data-inset={variant === "ruled" ? inset : undefined}
       data-rows={variant === "ruled" ? rowSize : undefined}
       data-state={state}
