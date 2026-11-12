@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="new-workspace-package-wiring" project="bakery" issue="18">
+  <title>A new workspace package is wired in four places, and a missed one does not fail loudly</title>
+  <trigger>Adding a directory under packages/ or apps/ (packages/worker-bootstrap was the case).</trigger>
+  <mistake>Expected pnpm install --frozen-lockfile to reject a package that is missing from pnpm-lock.yaml. For a package with no dependencies it does not: pnpm prints "Lockfile is up to date" and a plain install then adds an empty importer, which dirties the tree (it also blocked a git stash pop). A missing classifier row is the costly miss: scripts/ci/classify-changes.ts treats an unmapped path as unknown and forces the full route (tests/unit/ci-docs-routing_test.ts is red without the row). The root fmt and lint scripts name directories one by one, so a package left out of them is simply not formatted or linted.</mistake>
+  <rule>Wire a new package in one commit: its package.json and deno.json; the three directory lists in the root package.json (fmt, the fmt --check inside lint, and deno lint); a scripts/ci/classify-changes.ts row, with lanes: [] when its tests are unit tests, plus a routing case in tests/unit/ci-docs-routing_test.ts; and the empty importer pnpm adds to pnpm-lock.yaml.</rule>
+  <verification>
+    <requirement>affectedLanes for a file in the package returns [] rather than null.</requirement>
+    <requirement>pnpm install --frozen-lockfile leaves git status clean.</requirement>
+  </verification>
+</learning>

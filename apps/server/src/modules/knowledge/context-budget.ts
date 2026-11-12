@@ -65,6 +65,9 @@ export const ContextEnvelopeInputSchema = z.object({
     "Counts of the components already in the request (conversation, instructions, tool schemas, harness overhead).",
   ),
   reserved: ContextReservationSchema,
+  maxInputTokens: z.number().int().positive().finite().optional().describe(
+    "Operator cap on total input tokens for this step; input never exceeds it even when the window minus reservations would allow more.",
+  ),
 }).strict().describe(
   "Inputs of a budget envelope: the model limit, current counts and reserved headroom.",
 );
@@ -108,8 +111,10 @@ function reservedTotal(reserved: ContextReservation): number {
 }
 
 /**
- * `available = modelLimit - measuredOrEstimatedInput - reservedOutput -
- * reservedToolResults - reservedCompaction - safetyMargin`. A bounded unknown
+ * `available = min(modelLimit - reservedOutput - reservedToolResults -
+ * reservedCompaction - safetyMargin, maxInputTokens) - measuredOrEstimatedInput`.
+ * Without `maxInputTokens` this is doc 17's formula; with it, the operator cap
+ * from the doc 19 allocation specimen also bounds input. A bounded unknown
  * is counted at its bound; an unbounded unknown blocks with
  * `bound-more-before-dispatch` whatever else fits.
  */
@@ -125,8 +130,12 @@ export function resolveContextEnvelope(
     else countedInputTokens += value;
   }
   const reservedTokens = reservedTotal(parsed.reserved);
-  const availableTokens = parsed.modelContextTokens - countedInputTokens -
-    reservedTokens;
+  // Input may use the window minus reservations, or the operator cap if lower.
+  const inputBudget = Math.min(
+    parsed.modelContextTokens - reservedTokens,
+    parsed.maxInputTokens ?? Number.POSITIVE_INFINITY,
+  );
+  const availableTokens = inputBudget - countedInputTokens;
   return {
     modelContextTokens: parsed.modelContextTokens,
     countedInputTokens,
@@ -165,7 +174,21 @@ export type ContextAllocation = {
 };
 
 /**
- * Selects context items into the envelope's available tokens. Required items
+ * Selects context items into the envelope's available tokens.
+ *
+ * Decisions are taken in this order, and the first that applies is returned:
+ * 1. The envelope itself (the base counts, before any item): an unbounded
+ *    unknown base count gives `bound-more-before-dispatch`, and base counts
+ *    already over budget give `needs_bounding`. Items are not considered
+ *    then, so required items over an overflowing base yield `needs_bounding`
+ *    (bound the base input first), not `handoff_required`.
+ * 2. A required item with an unbounded unknown count gives
+ *    `bound-more-before-dispatch`.
+ * 3. Required items that do not fit the available tokens give
+ *    `handoff_required`.
+ * 4. Otherwise `ready`, with optional items selected as below.
+ *
+ * Required items
  * are always counted; if they do not fit the result is `handoff_required` and
  * nothing is selected. A required item with an unbounded unknown count blocks
  * the step (`bound-more-before-dispatch`). Optional items go in by priority,

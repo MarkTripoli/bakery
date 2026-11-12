@@ -292,6 +292,7 @@ function racingIsolation(
   return {
     initialize: real.initialize,
     slice: real.slice,
+    importUpdate: real.importUpdate,
     async edit(current, source, input, signal) {
       const candidate = await real.edit(current, source, input, signal);
       if (edits++ < races) {
@@ -441,6 +442,7 @@ Deno.test("a duplicate whose original commits during its last stale attempt repl
   const isolation: DraftIsolation = {
     initialize: real.initialize,
     slice: real.slice,
+    importUpdate: real.importUpdate,
     async edit(current, source, input, signal) {
       const candidate = await real.edit(current, source, input, signal);
       if (nested || !original) return candidate;

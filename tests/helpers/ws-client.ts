@@ -17,12 +17,17 @@ export type WebSocketClose = {
 
 export type WebSocketNext = string | WebSocketClose;
 
+/** A binary message, only returned by `nextMessage`. */
+export type WebSocketBinary = { readonly binary: Uint8Array };
+
 export type WsClient = {
   send(text: string): Promise<void>;
   /** Writes multiple complete client messages in one transport write. */
   sendMany(texts: readonly string[]): Promise<void>;
   sendRaw(opcode: number, bytes: Uint8Array): Promise<void>;
   next(timeoutMs?: number): Promise<WebSocketNext>;
+  /** Like `next`, but also returns binary messages instead of failing on them. */
+  nextMessage(timeoutMs?: number): Promise<WebSocketNext | WebSocketBinary>;
   close(code?: number): Promise<void>;
 };
 
@@ -194,7 +199,7 @@ class SocketClient implements WsClient {
   readonly #conn: Deno.Conn;
   #readBuffer: Uint8Array<ArrayBufferLike>;
   #pendingRead: Promise<void> | undefined;
-  #pendingFrame: Promise<WebSocketNext> | undefined;
+  #pendingFrame: Promise<WebSocketNext | WebSocketBinary> | undefined;
   #nextQueue: Promise<void> = Promise.resolve();
   #closed = false;
   #connClosed = false;
@@ -277,6 +282,16 @@ class SocketClient implements WsClient {
   }
 
   async next(timeoutMs = 10_000): Promise<WebSocketNext> {
+    const value = await this.nextMessage(timeoutMs);
+    if (typeof value === "object" && "binary" in value) {
+      throw new Error("WEBSOCKET_TEXT_FRAME_REQUIRED");
+    }
+    return value;
+  }
+
+  async nextMessage(
+    timeoutMs = 10_000,
+  ): Promise<WebSocketNext | WebSocketBinary> {
     if (
       (!Number.isFinite(timeoutMs) && timeoutMs !== Infinity) ||
       timeoutMs < 0
@@ -355,9 +370,10 @@ class SocketClient implements WsClient {
     return bytes;
   }
 
-  async #nextFrame(): Promise<WebSocketNext> {
+  async #nextFrame(): Promise<WebSocketNext | WebSocketBinary> {
     if (this.#closed) throw new Error("WEBSOCKET_CLOSED");
     let fragments: Uint8Array[] | undefined;
+    let binaryMessage = false;
     while (true) {
       const header = await this.#readBytes(2);
       const first = header[0];
@@ -414,8 +430,15 @@ class SocketClient implements WsClient {
         fragments.push(payload);
       } else {
         if (fragments) throw new Error("WEBSOCKET_FRAGMENT_INTERLEAVED");
-        if (opcode !== 0x1) throw new Error("WEBSOCKET_TEXT_FRAME_REQUIRED");
-        if (fin) return textDecoder.decode(payload);
+        if (opcode !== 0x1 && opcode !== 0x2) {
+          throw new Error("WEBSOCKET_TEXT_FRAME_REQUIRED");
+        }
+        binaryMessage = opcode === 0x2;
+        if (fin) {
+          return binaryMessage
+            ? { binary: new Uint8Array(payload) }
+            : textDecoder.decode(payload);
+        }
         fragments = [payload];
         continue;
       }
@@ -428,7 +451,7 @@ class SocketClient implements WsClient {
         message.set(fragment, offset);
         offset += fragment.length;
       }
-      return textDecoder.decode(message);
+      return binaryMessage ? { binary: message } : textDecoder.decode(message);
     }
   }
 }

@@ -129,6 +129,19 @@ function toolInputSchema(
 }
 
 /**
+ * A header argument Headers.set accepts unchanged: visible ASCII with inner
+ * spaces, starting and ending with a visible character. The raw value is
+ * tested, never a trimmed copy: JavaScript trim() strips characters (U+3000,
+ * U+FEFF and others) that Headers rejects. Leading or trailing whitespace,
+ * control characters, CR/LF, characters above U+007E and lone surrogates are
+ * a validation fault, not a 500.
+ */
+function isHeaderValue(value: unknown): value is string {
+  return typeof value === "string" &&
+    /^[\x21-\x7e](?:[\x20-\x7e]*[\x21-\x7e])?$/.test(value);
+}
+
+/**
  * Tools generated from the operation catalog for the registries the MCP
  * resource is given: every implemented operation with a catalog `mcp` name and
  * a permission. A call is sent in-process through a REST router built over the
@@ -204,10 +217,8 @@ export function createMcpCatalogTools(options: {
       });
       // Header arguments must be strings when given; never dropped silently.
       if (
-        (idempotencyKey !== undefined &&
-          (typeof idempotencyKey !== "string" || idempotencyKey === "")) ||
-        (ifMatch !== undefined &&
-          (typeof ifMatch !== "string" || ifMatch === ""))
+        (idempotencyKey !== undefined && !isHeaderValue(idempotencyKey)) ||
+        (ifMatch !== undefined && !isHeaderValue(ifMatch))
       ) return invalid();
       // A route identifier is one opaque path segment. Empty, "." and ".."
       // would be collapsed by URL normalization and could reach another route.
@@ -215,7 +226,8 @@ export function createMcpCatalogTools(options: {
       for (const name of tool.pathNames) {
         const value = fields[name];
         if (
-          typeof value !== "string" || value === "" || value === "." ||
+          typeof value !== "string" || !value.isWellFormed() || value === "" ||
+          value === "." ||
           value === ".." || value.includes("/") || value.includes("\\")
         ) return invalid();
         segments.push(encodeURIComponent(value));
