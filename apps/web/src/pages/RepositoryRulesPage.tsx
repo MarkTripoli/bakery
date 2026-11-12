@@ -26,9 +26,10 @@ type Effective = RepositoryEffectiveRulesResponse;
 type EffectiveEntry = Effective["entries"][number];
 type Provenance = EffectiveEntry["provenance"];
 
-/** How many characters of the digest the page shows; the full value is the title. */
-const DIGEST_CHARS = 8;
+/** How many characters of the fingerprint the page shows; the full value is the title. */
+const FINGERPRINT_CHARS = 8;
 const ORGANIZATION_RULES_PATH = "/settings/organization/repository-rules";
+const PROJECTS_PATH = "/projects/onboarding";
 
 const SOURCE_LABEL: Readonly<Record<Provenance, MessageKey>> = {
   inherited: "repository.rules.source.inherited",
@@ -81,9 +82,9 @@ function isRefusedRead(error: unknown): boolean {
 
 /**
  * `/projects/repositories/$repositoryId/rules`: the rules in force for one
- * repository, rule by rule, with where each came from, and what Bakery can and
- * cannot check. Read only. The server decides who may read it (Developer
- * access) and every value on the page; nothing here is policy of its own.
+ * repository, rule by rule, who set each one, and whether anything blocks
+ * delivery. Read only. The server decides who may read it (Developer access)
+ * and every value on the page; nothing here is policy of its own.
  */
 export function RepositoryRulesPage(
   { repositoryId }: { repositoryId: string },
@@ -109,13 +110,12 @@ export function RepositoryRulesPage(
   const counts = {
     locked: rows.filter((row) => row.provenance === "locked_by_organization")
       .length,
-    inherited: rows.filter((row) => row.provenance === "inherited").length,
-    overrides: rows.filter((row) => row.provenance === "repository_override")
-      .length,
+    defaults: rows.filter((row) => row.provenance === "inherited").length,
+    own: rows.filter((row) => row.provenance === "repository_override").length,
     only: rows.filter((row) => row.provenance === "repository_only").length,
   };
 
-  const copyDigest = async () => {
+  const copyFingerprint = async () => {
     try {
       await navigator.clipboard.writeText(data?.digest ?? "");
       setCopied(true);
@@ -123,18 +123,34 @@ export function RepositoryRulesPage(
       setCopied(false);
     }
   };
-  const goToOrganizationRules = (event: { preventDefault: () => void }) => {
-    event.preventDefault();
-    void navigate({ to: ORGANIZATION_RULES_PATH });
-  };
-  const organizationRulesLink = (
+  /** A link that navigates inside the app and is still a real link. */
+  const link = (path: string, label: string, variant?: "button") => (
     <UI.Link
-      href={ORGANIZATION_RULES_PATH}
-      onClick={goToOrganizationRules}
-      variant="button"
+      href={path}
+      onClick={(event) => {
+        event.preventDefault();
+        void navigate({ to: path });
+      }}
+      variant={variant}
     >
-      {translate("repository.rules.viewOrganization")}
+      {label}
     </UI.Link>
+  );
+  const organizationRulesLink = link(
+    ORGANIZATION_RULES_PATH,
+    translate("repository.rules.viewOrganization"),
+    "button",
+  );
+
+  const enforcementHelp = (
+    <UI.HelpTip label={translate("repository.rules.help.enforcement")}>
+      {translate("repository.rules.column.enforcement.help")}
+    </UI.HelpTip>
+  );
+  const sourceHelp = (
+    <UI.HelpTip label={translate("repository.rules.help.source")}>
+      {translate("repository.rules.column.source.help")}
+    </UI.HelpTip>
   );
 
   const sourceBadge = (row: Row) => (
@@ -151,27 +167,32 @@ export function RepositoryRulesPage(
         : null}
     </UI.Stack>
   );
-  /** Enforcement as text, and under it the warning when nothing can check the rule. */
+  /** No working check: a pill that is red when it blocks delivery, and for that case the next step in words. */
+  const checkWarning = (row: Row) =>
+    row.checkUnavailable
+      ? (
+        <>
+          <UI.Inline>
+            <UI.StatusBadge
+              status={row.entry.mode === "require" ? "failed" : "degraded"}
+            >
+              {translate("repository.rules.check.unavailable")}
+            </UI.StatusBadge>
+          </UI.Inline>
+          {row.entry.mode === "require"
+            ? (
+              <UI.Text variant="muted">
+                {translate("repository.rules.check.blocks")}
+              </UI.Text>
+            )
+            : null}
+        </>
+      )
+      : null;
   const enforcement = (row: Row) => (
     <UI.Stack gap="tight">
       <span>{translate(enforcementOf(row.entry))}</span>
-      {row.checkUnavailable
-        ? (
-          <UI.Inline>
-            {row.entry.mode === "require"
-              ? (
-                <UI.StatusBadge status="failed">
-                  {translate("repository.rules.check.unavailableBlocks")}
-                </UI.StatusBadge>
-              )
-              : (
-                <UI.StatusBadge status="degraded">
-                  {translate("repository.rules.check.unavailable")}
-                </UI.StatusBadge>
-              )}
-          </UI.Inline>
-        )
-        : null}
+      {checkWarning(row)}
     </UI.Stack>
   );
 
@@ -181,20 +202,22 @@ export function RepositoryRulesPage(
     : data?.providerProtection.reason === "provider_not_connected"
     ? "repository.rules.protection.notConnected"
     : null;
-  const basis = data
-    ? [
-      data.organizationRevision > 0
-        ? translate("repository.rules.summary.organization", {
-          revision: data.organizationRevision,
-        })
-        : translate("repository.rules.summary.noOrganization"),
-      data.profileRevision === null
-        ? translate("repository.rules.summary.noProfile")
-        : translate("repository.rules.summary.profile", {
-          profile: data.profileRevision,
-        }),
-    ].join(" · ")
+  const summary = data
+    ? data.organizationRevision === 0 && counts.own + counts.only === 0
+      ? translate("repository.rules.summary.noOrganizationRules")
+      : [
+        translate("repository.rules.summary.counts", counts),
+        counts.only > 0
+          ? translate("repository.rules.summary.repositoryOnly", {
+            count: counts.only,
+          })
+          : null,
+      ].filter(Boolean).join(" ")
     : "";
+  const version = (value: number | null) =>
+    value && value > 0
+      ? String(value)
+      : translate("repository.rules.details.none");
 
   return (
     <>
@@ -204,7 +227,7 @@ export function RepositoryRulesPage(
           items={[
             {
               label: translate("repository.rules.breadcrumb.projects"),
-              href: "/projects/onboarding",
+              href: PROJECTS_PATH,
             },
             ...(repositoryName ? [{ label: repositoryName }] : []),
             { label: translate("repository.rules.title") },
@@ -225,11 +248,18 @@ export function RepositoryRulesPage(
               </UI.Text>
             )
             : null}
-          {data ? <UI.Inline>{organizationRulesLink}</UI.Inline> : null}
+          {/* With no rules the empty state carries this link, so it appears once. */}
+          {data && rows.length > 0
+            ? <UI.Inline>{organizationRulesLink}</UI.Inline>
+            : null}
         </UI.Stack>
         {waiting && refused
           ? (
             <UI.AlertBanner
+              action={link(
+                PROJECTS_PATH,
+                translate("repository.rules.unavailable.back"),
+              )}
               data-testid="repository-rules-unavailable"
               tone="information"
             >
@@ -265,115 +295,69 @@ export function RepositoryRulesPage(
                   {translate("core.actions.retry")}
                 </UI.Button>
               }
+              description={translate("repository.rules.error.body")}
               title={translate("repository.rules.loadError")}
             />
           )
           : null}
-        {data
+        {data && rows.length === 0
+          ? (
+            <UI.EmptyState
+              action={organizationRulesLink}
+              description={translate("repository.rules.empty.description")}
+              title={translate("repository.rules.empty.title")}
+            />
+          )
+          : null}
+        {data && rows.length > 0
           ? (
             <>
-              <UI.AlertBanner
-                action={
-                  <UI.Button
-                    onClick={() => void copyDigest()}
-                    type="button"
-                    variant="secondary"
-                  >
-                    {translate(
-                      copied
-                        ? "repository.rules.summary.digestCopied"
-                        : "repository.rules.summary.copyDigest",
-                    )}
-                  </UI.Button>
-                }
-                data-testid="repository-rules-summary"
-                tone="information"
-              >
-                <UI.Stack gap="tight">
-                  <UI.Text variant="strong">{basis}</UI.Text>
-                  <UI.Text>
-                    {translate(
-                      counts.only > 0
-                        ? "repository.rules.summary.countsWithOnly"
-                        : "repository.rules.summary.counts",
-                      counts,
-                    )}
-                  </UI.Text>
-                  {/* One line: a data text takes the whole line it is on. */}
-                  <UI.DataText
-                    data-testid="repository-rules-digest"
-                    title={data.digest}
-                    variant="code"
-                  >
-                    {translate("repository.rules.summary.digest")}{" "}
-                    {data.digest.slice(0, DIGEST_CHARS)}
-                  </UI.DataText>
-                </UI.Stack>
-              </UI.AlertBanner>
-              {rows.length === 0
+              <UI.Text data-testid="repository-rules-summary">
+                {summary}
+              </UI.Text>
+              {phone
                 ? (
-                  <UI.EmptyState
-                    action={organizationRulesLink}
-                    description={translate(
-                      "repository.rules.empty.description",
-                    )}
-                    title={translate("repository.rules.empty.title")}
-                  />
-                )
-                : phone
-                ? (
-                  <div
-                    aria-label={translate("repository.rules.table.caption")}
-                    role="list"
-                  >
-                    {rows.map((row) => (
-                      <div key={row.entry.ruleKey} role="listitem">
-                        <UI.StackedRow
-                          status={
-                            <UI.Badge>
-                              {translate(SOURCE_LABEL[row.provenance])}
-                            </UI.Badge>
-                          }
-                          title={translate(RULE_NAME[row.entry.ruleKey])}
-                        >
-                          <UI.Text lines={2} variant="muted">
-                            {summarize(row.entry, translate)}
-                          </UI.Text>
-                          <UI.Text>
-                            {translate(enforcementOf(row.entry))}
-                          </UI.Text>
-                          {row.checkUnavailable
-                            ? (
-                              <UI.Inline>
-                                {row.entry.mode === "require"
-                                  ? (
-                                    <UI.StatusBadge status="failed">
-                                      {translate(
-                                        "repository.rules.check.unavailableBlocks",
-                                      )}
-                                    </UI.StatusBadge>
-                                  )
-                                  : (
-                                    <UI.StatusBadge status="degraded">
-                                      {translate(
-                                        "repository.rules.check.unavailable",
-                                      )}
-                                    </UI.StatusBadge>
-                                  )}
-                              </UI.Inline>
-                            )
-                            : null}
-                          {row.overrideInactive
-                            ? (
-                              <UI.Text variant="muted">
-                                {translate("repository.rules.supersededNote")}
-                              </UI.Text>
-                            )
-                            : null}
-                        </UI.StackedRow>
-                      </div>
-                    ))}
-                  </div>
+                  <>
+                    <UI.Inline gap="compact">
+                      <UI.Heading level="section">
+                        {translate("repository.rules.list.title")}
+                      </UI.Heading>
+                      {enforcementHelp}
+                      {sourceHelp}
+                    </UI.Inline>
+                    <div
+                      aria-label={translate("repository.rules.table.caption")}
+                      role="list"
+                    >
+                      {rows.map((row) => (
+                        <div key={row.entry.ruleKey} role="listitem">
+                          <UI.StackedRow
+                            status={
+                              <UI.Badge>
+                                {translate(SOURCE_LABEL[row.provenance])}
+                              </UI.Badge>
+                            }
+                            title={translate(RULE_NAME[row.entry.ruleKey])}
+                          >
+                            <UI.Text lines={2} variant="muted">
+                              {summarize(row.entry, translate)}
+                            </UI.Text>
+                            <UI.Text>
+                              {translate(enforcementOf(row.entry))}
+                            </UI.Text>
+                            {checkWarning(row)}
+                            {row.overrideInactive
+                              ? (
+                                <UI.Text variant="muted">
+                                  {translate("repository.rules.supersededNote")}
+                                </UI.Text>
+                              )
+                              : null}
+                          </UI.StackedRow>
+                        </div>
+                      ))}
+                    </div>
+                  </>
                 )
                 : (
                   <UI.DataTable<Row>
@@ -400,17 +384,27 @@ export function RepositoryRulesPage(
                       },
                       {
                         id: "enforcement",
-                        header: translate(
-                          "repository.rules.column.enforcement",
+                        header: (
+                          <UI.Inline gap="compact">
+                            <span>
+                              {translate("repository.rules.column.enforcement")}
+                            </span>
+                            {enforcementHelp}
+                          </UI.Inline>
                         ),
                         cell: enforcement,
-                        width: "280px",
                       },
                       {
                         id: "source",
-                        header: translate("repository.rules.column.source"),
+                        header: (
+                          <UI.Inline gap="compact">
+                            <span>
+                              {translate("repository.rules.column.source")}
+                            </span>
+                            {sourceHelp}
+                          </UI.Inline>
+                        ),
                         cell: sourceBadge,
-                        width: "180px",
                       },
                     ]}
                     emptyMessage={translate("repository.rules.empty.title")}
@@ -421,35 +415,33 @@ export function RepositoryRulesPage(
                     variant="table"
                   />
                 )}
-              <UI.Stack data-testid="repository-rules-footer" gap="compact">
-                <UI.Inline>
-                  <UI.Text variant="muted">
-                    {translate("repository.rules.checks.label")}
-                  </UI.Text>
-                  {checks?.state === "unavailable"
-                    ? (
-                      <UI.StatusBadge status="degraded">
-                        {translate("repository.rules.checks.unavailable", {
-                          count: checks.unavailableRuleKeys.length,
-                        })}
-                      </UI.StatusBadge>
-                    )
-                    : checks?.state === "configured"
-                    ? (
-                      <UI.StatusBadge status="healthy">
-                        {translate("repository.rules.checks.configured")}
-                      </UI.StatusBadge>
-                    )
-                    : (
-                      <UI.Badge>
-                        {translate("repository.rules.checks.notRequired")}
-                      </UI.Badge>
-                    )}
-                </UI.Inline>
-                <UI.Inline>
-                  <UI.Text variant="muted">
-                    {translate("repository.rules.protection.label")}
-                  </UI.Text>
+              <UI.Stack data-testid="repository-rules-checks" gap="compact">
+                <UI.Heading level="section">
+                  {translate("repository.rules.checks.title")}
+                </UI.Heading>
+                <UI.DescriptionList>
+                  <UI.DescriptionItem
+                    action={checks?.state === "unavailable"
+                      ? (
+                        <UI.StatusBadge status="degraded">
+                          {translate("repository.rules.checks.unavailable", {
+                            count: checks.unavailableRuleKeys.length,
+                          })}
+                        </UI.StatusBadge>
+                      )
+                      : checks?.state === "configured"
+                      ? (
+                        <UI.StatusBadge status="healthy">
+                          {translate("repository.rules.checks.configured")}
+                        </UI.StatusBadge>
+                      )
+                      : (
+                        <UI.Badge>
+                          {translate("repository.rules.checks.notRequired")}
+                        </UI.Badge>
+                      )}
+                    title={translate("repository.rules.checks.bakery")}
+                  />
                   {
                     /*
                     Always "Unknown": Bakery does not read the provider's
@@ -457,24 +449,82 @@ export function RepositoryRulesPage(
                     shows a warning for what it has not checked.
                   */
                   }
-                  <UI.Badge data-testid="repository-rules-protection">
-                    {translate("repository.rules.protection.unknown")}
-                  </UI.Badge>
-                  {protectionReason
-                    ? (
-                      <UI.Text variant="muted">
-                        {translate(protectionReason)}
-                      </UI.Text>
-                    )
-                    : null}
-                </UI.Inline>
+                  <UI.DescriptionItem
+                    action={
+                      <UI.Badge data-testid="repository-rules-protection">
+                        {translate("repository.rules.protection.unknown")}
+                      </UI.Badge>
+                    }
+                    description={protectionReason
+                      ? translate(protectionReason)
+                      : undefined}
+                    title={translate("repository.rules.protection.label")}
+                  />
+                </UI.DescriptionList>
                 {counts.locked > 0
                   ? (
-                    <UI.Text variant="hint">
-                      {translate("repository.rules.footnote.locked")}
+                    <UI.Text
+                      data-testid="repository-rules-locked-note"
+                      variant="hint"
+                    >
+                      {translate("repository.rules.locked.note")} {link(
+                        ORGANIZATION_RULES_PATH,
+                        translate("repository.rules.locked.link"),
+                      )}.
                     </UI.Text>
                   )
                   : null}
+              </UI.Stack>
+              <UI.Stack data-testid="repository-rules-details" gap="compact">
+                <UI.Heading level="section">
+                  {translate("repository.rules.details.title")}
+                </UI.Heading>
+                <UI.DescriptionList>
+                  <UI.DescriptionItem
+                    description={version(data.organizationRevision)}
+                    title={translate("repository.rules.details.organization")}
+                  />
+                  <UI.DescriptionItem
+                    description={version(data.profileRevision)}
+                    title={translate("repository.rules.details.repository")}
+                  />
+                  <UI.DescriptionItem
+                    action={
+                      <UI.Button
+                        onClick={() => void copyFingerprint()}
+                        type="button"
+                        variant="secondary"
+                      >
+                        {translate(
+                          copied
+                            ? "repository.rules.details.copied"
+                            : "repository.rules.details.copy",
+                        )}
+                      </UI.Button>
+                    }
+                    description={
+                      <UI.DataText
+                        data-testid="repository-rules-digest"
+                        title={data.digest}
+                        variant="code"
+                      >
+                        {data.digest.slice(0, FINGERPRINT_CHARS)}
+                      </UI.DataText>
+                    }
+                    title={
+                      <>
+                        {translate("repository.rules.details.fingerprint")}
+                        <UI.HelpTip
+                          label={translate("repository.rules.help.fingerprint")}
+                        >
+                          {translate(
+                            "repository.rules.details.fingerprint.help",
+                          )}
+                        </UI.HelpTip>
+                      </>
+                    }
+                  />
+                </UI.DescriptionList>
               </UI.Stack>
             </>
           )

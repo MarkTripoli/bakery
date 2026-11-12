@@ -153,6 +153,8 @@ async function rulesFixture(page: Page, options: Options = {}) {
 }
 
 const region = (page: Page) => page.getByTestId("repository-rules");
+const checks = (page: Page) => page.getByTestId("repository-rules-checks");
+const details = (page: Page) => page.getByTestId("repository-rules-details");
 
 /** One rule's row in whichever layout is showing. */
 function rule(page: Page, name: string): Locator {
@@ -161,8 +163,10 @@ function rule(page: Page, name: string): Locator {
   );
 }
 
+const isPhone = (page: Page) => (page.viewportSize()?.width ?? 1440) < 744;
+
 test.describe("repository rules: the effective rules of one repository", () => {
-  test("lists each rule with where it came from", async ({ page }) => {
+  test("lists each rule with who set it", async ({ page }) => {
     await rulesFixture(page);
     await page.goto(RULES_PATH);
     await expect(
@@ -175,128 +179,169 @@ test.describe("repository rules: the effective rules of one repository", () => {
     const semantic = rule(page, "Semantic commits");
     await expect(semantic).toContainText("Require");
     await expect(semantic).toContainText("Locked by organization");
-    // A repository override that a lock switched off is saved, and says it is inactive.
+    // An override that a lock switched off is saved, and says it is not used.
     await expect(semantic).toContainText(
-      "Your override is saved but inactive.",
+      "This repository's own setting is saved but not used while the rule is locked.",
     );
     await expect(rule(page, "PR / MR titles")).toContainText(
       "Locked by organization",
     );
     await expect(rule(page, "PR / MR titles")).not.toContainText(
-      "Your override",
+      "saved but not used",
     );
-    await expect(rule(page, "Merge descriptions")).toContainText("Inherited");
-    await expect(rule(page, "Magic numbers")).toContainText("Inherited");
-    const override = rule(page, "Magic strings");
-    await expect(override).toContainText("Repository override");
-    await expect(override).toContainText("Require");
+    await expect(rule(page, "Merge descriptions")).toContainText(
+      "Organization default",
+    );
+    await expect(rule(page, "Magic numbers")).toContainText(
+      "Organization default",
+    );
+    const own = rule(page, "Magic strings");
+    await expect(own).toContainText("This repository");
+    await expect(own).toContainText("Require");
+    // The old words are gone from the page.
+    await expect(region(page)).not.toContainText(/Inherited|override\b/i);
     await shot(page, "repository-rules");
   });
 
-  test("the summary says what is inherited, counts the sources and shows the digest", async ({ page }) => {
+  test("the summary is one plain line, and the version numbers are at the end", async ({ page }) => {
     await rulesFixture(page);
     await page.goto(RULES_PATH);
     const summary = page.getByTestId("repository-rules-summary");
-    await expect(summary).toContainText(
-      "Inherits organization revision 3 · repository profile 8",
+    await expect(summary).toHaveText(
+      "2 locked by the organization · 2 organization defaults · 1 set for this repository",
     );
-    await expect(summary).toContainText(
-      "2 locked · 2 inherited · 1 repository override",
+    // Not a coloured box: nothing is wrong, so nothing needs attention.
+    await expect(region(page).getByRole("alert")).toHaveCount(0);
+    // The words revision, profile and digest are not on the page.
+    await expect(region(page)).not.toContainText(
+      /\b(revision|profile|digest)\b/i,
     );
+    const section = details(page);
+    await expect(section).toContainText("Version details");
+    await expect(section).toContainText("Organization rules version");
+    await expect(section.getByText("3", { exact: true })).toBeVisible();
+    await expect(section).toContainText("Repository settings version");
+    await expect(section.getByText("8", { exact: true })).toBeVisible();
     // Eight characters on screen, the whole value as the title.
-    const digest = page.getByTestId("repository-rules-digest");
-    await expect(digest).toHaveText("Digest 9f2c41ab");
-    await expect(digest).toHaveAttribute("title", DIGEST);
+    const fingerprint = page.getByTestId("repository-rules-digest");
+    await expect(fingerprint).toHaveText("9f2c41ab");
+    await expect(fingerprint).toHaveAttribute("title", DIGEST);
+    // Version details is the last thing on the page, after the checks.
+    const checksBox = await checks(page).boundingBox();
+    const detailsBox = await section.boundingBox();
+    if (!checksBox || !detailsBox) throw new Error("a section has no box");
+    expect(detailsBox.y).toBeGreaterThan(checksBox.y + checksBox.height - 1);
   });
 
-  test("the digest can be copied", async ({ page, context }) => {
+  test("repository-only rules are counted when there are any", async ({ page }) => {
+    const only = effective();
+    only.entries = only.entries.map((entry, index) =>
+      index === 3 ? { ...entry, provenance: "repository_only" } : entry
+    );
+    await rulesFixture(page, { rules: only });
+    await page.goto(RULES_PATH);
+    await expect(page.getByTestId("repository-rules-summary")).toHaveText(
+      "2 locked by the organization · 1 organization defaults · 1 set for this repository · 1 only in this repository",
+    );
+    await expect(rule(page, "Magic numbers")).toContainText(
+      "Only this repository",
+    );
+  });
+
+  test("the rules fingerprint can be copied", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await rulesFixture(page);
     await page.goto(RULES_PATH);
-    await page.getByRole("button", { name: "Copy digest" }).click();
-    await expect(page.getByRole("button", { name: "Copied" })).toBeVisible();
+    await details(page).getByRole("button", { name: "Copy" }).click();
+    await expect(details(page).getByRole("button", { name: "Copied" }))
+      .toBeVisible();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
       DIGEST,
     );
   });
 
-  test("a repository with no organization rules and no profile says so", async ({ page }) => {
+  test("a repository with no profile and no organization rules shows None for both versions", async ({ page }) => {
     await rulesFixture(page, {
       rules: effective({ organizationRevision: 0, profileRevision: null }),
     });
     await page.goto(RULES_PATH);
-    await expect(page.getByTestId("repository-rules-summary")).toContainText(
-      "No organization rules are published · no repository profile",
-    );
+    const section = details(page);
+    await expect(
+      section.getByText("None", { exact: true }),
+    ).toHaveCount(2);
   });
 
-  test("a rule with no working check says so, and says it blocks delivery only for Require", async ({ page }) => {
-    const warnNumbers = effective();
-    warnNumbers.entries = warnNumbers.entries.map((entry) =>
-      entry.ruleKey === "code.magicNumbers" ? { ...entry, mode: "warn" } : entry
-    );
+  test("a rule with no working check says so, and for Require says what to do", async ({ page }) => {
     await rulesFixture(page);
     await page.goto(RULES_PATH);
-    // Require: the check is what delivery waits on.
-    await expect(rule(page, "Magic numbers")).toContainText(
-      "Check unavailable · blocks delivery",
+    const numbers = rule(page, "Magic numbers");
+    // Require: the pill and, under it, the next step in words.
+    await expect(numbers).toContainText("No working check");
+    await expect(numbers).toContainText(
+      "Blocks delivery until an organization administrator changes this rule to Warn.",
     );
+    // The pill never wraps onto a second line.
+    const pill = numbers.getByText("No working check", { exact: true });
+    const pillBox = await pill.boundingBox();
+    if (!pillBox) throw new Error("the pill has no box");
+    expect(pillBox.height).toBeLessThan(30);
     // No other row claims a missing check.
     await expect(rule(page, "Semantic commits")).not.toContainText(
-      "Check unavailable",
+      "No working check",
     );
     await shot(page, "repository-rules-check-unavailable");
-
-    const warn = await page.context().newPage();
-    await rulesFixture(warn, { rules: warnNumbers });
-    await warn.goto(RULES_PATH);
-    await expect(rule(warn, "Magic numbers")).toContainText(
-      "Check unavailable",
-    );
-    await expect(rule(warn, "Magic numbers")).not.toContainText(
-      "blocks delivery",
-    );
   });
 
-  test("a switched-off rule never claims a missing check", async ({ page }) => {
-    const off = effective({
+  test("Warn and Guide show the pill without the blocking caption, and a switched-off rule shows neither", async ({ page }) => {
+    const warn = effective({
       checkers: {
         state: "unavailable",
-        unavailableRuleKeys: ["code.magicStrings"],
+        unavailableRuleKeys: ["code.magicNumbers", "code.magicStrings"],
       },
     });
-    off.entries = off.entries.map((entry) =>
-      entry.ruleKey === "code.magicStrings"
+    warn.entries = warn.entries.map((entry) =>
+      entry.ruleKey === "code.magicNumbers"
+        ? { ...entry, mode: "warn" }
+        : entry.ruleKey === "code.magicStrings"
         ? { ...entry, enabled: false }
         : entry
     );
-    await rulesFixture(page, { rules: off });
+    await rulesFixture(page, { rules: warn });
     await page.goto(RULES_PATH);
-    await expect(rule(page, "Magic strings")).toContainText("Off");
-    await expect(rule(page, "Magic strings")).not.toContainText(
-      "Check unavailable",
-    );
+    const numbers = rule(page, "Magic numbers");
+    await expect(numbers).toContainText("No working check");
+    await expect(numbers).not.toContainText("Blocks delivery");
+    const off = rule(page, "Magic strings");
+    await expect(off).toContainText("Off");
+    await expect(off).not.toContainText("No working check");
   });
 
-  test("the footer names the checks and never says anything about provider protection but Unknown", async ({ page }) => {
+  test("the checks section names Bakery's checks and branch protection, which is only ever Unknown", async ({ page }) => {
     await rulesFixture(page);
     await page.goto(RULES_PATH);
-    const footer = page.getByTestId("repository-rules-footer");
-    await expect(footer).toContainText("Bakery checks");
-    await expect(footer).toContainText("1 rule has no working check");
-    await expect(footer).toContainText("Provider branch protection");
+    const section = checks(page);
+    await expect(section).toContainText("Checks");
+    await expect(section).toContainText("Bakery checks");
+    await expect(section).toContainText("1 rule has no working check");
+    await expect(section).toContainText(
+      "Branch protection in your Git provider",
+    );
     await expect(page.getByTestId("repository-rules-protection")).toHaveText(
       "Unknown",
     );
-    await expect(footer).toContainText(
+    await expect(section).toContainText(
       "Bakery cannot read branch protection for this repository yet. Check it in your Git provider.",
     );
-    await expect(footer).toContainText(
-      "Locked rules can only change in Organization → Repository rules.",
-    );
     // Not configured is a claim Bakery cannot make.
-    await expect(footer).not.toContainText(/not configured/i);
-    await shot(page, "repository-rules-footer");
+    await expect(section).not.toContainText(/not configured/i);
+    // The locked note ends in a link to where locked rules are changed.
+    const note = page.getByTestId("repository-rules-locked-note");
+    await expect(note).toContainText(
+      "Locked rules can only be changed in Organization rules.",
+    );
+    await expect(note.getByRole("link", { name: "Organization rules" }))
+      .toHaveAttribute("href", "/settings/organization/repository-rules");
+    await shot(page, "repository-rules-checks");
   });
 
   for (
@@ -316,7 +361,7 @@ test.describe("repository rules: the effective rules of one repository", () => {
       ],
     ] as const
   ) {
-    test(`provider protection stays Unknown for state ${state} and reason ${reason}`, async ({ page }) => {
+    test(`branch protection stays Unknown for state ${state} and reason ${reason}`, async ({ page }) => {
       await rulesFixture(page, {
         rules: effective({ providerProtection: { state, reason } }),
       });
@@ -324,11 +369,15 @@ test.describe("repository rules: the effective rules of one repository", () => {
       await expect(page.getByTestId("repository-rules-protection")).toHaveText(
         "Unknown",
       );
-      const footer = page.getByTestId("repository-rules-footer");
-      if (text) await expect(footer).toContainText(text);
+      const section = checks(page);
+      if (text) await expect(section).toContainText(text);
       else {
-        await expect(footer).not.toContainText("No Git provider is connected");
-        await expect(footer).not.toContainText("cannot read branch protection");
+        await expect(section).not.toContainText(
+          "No Git provider is connected",
+        );
+        await expect(section).not.toContainText(
+          "cannot read branch protection",
+        );
       }
     });
   }
@@ -340,11 +389,9 @@ test.describe("repository rules: the effective rules of one repository", () => {
       }),
     });
     await page.goto(RULES_PATH);
-    await expect(page.getByTestId("repository-rules-footer")).toContainText(
-      "All required checks are set up",
-    );
+    await expect(checks(page)).toContainText("All required checks are set up");
     await expect(rule(page, "Magic numbers")).not.toContainText(
-      "Check unavailable",
+      "No working check",
     );
 
     const none = await page.context().newPage();
@@ -354,12 +401,24 @@ test.describe("repository rules: the effective rules of one repository", () => {
       }),
     });
     await none.goto(RULES_PATH);
-    await expect(none.getByTestId("repository-rules-footer")).toContainText(
-      "No checks required",
+    await expect(checks(none)).toContainText("No checks required");
+  });
+
+  test("with no locked rule there is no locked note", async ({ page }) => {
+    const open = effective({ supersededOverrides: [] });
+    open.entries = open.entries.map((entry) => ({
+      ...entry,
+      provenance: "inherited",
+    }));
+    await rulesFixture(page, { rules: open });
+    await page.goto(RULES_PATH);
+    await expect(rule(page, "Semantic commits")).toBeVisible();
+    await expect(page.getByTestId("repository-rules-locked-note")).toHaveCount(
+      0,
     );
   });
 
-  test("a repository no rules apply to says so and links to the organization's", async ({ page }) => {
+  test("a repository no rules apply to shows only the empty state, with one link to the organization's rules", async ({ page }) => {
     await rulesFixture(page, {
       rules: effective({
         entries: [],
@@ -370,10 +429,17 @@ test.describe("repository rules: the effective rules of one repository", () => {
     await page.goto(RULES_PATH);
     await expect(page.getByText("No rules apply to this repository"))
       .toBeVisible();
+    // No summary, no checks, no version details, and no second link.
+    await expect(page.getByTestId("repository-rules-summary")).toHaveCount(0);
+    await expect(checks(page)).toHaveCount(0);
+    await expect(details(page)).toHaveCount(0);
+    await expect(
+      region(page).getByRole("link", { name: "View organization rules" }),
+    ).toHaveCount(1);
     await expect(region(page).getByRole("table")).toHaveCount(0);
     await shot(page, "repository-rules-empty");
     await region(page).getByRole("link", { name: "View organization rules" })
-      .last().click();
+      .click();
     await expect(page).toHaveURL(/\/settings\/organization\/repository-rules$/);
   });
 
@@ -385,18 +451,20 @@ test.describe("repository rules: the effective rules of one repository", () => {
     await expect(page).toHaveURL(/\/settings\/organization\/repository-rules$/);
   });
 
-  test("a repository the person may not read shows an information banner and no rules", async ({ page }) => {
+  test("a repository the person may not read shows one information banner with a way back", async ({ page }) => {
     await rulesFixture(page, {
       rulesProblem: problem(403, "AUTH_FORBIDDEN", "Access forbidden"),
     });
     await page.goto(RULES_PATH);
-    await expect(page.getByTestId("repository-rules-unavailable"))
-      .toContainText(
-        "This repository was not found, or you do not have access to its rules.",
-      );
+    const banner = page.getByTestId("repository-rules-unavailable");
+    await expect(banner).toContainText(
+      "This repository was not found, or you do not have access to its rules.",
+    );
     await expect(page.getByTestId("repository-rules-summary")).toHaveCount(0);
     await expect(region(page).getByRole("row")).toHaveCount(0);
     await shot(page, "repository-rules-refused");
+    await banner.getByRole("link", { name: "Back to projects" }).click();
+    await expect(page).toHaveURL(/\/projects\/onboarding/);
   });
 
   test("an unknown repository says the same, so nothing can be probed", async ({ page }) => {
@@ -414,10 +482,12 @@ test.describe("repository rules: the effective rules of one repository", () => {
     await expect(page.getByTestId("repository-rules-summary")).toHaveCount(0);
   });
 
-  test("a failed read offers Try again, which loads the rules", async ({ page }) => {
+  test("a failed read says what to do and offers Try again, which loads the rules", async ({ page }) => {
     const { requests } = await rulesFixture(page, { failFirst: 1 });
     await page.goto(RULES_PATH);
     await expect(page.getByText("Rules could not be loaded.")).toBeVisible();
+    await expect(page.getByText("Check your connection, then try again."))
+      .toBeVisible();
     await shot(page, "repository-rules-error");
     await page.getByRole("button", { name: "Try again" }).click();
     await expect(rule(page, "Semantic commits")).toBeVisible();
@@ -444,6 +514,82 @@ test.describe("repository rules: the effective rules of one repository", () => {
     release();
     await expect(rule(page, "Semantic commits")).toBeVisible();
     await expect(page.getByTestId("repository-rules-loading")).toHaveCount(0);
+  });
+
+  test("the Enforcement and Source help, and the fingerprint's, show on hover and focus and close on Escape", async ({ page }) => {
+    await rulesFixture(page);
+    await page.goto(RULES_PATH);
+    // Desktop: the two buttons sit in the column headers; phone: after the Rules heading.
+    const enforcement = region(page).getByRole("button", {
+      name: "About enforcement",
+    });
+    const source = region(page).getByRole("button", { name: "About source" });
+    await expect(enforcement).toBeVisible();
+    await expect(source).toBeVisible();
+    if (!isPhone(page)) {
+      await expect(
+        region(page).getByRole("columnheader", { name: /Enforcement/ })
+          .getByRole("button", { name: "About enforcement" }),
+      ).toBeVisible();
+    } else {
+      await expect(
+        region(page).getByRole("heading", { name: "Rules", level: 2 }),
+      ).toBeVisible();
+    }
+    // Focus shows the text, and the button is described by it.
+    await enforcement.focus();
+    const help = page.getByRole("tooltip").filter({
+      hasText: "Require blocks delivery until the check passes.",
+    });
+    await expect(help).toBeVisible();
+    await expect(enforcement).toHaveAccessibleDescription(
+      /Require blocks delivery until the check passes\. Warn reports problems without blocking\./,
+    );
+    await page.keyboard.press("Escape");
+    await expect(help).toBeHidden();
+    // Moving on opens the next one's own text.
+    await source.focus();
+    await expect(
+      page.getByRole("tooltip").filter({
+        hasText: "Who decides this rule's setting.",
+      }),
+    ).toBeVisible();
+    // The fingerprint's help sits after its label and says what the value is for.
+    const fingerprintHelp = details(page).getByRole("button", {
+      name: "About the rules fingerprint",
+    });
+    await fingerprintHelp.hover();
+    await expect(
+      page.getByRole("tooltip").filter({
+        hasText: "Each run records the same value",
+      }),
+    ).toBeVisible();
+    await shot(page, "repository-rules-help");
+  });
+
+  test("a help button is a real target and its text fits in 320 px inside the window", async ({ page }) => {
+    await rulesFixture(page);
+    await page.goto(RULES_PATH);
+    const button = region(page).getByRole("button", {
+      name: "About enforcement",
+    });
+    const box = await button.boundingBox();
+    if (!box) throw new Error("the help button has no box");
+    expect(box.width).toBeGreaterThanOrEqual(24);
+    expect(box.height).toBeGreaterThanOrEqual(24);
+    await button.focus();
+    const tooltip = page.getByRole("tooltip").filter({
+      hasText: "Require blocks delivery",
+    });
+    await expect(tooltip).toBeVisible();
+    const tip = await tooltip.boundingBox();
+    if (!tip) throw new Error("the tooltip has no box");
+    expect(tip.width).toBeLessThanOrEqual(321);
+    // It stays inside the window.
+    const window = page.viewportSize();
+    if (!window) throw new Error("no viewport");
+    expect(tip.x).toBeGreaterThanOrEqual(0);
+    expect(tip.x + tip.width).toBeLessThanOrEqual(window.width);
   });
 
   test("has no accessibility violations", async ({ page }) => {

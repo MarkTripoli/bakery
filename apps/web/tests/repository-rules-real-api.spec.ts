@@ -142,15 +142,16 @@ test.describe("repository rules against the real API", () => {
 
     await open(page, baseURL, repositoryId);
     const summary = page.getByTestId("repository-rules-summary");
-    await expect(summary).toContainText(
-      "Inherits organization revision 1 · no repository profile",
+    await expect(summary).toHaveText(
+      "2 locked by the organization · 3 organization defaults · 0 set for this repository",
     );
-    await expect(summary).toContainText(
-      "2 locked · 3 inherited · 0 repository overrides",
-    );
+    // The versions are at the end: organization rules 1, and no repository settings yet.
+    const versions = page.getByTestId("repository-rules-details");
+    await expect(versions.getByText("1", { exact: true })).toBeVisible();
+    await expect(versions.getByText("None", { exact: true })).toBeVisible();
     // The digest on screen is the one the server computed.
     const digest = page.getByTestId("repository-rules-digest");
-    await expect(digest).toContainText(served.digest.slice(0, 8));
+    await expect(digest).toHaveText(served.digest.slice(0, 8));
     await expect(digest).toHaveAttribute("title", served.digest);
 
     await expect(rule(page, "Semantic commits")).toContainText(
@@ -159,10 +160,12 @@ test.describe("repository rules against the real API", () => {
     await expect(rule(page, "PR / MR titles")).toContainText(
       "Locked by organization",
     );
-    await expect(rule(page, "Merge descriptions")).toContainText("Inherited");
+    await expect(rule(page, "Merge descriptions")).toContainText(
+      "Organization default",
+    );
     // Whatever the server says it cannot check is what the page says.
     const unavailable = served.checkers.unavailableRuleKeys.length;
-    const footer = page.getByTestId("repository-rules-footer");
+    const footer = page.getByTestId("repository-rules-checks");
     if (served.checkers.state === "unavailable") {
       await expect(footer).toContainText(
         unavailable === 1
@@ -211,19 +214,19 @@ test.describe("repository rules against the real API", () => {
 
     await open(page, baseURL, repositoryId);
     const summary = page.getByTestId("repository-rules-summary");
-    await expect(summary).toContainText(
-      "Inherits organization revision 3 · repository profile 1",
+    await expect(summary).toHaveText(
+      "2 locked by the organization · 2 organization defaults · 1 set for this repository",
     );
-    await expect(summary).toContainText(
-      "2 locked · 2 inherited · 1 repository override",
-    );
+    const versions = page.getByTestId("repository-rules-details");
+    await expect(versions.getByText("3", { exact: true })).toBeVisible();
+    await expect(versions.getByText("1", { exact: true })).toBeVisible();
     const semantic = rule(page, "Semantic commits");
     await expect(semantic).toContainText("Locked by organization");
     await expect(semantic).toContainText(
-      "Your override is saved but inactive.",
+      "This repository's own setting is saved but not used while the rule is locked.",
     );
     const strings = rule(page, "Magic strings");
-    await expect(strings).toContainText("Repository override");
+    await expect(strings).toContainText("This repository");
     await expect(strings).toContainText("Require");
     await shot(page, "repository-rules-real-override");
   });
@@ -245,8 +248,13 @@ test.describe("repository rules against the real API", () => {
     expect((await read).status()).toBe(200);
     await expect(rule(page, "Semantic commits")).toBeVisible();
     await expect(page.getByTestId("repository-rules-summary")).toContainText(
-      "Inherits organization revision 3",
+      "locked by the organization",
     );
+    await expect(
+      page.getByTestId("repository-rules-details").getByText("3", {
+        exact: true,
+      }),
+    ).toBeVisible();
     await shot(page, "repository-rules-real-developer");
   });
 
