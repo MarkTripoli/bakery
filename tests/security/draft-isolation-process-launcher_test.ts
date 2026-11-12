@@ -53,6 +53,27 @@ Deno.test("the process launcher runs the real worker and produces a draft candid
   });
 });
 
+Deno.test("the CPU backstop never beats a late deadline: a spinning worker still ends with the typed timeout (#305)", async () => {
+  // The parent's deadline arrives 4 s after the work budget, standing in for
+  // a timer delayed on a loaded host. The real launcher's RLIMIT_CPU must
+  // still be above what the spinner can spend by then; at 2x the work budget
+  // (the old --cpu) it killed the worker first, as an untyped WORKER_EXIT_137.
+  const lateDeadlineMs = DRAFT_LIMITS.workerRuntimeMs + 4_000;
+  await withLauncher(
+    { workerPath: fixture("timeout.ts"), totalDeadlineMs: lateDeadlineMs },
+    async (isolation) => {
+      const error = await assertRejects(
+        () => isolation.initialize("x"),
+        DraftIsolationError,
+      );
+      assertEquals(
+        [error.kind, error.message],
+        ["timeout", "WORKER_DEADLINE_EXCEEDED"],
+      );
+    },
+  );
+});
+
 Deno.test("process-launched workers that hang, exhaust memory, trap or flood are killed with a typed error", async () => {
   const cases = [
     ["timeout.ts", "timeout"],
