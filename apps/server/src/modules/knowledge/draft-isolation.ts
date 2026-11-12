@@ -1198,6 +1198,11 @@ export function createDraftIsolation(
     frames: readonly Uint8Array[],
     signal?: AbortSignal,
   ): Promise<Uint8Array[]> => {
+    // A permanent refusal first: an oversize request is a 422 whatever the
+    // pool's state, never a retryable "busy".
+    if (frames[0]?.length > DRAFT_LIMITS.metadataBytes) {
+      throw new DraftIsolationError("limit", "WORKER_METADATA_TOO_LARGE");
+    }
     if (!limiter.tryAcquire()) {
       throw new DraftIsolationError(
         "unavailable",
@@ -1214,9 +1219,6 @@ export function createDraftIsolation(
     frames: readonly Uint8Array[],
     signal?: AbortSignal,
   ): Promise<Uint8Array[]> => {
-    if (frames[0]?.length > DRAFT_LIMITS.metadataBytes) {
-      throw new DraftIsolationError("limit", "WORKER_METADATA_TOO_LARGE");
-    }
     const jobId = crypto.randomUUID();
     const unit = `bakery-draft-${jobId}`;
     const systemdArgs = [

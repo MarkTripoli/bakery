@@ -238,6 +238,77 @@ Deno.test("more concurrent workers than the cap: exactly the excess is refused, 
   }
 });
 
+type Outcome = { message: string; kind?: string };
+
+async function wave(
+  isolations: ReturnType<typeof createDraftIsolation>[],
+  perIsolation: number[],
+): Promise<Outcome[]> {
+  const calls: Promise<Outcome>[] = [];
+  isolations.forEach((isolation, index) => {
+    for (let i = 0; i < perIsolation[index]!; i++) {
+      calls.push(
+        isolation.initialize("x").then(
+          () => ({ message: "succeeded" }),
+          (error) => {
+            assert(error instanceof DraftIsolationError, String(error));
+            return { message: error.message, kind: error.kind };
+          },
+        ),
+      );
+    }
+  });
+  return await Promise.all(calls);
+}
+
+const tally = (outcomes: Outcome[]) => {
+  const counts: Record<string, number> = {};
+  for (const outcome of outcomes) {
+    counts[outcome.message] = (counts[outcome.message] ?? 0) + 1;
+  }
+  return counts;
+};
+
+Deno.test("the default pool is process-wide: shared by instances, sized from DRAFT_LIMITS, exact and leak-free (#243)", async () => {
+  // No injected limiter: this is the wiring production uses. Calls are spread
+  // over two isolation instances, which must share one pool. Test by qa-qa.
+  const cap = DRAFT_LIMITS.maxConcurrentWorkers;
+  const half = Math.floor(cap / 2);
+  const hold = await launcherCopy({ workerPath: fixture("timeout.ts") });
+  const real = await launcherCopy({});
+  try {
+    const a = createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: hold.path,
+    });
+    const b = createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: hold.path,
+    });
+    const w4 = tally(await wave([a, b], [half, cap - half]));
+    assertEquals(w4["WORKER_CAPACITY_EXHAUSTED"] ?? 0, 0, JSON.stringify(w4));
+    const w5 = tally(await wave([a, b], [half + 1, cap - half]));
+    assertEquals(w5["WORKER_CAPACITY_EXHAUSTED"], 1, JSON.stringify(w5));
+    const again = tally(await wave([a, b], [half, cap - half]));
+    assertEquals(
+      again["WORKER_CAPACITY_EXHAUSTED"] ?? 0,
+      0,
+      JSON.stringify(again),
+    );
+    const fresh = createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: real.path,
+    });
+    assertEquals(
+      (await fresh.initialize("after the waves")).text,
+      "after the waves",
+    );
+  } finally {
+    await hold.cleanup();
+    await real.cleanup();
+  }
+});
+
 Deno.test("a missing launcher reports host isolation unavailable, not a crash", async () => {
   const isolation = createDraftIsolation({
     launcher: "process",
