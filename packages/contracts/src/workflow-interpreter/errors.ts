@@ -16,6 +16,10 @@ export const WORKFLOW_INTERPRETER_ERRORS = {
     "This workflow contains a parallel group, which this interpreter revision does not run.",
   document_invalid:
     "The workflow document does not have the shape this interpreter runs.",
+  state_not_json:
+    "A recorded value is not plain JSON of bounded depth, so the interpreter cannot answer from it.",
+  state_too_large:
+    "A recorded value is larger than the interpreter will copy once every reference to it is expanded, so it cannot answer from it.",
   runtime_pin_invalid:
     "The recorded runtime pin does not have the shape of a runtime pin.",
   revision_unavailable:

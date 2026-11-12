@@ -1,4 +1,9 @@
 import { assert, assertEquals, assertThrows } from "@std/assert";
+import { StandardError } from "../../packages/contracts/src/http.ts";
+import {
+  contractSchemas,
+  workerActionCapabilities,
+} from "../../packages/contracts/src/contracts.ts";
 import {
   WORKFLOW_ACTION_METADATA,
   WORKFLOW_ACTION_NAMES,
@@ -8,9 +13,13 @@ import { compileWorkflowDocument } from "../../packages/contracts/src/workflow-c
 import { isModelAction } from "../../apps/server/src/modules/work/budget.ts";
 
 // #182: the server decided "does this action run a model?" from the worker
-// transport table, which lists only 7 of the 19 registered actions, so it threw
-// for the other 12 even where the registry (and so the compiler) says "model".
-// The registry is the one source of truth; these tests hold the server to it.
+// transport table, which lists only 7 of the 19 registered workflow actions, so
+// it threw for the other 12 even where the registry (and so the compiler) says
+// "model". #226: the fix then consulted only the registry and so threw for the 4
+// actions only a worker runs (mcp.discover, secret.identity.read, ...), which
+// repository profiles and admission name. There are two tables, each holding
+// actions the other lacks, and the answer comes from whichever holds the action:
+// the registry first, then the worker table, and a typed refusal for neither.
 
 const AGENT_VERSION = "abcdefab-cdef-4abc-8def-abcdefabcdef";
 
@@ -38,15 +47,77 @@ Deno.test("an action without the model capability is not a model action", () => 
   assertEquals(isModelAction("delivery.merge"), false);
 });
 
-Deno.test("an unregistered action is refused by name, not guessed to be a non-model action", () => {
-  // Including names an object inherits: "constructor" is not a registered action.
+/** The actions a worker runs, as the assignment contract lists them. */
+const workerActions = (() => {
+  const action = (contractSchemas.JobAssignment as unknown as {
+    shape: { action: { options: readonly string[] } };
+  }).shape.action;
+  return [...action.options];
+})();
+
+const registered = (action: string) =>
+  Object.hasOwn(WORKFLOW_ACTION_METADATA, action);
+
+Deno.test("every action a worker runs is classified, never refused (#226)", () => {
+  assert(workerActions.length >= 11, "the worker action list was not read");
+  for (const action of workerActions) {
+    const expected = registered(action)
+      ? registryRunsModel(action as WorkflowActionName)
+      : workerActionCapabilities(action).includes("model");
+    assertEquals(isModelAction(action), expected, action);
+  }
+});
+
+Deno.test("actions only a worker runs are classified from the worker table (#226)", () => {
+  const workerOnly = workerActions.filter((action) => !registered(action));
+  // The four the first fix broke: a repository profile names mcp.discover, and
+  // admission names secret.identity.read.
+  for (
+    const action of [
+      "mcp.discover",
+      "secret.identity.read",
+      "repository.inspect",
+      "coordinator.turn",
+    ]
+  ) {
+    assert(
+      workerOnly.includes(action),
+      `${action} is expected to be worker-only`,
+    );
+    assertEquals(
+      isModelAction(action),
+      workerActionCapabilities(action).includes("model"),
+      action,
+    );
+  }
+  assertEquals(isModelAction("mcp.discover"), false);
+  assertEquals(isModelAction("secret.identity.read"), false);
+});
+
+Deno.test("where both tables hold an action they agree, so the order of lookup cannot matter (#226)", () => {
+  const both = workerActions.filter(registered);
+  assert(both.length >= 7, "the overlap was not found");
+  for (const action of both) {
+    assertEquals(
+      workerActionCapabilities(action).includes("model"),
+      registryRunsModel(action as WorkflowActionName),
+      `${action}: the two tables disagree`,
+    );
+  }
+});
+
+Deno.test("an action neither table holds is refused with a typed error, not guessed to be a non-model action", () => {
+  // Including names an object inherits: "constructor" is not an action.
   for (
     const name of ["not.an.action", "", "constructor", "toString", "__proto__"]
   ) {
-    assertThrows(
-      () => isModelAction(name),
-      Error,
-      "unsupported workflow action",
+    const error = assertThrows(() => isModelAction(name), StandardError);
+    assertEquals(error.code, "STATE_CONFLICT", name);
+    assertEquals(error.params?.["reason"], "workflow_action_unsupported", name);
+    // The reason is a fixed code; the name the caller sent is not echoed.
+    assert(
+      !JSON.stringify(error.params ?? {}).includes(name || "\u0000"),
+      name,
     );
   }
 });

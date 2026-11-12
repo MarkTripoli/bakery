@@ -236,6 +236,63 @@ function ifNoneMatchMatches(value: string | null, sha256: string): boolean {
   });
 }
 
+/**
+ * Metadata of one readable artifact version: the same organization, task and
+ * run-step scoping the content route uses. Purged content is
+ * ARTIFACT_CONTENT_EXPIRED; anything malformed is INTERNAL.
+ */
+async function loadContentMetadata(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  versionId: string | undefined,
+) {
+  const metadata = await transaction.query<
+    Pick<VersionRow, "id" | "media_type" | "size_bytes" | "sha256"> & {
+      purged_at: Date | null;
+    }
+  >(
+    `select v.id,v.media_type,v.size_bytes,v.sha256,v.purged_at
+           from bakery.artifact_versions v
+           join bakery.artifacts a
+             on a.organization_id=v.organization_id
+            and a.id=v.artifact_id
+            and a.task_id=v.task_id
+           join bakery.tasks t
+             on t.organization_id=v.organization_id and t.id=v.task_id
+          where v.organization_id=$1
+            and v.id=$2
+            and (
+              v.run_step_id is null or exists (
+                select 1
+                  from bakery.run_steps rs
+                  join bakery.workflow_runs wr
+                    on wr.organization_id=rs.organization_id and wr.id=rs.run_id
+                 where rs.organization_id=v.organization_id
+                   and rs.id=v.run_step_id
+                   and wr.task_id=v.task_id
+              )
+            )`,
+    [organizationId, versionId],
+  );
+  const row = metadata.rows[0];
+  if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  if (row.purged_at !== null) {
+    throw new StandardError({ code: "ARTIFACT_CONTENT_EXPIRED" });
+  }
+  const size = Number(row.size_bytes);
+  const mediaSafety = storedMediaSafety(row.media_type);
+  if (
+    !Number.isSafeInteger(size) ||
+    size < 0 ||
+    size > MAX_ARTIFACT_BYTES ||
+    mediaSafety === null ||
+    !/^[0-9a-f]{64}$/.test(row.sha256)
+  ) {
+    throw new StandardError({ code: "INTERNAL" });
+  }
+  return { row, size, mediaSafety };
+}
+
 export function createArtifactReadHandlers(secret: string) {
   return {
     async listArtifacts(
@@ -396,55 +453,35 @@ export function createArtifactReadHandlers(secret: string) {
       };
     },
 
+    /**
+     * The version a content read would return, without its bytes: what an
+     * MCP client gets instead of content, so no blob enters a model prompt.
+     */
+    async readArtifactVersionReference(context: ActionContext) {
+      const { transaction, organizationId } = requireWorkTransaction(context);
+      const { row, size } = await loadContentMetadata(
+        transaction,
+        organizationId,
+        context.params.id,
+      );
+      return {
+        versionId: row.id,
+        sha256: row.sha256,
+        sizeBytes: size,
+        mediaType: row.media_type,
+      };
+    },
+
     async readArtifactContent(context: ActionContext) {
       const rangeHeader = context.request.headers.get("range");
       const ifRange = context.request.headers.get("if-range");
       const ifNoneMatch = context.request.headers.get("if-none-match");
       const { transaction, organizationId } = requireWorkTransaction(context);
-      const metadata = await transaction.query<
-        Pick<VersionRow, "id" | "media_type" | "size_bytes" | "sha256"> & {
-          purged_at: Date | null;
-        }
-      >(
-        `select v.id,v.media_type,v.size_bytes,v.sha256,v.purged_at
-           from bakery.artifact_versions v
-           join bakery.artifacts a
-             on a.organization_id=v.organization_id
-            and a.id=v.artifact_id
-            and a.task_id=v.task_id
-           join bakery.tasks t
-             on t.organization_id=v.organization_id and t.id=v.task_id
-          where v.organization_id=$1
-            and v.id=$2
-            and (
-              v.run_step_id is null or exists (
-                select 1
-                  from bakery.run_steps rs
-                  join bakery.workflow_runs wr
-                    on wr.organization_id=rs.organization_id and wr.id=rs.run_id
-                 where rs.organization_id=v.organization_id
-                   and rs.id=v.run_step_id
-                   and wr.task_id=v.task_id
-              )
-            )`,
-        [organizationId, context.params.id],
+      const { row, size } = await loadContentMetadata(
+        transaction,
+        organizationId,
+        context.params.id,
       );
-      const row = metadata.rows[0];
-      if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-      if (row.purged_at !== null) {
-        throw new StandardError({ code: "ARTIFACT_CONTENT_EXPIRED" });
-      }
-      const size = Number(row.size_bytes);
-      const mediaSafety = storedMediaSafety(row.media_type);
-      if (
-        !Number.isSafeInteger(size) ||
-        size < 0 ||
-        size > MAX_ARTIFACT_BYTES ||
-        mediaSafety === null ||
-        !/^[0-9a-f]{64}$/.test(row.sha256)
-      ) {
-        throw new StandardError({ code: "INTERNAL" });
-      }
       const headers = new Headers({
         "Content-Type": row.media_type,
         "Content-Length": String(size),

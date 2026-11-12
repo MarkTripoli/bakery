@@ -1,5 +1,10 @@
 import { Hono } from "hono";
-import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
+import {
+  createMcpHandler,
+  McpServer,
+  ResourceNotFoundError,
+  ResourceTemplate,
+} from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { StandardError } from "@bakery/contracts/http";
 import {
@@ -83,6 +88,80 @@ function toolProblem(problem: Record<string, unknown>) {
   );
 }
 
+/** URI template of an artifact version resource. */
+export const ARTIFACT_VERSION_RESOURCE = "bakery://artifact-versions/{id}";
+const ARTIFACT_VERSION_PREFIX = "bakery://artifact-versions/";
+const REFERENCE_MEDIA_TYPE = "application/vnd.bakery.artifact-reference+json";
+
+/**
+ * Artifact versions as MCP resources. A read authorizes through the same
+ * REST actions the tools use: text comes back as one bounded extraction
+ * window with its digest and range; anything else as a reference (digest,
+ * size, media type, authenticated content URL), never as bytes or base64.
+ * A version the caller cannot read is "not found", without saying why.
+ */
+function registerArtifactResources(
+  server: McpServer,
+  grant: McpGrant,
+  catalog: McpCatalogToolRunner,
+): void {
+  const extract = catalog.get("bakery_artifactVersions_extract");
+  const content = catalog.get("bakery_artifactVersions_content");
+  if (!extract || !content || !catalogToolAllowed(grant, content)) return;
+  server.registerResource(
+    "artifact-version",
+    new ResourceTemplate(ARTIFACT_VERSION_RESOURCE, { list: undefined }),
+    {
+      title: "Artifact version",
+      description:
+        "One immutable artifact version: a bounded text window with its digest and byte range, or a reference for binary content.",
+    },
+    async (uri, variables) => {
+      const id = String(variables.id ?? "");
+      const window = await catalog.run(extract, grant, { id });
+      if (window.ok) {
+        const body = window.result.body as {
+          sha256: string;
+          mediaType: string;
+          startByte: number;
+          endByteExclusive: number;
+          hasMore: boolean;
+          text: string;
+        };
+        return {
+          contents: [{
+            uri: uri.href,
+            mimeType: body.mediaType,
+            text: body.text,
+            _meta: {
+              "bakery/sha256": body.sha256,
+              "bakery/startByte": body.startByte,
+              "bakery/endByteExclusive": body.endByteExclusive,
+              "bakery/hasMore": body.hasMore,
+            },
+          }],
+        };
+      }
+      // Not text (or not extractable): answer with the reference instead.
+      const reference = await catalog.run(content, grant, { id });
+      if (!reference.ok) {
+        // Unreadable is not found, but a server fault stays a server fault:
+        // hiding a 5xx as not-found would hide real defects.
+        const status = Number(reference.problem.status);
+        if (status >= 500) throw new Error("ARTIFACT_RESOURCE_READ_FAILED");
+        throw new ResourceNotFoundError(uri.href);
+      }
+      return {
+        contents: [{
+          uri: uri.href,
+          mimeType: REFERENCE_MEDIA_TYPE,
+          text: JSON.stringify(reference.result.body),
+        }],
+      };
+    },
+  );
+}
+
 function registerCatalogTools(
   server: McpServer,
   grant: McpGrant,
@@ -134,7 +213,10 @@ function buildMcpServer(
   catalog?: McpCatalogToolRunner,
 ): McpServer {
   const server = new McpServer({ name: "bakery", version: "1.0.0" });
-  if (catalog) registerCatalogTools(server, grant, catalog);
+  if (catalog) {
+    registerCatalogTools(server, grant, catalog);
+    registerArtifactResources(server, grant, catalog);
+  }
   for (const tool of Object.values(McpTool)) {
     if (!toolAllowed(grant, tool)) continue;
     server.registerTool(
@@ -257,6 +339,30 @@ export function createMcpRoutes(options: {
           status: 403,
           error: "insufficient_scope",
           scope: MCP_TOOL_SCOPE[name],
+        });
+      }
+    }
+    // A resource read is scope-checked before dispatch, like a tool call.
+    const readUri = isRecord(message) && message.method === "resources/read" &&
+        isRecord(message.params) && typeof message.params.uri === "string"
+      ? message.params.uri
+      : undefined;
+    const contentTool = options.catalog?.get("bakery_artifactVersions_content");
+    // URI schemes and hosts are case-insensitive, and the SDK resolves either
+    // case, so the scope check must match either case too.
+    if (
+      readUri?.toLowerCase().startsWith(ARTIFACT_VERSION_PREFIX) && contentTool
+    ) {
+      const decision = decideMcpPermissionAccess({
+        permission: contentTool.permission,
+        tokenScopes: granted.tokenScopes,
+        consentScopes: granted.consentScopes,
+      });
+      if (!decision.allowed) {
+        return challengeResponse(publicOrigin, {
+          status: 403,
+          error: "insufficient_scope",
+          scope: decision.missingScopes,
         });
       }
     }

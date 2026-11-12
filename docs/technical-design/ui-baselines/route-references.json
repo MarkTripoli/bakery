@@ -5067,7 +5067,14 @@
       "routeId": "settings-organization-repository-rules",
       "path": "/settings/organization/repository-rules",
       "status": "no-mock",
-      "rationale": "Organization repository rules page (#65): the published rule baseline rule by rule (enforcement and whether a repository may override) and the history of published revisions. Paper page 61 (Repository rules: organization and overrides, Z-0) draws the organization frames 1JQG-0 desktop and 1JWA-0 phone, kept under docs/technical-design/repository-rules-mocks, but that page is not bound as a scored baseline in any ui-baselines manifest, so no golden exists and none is invented. The page is read only so far; the mock's Publish rules, Configure and Preview impact actions arrive with the editing slices of #65.",
+      "rationale": "Organization repository rules page (#65): the published rule baseline rule by rule (enforcement and whether a repository may override) and the history of published revisions. Paper page 61 (Repository rules: organization and overrides, Z-0) draws the organization frames 1JQG-0 desktop and 1JWA-0 phone, kept under docs/technical-design/repository-rules-mocks, but that page is not bound as a scored baseline in any ui-baselines manifest, so no golden exists and none is invented. Editing, review and publishing are built to the UX design comment on #65, which replaces the Paper frames for #65.",
+      "frames": []
+    },
+    {
+      "routeId": "settings-organization-repository-rule-editor",
+      "path": "/settings/organization/repository-rules/$ruleKey",
+      "status": "no-mock",
+      "rationale": "Organization rule editor (#65): one rule's enabled switch, enforcement, whether repositories may override it, and its options, applied to an unpublished draft. No Paper frame draws it (the Paper page 61 organization frames show the list only) and none is bound as a scored baseline, so no golden exists and none is invented. It is built to design D of the UX design comment on #65, minus the 'Try an example' panel: the organization preview takes no sample, so there is nothing to evaluate it with.",
       "frames": []
     },
     {
