@@ -1525,3 +1525,90 @@ Deno.test("removing a member removes the attempts they started", async () => {
     assertEquals(left.rows.length, 0);
   });
 });
+
+// Review of slice 3a (round 1): the two properties of the supersede step that
+// the first 35 tests did not pin. A create supersedes the member's earlier
+// pending attempt for the same organization, app and workspace, and nothing
+// else, even when creates race; each of the four conditions in that update is
+// the boundary of a tenant or of another live attempt.
+
+Deno.test("concurrent attempts from one member for one workspace leave exactly one pending", async () => {
+  await withFixture(async (f) => {
+    const k = await attemptKey();
+    const binding = attemptBinding();
+    const started = await Promise.all(
+      Array.from({ length: 8 }, () => startAttempt(f, k, { binding })),
+    );
+    for (const s of started) assert(s.result.ok);
+    const pending = await f.pgDatabase.query<{ n: string }>(
+      `select count(*)::text as n from bakery.slack_identity_attempts
+        where organization_id = $1 and initiating_principal_id = $2
+          and app_id = $3 and team_id = $4 and status = 'pending'`,
+      [f.organizationId, f.adminId, binding.appId, binding.teamId],
+    );
+    assertEquals(pending.rows[0]!.n, "1");
+  });
+});
+
+Deno.test("a newer attempt supersedes only the same member's pending attempt for the same app and workspace in the same organization", async () => {
+  await withFixture(async (f) => {
+    const k = await attemptKey();
+    const base = attemptBinding();
+    const statusOf = async (a: Awaited<ReturnType<typeof startAttempt>>) => {
+      assert(a.result.ok);
+      return (await attemptRow(f, a.result.attemptId)).status;
+    };
+    const mine = await startAttempt(f, k, { binding: base });
+    const otherTeam = await startAttempt(f, k, {
+      binding: { ...base, teamId: `T${suffix().slice(0, 10)}` },
+    });
+    const otherApp = await startAttempt(f, k, {
+      binding: { ...base, appId: `A${suffix().slice(0, 10)}` },
+    });
+    const otherMember = await startAttempt(f, k, {
+      binding: base,
+      principalId: f.developerId,
+    });
+    const claimedBinding = { ...base, teamId: `T${suffix().slice(0, 10)}` };
+    const claimed = await startAttempt(f, k, { binding: claimedBinding });
+    assert(claimed.result.ok);
+    assert(
+      (await claimAttempt(f, k, claimed.result.state, {
+        sessionId: claimed.sessionId,
+      })).ok,
+    );
+    // a second organization the same member also belongs to
+    const org2 = crypto.randomUUID();
+    await f.pgDatabase.query(
+      `insert into bakery.organizations (id,name,slug,created_at,updated_at) values ($1,'Second',$2,now(),now())`,
+      [org2, org2],
+    );
+    await f.pgDatabase.query(
+      `insert into bakery.organization_memberships (id,organization_id,principal_id,role,status,joined_at,created_at,updated_at) values ($1,$2,$3,'developer','active',now(),now(),now())`,
+      [crypto.randomUUID(), org2, f.adminId],
+    );
+
+    const newest = await startAttempt(f, k, { binding: base }); // supersedes `mine` only
+    await startAttempt(f, k, { binding: claimedBinding }); // must leave the claimed attempt alone
+    const elsewhere = await inTransaction(
+      f,
+      (tx) =>
+        createSlackIdentityAttempt(tx, {
+          organizationId: org2,
+          principalId: f.adminId,
+          sessionId: "s2",
+          binding: base,
+          secretsKey: k.key,
+          keyId: k.keyId,
+        } as never),
+    );
+    assert(elsewhere.ok);
+
+    assertEquals(await statusOf(mine), "failed"); // superseded
+    assertEquals(await statusOf(otherTeam), "pending"); // C9
+    assertEquals(await statusOf(otherApp), "pending"); // C10
+    assertEquals(await statusOf(otherMember), "pending");
+    assertEquals(await statusOf(claimed), "exchanging"); // C8
+    assertEquals(await statusOf(newest), "pending"); // C12: the other organization's create must not touch it
+  });
+});
