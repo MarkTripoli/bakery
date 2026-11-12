@@ -212,6 +212,18 @@ if (ISOLATED_HOME_LANES.includes(lane)) {
   }) ?? undefined;
 }
 
+// #229: the lane's --allow-run is resolved against the PATH this process
+// started with, and a bare `git` against the PATH of the moment it is spawned.
+// A refused spawn reports both, so the test process is told what they were.
+const allowRunFlag = permissions.find((flag) =>
+  flag === "--allow-run" || flag.startsWith("--allow-run=")
+);
+const laneAllowRun = allowRunFlag === undefined
+  ? "(none)"
+  : allowRunFlag === "--allow-run"
+  ? "(all)"
+  : allowRunFlag.slice("--allow-run=".length);
+
 const process = new Deno.Command(Deno.execPath(), {
   args: [
     "test",
@@ -222,10 +234,24 @@ const process = new Deno.Command(Deno.execPath(), {
     ...paths,
   ],
   ...(isolatedEnv !== undefined
-    ? { clearEnv: true, env: isolatedEnv }
-    : laneRoot === undefined
-    ? {}
-    : { env: { TMPDIR: laneRoot } }),
+    // The isolated lanes (#246) run with exactly this environment, plus the
+    // two diagnostics of #229 that tell the test process which PATH and
+    // --allow-run it was started with.
+    ? {
+      clearEnv: true,
+      env: {
+        ...isolatedEnv,
+        BAKERY_TEST_STARTUP_PATH: Deno.env.get("PATH") ?? "",
+        BAKERY_TEST_ALLOW_RUN: laneAllowRun,
+      },
+    }
+    : {
+      env: {
+        ...(laneRoot === undefined ? {} : { TMPDIR: laneRoot }),
+        BAKERY_TEST_STARTUP_PATH: Deno.env.get("PATH") ?? "",
+        BAKERY_TEST_ALLOW_RUN: laneAllowRun,
+      },
+    }),
   stdout: "inherit",
   stderr: "inherit",
 }).spawn();

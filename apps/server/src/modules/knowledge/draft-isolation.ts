@@ -1,8 +1,8 @@
+import type { RuntimeConfig } from "@bakery/config";
 import {
   SERVER_DRAFT_SYSTEMD_LAUNCHER,
   systemdLauncherArgs,
 } from "../../platform/server-exec.ts";
-import { readDraftIsolationLauncher } from "@bakery/config";
 import { DRAFT_LIMITS, type DraftCandidate } from "./drafts.ts";
 
 const encoder = new TextEncoder();
@@ -1154,10 +1154,23 @@ const sharedWorkerLimiter = createDraftWorkerLimiter(
   DRAFT_LIMITS.maxConcurrentWorkers,
 );
 
+/**
+ * The isolation options the server builds from its runtime config (#306): the
+ * configured launcher, or `systemd` when none is set. createApp uses this, so
+ * the config, not the environment, decides how workers start.
+ */
+export function draftIsolationOptionsFor(
+  config: Pick<RuntimeConfig, "draftIsolationLauncher">,
+): IsolationOptions {
+  return { launcher: config.draftIsolationLauncher ?? "systemd" };
+}
+
 export function createDraftIsolation(
   options: IsolationOptions = {},
 ): DraftIsolation {
-  const launcher = options.launcher ?? readDraftIsolationLauncher();
+  // The server passes its configured launcher (RuntimeConfig); this module
+  // never reads the environment, so an app with a scoped --allow-env starts.
+  const launcher = options.launcher ?? "systemd";
   const workerLauncherPath = options.workerLauncherPath ??
     DRAFT_WORKER_LAUNCHER;
   // In production every systemd call goes through the fixed launcher, the
