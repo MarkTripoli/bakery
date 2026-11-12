@@ -153,6 +153,22 @@ async function rulesFixture(page: Page, options: Options = {}) {
 }
 
 const region = (page: Page) => page.getByTestId("repository-rules");
+/**
+ * Whether what is at the middle of `locator` is the locator itself or inside
+ * it. `toBeVisible` is true for an element a scrolling table or list clips
+ * away; the element that is hit at its centre is the one a person sees.
+ */
+const isSeen = (locator: Locator) =>
+  locator.evaluate((node) => {
+    // The text is an inline run; the panel around it is the box a person sees.
+    const seen = node.closest(".ui-help-tip__panel") ?? node;
+    const box = seen.getBoundingClientRect();
+    const hit = document.elementFromPoint(
+      box.left + box.width / 2,
+      box.top + box.height / 2,
+    );
+    return hit !== null && seen.contains(hit);
+  });
 const checks = (page: Page) => page.getByTestId("repository-rules-checks");
 const details = (page: Page) => page.getByTestId("repository-rules-details");
 
@@ -577,22 +593,31 @@ test.describe("repository rules: the effective rules of one repository", () => {
     await expect(help).toBeHidden();
     // Moving on opens the next one's own text.
     await source.focus();
-    await expect(
-      page.getByRole("tooltip").filter({
-        hasText: "Who decides this rule's setting.",
-      }),
-    ).toBeVisible();
+    const sourceHelp = page.getByRole("tooltip").filter({
+      hasText: "Who decides this rule's setting.",
+    });
+    await expect(sourceHelp).toBeVisible();
+    // The column header sits inside a table that scrolls: the text must still be seen.
+    expect(await isSeen(sourceHelp)).toBe(true);
+    await shot(page, "repository-rules-help-source", [], {
+      windowOnly: true,
+      only: "desktop",
+    });
     // The fingerprint's help sits after its label and says what the value is for.
     const fingerprintHelp = details(page).getByRole("button", {
       name: "About the rules fingerprint",
     });
     await fingerprintHelp.hover();
-    await expect(
-      page.getByRole("tooltip").filter({
-        hasText: "Each run records the same value",
-      }),
-    ).toBeVisible();
-    await shot(page, "repository-rules-help");
+    const fingerprintText = page.getByRole("tooltip").filter({
+      hasText: "Each run records the same value",
+    });
+    await expect(fingerprintText).toBeVisible();
+    expect(await isSeen(fingerprintText)).toBe(true);
+    // The window, not the page: what the page's own scrolling clips would show.
+    await shot(page, "repository-rules-help-fingerprint", [], {
+      windowOnly: true,
+      only: "desktop",
+    });
   });
 
   test("a help button is a real target and its text fits in 320 px inside the window", async ({ page }) => {
@@ -610,6 +635,8 @@ test.describe("repository rules: the effective rules of one repository", () => {
       hasText: "Require blocks delivery",
     });
     await expect(tooltip).toBeVisible();
+    // Seen, not clipped by the table whose header holds the button.
+    expect(await isSeen(tooltip)).toBe(true);
     const tip = await tooltip.boundingBox();
     if (!tip) throw new Error("the tooltip has no box");
     expect(tip.width).toBeLessThanOrEqual(321);
@@ -654,7 +681,11 @@ test.describe("repository rules: the effective rules of one repository", () => {
     await expect(enforcement).toHaveAccessibleDescription(
       /Require blocks delivery until the check passes\./,
     );
-    await shot(page, "repository-rules-help-panel");
+    // The window, not the page: a full-page capture scrolls, and scrolling closes the panel.
+    await shot(page, "repository-rules-help-panel", [], {
+      windowOnly: true,
+      only: "mobile",
+    });
 
     // Opening a second one replaces the first: never two at once.
     await region(page).getByRole("button", { name: "About source" }).click();
@@ -701,17 +732,23 @@ test.describe("repository rules: the effective rules of one repository", () => {
     await expect(panel).toBeVisible();
     expect(
       await panel.evaluate((node) => getComputedStyle(node).position),
-    ).toBe("absolute");
+    ).toBe("fixed");
+    // Seen, not clipped by the table whose header holds the button.
+    expect(await isSeen(panel)).toBe(true);
     // The label line and the close button belong to the phone panel.
     await expect(panel.locator(".ui-help-tip__title")).toBeHidden();
     await expect(panel.getByRole("button", { name: "Close help" }))
       .toBeHidden();
-    // Anchored to the start of its button, above it.
+    // Anchored to the start of its button.
     const tip = await panel.boundingBox();
     const trigger = await button.boundingBox();
     if (!tip || !trigger) throw new Error("a box is missing");
     expect(Math.abs(tip.x - trigger.x)).toBeLessThanOrEqual(2);
-    expect(tip.y + tip.height).toBeLessThanOrEqual(trigger.y + 1);
+    // Next to it without covering it: above, or below when the button is near the top of the window.
+    expect(
+      tip.y + tip.height <= trigger.y + 1 ||
+        tip.y >= trigger.y + trigger.height - 1,
+    ).toBe(true);
   });
 
   test("has no accessibility violations", async ({ page }) => {

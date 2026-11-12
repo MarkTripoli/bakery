@@ -278,11 +278,20 @@
   display: none;
   font: var(--type-caption);
   inline-size: max-content;
-  inset-block-end: calc(100% + var(--space-2));
-  inset-inline-start: 0;
+  /* Placed against the window by HelpTip: --help-tip-x is the button's start
+     edge and the panel opens above it (--help-tip-bottom) or, near the top of
+     the window, below it (--help-tip-top). The gap is the padding of the
+     offsets, so the panel touches no scroll container's clip. */
+  inset-block-end: var(--help-tip-bottom, auto);
+  inset-block-start: var(--help-tip-top, auto);
+  inset-inline-start: min(
+    var(--help-tip-x),
+    calc(100dvi - var(--layout-inspector) - var(--space-4))
+  );
+  margin-block: var(--space-2);
   max-inline-size: min(var(--layout-inspector), calc(100dvi - var(--space-8)));
   padding: var(--space-2) var(--space-3);
-  position: absolute;
+  position: fixed;
   text-align: start;
   white-space: normal;
   z-index: var(--layer-tooltip);
@@ -298,7 +307,9 @@
   .ui-help-tip__panel {
     inline-size: auto;
     inset-block-end: calc(var(--space-4) + env(safe-area-inset-bottom));
+    inset-block-start: auto;
     inset-inline: var(--space-4);
+    margin-block: var(--space-0);
     max-block-size: 50dvb;
     max-inline-size: none;
     overflow-y: auto;

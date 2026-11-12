@@ -1,10 +1,12 @@
 import {
   type ButtonHTMLAttributes,
+  type CSSProperties,
   type FocusEvent,
   type KeyboardEvent,
   type PointerEvent,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -64,6 +66,37 @@ export function HelpTip(
   const [tapped, setTapped] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const open = !dismissed && (hovered || focused || tapped);
+  // From 744px the text is placed against the window, next to its button, so a
+  // table's or a list's own scrolling cannot clip it; below that it is a panel.
+  const [place, setPlace] = useState<CSSProperties | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const button = rootRef.current?.querySelector("button");
+      if (!button || globalThis.matchMedia("(max-width: 743px)").matches) {
+        setPlace(undefined);
+        return;
+      }
+      const box = button.getBoundingClientRect();
+      const rtl = getComputedStyle(button).direction === "rtl";
+      const below = box.top < globalThis.innerHeight / 2;
+      const vars: Record<string, string> = {
+        "--help-tip-x": `${
+          rtl ? document.documentElement.clientWidth - box.right : box.left
+        }px`,
+      };
+      if (below) vars["--help-tip-top"] = `${box.bottom}px`;
+      else vars["--help-tip-bottom"] = `${globalThis.innerHeight - box.top}px`;
+      setPlace(vars as CSSProperties);
+    };
+    place();
+    globalThis.addEventListener("resize", place);
+    globalThis.addEventListener("scroll", place, true);
+    return () => {
+      globalThis.removeEventListener("resize", place);
+      globalThis.removeEventListener("scroll", place, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -139,7 +172,7 @@ export function HelpTip(
       >
         <IconGlyph name="info" size="small" />
       </IconButton>
-      <span className="ui-help-tip__panel">
+      <span className="ui-help-tip__panel" style={place}>
         <span className="ui-help-tip__head">
           <span className="ui-help-tip__title">{label}</span>
           <IconButton label={closeLabel} onClick={close} variant="compact">
