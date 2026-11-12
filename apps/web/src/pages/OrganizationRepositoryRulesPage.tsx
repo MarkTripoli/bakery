@@ -140,12 +140,14 @@ export function OrganizationRepositoryRulesPage() {
         />
       </ShellSlot>
       <UI.SettingsContent data-testid="org-repository-rules">
-        <UI.Heading level="page">
-          {translate("settings.repositoryRules.title")}
-        </UI.Heading>
-        <UI.Text variant="muted">
-          {translate("settings.repositoryRules.description")}
-        </UI.Text>
+        <UI.Stack gap="tight">
+          <UI.Heading level="page">
+            {translate("settings.repositoryRules.title")}
+          </UI.Heading>
+          <UI.Text variant="muted">
+            {translate("settings.repositoryRules.description")}
+          </UI.Text>
+        </UI.Stack>
         {refusal
           ? <UI.AlertBanner tone="information">{refusal}</UI.AlertBanner>
           : null}
@@ -237,6 +239,7 @@ export function OrganizationRepositoryRulesPage() {
                           caption={translate(
                             "settings.repositoryRules.table.caption",
                           )}
+                          captionHidden
                           columns={[
                             {
                               id: "rule",
@@ -283,106 +286,112 @@ export function OrganizationRepositoryRulesPage() {
                           getRowKey={(row) => row.ruleKey}
                           rows={data.entries}
                           state="ready"
-                          variant="sheetList"
+                          variant="table"
                         />
                       )}
+                    <UI.Heading level="section">
+                      {translate("settings.repositoryRules.history.title")}
+                    </UI.Heading>
+                    {phone && history.length > 0
+                      ? (
+                        <div
+                          role="list"
+                          aria-label={translate(
+                            "settings.repositoryRules.history.caption",
+                          )}
+                        >
+                          {history.map((row) => (
+                            <div key={row.id} role="listitem">
+                              <UI.ListRow
+                                detail={translate(
+                                  "settings.repositoryRules.history.detail",
+                                  {
+                                    published: when.format(
+                                      new Date(row.createdAt),
+                                    ),
+                                    count: row.entries.length,
+                                  },
+                                )}
+                                title={translate(
+                                  "settings.repositoryRules.history.revision",
+                                  { revision: row.revision },
+                                )}
+                                trailing={digestText(row.digest)}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )
+                      : (
+                        <UI.DataTable<NonNullable<typeof history>[number]>
+                          caption={translate(
+                            "settings.repositoryRules.history.caption",
+                          )}
+                          captionHidden
+                          columns={[
+                            {
+                              id: "revision",
+                              header: translate(
+                                "settings.repositoryRules.history.column.revision",
+                              ),
+                              cell: (row) => String(row.revision),
+                            },
+                            {
+                              id: "published",
+                              header: translate(
+                                "settings.repositoryRules.history.column.published",
+                              ),
+                              cell: (row) =>
+                                when.format(new Date(row.createdAt)),
+                            },
+                            {
+                              id: "rules",
+                              header: translate(
+                                "settings.repositoryRules.history.column.rules",
+                              ),
+                              cell: (row) => String(row.entries.length),
+                            },
+                            {
+                              id: "digest",
+                              header: translate(
+                                "settings.repositoryRules.history.column.digest",
+                              ),
+                              cell: (row) => digestText(row.digest),
+                            },
+                          ]}
+                          emptyMessage={translate(
+                            "settings.repositoryRules.history.empty",
+                          )}
+                          error={translate(
+                            "settings.repositoryRules.history.loadError",
+                          )}
+                          getRowKey={(row) => row.id}
+                          rows={history}
+                          state={versions.isPending
+                            ? "loading"
+                            : versions.isError
+                            ? "error"
+                            : history.length === 0
+                            ? "empty"
+                            : "ready"}
+                          variant="table"
+                        />
+                      )}
+                    {versions.hasNextPage
+                      ? (
+                        <UI.Button
+                          loading={versions.isFetchingNextPage}
+                          onClick={() => void versions.fetchNextPage()}
+                          type="button"
+                        >
+                          {translate(
+                            "settings.repositoryRules.history.loadMore",
+                          )}
+                        </UI.Button>
+                      )
+                      : null}
                   </>
                 )}
-              <UI.Heading level="section">
-                {translate("settings.repositoryRules.history.title")}
-              </UI.Heading>
-              {phone && history.length > 0
-                ? (
-                  <div
-                    role="list"
-                    aria-label={translate(
-                      "settings.repositoryRules.history.caption",
-                    )}
-                  >
-                    {history.map((row) => (
-                      <div key={row.id} role="listitem">
-                        <UI.ListRow
-                          detail={translate(
-                            "settings.repositoryRules.history.detail",
-                            {
-                              published: when.format(new Date(row.createdAt)),
-                              count: row.entries.length,
-                            },
-                          )}
-                          title={translate(
-                            "settings.repositoryRules.history.revision",
-                            { revision: row.revision },
-                          )}
-                          trailing={digestText(row.digest)}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )
-                : (
-                  <UI.DataTable<NonNullable<typeof history>[number]>
-                    caption={translate(
-                      "settings.repositoryRules.history.caption",
-                    )}
-                    columns={[
-                      {
-                        id: "revision",
-                        header: translate(
-                          "settings.repositoryRules.history.column.revision",
-                        ),
-                        cell: (row) => String(row.revision),
-                      },
-                      {
-                        id: "published",
-                        header: translate(
-                          "settings.repositoryRules.history.column.published",
-                        ),
-                        cell: (row) => when.format(new Date(row.createdAt)),
-                      },
-                      {
-                        id: "rules",
-                        header: translate(
-                          "settings.repositoryRules.history.column.rules",
-                        ),
-                        cell: (row) => String(row.entries.length),
-                      },
-                      {
-                        id: "digest",
-                        header: translate(
-                          "settings.repositoryRules.history.column.digest",
-                        ),
-                        cell: (row) => digestText(row.digest),
-                      },
-                    ]}
-                    emptyMessage={translate(
-                      "settings.repositoryRules.history.empty",
-                    )}
-                    error={translate(
-                      "settings.repositoryRules.history.loadError",
-                    )}
-                    getRowKey={(row) => row.id}
-                    rows={history}
-                    state={versions.isPending
-                      ? "loading"
-                      : versions.isError
-                      ? "error"
-                      : history.length === 0
-                      ? "empty"
-                      : "ready"}
-                    variant="table"
-                  />
-                )}
-              {versions.hasNextPage
-                ? (
-                  <UI.Button
-                    loading={versions.isFetchingNextPage}
-                    onClick={() => void versions.fetchNextPage()}
-                    type="button"
-                  >
-                    {translate("settings.repositoryRules.history.loadMore")}
-                  </UI.Button>
-                )
-                : null}
             </>
           )
           : null}

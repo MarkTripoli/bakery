@@ -255,6 +255,13 @@
 .ui-data-table caption {
   text-align: start;
 }
+.ui-data-table[data-caption="hidden"] caption {
+  block-size: 1px;
+  clip-path: inset(50%);
+  inline-size: 1px;
+  overflow: hidden;
+  position: absolute;
+}
 .ui-data-table th,
 .ui-data-table td {
   border-block-end: var(--border-default) solid var(--color-border);

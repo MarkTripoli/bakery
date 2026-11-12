@@ -3,6 +3,7 @@ import {
   MOCK_ORGANIZATION_ID,
   mockAuthenticatedSession,
 } from "./helpers/mock-session.ts";
+import { shot } from "./helpers/real-api.ts";
 import {
   historyRows,
   RULE_ENTRIES,
@@ -190,6 +191,10 @@ test.describe("organization repository rules", () => {
     await expect(
       rulesRegion(page),
     ).toHaveCount(0);
+    // The empty state already says nothing is published: no History to repeat it.
+    await expect(page.getByRole("heading", { name: "History" })).toHaveCount(0);
+    await expect(page.getByRole("table", { name: "Published revisions" }))
+      .toHaveCount(0);
   });
 
   test("a member who is not an administrator sees only the notice", async ({ page }) => {
@@ -236,6 +241,7 @@ test.describe("organization repository rules", () => {
     await expect(loading).toBeVisible();
     await expect(loading).toHaveAttribute("aria-busy", "true");
     await expect(page.getByText("Loading repository rules.")).toHaveCount(0);
+    await shot(page, "rules-loading");
     release();
     await expect(loading).toHaveCount(0);
     await expect(page.getByTestId("org-rules-current")).toBeVisible();
@@ -249,6 +255,7 @@ test.describe("organization repository rules", () => {
         hasText: "The repository rules could not be loaded.",
       }),
     ).toBeVisible();
+    await shot(page, "rules-load-error");
     state.readStatus = 200;
     await page.getByRole("button", { name: "Try again" }).click();
     await expect(page.getByTestId("org-rules-current")).toBeVisible();
@@ -275,6 +282,65 @@ test.describe("organization repository rules", () => {
     await expect(
       rulesRegion(page),
     ).toHaveCount(0);
+  });
+
+  test("the rules table is as wide as the history table", async ({ page, isMobile }) => {
+    test.skip(isMobile, "a phone lays the rules out as a list");
+    await rulesFixture(page);
+    await page.goto(PAGE_PATH);
+    // The right edge of what is drawn: a block-level table box spans the
+    // column whatever its cells do, so measure the last column header.
+    const rightEdge = async (name: string) => {
+      const box = await page.getByRole("columnheader", { name }).boundingBox();
+      return box!.x + box!.width;
+    };
+    const rules = await rightEdge("Repository access");
+    const history = await rightEdge("Digest");
+    expect(Math.abs(rules - history)).toBeLessThanOrEqual(1);
+  });
+
+  test("the table captions stay for screen readers and are not drawn", async ({ page, isMobile }) => {
+    test.skip(isMobile, "a phone shows lists, which carry no caption");
+    await rulesFixture(page);
+    await page.goto(PAGE_PATH);
+    for (const name of ["Organization rules", "Published revisions"]) {
+      const table = page.getByRole("table", { name });
+      await expect(table).toBeVisible();
+      const caption = await table.locator("caption").boundingBox();
+      expect(caption!.width).toBeLessThanOrEqual(1);
+      expect(caption!.height).toBeLessThanOrEqual(1);
+    }
+  });
+
+  test("the title sits close to its description, as on the other settings pages", async ({ page }) => {
+    await rulesFixture(page);
+    await page.goto(PAGE_PATH);
+    const title = await page.getByRole("heading", {
+      name: "Repository rules",
+      level: 1,
+    }).boundingBox();
+    const description = await page.getByText(
+      "A shared starting point for every repository in this organization.",
+    ).boundingBox();
+    const gap = description!.y - (title!.y + title!.height);
+    // The column's own gap is 28px; the header group is tighter than that.
+    expect(gap).toBeGreaterThanOrEqual(0);
+    expect(gap).toBeLessThan(16);
+  });
+
+  test("renders in the dark theme without horizontal overflow", async ({ page }) => {
+    await page.emulateMedia({ colorScheme: "dark" });
+    await rulesFixture(page);
+    await page.goto(PAGE_PATH);
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+    await expect(page.getByTestId("org-rules-current")).toBeVisible();
+    await expect(rulesRegion(page)).toBeVisible();
+    await shot(page, "rules-current-dark");
+    const overflow = await page.evaluate(() =>
+      document.documentElement.scrollWidth -
+      document.documentElement.clientWidth
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
   });
 
   test("is reachable from the settings navigation", async ({ page }) => {
