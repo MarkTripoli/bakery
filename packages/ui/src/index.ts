@@ -132,6 +132,7 @@ export * from "./molecules/Breadcrumbs.tsx";
 export * from "./molecules/Combobox.tsx";
 export * from "./molecules/Command.tsx";
 export * from "./molecules/CursorControls.tsx";
+export * from "./molecules/DraftBar.tsx";
 export * from "./molecules/DescriptionItem.tsx";
 export * from "./molecules/DescriptionList.tsx";
 export * from "./molecules/CapabilityList.tsx";
