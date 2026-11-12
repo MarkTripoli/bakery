@@ -1,5 +1,19 @@
-import { assert, assertEquals, assertRejects } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertNotEquals,
+  assertRejects,
+} from "@std/assert";
 import { openInstallationFixture } from "../helpers/installation-settings.ts";
+import { sha256Hex } from "../../apps/server/src/platform/canonical-json.ts";
+import { loadSecretKey } from "../../apps/server/src/modules/secrets/crypto.ts";
+import {
+  claimSlackIdentityAttempt,
+  completeSlackIdentityAttempt,
+  createSlackIdentityAttempt,
+  failSlackIdentityAttempt,
+  SLACK_IDENTITY_ATTEMPT_TTL_MINUTES,
+} from "../../apps/server/src/modules/integrations/slack-identity-attempts.ts";
 import {
   findSlackIdentityLink,
   linkSlackIdentity,
@@ -995,5 +1009,519 @@ Deno.test("a revoker who is not a principal is a refusal in the module and a for
     });
     assert(system.ok);
     assertEquals(system.link.revokedBy, null);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Slice 3 of #12: the attempt that binds a Sign in with Slack round trip to the
+// Bakery member and browser session that began it. The state is the secret the
+// callback must present; the nonce is checked against the identity token. Both
+// are returned once and stored as a hash and as ciphertext.
+
+const ATTEMPT_KEY_ID = "slack-attempt-v1";
+
+async function attemptKey(): Promise<{ key: CryptoKey; keyId: string }> {
+  const directory = await Deno.makeTempDir();
+  try {
+    const file = `${directory}/key`;
+    await Deno.writeFile(file, crypto.getRandomValues(new Uint8Array(32)));
+    return {
+      key: await loadSecretKey({ file, keyId: ATTEMPT_KEY_ID }),
+      keyId: ATTEMPT_KEY_ID,
+    };
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+}
+
+type AttemptKey = Awaited<ReturnType<typeof attemptKey>>;
+
+function attemptBinding() {
+  const id = suffix();
+  return {
+    appId: `A${id.slice(0, 10)}`,
+    clientId: `${Math.floor(Math.random() * 9e9 + 1e9)}.${
+      Math.floor(Math.random() * 9e12 + 1e12)
+    }`,
+    teamId: `T${id.slice(10, 20)}`,
+  };
+}
+
+async function startAttempt(
+  f: Fixture,
+  k: AttemptKey,
+  overrides: Record<string, unknown> = {},
+) {
+  const sessionId = `session-${suffix()}`;
+  const input = {
+    organizationId: f.organizationId,
+    principalId: f.adminId,
+    sessionId,
+    binding: attemptBinding(),
+    secretsKey: k.key,
+    keyId: k.keyId,
+    ...overrides,
+  };
+  const result = await inTransaction(
+    f,
+    (tx) => createSlackIdentityAttempt(tx, input as never),
+  );
+  return { result, input, sessionId: input.sessionId as string };
+}
+
+function claimAttempt(
+  f: Fixture,
+  k: AttemptKey,
+  state: string,
+  overrides: Record<string, unknown> = {},
+) {
+  return inTransaction(f, (tx) =>
+    claimSlackIdentityAttempt(tx, {
+      state,
+      sessionId: "",
+      principalId: f.adminId,
+      secretsKey: k.key,
+      keyId: k.keyId,
+      ...overrides,
+    } as never));
+}
+
+async function attemptRow(f: Fixture, attemptId: string) {
+  const row = await f.pgDatabase.query<Record<string, unknown>>(
+    `select * from bakery.slack_identity_attempts where id = $1`,
+    [attemptId],
+  );
+  assertEquals(row.rows.length, 1, "the attempt row exists");
+  return row.rows[0]!;
+}
+
+Deno.test("an attempt hands the state and nonce back once and stores a hash and ciphertext, never the values", async () => {
+  await withFixture(async (f) => {
+    const k = await attemptKey();
+    const { result, input } = await startAttempt(f, k);
+    assert(result.ok);
+    assert(result.state.length >= 43 && result.nonce.length >= 43);
+    assertNotEquals(result.state, result.nonce);
+    const row = await attemptRow(f, result.attemptId);
+    assertEquals(row.state_hash, await sha256Hex(result.state));
+    assertEquals(row.status, "pending");
+    assertEquals(row.app_id, (input.binding as { appId: string }).appId);
+    assertEquals(row.team_id, (input.binding as { teamId: string }).teamId);
+    assertEquals(row.enterprise_id, null);
+    const stored = JSON.stringify(
+      row,
+      (_k, v) => v instanceof Uint8Array ? Array.from(v) : v,
+    );
+    assert(!stored.includes(result.state), "the state is stored in the clear");
+    assert(!stored.includes(result.nonce), "the nonce is stored in the clear");
+    const ttl = await f.pgDatabase.query<{ minutes: string }>(
+      `select (extract(epoch from (expires_at - created_at)) / 60)::text as minutes
+         from bakery.slack_identity_attempts where id = $1`,
+      [result.attemptId],
+    );
+    assertEquals(
+      Math.round(Number(ttl.rows[0]!.minutes)),
+      SLACK_IDENTITY_ATTEMPT_TTL_MINUTES,
+    );
+  });
+});
+
+Deno.test("a claim is single use: the first wins, returns what was bound, and a replay is refused", async () => {
+  await withFixture(async (f) => {
+    const k = await attemptKey();
+    const enterprise = `E${suffix().slice(0, 9)}`;
+    const { result, input, sessionId } = await startAttempt(f, k, {
+      binding: { ...attemptBinding(), enterpriseId: enterprise },
+    });
+    assert(result.ok);
+    const first = await claimAttempt(f, k, result.state, { sessionId });
+    assert(first.ok, "the first claim wins");
+    const bound = input.binding as {
+      appId: string;
+      clientId: string;
+      teamId: string;
+    };
+    assertEquals(first.attempt.nonce, result.nonce);
+    assertEquals(first.attempt.attemptId, result.attemptId);
+    assertEquals(first.attempt.organizationId, f.organizationId);
+    assertEquals(first.attempt.principalId, f.adminId);
+    assertEquals(first.attempt.appId, bound.appId);
+    assertEquals(first.attempt.clientId, bound.clientId);
+    assertEquals(first.attempt.teamId, bound.teamId);
+    assertEquals(first.attempt.enterpriseId, enterprise);
+    assertEquals(await claimAttempt(f, k, result.state, { sessionId }), {
+      ok: false,
+      reason: "refused",
+    });
+    const row = await attemptRow(f, result.attemptId);
+    assertEquals(row.status, "exchanging");
+    assert(row.consumed_at !== null, "the claim is recorded");
+  });
+});
+
+Deno.test("a claim from another session, another member or with another state is refused and does not use the attempt up", async () => {
+  await withFixture(async (f) => {
+    const k = await attemptKey();
+    const { result, sessionId } = await startAttempt(f, k);
+    assert(result.ok);
+    const refused = { ok: false, reason: "refused" } as const;
+    assertEquals(
+      await claimAttempt(f, k, result.state, {
+        sessionId: `${sessionId}-other`,
+      }),
+      refused,
+    );
+    assertEquals(
+      await claimAttempt(f, k, result.state, {
+        sessionId,
+        principalId: f.developerId!,
+      }),
+      refused,
+    );
+    assertEquals(
+      await claimAttempt(f, k, `${result.state}x`, { sessionId }),
+      refused,
+    );
+    assertEquals(await claimAttempt(f, k, "", { sessionId }), refused);
+    assertEquals(
+      await claimAttempt(f, k, result.state, {
+        sessionId,
+        principalId: "not-a-uuid",
+      }),
+      refused,
+    );
+    assertEquals(
+      (await attemptRow(f, result.attemptId)).status,
+      "pending",
+      "still claimable",
+    );
+    assert(
+      (await claimAttempt(f, k, result.state, { sessionId })).ok,
+      "the owner still can",
+    );
+  });
+});
+
+Deno.test("an expired attempt cannot be claimed, and the refusal does not consume it", async () => {
+  await withFixture(async (f) => {
+    const k = await attemptKey();
+    const { result, sessionId } = await startAttempt(f, k);
+    assert(result.ok);
+    await f.pgDatabase.query(
+      `update bakery.slack_identity_attempts set expires_at = now() - interval '1 second' where id = $1`,
+      [result.attemptId],
+    );
+    assertEquals(await claimAttempt(f, k, result.state, { sessionId }), {
+      ok: false,
+      reason: "refused",
+    });
+    assertEquals((await attemptRow(f, result.attemptId)).status, "pending");
+  });
+});
+
+Deno.test("two claims racing for one attempt: exactly one wins", async () => {
+  await withFixture(async (f) => {
+    const k = await attemptKey();
+    for (let round = 0; round < 8; round += 1) {
+      const { result, sessionId } = await startAttempt(f, k);
+      assert(result.ok);
+      const claims = await Promise.all([
+        claimAttempt(f, k, result.state, { sessionId }),
+        claimAttempt(f, k, result.state, { sessionId }),
+        claimAttempt(f, k, result.state, { sessionId }),
+      ]);
+      assertEquals(
+        claims.filter((claim) => claim.ok).length,
+        1,
+        `round ${round}`,
+      );
+    }
+  });
+});
+
+Deno.test("an attempt needs a current member, malformed input never reaches the database, and a newer attempt supersedes the member's older one", async () => {
+  await withFixture(async (f) => {
+    const k = await attemptKey();
+    const rows = async () =>
+      Number(
+        (await f.pgDatabase.query<{ n: string }>(
+          `select count(*)::text as n from bakery.slack_identity_attempts where organization_id = $1`,
+          [f.organizationId],
+        )).rows[0]!.n,
+      );
+
+    await setMembership(f, f.developerId!, "inactive");
+    assertEquals(
+      (await startAttempt(f, k, { principalId: f.developerId! })).result,
+      { ok: false, reason: "not_a_member" },
+    );
+    await setMembership(f, f.developerId!, "active");
+    assertEquals(
+      (await startAttempt(f, k, { principalId: crypto.randomUUID() })).result,
+      { ok: false, reason: "not_a_member" },
+    );
+
+    const before = await rows();
+    const good = attemptBinding();
+    for (
+      const bad of [
+        { organizationId: "not-a-uuid" },
+        { principalId: "" },
+        { sessionId: "" },
+        { sessionId: "s".repeat(300) },
+        { binding: { ...good, appId: "B123" } },
+        { binding: { ...good, teamId: "t123" } },
+        { binding: { ...good, enterpriseId: "X123" } },
+        { binding: { ...good, clientId: "" } },
+        { binding: { ...good, clientId: "c".repeat(200) } },
+        { binding: null },
+        { secretsKey: undefined },
+      ]
+    ) {
+      assertEquals(
+        (await startAttempt(f, k, bad)).result,
+        { ok: false, reason: "malformed" },
+        JSON.stringify(bad),
+      );
+    }
+    assertEquals(await rows(), before, "nothing was written for any of them");
+
+    // The same member starting again for the same workspace replaces the earlier attempt.
+    const binding = attemptBinding();
+    const older = await startAttempt(f, k, { binding });
+    const other = await startAttempt(f, k, {
+      principalId: f.developerId!,
+      binding,
+    });
+    const newer = await startAttempt(f, k, { binding });
+    assert(older.result.ok && other.result.ok && newer.result.ok);
+    assertEquals(
+      await claimAttempt(f, k, older.result.state, {
+        sessionId: older.sessionId,
+      }),
+      { ok: false, reason: "refused" },
+    );
+    const superseded = await attemptRow(f, older.result.attemptId);
+    assertEquals([superseded.status, superseded.failure_code], [
+      "failed",
+      "superseded",
+    ]);
+    assertEquals(
+      (await attemptRow(f, other.result.attemptId)).status,
+      "pending",
+      "another member's attempt is untouched",
+    );
+    // And to the workspace: the same member linking a different one keeps both live.
+    const elsewhere = await startAttempt(f, k, { binding: attemptBinding() });
+    assert(elsewhere.result.ok);
+    const again = await startAttempt(f, k, { binding });
+    assert(again.result.ok);
+    assertEquals(
+      (await attemptRow(f, elsewhere.result.attemptId)).status,
+      "pending",
+      "another workspace's attempt is untouched",
+    );
+    assertEquals(
+      (await attemptRow(f, newer.result.attemptId)).failure_code,
+      "superseded",
+    );
+    assert(
+      (await claimAttempt(f, k, again.result.state, {
+        sessionId: again.sessionId,
+      })).ok,
+    );
+  });
+});
+
+Deno.test("complete and fail act only on a claimed attempt, and a failure code is one of a fixed few", async () => {
+  await withFixture(async (f) => {
+    const k = await attemptKey();
+    const finish = (id: string) =>
+      inTransaction(
+        f,
+        (tx) => completeSlackIdentityAttempt(tx, { attemptId: id }),
+      );
+    const fail = (id: string, code: unknown) =>
+      inTransaction(
+        f,
+        (tx) => failSlackIdentityAttempt(tx, { attemptId: id, code } as never),
+      );
+
+    const { result, sessionId } = await startAttempt(f, k);
+    assert(result.ok);
+    assertEquals(
+      await finish(result.attemptId),
+      false,
+      "a pending attempt cannot complete",
+    );
+    assertEquals(
+      await fail(result.attemptId, "token_invalid"),
+      false,
+      "nor fail",
+    );
+    assert((await claimAttempt(f, k, result.state, { sessionId })).ok);
+    assertEquals(
+      await fail(result.attemptId, "not a code"),
+      false,
+      "an unknown code is refused",
+    );
+    assertEquals(await fail(result.attemptId, undefined), false);
+    assertEquals((await attemptRow(f, result.attemptId)).status, "exchanging");
+    assertEquals(await finish(result.attemptId), true);
+    assertEquals(await finish(result.attemptId), false, "only once");
+    assertEquals(
+      await fail(result.attemptId, "token_invalid"),
+      false,
+      "a completed attempt cannot fail afterwards",
+    );
+    assertEquals((await attemptRow(f, result.attemptId)).status, "completed");
+
+    const second = await startAttempt(f, k);
+    assert(second.result.ok);
+    assert(
+      (await claimAttempt(f, k, second.result.state, {
+        sessionId: second.sessionId,
+      })).ok,
+    );
+    assertEquals(await fail(second.result.attemptId, "token_invalid"), true);
+    const row = await attemptRow(f, second.result.attemptId);
+    assertEquals([row.status, row.failure_code], ["failed", "token_invalid"]);
+  });
+});
+
+Deno.test("a nonce that cannot be read back fails the attempt closed", async () => {
+  await withFixture(async (f) => {
+    const writer = await attemptKey();
+    const reader = await attemptKey(); // other key material under the same key id
+    const { result, sessionId } = await startAttempt(f, writer);
+    assert(result.ok);
+    assertEquals(await claimAttempt(f, reader, result.state, { sessionId }), {
+      ok: false,
+      reason: "refused",
+    });
+    const row = await attemptRow(f, result.attemptId);
+    assertEquals([row.status, row.failure_code], [
+      "failed",
+      "nonce_unreadable",
+    ]);
+
+    // The same key material under another key identity is not the key it was sealed under.
+    const sealed = await startAttempt(f, writer);
+    assert(sealed.result.ok);
+    assertEquals(
+      await claimAttempt(f, writer, sealed.result.state, {
+        sessionId: sealed.sessionId,
+        keyId: "slack-attempt-v2",
+      }),
+      { ok: false, reason: "refused" },
+    );
+    const other = await attemptRow(f, sealed.result.attemptId);
+    assertEquals([other.status, other.failure_code], [
+      "failed",
+      "nonce_unreadable",
+    ]);
+  });
+});
+
+Deno.test("two attempts cannot share a state, whatever wrote them", async () => {
+  await withFixture(async (f) => {
+    const k = await attemptKey();
+    const { result } = await startAttempt(f, k);
+    assert(result.ok);
+    const first = await attemptRow(f, result.attemptId);
+    await assertRejects(
+      () =>
+        f.pgDatabase.query(
+          `insert into bakery.slack_identity_attempts
+             (id, organization_id, initiating_principal_id, session_id, state_hash,
+              nonce_ciphertext, nonce_iv, nonce_key_id, app_id, client_id, team_id,
+              expires_at, status)
+           values ($1, $2, $3, 's', $4, $5, $6, 'k', 'A12', 'c', 'T12', now(), 'pending')`,
+          [
+            crypto.randomUUID(),
+            f.organizationId,
+            f.adminId,
+            first.state_hash,
+            first.nonce_ciphertext,
+            first.nonce_iv,
+          ],
+        ),
+      Error,
+      "slack_identity_attempts_state_hash_unique",
+    );
+  });
+});
+
+Deno.test("the application role may move an attempt through its lifecycle and may change nothing it was bound to", async () => {
+  await withFixture(async (f) => {
+    const k = await attemptKey();
+    const { result } = await startAttempt(f, k);
+    assert(result.ok);
+    const app = f.runtimePgDatabase;
+    for (
+      const column of [
+        "organization_id",
+        "initiating_principal_id",
+        "session_id",
+        "state_hash",
+        "nonce_ciphertext",
+        "nonce_iv",
+        "nonce_key_id",
+        "app_id",
+        "client_id",
+        "team_id",
+        "enterprise_id",
+        "expires_at",
+        "created_at",
+      ]
+    ) {
+      await assertRejects(
+        () =>
+          app.query(
+            `update bakery.slack_identity_attempts set ${column} = ${column} where id = $1`,
+            [result.attemptId],
+          ),
+        Error,
+        "permission denied",
+        column,
+      );
+    }
+    await app.query(
+      `update bakery.slack_identity_attempts set status = status, failure_code = failure_code,
+              consumed_at = consumed_at, updated_at = now(), version = version where id = $1`,
+      [result.attemptId],
+    );
+    await assertRejects(
+      () =>
+        app.query(`delete from bakery.slack_identity_attempts where id = $1`, [
+          result.attemptId,
+        ]),
+      Error,
+      "permission denied",
+    );
+    await assertRejects(
+      () => app.query(`truncate bakery.slack_identity_attempts`),
+      Error,
+      "permission denied",
+    );
+  });
+});
+
+Deno.test("removing a member removes the attempts they started", async () => {
+  await withFixture(async (f) => {
+    const k = await attemptKey();
+    const { result } = await startAttempt(f, k, {
+      principalId: f.developerId!,
+    });
+    assert(result.ok);
+    await f.pgDatabase.query(
+      `delete from bakery.organization_memberships where organization_id = $1 and principal_id = $2`,
+      [f.organizationId, f.developerId!],
+    );
+    const left = await f.pgDatabase.query(
+      `select 1 from bakery.slack_identity_attempts where id = $1`,
+      [result.attemptId],
+    );
+    assertEquals(left.rows.length, 0);
   });
 });

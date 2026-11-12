@@ -50,6 +50,10 @@ export const isSlackAppId = (value: unknown): value is string =>
 export const isSlackTeamId = (value: unknown): value is string =>
   typeof value === "string" && TEAM_ID.test(value);
 
+/** Whether `value` is a Slack Enterprise Grid organization id (`E...`). */
+export const isSlackEnterpriseId = (value: unknown): value is string =>
+  typeof value === "string" && ENTERPRISE_ID.test(value);
+
 /** Whether `value` is a Slack user id (`U...` or `W...`). */
 export const isSlackUserId = (value: unknown): value is string =>
   typeof value === "string" && USER_ID.test(value);
