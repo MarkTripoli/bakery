@@ -36,6 +36,7 @@ import {
   availableLocalesFor,
   type RuntimeConfig,
 } from "@bakery/config";
+import { contractSchemas } from "@bakery/contracts/contracts";
 import { createHealthApp } from "@bakery/contracts/health-app";
 import {
   createApiRouter,
@@ -356,11 +357,15 @@ export function createApp(options: {
           "artifactVersions.content": async (
             { request, principal, params },
           ) => {
+            // The same parsing as the REST route, so a malformed id is the
+            // same MALFORMED_REQUEST here as there (toProblem maps it).
+            const { id } = contractSchemas.IdPath.parse(params);
+            contractSchemas.ContentRangeQuery.parse({});
             const reference = await artifactActions.authority.run(
               artifactActions.registry.get("artifactVersions.content"),
               {
                 request,
-                params,
+                params: { id },
                 requestId: crypto.randomUUID(),
                 traceId: crypto.randomUUID().replaceAll("-", ""),
                 signal: AbortSignal.timeout(15_000),

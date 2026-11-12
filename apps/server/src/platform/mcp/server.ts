@@ -144,7 +144,13 @@ function registerArtifactResources(
       }
       // Not text (or not extractable): answer with the reference instead.
       const reference = await catalog.run(content, grant, { id });
-      if (!reference.ok) throw new ResourceNotFoundError(uri.href);
+      if (!reference.ok) {
+        // Unreadable is not found, but a server fault stays a server fault:
+        // hiding a 5xx as not-found would hide real defects.
+        const status = Number(reference.problem.status);
+        if (status >= 500) throw new Error("ARTIFACT_RESOURCE_READ_FAILED");
+        throw new ResourceNotFoundError(uri.href);
+      }
       return {
         contents: [{
           uri: uri.href,
@@ -342,7 +348,11 @@ export function createMcpRoutes(options: {
       ? message.params.uri
       : undefined;
     const contentTool = options.catalog?.get("bakery_artifactVersions_content");
-    if (readUri?.startsWith(ARTIFACT_VERSION_PREFIX) && contentTool) {
+    // URI schemes and hosts are case-insensitive, and the SDK resolves either
+    // case, so the scope check must match either case too.
+    if (
+      readUri?.toLowerCase().startsWith(ARTIFACT_VERSION_PREFIX) && contentTool
+    ) {
       const decision = decideMcpPermissionAccess({
         permission: contentTool.permission,
         tokenScopes: granted.tokenScopes,

@@ -886,6 +886,55 @@ async function rpc(
   return { status: response.status, body: text ? JSON.parse(text) : {} };
 }
 
+/**
+ * A second organization with one principal (no membership, no session),
+ * owner-role SQL only: an installation has a single superuser, so `seed`
+ * cannot make another.
+ */
+async function seedForeignOrganization(fixture: Fixture) {
+  const db = fixture.pgDatabase;
+  const organizationId = crypto.randomUUID();
+  const userId = crypto.randomUUID();
+  const principalId = crypto.randomUUID();
+  const slug = `mcp-foreign-${organizationId}`;
+  await db.query(
+    `insert into public.organization (id,name,slug,"createdAt","updatedAt")
+     values ($1,'Foreign Org',$2,now(),now())`,
+    [organizationId, slug],
+  );
+  await db.query(
+    `insert into bakery.organizations (id,name,slug,metadata,created_at,updated_at)
+     values ($1,'Foreign Org',$2,'{}'::jsonb,now(),now())`,
+    [organizationId, slug],
+  );
+  await db.query(
+    `insert into public."user" (id,name,email,"emailVerified","createdAt","updatedAt")
+     values ($1,'Foreign Author',$2,true,now(),now())`,
+    [userId, `mcp-foreign-${userId}@example.test`],
+  );
+  await db.query(
+    `insert into bakery.principals (id,provider_user_id,display_name,principal_type)
+     values ($1,$2,'Foreign Author','human')`,
+    [principalId, userId],
+  );
+  return {
+    organizationId,
+    principalId,
+    async cleanup() {
+      await db.query("delete from bakery.organizations where id=$1", [
+        organizationId,
+      ]);
+      await db.query("delete from public.organization where id=$1", [
+        organizationId,
+      ]);
+      await db.query("delete from bakery.principals where id=$1", [
+        principalId,
+      ]);
+      await db.query('delete from public."user" where id=$1', [userId]);
+    },
+  };
+}
+
 async function seedArtifactVersions(
   fixture: Fixture,
   organizationId: string,
@@ -898,6 +947,7 @@ async function seedArtifactVersions(
     artifact: crypto.randomUUID(),
     text: crypto.randomUUID(),
     binary: crypto.randomUUID(),
+    multibyte: crypto.randomUUID(),
   };
   const db = fixture.pgDatabase;
   await db.query(
@@ -922,6 +972,7 @@ async function seedArtifactVersions(
   );
   // A text version larger than one extraction window, and a PNG.
   const text = new TextEncoder().encode("line of text\n".repeat(8_000));
+  const multibyte = new TextEncoder().encode("\u20ac".repeat(30_000));
   const png = new Uint8Array([
     0x89,
     0x50,
@@ -937,6 +988,8 @@ async function seedArtifactVersions(
     const [id, revision, content, mediaType] of [
       [ids.text, 1, text, "text/markdown"],
       [ids.binary, 2, png, "image/png"],
+      // 90,000 bytes of 3-byte characters: byte 65,536 falls inside one.
+      [ids.multibyte, 3, multibyte, "text/plain"],
     ] as const
   ) {
     const digest = Array.from(
@@ -970,6 +1023,7 @@ Deno.test("artifact content reaches MCP only as bounded text or a reference, nev
   const fixture = await openAuthFixture();
   const seeded = await seed(fixture, crypto.randomUUID(), false);
   const clientIds: string[] = [];
+  const foreignCleanups: (() => Promise<void>)[] = [];
   try {
     const clientId = await registerTestClient(fixture);
     clientIds.push(clientId);
@@ -1083,11 +1137,97 @@ Deno.test("artifact content reaches MCP only as bounded text or a reference, nev
     );
 
     // An unknown version reveals nothing.
+    const unknownId = crypto.randomUUID();
     const unknown = await rpc(fixture, accessToken, "resources/read", {
-      uri: `bakery://artifact-versions/${crypto.randomUUID()}`,
+      uri: `bakery://artifact-versions/${unknownId}`,
     });
     assert("error" in unknown.body, JSON.stringify(unknown.body));
     assertEquals("result" in unknown.body, false);
+
+    // A window never splits a character: it stops at the last whole one.
+    const cut = await rpc(fixture, accessToken, "resources/read", {
+      uri: `bakery://artifact-versions/${ids.multibyte}`,
+    });
+    assertEquals(cut.status, 200, JSON.stringify(cut.body));
+    const cutContent = (cut.body as {
+      result: { contents: { text: string; _meta: Record<string, unknown> }[] };
+    }).result.contents[0]!;
+    assertEquals(new TextEncoder().encode(cutContent.text).length, 65_535);
+    assertEquals(cutContent._meta["bakery/endByteExclusive"], 65_535);
+    assertEquals(cutContent._meta["bakery/hasMore"], true);
+    assertEquals(cutContent.text.includes("\ufffd"), false);
+
+    // The scope check and the read hold for an upper-case scheme too.
+    const upper = await rpc(fixture, accessToken, "resources/read", {
+      uri: `BAKERY://artifact-versions/${ids.text}`,
+    });
+    assertEquals(upper.status, 200, JSON.stringify(upper.body));
+
+    // Another organization's version reads exactly like an unknown one.
+    const other = await seedForeignOrganization(fixture);
+    foreignCleanups.push(other.cleanup);
+    const foreign = await seedArtifactVersions(
+      fixture,
+      other.organizationId,
+      other.principalId,
+    );
+    for (const id of [foreign.ids.text, foreign.ids.binary]) {
+      const crossed = await rpc(fixture, accessToken, "resources/read", {
+        uri: `bakery://artifact-versions/${id}`,
+      });
+      assert("error" in crossed.body, JSON.stringify(crossed.body));
+      assertEquals(
+        JSON.stringify((crossed.body as { error: unknown }).error).replaceAll(
+          id,
+          "ID",
+        ),
+        JSON.stringify((unknown.body as { error: unknown }).error).replaceAll(
+          unknownId,
+          "ID",
+        ),
+      );
+    }
+
+    // Malformed ids: both tools and REST give the same 400 code (AC2).
+    for (const id of ["not-a-uuid", "x' or '1'='1", "a".repeat(10_000)]) {
+      for (
+        const name of [
+          "bakery_artifactVersions_content",
+          "bakery_artifactVersions_extract",
+        ]
+      ) {
+        const call = await rpc(fixture, accessToken, "tools/call", {
+          name,
+          arguments: { id },
+        });
+        assertEquals(call.status, 200, JSON.stringify(call.body));
+        const result = (call.body as {
+          result: {
+            isError?: boolean;
+            structuredContent: { problem?: { code?: string; status?: number } };
+          };
+        }).result;
+        assertEquals(result.isError, true, `${name} ${id.slice(0, 20)}`);
+        assertEquals(
+          result.structuredContent.problem?.code,
+          "MALFORMED_REQUEST",
+          `${name} ${id.slice(0, 20)}: ${JSON.stringify(result)}`,
+        );
+      }
+    }
+    const rest = await fixture.app.fetch(
+      new Request(`${authTestOrigin}/v1/artifact-versions/not-a-uuid/content`, {
+        headers: {
+          cookie: seeded.adminCookie,
+          "Bakery-Organization-Id": seeded.organizationId,
+        },
+      }),
+    );
+    assertEquals(rest.status, 400);
+    assertEquals(
+      (await rest.json() as { code: string }).code,
+      "MALFORMED_REQUEST",
+    );
 
     // Lost membership ends access before any read.
     await fixture.pgDatabase.query(
@@ -1103,6 +1243,7 @@ Deno.test("artifact content reaches MCP only as bounded text or a reference, nev
       [principalId],
     );
   } finally {
+    for (const cleanup of foreignCleanups) await cleanup();
     await cleanupOAuth(fixture, seeded.emails, clientIds);
     await fixture.close();
   }
