@@ -1,76 +1,31 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import type { MessageKey, Translator } from "@bakery/i18n";
+import { useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
+import type { MessageKey } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
-import type { OrganizationRepositoryRulesResponse } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
 import {
   organizationRepositoryRulesQueryOptions,
   organizationRepositoryRuleVersionsQueryOptions,
 } from "../api/query.ts";
 import { failureStatus, isForbiddenFailure } from "../app/async-state.ts";
-import * as organizationSelection from "../app/organization-selection.ts";
-import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useShellViewport } from "../app/responsive.ts";
-import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
-
-type Entry = OrganizationRepositoryRulesResponse["entries"][number];
-type RuleKey = Entry["ruleKey"];
+import {
+  accessOf,
+  enforcementOf,
+  RULE_KEYS,
+  RULE_NAME,
+  type RuleEntry,
+  summarize,
+} from "./repository-rules/presentation.ts";
+import { useRulesDraft } from "./repository-rules/draft.ts";
+import { LeaveGuard } from "./repository-rules/leave-guard.tsx";
+import { useRulesScope } from "./repository-rules/use-rules-scope.ts";
 
 /** How many characters of a digest the page shows; the full value is the title. */
 const DIGEST_CHARS = 8;
-
-const RULE_NAME: Readonly<Record<RuleKey, MessageKey>> = {
-  "commits.semantic": "settings.repositoryRules.rule.commits.semantic",
-  "changeRequest.semanticTitle":
-    "settings.repositoryRules.rule.changeRequest.semanticTitle",
-  "changeRequest.description":
-    "settings.repositoryRules.rule.changeRequest.description",
-  "code.magicNumbers": "settings.repositoryRules.rule.code.magicNumbers",
-  "code.magicStrings": "settings.repositoryRules.rule.code.magicStrings",
-};
-
-/** The one line under a rule's name: what it checks, from its options. */
-function summarize(entry: Entry, translate: Translator): string {
-  switch (entry.ruleKey) {
-    case "commits.semantic":
-      return translate(
-        entry.options.range === "all_commits"
-          ? "settings.repositoryRules.summary.commits.allCommits"
-          : "settings.repositoryRules.summary.commits.finalSquash",
-      );
-    case "changeRequest.semanticTitle":
-      return translate(
-        entry.options.scope === "required"
-          ? "settings.repositoryRules.summary.title.scopeRequired"
-          : "settings.repositoryRules.summary.title.scopeOptional",
-        { max: entry.options.maxSubjectLength },
-      );
-    case "changeRequest.description":
-      return entry.options.requiredSections.length === 0
-        ? translate("settings.repositoryRules.summary.description.none")
-        : translate("settings.repositoryRules.summary.description", {
-          sections: entry.options.requiredSections.join(", "),
-        });
-    case "code.magicNumbers":
-      return entry.options.allowedNumbers.length === 0
-        ? translate("settings.repositoryRules.summary.numbers.none")
-        : translate("settings.repositoryRules.summary.numbers.allowed", {
-          numbers: entry.options.allowedNumbers.join(", "),
-        });
-    case "code.magicStrings":
-      return translate("settings.repositoryRules.summary.strings", {
-        count: entry.options.allowedLiterals.length,
-      });
-  }
-}
-
-/** Enforcement as people read it: a switched-off rule is Off whatever its mode. */
-function enforcementOf(entry: Entry): MessageKey {
-  if (!entry.enabled) return "settings.repositoryRules.mode.off";
-  return `settings.repositoryRules.mode.${entry.mode}`;
-}
 
 /**
  * An organization read the server refuses. Besides 403, the server answers a
@@ -89,14 +44,9 @@ function isRefusedRead(error: unknown): boolean {
  */
 export function OrganizationRepositoryRulesPage() {
   const api = useBakeryApi();
-  const scope = useProtectedScope();
   const { translate, locale, timeZone } = useI18n();
   const phone = useShellViewport() === "phone";
-  useRestoreOrganizationScope();
-  const restoring = organizationSelection.hasRemembered();
-  const organizationId = scope.organizationId ??
-    (restoring ? organizationSelection.remembered() : null);
-  const rulesScope = { ...scope, organizationId };
+  const { organizationId, scope: rulesScope, waiting } = useRulesScope();
 
   const rules = useQuery(
     organizationRepositoryRulesQueryOptions(api, rulesScope),
@@ -113,7 +63,66 @@ export function OrganizationRepositoryRulesPage() {
     timeZone,
   });
   const data = rules.isSuccess ? rules.data : undefined;
-  const waiting = !(organizationId === null && !restoring);
+  const navigate = useNavigate();
+  const drafts = useRulesDraft(rulesScope, data?.revision, data?.entries);
+  const [discarding, setDiscarding] = useState(false);
+  const [adding, setAdding] = useState(false);
+  // The rules as they would be once the draft is published.
+  const shown = data ? drafts.entries : [];
+  const changedKeys = new Set<string>(drafts.changed);
+  const publishedBy = new Map(
+    (data?.entries ?? []).map((entry) => [entry.ruleKey, entry]),
+  );
+  const missing = RULE_KEYS.filter((key) =>
+    !shown.some((entry) => entry.ruleKey === key)
+  );
+  const openEditor = (ruleKey: string) =>
+    void navigate({
+      to: "/settings/organization/repository-rules/$ruleKey",
+      params: { ruleKey },
+    });
+  /** What a changed cell used to say, as text, so the change never rests on colour. */
+  const was = (row: RuleEntry, read: (entry: RuleEntry) => MessageKey) => {
+    const before = publishedBy.get(row.ruleKey);
+    if (!before || !changedKeys.has(row.ruleKey)) return null;
+    if (read(before) === read(row)) return null;
+    return (
+      <UI.Text variant="muted">
+        {translate("settings.repositoryRules.was", {
+          value: translate(read(before)),
+        })}
+      </UI.Text>
+    );
+  };
+  const editedBadge = (row: RuleEntry) =>
+    changedKeys.has(row.ruleKey)
+      ? <UI.Badge>{translate("settings.repositoryRules.edited")}</UI.Badge>
+      : null;
+  const addControl = data && missing.length > 0
+    ? (
+      <UI.Stack gap="tight">
+        <UI.Inline>
+          <UI.Button
+            aria-expanded={adding}
+            onClick={() => setAdding((open) => !open)}
+            type="button"
+            variant="outline"
+          >
+            {translate("settings.repositoryRules.add")}
+          </UI.Button>
+        </UI.Inline>
+        <UI.Menu
+          aria-label={translate("settings.repositoryRules.add.menu")}
+          items={missing.map((key) => ({
+            id: key,
+            label: translate(RULE_NAME[key]),
+          }))}
+          onSelect={openEditor}
+          open={adding}
+        />
+      </UI.Stack>
+    )
+    : null;
   const refusal = waiting && forbidden
     ? translate("settings.repositoryRules.forbidden")
     : null;
@@ -148,6 +157,7 @@ export function OrganizationRepositoryRulesPage() {
             {translate("settings.repositoryRules.description")}
           </UI.Text>
         </UI.Stack>
+        {shown.length > 0 ? addControl : null}
         {refusal
           ? <UI.AlertBanner tone="information">{refusal}</UI.AlertBanner>
           : null}
@@ -186,25 +196,33 @@ export function OrganizationRepositoryRulesPage() {
         {data
           ? (
             <>
-              {data.revision === 0
+              {shown.length === 0
                 ? (
                   <UI.EmptyState
                     description={translate(
                       "settings.repositoryRules.empty.description",
                     )}
                     title={translate("settings.repositoryRules.empty.title")}
+                    action={addControl}
                   />
                 )
                 : (
                   <>
-                    <UI.Text variant="muted" data-testid="org-rules-current">
-                      {translate("settings.repositoryRules.current", {
-                        revision: data.revision,
-                        published: data.createdAt
-                          ? when.format(new Date(data.createdAt))
-                          : "",
-                      })}
-                    </UI.Text>
+                    {data.revision > 0
+                      ? (
+                        <UI.Text
+                          variant="muted"
+                          data-testid="org-rules-current"
+                        >
+                          {translate("settings.repositoryRules.current", {
+                            revision: data.revision,
+                            published: data.createdAt
+                              ? when.format(new Date(data.createdAt))
+                              : "",
+                          })}
+                        </UI.Text>
+                      )
+                      : null}
                     {phone
                       ? (
                         <div
@@ -213,29 +231,44 @@ export function OrganizationRepositoryRulesPage() {
                             "settings.repositoryRules.table.caption",
                           )}
                         >
-                          {data.entries.map((row) => (
+                          {shown.map((row) => (
                             <div key={row.ruleKey} role="listitem">
                               <UI.ListRow
-                                detail={summarize(row, translate)}
-                                title={translate(RULE_NAME[row.ruleKey])}
-                                trailing={translate(
-                                  "settings.repositoryRules.enforcementAccess",
-                                  {
-                                    enforcement: translate(enforcementOf(row)),
-                                    access: translate(
-                                      row.locked
-                                        ? "settings.repositoryRules.access.locked"
-                                        : "settings.repositoryRules.access.override",
-                                    ),
-                                  },
+                                controlLabel={translate(
+                                  "settings.repositoryRules.edit.named",
+                                  { rule: translate(RULE_NAME[row.ruleKey]) },
                                 )}
+                                detail={summarize(row, translate)}
+                                onSelect={() =>
+                                  openEditor(row.ruleKey)}
+                                title={translate(RULE_NAME[row.ruleKey])}
+                                trailing={
+                                  <UI.Inline>
+                                    {editedBadge(row)}
+                                    <span>
+                                      {translate(
+                                        "settings.repositoryRules.enforcementAccess",
+                                        {
+                                          enforcement: translate(
+                                            enforcementOf(row),
+                                          ),
+                                          access: translate(
+                                            row.locked
+                                              ? "settings.repositoryRules.access.locked"
+                                              : "settings.repositoryRules.access.override",
+                                          ),
+                                        },
+                                      )}
+                                    </span>
+                                  </UI.Inline>
+                                }
                               />
                             </div>
                           ))}
                         </div>
                       )
                       : (
-                        <UI.DataTable<Entry>
+                        <UI.DataTable<RuleEntry>
                           caption={translate(
                             "settings.repositoryRules.table.caption",
                           )}
@@ -248,9 +281,12 @@ export function OrganizationRepositoryRulesPage() {
                               ),
                               cell: (row) => (
                                 <UI.Stack gap="tight">
-                                  <UI.Text>
-                                    {translate(RULE_NAME[row.ruleKey])}
-                                  </UI.Text>
+                                  <UI.Inline>
+                                    <UI.Text>
+                                      {translate(RULE_NAME[row.ruleKey])}
+                                    </UI.Text>
+                                    {editedBadge(row)}
+                                  </UI.Inline>
                                   <UI.Text variant="muted">
                                     {summarize(row, translate)}
                                   </UI.Text>
@@ -262,19 +298,45 @@ export function OrganizationRepositoryRulesPage() {
                               header: translate(
                                 "settings.repositoryRules.column.enforcement",
                               ),
-                              cell: (row) => translate(enforcementOf(row)),
+                              cell: (row) => (
+                                <UI.Stack gap="tight">
+                                  <UI.Text>
+                                    {translate(enforcementOf(row))}
+                                  </UI.Text>
+                                  {was(row, enforcementOf)}
+                                </UI.Stack>
+                              ),
                             },
                             {
                               id: "access",
                               header: translate(
                                 "settings.repositoryRules.column.access",
                               ),
-                              cell: (row) =>
-                                translate(
-                                  row.locked
-                                    ? "settings.repositoryRules.access.locked"
-                                    : "settings.repositoryRules.access.override",
-                                ),
+                              cell: (row) => (
+                                <UI.Stack gap="tight">
+                                  <UI.Text>{translate(accessOf(row))}</UI.Text>
+                                  {was(row, accessOf)}
+                                </UI.Stack>
+                              ),
+                            },
+                            {
+                              id: "actions",
+                              header: translate(
+                                "settings.repositoryRules.column.actions",
+                              ),
+                              cell: (row) => (
+                                <UI.Button
+                                  aria-label={translate(
+                                    "settings.repositoryRules.edit.named",
+                                    { rule: translate(RULE_NAME[row.ruleKey]) },
+                                  )}
+                                  onClick={() => openEditor(row.ruleKey)}
+                                  type="button"
+                                  variant="outline"
+                                >
+                                  {translate("settings.repositoryRules.edit")}
+                                </UI.Button>
+                              ),
                             },
                           ]}
                           emptyMessage={translate(
@@ -284,110 +346,118 @@ export function OrganizationRepositoryRulesPage() {
                             "settings.repositoryRules.loadError",
                           )}
                           getRowKey={(row) => row.ruleKey}
-                          rows={data.entries}
+                          rows={shown}
                           state="ready"
                           variant="table"
                         />
                       )}
-                    <UI.Heading level="section">
-                      {translate("settings.repositoryRules.history.title")}
-                    </UI.Heading>
-                    {phone && history.length > 0
+                    {data.revision > 0
                       ? (
-                        <div
-                          role="list"
-                          aria-label={translate(
-                            "settings.repositoryRules.history.caption",
-                          )}
-                        >
-                          {history.map((row) => (
-                            <div key={row.id} role="listitem">
-                              <UI.ListRow
-                                detail={translate(
-                                  "settings.repositoryRules.history.detail",
+                        <>
+                          <UI.Heading level="section">
+                            {translate(
+                              "settings.repositoryRules.history.title",
+                            )}
+                          </UI.Heading>
+                          {phone && history.length > 0
+                            ? (
+                              <div
+                                role="list"
+                                aria-label={translate(
+                                  "settings.repositoryRules.history.caption",
+                                )}
+                              >
+                                {history.map((row) => (
+                                  <div key={row.id} role="listitem">
+                                    <UI.ListRow
+                                      detail={translate(
+                                        "settings.repositoryRules.history.detail",
+                                        {
+                                          published: when.format(
+                                            new Date(row.createdAt),
+                                          ),
+                                          count: row.entries.length,
+                                        },
+                                      )}
+                                      title={translate(
+                                        "settings.repositoryRules.history.revision",
+                                        { revision: row.revision },
+                                      )}
+                                      trailing={digestText(row.digest)}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            )
+                            : (
+                              <UI.DataTable<NonNullable<typeof history>[number]>
+                                caption={translate(
+                                  "settings.repositoryRules.history.caption",
+                                )}
+                                captionHidden
+                                columns={[
                                   {
-                                    published: when.format(
-                                      new Date(row.createdAt),
+                                    id: "revision",
+                                    header: translate(
+                                      "settings.repositoryRules.history.column.revision",
                                     ),
-                                    count: row.entries.length,
+                                    cell: (row) => String(row.revision),
                                   },
+                                  {
+                                    id: "published",
+                                    header: translate(
+                                      "settings.repositoryRules.history.column.published",
+                                    ),
+                                    cell: (row) =>
+                                      when.format(new Date(row.createdAt)),
+                                  },
+                                  {
+                                    id: "rules",
+                                    header: translate(
+                                      "settings.repositoryRules.history.column.rules",
+                                    ),
+                                    cell: (row) => String(row.entries.length),
+                                  },
+                                  {
+                                    id: "digest",
+                                    header: translate(
+                                      "settings.repositoryRules.history.column.digest",
+                                    ),
+                                    cell: (row) => digestText(row.digest),
+                                  },
+                                ]}
+                                emptyMessage={translate(
+                                  "settings.repositoryRules.history.empty",
                                 )}
-                                title={translate(
-                                  "settings.repositoryRules.history.revision",
-                                  { revision: row.revision },
+                                error={translate(
+                                  "settings.repositoryRules.history.loadError",
                                 )}
-                                trailing={digestText(row.digest)}
+                                getRowKey={(row) => row.id}
+                                rows={history}
+                                state={versions.isPending
+                                  ? "loading"
+                                  : versions.isError
+                                  ? "error"
+                                  : history.length === 0
+                                  ? "empty"
+                                  : "ready"}
+                                variant="table"
                               />
-                            </div>
-                          ))}
-                        </div>
-                      )
-                      : (
-                        <UI.DataTable<NonNullable<typeof history>[number]>
-                          caption={translate(
-                            "settings.repositoryRules.history.caption",
-                          )}
-                          captionHidden
-                          columns={[
-                            {
-                              id: "revision",
-                              header: translate(
-                                "settings.repositoryRules.history.column.revision",
-                              ),
-                              cell: (row) => String(row.revision),
-                            },
-                            {
-                              id: "published",
-                              header: translate(
-                                "settings.repositoryRules.history.column.published",
-                              ),
-                              cell: (row) =>
-                                when.format(new Date(row.createdAt)),
-                            },
-                            {
-                              id: "rules",
-                              header: translate(
-                                "settings.repositoryRules.history.column.rules",
-                              ),
-                              cell: (row) => String(row.entries.length),
-                            },
-                            {
-                              id: "digest",
-                              header: translate(
-                                "settings.repositoryRules.history.column.digest",
-                              ),
-                              cell: (row) => digestText(row.digest),
-                            },
-                          ]}
-                          emptyMessage={translate(
-                            "settings.repositoryRules.history.empty",
-                          )}
-                          error={translate(
-                            "settings.repositoryRules.history.loadError",
-                          )}
-                          getRowKey={(row) => row.id}
-                          rows={history}
-                          state={versions.isPending
-                            ? "loading"
-                            : versions.isError
-                            ? "error"
-                            : history.length === 0
-                            ? "empty"
-                            : "ready"}
-                          variant="table"
-                        />
-                      )}
-                    {versions.hasNextPage
-                      ? (
-                        <UI.Button
-                          loading={versions.isFetchingNextPage}
-                          onClick={() => void versions.fetchNextPage()}
-                          type="button"
-                        >
-                          {translate(
-                            "settings.repositoryRules.history.loadMore",
-                          )}
-                        </UI.Button>
+                            )}
+                          {versions.hasNextPage
+                            ? (
+                              <UI.Button
+                                loading={versions.isFetchingNextPage}
+                                onClick={() => void versions.fetchNextPage()}
+                                type="button"
+                              >
+                                {translate(
+                                  "settings.repositoryRules.history.loadMore",
+                                )}
+                              </UI.Button>
+                            )
+                            : null}
+                        </>
                       )
                       : null}
                   </>
@@ -395,6 +465,70 @@ export function OrganizationRepositoryRulesPage() {
             </>
           )
           : null}
+        {drafts.count > 0 && drafts.draft
+          ? (
+            <UI.DraftBar
+              detail={translate("settings.repositoryRules.draft.basis", {
+                revision: drafts.draft.baseRevision,
+              })}
+              primaryAction={
+                // Review and publish opens the preview dialog (next commit).
+
+
+                  <UI.Button disabled type="button">
+                    {translate("settings.repositoryRules.draft.review")}
+                  </UI.Button>
+
+              }
+              secondaryAction={
+                <UI.Button
+                  onClick={() => setDiscarding(true)}
+                  type="button"
+                  variant="outline"
+                >
+                  {translate("settings.repositoryRules.draft.discard")}
+                </UI.Button>
+              }
+              summary={translate("settings.repositoryRules.draft.summary", {
+                count: drafts.count,
+              })}
+            />
+          )
+          : null}
+        <UI.AlertDialog
+          cancelAction={
+            <UI.Button
+              onClick={() => setDiscarding(false)}
+              type="button"
+              variant="secondary"
+            >
+              {translate("settings.repositoryRules.draft.keepEditing")}
+            </UI.Button>
+          }
+          confirmAction={
+            <UI.Button
+              onClick={() => {
+                drafts.discard();
+                setDiscarding(false);
+              }}
+              type="button"
+              variant="destructive"
+            >
+              {translate("settings.repositoryRules.draft.discardConfirm")}
+            </UI.Button>
+          }
+          onOpenChange={(open) => !open && setDiscarding(false)}
+          open={discarding}
+          title={translate("settings.repositoryRules.draft.discardTitle", {
+            count: drafts.count,
+          })}
+          variant="destructive"
+        >
+          <UI.Text>
+            {translate("settings.repositoryRules.draft.discardBody")}
+          </UI.Text>
+        </UI.AlertDialog>
+        <LeaveGuard count={drafts.count} discard={drafts.discard} />
       </UI.SettingsContent>
     </>
   );
