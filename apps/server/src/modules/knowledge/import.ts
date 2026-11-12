@@ -1,3 +1,7 @@
+import {
+  gitLauncherArgs,
+  SERVER_GIT_LAUNCHER,
+} from "../../platform/server-exec.ts";
 import { isUuid, PrincipalType } from "@bakery/contracts/contracts";
 import { parseStrongIfMatch, StandardError } from "@bakery/contracts/http";
 import type { PgTransactionClient } from "@bakery/persistence";
@@ -437,19 +441,6 @@ type GitProofBudget = Readonly<{
   dispose: () => void;
 }>;
 
-function createGitEnvironment(): Record<string, string> {
-  return {
-    PATH: "/usr/bin:/bin",
-    GIT_CONFIG_NOSYSTEM: "1",
-    GIT_CONFIG_GLOBAL: "/dev/null",
-    GIT_NO_REPLACE_OBJECTS: "1",
-    GIT_NO_LAZY_FETCH: "1",
-    GIT_ALLOW_PROTOCOL: "",
-    GIT_TERMINAL_PROMPT: "0",
-    GIT_ASKPASS: "",
-  };
-}
-
 function createGitProofBudget(
   parentSignal?: AbortSignal,
 ): GitProofBudget {
@@ -571,10 +562,11 @@ async function gitOutput(
   assertSignalActive(signal);
   let child: Deno.ChildProcess;
   try {
-    child = new Deno.Command("/usr/bin/git", {
-      args: ["--git-dir", bareRepositoryPath, ...args],
+    // The fixed git launcher sets git's clean environment itself.
+    child = new Deno.Command(SERVER_GIT_LAUNCHER, {
+      args: gitLauncherArgs(bareRepositoryPath, args),
       clearEnv: true,
-      env: createGitEnvironment(),
+      env: {},
       signal,
       stdout: "piped",
       stderr: "null",
@@ -618,18 +610,16 @@ async function gitHashObject(
   assertSignalActive(signal);
   let child: Deno.ChildProcess;
   try {
-    child = new Deno.Command("/usr/bin/git", {
-      args: [
-        "--git-dir",
-        bareRepositoryPath,
+    child = new Deno.Command(SERVER_GIT_LAUNCHER, {
+      args: gitLauncherArgs(bareRepositoryPath, [
         "hash-object",
         "-t",
         objectType,
         "--stdin",
         "--no-filters",
-      ],
+      ]),
       clearEnv: true,
-      env: createGitEnvironment(),
+      env: {},
       signal,
       stdin: "piped",
       stdout: "piped",
