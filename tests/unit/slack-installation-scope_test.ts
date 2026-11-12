@@ -2,6 +2,7 @@ import { assert, assertEquals } from "@std/assert";
 import {
   channelCapability,
   classifySlackInstallation,
+  isSlackEnterpriseId,
   resolveSlackActor,
   SLACK_FEATURE_SCOPES,
   slackFeaturesFor,
@@ -923,4 +924,30 @@ Deno.test("the app id travels to the lookup when the subject names one, and a ma
     );
   }
   assertEquals(seen, [], "a malformed app id never reaches the lookup");
+});
+
+Deno.test("a Slack Enterprise Grid organization id is E followed by 2 to 31 capitals or digits, as a plain string, and nothing else", () => {
+  for (const good of ["E0ENT1234", "EABC", `E${"A".repeat(31)}`, "E12"]) {
+    assert(isSlackEnterpriseId(good), good);
+  }
+  for (
+    const bad of [
+      "e0ent1234",
+      "E",
+      "E1",
+      `E${"A".repeat(32)}`,
+      "T0ABC123",
+      "E0ENT1234\n",
+      " E0ENT1234",
+      "E0ENT-1234",
+      "",
+      5,
+      null,
+      undefined,
+      ["E0ENT1234"],
+      { toString: () => "E0ENT1234" },
+    ]
+  ) {
+    assertEquals(isSlackEnterpriseId(bad), false, JSON.stringify(bad));
+  }
 });

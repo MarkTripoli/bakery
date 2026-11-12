@@ -55,6 +55,25 @@ export const AuthAttemptVerifierCipherBindingSchema = z.object({
 export type AuthAttemptVerifierCipherBinding = z.infer<
   typeof AuthAttemptVerifierCipherBindingSchema
 >;
+export const SlackIdentityNonceCipherBindingSchema = z.object({
+  organizationId: z.string().uuid().describe(
+    "Organization that owns the Slack identity attempt.",
+  ),
+  attemptId: z.string().uuid().describe(
+    "Slack identity attempt the nonce belongs to.",
+  ),
+  stateHash: z.string().regex(/^[0-9a-f]{64}$/).describe(
+    "SHA-256 hex of the state issued with this nonce.",
+  ),
+  keyId: SecretsKeyConfigSchema.shape.keyId.describe(
+    "External key identity bound to this nonce ciphertext.",
+  ),
+}).strict().describe(
+  "Slack identity attempt nonce AES-GCM associated-data binding; distinct from the project, installation and PKCE verifier bindings so no ciphertext decrypts as another.",
+);
+export type SlackIdentityNonceCipherBinding = z.infer<
+  typeof SlackIdentityNonceCipherBindingSchema
+>;
 export const SecretCipherSchema = z.object({
   ciphertext: z.instanceof(Uint8Array).describe(
     "Authenticated encrypted credential bytes including the GCM tag; storage only.",
@@ -135,6 +154,21 @@ function authAttemptVerifierAad(
     JSON.stringify([
       3,
       "integration_auth_attempt",
+      b.organizationId,
+      b.attemptId,
+      b.stateHash,
+      b.keyId,
+    ]),
+  );
+}
+function slackIdentityNonceAad(
+  binding: SlackIdentityNonceCipherBinding,
+): Uint8Array<ArrayBuffer> {
+  const b = SlackIdentityNonceCipherBindingSchema.parse(binding);
+  return new TextEncoder().encode(
+    JSON.stringify([
+      4,
+      "slack_identity_attempt",
       b.organizationId,
       b.attemptId,
       b.stateHash,
@@ -240,4 +274,20 @@ export async function decryptAuthAttemptVerifier(
     () => authAttemptVerifierAad(binding),
     cipher,
   );
+}
+/** Encrypts the nonce of a Slack identity attempt under its state. */
+export async function encryptSlackIdentityNonce(
+  key: CryptoKey,
+  binding: SlackIdentityNonceCipherBinding,
+  nonce: string,
+): Promise<SecretCipher> {
+  return await encryptWith(key, () => slackIdentityNonceAad(binding), nonce);
+}
+/** Recovers the nonce to check an identity token against; read routes never call this. */
+export async function decryptSlackIdentityNonce(
+  key: CryptoKey,
+  binding: SlackIdentityNonceCipherBinding,
+  cipher: SecretCipher,
+): Promise<Uint8Array> {
+  return await decryptWith(key, () => slackIdentityNonceAad(binding), cipher);
 }

@@ -133,14 +133,20 @@ const TRACE_ID_LAYOUT = /^[0-9a-f]{32}$/;
  * The span an operation (one HTTP command) runs in, from what the edge already
  * knows: the `trace_id` it will persist and the `traceparent` header it was
  * sent, if any. The result always names the same trace as `traceId` when that
- * is a usable trace id, so the persisted id and the span context never
- * disagree.
+ * is a usable trace id (32 hex characters, capitals lowered, not all zeros),
+ * so the persisted id and the span context never disagree.
  *
- * - A well-formed header for that trace is the parent: the operation gets a new
- *   span in it and the caller's sampling decision stands.
- * - A header for another trace, or one that is not exactly version 00, is not
- *   a parent. If `traceId` is usable the operation starts a recorded span in
- *   it; otherwise (a dashed UUID, all zeros, anything else) it starts a new
+ * - A header `parseTraceparent` can read is the parent when `traceId` names the
+ *   same trace, or when `traceId` is not usable (a dashed UUID, all zeros, a
+ *   wrong length: the operation then continues the caller's trace). The
+ *   operation gets a new span in it and the caller's sampling decision stands.
+ *   A later version is read by the version-00 layout, as `parseTraceparent`
+ *   does, and is a parent like any other; what is stored is always version 00.
+ * - A header for another trace than a usable `traceId`, or one
+ *   `parseTraceparent` cannot read (the wrong layout, version ff, all-zero
+ *   identifiers, version 00 with fields after its own), is not a parent. A
+ *   usable `traceId` then gets a new recorded span in its trace; with neither
+ *   a usable `traceId` nor a readable header the operation starts a new
  *   recorded trace.
  *
  * Capitals in a hex `traceId` are lowered, which the specification requires of
