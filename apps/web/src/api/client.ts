@@ -181,6 +181,9 @@ export type RepositoryProfileResponse = ClientOutputMap["RepositoryProfile"];
 /** The latest published organization rules baseline, or the empty one at revision 0. */
 export type OrganizationRepositoryRulesResponse =
   ClientOutputMap["OrganizationRepositoryRulesRead"];
+/** The rules in force for one repository, each with where it came from, and what could check them. */
+export type RepositoryEffectiveRulesResponse =
+  ClientOutputMap["RepositoryEffectiveRules"];
 export type OrganizationRepositoryRuleVersionListResponse =
   ClientOutputMap["Page<OrganizationRepositoryRuleVersion>"];
 export type ApplicationCreate = ClientInputMap["ApplicationCreate"];
@@ -1028,6 +1031,12 @@ export type BakeryApiClient = {
     readonly organizationId: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<OrganizationRepositoryRulesResponse>>;
+  /** `GET /v1/repositories/:id/rules`: the rules in force for one repository (Developer access). */
+  readonly getRepositoryEffectiveRules: (options: {
+    readonly organizationId: string;
+    readonly repositoryId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<RepositoryEffectiveRulesResponse>>;
   /** `GET /v1/organizations/:id/repository-rule-versions`: published revisions, newest first. */
   readonly listOrganizationRepositoryRuleVersions: (options: {
     readonly organizationId: string;
@@ -3736,6 +3745,24 @@ export function createBakeryApiClient({
           { id: options.organizationId },
           { signal: options.signal },
         );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getRepositoryEffectiveRules(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["repositoryRules.getEffective"](
+          { id: options.repositoryId },
+          { signal: options.signal },
+        );
+        if (data.repositoryId !== options.repositoryId) {
+          throw new ApiTransportError("protocol", 200);
+        }
         return { ok: true, data };
       } catch (error) {
         return failed(error);
