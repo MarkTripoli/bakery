@@ -257,8 +257,13 @@
   position: relative;
   vertical-align: middle;
 }
-.ui-help-tip .ui-icon-button {
+/* The same plain icon everywhere, including in a table header, whose own
+   button rule draws a bordered box. */
+.ui-help-tip .ui-icon-button,
+.ui-data-table .ui-help-tip .ui-icon-button {
+  background: transparent;
   block-size: var(--target-min);
+  border: var(--border-none);
   color: var(--color-fg-muted);
   inline-size: var(--target-min);
   min-block-size: var(--target-min);

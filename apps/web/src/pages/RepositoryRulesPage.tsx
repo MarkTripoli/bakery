@@ -136,10 +136,12 @@ export function RepositoryRulesPage(
       {label}
     </UI.Link>
   );
+  // A wide screen has the button at the end of the title row; on a phone the
+  // heaviest thing above the content would be a full-width box, so it is a link.
   const organizationRulesLink = link(
     ORGANIZATION_RULES_PATH,
     translate("repository.rules.viewOrganization"),
-    "button",
+    phone ? undefined : "button",
   );
 
   const enforcementHelp = (
@@ -180,7 +182,7 @@ export function RepositoryRulesPage(
         <>
           <UI.Inline>
             <UI.StatusBadge
-              status={row.entry.mode === "require" ? "failed" : "degraded"}
+              status={row.entry.mode === "require" ? "failed" : "needsInput"}
             >
               {translate("repository.rules.check.unavailable")}
             </UI.StatusBadge>
@@ -324,12 +326,24 @@ export function RepositoryRulesPage(
               {phone
                 ? (
                   <>
-                    <UI.Inline gap="compact">
+                    <UI.VisuallyHidden as="div">
                       <UI.Heading level="section">
                         {translate("repository.rules.list.title")}
                       </UI.Heading>
-                      {enforcementHelp}
-                      {sourceHelp}
+                    </UI.VisuallyHidden>
+                    <UI.Inline>
+                      <UI.Inline gap="compact">
+                        <UI.Text>
+                          {translate("repository.rules.column.enforcement")}
+                        </UI.Text>
+                        {enforcementHelp}
+                      </UI.Inline>
+                      <UI.Inline gap="compact">
+                        <UI.Text>
+                          {translate("repository.rules.column.source")}
+                        </UI.Text>
+                        {sourceHelp}
+                      </UI.Inline>
                     </UI.Inline>
                     <div
                       aria-label={translate("repository.rules.table.caption")}
@@ -372,6 +386,7 @@ export function RepositoryRulesPage(
                     columns={[
                       {
                         id: "rule",
+                        width: "50%",
                         header: translate("repository.rules.column.rule"),
                         cell: (row) => (
                           <UI.Stack gap="tight">
@@ -390,6 +405,7 @@ export function RepositoryRulesPage(
                       },
                       {
                         id: "enforcement",
+                        width: "25%",
                         header: (
                           <UI.Inline gap="compact">
                             <span>
@@ -402,6 +418,7 @@ export function RepositoryRulesPage(
                       },
                       {
                         id: "source",
+                        width: "25%",
                         header: (
                           <UI.Inline gap="compact">
                             <span>
@@ -429,7 +446,7 @@ export function RepositoryRulesPage(
                   <UI.DescriptionItem
                     action={checks?.state === "unavailable"
                       ? (
-                        <UI.StatusBadge status="degraded">
+                        <UI.StatusBadge status="needsInput">
                           {translate("repository.rules.checks.unavailable", {
                             count: checks.unavailableRuleKeys.length,
                           })}
@@ -487,35 +504,37 @@ export function RepositoryRulesPage(
                 </UI.Heading>
                 <UI.DescriptionList>
                   <UI.DescriptionItem
-                    description={version(data.organizationRevision)}
+                    action={
+                      <UI.Text>{version(data.organizationRevision)}</UI.Text>
+                    }
                     title={translate("repository.rules.details.organization")}
                   />
                   <UI.DescriptionItem
-                    description={version(data.profileRevision)}
+                    action={<UI.Text>{version(data.profileRevision)}</UI.Text>}
                     title={translate("repository.rules.details.repository")}
                   />
                   <UI.DescriptionItem
                     action={
-                      <UI.Button
-                        onClick={() => void copyFingerprint()}
-                        type="button"
-                        variant="secondary"
-                      >
-                        {translate(
-                          copied
-                            ? "repository.rules.details.copied"
-                            : "repository.rules.details.copy",
-                        )}
-                      </UI.Button>
-                    }
-                    description={
-                      <UI.DataText
-                        data-testid="repository-rules-digest"
-                        title={data.digest}
-                        variant="code"
-                      >
-                        {data.digest.slice(0, FINGERPRINT_CHARS)}
-                      </UI.DataText>
+                      <UI.Inline gap="compact">
+                        <UI.DataText
+                          data-testid="repository-rules-digest"
+                          title={data.digest}
+                          variant="code"
+                        >
+                          {data.digest.slice(0, FINGERPRINT_CHARS)}
+                        </UI.DataText>
+                        <UI.Button
+                          onClick={() => void copyFingerprint()}
+                          type="button"
+                          variant="secondary"
+                        >
+                          {translate(
+                            copied
+                              ? "repository.rules.details.copied"
+                              : "repository.rules.details.copy",
+                          )}
+                        </UI.Button>
+                      </UI.Inline>
                     }
                     title={
                       <>

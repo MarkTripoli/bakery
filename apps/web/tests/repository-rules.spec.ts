@@ -459,7 +459,7 @@ test.describe("repository rules: the effective rules of one repository", () => {
     await expect(page).toHaveURL(/\/settings\/organization\/repository-rules$/);
   });
 
-  test("View organization rules ends the title row on a wide screen and spans under it on a phone", async ({ page }) => {
+  test("View organization rules ends the title row on a wide screen and is a plain link under it on a phone", async ({ page }) => {
     await rulesFixture(page);
     await page.goto(RULES_PATH);
     const heading = region(page).getByRole("heading", {
@@ -474,10 +474,22 @@ test.describe("repository rules: the effective rules of one repository", () => {
     const column = await region(page).boundingBox();
     if (!head || !found || !column) throw new Error("a box is missing");
     if (isPhone(page)) {
-      // Stacked under the title block, across the column.
+      // Stacked under the title block as a plain link, not a full-width box.
       expect(found.y).toBeGreaterThanOrEqual(head.y + head.height);
-      expect(found.width).toBeGreaterThan(column.width * 0.9);
+      await expect(link).toHaveCSS("border-top-width", "0px");
+      expect(
+        await link.evaluate((node) =>
+          node.classList.contains("ui-link--button")
+        ),
+      )
+        .toBe(false);
     } else {
+      expect(
+        await link.evaluate((node) =>
+          node.classList.contains("ui-link--button")
+        ),
+      )
+        .toBe(true);
       // Beside the title, at the end of its row.
       expect(found.x).toBeGreaterThanOrEqual(head.x + head.width);
       expect(found.y).toBeLessThan(head.y + head.height);
@@ -576,9 +588,27 @@ test.describe("repository rules: the effective rules of one repository", () => {
           .getByRole("button", { name: "About enforcement" }),
       ).toBeVisible();
     } else {
-      await expect(
-        region(page).getByRole("heading", { name: "Rules", level: 2 }),
-      ).toBeVisible();
+      // Two labelled triggers, "Enforcement (i)" then "Source (i)", side by side; the
+      // list heading stays for screen readers but takes no room.
+      const trigger = async (name: string, label: string) => {
+        const text = region(page).getByText(name, { exact: true }).first();
+        const button = region(page).getByRole("button", { name: label });
+        const a = (await text.boundingBox())!;
+        const b = (await button.boundingBox())!;
+        expect(b.x).toBeGreaterThanOrEqual(a.x + a.width - 1);
+        expect(Math.abs(b.y + b.height / 2 - (a.y + a.height / 2)))
+          .toBeLessThan(a.height);
+      };
+      await trigger("Enforcement", "About enforcement");
+      await trigger("Source", "About source");
+      const listHeading = region(page).getByRole("heading", {
+        name: "Rules",
+        level: 2,
+      });
+      await expect(listHeading).toHaveCount(1);
+      // Its wrapper is clipped to a pixel; the heading inside it takes no room.
+      const wrapper = listHeading.locator("xpath=..");
+      expect((await wrapper.boundingBox())!.height).toBeLessThanOrEqual(1);
     }
     // Focus shows the text, and the button is described by it.
     await enforcement.focus();
@@ -613,6 +643,9 @@ test.describe("repository rules: the effective rules of one repository", () => {
     });
     await expect(fingerprintText).toBeVisible();
     expect(await isSeen(fingerprintText)).toBe(true);
+    // Focus keeps it open through the capture's viewport change; a hover would end.
+    await fingerprintHelp.focus();
+    await expect(fingerprintText).toBeVisible();
     // The window, not the page: what the page's own scrolling clips would show.
     await shot(page, "repository-rules-help-fingerprint", [], {
       windowOnly: true,
@@ -749,6 +782,79 @@ test.describe("repository rules: the effective rules of one repository", () => {
       tip.y + tip.height <= trigger.y + 1 ||
         tip.y >= trigger.y + trigger.height - 1,
     ).toBe(true);
+  });
+
+  test("on a wide screen the Rule column takes half the table and no rule summary is cut", async ({ page }) => {
+    test.skip(isPhone(page), "the table is the wide-screen layout");
+    await rulesFixture(page);
+    await page.goto(RULES_PATH);
+    await expect(page.locator("thead th")).toHaveCount(3);
+    const widths = await page.locator("thead th").evaluateAll((cells) =>
+      cells.map((cell) => cell.getBoundingClientRect().width)
+    );
+    const total = widths.reduce((sum, width) => sum + width, 0);
+    // About half for Rule, about a quarter each for Enforcement and Source.
+    expect(widths[0] / total).toBeGreaterThan(0.45);
+    expect(widths[1] / total).toBeLessThan(0.3);
+    expect(widths[2] / total).toBeLessThan(0.3);
+    // No summary is clamped: what is drawn is what is there.
+    const cut = await page.locator("tbody .ui-text").evaluateAll((nodes) =>
+      nodes.filter((node) => node.scrollHeight > node.clientHeight + 1).length
+    );
+    expect(cut).toBe(0);
+  });
+
+  test("the help buttons are plain icons, the warning badge is amber and Version details reads like Checks", async ({ page }) => {
+    await rulesFixture(page);
+    await page.goto(RULES_PATH);
+    // Plain (ghost) icons: no border, no fill, wherever they sit.
+    await expect(
+      details(page).getByRole("button", {
+        name: "About the rules fingerprint",
+      }),
+    ).toBeVisible();
+    const helpButtons = region(page).locator(".ui-help-tip > .ui-icon-button");
+    const count = await helpButtons.count();
+    expect(count).toBeGreaterThanOrEqual(3);
+    for (let index = 0; index < count; index += 1) {
+      const style = await helpButtons.nth(index).evaluate((node) => {
+        const css = getComputedStyle(node);
+        return { border: css.borderTopWidth, background: css.backgroundColor };
+      });
+      expect(style.border).toBe("0px");
+      expect(style.background).toBe("rgba(0, 0, 0, 0)");
+    }
+    // "1 rule has no working check" has the warning tone.
+    const badge = checks(page).getByText("1 rule has no working check");
+    const warning = await page.evaluate(() => {
+      const probe = document.createElement("span");
+      probe.style.color = "var(--color-status-warning)";
+      document.body.append(probe);
+      const color = getComputedStyle(probe).color;
+      probe.remove();
+      return color;
+    });
+    expect(await badge.evaluate((node) => getComputedStyle(node).color))
+      .toBe(warning);
+    // Version details: the label at the start, the value at the end, like Checks.
+    const section = details(page);
+    for (
+      const [label, value] of [
+        ["Organization rules version", "3"],
+        ["Repository settings version", "8"],
+      ]
+    ) {
+      const labelBox = (await section.getByText(label, { exact: true })
+        .boundingBox())!;
+      const valueBox = (await section.getByText(value, { exact: true })
+        .boundingBox())!;
+      const sectionBox = (await section.boundingBox())!;
+      // Same line, value flush to the end of the section.
+      expect(Math.abs(valueBox.y - labelBox.y)).toBeLessThan(labelBox.height);
+      expect(valueBox.x).toBeGreaterThan(labelBox.x + labelBox.width);
+      expect(sectionBox.x + sectionBox.width - (valueBox.x + valueBox.width))
+        .toBeLessThan(32);
+    }
   });
 
   test("has no accessibility violations", async ({ page }) => {
