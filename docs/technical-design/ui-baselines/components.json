@@ -1,5 +1,5 @@
 {
-  "revision": "1258df6cecf8feb0a0adeb8df07744e5bae2499d9b0749f784ee1b33d3de0638",
+  "revision": "fe8c49c71425cc57257a6ef42429e4d4dd6361fd95aff5ff41d89cd5407c2dda",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -7046,6 +7046,7 @@
       "tokens": [
         "--color-fg",
         "--color-fg-muted",
+        "--layout-inspector",
         "--space-0",
         "--space-1",
         "--space-8",
