@@ -31,6 +31,14 @@ export const Contract: StoryObj = {
         <Text>First column</Text>
         <Text>Second column</Text>
       </Inline>
+      <Inline variant="end">
+        <Button variant="secondary">Back</Button>
+        <Button>Publish</Button>
+      </Inline>
+      <Inline variant="between">
+        <Text>Heading block</Text>
+        <Button variant="secondary">Add</Button>
+      </Inline>
       <Inline variant="thirds">
         <Text>One</Text>
         <Text>Two</Text>

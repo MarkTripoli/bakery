@@ -213,6 +213,9 @@ type IsolationOptions = {
   journalctlPath?: string;
   denoPath?: string;
   workerPath?: string;
+  /** Wall-clock budget from spawn to the worker's READY (no client bytes yet). */
+  startupDeadlineMs?: number;
+  /** Wall-clock budget for the work, from READY to exit. */
   totalDeadlineMs?: number;
   namespaceFileReader?: (
     path: NamespacePrerequisitePath,
@@ -1089,19 +1092,18 @@ async function verifyBoundaryRemoved(
  * everything else it is given, and execs Deno on the fixed worker module with
  * pinned flags; see infra/draft-worker/launch.sh.
  */
-/** systemd's own wall-clock cap on a draft worker unit (RuntimeMaxSec). */
-export const SYSTEMD_RUNTIME_SECONDS = 1;
 
 /**
- * The draft worker unit's properties. infra/server-exec/draft-systemd.sh pins
- * the same list (tests/unit/server-exec-launchers_test.ts keeps them equal).
+ * The draft worker unit's fixed properties. RuntimeMaxSec is not among them:
+ * it is the per-isolation backstop above both deadlines (runtimeMaxSeconds),
+ * passed to infra/server-exec/draft-systemd.sh as its `run` operand. The
+ * launcher pins the same list (tests/unit/server-exec-launchers_test.ts).
  */
 export const SYSTEMD_UNIT_PROPERTIES: readonly string[] = Object.freeze([
   `--property=MemoryMax=${DRAFT_LIMITS.workerMemoryBytes}`,
   "--property=MemorySwapMax=0",
   `--property=TasksMax=${DRAFT_LIMITS.workerTasks}`,
   "--property=CPUQuota=100%",
-  `--property=RuntimeMaxSec=${SYSTEMD_RUNTIME_SECONDS}s`,
   "--property=TimeoutStopSec=100ms",
   "--property=KillMode=control-group",
   "--property=SendSIGKILL=yes",
@@ -1143,7 +1145,18 @@ export function createDraftIsolation(
   const denoPath = options.denoPath ?? Deno.execPath();
   const workerPath = options.workerPath ??
     new URL("./draft-import-worker.ts", import.meta.url).pathname;
-  const deadlineMs = options.totalDeadlineMs ?? 2_000;
+  // Start-up and work are metered apart. Before READY the worker has read
+  // nothing from the client, so its start-up time is the host's (a cold Deno
+  // start can exceed a second under load), not something a client controls.
+  // Only the work after READY spends workerRuntimeMs.
+  const startupDeadlineMs = options.startupDeadlineMs ??
+    DRAFT_LIMITS.workerStartupMs;
+  const deadlineMs = options.totalDeadlineMs ?? DRAFT_LIMITS.workerRuntimeMs;
+  // systemd's own wall-clock cap is the backstop if this process dies: both
+  // budgets plus a second of slack, so the parent's deadline always fires first.
+  const runtimeMaxSeconds = Math.ceil(
+    (startupDeadlineMs + deadlineMs) / 1_000,
+  ) + 1;
   const namespaceFileReader = options.namespaceFileReader ?? readBoundedFile;
 
   const run = async (
@@ -1161,6 +1174,9 @@ export function createDraftIsolation(
       "--wait",
       "--quiet",
       `--unit=${unit}`,
+      // The per-isolation backstop first, then the fixed list: every unit
+      // property precedes the worker command.
+      `--property=RuntimeMaxSec=${runtimeMaxSeconds}s`,
       ...SYSTEMD_UNIT_PROPERTIES,
       denoPath,
       "run",
@@ -1171,7 +1187,6 @@ export function createDraftIsolation(
       workerPath,
     ];
     const systemd = launcher === "systemd";
-    const startedAt = performance.now();
     let child: Deno.ChildProcess;
     try {
       child = new Deno.Command(
@@ -1181,7 +1196,7 @@ export function createDraftIsolation(
         {
           args: systemd
             ? systemdLauncher
-              ? ["run", jobId, String(SYSTEMD_RUNTIME_SECONDS)]
+              ? ["run", jobId, String(runtimeMaxSeconds)]
               : systemdArgs
             : [jobId],
           stdin: "piped",
@@ -1219,10 +1234,11 @@ export function createDraftIsolation(
       cleanup ??= systemd
         ? terminateBoundary(child, systemctlPath, unit)
         : terminateProcess(child);
-    const timeout = setTimeout(() => {
+    const expire = () => {
       timedOut = true;
       void cleanupBoundary();
-    }, deadlineMs);
+    };
+    let timeout = setTimeout(expire, startupDeadlineMs);
     const abort = () => {
       aborted = true;
       void cleanupBoundary();
@@ -1262,6 +1278,9 @@ export function createDraftIsolation(
         }
         throw error;
       }
+      clearTimeout(timeout);
+      timeout = setTimeout(expire, deadlineMs);
+      const readyAt = performance.now();
       const input = encodeFrames(frames);
       const writer = child.stdin.getWriter();
       await writer.write(input);
@@ -1278,14 +1297,12 @@ export function createDraftIsolation(
         throw new DraftIsolationError("unavailable", "WORKER_STDERR_OVERFLOW");
       }
       if (!status.success) {
-        const elapsed = performance.now() - startedAt;
+        const elapsed = performance.now() - readyAt;
         throw new DraftIsolationError(
           // Only systemd kills on its own clock (RuntimeMaxSec). A process
           // child is time-killed only by our timer, reported above, so its
           // failed exit is a crash or a memory-cap kill, never a timeout.
-          systemd && elapsed >= DRAFT_LIMITS.workerRuntimeMs * 0.9
-            ? "timeout"
-            : "unavailable",
+          systemd && elapsed >= deadlineMs * 0.9 ? "timeout" : "unavailable",
           `WORKER_EXIT_${status.code}`,
         );
       }
