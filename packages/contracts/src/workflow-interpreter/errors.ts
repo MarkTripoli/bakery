@@ -16,6 +16,12 @@ export const WORKFLOW_INTERPRETER_ERRORS = {
     "This workflow contains a parallel group, which this interpreter revision does not run.",
   document_invalid:
     "The workflow document does not have the shape this interpreter runs.",
+  runtime_pin_invalid:
+    "The recorded runtime pin does not have the shape of a runtime pin.",
+  revision_unavailable:
+    "The interpreter revision this run is pinned to is not deployed. The run cannot resume on another revision.",
+  pin_mismatch:
+    "The workflow document does not match the compiler version and digest this run is pinned to.",
 } as const;
 
 export type WorkflowInterpreterErrorCode =
