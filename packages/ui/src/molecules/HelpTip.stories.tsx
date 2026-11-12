@@ -34,6 +34,13 @@ export const Contract: StoryObj = {
         Identifies the exact rules in force. Each run records the same value, so
         you can tell which rules it used.
       </HelpTip>
+      <Text>Long help</Text>
+      <HelpTip label="About a long explanation">
+        {"This is a long explanation that does not fit on a small screen in a few lines. It keeps going so that the panel reaches half the height of the screen and has to scroll inside itself. "
+          .repeat(
+            6,
+          )}
+      </HelpTip>
     </Stack>
   ),
 };

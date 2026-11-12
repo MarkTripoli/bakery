@@ -592,6 +592,100 @@ test.describe("repository rules: the effective rules of one repository", () => {
     expect(tip.x + tip.width).toBeLessThanOrEqual(window.width);
   });
 
+  test("on a phone the help is a panel pinned to the bottom of the screen, as design-ux decided", async ({ page }) => {
+    test.skip(!isPhone(page), "the panel is the phone behaviour");
+    await rulesFixture(page);
+    await page.goto(RULES_PATH);
+    const window = page.viewportSize();
+    if (!window) throw new Error("no viewport");
+    const enforcement = region(page).getByRole("button", {
+      name: "About enforcement",
+    });
+    await enforcement.click();
+    const panel = page.locator(
+      '[data-ui-component="helpTip"] .ui-help-tip__panel',
+    ).filter({
+      has: page.getByText("Require blocks delivery until the check passes."),
+    });
+    await expect(panel).toBeVisible();
+    // The first line says what it is about, because the text is no longer beside its button.
+    await expect(panel.locator(".ui-help-tip__title")).toHaveText(
+      "About enforcement",
+    );
+    const box = await panel.boundingBox();
+    if (!box) throw new Error("the panel has no box");
+    // Full width less the 16 px gutters, 16 px above the bottom edge, at most half the screen.
+    expect(Math.abs(box.x - 16)).toBeLessThanOrEqual(1);
+    expect(Math.abs(box.x + box.width - (window.width - 16)))
+      .toBeLessThanOrEqual(1);
+    expect(Math.abs(box.y + box.height - (window.height - 16)))
+      .toBeLessThanOrEqual(2);
+    expect(box.height).toBeLessThanOrEqual(window.height / 2 + 1);
+    // Focus stays on the help button, which the text still describes.
+    await expect(enforcement).toBeFocused();
+    await expect(enforcement).toHaveAccessibleDescription(
+      /Require blocks delivery until the check passes\./,
+    );
+    await shot(page, "repository-rules-help-panel");
+
+    // Opening a second one replaces the first: never two at once.
+    await region(page).getByRole("button", { name: "About source" }).click();
+    await expect(page.getByRole("tooltip").filter({ visible: true }))
+      .toHaveCount(1);
+    await expect(
+      page.getByRole("tooltip").filter({
+        hasText: "Who decides this rule's setting.",
+      }),
+    ).toBeVisible();
+
+    // Escape closes it; the close button closes it and focus returns to the help button.
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("tooltip").filter({ visible: true }))
+      .toHaveCount(0);
+    await enforcement.click();
+    await page.getByRole("button", { name: "Close help" }).filter({
+      visible: true,
+    })
+      .click();
+    await expect(page.getByRole("tooltip").filter({ visible: true }))
+      .toHaveCount(0);
+    await expect(enforcement).toBeFocused();
+    // A tap elsewhere closes it too.
+    await enforcement.click();
+    await expect(page.getByRole("tooltip").filter({ visible: true }))
+      .toHaveCount(1);
+    await page.getByRole("heading", { name: "Rules", level: 1 }).click();
+    await expect(page.getByRole("tooltip").filter({ visible: true }))
+      .toHaveCount(0);
+  });
+
+  test("from 744 px the help is a tooltip anchored to its button, without the phone panel's label and close button", async ({ page }) => {
+    test.skip(isPhone(page), "the tooltip is the wide-screen behaviour");
+    await rulesFixture(page);
+    await page.goto(RULES_PATH);
+    const button = region(page).getByRole("button", {
+      name: "About enforcement",
+    });
+    await button.focus();
+    const panel = page.locator(
+      '[data-ui-component="helpTip"][data-state="focus"] .ui-help-tip__panel',
+    );
+    await expect(panel).toBeVisible();
+    expect(
+      await panel.evaluate((node) => getComputedStyle(node).position),
+    ).toBe("absolute");
+    // The label line and the close button belong to the phone panel.
+    await expect(panel.locator(".ui-help-tip__title")).toBeHidden();
+    await expect(panel.getByRole("button", { name: "Close help" }))
+      .toBeHidden();
+    // Anchored to the start of its button, above it.
+    const tip = await panel.boundingBox();
+    const trigger = await button.boundingBox();
+    if (!tip || !trigger) throw new Error("a box is missing");
+    expect(Math.abs(tip.x - trigger.x)).toBeLessThanOrEqual(2);
+    expect(tip.y + tip.height).toBeLessThanOrEqual(trigger.y + 1);
+  });
+
   test("has no accessibility violations", async ({ page }) => {
     await rulesFixture(page);
     await page.goto(RULES_PATH);

@@ -1,5 +1,5 @@
 {
-  "revision": "fe8c49c71425cc57257a6ef42429e4d4dd6361fd95aff5ff41d89cd5407c2dda",
+  "revision": "5aaaae6b9b721258084d6e376423fc8121e9d458eb351d585b1b5a84afd53863",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -7000,7 +7000,7 @@
     {
       "id": "ui.helpTip",
       "name": "HelpTip",
-      "description": "Explains the label it sits after: an information button that shows its help text on hover, focus and tap.",
+      "description": "Explains the label it sits after: an information button that shows its help text on hover, focus and tap; a tooltip from 744px, a bottom panel with the label and a close button below it.",
       "level": "molecule",
       "owner": "Mark Tripoli",
       "storyTitle": "Bakery/Molecules/HelpTip",
@@ -7038,19 +7038,31 @@
         "accessibleName": "aria-label",
         "keyboard": [
           "Enter/Space or a tap opens the help; hover and focus show it",
-          "Escape dismisses it; leaving the button closes it"
+          "Escape dismisses it; leaving the button, a tap elsewhere and (on a phone) scrolling close it",
+          "The phone panel has a close button; focus stays on the help button"
         ],
         "targetSize": "min 44px (coarse pointer)",
         "notes": "The help text describes the button through aria-describedby; it is not the button's name and is never the only way to do the task."
       },
       "tokens": [
+        "--border-default",
+        "--color-border",
         "--color-fg",
         "--color-fg-muted",
+        "--color-surface-raised",
+        "--layer-tooltip",
         "--layout-inspector",
+        "--radius-overlay",
+        "--shadow-subtle",
         "--space-0",
         "--space-1",
+        "--space-2",
+        "--space-3",
+        "--space-4",
         "--space-8",
-        "--target-min"
+        "--target-min",
+        "--type-caption",
+        "--type-control"
       ],
       "variants": [
         "default"

@@ -143,12 +143,18 @@ export function RepositoryRulesPage(
   );
 
   const enforcementHelp = (
-    <UI.HelpTip label={translate("repository.rules.help.enforcement")}>
+    <UI.HelpTip
+      closeLabel={translate("repository.rules.help.close")}
+      label={translate("repository.rules.help.enforcement")}
+    >
       {translate("repository.rules.column.enforcement.help")}
     </UI.HelpTip>
   );
   const sourceHelp = (
-    <UI.HelpTip label={translate("repository.rules.help.source")}>
+    <UI.HelpTip
+      closeLabel={translate("repository.rules.help.close")}
+      label={translate("repository.rules.help.source")}
+    >
       {translate("repository.rules.column.source.help")}
     </UI.HelpTip>
   );
@@ -515,6 +521,7 @@ export function RepositoryRulesPage(
                       <>
                         {translate("repository.rules.details.fingerprint")}
                         <UI.HelpTip
+                          closeLabel={translate("repository.rules.help.close")}
                           label={translate("repository.rules.help.fingerprint")}
                         >
                           {translate(

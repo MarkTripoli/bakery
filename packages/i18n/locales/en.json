@@ -2634,6 +2634,7 @@
   "repository.rules.help.enforcement": "About enforcement",
   "repository.rules.help.source": "About source",
   "repository.rules.help.fingerprint": "About the rules fingerprint",
+  "repository.rules.help.close": "Close help",
   "repository.rules.unavailable.back": "Back to projects",
   "repository.rules.error.body": "Check your connection, then try again.",
   "repository.rules.list.title": "Rules"
