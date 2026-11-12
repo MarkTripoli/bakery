@@ -220,9 +220,9 @@ async function main(): Promise<number> {
     result = await healStaleShallow(repo);
   } catch (error) {
     console.error(
-      `history: runner=${runner} ${version}: could not inspect git history (${
+      `history: runner=${runner} ${version}: could not inspect or repair git history (${
         error instanceof Error ? error.message : "unknown"
-      }); nothing changed`,
+      }); the shallow file was not changed (leftover PR-merge refs removed before the failure stay removed, and a rerun finishes the repair)`,
     );
     return 1;
   }
