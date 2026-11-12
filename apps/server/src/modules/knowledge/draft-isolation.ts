@@ -2,10 +2,7 @@ import {
   SERVER_DRAFT_SYSTEMD_LAUNCHER,
   systemdLauncherArgs,
 } from "../../platform/server-exec.ts";
-import {
-  readDraftIsolationLauncher,
-  readDraftWorkerPoolSize,
-} from "@bakery/config";
+import { readDraftIsolationLauncher } from "@bakery/config";
 import { DRAFT_LIMITS, type DraftCandidate } from "./drafts.ts";
 
 const encoder = new TextEncoder();
@@ -1192,9 +1189,13 @@ export function createDraftWorkerLimiter(max: number): DraftWorkerLimiter {
   };
 }
 
-/** One pool for the whole server process, whatever isolation instance spawns. */
+/**
+ * The default pool, shared by every isolation built without its own limiter.
+ * The app passes a limiter only when BAKERY_DRAFT_WORKER_POOL_SIZE is set
+ * (RuntimeConfig); this module never reads the environment.
+ */
 const sharedWorkerLimiter = createDraftWorkerLimiter(
-  readDraftWorkerPoolSize() ?? DRAFT_LIMITS.maxConcurrentWorkers,
+  DRAFT_LIMITS.maxConcurrentWorkers,
 );
 
 /** Isolation error messages for a refused worker slot (no other org's data). */

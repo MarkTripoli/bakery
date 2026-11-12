@@ -1,6 +1,9 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import { toProblem } from "../../packages/contracts/src/http.ts";
-import { readDraftWorkerPoolSize } from "../../packages/config/src/env.ts";
+import {
+  readDraftWorkerPoolSize,
+  readRuntimeConfig,
+} from "../../packages/config/src/env.ts";
 import {
   createDraftWorkerLimiter,
   DRAFT_WORKER_REFUSAL_MESSAGES,
@@ -125,4 +128,36 @@ Deno.test("a refused slot is a retryable 503 that names its cause and nothing el
     { requestId: "r", traceId: "t", publicBaseUrl: "https://bakery.example" },
   ) as unknown as Record<string, unknown>;
   assertEquals(forged.reason, undefined);
+});
+
+Deno.test("the pool size reaches the server config, never read by the app itself", () => {
+  const server = {
+    BAKERY_APP_DATABASE_URL: "postgres://app@127.0.0.1:5432/bakery",
+    BETTER_AUTH_SECRET: "s".repeat(32),
+  };
+  assertEquals(
+    readRuntimeConfig(server, "server").draftWorkerPoolSize,
+    undefined,
+  );
+  assertEquals(
+    readRuntimeConfig(
+      { ...server, BAKERY_DRAFT_WORKER_POOL_SIZE: "6" },
+      "server",
+    ).draftWorkerPoolSize,
+    6,
+  );
+  assertThrows(
+    () =>
+      readRuntimeConfig(
+        { ...server, BAKERY_DRAFT_WORKER_POOL_SIZE: "0" },
+        "server",
+      ),
+    Error,
+    "DRAFT_WORKER_POOL_SIZE_INVALID",
+  );
+  assertEquals(
+    readRuntimeConfig({ BAKERY_DRAFT_WORKER_POOL_SIZE: "6" }, "worker")
+      .draftWorkerPoolSize,
+    undefined,
+  );
 });
