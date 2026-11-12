@@ -5,6 +5,8 @@
  * answers a Bakery problem body whose `code` the page maps to a notice.
  */
 
+import { readSamlEntryPoint } from "./saml-metadata.ts";
+
 export type SsoProtocol = "oidc" | "saml";
 
 export type SsoProvider = {
@@ -56,6 +58,9 @@ const post = (body: unknown) => ({
   body: JSON.stringify(body),
 });
 
+/** Code of a failure the page raises itself, before any request is sent. */
+export const SAML_METADATA_INVALID = "SAML_METADATA_INVALID";
+
 export const ssoApi = {
   overview: (organizationId: string, signal?: AbortSignal) =>
     send(
@@ -97,8 +102,18 @@ export const ssoApi = {
   registerSaml: (
     organizationId: string,
     input: { providerId: string; domain: string; metadata: string },
-  ) =>
-    send(
+  ): Promise<
+    SsoResult<{ providerId: string; domainVerificationToken?: string }>
+  > => {
+    const entryPoint = readSamlEntryPoint(input.metadata);
+    if (entryPoint === null) {
+      return Promise.resolve({
+        ok: false,
+        status: 0,
+        code: SAML_METADATA_INVALID,
+      });
+    }
+    return send(
       "/api/auth/sso/register",
       post({
         providerId: input.providerId,
@@ -106,6 +121,7 @@ export const ssoApi = {
         domain: input.domain,
         organizationId,
         samlConfig: {
+          entryPoint,
           callbackUrl: `${globalThis.location.origin}/`,
           audience: `${globalThis.location.origin}/saml/${input.providerId}`,
           wantAssertionsSigned: true,
@@ -116,14 +132,18 @@ export const ssoApi = {
         response.json() as Promise<
           { providerId: string; domainVerificationToken?: string }
         >,
-    ),
+    );
+  },
   updateProvider: (
     providerId: string,
     changes: {
       domain?: string;
       issuer?: string;
       oidcConfig?: { clientId?: string; clientSecret?: string };
-      samlConfig?: { idpMetadata: { metadata: string } };
+      samlConfig?: {
+        entryPoint: string;
+        idpMetadata: { metadata: string };
+      };
     },
   ) =>
     send(

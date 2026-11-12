@@ -62,6 +62,44 @@ export function OrganizationBreadcrumbs() {
 }
 
 /**
+ * Claims the breadcrumb region for an organization administration section:
+ * `Organization`, then the section, as the Paper entitlements frames draw
+ * single sign-on, SCIM and the audit log. It is organization administration,
+ * not a personal section, so it never appears under `Settings`.
+ */
+export function OrganizationSectionBreadcrumbs(
+  { section }: { readonly section: MessageKey },
+) {
+  const { translate } = useI18n();
+  return (
+    <ShellSlot name="breadcrumbs">
+      <UI.Breadcrumbs
+        aria-label={translate("shell.navigation.breadcrumb")}
+        items={[
+          { label: translate("shell.navigation.organization") },
+          { label: translate(section) },
+        ]}
+      />
+    </ShellSlot>
+  );
+}
+
+/** An organization administration page with its breadcrumbs claimed. */
+export function InOrganization(
+  { children, section }: {
+    readonly children: ReactNode;
+    readonly section: MessageKey;
+  },
+) {
+  return (
+    <>
+      <OrganizationSectionBreadcrumbs section={section} />
+      {children}
+    </>
+  );
+}
+
+/**
  * Claims the breadcrumb region for an installation administration page:
  * `Installation`, then the section. Installation routes (settings,
  * audit) are outside the Settings tree.

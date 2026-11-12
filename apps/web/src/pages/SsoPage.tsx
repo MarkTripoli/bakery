@@ -1,14 +1,21 @@
 import { useId, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MessageKey } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
-import { ssoApi, type SsoOverview, type SsoProvider } from "../api/sso.ts";
+import { readSamlEntryPoint } from "../api/saml-metadata.ts";
+import {
+  SAML_METADATA_INVALID,
+  ssoApi,
+  type SsoOverview,
+  type SsoProvider,
+} from "../api/sso.ts";
 import { protectedQueryKey } from "../app/query-scope.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import * as organizationSelection from "../app/organization-selection.ts";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
-import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
+import { OrganizationSectionBreadcrumbs } from "../shell/SettingsShellSlots.tsx";
+import { ShellActiveNavigation } from "../shell/shell-slots.tsx";
 
 type View =
   | { readonly kind: "list" }
@@ -29,7 +36,7 @@ function txtRecord(
 }
 
 /**
- * `/organization/sso`: the organization's single sign-on providers (OIDC and
+ * `/settings/organization/sso`: the organization's single sign-on providers (OIDC and
  * SAML), domain verification and the "require SSO" switch. Every call is a
  * browser-session call the server authorizes (tenant, administrator). A
  * refusal clears the page to the forbidden notice and a bearer-style refusal
@@ -86,27 +93,47 @@ export function SsoPage() {
     tone: "error",
     key: result.code === "SESSION_REQUIRED"
       ? "settings.sso.sessionRequired"
+      : result.code === SAML_METADATA_INVALID
+      ? "settings.sso.dialog.metadataInvalid"
       : fallback,
   });
 
-  // The first provider still waiting for its domain gets the TXT record.
-  const pending = data?.providers.find((provider) => !provider.domainVerified);
-  const token = useQuery({
-    queryKey: [...queryKey, "txt", pending?.providerId ?? ""],
-    queryFn: async () => {
-      const result = await ssoApi.requestVerification(pending!.providerId);
-      if (!result.ok) throw result;
-      return result.data.domainVerificationToken;
-    },
-    enabled: pending !== undefined && view.kind === "list",
-    retry: false,
-    staleTime: Infinity,
+  // Every provider still waiting for its domain gets its TXT record. The
+  // server answers with the pending token it already issued, so asking again
+  // never replaces a record an administrator has published.
+  const pendingProviders = (data?.providers ?? []).filter((provider) =>
+    !provider.domainVerified
+  );
+  const tokens = useQueries({
+    queries: pendingProviders.map((provider) => ({
+      queryKey: [...queryKey, "txt", provider.providerId],
+      queryFn: async () => {
+        const result = await ssoApi.requestVerification(provider.providerId);
+        if (!result.ok) throw result;
+        return result.data.domainVerificationToken;
+      },
+      enabled: view.kind === "list" || view.kind === "edit",
+      retry: false,
+      staleTime: Infinity,
+    })),
   });
+  const tokenOf = (providerId: string): string | undefined =>
+    tokens[pendingProviders.findIndex((p) => p.providerId === providerId)]
+      ?.data;
+  // Requiring SSO needs a verified provider to require; an enforced
+  // organization keeps the switch so it can still be turned off.
+  const canRequire = data !== undefined &&
+    (data.enforce ||
+      data.providers.some((provider) => provider.domainVerified));
   const checkDomain = (provider: SsoProvider) =>
     run(`check:${provider.providerId}`, async () => {
       const result = await ssoApi.verifyDomain(provider.providerId);
+      // A domain someone else already verified (another tab, another
+      // administrator) answers 409 DOMAIN_VERIFIED: it is verified, not an error.
+      const verified = result.ok ||
+        (result.status === 409 && result.code === "DOMAIN_VERIFIED");
       setNotice(
-        result.ok
+        verified
           ? { tone: "success", key: "settings.sso.verify.done" }
           : result.status === 502
           ? { tone: "information", key: "settings.sso.verify.pending" }
@@ -146,33 +173,36 @@ export function SsoPage() {
     ? "settings.sso.dialog.edit.title"
     : "settings.sso.title";
   const backToList = () => setView({ kind: "list" });
+  const heading = view.kind === "edit"
+    ? translate(title, { name: view.provider.providerId })
+    : translate(title);
 
-  const noticeNode = pageNotice
-    ? (
-      <UI.AlertBanner tone={pageNotice.tone}>
-        {translate(pageNotice.key)}
-      </UI.AlertBanner>
-    )
-    : undefined;
+  const banner = (value: Notice | null) =>
+    value
+      ? (
+        <UI.AlertBanner tone={value.tone}>
+          {translate(value.key)}
+        </UI.AlertBanner>
+      )
+      : undefined;
+  const noticeNode = banner(pageNotice);
+  // The form shows its own "not verified yet" line, so the page banner would
+  // say the same sentence twice.
+  const formNoticeNode = banner(
+    pageNotice?.key === "settings.sso.verify.pending" ? null : pageNotice,
+  );
 
   return (
     <>
       <ShellActiveNavigation id="settings" />
-      <ShellSlot name="breadcrumbs">
-        <UI.Breadcrumbs
-          aria-label={translate("shell.navigation.breadcrumb")}
-          items={[{ label: translate("shell.navigation.organization") }, {
-            label: translate("settings.sso.section"),
-          }]}
-        />
-      </ShellSlot>
+      <OrganizationSectionBreadcrumbs section="settings.sso.section" />
       <div data-testid="organization-sso">
         {view.kind !== "list"
           ? (
             <UI.SsoSettings
-              title={translate(title)}
+              title={heading}
               variant="form"
-              notice={noticeNode}
+              notice={formNoticeNode}
             >
               {organizationId && data
                 ? (
@@ -180,7 +210,17 @@ export function SsoPage() {
                     key={view.kind === "edit"
                       ? view.provider.providerId
                       : view.kind}
-                    view={view}
+                    view={view.kind === "edit"
+                      ? {
+                        ...view,
+                        // The form follows the stored provider, so a domain
+                        // verified while it is open stops offering the check.
+                        provider:
+                          data.providers.find((provider) =>
+                            provider.providerId === view.provider.providerId
+                          ) ?? view.provider,
+                      }
+                      : view}
                     organizationId={organizationId}
                     onCancel={backToList}
                     onSaved={async (saved) => {
@@ -198,7 +238,9 @@ export function SsoPage() {
                     }}
                     checkDomain={checkDomain}
                     checking={busy?.startsWith("check:") ?? false}
-                    token={token.data}
+                    token={view.kind === "edit"
+                      ? tokenOf(view.provider.providerId)
+                      : undefined}
                     failure={failure}
                   />
                 )
@@ -207,7 +249,7 @@ export function SsoPage() {
           )
           : (
             <UI.SsoSettings
-              title={translate(title)}
+              title={heading}
               description={translate("settings.sso.description")}
               notice={noticeNode}
               actions={data
@@ -248,25 +290,67 @@ export function SsoPage() {
                     {translate(
                       provider.domainVerified
                         ? "settings.sso.status.enabled"
-                        : "settings.sso.status.disabled",
+                        : "settings.sso.domain.unverified",
                     )}
                   </UI.StatusBadge>
                 ),
+                action: (
+                  <UI.Button
+                    type="button"
+                    variant="outline"
+                    aria-label={translate("settings.sso.provider.editLabel", {
+                      name: provider.providerId,
+                    })}
+                    onClick={() => setView({ kind: "edit", provider })}
+                  >
+                    {translate("settings.sso.provider.edit")}
+                  </UI.Button>
+                ),
                 onSelect: () => setView({ kind: "edit", provider }),
               }))}
-              domain={data && pending && token.data
+              domain={data && tokens.some((query) => query.data)
                 ? (
-                  <div data-testid={`txt-${pending.providerId}`}>
+                  <UI.Stack>
                     <UI.Heading level="section">
                       {translate("settings.sso.verify.title")}
                     </UI.Heading>
-                    <UI.Text variant="muted">
-                      {translate("settings.sso.verify.short", {
-                        domain: pending.domain,
-                      })}
-                    </UI.Text>
-                    <UI.SetupKey>{txtRecord(pending, token.data)}</UI.SetupKey>
-                  </div>
+                    {pendingProviders.map((provider, index) => {
+                      const token = tokens[index]?.data;
+                      return token
+                        ? (
+                          <UI.Stack
+                            gap="compact"
+                            key={provider.providerId}
+                            data-testid={`txt-${provider.providerId}`}
+                          >
+                            <UI.Text variant="muted">
+                              {translate("settings.sso.verify.short", {
+                                domain: provider.domain,
+                              })}
+                            </UI.Text>
+                            <UI.SetupKey>
+                              {txtRecord(provider, token)}
+                            </UI.SetupKey>
+                            <UI.Inline>
+                              <UI.Button
+                                type="button"
+                                variant="outline"
+                                aria-label={translate(
+                                  "settings.sso.verify.checkLabel",
+                                  { name: provider.providerId },
+                                )}
+                                loading={busy ===
+                                  `check:${provider.providerId}`}
+                                onClick={() => void checkDomain(provider)}
+                              >
+                                {translate("settings.sso.verify.check")}
+                              </UI.Button>
+                            </UI.Inline>
+                          </UI.Stack>
+                        )
+                        : null;
+                    })}
+                  </UI.Stack>
                 )
                 : undefined}
               enforcement={data
@@ -274,11 +358,17 @@ export function SsoPage() {
                   <div>
                     <UI.Switch
                       checked={data.enforce}
+                      disabled={!canRequire}
                       pending={busy === "enforce"}
                       onChange={(event) => void toggle(event.target.checked)}
                     >
                       {translate("settings.sso.enforce.label")}
                     </UI.Switch>
+                    {canRequire ? null : (
+                      <UI.Text variant="muted">
+                        {translate("settings.sso.enforce.needsProvider")}
+                      </UI.Text>
+                    )}
                     <UI.Text>
                       {translate("settings.sso.enforce.breakGlass")}
                     </UI.Text>
@@ -335,47 +425,7 @@ function ProviderForm({
   const [metadata, setMetadata] = useState("");
   const [problem, setProblem] = useState<Notice | null>(null);
   const [saving, setSaving] = useState(false);
-  // A SAML provider saved from this form before its domain check.
-  const [created, setCreated] = useState<
-    { providerId: string; domain: string; token: string } | null
-  >(null);
-
-  const registerSamlProvider = async () => {
-    const result = await ssoApi.registerSaml(organizationId, {
-      providerId: providerId.trim(),
-      domain: domain.trim(),
-      metadata: metadata.trim(),
-    });
-    if (!result.ok) {
-      setProblem(failure(result, "settings.sso.dialog.error"));
-      return null;
-    }
-    const next = {
-      providerId: providerId.trim(),
-      domain: domain.trim(),
-      token: result.data.domainVerificationToken ?? "…",
-    };
-    setCreated(next);
-    return next;
-  };
-  const checkCreated = async () => {
-    if (saving) return;
-    setSaving(true);
-    setProblem(null);
-    try {
-      const target = created ?? await registerSamlProvider();
-      if (!target) return;
-      await checkDomain({
-        providerId: target.providerId,
-        domain: target.domain,
-        issuer: "",
-        domainVerified: false,
-        protocol: "saml",
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
 
   const save = async () => {
     if (saving) return;
@@ -383,6 +433,17 @@ function ProviderForm({
     setProblem(null);
     try {
       if (editing) {
+        // New SAML metadata also carries the provider's sign-on URL.
+        const samlEntryPoint = kind === "saml" && metadata.trim()
+          ? readSamlEntryPoint(metadata.trim())
+          : undefined;
+        if (samlEntryPoint === null) {
+          setProblem({
+            tone: "error",
+            key: "settings.sso.dialog.metadataInvalid",
+          });
+          return;
+        }
         const result = await ssoApi.updateProvider(editing.providerId, {
           ...(domain.trim() !== editing.domain
             ? { domain: domain.trim() }
@@ -398,8 +459,13 @@ function ProviderForm({
               },
             }
             : {}),
-          ...(kind === "saml" && metadata.trim()
-            ? { samlConfig: { idpMetadata: { metadata: metadata.trim() } } }
+          ...(samlEntryPoint
+            ? {
+              samlConfig: {
+                entryPoint: samlEntryPoint,
+                idpMetadata: { metadata: metadata.trim() },
+              },
+            }
             : {}),
         });
         if (!result.ok) {
@@ -407,10 +473,6 @@ function ProviderForm({
           return;
         }
         await onSaved("settings.sso.provider.updated");
-        return;
-      }
-      if (created) {
-        await onSaved("settings.sso.provider.saved");
         return;
       }
       const result = kind === "oidc"
@@ -437,6 +499,7 @@ function ProviderForm({
   };
   const remove = async () => {
     if (!editing || saving) return;
+    setConfirmingRemove(false);
     setSaving(true);
     try {
       const result = await ssoApi.remove(editing.providerId);
@@ -450,172 +513,206 @@ function ProviderForm({
     }
   };
 
-  const showTxt = editing ? !editing.domainVerified : kind === "saml";
-  // Before the provider exists there is no token yet: the record shows the
-  // name it will have and the token appears once the provider is saved.
-  const txtSubject = editing ?? created ??
-    { providerId: providerId.trim() || "…", domain: domain.trim() || "…" };
+  // Verification belongs to a saved provider: both protocols save, then the
+  // list (or this form, when editing) walks the administrator through it.
+  const showTxt = editing !== null && !editing.domainVerified;
   return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault();
-        void save();
-      }}
-    >
-      {editing ? null : (
-        <UI.Field
-          htmlFor={ids.provider}
-          label={translate("settings.sso.field.providerId")}
-        >
-          <UI.TextInput
-            id={ids.provider}
-            name="providerId"
-            autoComplete="off"
-            type="text"
-            value={providerId}
-            onChange={setProviderId}
-          />
-        </UI.Field>
-      )}
-      {kind === "oidc"
-        ? (
-          <>
-            <UI.Field
-              htmlFor={ids.issuer}
-              label={translate("settings.sso.field.issuer")}
-            >
-              <UI.TextInput
-                id={ids.issuer}
-                name="issuer"
-                autoComplete="off"
-                type="text"
-                inputMode="url"
-                value={issuer}
-                onChange={setIssuer}
-              />
-            </UI.Field>
-            <UI.Field
-              htmlFor={ids.clientId}
-              label={translate("settings.sso.field.clientId")}
-            >
-              <UI.TextInput
-                id={ids.clientId}
-                name="clientId"
-                autoComplete="off"
-                type="text"
-                value={clientId}
-                onChange={setClientId}
-              />
-            </UI.Field>
-            <UI.Field
-              htmlFor={ids.secret}
-              label={translate("settings.sso.field.clientSecret")}
-            >
-              <UI.PasswordInput
-                id={ids.secret}
-                name="clientSecret"
-                autoComplete="new-password"
-                value={clientSecret}
-                onChange={setClientSecret}
-                revealLabels={{
-                  show: translate("settings.sso.field.clientSecret.show"),
-                  hide: translate("settings.sso.field.clientSecret.hide"),
-                }}
-              />
-            </UI.Field>
-          </>
-        )
-        : (
+    <>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void save();
+        }}
+      >
+        {editing ? null : (
           <UI.Field
-            htmlFor={ids.metadata}
-            label={translate("settings.sso.field.metadata")}
-            variant="textarea"
+            htmlFor={ids.provider}
+            label={translate("settings.sso.field.providerId")}
           >
-            <textarea
-              id={ids.metadata}
-              name="metadata"
-              placeholder={translate("settings.sso.field.metadata.placeholder")}
-              value={metadata}
-              onChange={(event) => setMetadata(event.target.value)}
+            <UI.TextInput
+              id={ids.provider}
+              name="providerId"
+              autoComplete="off"
+              type="text"
+              value={providerId}
+              onChange={setProviderId}
             />
           </UI.Field>
         )}
-      <UI.Field
-        htmlFor={ids.domain}
-        label={translate("settings.sso.field.domain")}
-      >
-        <UI.TextInput
-          id={ids.domain}
-          name="domain"
-          autoComplete="off"
-          type="text"
-          value={domain}
-          onChange={setDomain}
-        />
-      </UI.Field>
-      {showTxt
-        ? (
-          <section>
-            <UI.Heading level="section">
-              {translate("settings.sso.verify.heading")}
-            </UI.Heading>
-            <UI.Text variant="muted">
-              {translate("settings.sso.verify.instructions", {
-                domain: txtSubject.domain,
-              })}
-            </UI.Text>
-            <UI.SetupKey>
-              {txtRecord(
-                txtSubject,
-                editing ? token ?? "…" : created?.token ?? "…",
-              )}
-            </UI.SetupKey>
-            <UI.InlineNotice tone="warning">
-              {translate("settings.sso.verify.pending")}
-            </UI.InlineNotice>
-          </section>
-        )
-        : null}
-      {problem
-        ? (
-          <UI.AlertBanner tone={problem.tone}>
-            {translate(problem.key)}
-          </UI.AlertBanner>
-        )
-        : null}
-      <UI.Inline variant="actions">
-        {editing
+        {kind === "oidc"
           ? (
-            <UI.Button
-              type="button"
-              variant="destructive"
-              loading={saving}
-              onClick={() => void remove()}
-            >
-              {translate("settings.sso.provider.delete")}
-            </UI.Button>
+            <>
+              <UI.Field
+                htmlFor={ids.issuer}
+                label={translate("settings.sso.field.issuer")}
+              >
+                <UI.TextInput
+                  id={ids.issuer}
+                  name="issuer"
+                  autoComplete="off"
+                  type="text"
+                  inputMode="url"
+                  value={issuer}
+                  onChange={setIssuer}
+                />
+              </UI.Field>
+              <UI.Field
+                htmlFor={ids.clientId}
+                label={translate("settings.sso.field.clientId")}
+              >
+                <UI.TextInput
+                  id={ids.clientId}
+                  name="clientId"
+                  autoComplete="off"
+                  type="text"
+                  value={clientId}
+                  onChange={setClientId}
+                />
+              </UI.Field>
+              <UI.Field
+                htmlFor={ids.secret}
+                label={translate("settings.sso.field.clientSecret")}
+              >
+                <UI.PasswordInput
+                  id={ids.secret}
+                  name="clientSecret"
+                  autoComplete="new-password"
+                  value={clientSecret}
+                  onChange={setClientSecret}
+                  revealLabels={{
+                    show: translate("settings.sso.field.clientSecret.show"),
+                    hide: translate("settings.sso.field.clientSecret.hide"),
+                  }}
+                />
+              </UI.Field>
+            </>
           )
-          : null}
+          : (
+            <UI.Field
+              htmlFor={ids.metadata}
+              label={translate("settings.sso.field.metadata")}
+              variant="textarea"
+            >
+              <textarea
+                id={ids.metadata}
+                name="metadata"
+                placeholder={translate(
+                  "settings.sso.field.metadata.placeholder",
+                )}
+                value={metadata}
+                onChange={(event) => setMetadata(event.target.value)}
+              />
+            </UI.Field>
+          )}
+        <UI.Field
+          htmlFor={ids.domain}
+          label={translate("settings.sso.field.domain")}
+        >
+          <UI.TextInput
+            id={ids.domain}
+            name="domain"
+            autoComplete="off"
+            type="text"
+            value={domain}
+            onChange={setDomain}
+          />
+        </UI.Field>
         {showTxt
           ? (
-            <UI.Button
-              type="button"
-              variant="outline"
-              loading={checking || saving}
-              onClick={() =>
-                void (editing ? checkDomain(editing) : checkCreated())}
-            >
-              {translate("settings.sso.verify.check")}
-            </UI.Button>
+            <UI.Stack gap="compact">
+              <UI.Heading level="section">
+                {translate("settings.sso.verify.heading")}
+              </UI.Heading>
+              <UI.Text variant="muted">
+                {translate("settings.sso.verify.instructions", {
+                  domain: editing!.domain,
+                })}
+              </UI.Text>
+              <UI.SetupKey>{txtRecord(editing!, token ?? "…")}</UI.SetupKey>
+              <UI.InlineNotice tone="warning">
+                {translate("settings.sso.verify.pending")}
+              </UI.InlineNotice>
+            </UI.Stack>
           )
           : null}
-        <UI.Button type="button" variant="outline" onClick={onCancel}>
-          {translate("settings.sso.dialog.cancel")}
-        </UI.Button>
-        <UI.Button type="submit" loading={saving}>
-          {translate("settings.sso.dialog.save")}
-        </UI.Button>
-      </UI.Inline>
-    </form>
+        {problem
+          ? (
+            <UI.AlertBanner tone={problem.tone}>
+              {translate(problem.key)}
+            </UI.AlertBanner>
+          )
+          : null}
+        <UI.Inline variant="actions">
+          {editing
+            ? (
+              <UI.Button
+                type="button"
+                variant="destructive-outline"
+                loading={saving}
+                onClick={() => setConfirmingRemove(true)}
+              >
+                {translate("settings.sso.provider.delete")}
+              </UI.Button>
+            )
+            : null}
+          {showTxt
+            ? (
+              <UI.Button
+                type="button"
+                variant="outline"
+                loading={checking || saving}
+                onClick={() => void checkDomain(editing!)}
+              >
+                {translate("settings.sso.verify.check")}
+              </UI.Button>
+            )
+            : null}
+          <UI.Button type="button" variant="outline" onClick={onCancel}>
+            {translate("settings.sso.dialog.cancel")}
+          </UI.Button>
+          <UI.Button type="submit" loading={saving}>
+            {translate("settings.sso.dialog.save")}
+          </UI.Button>
+        </UI.Inline>
+      </form>
+      {editing
+        ? (
+          <UI.AlertDialog
+            open={confirmingRemove}
+            onOpenChange={setConfirmingRemove}
+            state={saving ? "confirming" : "open"}
+            title={translate("settings.sso.provider.delete.title", {
+              name: editing.providerId,
+            })}
+            variant="destructive"
+            cancelAction={
+              <UI.Button
+                type="button"
+                variant="secondary"
+                onClick={() => setConfirmingRemove(false)}
+              >
+                {translate("settings.sso.dialog.cancel")}
+              </UI.Button>
+            }
+            confirmAction={
+              <UI.Button
+                type="button"
+                variant="destructive"
+                loading={saving}
+                onClick={() => void remove()}
+              >
+                {translate("settings.sso.provider.delete.confirm")}
+              </UI.Button>
+            }
+          >
+            <UI.Text>
+              {translate("settings.sso.provider.delete.body", {
+                domain: editing.domain,
+              })}
+            </UI.Text>
+          </UI.AlertDialog>
+        )
+        : null}
+    </>
   );
 }
