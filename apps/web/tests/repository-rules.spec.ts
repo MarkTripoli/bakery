@@ -987,8 +987,8 @@ test.describe("repository rules: the effective rules of one repository", () => {
     await rulesFixture(page);
     await page.goto(RULES_PATH);
     const section = details(page);
-    const label = (await section.getByText("Rules fingerprint", { exact: true })
-      .boundingBox())!;
+    const label = (await section.locator(".ui-description-item__title")
+      .filter({ hasText: "Rules fingerprint" }).boundingBox())!;
     const value = (await page.getByTestId("repository-rules-digest")
       .boundingBox())!;
     const copy = (await section.getByRole("button", { name: "Copy" })
