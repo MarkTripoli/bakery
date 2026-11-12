@@ -284,15 +284,15 @@ export async function resultRoute(
   );
   const metadata = requestMetadata(context);
   let resultOrganizationId = "";
-  // Set only when this run of the transaction settled usage; reset on entry so a
-  // retried transaction cannot inherit it from an attempt that rolled back.
+  // Set when the transaction settled usage, read only after it has committed. The
+  // callback runs once per request and a denied inspection result returns before
+  // the emit, so nothing that rolled back can reach it.
   let usageSettled = false;
   const result = await workerTransaction(
     options.database,
     context.req.raw.headers,
     async (transaction, identity) => {
       resultOrganizationId = identity.host.organization_id;
-      usageSettled = false;
       const inspectionJob = await transaction.query<{ action: string }>(
         `select j.action from bakery.jobs j
            join bakery.job_attempts a on a.organization_id = j.organization_id and a.job_id = j.id
