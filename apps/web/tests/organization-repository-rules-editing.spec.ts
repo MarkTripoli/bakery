@@ -278,8 +278,19 @@ test.describe("organization repository rules: editing", () => {
     await add.click();
     const menu = page.getByRole("navigation", { name: "Rules you can add" });
     await expect(menu).toBeVisible();
-    // An overlay: nothing under it moved.
+    // An overlay: nothing under it moved, and it stays inside the window.
     expect((await box(row)).y).toBe(before.y);
+    const open = await box(menu);
+    const window = page.viewportSize();
+    if (!window) throw new Error("no viewport");
+    expect(open.x).toBeGreaterThanOrEqual(0);
+    expect(open.x + open.width).toBeLessThanOrEqual(window.width);
+    expect(
+      await page.evaluate(() =>
+        document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth
+      ),
+    ).toBe(true);
     await shot(page, "rules-add-menu-open");
     await page.keyboard.press("Escape");
     await expect(menu).toHaveCount(0);
