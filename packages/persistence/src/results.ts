@@ -277,6 +277,18 @@ export function createResultsRepository(
   };
 }
 
+/**
+ * Whether a run was admitted to execute a compiled plan, which is when its
+ * snapshot carries a `runtime` section (the frozen document and its pin). The
+ * server's `planRuntimeFromSnapshot` makes the same own-key test and is the one
+ * that validates the section; this only needs to know whose job it is to end
+ * the run.
+ */
+export function carriesPlanRuntime(snapshot: unknown): boolean {
+  return typeof snapshot === "object" && snapshot !== null &&
+    !Array.isArray(snapshot) && Object.hasOwn(snapshot, "runtime");
+}
+
 async function finalizeRunStep(
   transaction: PgTransactionClient,
   options: {
@@ -296,6 +308,7 @@ async function finalizeRunStep(
     run_id: string;
     run_status: string;
     run_version: number;
+    run_snapshot: unknown;
     task_id: string;
     application_id: string;
     repository_id: string | null;
@@ -303,7 +316,7 @@ async function finalizeRunStep(
   }>(
     `select job.organization_id, job.id, job.version, job.run_step_id,
         run.id as run_id, run.status as run_status, run.version as run_version,
-        run.task_id, task.application_id, task.repository_id, task.conversation_id
+        run.snapshot as run_snapshot, run.task_id, task.application_id, task.repository_id, task.conversation_id
      from bakery.jobs job
      join bakery.run_steps step
        on step.organization_id = job.organization_id and step.id = job.run_step_id
@@ -357,15 +370,22 @@ async function finalizeRunStep(
   const currentRun = runState.rows[0];
   if (!currentRun) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   const statuses = currentRun.statuses ?? [];
-  const nextRunStatus = statuses.includes("failed")
+  const advanced = currentRun.status === "queued"
+    ? "running"
+    : currentRun.status;
+  // A compiled-plan run creates its rows on demand and treats a failed repeat
+  // iteration as an outcome, so its rows cannot say when the run is finished:
+  // the engine asks the interpreter and projects the end itself. Here such a
+  // run only leaves `queued`.
+  const nextRunStatus = carriesPlanRuntime(jobRow.run_snapshot)
+    ? advanced
+    : statuses.includes("failed")
     ? "failed"
     : statuses.includes("canceled")
     ? "canceled"
     : statuses.every((value) => value === "completed" || value === "skipped")
     ? "completed"
-    : currentRun.status === "queued"
-    ? "running"
-    : currentRun.status;
+    : advanced;
   const terminal = (value: string) =>
     ["completed", "failed", "canceled", "blocked"].includes(value);
   if (terminal(currentRun.status) && nextRunStatus !== currentRun.status) {
