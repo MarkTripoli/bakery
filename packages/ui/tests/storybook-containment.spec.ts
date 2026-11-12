@@ -21,6 +21,35 @@ test.describe("Storybook containment rails", () => {
     );
   });
 
+  test("allows a marked line clamp and still flags an unmarked clipped one", async ({ page }) => {
+    await openByTitle(page, "Bakery/Atoms/Text");
+    const clamp = (marked: boolean) =>
+      `<p ${marked ? 'data-rail="truncation-allowed"' : ""}
+          style="-webkit-box-orient: vertical; -webkit-line-clamp: 2; display: -webkit-box; overflow: hidden; inline-size: 12rem">
+        ${"A clamped sentence that runs on past two lines. ".repeat(8)}
+      </p>`;
+    await page.locator(".storybook-story").evaluate(
+      (story, html) => {
+        story.innerHTML = html;
+      },
+      clamp(true),
+    );
+    const marked = await page.evaluate(renderedContainmentIssues);
+    expect(marked.filter((issue) => issue.includes("escapes"))).toEqual([]);
+    // The same clip without the marker is an escape like any other.
+    await page.locator(".storybook-story").evaluate(
+      (story, html) => {
+        story.innerHTML = html;
+      },
+      clamp(false),
+    );
+    const unmarked = await page.evaluate(renderedContainmentIssues);
+    expect(
+      unmarked.some((issue) => issue.includes("content escapes vertically")),
+    )
+      .toBe(true);
+  });
+
   test("detects clipping on the specimen root", async ({ page }) => {
     await openByTitle(page, "Bakery/Atoms/Text");
     await page.locator(".storybook-story").evaluate((story) => {
