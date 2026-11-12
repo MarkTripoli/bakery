@@ -1,10 +1,19 @@
-import { assertEquals, assertThrows } from "@std/assert";
+import { assertEquals, assertNotEquals, assertThrows } from "@std/assert";
 import {
   allocateContext,
   ContextDecision,
   type ContextEnvelopeInput,
   resolveContextEnvelope,
 } from "../../apps/server/src/modules/knowledge/context-budget.ts";
+import {
+  CONTEXT_EXTRACTOR_VERSION,
+  extractCacheKey,
+  MAX_PROJECTION_BYTES,
+  projectArtifactVersion,
+  REFERENCE_TOKENS,
+  unboundedItem,
+  verifyCitation,
+} from "../../apps/server/src/modules/knowledge/context-projection.ts";
 
 const reserved = {
   output: 12_000,
@@ -185,5 +194,167 @@ Deno.test("malformed counts and duplicate item ids are rejected", () => {
         },
       ],
     })
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Slice 2: index-first projections with exact citations.
+// ---------------------------------------------------------------------------
+
+const DIGEST = "a".repeat(64);
+const entry = (mediaType: string, sizeBytes: number | null = 1_000) => ({
+  artifactId: "11111111-1111-4111-8111-111111111111",
+  versionId: "22222222-2222-4222-8222-222222222222",
+  sha256: DIGEST,
+  mediaType,
+  sizeBytes,
+});
+
+Deno.test("text and log windows carry an exact byte-range citation and an estimated count", () => {
+  const text = "line one\nline two ✓\n";
+  const bytes = new TextEncoder().encode(text).byteLength;
+  for (
+    const [mediaType, kind] of [
+      ["text/markdown", "text_window"],
+      ["text/x-log", "log_window"],
+      ["application/x-ndjson", "log_window"],
+    ] as const
+  ) {
+    const projection = projectArtifactVersion(entry(mediaType), {
+      startByte: 100,
+      endByteExclusive: 100 + bytes,
+      text,
+      hasMore: true,
+    });
+    assertEquals(projection.kind, kind);
+    assertEquals(projection.text, text);
+    assertEquals(projection.truncated, true);
+    assertEquals(projection.citation, {
+      artifactId: entry(mediaType).artifactId,
+      versionId: entry(mediaType).versionId,
+      sha256: DIGEST,
+      mediaType,
+      location: { startByte: 100, endByteExclusive: 100 + bytes },
+      extractorVersion: CONTEXT_EXTRACTOR_VERSION,
+    });
+    assertEquals(projection.item.count, { state: "estimated", tokens: bytes });
+  }
+});
+
+Deno.test("images, PDFs and unknown binaries are references: no bytes enter context (AC3)", () => {
+  for (
+    const [mediaType, kind] of [
+      ["image/png", "image_reference"],
+      ["application/pdf", "pdf_reference"],
+      ["application/octet-stream", "binary_reference"],
+      ["application/zip", "binary_reference"],
+    ] as const
+  ) {
+    // Even when a caller hands over a window, binary content is never text.
+    const projection = projectArtifactVersion(entry(mediaType), {
+      startByte: 0,
+      endByteExclusive: 4,
+      text: "AAAA",
+      hasMore: false,
+    });
+    assertEquals(projection.kind, kind);
+    assertEquals(projection.text, null);
+    assertEquals(projection.citation.location, null);
+    assertEquals(projection.citation.extractorVersion, null);
+    assertEquals(projection.item.count, {
+      state: "estimated",
+      tokens: REFERENCE_TOKENS,
+    });
+  }
+});
+
+Deno.test("text with no extracted window falls back to a reference, never to whole content (AC3)", () => {
+  const projection = projectArtifactVersion(
+    entry("text/plain", 9_000_000),
+    null,
+  );
+  assertEquals(projection.text, null);
+  assertEquals(projection.citation.location, null);
+});
+
+Deno.test("an oversized or inconsistent window is refused", () => {
+  const big = "x".repeat(MAX_PROJECTION_BYTES + 1);
+  assertThrows(() =>
+    projectArtifactVersion(entry("text/plain"), {
+      startByte: 0,
+      endByteExclusive: big.length,
+      text: big,
+      hasMore: false,
+    })
+  );
+  // The declared range must equal the text's real byte length.
+  assertThrows(() =>
+    projectArtifactVersion(entry("text/plain"), {
+      startByte: 0,
+      endByteExclusive: 3,
+      text: "✓✓",
+      hasMore: false,
+    })
+  );
+});
+
+Deno.test("unindexed content is unknown and unbounded, so allocation omits it instead of counting zero (AC1)", () => {
+  const allocation = allocateContext({
+    envelope: envelope({}),
+    items: [
+      projectArtifactVersion(entry("text/plain"), {
+        startByte: 0,
+        endByteExclusive: 5,
+        text: "hello",
+        hasMore: false,
+      }).item,
+      unboundedItem("unindexed-log"),
+    ],
+  });
+  assertEquals(allocation.decision, ContextDecision.Ready);
+  assertEquals(allocation.omitted, [
+    { id: "unindexed-log", reason: "unbounded_unknown" },
+  ]);
+  assertEquals(allocation.selectedTokens, 5);
+});
+
+Deno.test("a citation or cached extract is reused only while digest, extractor and live access hold (AC2)", () => {
+  const citation = projectArtifactVersion(entry("text/plain"), {
+    startByte: 0,
+    endByteExclusive: 5,
+    text: "hello",
+    hasMore: false,
+  }).citation;
+  assertEquals(verifyCitation(citation, { authorized: true, sha256: DIGEST }), {
+    valid: true,
+  });
+  assertEquals(
+    verifyCitation(citation, { authorized: false, sha256: DIGEST }),
+    { valid: false, reason: "not_authorized" },
+  );
+  assertEquals(verifyCitation(citation, { authorized: true, sha256: null }), {
+    valid: false,
+    reason: "version_missing",
+  });
+  assertEquals(
+    verifyCitation(citation, { authorized: true, sha256: "b".repeat(64) }),
+    { valid: false, reason: "digest_mismatch" },
+  );
+  assertEquals(
+    verifyCitation({ ...citation, extractorVersion: "bakery.text-window@0" }, {
+      authorized: true,
+      sha256: DIGEST,
+    }),
+    { valid: false, reason: "extractor_changed" },
+  );
+  // The cache key binds organization, version, digest, range and extractor,
+  // and carries no authorization decision.
+  assertEquals(
+    extractCacheKey("org", citation),
+    `org|${citation.versionId}|${DIGEST}|0-5|${CONTEXT_EXTRACTOR_VERSION}`,
+  );
+  assertNotEquals(
+    extractCacheKey("org", citation),
+    extractCacheKey("other-org", citation),
   );
 });
