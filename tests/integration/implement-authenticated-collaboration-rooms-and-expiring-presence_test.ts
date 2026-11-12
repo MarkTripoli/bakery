@@ -45,6 +45,8 @@ type Harness = {
   owner: Member;
   extra: Member[];
   clients: Set<WsClient>;
+  /** Presence heartbeats started by keepPresent; cleared on close. */
+  heartbeats: ReturnType<typeof setInterval>[];
   server: Deno.HttpServer;
 };
 
@@ -141,6 +143,7 @@ async function openHarness(
     owner,
     extra: [],
     clients: new Set(),
+    heartbeats: [],
     server,
     url: (organizationId = fixture.ids.organizationId) => {
       const url = new URL(`ws://127.0.0.1:${port}/v1/collaboration`);
@@ -250,6 +253,18 @@ async function join(client: WsClient, harness: Harness, id?: string) {
   return requestId;
 }
 
+/**
+ * Keeps a joined client present, as a real client's heartbeat does. A test
+ * that runs longer than the presence TTL on a busy host would otherwise see
+ * its sender expire out of the room, and its next update refused as not
+ * found. Tests about expiry leave their subjects silent instead.
+ */
+function keepPresent(harness: Harness, client: WsClient): void {
+  harness.heartbeats.push(setInterval(() => {
+    client.send(presence(harness, {})).catch(() => {});
+  }, 1_000));
+}
+
 function presence(harness: Harness, state: Record<string, unknown>) {
   return JSON.stringify({
     type: "presence.update",
@@ -260,6 +275,7 @@ function presence(harness: Harness, state: Record<string, unknown>) {
 }
 
 async function closeHarness(harness: Harness) {
+  for (const timer of harness.heartbeats) clearInterval(timer);
   for (const client of harness.clients) {
     await client.close().catch(() => {});
   }
@@ -734,9 +750,11 @@ Deno.test("an update is acknowledged only after its receipt commits, then relaye
     harness.extra.push(second, watcher);
     const a = await open(harness, harness.owner);
     const synced = await joinAndSync(a, harness);
+    keepPresent(harness, a);
     assertEquals(synced.doc.getText("body").toString(), "alpha target omega");
     const b = await open(harness, second);
     const bState = await joinAndSync(b, harness);
+    keepPresent(harness, b);
     const outside = await open(harness, watcher);
 
     const mutationId = crypto.randomUUID();
@@ -916,8 +934,10 @@ Deno.test("concurrent updates from two clients serialize, converge and match the
     harness.extra.push(second);
     const a = await open(harness, harness.owner);
     const aState = await joinAndSync(a, harness);
+    keepPresent(harness, a);
     const b = await open(harness, second);
     const bState = await joinAndSync(b, harness);
+    keepPresent(harness, b);
 
     const aId = crypto.randomUUID();
     const bId = crypto.randomUUID();
@@ -1001,6 +1021,7 @@ Deno.test("a peer revoked between sweeps receives no draft bytes (AC1)", async (
     harness.extra.push(second);
     const a = await open(harness, harness.owner);
     const aState = await joinAndSync(a, harness);
+    keepPresent(harness, a);
     const b = await open(harness, second);
     await joinAndSync(b, harness);
     await harness.fixture.pgDatabase.query(
@@ -1090,6 +1111,7 @@ Deno.test("back-to-back updates with twenty joined peers are all acknowledged", 
   try {
     const a = await open(harness, harness.owner);
     const aState = await joinAndSync(a, harness);
+    keepPresent(harness, a);
     // Twenty other connections of members join the room.
     const peers: WsClient[] = [];
     for (let index = 0; index < 4; index += 1) {
