@@ -1,6 +1,7 @@
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import {
   createDraftIsolation,
+  createDraftWorkerLimiter,
   DraftIsolationError,
 } from "../../apps/server/src/modules/knowledge/draft-isolation.ts";
 import { DRAFT_LIMITS } from "../../apps/server/src/modules/knowledge/drafts.ts";
@@ -179,6 +180,61 @@ Deno.test("a worker never writes the project lockfile", async () => {
     ) {
       await Deno.writeFile(lock, before).catch(() => {});
     }
+  }
+});
+
+Deno.test("more concurrent workers than the cap: exactly the excess is refused, at once, and the pool recovers (#243)", async () => {
+  const limiter = createDraftWorkerLimiter(2);
+  const hold = await launcherCopy({ workerPath: fixture("timeout.ts") });
+  const real = await launcherCopy({});
+  try {
+    // timeout.ts signals READY and then spins, so each admitted worker holds
+    // its slot for the whole work budget.
+    const busy = createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: hold.path,
+      workerLimiter: limiter,
+    });
+    const started = performance.now();
+    const outcomes = await Promise.all(
+      [0, 1, 2].map(async () => {
+        try {
+          await busy.initialize("x");
+          return { message: "succeeded", at: performance.now() - started };
+        } catch (error) {
+          assert(error instanceof DraftIsolationError, String(error));
+          return {
+            kind: error.kind,
+            message: error.message,
+            at: performance.now() - started,
+          };
+        }
+      }),
+    );
+    const refused = outcomes.filter((outcome) =>
+      outcome.message === "WORKER_CAPACITY_EXHAUSTED"
+    );
+    const timedOut = outcomes.filter((outcome) =>
+      outcome.message === "WORKER_DEADLINE_EXCEEDED"
+    );
+    assertEquals(refused.length, 1, JSON.stringify(outcomes));
+    assertEquals(timedOut.length, 2, JSON.stringify(outcomes));
+    // The refusal is typed (maps to DEPENDENCY_UNAVAILABLE) and immediate:
+    // nothing waits in an unbounded queue.
+    assertEquals(refused[0]!.kind, "unavailable");
+    assert(refused[0]!.at < 500, `refused after ${refused[0]!.at} ms`);
+    assertEquals(limiter.active, 0, "slots were not released");
+    // The pool recovers: a real worker runs through the same limiter.
+    const candidate = await createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: real.path,
+      workerLimiter: limiter,
+    }).initialize("after the burst");
+    assertEquals(candidate.text, "after the burst");
+    assertEquals(limiter.active, 0);
+  } finally {
+    await hold.cleanup();
+    await real.cleanup();
   }
 });
 
