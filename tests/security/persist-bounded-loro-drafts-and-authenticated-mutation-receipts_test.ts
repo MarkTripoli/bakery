@@ -2324,6 +2324,20 @@ Deno.test("worker start-up does not spend the work budget: a slow start still co
   assertEquals(candidate.text, "slow start");
 });
 
+Deno.test("a start-up longer than the systemd backstop's work term still completes", async () => {
+  // systemd's RuntimeMaxSec must cover the start-up budget too: a backstop
+  // sized from the work term alone (2 s) would kill this 3 s start before
+  // READY, even though the parent's 5 s start-up deadline allows it.
+  const isolation = createDraftIsolation({
+    workerPath: new URL(
+      "../fixtures/draft-workers/slow-start-3s.ts",
+      import.meta.url,
+    ).pathname,
+  });
+  const candidate = await isolation.initialize("slow start");
+  assertEquals(candidate.text, "slow start");
+});
+
 Deno.test("a worker that never becomes ready times out at the start-up deadline", async () => {
   const isolation = createDraftIsolation({
     workerPath: new URL(

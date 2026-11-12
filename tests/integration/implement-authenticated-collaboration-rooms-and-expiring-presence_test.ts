@@ -521,15 +521,24 @@ async function observeExpiryAndRevocation(
     const b = await open(harness, second);
     await join(b, harness);
     await until(b, "joined");
-    await harness.fixture.pgDatabase.query(
-      "delete from bakery.organization_memberships where principal_id=$1",
-      [second.principalId],
-    );
-    for (;;) {
-      const frame = await until(a, "presence.removed", 3_000);
-      if (frame.reason === "revoked") break;
+    // As for c above: b stays fresh so only the lost membership removes it.
+    const bKeepAlive = setInterval(() => {
+      b.send(presence(harness, {})).catch(() => {});
+    }, 250);
+    let problem: Frame;
+    try {
+      await harness.fixture.pgDatabase.query(
+        "delete from bakery.organization_memberships where principal_id=$1",
+        [second.principalId],
+      );
+      for (;;) {
+        const frame = await until(a, "presence.removed", 3_000);
+        if (frame.reason === "revoked") break;
+      }
+      problem = await until(b, "problem", 3_000);
+    } finally {
+      clearInterval(bKeepAlive);
     }
-    const problem = await until(b, "problem", 3_000);
     assert(
       ["AUTH_FORBIDDEN", "RESOURCE_NOT_FOUND"].includes(
         (problem.problem as { code: string }).code,
