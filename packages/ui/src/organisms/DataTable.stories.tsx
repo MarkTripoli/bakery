@@ -67,6 +67,13 @@ const BaseContract: StoryObj = {
         {table("long-content", "sheetList")}
         {table("error", "sheetList")}
         <DataTable
+          caption="Work queue / caption hidden"
+          captionHidden
+          columns={columns}
+          getRowKey={(row) => row.id}
+          rows={rows}
+        />
+        <DataTable
           caption="Repositories / ruled edge"
           columns={columns}
           getRowKey={(row) => row.id}
