@@ -914,8 +914,9 @@ export type DraftIsolationLauncher = "systemd" | "process";
 
 /**
  * `BAKERY_DRAFT_ISOLATION`: `systemd` (default) runs each draft worker in a
- * transient systemd unit; `process` runs it under prlimit as a bounded child
- * process, for containers without systemd.
+ * transient systemd unit; `process` starts it through the fixed launcher
+ * (infra/draft-worker/launch.sh) as a bounded child process, for containers
+ * without systemd.
  */
 export function readDraftIsolationLauncher(
   env: Record<string, string | undefined> = Deno.env.toObject(),

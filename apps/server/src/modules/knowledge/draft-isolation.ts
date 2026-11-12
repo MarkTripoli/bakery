@@ -189,15 +189,19 @@ export type DraftIsolation = {
 type IsolationOptions = {
   /**
    * `systemd` (default): a transient systemd unit with cgroup memory, task and
-   * runtime limits and a sandboxed filesystem. `process`: Deno itself as a
-   * direct child, for containers without systemd; V8 caps its heap and
+   * runtime limits and a sandboxed filesystem. `process`: for containers
+   * without systemd, the fixed launcher (DRAFT_WORKER_LAUNCHER) execs Deno on
+   * the fixed worker module with pinned flags; V8 caps its heap and
    * WebAssembly memory, the wall-clock deadline kills it, and it starts with
-   * a cleared environment. The server's only run grant is the Deno
-   * executable: no exec-anything wrapper. In both, the worker runs with no
-   * permission flags and remote imports denied: no network, environment,
+   * an empty environment. The launcher is the server's only run grant and
+   * cannot be repurposed: it takes one UUID and nothing else (Deno itself
+   * would be exec-anything through `deno eval`). In both, the worker runs with
+   * no permission flags and remote imports denied: no network, environment,
    * file, FFI, import or subprocess access.
    */
   launcher?: "systemd" | "process";
+  /** Process launcher only: the fixed launcher script (tests point at a copy). */
+  workerLauncherPath?: string;
   systemdRunPath?: string;
   systemctlPath?: string;
   journalctlPath?: string;
@@ -1007,9 +1011,9 @@ async function systemctl(
 }
 
 /**
- * Ends a process-launched worker. The child is Deno itself and the worker has
- * no run permission, so it can start nothing: the child is its whole process
- * group, and killing it ends the boundary.
+ * Ends a process-launched worker. The launcher execs Deno in place, so the
+ * child pid is the worker; it has no run permission and can start nothing,
+ * so killing the child ends the whole boundary.
  */
 async function terminateProcess(child: Deno.ChildProcess): Promise<void> {
   try {
@@ -1069,20 +1073,20 @@ async function verifyBoundaryRemoved(
   }
 }
 
-/** The only variables a process-launched worker sees: its module cache location. */
-function workerEnvironment(): Record<string, string> {
-  const env: Record<string, string> = { NO_COLOR: "1" };
-  for (const name of ["DENO_DIR", "HOME", "XDG_CACHE_HOME"]) {
-    const value = Deno.env.get(name);
-    if (value !== undefined) env[name] = value;
-  }
-  return env;
-}
+/**
+ * The fixed launcher the process launcher starts, and the only path the
+ * server's `--allow-run` grant names. It takes one UUID job id, ignores
+ * everything else it is given, and execs Deno on the fixed worker module with
+ * pinned flags; see infra/draft-worker/launch.sh.
+ */
+export const DRAFT_WORKER_LAUNCHER = "/workspace/infra/draft-worker/launch.sh";
 
 export function createDraftIsolation(
   options: IsolationOptions = {},
 ): DraftIsolation {
   const launcher = options.launcher ?? readDraftIsolationLauncher();
+  const workerLauncherPath = options.workerLauncherPath ??
+    DRAFT_WORKER_LAUNCHER;
   const systemdRunPath = options.systemdRunPath ?? "/usr/bin/systemd-run";
   const systemctlPath = options.systemctlPath ?? "/usr/bin/systemctl";
   const journalctlPath = options.journalctlPath ?? "/usr/bin/journalctl";
@@ -1099,7 +1103,8 @@ export function createDraftIsolation(
     if (frames[0]?.length > DRAFT_LIMITS.metadataBytes) {
       throw new DraftIsolationError("limit", "WORKER_METADATA_TOO_LARGE");
     }
-    const unit = `bakery-draft-${crypto.randomUUID()}`;
+    const jobId = crypto.randomUUID();
+    const unit = `bakery-draft-${jobId}`;
     const systemdArgs = [
       "--user",
       "--pipe",
@@ -1134,28 +1139,20 @@ export function createDraftIsolation(
       "--frozen",
       workerPath,
     ];
-    const processArgs = [
-      "run",
-      "--cached-only",
-      "--no-prompt",
-      "--deny-import",
-      "--frozen",
-      `--v8-flags=--max-old-space-size=${DRAFT_LIMITS.processHeapMegabytes},--wasm-max-mem-pages=${DRAFT_LIMITS.processWasmPages}`,
-      workerPath,
-    ];
     const systemd = launcher === "systemd";
     const startedAt = performance.now();
     let child: Deno.ChildProcess;
     try {
-      child = new Deno.Command(systemd ? systemdRunPath : denoPath, {
-        args: systemd ? systemdArgs : processArgs,
+      child = new Deno.Command(systemd ? systemdRunPath : workerLauncherPath, {
+        args: systemd ? systemdArgs : [jobId],
         stdin: "piped",
         stdout: "piped",
         stderr: "piped",
         // systemd-run needs the session bus from the environment, and the
-        // transient unit does not inherit it. A direct Deno child would, so it
-        // gets only where its module cache lives: never the server's secrets.
-        ...(systemd ? {} : { clearEnv: true, env: workerEnvironment() }),
+        // transient unit does not inherit it. The launcher gets nothing: it
+        // sets the worker's few variables itself, so no server secret can
+        // reach the worker even if the launcher were changed to pass its own.
+        ...(systemd ? {} : { clearEnv: true, env: {} }),
       }).spawn();
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {

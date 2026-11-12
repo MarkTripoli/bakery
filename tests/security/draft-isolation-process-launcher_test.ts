@@ -4,15 +4,51 @@ import {
   DraftIsolationError,
 } from "../../apps/server/src/modules/knowledge/draft-isolation.ts";
 import { readDraftIsolationLauncher } from "../../packages/config/src/env.ts";
+import {
+  launcherCopy,
+  type LauncherOptions,
+} from "../helpers/draft-launcher.ts";
 
 const fixture = (name: string) =>
   new URL(`../fixtures/draft-workers/${name}`, import.meta.url).pathname;
 
+/** Runs `body` with an isolation that starts workers through a launcher copy. */
+async function withLauncher<T>(
+  options: LauncherOptions & { totalDeadlineMs?: number },
+  body: (isolation: ReturnType<typeof createDraftIsolation>) => Promise<T>,
+): Promise<T> {
+  const copy = await launcherCopy(options);
+  try {
+    return await body(createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: copy.path,
+      ...(options.totalDeadlineMs === undefined
+        ? {}
+        : { totalDeadlineMs: options.totalDeadlineMs }),
+    }));
+  } finally {
+    await copy.cleanup();
+  }
+}
+
+/** Shell lines that write the environment they run in to `file`. */
+const record = (file: string) => `/usr/bin/env -0 > '${file}'`;
+
+function variableNames(environ: string): string[] {
+  return environ.split("\0").filter(Boolean).map((pair) =>
+    pair.slice(0, pair.indexOf("="))
+  );
+}
+
+// Set by a recording shell itself, never passed to it.
+const SHELL_OWN = ["PWD", "SHLVL", "_"];
+
 Deno.test("the process launcher runs the real worker and produces a draft candidate", async () => {
-  const isolation = createDraftIsolation({ launcher: "process" });
-  const candidate = await isolation.initialize("alpha target omega");
-  assertEquals(candidate.text, "alpha target omega");
-  assert(candidate.state.length > 0);
+  await withLauncher({}, async (isolation) => {
+    const candidate = await isolation.initialize("alpha target omega");
+    assertEquals(candidate.text, "alpha target omega");
+    assert(candidate.state.length > 0);
+  });
 });
 
 Deno.test("process-launched workers that hang, exhaust memory, trap or flood are killed with a typed error", async () => {
@@ -24,20 +60,18 @@ Deno.test("process-launched workers that hang, exhaust memory, trap or flood are
     ["protocol-overflow.ts", "unavailable"],
   ] as const;
   for (const [name, kind] of cases) {
-    const isolation = createDraftIsolation({
-      launcher: "process",
-      workerPath: fixture(name),
+    await withLauncher({ workerPath: fixture(name) }, async (isolation) => {
+      const started = performance.now();
+      const error = await assertRejects(
+        () => isolation.initialize("x"),
+        DraftIsolationError,
+      );
+      assertEquals(error.kind, kind, `${name}: ${error.message}`);
+      assert(
+        performance.now() - started < 3_000,
+        `${name} was not stopped within the deadline`,
+      );
     });
-    const started = performance.now();
-    const error = await assertRejects(
-      () => isolation.initialize("x"),
-      DraftIsolationError,
-    );
-    assertEquals(error.kind, kind, `${name}: ${error.message}`);
-    assert(
-      performance.now() - started < 3_000,
-      `${name} was not stopped within the deadline`,
-    );
   }
 });
 
@@ -45,36 +79,64 @@ Deno.test("the V8 heap cap alone ends a worker that outgrows it", async () => {
   // Near the cap V8 spends its time collecting, so at the normal deadline the
   // time bound ends this worker first. With the deadline lifted, the heap cap
   // must end it by itself: a fatal out-of-memory exit, not a timeout.
-  const isolation = createDraftIsolation({
-    launcher: "process",
-    workerPath: fixture("heap.ts"),
-    totalDeadlineMs: 60_000,
-  });
-  const error = await assertRejects(
-    () => isolation.initialize("x"),
-    DraftIsolationError,
+  await withLauncher(
+    { workerPath: fixture("heap.ts"), totalDeadlineMs: 60_000 },
+    async (isolation) => {
+      const error = await assertRejects(
+        () => isolation.initialize("x"),
+        DraftIsolationError,
+      );
+      assertEquals(error.kind, "unavailable", error.message);
+      assert(error.message.startsWith("WORKER_EXIT_"), error.message);
+    },
   );
-  assertEquals(error.kind, "unavailable", error.message);
-  assert(error.message.startsWith("WORKER_EXIT_"), error.message);
 });
 
 Deno.test("a process-launched worker has no environment, file, subprocess, network, FFI or import access", async () => {
-  const isolation = createDraftIsolation({
-    launcher: "process",
-    workerPath: fixture("permissions.ts"),
-  });
-  const error = await assertRejects(
-    () => isolation.initialize("x"),
-    DraftIsolationError,
+  await withLauncher(
+    { workerPath: fixture("permissions.ts") },
+    async (isolation) => {
+      const error = await assertRejects(
+        () => isolation.initialize("x"),
+        DraftIsolationError,
+      );
+      // Exit 43: every probe was denied. 42 would mean one got through.
+      assertEquals(error.message, "WORKER_EXIT_43");
+    },
   );
-  // Exit 43: every probe was denied. 42 would mean one got through.
-  assertEquals(error.message, "WORKER_EXIT_43");
+});
+
+Deno.test("a worker never writes the project lockfile", async () => {
+  // A JSR import, even a denied one, resolves the package manifest; without
+  // --frozen that records a redirect in deno.lock.
+  const lock = new URL("../../deno.lock", import.meta.url);
+  const before = await Deno.readFile(lock);
+  try {
+    await withLauncher(
+      { workerPath: fixture("lock-probe.ts") },
+      async (isolation) => {
+        await assertRejects(
+          () => isolation.initialize("x"),
+          DraftIsolationError,
+        );
+      },
+    );
+    assertEquals(await Deno.readFile(lock), before, "deno.lock was written");
+  } finally {
+    // Undo a regression's write where this lane may write (it fails anyway).
+    const after = await Deno.readFile(lock);
+    if (
+      after.length !== before.length || after.some((b, i) => b !== before[i])
+    ) {
+      await Deno.writeFile(lock, before).catch(() => {});
+    }
+  }
 });
 
 Deno.test("a missing launcher reports host isolation unavailable, not a crash", async () => {
   const isolation = createDraftIsolation({
     launcher: "process",
-    denoPath: "/nonexistent/deno",
+    workerLauncherPath: "/nonexistent/launch.sh",
   });
   const error = await assertRejects(
     () => isolation.initialize("x"),
@@ -82,6 +144,110 @@ Deno.test("a missing launcher reports host isolation unavailable, not a crash", 
   );
   assertEquals(error.kind, "unavailable");
   assertEquals(error.message, "HOST_ISOLATION_UNAVAILABLE");
+});
+
+Deno.test("the server starts the launcher with an empty environment and one UUID", async () => {
+  const canaryName = "BAKERY_DRAFT_SECRET_CANARY";
+  const canary = `canary-${crypto.randomUUID()}`;
+  const recorded = await Deno.makeTempDir({ prefix: "bakery-draft-env-" });
+  Deno.env.set(canaryName, canary);
+  try {
+    await withLauncher(
+      {
+        prelude: `${
+          record(`${recorded}/launcher-env`)
+        }\nprintf '%s' "$*" > '${recorded}/launcher-args'`,
+      },
+      async (isolation) => {
+        const candidate = await isolation.initialize("cleared");
+        assertEquals(candidate.text, "cleared");
+      },
+    );
+    const environ = await Deno.readTextFile(`${recorded}/launcher-env`);
+    assert(!environ.includes(canary), "the server environment leaked");
+    for (const name of variableNames(environ)) {
+      assert(SHELL_OWN.includes(name), `the launcher was given ${name}`);
+    }
+    const args = await Deno.readTextFile(`${recorded}/launcher-args`);
+    assert(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(
+        args,
+      ),
+      `the launcher was given ${JSON.stringify(args)}`,
+    );
+  } finally {
+    Deno.env.delete(canaryName);
+    await Deno.remove(recorded, { recursive: true });
+  }
+});
+
+Deno.test("the launcher hands the worker only its fixed variables, whatever it inherits", async () => {
+  // Run the launcher directly with a polluted environment: what reaches
+  // Deno must still be only the launcher's own fixed variables.
+  const recorded = await Deno.makeTempDir({ prefix: "bakery-draft-env-" });
+  const stand = `${recorded}/deno`;
+  await Deno.writeTextFile(
+    stand,
+    `#!/bin/sh\n${record(`${recorded}/worker-env`)}\n`,
+  );
+  await Deno.chmod(stand, 0o700);
+  const copy = await launcherCopy({ denoPath: stand });
+  try {
+    const output = await new Deno.Command(copy.path, {
+      args: [crypto.randomUUID()],
+      env: {
+        BAKERY_DRAFT_SECRET_CANARY: "inherited-secret",
+        DENO_AUTH_TOKENS: "x@example.com",
+        DENO_V8_FLAGS: "--max-old-space-size=99999",
+      },
+      stdout: "null",
+      stderr: "null",
+    }).output();
+    assertEquals(output.code, 0);
+    const environ = await Deno.readTextFile(`${recorded}/worker-env`);
+    assert(!environ.includes("inherited-secret"), "inherited variable leaked");
+    const names = variableNames(environ).filter((name) =>
+      !SHELL_OWN.includes(name)
+    ).sort();
+    assertEquals(names, ["DENO_DIR", "HOME", "NO_COLOR"]);
+  } finally {
+    await copy.cleanup();
+    await Deno.remove(recorded, { recursive: true });
+  }
+});
+
+Deno.test("the launcher refuses anything but exactly one lower-case UUID", async () => {
+  const copy = await launcherCopy({ denoPath: "/bin/false" });
+  try {
+    const uuid = crypto.randomUUID();
+    for (
+      const args of [
+        [],
+        ["eval"],
+        [uuid, "extra"],
+        [uuid.toUpperCase()],
+        ["eval", "console.log(1)"],
+        ["../../etc/passwd-aaaa-bbbb-cccc-dddddddddddd"],
+        [`${uuid}\n`],
+      ]
+    ) {
+      const { code } = await new Deno.Command(copy.path, {
+        args,
+        clearEnv: true,
+        stdout: "null",
+        stderr: "null",
+      }).output();
+      assertEquals(code, 64, JSON.stringify(args));
+    }
+    // A valid id gets as far as the (stand-in) Deno, which exits 1.
+    const valid = await new Deno.Command(copy.path, {
+      args: [uuid],
+      clearEnv: true,
+    }).output();
+    assertEquals(valid.code, 1);
+  } finally {
+    await copy.cleanup();
+  }
 });
 
 Deno.test("the probe fixture is not blind: with every permission it reports access", async () => {
@@ -115,54 +281,6 @@ Deno.test("the probe fixture is not blind: with every permission it reports acce
     ]
   ) {
     assert(reached.includes(name), `${name} not detected: ${reached}`);
-  }
-});
-
-Deno.test("a process-launched worker starts with a cleared environment", async () => {
-  // The launched executable is a wrapper that records the environment it was
-  // given, then execs the real Deno: exactly what the server passes on.
-  const canaryName = "BAKERY_DRAFT_SECRET_CANARY";
-  const canary = `canary-${crypto.randomUUID()}`;
-  const directory = await Deno.makeTempDir({ prefix: "bakery-draft-env-" });
-  const record = `${directory}/environ`;
-  const wrapper = `${directory}/deno`;
-  await Deno.writeTextFile(
-    wrapper,
-    `#!/bin/sh\n/usr/bin/env -0 > '${record}'\nexec '${Deno.execPath()}' "$@"\n`,
-  );
-  await Deno.chmod(wrapper, 0o700);
-  Deno.env.set(canaryName, canary);
-  try {
-    const isolation = createDraftIsolation({
-      launcher: "process",
-      denoPath: wrapper,
-    });
-    const candidate = await isolation.initialize("cleared");
-    assertEquals(candidate.text, "cleared");
-    const environ = await Deno.readTextFile(record);
-    assert(!environ.includes(canary), "the server environment leaked");
-    const names = environ.split("\0").filter(Boolean).map((pair) =>
-      pair.slice(0, pair.indexOf("="))
-    );
-    assert(names.length > 0, "no environment recorded");
-    for (const name of names) {
-      assert(
-        [
-          "DENO_DIR",
-          "HOME",
-          "XDG_CACHE_HOME",
-          "NO_COLOR",
-          // Set by the recording shell itself, not passed by the server.
-          "PWD",
-          "SHLVL",
-          "_",
-        ].includes(name),
-        `unexpected variable ${name}`,
-      );
-    }
-  } finally {
-    Deno.env.delete(canaryName);
-    await Deno.remove(directory, { recursive: true });
   }
 });
 

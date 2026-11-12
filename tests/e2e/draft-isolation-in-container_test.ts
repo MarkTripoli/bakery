@@ -104,6 +104,34 @@ Deno.test(
         "alpha changed omega",
       );
 
+      // The server's run grant cannot be repurposed: with exactly the
+      // server's flags, Deno and a shell are refused, and the launcher
+      // refuses anything but one job id.
+      const probe = await stack.runOneOff([
+        "run",
+        "--rm",
+        "--no-deps",
+        "--entrypoint",
+        "deno",
+        "server",
+        "run",
+        "--allow-env",
+        "--allow-net",
+        "--allow-sys=uid",
+        "--allow-run=/workspace/infra/draft-worker/launch.sh",
+        "tests/fixtures/draft-workers/run-grant-probe.ts",
+      ]);
+      assert(probe.success, probe.output);
+      const line = probe.output.split("\n").find((text) =>
+        text.startsWith("{")
+      );
+      assertEquals(JSON.parse(line ?? "{}"), {
+        denoEval: "denied",
+        shell: "denied",
+        launcherEval: "exit:64",
+        launcherExtra: "exit:64",
+      });
+
       // The server stays ready after the workers it started have exited.
       const ready = await stack.fetch(
         new Request(`${stack.origin}/health/ready`),
