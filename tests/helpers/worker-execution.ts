@@ -1,3 +1,4 @@
+import type { ExecutionTelemetry } from "../../apps/server/src/modules/execution/telemetry.ts";
 import { assert, assertEquals, assertExists } from "@std/assert";
 import { createSuperuser } from "../../apps/server/src/modules/auth/index.ts";
 import {
@@ -346,6 +347,7 @@ export async function openWorkerFixture(options: {
   skillFileRoot?: string;
   skillFileStore?: SkillFileStoreOperations;
   env?: Record<string, string>;
+  telemetry?: ExecutionTelemetry;
 } = {}): Promise<WorkerFixture> {
   let releaseFixture!: () => void;
   const turn = new Promise<void>((resolve) => releaseFixture = resolve);
