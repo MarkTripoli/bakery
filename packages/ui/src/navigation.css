@@ -814,23 +814,36 @@ a.bakery-application-rail__link:hover {
   flex: none;
 }
 
+/* Hidden until it has focus, by being clipped to nothing where it sits, never by
+   moving it off screen: a moved link reappears wherever its container happens to
+   be (the sticky rail in a full-page capture put it in view with focus elsewhere).
+   Focused, it is a raised surface over the page's top left and moves nothing. */
 .bakery-app-shell__skip-link {
   align-items: center;
   background: var(--color-surface-raised);
+  block-size: 1px;
   border-radius: var(--radius-control);
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   color: var(--color-selection);
   display: inline-flex;
+  inline-size: 1px;
   inset-block-start: var(--space-2);
   inset-inline-start: var(--space-2);
-  min-block-size: var(--target-min);
-  padding: var(--space-2) var(--space-3);
+  overflow: hidden;
   position: absolute;
-  transform: translateY(-200%);
+  white-space: nowrap;
   z-index: var(--layer-popover);
 }
 
 .bakery-app-shell__skip-link:focus {
-  transform: none;
+  block-size: auto;
+  clip: auto;
+  clip-path: none;
+  inline-size: auto;
+  min-block-size: var(--target-min);
+  overflow: visible;
+  padding: var(--space-2) var(--space-3);
 }
 
 .bakery-app-shell__header {

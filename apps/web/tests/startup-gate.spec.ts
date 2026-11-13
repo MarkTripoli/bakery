@@ -4,7 +4,10 @@ import {
   mockAuthenticatedSession,
 } from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
-import { openAccountMenu } from "./helpers/shell-navigation.ts";
+import {
+  openAccountMenu,
+  revealShellNavigation,
+} from "./helpers/shell-navigation.ts";
 import { shot } from "./helpers/real-api.ts";
 
 registerPageHealth(test);
@@ -213,6 +216,26 @@ for (
       await error.getByRole("button", { name: "Try again" }).click();
       await expect(page.getByLabel("Display name")).toBeVisible();
       await expect(error).toHaveCount(0);
+    });
+
+    test("the rail names the organization, with a skeleton line until it is known", async ({ page }) => {
+      await mockAuthenticatedSession(page);
+      await stubProfile(page, { name: "Mark Tripoli", reads: 0 });
+      await stubOrganizations(page, {
+        delayMs: 1200,
+        failing: false,
+        requests: 0,
+      });
+      await page.goto("/settings/profile");
+      await revealShellNavigation(page);
+      const workspace = page.locator('[data-ui-component="workspaceSwitcher"]');
+      // The lookup is slow: the rail shows a skeleton line, not a generic word.
+      await expect(workspace.locator('[data-ui-component="skeleton"]'))
+        .toBeVisible();
+      await expect(workspace).not.toContainText("Organization");
+      // Then the organization's own name.
+      await expect(workspace).toContainText("Fixture Org");
+      await shot(page, "rail-organization-name");
     });
 
     test("typed input survives a background reload of the page's data", async ({ page }) => {

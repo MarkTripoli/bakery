@@ -601,8 +601,10 @@ test.describe("settings routes and navigation", () => {
     await page.setViewportSize({ width: 1280, height: 960 });
     await page.goto("/tasks");
     await revealShellNavigation(page);
-    await page.getByRole("button", { name: "Organization", exact: true })
-      .click();
+    // The rail names the organization the person is in.
+    const switcher = page.locator('[data-ui-component="workspaceSwitcher"]');
+    await expect(switcher).toContainText("Fixture Org");
+    await switcher.locator("button[aria-expanded]").click();
     await page.getByRole("button", { name: "Organization settings" }).click();
     await expect(page).toHaveURL("/organization/settings");
   });

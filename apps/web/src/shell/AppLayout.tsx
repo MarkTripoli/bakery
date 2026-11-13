@@ -9,7 +9,10 @@ import {
 import { type MouseEvent, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useBakeryApi } from "../api/context.tsx";
-import { installationSettingsQueryOptions } from "../api/query.ts";
+import {
+  installationSettingsQueryOptions,
+  organizationQueryOptions,
+} from "../api/query.ts";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { OrganizationSwitchGuard } from "./OrganizationSwitchGuard.tsx";
 import { StartupGate } from "./StartupGate.tsx";
@@ -320,9 +323,12 @@ function ShellSidebar(
     fixtureProfile,
     fixturePerson,
     onNavigate,
+    organizationResolving,
     selectedId,
     variant,
   }: {
+    /** The organization lookup is still running, so the rail has no name to show yet. */
+    readonly organizationResolving: boolean;
     readonly currentPath: string;
     readonly destinations: readonly UI.ApplicationRailItem[];
     readonly fixture: boolean;
@@ -342,6 +348,16 @@ function ShellSidebar(
   const { translate } = useI18n();
   const session = useSession();
   const account = useAccountActions();
+  const api = useBakeryApi();
+  const scope = useProtectedScope();
+  // The rail names the organization the person is in, so someone in two of
+  // them can tell which. Until it is known the name is a short skeleton line;
+  // if it cannot be read the rail falls back to the generic word.
+  const organization = useQuery({
+    ...organizationQueryOptions(api, scope),
+    enabled: !fixture && session.status === "authenticated" &&
+      scope.organizationId !== null,
+  });
   const sessionIdentity = session.status === "authenticated"
     ? session.identity
     : null;
@@ -401,7 +417,11 @@ function ShellSidebar(
             variant={compact ? "compact" : "full"}
             workspace={fixture
               ? fixtureProfile?.workspace ?? SHELL_FIXTURE_IDENTITY.workspace
-              : translate("shell.navigation.organization")}
+              : organization.data?.name ??
+                (organizationResolving || organization.isPending &&
+                    scope.organizationId !== null
+                  ? <UI.Skeleton shape="text" />
+                  : translate("shell.navigation.organization"))}
           />
         )
         : undefined}
@@ -464,6 +484,7 @@ function ShellFrame() {
     !pathname.startsWith("/__fixtures__/") &&
     !isAuthEntryPath(pathname) && !pathname.startsWith("/installation/") &&
     pathname !== INSTALLATION_INTEGRATIONS_PATH;
+  const scope = useProtectedScope();
   const restore = useRestoreOrganizationScope({
     redirect: needsOrganization,
     enabled: !fixture && !pathname.startsWith("/__fixtures__/") &&
@@ -674,6 +695,8 @@ function ShellFrame() {
             : undefined}
           fixturePerson={artifactFixturePerson(pathname)}
           onNavigate={shellNavigate}
+          organizationResolving={needsOrganization &&
+            scope.organizationId === null && !restore.failure}
           selectedId={selectedId}
           variant={sidebarVariant}
         />
