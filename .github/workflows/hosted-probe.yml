@@ -1,0 +1,96 @@
+# TEMPORARY (#330): runs the real steps of the CI jobs that never run on a pull request gate
+# (ui_architecture, docs_validation) and of the description policy's pull-request job on a hosted
+# runner, so their first hosted run is not on main. Removed before review.
+name: 'Hosted probe (temporary, #330)'
+permissions:
+  contents: read
+env:
+  PNPM_VERSION: 10.33.0
+  NODE_VERSION: 22.22.0
+  CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+  RUN_ID: ${{ github.run_id }}
+  RUN_ATTEMPT: ${{ github.run_attempt }}
+  WORKFLOW_SHA: ${{ github.workflow_sha }}
+  BAKERY_BROWSER_COVERAGE: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 'full' || 'affected' }}
+jobs:
+  probe_ui_architecture:
+    name: ui / architecture rules and debt
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Select per-runner handoff directories
+      shell: bash
+      run: "root=\"$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT\"\n{\n  echo \"HANDOFF_ROOT=$root\"\n  echo \"HANDOFF_DIR=$root/$GITHUB_JOB\"\n  echo \"EVIDENCE_DIR=$root/$GITHUB_JOB/evidence\"\n  echo \"ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts\"\n} >> \"$GITHUB_ENV\"\n"
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+      with:
+        deno-version: v2.9.1
+    - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+      with:
+        version: ${{ env.PNPM_VERSION }}
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: pnpm
+    - run: pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile
+    - name: Test UI architecture rules and debt ratchet
+      run: pnpm ui:architecture:test
+    - name: Write ui_architecture evidence
+      if: always()
+      env:
+        JOB_STATUS: ${{ job.status }}
+        CANDIDATE_SHA: ${{ env.CANDIDATE_SHA }}
+        BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
+        WORKFLOW_SHA: ${{ github.workflow_sha }}
+      run: deno run --allow-env --allow-read --allow-write scripts/ci/write-evidence.ts ui_architecture "pnpm ui:architecture:test" "UI architecture rules and debt ratchet"
+    - name: Emit ui architecture evidence handoff to job log
+      if: always()
+      env:
+        EVIDENCE_DIR: ${{ env.EVIDENCE_DIR }}
+        ARTIFACT_DIR: ${{ env.ARTIFACT_DIR }}
+        SCRATCH_DIR: ${{ env.HANDOFF_DIR }}
+      run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log ui_architecture
+  probe_docs_validation:
+    name: docs / validation
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+    - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+      with:
+        deno-version: v2.9.1
+    - name: Validate documentation XML and metadata
+      run: deno run --allow-read --allow-run=python3 scripts/ci/validate-docs.ts
+    - name: Test documentation routing classifier
+      run: deno test --allow-read --allow-run --allow-env tests/unit/ci-docs-routing_test.ts
+  probe_description_policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+    steps:
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        ref: ${{ github.sha }}
+        persist-credentials: false
+    - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+      with:
+        deno-version: v2.9.1
+    - name: Validate live PR and owning issue metadata
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+      run: deno run --no-config --allow-read=scripts/authoring --allow-env=GITHUB_REPOSITORY,GITHUB_TOKEN --allow-net=api.github.com scripts/authoring/github.ts check pr "$PR_NUMBER"
+'on':
+  pull_request:
+    types:
+    - opened
+    - synchronize
+    - reopened
