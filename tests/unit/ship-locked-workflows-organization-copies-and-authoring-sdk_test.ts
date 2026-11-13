@@ -1,6 +1,7 @@
 import { assert, assertEquals } from "@std/assert";
 import {
   canonicalJson,
+  decodeWorkflowJson,
   sha256Hex,
   WORKFLOW_COMPILER_LIMITS,
   type WorkflowCompilerDiagnosticCode,
@@ -617,27 +618,17 @@ Deno.test("the byte ceiling counts bytes, not UTF-16 units", () => {
   assertEquals(result.diagnostics[0]?.code, "definition_too_large");
 });
 
-Deno.test("a character YAML 1.2 does not list as printable is refused raw, wherever it stands", () => {
-  const raw = [
-    "\u0000",
-    "\u0001",
-    "\u0008",
-    "\u000b",
-    "\u000c",
-    "\u001f",
-    "\u007f",
-    "\u0080",
-    "\u0084",
-    "\u0086",
-    "\u009f",
-    "\ufffe",
-    "\uffff",
-    "\ud800",
-    "\udc00",
-    "\ud83dx",
-    "x\ude00",
-  ];
-  for (const char of raw) {
+Deno.test("a raw control character is refused wherever it stands, as the JSON decoder refuses it", () => {
+  for (
+    const char of [
+      "\u0000",
+      "\u0001",
+      "\u0008",
+      "\u000b",
+      "\u000c",
+      "\u001f",
+    ]
+  ) {
     for (
       const text of [
         `a: ${char}\n`,
@@ -655,13 +646,47 @@ Deno.test("a character YAML 1.2 does not list as printable is refused raw, where
       );
     }
   }
-  // Tab, line feed, carriage return, NEL, a surrogate pair and the BOM are text.
+  // Tab, line feed, carriage return and NEL are text.
   assertEquals(accepted('a: "x\ty"\r\nb: 2\r\n'), { a: "x\ty", b: 2 });
   assertEquals(accepted('a: "\u0085\ud83d\ude00\ufeff"\n'), {
     a: "\u0085\ud83d\ude00\ufeff",
   });
   // The same characters as escapes are data the JSON decoder would take.
   assertEquals(accepted('a: "\\u0000\\x7f"\n'), { a: "\u0000\u007f" });
+});
+
+Deno.test("every character from U+0020 up is accepted raw, as the JSON decoder accepts it", () => {
+  for (
+    const char of [
+      "\u007f",
+      "\u0080",
+      "\u0084",
+      "\u0086",
+      "\u009f",
+      "\ufffe",
+      "\uffff",
+      "\ud800",
+      "\udc00",
+      "\ud83d",
+      "\ude00",
+    ]
+  ) {
+    const text = `a: "x${char}y"\n`;
+    const imported = decodeWorkflowYaml(text);
+    assert(imported.ok, JSON.stringify(text));
+    assertEquals(
+      (imported.value as { a: string }).a,
+      `x${char}y`,
+      JSON.stringify(text),
+    );
+  }
+  // JSON.stringify writes them unescaped, so JSON it produced must import, and
+  // to the same value the JSON decoder reads.
+  const text = JSON.stringify({ a: "x\u007fy\u0085\u009fz\ufffe\uffffw" });
+  const fromJson = decodeWorkflowJson(text);
+  const fromYaml = decodeWorkflowYaml(text);
+  assert(fromJson.ok && fromYaml.ok);
+  assertEquals(canonicalJson(fromYaml.value), canonicalJson(fromJson.value));
 });
 
 Deno.test("an exported string with a character the importer refuses raw is written as an escape and imports", () => {

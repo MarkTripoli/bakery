@@ -41,12 +41,22 @@ import { WORKFLOW_COMPILER_LIMITS } from "./limits.ts";
 const encoder = new TextEncoder();
 
 /**
+ * A raw control character: U+0000 to U+001F other than tab, line feed and
+ * carriage return. These are what the JSON decoder refuses inside a string, so
+ * they are what the importer refuses in the text: it accepts every text the
+ * JSON decoder would, whichever syntax carries it.
+ */
+function isRawControl(code: number): boolean {
+  return code < 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d;
+}
+
+/**
  * Whether the code unit at `index` is one YAML 1.2 does not list as printable
  * (`c-printable`): a C0 control other than tab, line feed and carriage return,
  * DEL, a C1 control other than NEL, U+FFFE, U+FFFF, or a surrogate that is not
- * half of a pair. The JSON decoder refuses a raw control character in a
- * string; the importer refuses these in the text before it is parsed, so no
- * parser decides what they mean. (Read by code unit, not by regular
+ * half of a pair. The exporter writes every one of these as an escape, so its
+ * text is valid YAML to any reader; the importer is more lenient and refuses
+ * only raw controls (`isRawControl`). (Read by code unit, not by regular
  * expression: this module builds no pattern from data.)
  */
 function isNonPrintable(text: string, index: number): boolean {
@@ -68,7 +78,10 @@ function isNonPrintable(text: string, index: number): boolean {
 
 const BYTE_ORDER_MARK = 0xfeff;
 
-/** Whether the text holds a non-printable code unit, and a BOM when asked. */
+/**
+ * Whether the text holds a code unit the exporter writes as an escape: a
+ * non-printable one (see `isNonPrintable`), and a BOM when asked.
+ */
 function hasSpecial(text: string, withBom: boolean): boolean {
   for (let index = 0; index < text.length; index += 1) {
     if (
@@ -224,8 +237,10 @@ export function decodeWorkflowYaml(
   if (textBytes(text) > WORKFLOW_COMPILER_LIMITS.bytes) {
     return failed(collector, "", "definition_too_large");
   }
-  if (hasSpecial(text, false)) {
-    return failed(collector, "", "yaml_syntax_invalid");
+  for (let index = 0; index < text.length; index += 1) {
+    if (isRawControl(text.charCodeAt(index))) {
+      return failed(collector, "", "yaml_syntax_invalid");
+    }
   }
   try {
     return decodeParsed(text, options, collector);
