@@ -148,7 +148,11 @@ const worker = (index: number) => ({
  */
 async function machinesFixture(
   page: Page,
-  options: { failLastPage?: boolean } = {},
+  options: {
+    failLastPage?: boolean;
+    /** While `failing` is true the first read of the list fails, whatever the retries. */
+    firstRead?: { failing: boolean };
+  } = {},
 ) {
   await mockAuthenticatedSession(page);
   let failures = options.failLastPage ? 1 : 0;
@@ -170,6 +174,9 @@ async function machinesFixture(
     (route) => {
       const cursor = new URL(route.request().url()).searchParams.get("cursor");
       const index = cursor ? Number(cursor.slice(1)) : 1;
+      if (!cursor && options.firstRead?.failing) {
+        return route.fulfill(problem(500, "INTERNAL_ERROR"));
+      }
       if (index === 11 && failures > 0) {
         failures -= 1;
         return route.fulfill(problem(500, "INTERNAL_ERROR"));
@@ -215,6 +222,22 @@ for (
       await more.click();
       await expect(more).toHaveCount(0);
       await expect(added(page)).toBeFocused();
+    });
+
+    test("a failed first read of the machines, retried from the keyboard, puts focus on the page heading", async ({ page }) => {
+      const firstRead = { failing: true };
+      await machinesFixture(page, { firstRead });
+      await page.goto("/machines");
+      const retry = page.getByRole("button", { name: "Retry" });
+      await expect(retry).toBeVisible();
+      // The server recovers; the person retries with the keyboard only.
+      firstRead.failing = false;
+      await retry.focus();
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("button", { name: "Load more" }))
+        .toBeVisible();
+      await expect(page.getByRole("heading", { name: "Machines", level: 1 }))
+        .toBeFocused();
     });
 
     test("a failed load of more machines leaves focus on the button that retries it", async ({ page }) => {

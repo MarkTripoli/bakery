@@ -48,6 +48,8 @@ type World = {
   pageSize?: number;
   /** The next request for a later page fails once, with a 500. */
   failLaterPage?: boolean;
+  /** While true, the first read of the repositories fails with a 500. */
+  failFirstRead?: boolean;
   seen: { method: string; path: string; body: unknown; ifMatch?: string }[];
   github: string[];
 };
@@ -175,6 +177,9 @@ async function fixture(page: Page, world: World) {
     const base = `/v1/integration-connections/${connection.id}`;
     if (method === "GET" && path === `${base}/resources`) {
       const cursor = new URL(request.url()).searchParams.get("cursor");
+      if (!cursor && world.failFirstRead) {
+        return route.fulfill(problem(500, "INTERNAL_ERROR"));
+      }
       const size = world.pageSize ?? world.resources.length;
       if (cursor && world.failLaterPage) {
         world.failLaterPage = false;
@@ -571,4 +576,18 @@ test("a failed load of more repositories puts focus on Try again, and a good ret
   await expect(
     page.getByRole("button", { name: "Show more repositories" }),
   ).toBeFocused();
+});
+
+test("a failed first read of the repositories, retried from the keyboard, puts focus on the list's heading", async ({ page }) => {
+  const world = pagedWorld({ failFirstRead: true });
+  await fixture(page, world);
+  await page.goto(PAGE_PATH);
+  const retry = page.getByRole("button", { name: "Try again" });
+  await expect(retry).toBeVisible();
+  world.failFirstRead = false;
+  await retry.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByLabel("acme-org/repo-1")).toBeVisible();
+  await expect(page.locator('[data-paged-heading="repositories"]'))
+    .toBeFocused();
 });

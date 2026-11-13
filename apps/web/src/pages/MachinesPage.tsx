@@ -873,8 +873,8 @@ export function MachinesPage() {
     ? workerContinuation.data.nextCursor
     : workers.data?.nextCursor;
   const workerPaging = usePagedFocus("machines", {
-    pending: workerContinuation.isFetching,
-    failed: workerContinuation.isError,
+    pending: workerContinuation.isFetching || workers.isFetching,
+    failed: workerContinuation.isError || workers.isError,
     rowCount: (workers.data?.items.length ?? 0) +
       (workerContinuation.data?.items.length ?? 0),
     hasMore: Boolean(nextWorkerCursor),
@@ -904,22 +904,25 @@ export function MachinesPage() {
         />
       </ShellSlot>
       <UI.SettingsContent data-testid="machines-page">
-        <UI.PageHeader
-          variant="list"
-          title={translate("machines.title")}
-          subtitle={translate("machines.description")}
-          actions={isAdmin
-            ? (
-              <UI.Button
-                variant="primary"
-                onClick={() =>
-                  document.getElementById("machine-enrollment-name")?.focus()}
-              >
-                {translate("machines.enrollment.create")}
-              </UI.Button>
-            )
-            : null}
-        />
+        {/* The wrapper is what the first-read retry looks for; the focus goes to its heading. */}
+        <div data-paged-heading="machines">
+          <UI.PageHeader
+            variant="list"
+            title={translate("machines.title")}
+            subtitle={translate("machines.description")}
+            actions={isAdmin
+              ? (
+                <UI.Button
+                  variant="primary"
+                  onClick={() =>
+                    document.getElementById("machine-enrollment-name")?.focus()}
+                >
+                  {translate("machines.enrollment.create")}
+                </UI.Button>
+              )
+              : null}
+          />
+        </div>
         {connectivityKind
           ? (
             <UI.AlertBanner
@@ -943,7 +946,11 @@ export function MachinesPage() {
               kind={asyncKindForError(workers.error) === "offline"
                 ? "offline"
                 : "error"}
-              onRetry={() => void workers.refetch()}
+              onRetry={() => {
+                // A failed first read, retried: focus lands on the page heading.
+                workerPaging.ask("first");
+                void workers.refetch();
+              }}
               translate={translate}
             />
           )

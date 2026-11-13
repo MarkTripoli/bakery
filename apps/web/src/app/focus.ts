@@ -97,7 +97,14 @@ export function usePagedFocus(
     if (failed) {
       focusAfterPaint(() => find("retry"));
     } else if (request.kind === "first") {
-      focusAfterPaint(() => find("heading"));
+      // The marker may sit on a header block that holds the heading: focus the heading.
+      focusAfterPaint(() => {
+        const marked = find("heading");
+        return marked && !marked.matches("h1, h2, h3, h4, h5, h6")
+          ? marked.querySelector<HTMLElement>("h1, h2, h3, h4, h5, h6") ??
+            marked
+          : marked;
+      });
     } else {
       focusAfterPaint(() =>
         hasMore
