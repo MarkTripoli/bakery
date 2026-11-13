@@ -2891,8 +2891,7 @@
   "machines.wizard.install.intro": "The Bakery worker is the program that runs agents on this machine.",
   "machines.wizard.install.change": "Change {setting} to the folder of the Git repository {agent} works in on this machine.",
   "machines.wizard.install.leave": "If you leave this page the setup code is lost. You can get new settings from Finishing setup on the Machines page.",
-  "machines.wizard.install.macos": "Bakery has no installer for macOS yet.",
-  "machines.wizard.install.macosHelp": "A one-step installer is coming. Until it ships, a Mac cannot join through this page; add a Linux machine to start work.",
-  "machines.wizard.install.addLinux": "Add a Linux machine",
-  "machines.finishing.machines": "Machines"
+  "machines.finishing.machines": "Machines",
+  "machines.wizard.macos": "Bakery has no installer for macOS yet. A one-step installer is coming. Until it ships, a Mac cannot join through this page; choose Linux to add a Linux machine.",
+  "machines.wizard.install.opening": "Opening the machine's page…"
 }

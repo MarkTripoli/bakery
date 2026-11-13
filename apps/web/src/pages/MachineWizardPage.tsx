@@ -169,6 +169,17 @@ function SystemStep(
         <UI.Text variant="muted">
           {translate("machines.wizard.osHint" as never)}
         </UI.Text>
+        {!hasInstaller(answers.os)
+          ? (
+            <UI.AlertBanner
+              tone="information"
+              role="status"
+              id="machine-wizard-os-notice"
+            >
+              {translate("machines.wizard.macos" as never)}
+            </UI.AlertBanner>
+          )
+          : null}
       </UI.Stack>
       <UI.Stack gap="compact">
         <UI.Text variant="strong">
@@ -252,34 +263,6 @@ function AgentStep(
   );
 }
 
-/** What a Mac gets: no installer exists, so no setup is made and nothing is invented. */
-function MacNotice(
-  { translate, onAddLinux, onToList }: {
-    translate: Translator;
-    onAddLinux: () => void;
-    onToList: () => void;
-  },
-) {
-  return (
-    <UI.Stack gap="standard">
-      <UI.AlertBanner tone="information" role="status">
-        {translate("machines.wizard.install.macos" as never)}
-      </UI.AlertBanner>
-      <UI.Text>
-        {translate("machines.wizard.install.macosHelp" as never)}
-      </UI.Text>
-      <UI.Inline gap="compact">
-        <UI.Button variant="primary" onClick={onAddLinux}>
-          {translate("machines.wizard.install.addLinux" as never)}
-        </UI.Button>
-        <UI.Button variant="secondary" onClick={onToList}>
-          {translate("machines.wizard.toList" as never)}
-        </UI.Button>
-      </UI.Inline>
-    </UI.Stack>
-  );
-}
-
 /** The install step: what to do on the machine, then waiting for it to connect. */
 function InstallStep(
   {
@@ -291,7 +274,6 @@ function InstallStep(
     onNewSettings,
     onDone,
     onToList,
-    onAddLinux,
   }: {
     input: EnrollmentInput;
     agent: CodingAgent;
@@ -301,7 +283,6 @@ function InstallStep(
     onNewSettings: (version: number) => void;
     onDone: (workerHostId: string) => void;
     onToList: () => void;
-    onAddLinux: () => void;
   },
 ) {
   const api = useBakeryApi();
@@ -348,13 +329,13 @@ function InstallStep(
     ? installState({ state: "pending", expiresAt: issued.expiresAt }, now)
     : "waiting";
 
+  // A setup for a system without an installer can only have come from before
+  // the wizard stopped offering it: say so, and offer nothing it cannot do.
   if (!hasInstaller(input.os)) {
     return (
-      <MacNotice
-        translate={translate}
-        onAddLinux={onAddLinux}
-        onToList={onToList}
-      />
+      <UI.AlertBanner tone="information" role="status">
+        {translate("machines.wizard.macos" as never)}
+      </UI.AlertBanner>
     );
   }
   if (state === "connected") {
@@ -369,6 +350,9 @@ function InstallStep(
           <UI.Button
             variant="primary"
             disabled={hostId === null}
+            aria-describedby={hostId === null
+              ? "machine-wizard-opening"
+              : undefined}
             onClick={() => {
               if (hostId !== null) onDone(hostId);
             }}
@@ -376,6 +360,14 @@ function InstallStep(
             {translate("machines.wizard.done" as never)}
           </UI.Button>
         </UI.Inline>
+        {/* A disabled button says why: the machine is not named yet. */}
+        {hostId === null
+          ? (
+            <UI.Text variant="muted" role="status" id="machine-wizard-opening">
+              {translate("machines.wizard.install.opening" as never)}
+            </UI.Text>
+          )
+          : null}
       </UI.Stack>
     );
   }
@@ -617,8 +609,7 @@ export function MachineWizardPage(
       }
       setShowProblems(false);
       setStep("install");
-      // A Mac has no installer: nothing is created that could not be finished.
-      if (hasInstaller(answers.os)) void createSettings();
+      void createSettings();
     }
   };
   const back = () => {
@@ -729,8 +720,7 @@ export function MachineWizardPage(
             />
           )
           : null}
-        {installReady &&
-            (issued !== null || finishId || !hasInstaller(input.os))
+        {installReady && (issued !== null || finishId)
           ? (
             <InstallStep
               input={input}
@@ -745,19 +735,10 @@ export function MachineWizardPage(
                   params: { machineId: workerHostId },
                 })}
               onToList={toList}
-              onAddLinux={() => {
-                setAnswers({
-                  ...answers,
-                  os: "linux",
-                  architecture: suggestedProcessor("linux"),
-                });
-                setStep("system");
-              }}
             />
           )
           : null}
-        {step === "install" && !finishId && !failed && issued === null &&
-            (input === null || hasInstaller(input.os))
+        {step === "install" && !finishId && !failed && issued === null
           ? (
             <UI.Text variant="muted" role="status">
               {translate("machines.wizard.install.creating" as never)}
@@ -780,7 +761,7 @@ export function MachineWizardPage(
             )
             : null}
           {step === "agent" || (step === "install" && issued === null &&
-              !finishId && (failed || !hasInstaller(answers.os)))
+              !finishId && failed)
             ? (
               <UI.Button variant="secondary" onClick={back}>
                 {translate("machines.wizard.back" as never)}
@@ -800,7 +781,14 @@ export function MachineWizardPage(
             : null}
           {step === "system" || step === "agent"
             ? (
-              <UI.Button variant="primary" onClick={next}>
+              <UI.Button
+                variant="primary"
+                onClick={next}
+                disabled={step === "system" && !hasInstaller(answers.os)}
+                aria-describedby={step === "system" && !hasInstaller(answers.os)
+                  ? "machine-wizard-os-notice"
+                  : undefined}
+              >
                 {translate("machines.wizard.continue" as never)}
               </UI.Button>
             )

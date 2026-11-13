@@ -300,49 +300,91 @@ test.describe("add a machine wizard", () => {
     await expect(page.getByText("build-box-01 is connected.")).toBeVisible({
       timeout: 30_000,
     });
-    await expect(page.getByRole("button", { name: "Done" })).toBeDisabled();
+    const done = page.getByRole("button", { name: "Done" });
+    await expect(done).toBeDisabled();
+    // A disabled button says why, and the reason is tied to it.
+    await expect(page.getByText("Opening the machine's page…")).toBeVisible();
+    await expect(done).toHaveAttribute(
+      "aria-describedby",
+      "machine-wizard-opening",
+    );
     await shot(page, "machines-wizard-connected");
     setup.workerHostId = MACHINE_ID;
-    await expect(page.getByRole("button", { name: "Done" })).toBeEnabled({
-      timeout: 30_000,
-    });
+    await expect(done).toBeEnabled({ timeout: 30_000 });
+    await expect(page.getByText("Opening the machine's page…")).toHaveCount(0);
     await page.getByRole("button", { name: "Done" }).click();
     await expect(page).toHaveURL(new RegExp(`/machines/${MACHINE_ID}$`));
     expect(setup.creates).toHaveLength(1);
   });
 
-  test("a Mac is told there is no installer and no setup is made", async ({ page }) => {
+  test("a Mac is told on step 1 that there is no installer, and cannot continue", async ({ page }) => {
     const setup = newSetup();
     await open(page, setup);
     await page.getByLabel("Name").fill("build-mac-01");
-    await page.getByRole("radio", { name: "macOS" }).check({ force: true });
-    await page.getByRole("button", { name: "Continue" }).click();
-    await page.getByRole("radio", { name: /Claude Code/ }).check({
-      force: true,
+    const notice = page.getByRole("status").filter({
+      hasText: "Bakery has no installer for macOS yet.",
     });
-    await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByText("Step 3 of 3 · Install")).toBeVisible();
-    await expect(page.getByText("Bakery has no installer for macOS yet."))
-      .toBeVisible();
-    await expect(
-      page.getByText(
-        "A one-step installer is coming. Until it ships, a Mac cannot join through this page; add a Linux machine to start work.",
-      ),
-    ).toBeVisible();
+    await expect(notice).toHaveCount(0);
+    await page.getByRole("radio", { name: "macOS" }).check({ force: true });
+    // Where the choice is made: under it, with its reason, and no way on.
+    await expect(notice).toHaveText(
+      "Bakery has no installer for macOS yet. A one-step installer is coming. Until it ships, a Mac cannot join through this page; choose Linux to add a Linux machine.",
+    );
+    await expect(page.getByText("Windows is not supported yet.")).toBeVisible();
+    const next = page.getByRole("button", { name: "Continue" });
+    await expect(next).toBeDisabled();
+    // The reason is tied to the button for a screen reader.
+    const reason = await next.getAttribute("aria-describedby");
+    expect(reason).toBeTruthy();
+    await expect(page.locator(`#${reason}`)).toContainText(
+      "Bakery has no installer for macOS yet.",
+    );
     await shot(page, "machines-wizard-mac");
-    // Nothing was created that could not be finished, and nothing is invented.
-    expect(setup.creates).toHaveLength(0);
-    await expect(page.locator("[data-ui-component=codeBlock]")).toHaveCount(0);
-    await expect(page.locator("[data-ui-component=setupKey]")).toHaveCount(0);
-    await expect(page.getByText("/var/lib/bakery")).toHaveCount(0);
-    // The way on is a Linux machine, with the answers kept.
-    await page.getByRole("button", { name: "Add a Linux machine" }).click();
-    await expect(page.getByText("Step 1 of 3 · Name and system")).toBeVisible();
+    const axeMac = await new AxeBuilder({ page }).analyze();
+    expect(axeMac.violations.map((v) => v.id)).toEqual([]);
+    // Choosing Linux lifts it, with the answers kept.
+    await page.getByRole("radio", { name: "Linux" }).check({ force: true });
+    await expect(notice).toHaveCount(0);
+    await expect(next).toBeEnabled();
+    await expect(next).not.toHaveAttribute("aria-describedby", /.+/);
     await expect(page.getByLabel("Name")).toHaveValue("build-mac-01");
-    await expect(page.getByRole("radio", { name: "Linux" })).toBeChecked();
     await expect(page.getByRole("radio", { name: /Intel or AMD/ }))
       .toBeChecked();
+    // Nothing was ever created, and no Mac steps exist anywhere.
     expect(setup.creates).toHaveLength(0);
+    await expect(page.getByText("/var/lib/bakery")).toHaveCount(0);
+  });
+
+  test("a macOS setup left from before is not offered instructions that do not exist", async ({ page }) => {
+    const setup = newSetup({
+      list: [{
+        enrollmentId: ENROLLMENT_ID,
+        state: "pending",
+        name: "old-mac-setup",
+        os: "macos",
+        architecture: "arm64",
+        capabilities: ["git", "shell", "web", "model", "claude"],
+        slots: 1,
+        expiresAt: inMinutes(5),
+        consumedAt: null,
+        canceledAt: null,
+        workerHostId: null,
+        replacementOfId: null,
+        targetWorkerHostId: null,
+        version: 1,
+      }],
+    });
+    await open(page, setup, { path: `/machines/new?finish=${ENROLLMENT_ID}` });
+    await expect(
+      page.getByRole("status").filter({
+        hasText: "Bakery has no installer for macOS yet.",
+      }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Get new settings" }))
+      .toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Back to machines" }))
+      .toBeVisible();
+    expect(setup.replacements).toHaveLength(0);
   });
 
   test("a Linux machine gets its environment file and the command that starts it", async ({ page }) => {
