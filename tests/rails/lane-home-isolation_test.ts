@@ -59,6 +59,12 @@ for (const lane of ["security", "integration", "e2e"]) {
         CODEX_HOME: join(sentinel, ".codex"),
         BAKERY_CODEX_AUTH_SOURCE_DIR: join(sentinel, ".codex"),
         BAKERY_LANE_HOME_SENTINEL: sentinel,
+        // Set explicitly, all four: a hosted runner exports its own, and the
+        // child inherits whatever the parent holds.
+        MISE_DATA_DIR: join(sentinel, "mise-data"),
+        MISE_CONFIG_DIR: join(sentinel, "mise-config"),
+        MISE_CACHE_DIR: join(sentinel, "mise-cache"),
+        MISE_STATE_DIR: join(sentinel, "mise-state"),
         TMPDIR: tmp,
       });
       assertEquals(

@@ -21,8 +21,8 @@ type CursorQuery = z.output<typeof contractSchemas.CursorQuery>;
 
 const TIMESTAMP = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 
-// Explicit projection: installation ids, health detail, problem codes and
-// the creating principal stay internal.
+// Explicit projection: installation ids, health detail and problem codes stay
+// internal. The creating principal is shown (#68: "who connected").
 const connectionColumns = `connection.id, connection.provider,
   connection.label, connection.external_account_id as "externalAccountId",
   connection.config, connection.secret_id as "secretId",
@@ -32,6 +32,7 @@ const connectionColumns = `connection.id, connection.provider,
     as "lastCheckedAt",
   to_char(connection.created_at at time zone 'UTC', ${TIMESTAMP})
     as "createdAt",
+  connection.created_by as "createdBy",
   to_char(connection.updated_at at time zone 'UTC', ${TIMESTAMP})
     as "updatedAt",
   connection.version`;

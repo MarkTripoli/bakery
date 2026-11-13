@@ -13,6 +13,7 @@ import type {
   WorkerIdentity,
 } from "../execution/shared.ts";
 import { appendIteration, appendStopGate } from "./append-iteration.ts";
+import { requestRunStageApproval } from "../conversation/approvals.ts";
 import { evaluateReviewedChecks } from "./candidate.ts";
 import {
   assertIndependentReviewer,
@@ -373,7 +374,9 @@ function storedFailedChecks(
  * Applies a decision to the run: `repair` appends the next iteration, `stop`
  * appends the pre-failed gate step, `proceed` appends nothing, which is how a
  * clean seed candidate keeps its original check rows and review as the only
- * evidence.
+ * evidence. When the task's policy makes the review stage wait for a person,
+ * `proceed` also opens a run-stage approval for that exact candidate; merge
+ * eligibility then requires it approved (#37).
  */
 async function applyDecision(
   transaction: PgTransactionClient,
@@ -396,6 +399,12 @@ async function applyDecision(
       ordinal: input.ordinal,
       reason: outcome.reason,
       decisionId: input.decisionId,
+    });
+  } else if (outcome.decision === "proceed") {
+    await requestRunStageApproval(transaction, {
+      organizationId: input.organizationId,
+      runId: input.runId,
+      deliveryDecisionId: input.decisionId,
     });
   }
 }
