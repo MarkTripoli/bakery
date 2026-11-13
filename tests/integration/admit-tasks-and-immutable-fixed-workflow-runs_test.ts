@@ -1002,7 +1002,10 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       receipt_count: 0,
     });
     // #16: a published compiler-grammar version with a container node is a
-    // typed refusal, not an unhandled 500, and leaves no run or receipt.
+    // compiled plan (#30 E3b-2c). This one declares no inputs, so it does not
+    // compile as a plan: a typed refusal, not an unhandled 500, and no run or
+    // receipt. (A plan with a wait is refused as not executable; that case is
+    // in the compiled-plan admission test.)
     const planOnlyWorkflowStart = await send(
       "POST",
       `/v1/tasks/${taskIds.planOnlyWorkflow}/runs`,
@@ -1026,7 +1029,7 @@ Deno.test("admit tasks and keep fixed-workflow run snapshots immutable", async (
       reason?: string;
     };
     assertEquals(planOnlyBody.code, "STATE_CONFLICT");
-    assertEquals(planOnlyBody.reason, "workflow_not_executable");
+    assertEquals(planOnlyBody.reason, "workflow_plan_not_compilable");
     const planOnlyPersistence = await owner`
       select
         (select count(*)::int from bakery.workflow_runs

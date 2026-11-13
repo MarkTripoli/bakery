@@ -1593,7 +1593,7 @@ async function mockProfile(
 ): Promise<ProfileMock> {
   const mock: ProfileMock = {
     version: 3,
-    name: "Mark Tripoli",
+    name: "Alex Morgan",
     image: null,
     emailVerified: false,
     getStatus: 200,
@@ -1604,11 +1604,11 @@ async function mockProfile(
   const record = () => ({
     principalId: "00000000-0000-4000-8000-000000000001",
     name: mock.name,
-    firstName: "Mark",
-    lastName: "Tripoli",
+    firstName: "Alex",
+    lastName: "Morgan",
     title: null,
     image: mock.image,
-    email: "me@marktripoli.com",
+    email: "alex.morgan@example.com",
     emailVerified: mock.emailVerified,
     version: mock.version,
     updatedAt: "2026-01-02T00:00:00.000Z",
@@ -1653,7 +1653,7 @@ async function mockProfile(
 
 test.describe("profile page", () => {
   test("fixture: a saved photo shows and a broken one falls back to initials", async ({ page }) => {
-    const photo = "https://photos.example/mark.png";
+    const photo = "https://photos.example/alex.png";
     const png = Buffer.from(
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
       "base64",
@@ -1684,13 +1684,13 @@ test.describe("profile page", () => {
     await expect(avatar).toHaveText("MT");
     await expect(avatar.locator("img")).toHaveCount(0);
     // The form stays usable; the broken photo never blocks it.
-    await page.getByLabel("Display name").fill("Mark T.");
+    await page.getByLabel("Display name").fill("Alex M.");
     await expect(page.getByRole("button", { name: "Save profile" }))
       .toBeEnabled();
   });
 
   test("shows the saved photo, and a photo that fails to load keeps the initials", async ({ page }) => {
-    const photo = "https://photos.example/mark.png";
+    const photo = "https://photos.example/alex.png";
     // 1x1 transparent PNG.
     const png = Buffer.from(
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
@@ -1715,10 +1715,10 @@ test.describe("profile page", () => {
     await page.goto("/settings/profile");
     const avatar = page.locator('main [data-ui-component="avatar"]').first();
     await expect(avatar).toHaveAttribute("data-state", "fallback");
-    await expect(avatar).toHaveText("MT");
-    await expect(avatar).toHaveAttribute("aria-label", "Mark Tripoli");
+    await expect(avatar).toHaveText("AM");
+    await expect(avatar).toHaveAttribute("aria-label", "Alex Morgan");
     await expect(avatar.locator("img")).toHaveCount(0);
-    await page.getByLabel("Display name").fill("Mark T.");
+    await page.getByLabel("Display name").fill("Alex M.");
     await expect(page.getByRole("button", { name: "Save profile" }))
       .toBeEnabled();
   });
@@ -1735,13 +1735,13 @@ test.describe("profile page", () => {
     await page.goto("/settings/profile");
     await expect(page.locator("main h1")).toHaveText("Profile");
     await expect(page.getByTestId("profile-email")).toHaveText(
-      "me@marktripoli.com",
+      "alex.morgan@example.com",
     );
     // The server says the email is unverified, so no badge is shown.
     await expect(page.getByText("Verified", { exact: true })).toHaveCount(0);
     const save = page.getByRole("button", { name: "Save profile" });
     await expect(save).toBeDisabled();
-    await page.getByLabel("Display name").fill("Mark T.");
+    await page.getByLabel("Display name").fill("Alex M.");
     await page.getByLabel("Job title").fill("Staff engineer");
     await save.click();
     await expect(
@@ -1751,7 +1751,7 @@ test.describe("profile page", () => {
     expect(profile.patches[0].ifMatch).toBe('"v3"');
     expect(profile.patches[0].key).toBeTruthy();
     expect(profile.patches[0].body).toEqual({
-      name: "Mark T.",
+      name: "Alex M.",
       title: "Staff engineer",
     });
   });
@@ -1765,7 +1765,7 @@ test.describe("profile page", () => {
     await expect(page.getByRole("alert")).toContainText(
       "Enter a display name.",
     );
-    await page.getByLabel("Display name").fill("Mark");
+    await page.getByLabel("Display name").fill("Alex");
     await page.getByLabel("Profile photo URL").fill(
       "http://insecure.example/a.png",
     );
@@ -1777,21 +1777,21 @@ test.describe("profile page", () => {
   test("a conflicting save keeps the draft and reloads on request", async ({ page }) => {
     const profile = await mockProfile(page, { patchStatus: 409 });
     await page.goto("/settings/profile");
-    await page.getByLabel("Display name").fill("Mark T.");
+    await page.getByLabel("Display name").fill("Alex M.");
     await page.getByRole("button", { name: "Save profile" }).click();
     await expect(page.getByTestId("security-conflict")).toBeVisible();
-    await expect(page.getByLabel("Display name")).toHaveValue("Mark T.");
+    await expect(page.getByLabel("Display name")).toHaveValue("Alex M.");
     profile.patchStatus = 200;
     await page.getByRole("button", { name: "Reload" }).click();
     await expect(page.getByTestId("security-conflict")).toHaveCount(0);
-    await expect(page.getByLabel("Display name")).toHaveValue("Mark Tripoli");
+    await expect(page.getByLabel("Display name")).toHaveValue("Alex Morgan");
   });
 
   test("forbidden clears the content and offers the way back", async ({ page }) => {
     await mockProfile(page, { getStatus: 403 });
     await page.goto("/settings/profile");
     await expect(page.getByTestId("security-forbidden")).toBeVisible();
-    await expect(page.getByText("me@marktripoli.com")).toHaveCount(0);
+    await expect(page.getByText("alex.morgan@example.com")).toHaveCount(0);
   });
 });
 
