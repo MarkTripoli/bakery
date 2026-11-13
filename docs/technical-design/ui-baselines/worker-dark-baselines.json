@@ -34,8 +34,8 @@
       "packages/ui/scripts/render-enterprise-references.mjs",
       "packages/ui/scripts/worker-readiness-reference.mjs"
     ],
-    "revision": "paper:ebf667e2; mock:d7650b13; rendered:2026-11-13",
-    "digest": "d7650b132e34f767801dff26f882a8f673860f518fdba636b2cf9e63b753ea70"
+    "revision": "paper:e404eb3a; mock:ca4aa730; rendered:2026-11-13",
+    "digest": "ca4aa730eb4046adf1ca0b127df69030372c12fd2efaaa6bdacbd34429f23d76"
   },
   "reference": {
     "hidden": [],
@@ -54,7 +54,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/worker-dark/detail--default--dark--phone.png",
-      "imageSha256": "c9de4bbb199ca6b1b0a79b32b58aa390fc7ae4636bc29761f79da099cf31c2f3",
+      "imageSha256": "4b045749223456977990c7fe856b38b9182a697448a31fdec97563ae0d20f9e1",
       "viewport": {
         "width": 390,
         "height": 1483

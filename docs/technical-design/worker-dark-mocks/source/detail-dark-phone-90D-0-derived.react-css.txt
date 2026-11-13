@@ -7,11 +7,11 @@
  * exactly one dark token. Unlisted tokens (fonts, radii, text sizes,
  * transparent) are theme-invariant and kept.
  * Inputs (sha256):
- *   ef333be42838cb36a9ca998c1d92bef1733afd921961dbd94d9ced0554495fa6  docs/technical-design/worker-readiness/source/list-light-mobile-8SE-0.react-css.txt
- *   877fb50e0925a76266937e9400b7971448f07dcc7312426f9eda7fa91056290c  docs/technical-design/worker-readiness/source/list-dark-mobile-AD7-0.react-css.txt
- *   085163150328eabcee56e57baeb74071192a0959b38fdda31643c9c4c2fdc5dc  docs/technical-design/worker-readiness/source/list-light-desktop-8SD-0.react-css.txt
- *   b09624c242e4f7e754e54efafb21bdec17c5c5207f06f45d9932648a8e1b35a2  docs/technical-design/worker-readiness/source/list-dark-desktop-A8Y-0.react-css.txt
- *   9a12b215049ae345ca49cad6710e00c93101e7bdd1be674930735346195d8982  docs/technical-design/worker-readiness/source/detail-light-phone-90D-0.react-css.txt
+ *   e4067681b302d289c876f51d0a03e5b1d766183ab8840d244a9f24e86218b188  docs/technical-design/worker-readiness/source/list-light-mobile-8SE-0.react-css.txt
+ *   58b52ca4a7feb799d7375aedf91d62e287a55ab8dc4edcf171c27516792ea8dd  docs/technical-design/worker-readiness/source/list-dark-mobile-AD7-0.react-css.txt
+ *   36bff976c4502f9fbe5ecfc3e73c8fac7e4691f820a74a3e32f8ae79a5c30ee5  docs/technical-design/worker-readiness/source/list-light-desktop-8SD-0.react-css.txt
+ *   15b057c42db8b91ec749725a13dd506cfe93150f2a76beb30165799c344fe4ba  docs/technical-design/worker-readiness/source/list-dark-desktop-A8Y-0.react-css.txt
+ *   7d365b573955dabc1e80d339f0efa5afe09571037b8949b3b74df55b055c668f  docs/technical-design/worker-readiness/source/detail-light-phone-90D-0.react-css.txt
  * Map:
  *   #000000 -> var(--color-dark-fg)
  *   var(--color-accent) -> var(--color-dark-accent-surface)
@@ -63,7 +63,7 @@ export default function () {
           </div>
         </div>
         <div style={{ boxSizing: 'border-box', color: 'var(--color-dark-fg-secondary)', fontFamily: '"Geist", system-ui, sans-serif', fontSize: '13px', lineHeight: '20px' }}>
-          Mark’s workspace⌄
+          Alex’s workspace⌄
         </div>
       </div>
       <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', gap: '24px', paddingBottom: '32px', paddingInline: '16px', paddingTop: '24px', width: '390px' }}>
@@ -77,7 +77,7 @@ export default function () {
                 web-worker-01
               </div>
               <div style={{ boxSizing: 'border-box', color: 'var(--color-dark-fg-secondary)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
-                Linux · Hetzner · Mark’s workspace
+                Linux · Hetzner · Alex’s workspace
               </div>
             </div>
           </div>

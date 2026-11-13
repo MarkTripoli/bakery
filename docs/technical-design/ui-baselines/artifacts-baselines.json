@@ -165,8 +165,8 @@
       "packages/ui/scripts/render-artifacts-references.mjs",
       "packages/ui/scripts/render-enterprise-references.mjs"
     ],
-    "revision": "paper:bf62ff89; mock:7ed137da; rendered:2026-10-11",
-    "digest": "7ed137da403389c19a29118e42209c68aed32b4de6876707569d62035eb7034c"
+    "revision": "paper:e03b1460; mock:a3b66f5b; rendered:2026-11-13",
+    "digest": "a3b66f5b0381a6cef231c4e24d741df45f930d41a9861a79a83a208ecf7f2b2a"
   },
   "reference": {
     "hidden": [],
@@ -185,7 +185,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--default--light--desktop.png",
-      "imageSha256": "1c7ee2713e92ab7210e946a23aa03edc42d47aad42f1b4b011cce3bf41eed8df",
+      "imageSha256": "eb3ab6ef0d1af68158760daceea1d09cc4d9bba81d314cb8ff6525b832961f8a",
       "viewport": {
         "width": 1440,
         "height": 1304
@@ -230,7 +230,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--default--light--phone.png",
-      "imageSha256": "6700e3cce34fc1045bedd348a2e3b0dfa5734f80e30393f506d6f876c3217e91",
+      "imageSha256": "7f1b1cdf9d7f3bc46bbf2f16ddf0c9fe05f22271130a5ac7240f379e850f510f",
       "viewport": {
         "width": 390,
         "height": 3214
@@ -275,7 +275,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--default--dark--desktop.png",
-      "imageSha256": "eaa4caa01ce7e11839629092c5b9d5cc9f36df8316e236ba13bf2ffaea25dca3",
+      "imageSha256": "22212e50ee9b2c51abb8c1e8b82586f5a361f2f0e6d372cf54794561326c73c0",
       "viewport": {
         "width": 1440,
         "height": 1304
@@ -320,7 +320,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--default--dark--phone.png",
-      "imageSha256": "1abcf1a624cb03ea6691bd8163a06614daa65b17e12374fb114f56dbf9c966b5",
+      "imageSha256": "83f7231a151482d5a13f30133de0ec0e338252861c442201d635aa47bb9c6afb",
       "viewport": {
         "width": 390,
         "height": 3214
@@ -365,7 +365,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--truncated--light--desktop.png",
-      "imageSha256": "5be45c77e545a78c7b6c8e3d1e174bc470277334d77045ac097c882818fd8004",
+      "imageSha256": "6b22d0167fa4668b750a22e3a987a929f81bae5ba66a1f4745868e9d8f16b15f",
       "viewport": {
         "width": 1440,
         "height": 1490
@@ -410,7 +410,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--truncated--light--phone.png",
-      "imageSha256": "27a9994b80f9a418199027f9f3ecae0551e142a5a31936aa0163e8e952b6810c",
+      "imageSha256": "ce8fcfed1d6859be14e0da0cc26fca2a1eb182889e87440aa8c6d79b7ff3f077",
       "viewport": {
         "width": 390,
         "height": 3594
@@ -455,7 +455,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--reconnecting--light--desktop.png",
-      "imageSha256": "c1d805417547cf66f6008b66db4adf25a5766af996bd402fcb861fad5f5919e0",
+      "imageSha256": "4141bcf82603100fa46a82e855ab3095cfb44062f176c04f5114db5fd0c40af3",
       "viewport": {
         "width": 1440,
         "height": 1490
@@ -500,7 +500,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--reconnecting--light--phone.png",
-      "imageSha256": "4da7be6acb450ea3950ccb7bb5b8786735b8e52a6f7e815f2b04a3b330547f7b",
+      "imageSha256": "57a829d6b25ef3ac73d240dd40ad15da1993c2b478323f5940784237295c90c6",
       "viewport": {
         "width": 390,
         "height": 3594
@@ -545,7 +545,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--reset--light--desktop.png",
-      "imageSha256": "a08e902c4628b907a2686e25c855eebcfea9753d52cd7733011f343635e22171",
+      "imageSha256": "059df80254efbe0f6f7a89beb244ba5d6a33fd2d2517a1a22eba51ed02dc9e26",
       "viewport": {
         "width": 1440,
         "height": 1490
@@ -590,7 +590,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--reset--light--phone.png",
-      "imageSha256": "49636e9254146d0058bf72d8349e6a336bd40c23d3df1df922d675e25a33af46",
+      "imageSha256": "e1f4bbdaaf6853cac72e09b0a9069d71a2e8debf7f1c26bd30099b39f430c230",
       "viewport": {
         "width": 390,
         "height": 3594
@@ -635,7 +635,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--exit--light--desktop.png",
-      "imageSha256": "f5a826ea9ea57316107c318ded8bcbf6645f31c0aec1bba8333b16253508d469",
+      "imageSha256": "a6b75c4c99da5249e7dc953086c622641b655910a421b238bdf579b1a96ce7c3",
       "viewport": {
         "width": 1440,
         "height": 1490
@@ -680,7 +680,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--exit--light--phone.png",
-      "imageSha256": "ee687fce9dbc872a05887d905a4d25e3defcbb87ac45a1af9952b86b7f201a5b",
+      "imageSha256": "12c1e2de312eedfbc8947a7422383cca8135bd97cc040c3e1b97357a561bddc3",
       "viewport": {
         "width": 390,
         "height": 3594
@@ -725,7 +725,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--interrupted--light--desktop.png",
-      "imageSha256": "590113a78a7db58b64aa60e9415e55ec4b37b722e48009124456d311af417633",
+      "imageSha256": "cd44c5aa142fb62d34fb2b9788ab7bc3ce687f55b9050da7e49b2c6073f33c61",
       "viewport": {
         "width": 1440,
         "height": 1490
@@ -770,7 +770,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--interrupted--light--phone.png",
-      "imageSha256": "c67d9fad99f3949fb937f43b8f71a344aacf536c6073a11150cee7f89770913c",
+      "imageSha256": "c55f95514afc6faab6c8e72e32bb1a9cfd7b223a2b3135043033995f0754633c",
       "viewport": {
         "width": 390,
         "height": 3594
@@ -815,7 +815,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--quota--light--desktop.png",
-      "imageSha256": "ff3ad2d9a750537259bed4bdc3aed609be861e41286f9495f2ebf339fc9d9fbd",
+      "imageSha256": "128927813baa686e904f2b6bfcb2542b4434b2e6db557a7993dd5e76ac1dfaed",
       "viewport": {
         "width": 1440,
         "height": 1490
@@ -860,7 +860,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--quota--light--phone.png",
-      "imageSha256": "6ce8ade30e6740ca3caf16d77f28e0b77519f82e8fdd8a36274cc82184dcc0dd",
+      "imageSha256": "076c35d5ce58b273701541dd389792a4a931c79b07206fe260b0b82104dd79f2",
       "viewport": {
         "width": 390,
         "height": 3594
@@ -905,7 +905,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--usage-unknown--light--desktop.png",
-      "imageSha256": "a3f04fb6f2a878fc70f2f629499209786d917e1e9ec154bb4015167cd28a0ae9",
+      "imageSha256": "c9ad94c10f049f125052dcbf23a7df5db168b174b25316ae03f45f4c28bd3da0",
       "viewport": {
         "width": 1440,
         "height": 1490
@@ -950,7 +950,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--usage-unknown--light--phone.png",
-      "imageSha256": "0083d3f10c5dd57eaf0097f686071cead210deb64922d764662d0132e5f7321f",
+      "imageSha256": "800c046e23c8b6b3b081c19f859906c064b3620a37273311bfc631de755030c4",
       "viewport": {
         "width": 390,
         "height": 3594
@@ -995,7 +995,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--timeout--light--desktop.png",
-      "imageSha256": "64d686272883fbb9be1ec6010686b7fd1e7d6cd5e29bb039219242a2026dc156",
+      "imageSha256": "06295755fb407a8742ca757d422fdc87b9cf6e1889e1a00098d5d4ed0c297a8c",
       "viewport": {
         "width": 1440,
         "height": 1490
@@ -1040,7 +1040,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--timeout--light--phone.png",
-      "imageSha256": "2c12100a9b6842c14ef5321484ab8cfabfad1978d4cd43d3ed1d07b2aabe5a89",
+      "imageSha256": "db182f5ec66d73577b0ece5243912f930bcd1d55579fb01eaf2620b367f3eefb",
       "viewport": {
         "width": 390,
         "height": 3594
@@ -1085,18 +1085,18 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--lost-lease--light--desktop.png",
-      "imageSha256": "8e230e58f96534c6d7bd256b6ec8df30d676372c35173a838332b0ba1e0733af",
+      "imageSha256": "252b3afcc08dc54e1ffb867dca79e47b1e7eba33ba87e0664d6197bf06e294f6",
       "viewport": {
         "width": 1440,
-        "height": 1490
+        "height": 1510
       },
       "artboard": {
         "width": 1440,
-        "height": 1490
+        "height": 1510
       },
       "image": {
         "width": 1440,
-        "height": 1490
+        "height": 1510
       },
       "dpr": 1,
       "theme": "light",
@@ -1130,18 +1130,18 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--lost-lease--light--phone.png",
-      "imageSha256": "937a5dc8099d6e4a0c23f74dfd262c272c1ba2bacd99b8f5a858b94c2db0d06d",
+      "imageSha256": "78b6851bde31c1f42ea3e42e6dd6e654bf32cec46517b5f8499074f7d56e8100",
       "viewport": {
         "width": 390,
-        "height": 3594
+        "height": 3634
       },
       "artboard": {
         "width": 390,
-        "height": 3594
+        "height": 3634
       },
       "image": {
         "width": 390,
-        "height": 3594
+        "height": 3634
       },
       "dpr": 1,
       "theme": "light",
@@ -2975,7 +2975,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/artifact--reconnecting--light--desktop.png",
-      "imageSha256": "914b762ac8860d906a103cd167fb76ef34c210bd9a9c9d604fcb0ed4e09a1753",
+      "imageSha256": "136e6a7d841a8fa673f9f64c7d4109dc78876a5e6e0beab05eca961a951e37c4",
       "viewport": {
         "width": 1440,
         "height": 1202
@@ -3020,7 +3020,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/artifact--reconnecting--light--phone.png",
-      "imageSha256": "748f06d24e550f5e956b0efcfe843f993a6b2006bacf588767b064061d6e9fd3",
+      "imageSha256": "5d4234992ba270f1cc61405225b47ef2b616112ec1d549a33c9e3b5365b40a73",
       "viewport": {
         "width": 390,
         "height": 1295

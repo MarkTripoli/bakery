@@ -34,8 +34,8 @@
       "packages/ui/scripts/render-settings-references.mjs",
       "packages/ui/scripts/render-enterprise-references.mjs"
     ],
-    "revision": "paper:9778f06e; mock:3f2e4e8e; rendered:2026-11-10",
-    "digest": "3f2e4e8e79dc7e3188fcb9c7ab0a602e6699bae61ba07ad51fa4c84ac73ec304"
+    "revision": "paper:d1fa8461; mock:c5a1386f; rendered:2026-11-13",
+    "digest": "c5a1386f93b7baa27ddf0f233c397b9676b7bd9507f795fc9d676e4c37f4e318"
   },
   "reference": {
     "hidden": [],
@@ -54,7 +54,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/settings/profile--default--light--desktop.png",
-      "imageSha256": "5f5cfb447ff50aeb604a0d22917a0624ebf9ca7dd03b64f12205b47c6ac14b57",
+      "imageSha256": "218d8317689c7dd326ca2f2265ea4f5bb3a17e8baad679d6f53375dc6b494459",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -106,7 +106,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/settings/profile--default--light--phone.png",
-      "imageSha256": "4e27acacd1f925b9aae734124fe5fb5050a657a0e24a996c643a2dcbfaf372e0",
+      "imageSha256": "64db2bafedd8941ef51c7fd5cd34f9e0b4cc98707589cd87bae3373a04874264",
       "viewport": {
         "width": 390,
         "height": 958
@@ -158,7 +158,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/settings/appearance--default--light--desktop.png",
-      "imageSha256": "bddbe8c0e85003dbebb55ed5dd729fc41e0a5ed1e2a1c37ca3d8a201e1bb56c5",
+      "imageSha256": "54a6325ed5db94ce3a4101139e8d66463d9f287cc4ccdd393c1ab2ebfc06a1fb",
       "viewport": {
         "width": 1440,
         "height": 1297
@@ -262,7 +262,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/settings/appearance--default--dark--desktop.png",
-      "imageSha256": "76702a1e6520087a38b7659a7f72f7e2a9ea9c7a3ad252ec5e48391ef156af57",
+      "imageSha256": "ea69cb4832ae2fa9035a4bcbd064e6415dad26a36d67b2f1d8b2134483e552e0",
       "viewport": {
         "width": 1440,
         "height": 1297
@@ -366,7 +366,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/settings/your-access--developer--dark--desktop.png",
-      "imageSha256": "d28cb2ffc74ff81366d304c5eab185b08d54e4e7e3258bbcaf1ba9a8daa6d66a",
+      "imageSha256": "f616a387d9bd9d768ee9f4ad82990114df00928353cc5cc19729527f57f01618",
       "viewport": {
         "width": 1440,
         "height": 1100
@@ -470,7 +470,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/settings/section-index--default--light--phone.png",
-      "imageSha256": "89e0950cfe9ec0f98b0fa3115eabf3bb47388766c581d77120d7c72b290fa0f5",
+      "imageSha256": "c1bfe4bd57529c064131f27796f0912543343fe3f3631ba5c64f5a8562305aaa",
       "viewport": {
         "width": 390,
         "height": 1038
