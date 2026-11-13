@@ -5,8 +5,10 @@ import {
   nextStep,
   pinWorkflowRuntime,
   resolveWorkflowRuntime,
+  WORKFLOW_INTERPRETER_ERRORS,
   WorkflowInterpreterError,
 } from "../../packages/contracts/src/workflow-interpreter/mod.ts";
+import { MAX_CLONE_NODES } from "../../packages/contracts/src/workflow-interpreter/clone.ts";
 import {
   compiled,
   completed,
@@ -201,6 +203,116 @@ Deno.test("a refused value is not echoed in the error", async () => {
   assert(!error.message.includes("secret-value"));
 });
 
+// --- #251: the copy is bounded where one value is referenced many times, and
+// names an accessor instead of running it
+
+/** `levels` rounds of "two references to the previous value": 2 ** levels leaves once expanded. */
+function doubling(levels: number): unknown {
+  let value: unknown = { leaf: 1 };
+  for (let i = 0; i < levels; i += 1) value = { a: value, b: value };
+  return value;
+}
+
+Deno.test("a value referenced twice at every level is refused by name, not expanded without bound", () => {
+  const started = performance.now();
+  // 2 ** 60 leaves once every reference is copied; the bound stops it long before.
+  assertEquals(code(() => cloneJson(doubling(60))), "state_too_large");
+  assert(
+    performance.now() - started < 5_000,
+    "the refusal must come from the bound, not from copying until memory runs out",
+  );
+});
+
+Deno.test("nextStep refuses a recorded value that expands past the bound, by name", async () => {
+  const document = await reading();
+  const started = performance.now();
+  assertEquals(
+    code(() => nextStep(document, stateWith({ payload: doubling(60), n: 1 }))),
+    "state_too_large",
+  );
+  assert(performance.now() - started < 5_000);
+});
+
+Deno.test("the bound counts every value the copy visits, exactly", () => {
+  const numbers = (count: number) => Array.from({ length: count }, () => 1);
+  // The array itself is one value, each number another: MAX_CLONE_NODES in all.
+  assertEquals(
+    (cloneJson(numbers(MAX_CLONE_NODES - 1)) as unknown[]).length,
+    MAX_CLONE_NODES - 1,
+  );
+  assertEquals(
+    code(() => cloneJson(numbers(MAX_CLONE_NODES))),
+    "state_too_large",
+  );
+  // A value referenced twice counts twice.
+  const half = numbers(Math.floor(MAX_CLONE_NODES / 2));
+  assertEquals(code(() => cloneJson([half, half])), "state_too_large");
+  assertEquals((cloneJson([half]) as unknown[][])[0].length, half.length);
+});
+
+Deno.test("a payload far below the bound is copied as before", () => {
+  const stored = JSON.parse(
+    JSON.stringify({
+      tasks: Array.from({ length: 2_000 }, (_, i) => ({ id: i, text: "x" })),
+    }),
+  );
+  assertEquals(cloneJson(stored), stored);
+});
+
+Deno.test("a too-large refusal has its own fixed message and echoes nothing", () => {
+  const error = assertThrows(
+    () => cloneJson({ "secret-key": doubling(60) }),
+    WorkflowInterpreterError,
+  );
+  assertEquals(error.code, "state_too_large");
+  assertEquals(error.message, WORKFLOW_INTERPRETER_ERRORS.state_too_large);
+  assert(!error.message.includes("secret-key"));
+});
+
+Deno.test("an accessor is refused by name without being run", () => {
+  let ran = 0;
+  const throwing = {
+    get boom(): number {
+      ran += 1;
+      throw new Error("raw error that must not escape");
+    },
+  };
+  const returning = {
+    get fine(): number {
+      ran += 1;
+      return 1;
+    },
+  };
+  const setterOnly = {
+    set only(_value: number) {
+      ran += 1;
+    },
+  };
+  const inList: unknown[] = [1, 2];
+  Object.defineProperty(inList, 1, {
+    get() {
+      ran += 1;
+      return 2;
+    },
+    enumerable: true,
+    configurable: true,
+  });
+  const hole: unknown[] = [1, , 3];
+  for (
+    const [name, bad] of [
+      ["a getter that throws", throwing],
+      ["a getter that returns", returning],
+      ["a setter without a getter", setterOnly],
+      ["a getter in a list", inList],
+      ["a hole in a list", hole],
+      ["a getter below the top", { outer: [{ inner: throwing }] }],
+    ] as [string, unknown][]
+  ) {
+    assertEquals(code(() => cloneJson(bad)), "state_not_json", name);
+  }
+  assertEquals(ran, 0, "no accessor was run");
+});
+
 // --- #213: a pin follows its document
 
 Deno.test("a pin records the document's own compiler version, and resolves against it unchanged", async () => {
@@ -221,4 +333,38 @@ Deno.test("a pin records the document's own compiler version, and resolves again
       resolveWorkflowRuntime({ ...otherPin, compilerVersion: "2" }, stamped),
     WorkflowInterpreterError,
   );
+});
+
+// --- #279: the two limits are pinned by number. The bound test above states
+// the node budget through the imported constant, so loosening the constant
+// loosens that test with it. These use the literals: changing a limit fails one.
+
+Deno.test("the node budget is exactly 500,000 visits: 499,999 numbers in a list copy and 500,000 are refused", () => {
+  const numbers = (count: number) => Array.from({ length: count }, () => 1);
+  // The list is one visit and each number another.
+  assertEquals((cloneJson(numbers(499_999)) as unknown[]).length, 499_999);
+  assertEquals(code(() => cloneJson(numbers(500_000))), "state_too_large");
+});
+
+Deno.test("the depth limit is exactly 256: 256 levels copy and 257 are refused, in lists and in objects", () => {
+  const nestedList = (levels: number) => {
+    let value: unknown = 0;
+    for (let level = 0; level < levels; level += 1) value = [value];
+    return value;
+  };
+  const nestedObject = (levels: number) => {
+    let value: unknown = 0;
+    for (let level = 0; level < levels; level += 1) value = { a: value };
+    return value;
+  };
+  for (
+    const [name, nest] of [["lists", nestedList], [
+      "objects",
+      nestedObject,
+    ]] as const
+  ) {
+    const accepted = nest(256);
+    assertEquals(cloneJson(accepted), accepted, name);
+    assertEquals(code(() => cloneJson(nest(257))), "state_not_json", name);
+  }
 });

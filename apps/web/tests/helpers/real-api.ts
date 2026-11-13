@@ -120,13 +120,21 @@ const EVIDENCE_VIEWPORTS = [
 /**
  * Saves `<name>--desktop.png` and `<name>--mobile.png` of the page as it is
  * (full page) when `BAKERY_EVIDENCE_DIR` is set; otherwise does nothing.
- * `mask` hides what must not be published.
+ * `mask` hides what must not be published. `windowOnly` saves what the window
+ * shows instead of the whole page, for something that closes when the page
+ * scrolls (a full-page capture scrolls it); `only` limits it to one viewport.
  */
-export async function shot(page: Page, name: string, mask: Locator[] = []) {
+export async function shot(
+  page: Page,
+  name: string,
+  mask: Locator[] = [],
+  options: { windowOnly?: boolean; only?: "desktop" | "mobile" } = {},
+) {
   if (!evidenceDirectory) return;
   if (evidenceScheme) await page.emulateMedia({ colorScheme: evidenceScheme });
   const original = page.viewportSize();
   for (const { name: viewport, ...size } of EVIDENCE_VIEWPORTS) {
+    if (options.only && options.only !== viewport) continue;
     await page.setViewportSize(size);
     // One frame, so the responsive layout has settled at the new size.
     await page.evaluate(() =>
@@ -134,7 +142,7 @@ export async function shot(page: Page, name: string, mask: Locator[] = []) {
     );
     await page.screenshot({
       path: join(evidenceDirectory, `${name}--${viewport}.png`),
-      fullPage: true,
+      fullPage: !options.windowOnly,
       mask,
       maskColor: "#9ca3af",
     });

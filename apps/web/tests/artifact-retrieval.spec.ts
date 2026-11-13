@@ -5,6 +5,7 @@ import { AxeBuilder } from "@axe-core/playwright";
 import { expect, type Page, type Request, test } from "@playwright/test";
 import { setArtifactLocale } from "./helpers/artifact-live-preferences.ts";
 import { submitUntilAccepted } from "./helpers/api-retry.ts";
+import { firstRender } from "./helpers/first-render.ts";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
 import { openAccountMenu } from "./helpers/shell-navigation.ts";
 
@@ -1516,15 +1517,27 @@ test.describe("artifact retrieval states", () => {
 
   test("stops animating the loading skeleton when reduced motion is requested", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
-    // Never fulfilled: the route stays on its loading surface so the skeleton
-    // can be inspected.
-    await page.route("**/v1/artifacts**", () => {});
-    await page.goto(ARTIFACT_PATH);
+    // The skeleton on this route is the router's pending state (`RoutePending`),
+    // shown while the root `beforeLoad` awaits `GET /v1/installation/status`.
+    // The router shows it at once (`defaultPendingMs: 0`) and keeps it for at
+    // least `defaultPendingMinMs` (500 ms by default), then it is gone: the
+    // artifact page's own loading view draws no skeleton, so holding the
+    // artifact requests kept nothing on screen. With the status stubbed by
+    // `mockAuthenticatedSession` that left a window of about half a second, and
+    // a runner that finishes `goto` after it never sees the skeleton, whatever
+    // the wait. Never answering the status request keeps the pending state, and
+    // its skeleton, for the whole test. Registered after the describe's stubs,
+    // so it takes precedence.
+    await page.route("**/v1/installation/status", () => {});
 
     const skeleton = page.locator(
       '[data-ui-component="skeleton"][data-state="loading"]',
     ).last();
-    await expect(skeleton).toBeVisible();
+    // The app still has to boot first, which is what the suite's first-render
+    // budget is for.
+    await firstRender(() => page.goto(ARTIFACT_PATH), async (timeout) => {
+      await expect(skeleton).toBeVisible({ timeout });
+    });
     await expect.poll(() =>
       skeleton.evaluate((element) => getComputedStyle(element).animationName)
     ).toBe("none");

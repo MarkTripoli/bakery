@@ -1,8 +1,10 @@
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import {
   createDraftIsolation,
+  createDraftWorkerLimiter,
   DraftIsolationError,
 } from "../../apps/server/src/modules/knowledge/draft-isolation.ts";
+import { DRAFT_LIMITS } from "../../apps/server/src/modules/knowledge/drafts.ts";
 import { readDraftIsolationLauncher } from "../../packages/config/src/env.ts";
 import {
   launcherCopy,
@@ -51,6 +53,27 @@ Deno.test("the process launcher runs the real worker and produces a draft candid
   });
 });
 
+Deno.test("the CPU backstop never beats a late deadline: a spinning worker still ends with the typed timeout (#305)", async () => {
+  // The parent's deadline arrives 4 s after the work budget, standing in for
+  // a timer delayed on a loaded host. The real launcher's RLIMIT_CPU must
+  // still be above what the spinner can spend by then; at 2x the work budget
+  // (the old --cpu) it killed the worker first, as an untyped WORKER_EXIT_137.
+  const lateDeadlineMs = DRAFT_LIMITS.workerRuntimeMs + 4_000;
+  await withLauncher(
+    { workerPath: fixture("timeout.ts"), totalDeadlineMs: lateDeadlineMs },
+    async (isolation) => {
+      const error = await assertRejects(
+        () => isolation.initialize("x"),
+        DraftIsolationError,
+      );
+      assertEquals(
+        [error.kind, error.message],
+        ["timeout", "WORKER_DEADLINE_EXCEEDED"],
+      );
+    },
+  );
+});
+
 Deno.test("process-launched workers that hang, exhaust memory, trap or flood are killed with a typed error", async () => {
   const cases = [
     ["timeout.ts", "timeout"],
@@ -67,8 +90,9 @@ Deno.test("process-launched workers that hang, exhaust memory, trap or flood are
         DraftIsolationError,
       );
       assertEquals(error.kind, kind, `${name}: ${error.message}`);
+      // The work budget from READY, plus start-up and the kill and reap.
       assert(
-        performance.now() - started < 3_000,
+        performance.now() - started < DRAFT_LIMITS.workerRuntimeMs + 2_000,
         `${name} was not stopped within the deadline`,
       );
     });
@@ -177,6 +201,188 @@ Deno.test("a worker never writes the project lockfile", async () => {
     ) {
       await Deno.writeFile(lock, before).catch(() => {});
     }
+  }
+});
+
+Deno.test("more concurrent workers than the cap: exactly the excess is refused, at once, and the pool recovers (#243)", async () => {
+  const limiter = createDraftWorkerLimiter(2);
+  const hold = await launcherCopy({ workerPath: fixture("timeout.ts") });
+  const real = await launcherCopy({});
+  try {
+    // timeout.ts signals READY and then spins, so each admitted worker holds
+    // its slot for the whole work budget.
+    const busy = createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: hold.path,
+      workerLimiter: limiter,
+    });
+    const started = performance.now();
+    const outcomes = await Promise.all(
+      [0, 1, 2].map(async () => {
+        try {
+          await busy.initialize("x");
+          return { message: "succeeded", at: performance.now() - started };
+        } catch (error) {
+          assert(error instanceof DraftIsolationError, String(error));
+          return {
+            kind: error.kind,
+            message: error.message,
+            at: performance.now() - started,
+          };
+        }
+      }),
+    );
+    const refused = outcomes.filter((outcome) =>
+      outcome.message === "WORKER_CAPACITY_EXHAUSTED"
+    );
+    const timedOut = outcomes.filter((outcome) =>
+      outcome.message === "WORKER_DEADLINE_EXCEEDED"
+    );
+    assertEquals(refused.length, 1, JSON.stringify(outcomes));
+    assertEquals(timedOut.length, 2, JSON.stringify(outcomes));
+    // The refusal is typed (maps to DEPENDENCY_UNAVAILABLE) and immediate:
+    // nothing waits in an unbounded queue.
+    assertEquals(refused[0]!.kind, "unavailable");
+    assert(refused[0]!.at < 500, `refused after ${refused[0]!.at} ms`);
+    assertEquals(limiter.active, 0, "slots were not released");
+    // The pool recovers: a real worker runs through the same limiter.
+    const candidate = await createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: real.path,
+      workerLimiter: limiter,
+    }).initialize("after the burst");
+    assertEquals(candidate.text, "after the burst");
+    assertEquals(limiter.active, 0);
+  } finally {
+    await hold.cleanup();
+    await real.cleanup();
+  }
+});
+
+type Outcome = { message: string; kind?: string };
+
+async function wave(
+  isolations: ReturnType<typeof createDraftIsolation>[],
+  perIsolation: number[],
+): Promise<Outcome[]> {
+  const calls: Promise<Outcome>[] = [];
+  isolations.forEach((isolation, index) => {
+    for (let i = 0; i < perIsolation[index]!; i++) {
+      calls.push(
+        isolation.initialize("x").then(
+          () => ({ message: "succeeded" }),
+          (error) => {
+            assert(error instanceof DraftIsolationError, String(error));
+            return { message: error.message, kind: error.kind };
+          },
+        ),
+      );
+    }
+  });
+  return await Promise.all(calls);
+}
+
+const tally = (outcomes: Outcome[]) => {
+  const counts: Record<string, number> = {};
+  for (const outcome of outcomes) {
+    counts[outcome.message] = (counts[outcome.message] ?? 0) + 1;
+  }
+  return counts;
+};
+
+Deno.test("the default pool is process-wide: shared by instances, sized from DRAFT_LIMITS, exact and leak-free (#243)", async () => {
+  // No injected limiter: this is the wiring production uses. Calls are spread
+  // over two isolation instances, which must share one pool. Test by qa-qa.
+  const cap = DRAFT_LIMITS.maxConcurrentWorkers;
+  const half = Math.floor(cap / 2);
+  const hold = await launcherCopy({ workerPath: fixture("timeout.ts") });
+  const real = await launcherCopy({});
+  try {
+    const a = createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: hold.path,
+    });
+    const b = createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: hold.path,
+    });
+    const w4 = tally(await wave([a, b], [half, cap - half]));
+    assertEquals(w4["WORKER_CAPACITY_EXHAUSTED"] ?? 0, 0, JSON.stringify(w4));
+    const w5 = tally(await wave([a, b], [half + 1, cap - half]));
+    assertEquals(w5["WORKER_CAPACITY_EXHAUSTED"], 1, JSON.stringify(w5));
+    const again = tally(await wave([a, b], [half, cap - half]));
+    assertEquals(
+      again["WORKER_CAPACITY_EXHAUSTED"] ?? 0,
+      0,
+      JSON.stringify(again),
+    );
+    const fresh = createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: real.path,
+    });
+    assertEquals(
+      (await fresh.initialize("after the waves")).text,
+      "after the waves",
+    );
+  } finally {
+    await hold.cleanup();
+    await real.cleanup();
+  }
+});
+
+Deno.test("one organization saturating draft work cannot starve another (#297)", async () => {
+  // The default, process-wide pool. Organization A asks for the whole pool at
+  // once and gets all but one slot; B's edit still gets that one meanwhile.
+  const hold = await launcherCopy({ workerPath: fixture("timeout.ts") });
+  const real = await launcherCopy({});
+  try {
+    const cap = DRAFT_LIMITS.maxConcurrentWorkers;
+    const admitted = cap - 1;
+    const busy = createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: hold.path,
+    });
+    const worker = createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: real.path,
+    });
+    const flood = Array.from(
+      { length: cap },
+      () =>
+        busy.initialize("x", undefined, "org-a").then(
+          () => "succeeded",
+          (error) => {
+            assert(error instanceof DraftIsolationError, String(error));
+            return error.message;
+          },
+        ),
+    );
+    // Let A's admitted workers take their slots before B arrives.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const other = await worker.initialize(
+      "org b still works",
+      undefined,
+      "org-b",
+    );
+    assertEquals(other.text, "org b still works");
+    const outcomes = await Promise.all(flood);
+    assertEquals(
+      outcomes.filter((m) => m === "WORKER_ORGANIZATION_SHARE_EXHAUSTED")
+        .length,
+      cap - admitted,
+      JSON.stringify(outcomes),
+    );
+    assertEquals(
+      outcomes.filter((m) => m === "WORKER_DEADLINE_EXCEEDED").length,
+      admitted,
+      JSON.stringify(outcomes),
+    );
+    // Every slot came back: A gets a worker again.
+    const again = await worker.initialize("a again", undefined, "org-a");
+    assertEquals(again.text, "a again");
+  } finally {
+    await hold.cleanup();
+    await real.cleanup();
   }
 });
 

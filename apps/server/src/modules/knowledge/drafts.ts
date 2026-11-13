@@ -16,11 +16,25 @@ export const DRAFT_LIMITS = Object.freeze({
    * that end a growing worker sooner.
    */
   processDataBytes: 1_073_741_824,
-  processCpuSeconds: 2,
+  // RLIMIT_CPU is only a backstop for a parent that failed to kill. Like
+  // systemd's RuntimeMaxSec it is both wall budgets plus a second
+  // (ceil((workerStartupMs + workerRuntimeMs) / 1000) + 1), so the parent's
+  // deadline, a typed timeout, always fires first: a single-threaded spinner
+  // cannot spend more CPU seconds than wall seconds. At 2x the work budget a
+  // parent timer late by a second on a loaded host lost the race and the
+  // worker ended as an untyped WORKER_EXIT_137 (#305).
+  processCpuSeconds: 8,
   processHeapMegabytes: 192,
   processWasmPages: 4_096,
   workerTasks: 32,
-  workerRuntimeMs: 1_000,
+  // Isolated workers allowed at once, process-wide (#243). With the process
+  // launcher each may reach RLIMIT_DATA (1 GiB), so worst-case draft memory
+  // is this times that bound; a full pool answers DEPENDENCY_UNAVAILABLE.
+  maxConcurrentWorkers: 4,
+  // Work budget per isolated worker, measured from READY (start-up has its
+  // own workerStartupMs). Sized from measured worst-case bounded work with
+  // headroom (PM decision on #270); applies to both launchers.
+  workerRuntimeMs: 2_000,
   workerStartupMs: 5_000,
   workerKillMs: 100,
   staleAttempts: 3,

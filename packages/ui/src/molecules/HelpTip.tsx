@@ -1,0 +1,211 @@
+import {
+  type ButtonHTMLAttributes,
+  type CSSProperties,
+  type FocusEvent,
+  type KeyboardEvent,
+  type PointerEvent,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { IconButton } from "../atoms/IconButton.tsx";
+import { IconGlyph } from "../atoms/IconGlyph.tsx";
+import {
+  type SemanticNativeProps,
+  withoutSemanticOwnerProps,
+} from "../foundations/semantic-native-props.ts";
+import "../feedback.css";
+
+export type HelpTipProps =
+  & SemanticNativeProps<
+    Omit<
+      ButtonHTMLAttributes<HTMLButtonElement>,
+      | "aria-describedby"
+      | "aria-label"
+      | "children"
+      | "onBlur"
+      | "onClick"
+      | "onFocus"
+      | "onKeyDown"
+      | "onPointerEnter"
+      | "onPointerLeave"
+      | "title"
+      | "type"
+    >
+  >
+  & {
+    /** The help text. It describes the button; it is never the only way to do the task. */
+    children: string;
+    /** The accessible name of the close button shown on a phone. */
+    closeLabel?: string;
+    /** The button's accessible name, such as "About enforcement". */
+    label: string;
+  };
+
+/** Fired on the window when a HelpTip opens, so the others close. */
+const OPENED = "bakery:help-tip-opened";
+
+/**
+ * Explains the label it sits after: an information button that shows its help
+ * text on hover, on keyboard focus and on a tap. From 744px up the text is a
+ * tooltip anchored to the start of the button, at most 320px wide. Below that
+ * it is a panel pinned to the bottom of the screen, because a floating tooltip
+ * cannot stay inside a narrow screen for every button position: the panel's
+ * first line is the button's label and it has a close button. Escape, leaving
+ * the button, a tap elsewhere and (on a phone) scrolling close it. It is help,
+ * not a dialog: no backdrop, no focus trap, focus stays on the button.
+ */
+export function HelpTip(
+  { children, closeLabel = "Close help", label, ...unsafeProps }: HelpTipProps,
+) {
+  const props = withoutSemanticOwnerProps(unsafeProps);
+  const id = useId();
+  const textId = `${id}-text`;
+  const rootRef = useRef<HTMLSpanElement>(null);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const [tapped, setTapped] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const open = !dismissed && (hovered || focused || tapped);
+  // From 744px the text is placed against the window, next to its button, so a
+  // table's or a list's own scrolling cannot clip it; below that it is a panel.
+  const [place, setPlace] = useState<CSSProperties | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const button = rootRef.current?.querySelector("button");
+      if (!button || globalThis.matchMedia("(max-width: 743px)").matches) {
+        setPlace(undefined);
+        return;
+      }
+      const box = button.getBoundingClientRect();
+      const rtl = getComputedStyle(button).direction === "rtl";
+      const below = box.top < globalThis.innerHeight / 2;
+      // The start edge of the button, kept 16px inside the window for the widest panel.
+      const width = document.documentElement.clientWidth;
+      const room = Math.min(320, width - 32);
+      const start = rtl ? width - box.right : box.left;
+      setPlace({
+        insetInlineStart: Math.max(16, Math.min(start, width - room - 16)),
+        ...(below
+          ? { insetBlockStart: box.bottom }
+          : { insetBlockEnd: globalThis.innerHeight - box.top }),
+      });
+    };
+    place();
+    globalThis.addEventListener("resize", place);
+    globalThis.addEventListener("scroll", place, true);
+    return () => {
+      globalThis.removeEventListener("resize", place);
+      globalThis.removeEventListener("scroll", place, true);
+    };
+  }, [open]);
+
+  // Never two at once: opening one closes any other that is open.
+  useEffect(() => {
+    if (!open) return;
+    globalThis.dispatchEvent(new CustomEvent(OPENED, { detail: id }));
+  }, [open, id]);
+  useEffect(() => {
+    const closeForAnother = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === id) return;
+      setHovered(false);
+      setTapped(false);
+      setDismissed(true);
+    };
+    globalThis.addEventListener(OPENED, closeForAnother);
+    return () => globalThis.removeEventListener(OPENED, closeForAnother);
+  }, [id]);
+
+  useEffect(() => {
+    if (!open) return;
+    const outside = (event: globalThis.PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setHovered(false);
+        setTapped(false);
+        setDismissed(true);
+      }
+    };
+    const scrolled = (event: Event) => {
+      // Scrolling the panel's own long text is reading it, not leaving it.
+      if (rootRef.current?.contains(event.target as Node)) return;
+      if (globalThis.matchMedia("(max-width: 743px)").matches) {
+        setDismissed(true);
+      }
+    };
+    document.addEventListener("pointerdown", outside);
+    globalThis.addEventListener("scroll", scrolled, true);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      globalThis.removeEventListener("scroll", scrolled, true);
+    };
+  }, [open]);
+
+  const restoringFocus = useRef(false);
+  const close = () => {
+    setDismissed(true);
+    setTapped(false);
+    // Focus stays on the help button, and returning it there does not reopen the text.
+    restoringFocus.current = true;
+    rootRef.current?.querySelector("button")?.focus();
+    restoringFocus.current = false;
+  };
+
+  return (
+    <span
+      className="ui-help-tip"
+      data-state={open ? (focused ? "focus" : "open") : "closed"}
+      data-ui-component="helpTip"
+      data-variant="default"
+      onBlur={(event: FocusEvent<HTMLSpanElement>) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setFocused(false);
+          setTapped(false);
+        }
+      }}
+      onFocus={() => {
+        setFocused(true);
+        if (!restoringFocus.current) setDismissed(false);
+      }}
+      onPointerEnter={(event: PointerEvent<HTMLSpanElement>) => {
+        if (event.pointerType === "touch") return;
+        setDismissed(false);
+        setHovered(true);
+      }}
+      onPointerLeave={() => setHovered(false)}
+      ref={rootRef}
+    >
+      <IconButton
+        {...props}
+        aria-describedby={textId}
+        label={label}
+        onClick={() => {
+          setDismissed(false);
+          setTapped((current) => !current);
+        }}
+        onKeyDown={(event: KeyboardEvent<HTMLButtonElement>) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            setDismissed(true);
+          }
+        }}
+        variant="compact"
+      >
+        <IconGlyph name="info" size="small" />
+      </IconButton>
+      <span className="ui-help-tip__panel" style={place}>
+        <span className="ui-help-tip__head">
+          <span className="ui-help-tip__title">{label}</span>
+          <IconButton label={closeLabel} onClick={close} variant="compact">
+            <span aria-hidden="true">×</span>
+          </IconButton>
+        </span>
+        <span className="ui-help-tip__text" id={textId} role="tooltip">
+          {children}
+        </span>
+      </span>
+    </span>
+  );
+}

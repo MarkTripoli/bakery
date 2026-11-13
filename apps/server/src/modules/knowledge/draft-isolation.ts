@@ -1,8 +1,8 @@
+import type { RuntimeConfig } from "@bakery/config";
 import {
   SERVER_DRAFT_SYSTEMD_LAUNCHER,
   systemdLauncherArgs,
 } from "../../platform/server-exec.ts";
-import { readDraftIsolationLauncher } from "@bakery/config";
 import { DRAFT_LIMITS, type DraftCandidate } from "./drafts.ts";
 
 const encoder = new TextEncoder();
@@ -168,25 +168,37 @@ export type IsolatedDraftSlice = {
   endCursor: string;
 };
 
+/**
+ * Every operation takes the calling organization last: it is what the
+ * worker pool's per-organization share (#297) counts. Omitted only by tests
+ * and tooling, which then count toward the pool alone.
+ */
 export type DraftIsolation = {
-  initialize(text: string, signal?: AbortSignal): Promise<DraftCandidate>;
+  initialize(
+    text: string,
+    signal?: AbortSignal,
+    organizationId?: string,
+  ): Promise<DraftCandidate>;
   edit(
     currentState: Uint8Array,
     sourceState: Uint8Array,
     input: IsolatedDraftEdit,
     signal?: AbortSignal,
+    organizationId?: string,
   ): Promise<DraftCandidate>;
   slice(
     state: Uint8Array,
     startUtf16: number,
     endUtf16: number,
     signal?: AbortSignal,
+    organizationId?: string,
   ): Promise<IsolatedDraftSlice>;
   /** Imports one untrusted collaboration update into the committed state. */
   importUpdate(
     currentState: Uint8Array,
     update: Uint8Array,
     signal?: AbortSignal,
+    organizationId?: string,
   ): Promise<DraftCandidate>;
 };
 
@@ -204,6 +216,8 @@ type IsolationOptions = {
    * file, FFI, import or subprocess access.
    */
   launcher?: "systemd" | "process";
+  /** Concurrent-worker cap; defaults to the process-wide pool (tests inject one). */
+  workerLimiter?: DraftWorkerLimiter;
   /** systemd launcher (infra/server-exec/draft-systemd.sh); tests point at a copy. */
   systemdLauncherPath?: string;
   /** Process launcher only: the fixed launcher script (tests point at a copy). */
@@ -1123,10 +1137,118 @@ export const SYSTEMD_UNIT_PROPERTIES: readonly string[] = Object.freeze([
 
 export const DRAFT_WORKER_LAUNCHER = "/workspace/infra/draft-worker/launch.sh";
 
+/** Why a worker slot was refused: the whole pool, or the caller's share. */
+export type DraftWorkerRefusal = "pool" | "share";
+
+/**
+ * Bounds how many isolated draft workers run at the same time (#243) and
+ * shares them fairly across organizations (#297). An organization always
+ * gets up to its share, half the pool (rounded up, at least 1); beyond that
+ * it may take more only while at least one slot stays free for another
+ * organization, so a single-organization install is not throttled to half
+ * yet no organization can starve the others. There is no queue; a refusal
+ * is immediate.
+ */
+export type DraftWorkerLimiter = {
+  /** A slot for `organizationId` (or an unscoped one), or why not. */
+  tryAcquire(organizationId?: string): DraftWorkerRefusal | undefined;
+  release(organizationId?: string): void;
+  readonly active: number;
+  readonly organizationShare: number;
+};
+
+export function createDraftWorkerLimiter(max: number): DraftWorkerLimiter {
+  const share = Math.max(1, Math.ceil(max / 2));
+  const byOrganization = new Map<string, number>();
+  let active = 0;
+  return {
+    tryAcquire(organizationId) {
+      if (active >= max) return "pool";
+      if (organizationId !== undefined) {
+        const held = byOrganization.get(organizationId) ?? 0;
+        // Beyond the share only while a slot would still be left free.
+        if (held >= share && active + 1 >= max) return "share";
+        byOrganization.set(organizationId, held + 1);
+      }
+      active += 1;
+      return undefined;
+    },
+    release(organizationId) {
+      if (active > 0) active -= 1;
+      if (organizationId === undefined) return;
+      const held = byOrganization.get(organizationId) ?? 0;
+      if (held <= 1) byOrganization.delete(organizationId);
+      else byOrganization.set(organizationId, held - 1);
+    },
+    get active() {
+      return active;
+    },
+    get organizationShare() {
+      return share;
+    },
+  };
+}
+
+/**
+ * The default pool, shared by every isolation built without its own limiter.
+ * The app passes a limiter only when BAKERY_DRAFT_WORKER_POOL_SIZE is set
+ * (RuntimeConfig); this module never reads the environment.
+ */
+const sharedWorkerLimiter = createDraftWorkerLimiter(
+  DRAFT_LIMITS.maxConcurrentWorkers,
+);
+
+/** Isolation error messages for a refused worker slot (no other org's data). */
+export const DRAFT_WORKER_REFUSAL_MESSAGES = Object.freeze(
+  {
+    pool: "WORKER_CAPACITY_EXHAUSTED",
+    share: "WORKER_ORGANIZATION_SHARE_EXHAUSTED",
+  } as const,
+);
+
+/**
+ * A refused worker slot (#243, #297) is a retryable 503 that names its cause:
+ * the pool is busy, or this organization's share is in use. Nothing about
+ * another organization is said.
+ */
+export function workerRefusalParams(
+  error: DraftIsolationError,
+): { params?: { reason: string; retryAfterSeconds: number } } {
+  const reason = error.message === DRAFT_WORKER_REFUSAL_MESSAGES.pool
+    ? "draft_worker_pool_busy"
+    : error.message === DRAFT_WORKER_REFUSAL_MESSAGES.share
+    ? "draft_worker_organization_share_used"
+    : undefined;
+  return reason === undefined
+    ? {}
+    : { params: { reason, retryAfterSeconds: 1 } };
+}
+
+/**
+ * The isolation options the server builds from its runtime config (#306,
+ * #297): the configured launcher (`systemd` when none is set) and, when
+ * BAKERY_DRAFT_WORKER_POOL_SIZE is set, a worker pool of that size. createApp
+ * calls this once for its single isolation, so that pool is the process's
+ * pool; unset, the default shared pool is used. The config, not the
+ * environment, decides both.
+ */
+export function draftIsolationOptionsFor(
+  config: Pick<RuntimeConfig, "draftIsolationLauncher" | "draftWorkerPoolSize">,
+): IsolationOptions {
+  return {
+    launcher: config.draftIsolationLauncher ?? "systemd",
+    ...(config.draftWorkerPoolSize === undefined ? {} : {
+      workerLimiter: createDraftWorkerLimiter(config.draftWorkerPoolSize),
+    }),
+  };
+}
+
 export function createDraftIsolation(
   options: IsolationOptions = {},
 ): DraftIsolation {
-  const launcher = options.launcher ?? readDraftIsolationLauncher();
+  // The server passes its configured launcher (RuntimeConfig); this module
+  // never reads the environment, so an app with a scoped --allow-env starts.
+  const launcher = options.launcher ?? "systemd";
   const workerLauncherPath = options.workerLauncherPath ??
     DRAFT_WORKER_LAUNCHER;
   // In production every systemd call goes through the fixed launcher, the
@@ -1159,13 +1281,37 @@ export function createDraftIsolation(
   ) + 1;
   const namespaceFileReader = options.namespaceFileReader ?? readBoundedFile;
 
+  const limiter = options.workerLimiter ?? sharedWorkerLimiter;
+  // At most limiter-many workers run at once, process-wide: each may hold a
+  // full per-worker memory bound, so a burst of draft writes cannot multiply
+  // it without limit. A full pool refuses at once (no unbounded queue).
   const run = async (
     frames: readonly Uint8Array[],
     signal?: AbortSignal,
+    organizationId?: string,
   ): Promise<Uint8Array[]> => {
+    // A permanent refusal first: an oversize request is a 422 whatever the
+    // pool's state, never a retryable "busy".
     if (frames[0]?.length > DRAFT_LIMITS.metadataBytes) {
       throw new DraftIsolationError("limit", "WORKER_METADATA_TOO_LARGE");
     }
+    const refused = limiter.tryAcquire(organizationId);
+    if (refused) {
+      throw new DraftIsolationError(
+        "unavailable",
+        DRAFT_WORKER_REFUSAL_MESSAGES[refused],
+      );
+    }
+    try {
+      return await runWorker(frames, signal);
+    } finally {
+      limiter.release(organizationId);
+    }
+  };
+  const runWorker = async (
+    frames: readonly Uint8Array[],
+    signal?: AbortSignal,
+  ): Promise<Uint8Array[]> => {
     const jobId = crypto.randomUUID();
     const unit = `bakery-draft-${jobId}`;
     const systemdArgs = [
@@ -1328,49 +1474,65 @@ export function createDraftIsolation(
   };
 
   return {
-    async initialize(text, signal) {
+    async initialize(text, signal, organizationId) {
       return parseCandidate(
-        await run([
-          encoder.encode(JSON.stringify({ operation: "initialize" })),
-          encoder.encode(text),
-        ], signal),
+        await run(
+          [
+            encoder.encode(JSON.stringify({ operation: "initialize" })),
+            encoder.encode(text),
+          ],
+          signal,
+          organizationId,
+        ),
       );
     },
-    async edit(currentState, sourceState, input, signal) {
+    async edit(currentState, sourceState, input, signal, organizationId) {
       return parseCandidate(
-        await run([
+        await run(
+          [
+            encoder.encode(JSON.stringify({
+              operation: "edit",
+              mutationId: input.mutationId,
+              startCursor: input.startCursor,
+              endCursor: input.endCursor,
+              expectedDigest: input.expectedDigest,
+            })),
+            sourceState,
+            currentState,
+            encoder.encode(input.expectedText),
+            encoder.encode(input.replacement),
+          ],
+          signal,
+          organizationId,
+        ),
+      );
+    },
+    async importUpdate(currentState, update, signal, organizationId) {
+      return parseCandidate(
+        await run(
+          [
+            encoder.encode(JSON.stringify({ operation: "import" })),
+            currentState,
+            update,
+          ],
+          signal,
+          organizationId,
+        ),
+      );
+    },
+    async slice(state, startUtf16, endUtf16, signal, organizationId) {
+      const frames = await run(
+        [
           encoder.encode(JSON.stringify({
-            operation: "edit",
-            mutationId: input.mutationId,
-            startCursor: input.startCursor,
-            endCursor: input.endCursor,
-            expectedDigest: input.expectedDigest,
+            operation: "slice",
+            startUtf16,
+            endUtf16,
           })),
-          sourceState,
-          currentState,
-          encoder.encode(input.expectedText),
-          encoder.encode(input.replacement),
-        ], signal),
+          state,
+        ],
+        signal,
+        organizationId,
       );
-    },
-    async importUpdate(currentState, update, signal) {
-      return parseCandidate(
-        await run([
-          encoder.encode(JSON.stringify({ operation: "import" })),
-          currentState,
-          update,
-        ], signal),
-      );
-    },
-    async slice(state, startUtf16, endUtf16, signal) {
-      const frames = await run([
-        encoder.encode(JSON.stringify({
-          operation: "slice",
-          startUtf16,
-          endUtf16,
-        })),
-        state,
-      ], signal);
       if (frames.length !== 2) {
         throw new DraftIsolationError(
           "unavailable",

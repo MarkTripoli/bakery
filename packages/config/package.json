@@ -10,7 +10,8 @@
     "./sentry-privacy": "./src/sentry-privacy.ts",
     "./sentry-deno": "./src/sentry-deno.ts",
     "./telemetry": "./src/telemetry.ts",
-    "./telemetry-attributes": "./src/telemetry-attributes.ts"
+    "./telemetry-attributes": "./src/telemetry-attributes.ts",
+    "./telemetry-trace": "./src/telemetry-trace.ts"
   },
   "scripts": {
     "typecheck": "deno check src/env.ts src/telemetry.ts src/telemetry-attributes.ts",

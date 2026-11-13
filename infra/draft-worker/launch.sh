@@ -22,7 +22,7 @@ esac
 
 exec /usr/bin/env -i \
   DENO_DIR="$WORKER_DENO_DIR" HOME="$WORKER_HOME" NO_COLOR=1 \
-  /usr/bin/prlimit --data=1073741824 --cpu=2 --core=0 -- \
+  /usr/bin/prlimit --data=1073741824 --cpu=8 --core=0 -- \
   /usr/bin/deno run \
   --cached-only \
   --no-prompt \

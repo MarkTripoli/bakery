@@ -109,11 +109,17 @@ import {
   createArtifactPreviewHost,
   createPreviewHostDispatch,
 } from "./modules/knowledge/previews/index.ts";
-import { createDraftIsolation } from "./modules/knowledge/draft-isolation.ts";
+import {
+  createDraftIsolation,
+  draftIsolationOptionsFor,
+} from "./modules/knowledge/draft-isolation.ts";
 import { createArtifactActions } from "./modules/knowledge/resource-routes.ts";
 import { createDraftResourceRoutes } from "./modules/knowledge/draft-resource-routes.ts";
 import type { DraftIsolation } from "./modules/knowledge/draft-isolation.ts";
-import { createConversationRoutes } from "./modules/conversation/index.ts";
+import {
+  createConversationRegistry,
+  createConversationRoutes,
+} from "./modules/conversation/index.ts";
 import { createCoordinationRoutes } from "./modules/work/coordination-routes.ts";
 import { createApprovalRoutes } from "./modules/conversation/approval-routes.ts";
 
@@ -251,6 +257,10 @@ export function createApp(options: {
   );
   // Shared by the REST routers and the MCP catalog tools, so both transports
   // run the same registry instances.
+  const conversationRegistry = createConversationRegistry({
+    database: options.pgDatabase,
+    cursorSecret: options.config.auth.secret,
+  });
   const artifactActions = createArtifactActions({
     database: options.pgDatabase,
     publicBaseUrl: options.config.publicBaseUrl,
@@ -354,7 +364,12 @@ export function createApp(options: {
       }),
       catalog: createMcpCatalogTools({
         publicOrigin,
-        registries: [taskRegistry, projectsRegistry, artifactActions.registry],
+        registries: [
+          taskRegistry,
+          projectsRegistry,
+          artifactActions.registry,
+          conversationRegistry,
+        ],
         loadSubject: loadMcpSubject,
         overrides: {
           // Content is never returned to a model as bytes: the tool answers
@@ -411,7 +426,8 @@ export function createApp(options: {
     acceptAccessTokens: true,
   });
   // One isolation for REST draft edits and collaboration-socket updates.
-  const draftIsolation = options.draftIsolation ?? createDraftIsolation();
+  const draftIsolation = options.draftIsolation ??
+    createDraftIsolation(draftIsolationOptionsFor(options.config));
   app.route(
     "/",
     createDraftResourceRoutes({
@@ -522,6 +538,7 @@ export function createApp(options: {
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
       cursorSecret: options.config.auth.secret,
+      registry: conversationRegistry,
     }),
   );
   app.route(

@@ -29,6 +29,7 @@ import {
   type DraftIsolation,
   DraftIsolationError,
   type IsolatedDraftSlice,
+  workerRefusalParams,
 } from "./draft-isolation.ts";
 import {
   commitDraftEdit,
@@ -59,6 +60,8 @@ export type DraftResourceRouteOptions = {
 type DraftSliceInput = z.output<typeof contractSchemas.DraftSliceQuery>;
 
 type DraftExecutionStage = {
+  /** The organization preparation authorized: what the worker pool counts. */
+  organizationId?: string;
   open?: PreparedDraftOpen;
   edit?: PreparedDraftEdit;
   slice?: PreparedDraftSlice;
@@ -108,7 +111,11 @@ function mapIsolationError(error: unknown): never {
     case "timeout":
       throw new StandardError({ code: "DEPENDENCY_TIMEOUT", cause: error });
     case "unavailable":
-      throw new StandardError({ code: "DEPENDENCY_UNAVAILABLE", cause: error });
+      throw new StandardError({
+        code: "DEPENDENCY_UNAVAILABLE",
+        cause: error,
+        ...workerRefusalParams(error),
+      });
   }
 }
 
@@ -157,6 +164,7 @@ export function createDraftResourceRoutes(
               stage.candidate = await isolation.initialize(
                 stage.open.text,
                 context.signal,
+                stage.organizationId,
               );
             } else if (stage.edit) {
               release ??= admission.acquire(stage.edit.draftId);
@@ -165,6 +173,7 @@ export function createDraftResourceRoutes(
                 stage.edit.sourceState,
                 input as DraftEditInput,
                 context.signal,
+                stage.organizationId,
               );
             } else if (stage.slice) {
               const sliceInput = input as DraftSliceInput;
@@ -173,6 +182,7 @@ export function createDraftResourceRoutes(
                 sliceInput.startUtf16,
                 sliceInput.endUtf16,
                 context.signal,
+                stage.organizationId,
               );
             } else {
               throw new Error("DRAFT_PREPARATION_MISSING");
@@ -235,6 +245,7 @@ export function createDraftResourceRoutes(
             return contractSchemas.Draft.parse(prepared);
           }
           stage.open = prepared;
+          stage.organizationId = organizationId;
           throw new DraftPreparationComplete();
         }
         if (!stage.open) throw new Error("DRAFT_OPEN_PREPARATION_MISSING");
@@ -293,6 +304,7 @@ export function createDraftResourceRoutes(
         const stage = (context as StagedActionContext)[draftExecutionStage];
         if (!stage) throw new Error("DRAFT_STAGE_MISSING");
         if (!stage.sliceCandidate) {
+          stage.organizationId = organizationId;
           stage.slice = await prepareDraftSlice(
             transaction,
             organizationId,
@@ -349,6 +361,7 @@ export function createDraftResourceRoutes(
             return contractSchemas.DraftMutationReceipt.parse(prepared);
           }
           stage.edit = prepared;
+          stage.organizationId = organizationId;
           throw new DraftPreparationComplete();
         }
         if (!stage.edit) throw new Error("DRAFT_EDIT_PREPARATION_MISSING");

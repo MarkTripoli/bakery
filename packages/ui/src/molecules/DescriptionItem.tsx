@@ -3,7 +3,8 @@ import type { SemanticNativeProps } from "../foundations/semantic-native-props.t
 import "../data.css";
 
 export type DescriptionItemProps =
-  & SemanticNativeProps<HTMLAttributes<HTMLElement>>
+  // `title` is the row's bold title below, a node; the native attribute is not it.
+  & SemanticNativeProps<Omit<HTMLAttributes<HTMLElement>, "title">>
   & {
     /** Leading glyph, e.g. `<UI.IconGlyph name="shield" size="large" />`. */
     icon?: ReactNode;

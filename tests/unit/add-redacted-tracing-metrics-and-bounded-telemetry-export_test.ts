@@ -6,6 +6,7 @@ import {
   MAX_TRACE_LINK_SCAN,
   MAX_TRACE_LINKS,
   newTraceContext,
+  operationTraceContext,
   parseTraceLink,
   parseTraceparent,
   traceLinkOf,
@@ -949,4 +950,202 @@ Deno.test("symbol keys, inherited properties and a __proto__ key carry nothing",
   assertEquals(result.attributes, { "bakery.run.id": uuid });
   assertEquals(({} as Record<string, unknown>).polluted, undefined);
   assertEquals(Object.getPrototypeOf(result.attributes), null);
+});
+
+Deno.test("an operation runs in a new span of the trace it was given, and starts a new trace only when it was given none it can use", () => {
+  const traceId = "0af7651916cd43dd8448eb211c80319c";
+  const callerSpan = "b7ad6b7169203331";
+  const header = (flags: string) => `00-${traceId}-${callerSpan}-${flags}`;
+  const valid = (context: { traceId: string; spanId: string }) => {
+    assert(/^[0-9a-f]{32}$/.test(context.traceId), context.traceId);
+    assert(/^[0-9a-f]{16}$/.test(context.spanId), context.spanId);
+    assertNotEquals(context.traceId, "0".repeat(32));
+    assertNotEquals(context.spanId, "0".repeat(16));
+  };
+
+  // A caller's trace continues in a span of its own, and its sampling stands.
+  for (const [flags, sampled] of [["01", true], ["00", false]] as const) {
+    const context = operationTraceContext({
+      traceId,
+      traceparent: header(flags),
+    });
+    valid(context);
+    assertEquals(context.traceId, traceId);
+    assertNotEquals(
+      context.spanId,
+      callerSpan,
+      "the operation is not the caller's span",
+    );
+    assertEquals(context.sampled, sampled, flags);
+  }
+  // Nothing sent, but the edge already minted a trace id: keep it, recorded.
+  const minted = operationTraceContext({ traceId, traceparent: undefined });
+  valid(minted);
+  assertEquals({ ...minted, spanId: "" }, {
+    traceId,
+    spanId: "",
+    sampled: true,
+  });
+
+  // The persisted trace id and the span context must name the same trace.
+  const mismatched = operationTraceContext({
+    traceId: "11111111111111111111111111111111",
+    traceparent: header("01"),
+  });
+  assertEquals(mismatched.traceId, "11111111111111111111111111111111");
+  assertNotEquals(
+    mismatched.spanId,
+    callerSpan,
+    "a header for another trace is not a parent",
+  );
+  // A hex trace id in capitals (the edge accepts them) is written as the specification requires.
+  assertEquals(
+    operationTraceContext({
+      traceId: traceId.toUpperCase(),
+      traceparent: undefined,
+    }).traceId,
+    traceId,
+  );
+
+  // Not usable: a fresh, valid, recorded trace. A dashed UUID is not a trace id.
+  const unusable: unknown[] = [
+    "6f1c0e6e-5c7b-4a07-9a4e-0b8f0a6f3f11",
+    "0".repeat(32),
+    "short",
+    "",
+    null,
+    undefined,
+    42,
+    {},
+  ];
+  for (const value of unusable) {
+    const context = operationTraceContext({
+      traceId: value,
+      traceparent: undefined,
+    });
+    valid(context);
+    assertEquals(context.sampled, true, String(value));
+    assertNotEquals(context.traceId, value);
+  }
+  // A header `parseTraceparent` cannot read, or version 00 with fields after
+  // its own, is never a parent (a later version with extra fields is: see below).
+  for (
+    const bad of [
+      header("01").toUpperCase(),
+      `ff-${traceId}-${callerSpan}-01`,
+      `00-${"0".repeat(32)}-${callerSpan}-01`,
+      `00-${traceId}-${"0".repeat(16)}-01`,
+      `${header("01")}-extra`,
+      "x".repeat(600),
+      42,
+      null,
+    ]
+  ) {
+    const context = operationTraceContext({ traceId, traceparent: bad });
+    valid(context);
+    assertEquals(context.traceId, traceId);
+    assertEquals(context.sampled, true, String(bad));
+  }
+  // It cannot throw into the request it describes, whatever the request holds.
+  const hostile = {
+    get traceId(): string {
+      throw new Error("trap");
+    },
+    get traceparent(): string {
+      throw new Error("trap");
+    },
+  };
+  valid(operationTraceContext(hostile));
+  valid(operationTraceContext(null as never));
+});
+
+// #293: three behaviors of `operationTraceContext` that its tests did not pin
+// and its comment got wrong.
+
+Deno.test("a readable header is the parent when the persisted trace id is unusable, so the caller's trace continues", () => {
+  const callerTrace = "0af7651916cd43dd8448eb211c80319c";
+  const callerSpan = "b7ad6b7169203331";
+  const unusable: unknown[] = [
+    "6f1c0e6e-5c7b-4a07-9a4e-0b8f0a6f3f11",
+    "0".repeat(32),
+    "short",
+    "",
+    undefined,
+    null,
+    42,
+  ];
+  for (const value of unusable) {
+    // Flags 00: a parent keeps the caller's decision not to sample; a fresh
+    // trace would be recorded, so the flag tells the two apart.
+    const context = operationTraceContext({
+      traceId: value,
+      traceparent: `00-${callerTrace}-${callerSpan}-00`,
+    });
+    assertEquals(context.traceId, callerTrace, String(value));
+    assertNotEquals(
+      context.spanId,
+      callerSpan,
+      "the operation is its own span",
+    );
+    assertEquals(context.sampled, false, String(value));
+  }
+});
+
+Deno.test("a trace id of any length but 32 hex characters is not usable", () => {
+  const good = "0af7651916cd43dd8448eb211c80319c";
+  const notUsable = [
+    good.slice(1),
+    `${good}0`,
+    `0${good}`,
+    `${good}\n`,
+    good + good,
+    `g${good.slice(1)}`,
+    ` ${good.slice(1)}`,
+  ];
+  for (const value of notUsable) {
+    const context = operationTraceContext({
+      traceId: value,
+      traceparent: undefined,
+    });
+    assert(
+      /^[0-9a-f]{32}$/.test(context.traceId),
+      `${JSON.stringify(value)} gave ${context.traceId}`,
+    );
+    assertNotEquals(
+      context.traceId,
+      value.toLowerCase(),
+      JSON.stringify(value),
+    );
+    assertEquals(context.sampled, true, "a fresh trace is recorded");
+  }
+});
+
+Deno.test("a later-version header is read by the version-00 layout and is a parent, but version 00 with extra fields is not", () => {
+  const callerSpan = "b7ad6b7169203331";
+  const sampledOf = (traceparent: string) =>
+    operationTraceContext({ traceId, traceparent });
+  // Flags 00 stand for a parent (not sampled); a header that is no parent
+  // leaves the operation in a recorded span of its own trace.
+  assertEquals(sampledOf(`01-${traceId}-${callerSpan}-00`).sampled, false);
+  assertEquals(
+    sampledOf(`01-${traceId}-${callerSpan}-00-vendor-fields`).sampled,
+    false,
+    "a later version may add fields after a dash",
+  );
+  assertEquals(
+    sampledOf(`01-${traceId}-${callerSpan}-00vendor`).sampled,
+    true,
+    "a later version's extra fields start after a dash",
+  );
+  assertEquals(
+    sampledOf(`00-${traceId}-${callerSpan}-00-extra`).sampled,
+    true,
+    "version 00 is exactly its layout",
+  );
+  // Whatever the version it came in, what is stored is a version-00 header.
+  assert(
+    formatTraceparent(sampledOf(`01-${traceId}-${callerSpan}-00`)).startsWith(
+      "00-",
+    ),
+  );
 });

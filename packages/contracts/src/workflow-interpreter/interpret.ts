@@ -491,7 +491,8 @@ class Run {
  * later answer. State must be plain JSON: a recorded value that is not makes
  * this throw `state_not_json`. The copy costs time linear in the size of the
  * answer, which includes any large payload the step references, and the host
- * calls this once per step.
+ * calls this once per step. The answer is counted with every reference
+ * expanded; past `MAX_CLONE_NODES` values this throws `state_too_large`.
  */
 export function nextStep(
   document: WorkflowSemanticDocument,

@@ -41,6 +41,7 @@ import type {
   OrganizationRepositoryRuleVersionListResponse,
   PlanRevisionListResponse,
   QuestionListResponse,
+  RepositoryEffectiveRulesResponse,
   RepositoryListResponse,
   RepositoryOnboardingResponse,
   RepositoryProfileListResponse,
@@ -1009,6 +1010,29 @@ export function organizationRepositoryRulesQueryOptions(
       unwrap(
         await client.getOrganizationRepositoryRules({
           organizationId: requireOrganization(scope),
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: false,
+  });
+}
+
+/** The rules in force for one repository, with where each came from. */
+export function repositoryEffectiveRulesQueryOptions(
+  client: Pick<BakeryApiClient, "getRepositoryEffectiveRules">,
+  scope: ApiScope,
+  repositoryId: string,
+) {
+  return queryOptions<RepositoryEffectiveRulesResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "repositoryRules.getEffective", {
+      repositoryId,
+    }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.getRepositoryEffectiveRules({
+          organizationId: requireOrganization(scope),
+          repositoryId,
           signal,
         }),
       ),

@@ -430,6 +430,43 @@ Deno.test("concurrent, duplicated and reordered edits from one checkpoint conver
   }
 });
 
+Deno.test("open, slice and edit each count toward the caller's organization share (#297)", async () => {
+  const real = createDraftIsolation();
+  const seen: [string, string | undefined][] = [];
+  const isolation: DraftIsolation = {
+    importUpdate: real.importUpdate,
+    initialize(text, signal, organizationId) {
+      seen.push(["initialize", organizationId]);
+      return real.initialize(text, signal, organizationId);
+    },
+    slice(state, start, end, signal, organizationId) {
+      seen.push(["slice", organizationId]);
+      return real.slice(state, start, end, signal, organizationId);
+    },
+    edit(current, source, input, signal, organizationId) {
+      seen.push(["edit", organizationId]);
+      return real.edit(current, source, input, signal, organizationId);
+    },
+  };
+  const fixture = await openDraftFixture("alpha target omega", {
+    draftIsolation: isolation,
+  });
+  try {
+    const draft = await openDraft(fixture);
+    const selected = await slice(fixture, draft);
+    const response = await edit(fixture, draft, selected, crypto.randomUUID());
+    assertEquals(response.status, 201, await response.clone().text());
+    const organizationId = fixture.ids.organizationId;
+    assertEquals(seen, [
+      ["initialize", organizationId],
+      ["slice", organizationId],
+      ["edit", organizationId],
+    ]);
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
 Deno.test("a duplicate whose original commits during its last stale attempt replays the exact receipt", async () => {
   // The duplicate is made stale on every attempt. On its last attempt, after
   // its final preparation, the original request commits. Only the commit-time
