@@ -53,6 +53,9 @@ them locally before merge, as `.github/workflows/ci.yml` does, after
   `runtime-cases.json`), so a new runtime case needs no repin; editing the
   `paper-detail-light-phone` context does, and
   `render:paper:worker-dark -- --write` regenerates the file and the digest.
+  `capture:worker-dark` still needs exactly one registered runtime case for
+  the worker detail story (same args, dark, coarse); a second case matching
+  those fails the capture, not the digest.
 - `ui / paper parity entitlements`:
   `node packages/ui/scripts/paper-jsx-to-html.mjs --site entitlements --check`,
   then `capture:<site> -- --all --web-base-url <URL>` and

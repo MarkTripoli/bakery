@@ -284,39 +284,70 @@ test("a new unrelated runtime case or context leaves the worker-dark digest unch
   assert.equal(digestOf(source.inputs, afterRuntimeEdit(text)), source.digest);
 });
 
-test("changing the context the worker-dark renderer reads changes the digest", () => {
+test("changing any field of the context the worker-dark renderer reads changes the digest", () => {
   const { source } = workerDark();
   const realText = repoBytes(RUNTIME_CASES_PATH).toString("utf8");
-  // Both sides go through the same derivation, so a derivation that ignored the
+  // Both sides go through the same derivation, so a derivation that ignored an
   // edit would fail here instead of differing from the recorded digest anyway.
   const unedited = digestOf(source.inputs, afterRuntimeEdit(realText));
-  const flip = (field, values) =>
-    edited((value) => {
+  const bump = (value) =>
+    typeof value === "number"
+      ? value + 1
+      : typeof value === "string"
+      ? `${value}-edited`
+      : typeof value === "boolean"
+      ? !value
+      : Object.fromEntries(
+        Object.entries(value).map(([key, inner]) => [key, bump(inner)]),
+      );
+  const fields = Object.keys(
+    runtimeCases().contexts[WORKER_DARK_RUNTIME_CONTEXT],
+  );
+  assert.ok(fields.length > 0);
+  for (const field of fields) {
+    const text = edited((value) => {
       const context = value.contexts[WORKER_DARK_RUNTIME_CONTEXT];
-      context[field] = context[field] === values[0] ? values[1] : values[0];
+      context[field] = bump(context[field]);
     });
-  for (
-    const text of [
-      flip("pointer", ["coarse", "fine"]),
-      flip("reducedMotion", ["no-preference", "reduce"]),
-    ]
-  ) {
-    assert.notEqual(digestOf(source.inputs, afterRuntimeEdit(text)), unedited);
+    assert.notEqual(
+      digestOf(source.inputs, afterRuntimeEdit(text)),
+      unedited,
+      `${field} is not part of the worker-dark derivation`,
+    );
     assert.ok(
       !deriveWorkerDarkRuntimeContext(realText).equals(
         deriveWorkerDarkRuntimeContext(text),
       ),
-      "--check must report the committed context file as stale",
+      `--check must report the committed context file as stale after a ${field} edit`,
     );
   }
 });
 
-test("a missing worker-dark runtime context is an error, not an empty derivation", () => {
+test("the worker-dark baseline case carries the pointer and motion setting of the slice", () => {
+  // --check does not compare the case with the slice, so a --write that left the
+  // case behind (a constant, a stale baseline) would pass it.
+  const context = JSON.parse(repoBytes(DERIVED_CONTEXT).toString("utf8"))
+    .contexts[WORKER_DARK_RUNTIME_CONTEXT];
+  const [designCase] = workerDark().cases;
+  assert.equal(designCase.pointer, context.pointer);
+  assert.equal(designCase.candidate.reducedMotion, context.reducedMotion);
+});
+
+test("a missing or non-object worker-dark runtime context is an error, not an empty derivation", () => {
   for (
     const text of [
       edited((value) => delete value.contexts[WORKER_DARK_RUNTIME_CONTEXT]),
       edited((value) => {
         value.contexts[WORKER_DARK_RUNTIME_CONTEXT] = [];
+      }),
+      edited((value) => {
+        value.contexts[WORKER_DARK_RUNTIME_CONTEXT] = "paper";
+      }),
+      edited((value) => {
+        value.contexts[WORKER_DARK_RUNTIME_CONTEXT] = 7;
+      }),
+      edited((value) => {
+        value.contexts[WORKER_DARK_RUNTIME_CONTEXT] = null;
       }),
       edited((value) => delete value.contexts),
     ]
