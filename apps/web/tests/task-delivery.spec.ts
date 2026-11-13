@@ -35,19 +35,32 @@ const run = {
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:01:00.000Z",
   version: 1,
-  budgetSummary: { installation: null, run: null },
+  budgetSummary: {
+    installation: null,
+    run: {
+      scope: "run",
+      runId,
+      periodStart: null,
+      periodEnd: null,
+      limitUsd: "10",
+      reservedUsd: "0",
+      settledUsd: "1",
+      availableUsd: "9",
+      unknownCount: 0,
+    },
+  },
 };
 const step = {
   id: uuid(21),
   runId,
   stepKey: "implement",
   iteration: 1,
-  status: "running",
+  status: "completed",
   input: {},
   output: null,
   error: null,
   startedAt: "2026-01-01T00:00:02.000Z",
-  finishedAt: null,
+  finishedAt: "2026-01-01T00:00:03.000Z",
   createdAt: "2026-01-01T00:00:02.000Z",
   updatedAt: "2026-01-01T00:00:03.000Z",
   version: 1,
@@ -61,7 +74,7 @@ const task = {
   title: "Add partial refunds",
   description: "Persisted description",
   taskType: "feature",
-  status: "running",
+  status: "draft",
   priority: 50,
   createdBy: uuid(1),
   currentRunId: runId,
@@ -353,10 +366,13 @@ test("a clean run says nothing is waiting, offers no buttons and draws no step t
     "Approved by the reviewing agent · 2 notes, nothing blocking",
   );
   for (
-    const absent of ["Approval", "Fixing", "Pull request", "Release", "Approve"]
+    const absent of ["Approval", "Fixing", "Pull request", "Release"]
   ) {
     await expect(section).not.toContainText(absent);
   }
+  await expect(
+    section.getByRole("button", { name: /approve|reject|request changes/i }),
+  ).toHaveCount(0);
 });
 
 test("results for an older commit are marked and the card says a fix is running", async ({ page }) => {
@@ -374,9 +390,9 @@ test("results for an older commit are marked and the card says a fix is running"
   const steps = section.getByRole("list", { name: "Delivery steps" });
   await expect(steps).toContainText("Try 1 of 2 is running.");
   const findings = steps.getByRole("listitem").filter({ hasText: "Review" });
-  await expect(findings.getByText("Blocker")).toBeVisible();
-  await expect(findings.getByText("Major")).toBeVisible();
-  await expect(findings.getByText("Note")).toBeVisible();
+  await expect(findings.getByText("Blocker", { exact: true })).toBeVisible();
+  await expect(findings.getByText("Major", { exact: true })).toBeVisible();
+  await expect(findings.getByText("Note", { exact: true })).toBeVisible();
 });
 
 test("a stopped run names the reason and its one button moves focus to the message box", async ({ page }) => {
@@ -424,9 +440,9 @@ test("a denied read says there is no access and draws no steps", async ({ page }
 test("a failed load offers Try again, and the retry shows the steps", async ({ page }) => {
   await mockRun(page);
   await mockDelivery(page, CLEAN);
-  let failures = 1;
+  let failing = true;
   await page.route(`**/v1/runs/${runId}/checks*`, (route) => {
-    if (failures-- > 0) {
+    if (failing) {
       return route.fulfill({
         status: 500,
         contentType: "application/problem+json",
@@ -447,6 +463,7 @@ test("a failed load offers Try again, and the retry shows the steps", async ({ p
   await page.goto(`/tasks/${id}`);
   const section = page.getByTestId("delivery-section");
   await expect(section).toContainText("Delivery status could not be loaded.");
+  failing = false;
   await section.getByRole("button", { name: "Try again" }).click();
   await expect(section.getByRole("list", { name: "Delivery steps" }))
     .toBeVisible();
@@ -490,9 +507,9 @@ for (
   ]] as const
 ) {
   for (
-    const [width, height, label] of [[1280, 900, "desktop"], [
+    const [width, height, label] of [[1280, 1800, "desktop"], [
       390,
-      844,
+      2200,
       "phone",
     ]] as const
   ) {
@@ -507,6 +524,7 @@ for (
         const section = page.getByTestId("delivery-section");
         await expect(section.getByRole("list", { name: "Delivery steps" }))
           .toBeVisible();
+        await section.scrollIntoViewIfNeeded();
         await section.screenshot({
           path: `${STILLS}/delivery-${name}-${label}-${scheme}.png`,
         });

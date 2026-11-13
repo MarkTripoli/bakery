@@ -2809,5 +2809,6 @@
   "tasks.delivery.help.review.label": "⟦Àƀôûŧ ŧĥë ŕëṽïëŵ ŧëš⟧",
   "tasks.delivery.help.review.text": "⟦À šëçôñð àĝëñŧ ŧĥàŧ ðïð ñôŧ ŵŕïŧë ŧĥë çĥàñĝë ŕëàðš ïŧ àñð ŕëþôŕŧš þŕôƀļëɱš. Ɓļôçķëŕš àñð ɱàĵôŕš ɱûšŧ ƀë ƒïẋëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "tasks.delivery.help.fixing.label": "⟦Àƀôûŧ ƒïẋïñĝ ŧë⟧",
-  "tasks.delivery.help.fixing.text": "⟦Ŵĥëñ à çĥëçķ ôŕ ŧĥë ŕëṽïëŵ ƒàïļš, Ɓàķëŕÿ àšķš ŧĥë àĝëñŧ ŧô ƒïẋ ïŧ, ûþ ŧô {max, plural, one {# time} other {# times}}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
+  "tasks.delivery.help.fixing.text": "⟦Ŵĥëñ à çĥëçķ ôŕ ŧĥë ŕëṽïëŵ ƒàïļš, Ɓàķëŕÿ àšķš ŧĥë àĝëñŧ ŧô ƒïẋ ïŧ, ûþ ŧô {max, plural, one {# time} other {# times}}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "tasks.delivery.review.changesBlockingOnly": "⟦Çĥàñĝëš ŕëǫûëšŧëð · {blocking} ƀļôçķïñĝ ŧëšŧ çôþÿ ŧ⟧"
 }

@@ -2809,5 +2809,6 @@
   "tasks.delivery.help.review.label": "⟪About the review⟫",
   "tasks.delivery.help.review.text": "⟪A second agent that did not write the change reads it and reports problems. Blockers and majors must be fixed.⟫",
   "tasks.delivery.help.fixing.label": "⟪About fixing⟫",
-  "tasks.delivery.help.fixing.text": "⟪When a check or the review fails, Bakery asks the agent to fix it, up to {max, plural, one {# time} other {# times}}.⟫"
+  "tasks.delivery.help.fixing.text": "⟪When a check or the review fails, Bakery asks the agent to fix it, up to {max, plural, one {# time} other {# times}}.⟫",
+  "tasks.delivery.review.changesBlockingOnly": "⟪Changes requested · {blocking} blocking⟫"
 }

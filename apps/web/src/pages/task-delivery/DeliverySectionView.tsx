@@ -412,6 +412,10 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
               ? t("tasks.delivery.review.running")
               : review.status === "failed"
               ? t("tasks.delivery.review.failed")
+              : review.others === 0
+              ? t("tasks.delivery.review.changesBlockingOnly", {
+                blocking: review.blocking,
+              })
               : t("tasks.delivery.review.changes", {
                 blocking: review.blocking,
                 others: review.others,
