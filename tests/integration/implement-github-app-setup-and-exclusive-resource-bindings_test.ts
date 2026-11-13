@@ -3347,3 +3347,109 @@ Deno.test("a same-account reinstall reconnect fails reconnect_unavailable when a
     );
   });
 });
+
+/** One effect of a connection's resource, as an executor would leave it. */
+async function seedConnectionEffect(
+  f: GitHubAppFixture,
+  connectionId: string,
+  resourceId: string,
+  status: "confirmed" | "failed" | "uncertain",
+): Promise<string> {
+  const id = crypto.randomUUID();
+  await f.pgDatabase.query(
+    `insert into bakery.external_effects (
+       id, organization_id, operation, action_version, target,
+       integration_connection_id, integration_resource_id,
+       integration_install_id, requesting_principal_id, actor_ref,
+       idempotency_key, request_digest, external_account_id,
+       external_resource_id, adapter_version, authorization_revision, status,
+       safe_arguments
+     )
+     select $1, connection.organization_id, 'github.issue.comment.create', 1,
+       'resource:' || resource.id, connection.id, resource.id, 'inst-1', $4,
+       $4, $5, repeat('a', 64), connection.external_account_id,
+       resource.external_id, 'github@2026-03-10',
+       connection.authorization_revision, $6, '{"body":"secret-ish"}'::jsonb
+       from bakery.integration_connections connection
+       join bakery.integration_resources resource
+         on resource.connection_id = connection.id
+      where connection.id = $2 and resource.id = $3`,
+    [id, connectionId, resourceId, f.adminId, `activity-${id}`, status],
+  );
+  return id;
+}
+
+Deno.test("a connection's recent activity lists its effects with their outcome, unknown included, and nothing internal (#68)", async () => {
+  await withFixture(async (f) => {
+    const { connectionId, resources } = await pendingConnection(f);
+    const [resource] = resources;
+    const confirmed = await seedConnectionEffect(
+      f,
+      connectionId,
+      resource.id,
+      "confirmed",
+    );
+    const unknown = await seedConnectionEffect(
+      f,
+      connectionId,
+      resource.id,
+      "uncertain",
+    );
+    const path = `${connectionsPath}/${connectionId}/effects`;
+    const headers = { "Bakery-Organization-Id": f.organizationId };
+
+    const all = await call(f, "GET", path, f.developerCookie, { headers });
+    const body = await all.text();
+    assertEquals(all.status, 200, body);
+    const page = JSON.parse(body);
+    assertEquals(
+      page.items.map((item: { id: string }) => item.id).sort(),
+      [confirmed, unknown].sort(),
+    );
+    assert(!body.includes("secret-ish"), "arguments stay internal");
+
+    const uncertain = await call(
+      f,
+      "GET",
+      `${path}?status=uncertain`,
+      f.developerCookie,
+      { headers },
+    );
+    assertEquals(uncertain.status, 200, await uncertain.clone().text());
+    const filtered = await uncertain.json();
+    assertEquals(filtered.items.map((item: { id: string }) => item.id), [
+      unknown,
+    ]);
+    assertEquals(filtered.items[0].status, "uncertain");
+
+    const one = await call(
+      f,
+      "GET",
+      `${path}/${unknown}`,
+      f.developerCookie,
+      { headers },
+    );
+    assertEquals(one.status, 200, await one.clone().text());
+    const effect = await one.json();
+    assertEquals(effect.id, unknown);
+    assertEquals(effect.integrationConnectionId, connectionId);
+
+    // Another organization sees neither the list nor the effect.
+    const otherOrganization = await secondOrganization(f);
+    const foreignHeaders = { "Bakery-Organization-Id": otherOrganization };
+    const foreignList = await call(f, "GET", path, f.adminCookie, {
+      headers: foreignHeaders,
+    });
+    assertEquals(foreignList.status, 404, await foreignList.clone().text());
+    const foreignOne = await call(
+      f,
+      "GET",
+      `${path}/${unknown}`,
+      f.adminCookie,
+      {
+        headers: foreignHeaders,
+      },
+    );
+    assertEquals(foreignOne.status, 404, await foreignOne.clone().text());
+  });
+});

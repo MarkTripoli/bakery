@@ -9,6 +9,7 @@ import {
   decodeCursor,
   encodeCursor,
 } from "../../platform/cursor.ts";
+import type { PgTransactionClient } from "../../platform/database.ts";
 import { organizationActor } from "./auth-attempts.ts";
 import { GITHUB_PROVIDER_ID } from "./postgres.ts";
 
@@ -33,6 +34,27 @@ const connectionColumns = `connection.id, connection.provider,
   to_char(connection.updated_at at time zone 'UTC', ${TIMESTAMP})
     as "updatedAt",
   connection.version`;
+
+type Effect = z.output<typeof contractSchemas.ExternalEffect>;
+type EffectQuery = z.output<typeof contractSchemas.IntegrationEffectQuery>;
+
+// #68 "Recent activity": a connection's external effects with their outcome.
+// Explicit projection: arguments, results, evidence and credentials stay
+// internal; `status` is the outcome (`uncertain` means unknown).
+const effectColumns = `effect.id, effect.run_step_id as "runStepId",
+  effect.operation, effect.target, effect.idempotency_key as "idempotencyKey",
+  effect.status, effect.remote_id as "remoteId",
+  to_char(effect.last_checked_at at time zone 'UTC', ${TIMESTAMP})
+    as "lastCheckedAt",
+  effect.requesting_principal_id as "requestingPrincipalId",
+  effect.integration_connection_id as "integrationConnectionId",
+  effect.mcp_connection_id as "mcpConnectionId",
+  effect.repository_profile_id as "repositoryProfileId",
+  effect.adapter_version as "adapterVersion",
+  effect.credential_version_id as "credentialVersionId",
+  to_char(effect.created_at at time zone 'UTC', ${TIMESTAMP}) as "createdAt",
+  to_char(effect.updated_at at time zone 'UTC', ${TIMESTAMP}) as "updatedAt",
+  effect.version`;
 
 const connectionProjection = `select ${connectionColumns}
   from bakery.integration_connections as connection
@@ -306,5 +328,110 @@ export function createIntegrationListHandlers(cursorSecret: string) {
         nextCursor: page.nextCursor,
       };
     },
+    /** integrationEffects.list (#68): one connection's effects, newest first. */
+    async listEffects(
+      context: ActionContext,
+      input: EffectQuery,
+    ): Promise<{ items: Effect[]; nextCursor: string | null }> {
+      const { context: value, actor } = organizationActor(context);
+      const connectionId = requirePathId(value.params.id);
+      const filters = {
+        connectionId,
+        resourceId: input.resourceId ?? null,
+        subscriptionId: input.subscriptionId ?? null,
+        status: input.status ?? null,
+      };
+      const binding = await listBinding(
+        Action.IntegrationEffectsList,
+        actor,
+        filters,
+      );
+      const position = await decodeCursor(cursorSecret, input.cursor, binding);
+      await requireLiveConnection(value, actor.organizationId, connectionId);
+      const result = await value.transaction.query<
+        Effect & { cursorCreatedAt: string }
+      >(
+        `select ${effectColumns}, ${cursorCreatedAt("effect")}
+           from bakery.external_effects as effect
+          where effect.organization_id = $1
+            and effect.integration_connection_id = $2
+            and ($3::uuid is null or effect.integration_resource_id = $3)
+            and ($4::uuid is null or effect.subscription_id = $4)
+            and ($5::text is null or effect.status = $5)
+            and ($6::timestamptz is null
+              or (effect.created_at, effect.id) < ($6, $7::uuid))
+          order by effect.created_at desc, effect.id desc
+          limit $8`,
+        [
+          actor.organizationId,
+          connectionId,
+          filters.resourceId,
+          filters.subscriptionId,
+          filters.status,
+          position?.createdAt ?? null,
+          position?.id ?? null,
+          (input.limit ?? DEFAULT_LIMIT) + 1,
+        ],
+      );
+      const page = await keysetPage(
+        cursorSecret,
+        binding,
+        input.limit,
+        result.rows,
+      );
+      return {
+        items: page.rows.map(({ cursorCreatedAt: _, ...row }) =>
+          contractSchemas.ExternalEffect.parse(row)
+        ),
+        nextCursor: page.nextCursor,
+      };
+    },
   };
+}
+
+function requirePathId(raw: unknown): string {
+  const parsed = contractSchemas.IdPath.safeParse({ id: raw });
+  if (!parsed.success) throw new StandardError({ code: "MALFORMED_REQUEST" });
+  return parsed.data.id;
+}
+
+async function requireLiveConnection(
+  value: { transaction: PgTransactionClient },
+  organizationId: string,
+  connectionId: string,
+): Promise<void> {
+  const connection = await value.transaction.query(
+    `select 1 from bakery.integration_connections
+      where organization_id = $1 and id = $2 and archived_at is null`,
+    [organizationId, connectionId],
+  );
+  if (connection.rows.length === 0) {
+    throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  }
+}
+
+/**
+ * integrationEffects.get (#68): one effect of one connection. Another
+ * connection's or organization's effect is RESOURCE_NOT_FOUND.
+ */
+export async function getIntegrationEffect(
+  context: ActionContext,
+): Promise<Effect> {
+  const { context: value, actor } = organizationActor(context);
+  const connectionId = requirePathId(value.params.id);
+  const effectId = requirePathId(value.params.effectId);
+  const result = await value.transaction.query<Effect>(
+    `select ${effectColumns}
+       from bakery.external_effects as effect
+       join bakery.integration_connections as connection
+         on connection.organization_id = effect.organization_id
+        and connection.id = effect.integration_connection_id
+        and connection.archived_at is null
+      where effect.organization_id = $1
+        and effect.integration_connection_id = $2 and effect.id = $3`,
+    [actor.organizationId, connectionId, effectId],
+  );
+  const row = result.rows[0];
+  if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  return contractSchemas.ExternalEffect.parse(row);
 }

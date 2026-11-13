@@ -66,6 +66,7 @@ import {
   createConnection,
   createIntegrationListHandlers,
   getConnection,
+  getIntegrationEffect,
 } from "./connections.ts";
 import {
   createResourceUpdateRunner,
@@ -721,6 +722,12 @@ export function createIntegrationsActionRegistry(
     access: ActionAccess.Developer,
     organizationContext: OrganizationContextPolicy.RequiredAuthenticatedContext,
   } as const;
+  // #68: reading a connection's effects is a Developer query that also needs
+  // read access to the connection's resources (catalog "Developer+resource read").
+  const effectQuery = {
+    ...memberQuery,
+    access: ActionAccess.DeveloperAndResourceRead,
+  } as const;
   registry.register({
     name: IntegrationsImplementedAction.IntegrationConnectionsList,
     method: HttpMethod.Get,
@@ -737,6 +744,23 @@ export function createIntegrationsActionRegistry(
     output: contractSchemas["Page<IntegrationResource>"],
     policy: memberQuery,
     handler: lists.listResources,
+  }).register({
+    // #68 "Recent activity": the connection's effects and their outcomes.
+    name: IntegrationsImplementedAction.IntegrationEffectsList,
+    method: HttpMethod.Get,
+    path: "/v1/integration-connections/:id/effects",
+    input: contractSchemas.IntegrationEffectQuery,
+    output: contractSchemas["Page<ExternalEffect>"],
+    policy: effectQuery,
+    handler: lists.listEffects,
+  }).register({
+    name: IntegrationsImplementedAction.IntegrationEffectsGet,
+    method: HttpMethod.Get,
+    path: "/v1/integration-connections/:id/effects/:effectId",
+    input: contractSchemas.IdPath,
+    output: contractSchemas.ExternalEffect,
+    policy: effectQuery,
+    handler: getIntegrationEffect,
   });
   // Admin edits: Idempotency-Key and a strong If-Match naming the
   // connection version are both required; the check needs the key only.

@@ -39,6 +39,8 @@ const implementedIntegrationActions = [
   "integrationConnections.get",
   "integrationConnections.list",
   "integrationResources.list",
+  "integrationEffects.list",
+  "integrationEffects.get",
   "integrationConnections.update",
   "integrationResources.update",
   "integrationConnections.check",
