@@ -1,0 +1,516 @@
+import { expect, type Page, test } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
+import { registerPageHealth } from "./helpers/page-health.ts";
+
+registerPageHealth(test);
+
+const uuid = (n: number) =>
+  `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+const id = uuid(12);
+const runId = uuid(20);
+const reviewId = uuid(300);
+const OLD = "4be19c2".padEnd(40, "a");
+const NEW = "91d0aa3".padEnd(40, "b");
+const BASE = "a7254e7".padEnd(40, "c");
+const sha = (digit: string) => digit.repeat(64);
+
+const run = {
+  id: runId,
+  taskId: id,
+  workflowVersionId: uuid(22),
+  repositoryProfileId: null,
+  repositoryProfileRevision: null,
+  repositoryProfileDigest: null,
+  observationId: null,
+  observationDigest: null,
+  baseSha: BASE,
+  workspaceBaseSha: null,
+  requestedBy: uuid(1),
+  inngestRunId: null,
+  status: "running",
+  budgetLimitUsd: "10.00",
+  startedAt: "2026-01-01T00:00:01.000Z",
+  finishedAt: null,
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:01:00.000Z",
+  version: 1,
+  budgetSummary: { installation: null, run: null },
+};
+const step = {
+  id: uuid(21),
+  runId,
+  stepKey: "implement",
+  iteration: 1,
+  status: "running",
+  input: {},
+  output: null,
+  error: null,
+  startedAt: "2026-01-01T00:00:02.000Z",
+  finishedAt: null,
+  createdAt: "2026-01-01T00:00:02.000Z",
+  updatedAt: "2026-01-01T00:00:03.000Z",
+  version: 1,
+};
+const task = {
+  id,
+  applicationId: uuid(4),
+  repositoryId: uuid(5),
+  conversationId: uuid(6),
+  parentTaskId: null,
+  title: "Add partial refunds",
+  description: "Persisted description",
+  taskType: "feature",
+  status: "running",
+  priority: 50,
+  createdBy: uuid(1),
+  currentRunId: runId,
+  archivedAt: null,
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+  version: 1,
+  repositoryProfileId: null,
+  repositoryProfileRevision: null,
+  repositoryProfileDigest: null,
+  observationId: null,
+  observationDigest: null,
+  baseSha: BASE,
+};
+
+const at = (minute: number) => `2026-01-01T00:0${minute}:00.000Z`;
+type Check = {
+  name: string;
+  head: string;
+  result: string;
+  minute: number;
+  exitCode?: number | null;
+};
+const checkRow = (
+  { name, head, result, minute, exitCode = 0 }: Check,
+  n: number,
+) => ({
+  id: uuid(100 + n),
+  runId,
+  runStepId: null,
+  pullRequestId: null,
+  checkId: name,
+  checkName: name,
+  kind: "command",
+  ruleKey: null,
+  headSha: head,
+  baseSha: BASE,
+  profileDigest: null,
+  policyDigest: "policy-1",
+  subjectDigest: sha("a"),
+  checkerDigest: null,
+  titleDigest: null,
+  bodyDigest: null,
+  mergeMessageDigest: null,
+  commitSelectionDigest: null,
+  result,
+  reason: result === "passed" ? "verified" : "exit_nonzero",
+  exitCode: result === "pending" ? null : exitCode,
+  durationMs: result === "pending" ? null : 1000,
+  outputDigest: null,
+  evidenceVersionId: null,
+  providerRunId: null,
+  createdAt: at(minute),
+  updatedAt: at(minute),
+  version: 1,
+});
+const reviewRow = (
+  over: {
+    head: string;
+    status: string;
+    findings: number;
+    blocking: number;
+    minute: number;
+  },
+) => ({
+  id: reviewId,
+  runId,
+  runStepId: uuid(21),
+  ordinal: 0,
+  pullRequestId: null,
+  reviewerSessionId: uuid(31),
+  reviewerPrincipalId: uuid(32),
+  implementerSessionId: uuid(33),
+  implementerPrincipalId: uuid(34),
+  headSha: over.head,
+  baseSha: BASE,
+  policyDigest: "policy-1",
+  status: over.status,
+  findingCount: over.findings,
+  blockingCount: over.blocking,
+  artifactVersionId: null,
+  createdAt: at(over.minute),
+  updatedAt: at(over.minute),
+  version: 1,
+});
+const findingRow = (
+  n: number,
+  severity: string,
+  body: string,
+  path = "src/payments/refund.ts",
+) => ({
+  id: uuid(400 + n),
+  reviewCycleId: reviewId,
+  fingerprint: sha(String(n)),
+  severity,
+  path,
+  line: 88,
+  body,
+  status: "open",
+  resolutionArtifactId: null,
+  remoteCommentId: null,
+  createdAt: at(3),
+  updatedAt: at(3),
+  version: 1,
+});
+const decisionRow = (
+  ordinal: number,
+  decision: string,
+  reason: string,
+  head: string,
+  fingerprints: string[] = [],
+) => ({
+  id: uuid(500 + ordinal),
+  runId,
+  ordinal,
+  reviewCycleId: null,
+  decision,
+  reason,
+  headSha: head,
+  baseSha: BASE,
+  policyDigest: "policy-1",
+  failedChecks: [],
+  blockingFingerprints: fingerprints,
+  limits: { maxRepairCycles: 2, maxLoopDurationMs: 600000, maxFindings: 25 },
+  createdAt: at(4 + ordinal),
+  updatedAt: at(4 + ordinal),
+  version: 1,
+});
+
+type Scenario = {
+  checks: Check[];
+  review?: Parameters<typeof reviewRow>[0];
+  findings?: ReturnType<typeof findingRow>[];
+  decisions?: ReturnType<typeof decisionRow>[];
+};
+const page_ = <T>(items: T[]) => ({ items, nextCursor: null });
+
+async function mockRun(page: Page) {
+  await mockAuthenticatedSession(page);
+  await page.route(
+    `**/v1/tasks/${id}`,
+    (route) => route.fulfill({ json: task }),
+  );
+  await page.route(
+    `**/v1/runs/${runId}`,
+    (route) => route.fulfill({ json: run }),
+  );
+  await page.route(
+    `**/v1/runs/${runId}/steps*`,
+    (route) => route.fulfill({ json: page_([step]) }),
+  );
+  await page.route(`**/v1/runs/${runId}/controls`, (route) =>
+    route.fulfill({
+      json: {
+        runId,
+        actions: ["pause", "resume", "cancel", "interrupt"].map((action) => ({
+          action,
+          canRequest: true,
+          reason: "allowed",
+        })),
+      },
+    }));
+  await page.route(
+    "**/v1/artifacts?*",
+    (route) => route.fulfill({ json: page_([]) }),
+  );
+  await page.route("**/v1/sync*", (route) =>
+    route.fulfill({
+      json: {
+        resourceState: {},
+        highwater: "0",
+        events: [],
+        nextCursor: new URL(route.request().url()).searchParams.has("after")
+          ? null
+          : "cursor-0",
+        resetRequired: false,
+      },
+    }));
+}
+
+async function mockDelivery(page: Page, scenario: Scenario) {
+  await page.route(
+    `**/v1/runs/${runId}/checks*`,
+    (route) => route.fulfill({ json: page_(scenario.checks.map(checkRow)) }),
+  );
+  await page.route(`**/v1/runs/${runId}/reviews*`, (route) =>
+    route.fulfill({
+      json: page_(scenario.review ? [reviewRow(scenario.review)] : []),
+    }));
+  await page.route(
+    `**/v1/reviews/${reviewId}/findings*`,
+    (route) => route.fulfill({ json: page_(scenario.findings ?? []) }),
+  );
+  await page.route(
+    `**/v1/runs/${runId}/delivery-decisions*`,
+    (route) => route.fulfill({ json: page_(scenario.decisions ?? []) }),
+  );
+}
+
+const CLEAN: Scenario = {
+  checks: [
+    { name: "tests", head: NEW, result: "passed", minute: 1 },
+    { name: "lint", head: NEW, result: "passed", minute: 1 },
+  ],
+  review: {
+    head: NEW,
+    status: "approved",
+    findings: 2,
+    blocking: 0,
+    minute: 2,
+  },
+  decisions: [decisionRow(0, "proceed", "clean", NEW)],
+};
+const FIXING: Scenario = {
+  checks: [
+    { name: "tests", head: OLD, result: "failed", minute: 1, exitCode: 1 },
+    { name: "lint", head: OLD, result: "passed", minute: 1 },
+    { name: "tests", head: NEW, result: "pending", minute: 5 },
+  ],
+  review: {
+    head: OLD,
+    status: "changes_requested",
+    findings: 3,
+    blocking: 2,
+    minute: 2,
+  },
+  findings: [
+    findingRow(
+      1,
+      "note",
+      "Consider naming the constant for the retry limit.",
+      "src/retry.ts",
+    ),
+    findingRow(
+      2,
+      "blocker",
+      "Refund amount is not validated against the original charge.",
+    ),
+    findingRow(
+      3,
+      "major",
+      "No test covers the partial refund path.",
+      "tests/refund_test.ts",
+    ),
+  ],
+  decisions: [decisionRow(0, "repair", "repair_selected", OLD)],
+};
+const STOPPED: Scenario = {
+  checks: [{ name: "tests", head: NEW, result: "passed", minute: 1 }],
+  review: {
+    head: NEW,
+    status: "changes_requested",
+    findings: 1,
+    blocking: 1,
+    minute: 2,
+  },
+  findings: [
+    findingRow(
+      2,
+      "blocker",
+      "Refund amount is not validated against the original charge.",
+    ),
+  ],
+  decisions: [
+    decisionRow(0, "repair", "repair_selected", OLD),
+    decisionRow(1, "repair", "repair_selected", NEW),
+    decisionRow(2, "stop", "repair_cycles_exhausted", NEW, [sha("2")]),
+  ],
+};
+
+test("a clean run says nothing is waiting, offers no buttons and draws no step the server did not report", async ({ page }) => {
+  await mockRun(page);
+  await mockDelivery(page, CLEAN);
+  await page.goto(`/tasks/${id}`);
+  const section = page.getByTestId("delivery-section");
+  await expect(section.getByRole("heading", { name: "Delivery", level: 2 }))
+    .toBeVisible();
+  const now = section.getByTestId("delivery-now");
+  await expect(now).toContainText(
+    "Checks passed and the review found nothing blocking",
+  );
+  await expect(now).toContainText("Nothing is waiting for you.");
+  await expect(now.getByRole("button")).toHaveCount(0);
+  const steps = section.getByRole("list", { name: "Delivery steps" });
+  await expect(steps.getByRole("listitem")).toHaveCount(3);
+  await expect(steps).toContainText("Commit 91d0aa3 on top of a7254e7");
+  await expect(steps).toContainText("2 of 2 passed");
+  await expect(steps).toContainText(
+    "Approved by the reviewing agent · 2 notes, nothing blocking",
+  );
+  for (
+    const absent of ["Approval", "Fixing", "Pull request", "Release", "Approve"]
+  ) {
+    await expect(section).not.toContainText(absent);
+  }
+});
+
+test("results for an older commit are marked and the card says a fix is running", async ({ page }) => {
+  await mockRun(page);
+  await mockDelivery(page, FIXING);
+  await page.goto(`/tasks/${id}`);
+  const section = page.getByTestId("delivery-section");
+  await expect(section).toContainText(
+    "The changes were updated after these results",
+  );
+  await expect(section.getByTestId("delivery-now")).toContainText(
+    "Fixing review findings · try 1 of 2",
+  );
+  await expect(section.getByText("Older commit 4be19c2").first()).toBeVisible();
+  const steps = section.getByRole("list", { name: "Delivery steps" });
+  await expect(steps).toContainText("Try 1 of 2 is running.");
+  const findings = steps.getByRole("listitem").filter({ hasText: "Review" });
+  await expect(findings.getByText("Blocker")).toBeVisible();
+  await expect(findings.getByText("Major")).toBeVisible();
+  await expect(findings.getByText("Note")).toBeVisible();
+});
+
+test("a stopped run names the reason and its one button moves focus to the message box", async ({ page }) => {
+  await mockRun(page);
+  await mockDelivery(page, STOPPED);
+  await page.goto(`/tasks/${id}`);
+  const now = page.getByTestId("delivery-section").getByTestId("delivery-now");
+  await expect(now).toContainText("Bakery could not fix this");
+  await expect(now).toContainText(
+    "It tried 2 times and 1 blocking finding remains.",
+  );
+  await expect(now).toContainText("Send a message to say what to do next.");
+  await expect(now.getByRole("button")).toHaveCount(1);
+  await now.getByRole("button", { name: "Tell Bakery what to change" }).click();
+  await expect(page.locator("#task-message-field")).toBeFocused();
+});
+
+test("a denied read says there is no access and draws no steps", async ({ page }) => {
+  await mockRun(page);
+  await mockDelivery(page, CLEAN);
+  await page.route(`**/v1/runs/${runId}/checks*`, (route) =>
+    route.fulfill({
+      status: 404,
+      contentType: "application/problem+json",
+      json: {
+        type: "about:blank",
+        title: "Not found",
+        status: 404,
+        code: "NOT_FOUND",
+        detail: "Not found.",
+        requestId: uuid(110),
+        traceId: uuid(111),
+        retryable: false,
+      },
+    }));
+  await page.goto(`/tasks/${id}`);
+  const section = page.getByTestId("delivery-section");
+  await expect(section).toContainText(
+    "You do not have access to this run's delivery status.",
+  );
+  await expect(section.getByRole("list", { name: "Delivery steps" }))
+    .toHaveCount(0);
+});
+
+test("a failed load offers Try again, and the retry shows the steps", async ({ page }) => {
+  await mockRun(page);
+  await mockDelivery(page, CLEAN);
+  let failures = 1;
+  await page.route(`**/v1/runs/${runId}/checks*`, (route) => {
+    if (failures-- > 0) {
+      return route.fulfill({
+        status: 500,
+        contentType: "application/problem+json",
+        json: {
+          type: "about:blank",
+          title: "Server error",
+          status: 500,
+          code: "INTERNAL",
+          detail: "Failed.",
+          requestId: uuid(112),
+          traceId: uuid(113),
+          retryable: false,
+        },
+      });
+    }
+    return route.fulfill({ json: page_(CLEAN.checks.map(checkRow)) });
+  });
+  await page.goto(`/tasks/${id}`);
+  const section = page.getByTestId("delivery-section");
+  await expect(section).toContainText("Delivery status could not be loaded.");
+  await section.getByRole("button", { name: "Try again" }).click();
+  await expect(section.getByRole("list", { name: "Delivery steps" }))
+    .toBeVisible();
+});
+
+test("a run with no changes yet draws no delivery section", async ({ page }) => {
+  await mockRun(page);
+  await mockDelivery(page, { checks: [] });
+  await page.goto(`/tasks/${id}`);
+  await expect(page.getByRole("button", { name: "Pause" }).first())
+    .toBeVisible();
+  await expect(page.getByTestId("delivery-section")).toHaveCount(0);
+});
+
+test("the section has no accessibility violations and fits a 390px screen", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mockRun(page);
+  await mockDelivery(page, FIXING);
+  await page.goto(`/tasks/${id}`);
+  const section = page.getByTestId("delivery-section");
+  await expect(section.getByRole("list", { name: "Delivery steps" }))
+    .toBeVisible();
+  const results = await new AxeBuilder({ page })
+    .include('[data-testid="delivery-section"]')
+    .analyze();
+  expect(results.violations).toEqual([]);
+  expect(
+    await section.evaluate((element) =>
+      element.scrollWidth <= element.clientWidth
+    ),
+  ).toBe(true);
+});
+
+// Evidence stills for the PR description (desktop and phone, light and dark), only
+// when BAKERY_STILLS_DIR is set.
+const STILLS = process.env.BAKERY_STILLS_DIR;
+for (
+  const [name, scenario] of [["clean", CLEAN], ["fixing", FIXING], [
+    "stopped",
+    STOPPED,
+  ]] as const
+) {
+  for (
+    const [width, height, label] of [[1280, 900, "desktop"], [
+      390,
+      844,
+      "phone",
+    ]] as const
+  ) {
+    for (const scheme of ["light", "dark"] as const) {
+      test(`still: ${name} ${label} ${scheme}`, async ({ page }) => {
+        test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+        await page.setViewportSize({ width, height });
+        await page.emulateMedia({ colorScheme: scheme });
+        await mockRun(page);
+        await mockDelivery(page, scenario);
+        await page.goto(`/tasks/${id}`);
+        const section = page.getByTestId("delivery-section");
+        await expect(section.getByRole("list", { name: "Delivery steps" }))
+          .toBeVisible();
+        await section.screenshot({
+          path: `${STILLS}/delivery-${name}-${label}-${scheme}.png`,
+        });
+      });
+    }
+  }
+}
