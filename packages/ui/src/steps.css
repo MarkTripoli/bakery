@@ -1,0 +1,147 @@
+@import "./foundations/index.css";
+
+/* A vertical list of gates (StepList), each a StepItem with a status mark, a
+   name, one line of result, at most one text action at the end and an open
+   detail for a step that failed, is running or waits (the #57 delivery steps;
+   #68 and #70 setup guides reuse it). The mark column is 28px (20px mark and an
+   8px lead), the action column hugs its content, and on a phone the action
+   moves under the text. */
+.ui-step-list {
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-surface);
+  color: var(--color-fg);
+  font: var(--type-body);
+  list-style: none;
+  margin: var(--space-0);
+  padding: var(--space-0);
+}
+
+.ui-step-item {
+  align-items: start;
+  border-block-end: var(--border-default) solid var(--color-border);
+  column-gap: var(--space-3);
+  display: grid;
+  grid-template-columns:
+    calc(var(--space-5) + var(--space-2)) minmax(0, 1fr) auto;
+  padding: var(--space-4);
+}
+
+.ui-step-item:last-child {
+  border-block-end: var(--border-none);
+}
+
+.ui-step-item__mark {
+  align-items: center;
+  block-size: var(--space-5);
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  font: var(--type-avatar); /* 600 12px/1: the mark's own metrics in the design */
+  inline-size: var(--space-5);
+  justify-content: center;
+  margin-block-start: var(--space-0-5);
+}
+
+.ui-step-item[data-state="done"] .ui-step-item__mark {
+  background: var(--color-status-success-surface);
+  color: var(--color-status-success);
+}
+
+.ui-step-item[data-state="failed"] .ui-step-item__mark {
+  background: var(--color-destructive-surface);
+  color: var(--color-destructive);
+}
+
+.ui-step-item[data-state="waiting"] .ui-step-item__mark {
+  background: var(--color-status-warning-surface);
+  color: var(--color-status-warning);
+}
+
+.ui-step-item[data-state="running"] .ui-step-item__mark {
+  background: var(--color-selection-surface);
+  color: var(--color-selection);
+}
+
+.ui-step-item[data-state="unknown"] .ui-step-item__mark {
+  background: var(--color-status-neutral-surface);
+  color: var(--color-status-neutral);
+}
+
+.ui-step-item[data-state="upcoming"] .ui-step-item__mark {
+  border: var(--border-default) solid var(--color-border-strong);
+  color: var(--color-fg-disabled);
+}
+
+.ui-step-item__body {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.ui-step-item__title {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  font: var(--type-control);
+  gap: var(--space-1);
+}
+
+.ui-step-item__summary {
+  color: var(--color-fg-muted);
+  margin-block-start: var(--space-0-5);
+}
+
+.ui-step-item[data-state="waiting"] .ui-step-item__summary {
+  color: var(--color-fg);
+}
+
+.ui-step-item[data-state="upcoming"] .ui-step-item__title,
+.ui-step-item[data-state="upcoming"] .ui-step-item__summary {
+  color: var(--color-fg-muted);
+}
+
+.ui-step-item__detail {
+  border-block-start: var(--border-default) solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-block-start: var(--space-3);
+  padding-block-start: var(--space-3);
+}
+
+.ui-step-item__action {
+  display: flex;
+  justify-self: end;
+  min-inline-size: 0;
+}
+
+/* A badge or a button in a step wraps instead of escaping a narrow column
+   (reflow at 200% zoom). */
+.ui-step-item .ui-badge {
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.ui-step-item__action .ui-button--text {
+  /* The text button grows its hit area with a negative block margin; here the
+     action cell owns that height, as the list section does, so nothing
+     extends past the cell. */
+  margin-block: var(--space-0);
+}
+
+.ui-step-item__action > * {
+  block-size: auto;
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+@media (max-width: 743px) {
+  .ui-step-item {
+    grid-template-columns: calc(var(--space-5) + var(--space-2)) minmax(0, 1fr);
+  }
+
+  .ui-step-item__action {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
