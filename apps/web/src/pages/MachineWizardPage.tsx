@@ -1,0 +1,712 @@
+import { useEffect, useRef, useState } from "react";
+import type { Translator } from "@bakery/i18n";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import * as UI from "@bakery/ui";
+import type { WorkerEnrollmentListResponse } from "../api/client.ts";
+import { useBakeryApi } from "../api/context.tsx";
+import {
+  effectiveAccessQueryOptions,
+  workerEnrollmentQueryOptions,
+  workerEnrollmentsListQueryOptions,
+} from "../api/query.ts";
+import { useProtectedScope } from "../app/query-scope-context.tsx";
+import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
+import { useI18n } from "../i18n/I18nProvider.tsx";
+import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
+import type { CodingAgent } from "./machine-state.ts";
+import {
+  agentOfCapabilities,
+  type EnrollmentInput,
+  enrollmentInput,
+  initialAnswers,
+  installState,
+  type MachineSystem,
+  minutesLeft,
+  NAME_MAX,
+  PROCESSORS,
+  saveSetupCodeCommand,
+  startWorkerCommand,
+  suggestedProcessor,
+  systemProblems,
+  WIZARD_STEPS,
+  type WizardAnswers,
+  type WizardStep,
+  workerEnvironment,
+} from "./machine-wizard.ts";
+
+type EnrollmentRow = WorkerEnrollmentListResponse["items"][number];
+
+/** A setup code, held in this page's memory only: Bakery shows it once and never stores it in the address, the browser or a log. */
+type IssuedCode = Readonly<{
+  enrollmentId: string;
+  code: string;
+  expiresAt: string;
+}>;
+
+const AGENTS: readonly CodingAgent[] = ["claude", "codex", "pi"];
+const SYSTEMS: readonly MachineSystem[] = ["linux", "macos"];
+
+function Numbered(
+  { n, text }: { n: number; text: string },
+) {
+  return (
+    <UI.Heading level="subsection" rank={3}>
+      {`${n}. ${text}`}
+    </UI.Heading>
+  );
+}
+
+/** A block of values to copy, with its own Copy button. */
+function Copyable(
+  { code, label, translate }: {
+    code: string;
+    label: string;
+    translate: Translator;
+  },
+) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <UI.Stack gap="compact">
+      <UI.CodeBlock
+        code={code}
+        language="dotenv"
+        variant="command"
+        copied={copied}
+        aria-label={label}
+      />
+      <UI.Inline gap="compact">
+        <UI.Button
+          variant="secondary"
+          onClick={() => {
+            void (async () => {
+              try {
+                await navigator.clipboard.writeText(code);
+                setCopied(true);
+              } catch {
+                // The clipboard is not available here: the text stays selectable.
+                setCopied(false);
+              }
+            })();
+          }}
+        >
+          {translate(
+            (copied
+              ? "machines.wizard.copied"
+              : "machines.wizard.copy") as never,
+          )}
+        </UI.Button>
+      </UI.Inline>
+    </UI.Stack>
+  );
+}
+
+function SystemStep(
+  { answers, onChange, showProblems, translate }: {
+    answers: WizardAnswers;
+    onChange: (next: WizardAnswers) => void;
+    showProblems: boolean;
+    translate: Translator;
+  },
+) {
+  const problems = showProblems ? systemProblems(answers) : [];
+  const nameProblem = problems.find((problem) => problem !== "slotsInvalid");
+  return (
+    <UI.Stack gap="standard">
+      <UI.Field
+        label={translate("machines.wizard.name" as never)}
+        htmlFor="machine-wizard-name"
+        hint={translate("machines.wizard.nameHint" as never)}
+        error={nameProblem
+          ? translate(`machines.wizard.${nameProblem}` as never, {
+            max: NAME_MAX,
+          })
+          : undefined}
+        required
+      >
+        <UI.TextInput
+          id="machine-wizard-name"
+          name="name"
+          type="text"
+          autoComplete="off"
+          invalid={nameProblem !== undefined}
+          value={answers.name}
+          onChange={(name) => onChange({ ...answers, name })}
+        />
+      </UI.Field>
+      <UI.Stack gap="compact">
+        <UI.SegmentedControl
+          aria-label={translate("machines.wizard.os" as never)}
+          name="machine-wizard-os"
+          variant="inline"
+          value={answers.os}
+          onChange={(value) => {
+            const os = value as MachineSystem;
+            // The processor follows the system until the person changes it.
+            const followed = answers.architecture ===
+              suggestedProcessor(answers.os);
+            onChange({
+              ...answers,
+              os,
+              architecture: followed
+                ? suggestedProcessor(os)
+                : answers.architecture,
+            });
+          }}
+          options={SYSTEMS.map((value) => ({
+            value,
+            label: translate(`machines.os.${value}` as never),
+          }))}
+        />
+        <UI.Text variant="muted">
+          {translate("machines.wizard.osHint" as never)}
+        </UI.Text>
+      </UI.Stack>
+      <UI.SegmentedControl
+        aria-label={translate("machines.wizard.processor" as never)}
+        name="machine-wizard-processor"
+        variant="inline"
+        value={answers.architecture}
+        onChange={(architecture) => onChange({ ...answers, architecture })}
+        options={PROCESSORS.map((value) => ({
+          value,
+          label: translate(`machines.wizard.processor.${value}` as never),
+        }))}
+      />
+      <UI.Field
+        label={translate("machines.wizard.slots" as never)}
+        htmlFor="machine-wizard-slots"
+        hint={translate("machines.wizard.slotsHint" as never)}
+        error={problems.includes("slotsInvalid")
+          ? translate("machines.wizard.slotsInvalid" as never)
+          : undefined}
+        required
+      >
+        <UI.TextInput
+          id="machine-wizard-slots"
+          name="slots"
+          type="number"
+          autoComplete="off"
+          inputMode="numeric"
+          min={1}
+          max={100}
+          invalid={problems.includes("slotsInvalid")}
+          value={answers.slots}
+          onChange={(slots) => onChange({ ...answers, slots })}
+        />
+      </UI.Field>
+    </UI.Stack>
+  );
+}
+
+function AgentStep(
+  { answers, onChange, showProblem, translate }: {
+    answers: WizardAnswers;
+    onChange: (next: WizardAnswers) => void;
+    showProblem: boolean;
+    translate: Translator;
+  },
+) {
+  return (
+    <UI.Stack gap="standard">
+      <UI.Stack
+        gap="compact"
+        role="radiogroup"
+        aria-label={translate("machines.wizard.agent.legend" as never)}
+      >
+        {AGENTS.map((agent) => (
+          <UI.PresetOption
+            key={agent}
+            name="machine-wizard-agent"
+            value={agent}
+            checked={answers.agent === agent}
+            onChange={() => onChange({ ...answers, agent })}
+            title={translate(`machines.agent.${agent}` as never)}
+            description={translate(`machines.wizard.agent.${agent}` as never)}
+          />
+        ))}
+      </UI.Stack>
+      <UI.Text variant="muted">
+        {translate("machines.wizard.agent.help" as never)}
+      </UI.Text>
+      {showProblem && answers.agent === null
+        ? (
+          <UI.AlertBanner tone="error">
+            {translate("machines.wizard.agent.required" as never)}
+          </UI.AlertBanner>
+        )
+        : null}
+    </UI.Stack>
+  );
+}
+
+/** The install step: what to do on the machine, then waiting for it to connect. */
+function InstallStep(
+  { input, agent, issued, enrollmentId, translate, onNewSettings, onDone }: {
+    input: EnrollmentInput;
+    agent: CodingAgent;
+    issued: IssuedCode | null;
+    enrollmentId: string | null;
+    translate: Translator;
+    onNewSettings: (version: number) => void;
+    onDone: (workerHostId: string | null) => void;
+  },
+) {
+  const api = useBakeryApi();
+  const scope = useProtectedScope();
+  const queryClient = useQueryClient();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(timer);
+  }, []);
+  const status = useQuery({
+    ...workerEnrollmentQueryOptions(api, scope, enrollmentId ?? ""),
+    enabled: enrollmentId !== null && Boolean(scope.organizationId),
+  });
+  const connected = status.data?.state === "consumed";
+  useEffect(() => {
+    if (!connected) return;
+    void queryClient.invalidateQueries({
+      queryKey: [
+        "protected",
+        scope.sessionGeneration,
+        scope.organizationId ?? "none",
+        "workers.list",
+      ],
+    });
+    void queryClient.invalidateQueries({
+      queryKey: [
+        "protected",
+        scope.sessionGeneration,
+        scope.organizationId ?? "none",
+        "workerEnrollments.list",
+      ],
+    });
+  }, [connected, queryClient, scope.organizationId, scope.sessionGeneration]);
+  const serverUrl = globalThis.location?.origin ?? "";
+  const agentName = translate(`machines.agent.${agent}` as never);
+  const state = status.data
+    ? installState(status.data, now)
+    : issued
+    ? installState({ state: "pending", expiresAt: issued.expiresAt }, now)
+    : "waiting";
+
+  if (state === "connected") {
+    return (
+      <UI.Stack gap="standard">
+        <UI.AlertBanner tone="success" role="status">
+          {translate("machines.wizard.install.connected" as never)}
+        </UI.AlertBanner>
+        <UI.Inline gap="compact">
+          <UI.Button
+            variant="primary"
+            onClick={() => onDone(status.data?.workerHostId ?? null)}
+          >
+            {translate("machines.wizard.done" as never)}
+          </UI.Button>
+        </UI.Inline>
+      </UI.Stack>
+    );
+  }
+  if (state === "canceled") {
+    return (
+      <UI.AlertBanner tone="warning">
+        {translate("machines.wizard.install.canceled" as never)}
+      </UI.AlertBanner>
+    );
+  }
+  // No code in this page's memory (it was shown once and the page was left or
+  // reloaded) or the code ran out: new settings are the only way on.
+  if (issued === null || state === "expired") {
+    return (
+      <UI.Stack gap="standard">
+        <UI.AlertBanner tone="warning" role="status">
+          {translate(
+            (issued === null
+              ? "machines.wizard.install.lost"
+              : "machines.wizard.install.expired") as never,
+            { name: input.name },
+          )}
+        </UI.AlertBanner>
+        <UI.Inline gap="compact">
+          <UI.Button
+            variant="primary"
+            disabled={status.data === undefined}
+            onClick={() => {
+              if (status.data) onNewSettings(status.data.version);
+            }}
+          >
+            {translate("machines.wizard.install.newSettings" as never)}
+          </UI.Button>
+        </UI.Inline>
+      </UI.Stack>
+    );
+  }
+  const startCommand = startWorkerCommand(input.os);
+  const settings = workerEnvironment({ serverUrl, input, agent });
+  let n = 0;
+  return (
+    <UI.Stack gap="standard">
+      <UI.Text variant="muted">
+        {translate("machines.wizard.install.expires" as never, {
+          minutes: minutesLeft(issued.expiresAt, now),
+        })}
+      </UI.Text>
+      <Numbered
+        n={++n}
+        text={translate("machines.wizard.install.copyCode" as never)}
+      />
+      <UI.SetupKey>{issued.code}</UI.SetupKey>
+      <Numbered
+        n={++n}
+        text={translate("machines.wizard.install.saveCode" as never)}
+      />
+      <Copyable
+        code={saveSetupCodeCommand()}
+        label={translate("machines.wizard.install.saveCode" as never)}
+        translate={translate}
+      />
+      <UI.Text variant="muted">
+        {translate("machines.wizard.install.saveCodeHint" as never)}
+      </UI.Text>
+      <Numbered
+        n={++n}
+        text={translate(
+          `machines.wizard.install.settings.${input.os}` as never,
+          { agent: agentName },
+        )}
+      />
+      <Copyable
+        code={settings}
+        label={translate(
+          `machines.wizard.install.settings.${input.os}` as never,
+          { agent: agentName },
+        )}
+        translate={translate}
+      />
+      <Numbered
+        n={++n}
+        text={translate(
+          `machines.wizard.install.start.${input.os}` as never,
+        )}
+      />
+      {startCommand
+        ? (
+          <Copyable
+            code={startCommand}
+            label={translate("machines.wizard.install.start.linux" as never)}
+            translate={translate}
+          />
+        )
+        : null}
+      <UI.Text variant="muted" role="status" aria-live="polite">
+        {translate("machines.wizard.install.waiting" as never)}
+      </UI.Text>
+    </UI.Stack>
+  );
+}
+
+export function MachineWizardPage(
+  { finishId }: { finishId?: string },
+) {
+  const api = useBakeryApi();
+  const scope = useProtectedScope();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { translate } = useI18n();
+  useRestoreOrganizationScope();
+  const organizationId = scope.organizationId;
+  const access = useQuery(effectiveAccessQueryOptions(api, scope));
+  const isAdmin = access.data?.role === "admin";
+  const [step, setStep] = useState<WizardStep>(
+    finishId ? "install" : "system",
+  );
+  const [answers, setAnswers] = useState<WizardAnswers>(initialAnswers);
+  const [showProblems, setShowProblems] = useState(false);
+  const [issued, setIssued] = useState<IssuedCode | null>(null);
+  const [enrollmentId, setEnrollmentId] = useState<string | null>(
+    finishId ?? null,
+  );
+  const [failed, setFailed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  // One idempotency key per attempt: pressing Continue twice cannot make two setups.
+  const createKey = useRef<string | null>(null);
+
+  // Continuing a setup that was left: its answers come from the enrollment.
+  const listOptions = workerEnrollmentsListQueryOptions(api, scope, {
+    limit: 100,
+  });
+  const finishing = useQuery({
+    ...listOptions,
+    enabled: Boolean(finishId) && isAdmin && listOptions.enabled,
+  });
+  const finishRow: EnrollmentRow | undefined = finishId
+    ? finishing.data?.items.find((row) => row.enrollmentId === finishId)
+    : undefined;
+
+  const finishInput: EnrollmentInput | null = finishRow
+    ? {
+      name: finishRow.name,
+      os: finishRow.os,
+      architecture: finishRow.architecture,
+      capabilities: Array.isArray(finishRow.capabilities)
+        ? finishRow.capabilities.filter((value): value is string =>
+          typeof value === "string"
+        )
+        : [],
+      slots: finishRow.slots,
+    }
+    : null;
+  const finishAgent = finishRow
+    ? agentOfCapabilities(finishRow.capabilities)
+    : null;
+  const input = finishId ? finishInput : enrollmentInput(answers);
+  const agent = finishId ? finishAgent : answers.agent;
+
+  const issue = (code: string, id: string, expiresAt: string) => {
+    setIssued({ enrollmentId: id, code, expiresAt });
+    setEnrollmentId(id);
+  };
+  const invalidateEnrollments = () =>
+    queryClient.invalidateQueries({ queryKey: listOptions.queryKey });
+
+  const createSettings = async () => {
+    if (!organizationId || input === null) return;
+    setBusy(true);
+    setFailed(false);
+    createKey.current ??= crypto.randomUUID();
+    const result = await api.workers.enroll({
+      organizationId,
+      input,
+      idempotencyKey: createKey.current,
+    });
+    setBusy(false);
+    if (!result.ok) {
+      setFailed(true);
+      return;
+    }
+    issue(
+      result.data.enrollmentToken,
+      result.data.enrollmentId,
+      result.data.expiresAt,
+    );
+    await invalidateEnrollments();
+  };
+  const newSettings = async (version: number) => {
+    if (!organizationId || enrollmentId === null) return;
+    setBusy(true);
+    setFailed(false);
+    const result = await api.workerEnrollments.replace({
+      organizationId,
+      id: enrollmentId,
+      version,
+      idempotencyKey: crypto.randomUUID(),
+    });
+    setBusy(false);
+    if (!result.ok) {
+      setFailed(true);
+      return;
+    }
+    issue(
+      result.data.enrollmentToken,
+      result.data.enrollmentId,
+      result.data.expiresAt,
+    );
+    await invalidateEnrollments();
+  };
+
+  const stepIndex = WIZARD_STEPS.indexOf(step);
+  const toList = () => void navigate({ to: "/machines" });
+  const next = () => {
+    if (step === "system") {
+      if (systemProblems(answers).length > 0) {
+        setShowProblems(true);
+        return;
+      }
+      setShowProblems(false);
+      setStep("agent");
+      return;
+    }
+    if (step === "agent") {
+      if (answers.agent === null) {
+        setShowProblems(true);
+        return;
+      }
+      setShowProblems(false);
+      setStep("install");
+      void createSettings();
+    }
+  };
+  const back = () => {
+    if (step === "agent") setStep("system");
+    else if (step === "install" && issued === null && !finishId) {
+      setStep("agent");
+    }
+  };
+
+  const breadcrumbs = (
+    <ShellSlot name="breadcrumbs">
+      <UI.Breadcrumbs
+        aria-label={translate("shell.navigation.breadcrumb")}
+        items={[
+          { label: translate("shell.states.settingsTitle") },
+          { label: translate("shell.navigation.machines") },
+          { label: translate("machines.wizard.title" as never) },
+        ]}
+      />
+    </ShellSlot>
+  );
+
+  if (access.data !== undefined && !isAdmin) {
+    return (
+      <>
+        <ShellActiveNavigation id="machines" />
+        {breadcrumbs}
+        <UI.SettingsContent data-testid="machine-wizard">
+          <UI.PageHeader
+            variant="list"
+            title={translate("machines.wizard.title" as never)}
+          />
+          <UI.EmptyState
+            title={translate("machines.wizard.adminOnly.title" as never)}
+            description={translate("machines.empty.adminOnly" as never)}
+            action={
+              <UI.Button variant="secondary" onClick={toList}>
+                {translate("machines.wizard.toList" as never)}
+              </UI.Button>
+            }
+            variant="firstUse"
+          />
+        </UI.SettingsContent>
+      </>
+    );
+  }
+
+  const stepName = translate(`machines.wizard.step.${step}` as never);
+  const installReady = step === "install" && input !== null && agent !== null;
+  return (
+    <>
+      <ShellActiveNavigation id="machines" />
+      {breadcrumbs}
+      <UI.SettingsContent data-testid="machine-wizard">
+        <UI.PageHeader
+          variant="list"
+          title={translate("machines.wizard.title" as never)}
+          subtitle={translate("machines.wizard.progress" as never, {
+            n: stepIndex + 1,
+            count: WIZARD_STEPS.length,
+            name: stepName,
+          })}
+        />
+        <UI.Heading level="section" rank={2}>
+          {stepName}
+        </UI.Heading>
+        {step === "system"
+          ? (
+            <SystemStep
+              answers={answers}
+              onChange={setAnswers}
+              showProblems={showProblems}
+              translate={translate}
+            />
+          )
+          : null}
+        {step === "agent"
+          ? (
+            <AgentStep
+              answers={answers}
+              onChange={setAnswers}
+              showProblem={showProblems}
+              translate={translate}
+            />
+          )
+          : null}
+        {installReady
+          ? (
+            <InstallStep
+              input={input}
+              agent={agent}
+              issued={issued}
+              enrollmentId={enrollmentId}
+              translate={translate}
+              onNewSettings={(version) => void newSettings(version)}
+              onDone={(workerHostId) =>
+                void navigate(
+                  workerHostId
+                    ? {
+                      to: "/machines/$machineId",
+                      params: { machineId: workerHostId },
+                    }
+                    : { to: "/machines" },
+                )}
+            />
+          )
+          : null}
+        {step === "install" && !installReady && !failed
+          ? (
+            <UI.Text variant="muted" role="status">
+              {translate("machines.wizard.install.creating" as never)}
+            </UI.Text>
+          )
+          : null}
+        {step === "install" && busy && issued === null
+          ? (
+            <UI.Text variant="muted" role="status">
+              {translate("machines.wizard.install.creating" as never)}
+            </UI.Text>
+          )
+          : null}
+        {failed
+          ? (
+            <UI.AlertBanner tone="error">
+              {translate("machines.wizard.install.failed" as never)}
+            </UI.AlertBanner>
+          )
+          : null}
+        <UI.Inline variant="end" gap="compact">
+          {step === "system"
+            ? (
+              <UI.Button variant="secondary" onClick={toList}>
+                {translate("machines.wizard.cancel" as never)}
+              </UI.Button>
+            )
+            : null}
+          {step === "agent" || (step === "install" && issued === null &&
+              !finishId && failed)
+            ? (
+              <UI.Button variant="secondary" onClick={back}>
+                {translate("machines.wizard.back" as never)}
+              </UI.Button>
+            )
+            : null}
+          {step === "install" && issued === null && !finishId && failed
+            ? (
+              <UI.Button
+                variant="primary"
+                disabled={busy}
+                onClick={() => void createSettings()}
+              >
+                {translate("machines.wizard.install.tryAgain" as never)}
+              </UI.Button>
+            )
+            : null}
+          {step === "system" || step === "agent"
+            ? (
+              <UI.Button variant="primary" onClick={next}>
+                {translate("machines.wizard.continue" as never)}
+              </UI.Button>
+            )
+            : null}
+          {step === "install" && finishId && issued === null
+            ? (
+              <UI.Button variant="secondary" onClick={toList}>
+                {translate("machines.wizard.toList" as never)}
+              </UI.Button>
+            )
+            : null}
+        </UI.Inline>
+      </UI.SettingsContent>
+    </>
+  );
+}
