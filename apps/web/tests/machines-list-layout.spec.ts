@@ -1,3 +1,4 @@
+import { rowActionGeometry } from "./helpers/row-action-overlap.ts";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 import {
@@ -131,6 +132,7 @@ test.describe("machines list layout", () => {
       await expect(rows).toHaveCount(WORKERS.length);
       await expect(machines.getByRole("listitem")).toHaveCount(WORKERS.length);
 
+      const widths = new Set<number>();
       for (const item of WORKERS) {
         const row = machines.locator(`[data-machine-id="${item.id}"]`);
         await expect(row).toContainText(item.name);
@@ -139,7 +141,13 @@ test.describe("machines list layout", () => {
         const box = await button.boundingBox();
         expect(box?.height ?? 999).toBeGreaterThanOrEqual(44);
         expect(box?.height ?? 999).toBeLessThan(64);
+        // Under the line, not on it, and as wide as every other row's button.
+        const geometry = await rowActionGeometry(row);
+        expect(geometry.overlaps, `${item.name}: the control covers text`)
+          .toEqual([]);
+        widths.add(geometry.width);
       }
+      expect([...widths], "one width for Fix and Open").toHaveLength(1);
       // One badge, one line and one button per machine, and no second status.
       const first = rows.first();
       await expect(first).toContainText("macOS · Claude Code, Codex · 1 slot");

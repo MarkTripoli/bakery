@@ -1,5 +1,9 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
+import {
+  type RowActionGeometry,
+  rowActionGeometry,
+} from "./helpers/row-action-overlap.ts";
 import { shot } from "./helpers/real-api.ts";
 import {
   MOCK_ORGANIZATION_ID,
@@ -159,6 +163,7 @@ test.describe("machines list states", () => {
       ],
       ["old-mac-08", "Retired", "Retired. It no longer takes work.", "Open"],
     ];
+    const geometries: RowActionGeometry[] = [];
     for (const [name, badge, line, action] of expectations) {
       const row = rowOf(page, name);
       await expect(row, name).toContainText(badge);
@@ -176,7 +181,24 @@ test.describe("machines list states", () => {
       await expect(row.locator("[data-ui-component=badge]"), name).toHaveCount(
         1,
       );
+      // The control sits beside or under the row's text, never on it.
+      const geometry = await rowActionGeometry(row);
+      expect(
+        geometry.overlaps,
+        `${name}: the ${geometry.label} control covers text`,
+      )
+        .toEqual([]);
+      geometries.push(geometry);
     }
+    // Fix and Open are the same size: one fixed width across the list.
+    expect(
+      new Set(
+        geometries.map((geometry) => `${geometry.width}x${geometry.height}`),
+      ).size,
+      `control sizes: ${
+        geometries.map((g) => `${g.label} ${g.width}x${g.height}`).join(", ")
+      }`,
+    ).toBe(1);
     // A fleet of nine machines is a list: no filter yet.
     await expect(page.getByRole("group", { name: "Show machines" }))
       .toHaveCount(0);
