@@ -85,6 +85,7 @@ type LockedConnection = {
   version: number;
   installationExternalId: string;
   installationStatus: string;
+  secretId: string | null;
 };
 
 /**
@@ -102,6 +103,7 @@ async function lockConnection(
 ): Promise<LockedConnection> {
   const result = await transaction.query<LockedConnection>(
     `select connection.id, connection.status, connection.version,
+       connection.secret_id as "secretId",
        connection.external_authorization_id as "installationExternalId",
        installation.status as "installationStatus"
        from bakery.integration_connections as connection
@@ -359,6 +361,72 @@ async function readResource(
     throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   }
   return resource;
+}
+
+/**
+ * integrationConnections.remove (#68): an Admin removes a connection. It ends
+ * as `revoked`, which no update can change; its repository selections are
+ * released (selection is exclusive, so another connection may take them) and
+ * its reference to an organization secret is dropped. The secret itself is an
+ * organization resource and is not deleted here. The host-owned provider
+ * installation is untouched; connecting it again through the provider setup
+ * returns the connection to `pending`.
+ */
+export async function removeConnection(
+  context: ActionContext,
+): Promise<Connection> {
+  const { context: value, actor } = organizationActor(context);
+  const id = connectionPath(value);
+  const expectedVersion = requireExpectedVersion(value);
+  const { transaction } = value;
+  const current = await lockConnection(
+    transaction,
+    actor.organizationId,
+    id,
+    expectedVersion,
+    true,
+  );
+  const released = await transaction.query(
+    `update bakery.integration_resources
+        set selected = false, version = version + 1, updated_at = now()
+      where organization_id = $1 and connection_id = $2 and selected`,
+    [actor.organizationId, id],
+  );
+  const updated = await transaction.query<{ version: number }>(
+    `update bakery.integration_connections
+        set status = 'revoked', secret_id = null,
+            version = version + 1, updated_at = now()
+      where organization_id = $1 and id = $2 and version = $3
+      returning version`,
+    [actor.organizationId, id, expectedVersion],
+  );
+  const version = updated.rows[0]?.version;
+  if (version === undefined) {
+    throw new StandardError({ code: "PRECONDITION_FAILED" });
+  }
+  await recordAuthAudit(transaction, value, {
+    organizationId: actor.organizationId,
+    principalId: actor.subject.principalId,
+    operation: Action.IntegrationConnectionsRemove,
+    resourceType: "integration_connection",
+    resourceId: id,
+    details: {
+      provider: GITHUB_PROVIDER,
+      from: current.status,
+      to: "revoked",
+      releasedResources: released.rowCount ?? 0,
+      secretUnbound: current.secretId !== null,
+    },
+  });
+  await appendDomainEvent(transaction, {
+    organizationId: actor.organizationId,
+    eventType: CONNECTION_UPDATED,
+    aggregateId: id,
+    aggregateVersion: version,
+    payload: { resourceId: id, resourceVersion: version },
+    traceId: value.traceId,
+  });
+  return await getConnection(value, { id });
 }
 
 /**

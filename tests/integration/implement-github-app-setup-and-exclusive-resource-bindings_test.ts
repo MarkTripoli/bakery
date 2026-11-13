@@ -52,6 +52,7 @@ import {
   readRegistration,
   registerApp,
   registrationFacts,
+  removeConnection,
   resourceRows,
   secondOrganization,
   settingsLocation,
@@ -3349,6 +3350,83 @@ Deno.test("a same-account reinstall reconnect fails reconnect_unavailable when a
       (await selectedHolders(f, target.external_id)).sort(),
       [f.organizationId, secondId].sort(),
     );
+  });
+});
+
+Deno.test("an Admin removes a connection: it ends revoked, its repositories are released and no update can revive it (#68)", async () => {
+  await withFixture(async (f) => {
+    const { connectionId, resources } = await pendingConnection(f);
+    const [target] = resources;
+    const selected = await patchResource(f, connectionId, target.id, {
+      selected: true,
+    });
+    assertEquals(selected.status, 200, await selected.clone().text());
+
+    // A Developer may not remove it, and a stale If-Match changes nothing.
+    const forbidden = await removeConnection(f, connectionId, {
+      cookie: f.developerCookie,
+    });
+    assertEquals(forbidden.status, 403, await forbidden.clone().text());
+    const stale = await removeConnection(f, connectionId, {
+      ifMatch: versionTag(1),
+    });
+    assertEquals(stale.status, 412, await stale.clone().text());
+    assertEquals((await connectionState(f, connectionId)).status, "pending");
+
+    // An Admin of another organization cannot see it to remove it, and
+    // nothing of it changes: status, secret reference and selections.
+    const before = await f.pgDatabase.query<
+      { status: string; secret_id: string | null; version: number }
+    >(
+      `select status, secret_id, version from bakery.integration_connections
+        where id = $1`,
+      [connectionId],
+    );
+    const otherOrganization = await secondOrganization(f);
+    const foreign = await removeConnection(f, connectionId, {
+      organizationId: otherOrganization,
+    });
+    assertEquals(foreign.status, 404, await foreign.clone().text());
+    assert((await foreign.text()).includes("RESOURCE_NOT_FOUND"));
+    const after = await f.pgDatabase.query<
+      { status: string; secret_id: string | null; version: number }
+    >(
+      `select status, secret_id, version from bakery.integration_connections
+        where id = $1`,
+      [connectionId],
+    );
+    assertEquals(after.rows[0], before.rows[0]);
+    assertEquals(
+      (await connectionState(f, connectionId)).resources
+        .filter((row) => row.selected).map((row) => row.id),
+      [target.id],
+    );
+
+    const removed = await removeConnection(f, connectionId);
+    assertEquals(removed.status, 200, await removed.clone().text());
+    const connection = await removed.json();
+    assertEquals(connection.status, "revoked");
+    assertEquals(connection.secretId, null);
+    const state = await connectionState(f, connectionId);
+    assertEquals(state.status, "revoked");
+    assertEquals(state.resources.filter((row) => row.selected), []);
+
+    // Revoked is final for every Admin edit, removal included.
+    const again = await removeConnection(f, connectionId);
+    assertEquals(again.status, 409, await again.clone().text());
+    const revive = await patchConnection(f, connectionId, { enabled: true });
+    assertEquals(revive.status, 409, await revive.clone().text());
+
+    const audit = await f.pgDatabase.query<
+      { details: Record<string, unknown> }
+    >(
+      `select details from bakery.audit_events
+        where operation = 'integrationConnections.remove' and resource_id = $1`,
+      [connectionId],
+    );
+    assertEquals(audit.rows.length, 1);
+    assertEquals(audit.rows[0].details.releasedResources, 1);
+    assertEquals(audit.rows[0].details.to, "revoked");
   });
 });
 
