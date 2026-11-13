@@ -282,10 +282,22 @@ for (
       // The same failure gets the same button everywhere: it says Retry.
       const retry = page.getByRole("button", { name: "Retry" });
       await expect(retry).toBeFocused();
-      // Window-only, scrolled to the notice: a full-page capture of this long page
-      // draws the sticky rail below a blank gap.
-      await retry.scrollIntoViewIfNeeded();
-      await shot(page, "machines-load-more-failed", [], { windowOnly: true });
+      // Window-only at each size, scrolled to the notice after the resize (the
+      // helper's own resize resets the scroll, and a full-page capture of this
+      // long page draws the sticky rail below a blank gap).
+      for (
+        const [only, size] of [
+          ["desktop", { width: 1440, height: 900 }],
+          ["mobile", { width: 390, height: 844 }],
+        ] as const
+      ) {
+        await page.setViewportSize(size);
+        await retry.scrollIntoViewIfNeeded();
+        await shot(page, "machines-load-more-failed", [], {
+          windowOnly: true,
+          only,
+        });
+      }
       await retry.click();
       await expect(added(page)).toBeFocused();
     });
