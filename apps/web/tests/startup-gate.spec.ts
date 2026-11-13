@@ -282,7 +282,7 @@ for (
       await expect(workspace).not.toContainText("Organization");
       // Then the organization's own name.
       await expect(workspace).toContainText("Fixture Org");
-      await shot(page, "rail-organization-name");
+      await shot(page, "rail-organization-name", [], { windowOnly: true });
     });
 
     test("typed input survives a background reload of the page's data", async ({ page }) => {
@@ -328,7 +328,8 @@ for (
       await expect(dialog).toBeVisible();
       await expect(dialog.getByText("Your changes on this page will be lost."))
         .toBeVisible();
-      await shot(page, "startup-leave-dialog");
+      // Window-only: a full-page capture dims only the first screen of a long page.
+      await shot(page, "startup-leave-dialog", [], { windowOnly: true });
       await dialog.getByRole("button", { name: "Stay" }).click();
       await expect(dialog).toHaveCount(0);
       await expect(page).toHaveURL(/\/settings\/profile/);
