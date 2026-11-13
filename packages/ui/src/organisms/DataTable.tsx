@@ -6,7 +6,7 @@ export type DataTableColumn<Row> = {
   header: ReactNode;
   id: string;
   sortable?: boolean;
-  /** `ruled` layout: the column's width as a CSS length; one column may omit it. */
+  /** The column's width as a CSS length or share (`50%`); the other columns share the rest. In the `ruled` layout one column may omit it. */
   width?: string;
   /** `ruled` layout: align the column's content to the end. */
   align?: "start" | "end";
@@ -119,9 +119,7 @@ export function DataTable<Row>(
                 aria-sort={sort?.id === column.id ? sort.direction : undefined}
                 data-align={column.align}
                 key={column.id}
-                style={variant === "ruled"
-                  ? { width: column.width }
-                  : undefined}
+                style={column.width ? { width: column.width } : undefined}
                 scope="col"
               >
                 {column.sortable

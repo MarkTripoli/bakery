@@ -215,6 +215,7 @@ function fakeApi(
     updateRepositoryRole: rejecting,
     resolveRepositoryRole: rejecting,
     getOrganizationRepositoryRules: rejecting,
+    getRepositoryEffectiveRules: rejecting,
     listOrganizationRepositoryRuleVersions: rejecting,
     previewOrganizationRepositoryRules: rejecting,
     publishOrganizationRepositoryRules: rejecting,
