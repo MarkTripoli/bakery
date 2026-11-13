@@ -27,6 +27,11 @@ import {
 } from "./render-enterprise-references.mjs";
 import { computeSourceIdentity } from "./render-paper-references.mjs";
 import { workerReadinessMarkup } from "./worker-readiness-reference.mjs";
+import {
+  deriveWorkerDarkRuntimeContext,
+  RUNTIME_CASES_PATH,
+  WORKER_DARK_RUNTIME_CONTEXT,
+} from "./worker-dark-runtime-context.mjs";
 import { WHOLE_ARTBOARD_BINDING } from "./paper-whole-artboard.mjs";
 import {
   DERIVED_SOURCE,
@@ -41,6 +46,7 @@ const k0 = "docs/technical-design/worker-readiness";
 const manifestPath = `${mocks}/paper-manifest.json`;
 const sourceManifestPath = `${mocks}/source-manifest.json`;
 const themePath = `${mocks}/theme-values.json`;
+const runtimeContextPath = `${mocks}/runtime-context.json`;
 const fragmentPath =
   `${mocks}/site/fragments/detail--default--dark--phone.html`;
 const fontsDirectory = "docs/technical-design/enterprise-mocks/fonts";
@@ -57,7 +63,7 @@ const LIGHT_FRAME_ID = "90D-0";
 const STORY_ID = "bakery-templates-workerreadonlydetail--contract";
 // The runtime context the approved light phone case is captured under; the
 // dark case uses it with only the theme changed.
-const LIGHT_CONTEXT = "paper-detail-light-phone";
+const LIGHT_CONTEXT = WORKER_DARK_RUNTIME_CONTEXT;
 
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const read = (path) => readFile(join(root, path));
@@ -185,6 +191,12 @@ export async function generateWorkerDarkFiles() {
     [sourceManifestPath, Buffer.from(json(sourceManifest))],
     [`${mocks}/site/index.html`, Buffer.from(SITE_INDEX)],
     [`${mocks}/site/site.js`, Buffer.from(SITE_JS)],
+    [
+      runtimeContextPath,
+      deriveWorkerDarkRuntimeContext(
+        (await read(RUNTIME_CASES_PATH)).toString("utf8"),
+      ),
+    ],
   ]);
   return files;
 }
@@ -260,13 +272,10 @@ async function writeReferences(browser) {
   }
   await mkdir(dirname(join(root, fragmentPath)), { recursive: true });
   await writeFile(join(root, fragmentPath), await fragmentBytes());
-  const runtime = await readJson(
-    "docs/technical-design/ui-baselines/runtime-cases.json",
-  );
-  const lightContext = runtime.contexts[LIGHT_CONTEXT];
-  if (!lightContext) {
-    throw new Error(`missing runtime context ${LIGHT_CONTEXT}`);
-  }
+  // The slice, not runtime-cases.json: the baseline hashes the slice, so the
+  // case can depend on nothing the digest does not cover.
+  const lightContext = JSON.parse(files.get(runtimeContextPath))
+    .contexts[LIGHT_CONTEXT];
   const baseline = {
     schemaVersion: 2,
     source: {
@@ -290,7 +299,7 @@ async function writeReferences(browser) {
         ...JSON.parse(files.get(sourceManifestPath)).fonts.files.map((font) =>
           font.path
         ),
-        "docs/technical-design/ui-baselines/runtime-cases.json",
+        runtimeContextPath,
         "packages/ui/scripts/fontconfig/fonts.conf",
         "packages/ui/scripts/derive-worker-dark-source.mjs",
         "packages/ui/scripts/render-worker-dark-references.mjs",

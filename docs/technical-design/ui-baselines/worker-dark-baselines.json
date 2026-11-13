@@ -27,15 +27,15 @@
       "docs/technical-design/enterprise-mocks/fonts/geist-mono-400.ttf",
       "docs/technical-design/enterprise-mocks/fonts/geist-mono-500.ttf",
       "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf",
-      "docs/technical-design/ui-baselines/runtime-cases.json",
+      "docs/technical-design/worker-dark-mocks/runtime-context.json",
       "packages/ui/scripts/fontconfig/fonts.conf",
       "packages/ui/scripts/derive-worker-dark-source.mjs",
       "packages/ui/scripts/render-worker-dark-references.mjs",
       "packages/ui/scripts/render-enterprise-references.mjs",
       "packages/ui/scripts/worker-readiness-reference.mjs"
     ],
-    "revision": "paper:ebf667e2; mock:f929e4ca; rendered:2026-11-10",
-    "digest": "f929e4ca43bf60c83b0b8de50011398002dd06ceb3158333f7354c9fd5bcbeb3"
+    "revision": "paper:ebf667e2; mock:d7650b13; rendered:2026-11-13",
+    "digest": "d7650b132e34f767801dff26f882a8f673860f518fdba636b2cf9e63b753ea70"
   },
   "reference": {
     "hidden": [],

@@ -257,6 +257,62 @@ for (const outcome of ["completed", "failed"] as Outcome[]) {
     }));
 }
 
+Deno.test("an outcome that is not a string but coerces to one is refused, not coerced", () =>
+  withWorkerFixture(async (fixture) => {
+    const { job, repository, owner } = await seedRun(fixture, { plan: true });
+    for (
+      const outcome of [
+        ["completed"],
+        new String("failed"),
+        { toString: () => "canceled" },
+      ]
+    ) {
+      await assertRejects(
+        () => repository.finishPlanRun(job.runId, outcome as never, owner),
+        Error,
+        "WORKFLOW_PLAN_OUTCOME_INVALID",
+      );
+    }
+    assertEquals((await snapshotOf(fixture, job)).run.status, "running");
+  }));
+
+Deno.test("a task that was already canceled is not overwritten: the end rolls back whole", () =>
+  withWorkerFixture(async (fixture) => {
+    const { job, repository, owner } = await seedRun(fixture, { plan: true });
+    await fixture.pgDatabase.query(
+      `update bakery.tasks set status = 'canceled' where id = $1`,
+      [job.taskId],
+    );
+    const before = await snapshotOf(fixture, job);
+    await assertRejects(
+      () => repository.finishPlanRun(job.runId, "completed", owner),
+      Error,
+      "WORKFLOW_PLAN_PROJECTION_CONFLICT",
+    );
+    const after = await snapshotOf(fixture, job);
+    assertEquals(after.run.status, "running");
+    assertEquals(after.run.version, before.run.version);
+    assertEquals(after.task.status, "canceled");
+    assertEquals(after.events, before.events);
+  }));
+
+Deno.test("a task that no longer points at this run is not ended by it", () =>
+  withWorkerFixture(async (fixture) => {
+    const { job, repository, owner } = await seedRun(fixture, { plan: true });
+    await fixture.pgDatabase.query(
+      `update bakery.tasks set current_run_id = null where id = $1`,
+      [job.taskId],
+    );
+    await assertRejects(
+      () => repository.finishPlanRun(job.runId, "completed", owner),
+      Error,
+      "WORKFLOW_PLAN_PROJECTION_CONFLICT",
+    );
+    const after = await snapshotOf(fixture, job);
+    assertEquals(after.run.status, "running");
+    assertEquals(after.task.status, "active");
+  }));
+
 Deno.test("an outcome outside the three ends is refused before anything is read", () =>
   withWorkerFixture(async (fixture) => {
     const { job, repository, owner } = await seedRun(fixture, { plan: true });

@@ -536,7 +536,9 @@ the evidence that the pairs differ by colour token only.
 
 `docs/technical-design/worker-dark-mocks/` holds the generated derived source,
 `paper-manifest.json` (renderer inputs), `source-manifest.json` (provenance:
-inputs, map, method), a byte copy of K-0 `theme-values.json` and a static
+inputs, map, method), `runtime-context.json` (the one `runtime-cases.json`
+context the renderer reads, so a new runtime case never moves the digest), a
+byte copy of K-0 `theme-values.json` and a static
 `site/` whose fragment is the pinned K-0 JSX renderer's output
 (`workerReadinessMarkup`, imported, never edited) with fonts served from
 `enterprise-mocks/fonts` (byte-identical to the K-0 fonts).
