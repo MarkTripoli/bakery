@@ -49,7 +49,8 @@ export type IconGlyphName =
   | "plan"
   | "chat"
   | "chevron-left"
-  | "lanes";
+  | "lanes"
+  | "info";
 
 // Additional shell glyphs: approved K-0 9VJ-0/9ZB-0 exports; listening bars:
 // AR1-0. Exact paths and viewports, theme-aware ink; never a font substitute.
@@ -387,6 +388,15 @@ const GLYPH_PATHS: Record<IconGlyphName, ReactNode> = {
   file: <path d="M13 2H5v20h14V8zM13 2v6h6M8 12h8M8 16h8" />,
   // Conversation frames p-18-0: queued-turn clock, refresh and caution
   // notices, and the plan pane file.
+  // Help tips: the information button that explains a label in place. The dot
+  // is a filled circle because the base icon stroke has butt caps.
+  info: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5" />
+      <circle cx="12" cy="8" fill="currentColor" r="1" stroke="none" />
+    </>
+  ),
   clock: (
     <>
       <circle cx="12" cy="12" r="9" />

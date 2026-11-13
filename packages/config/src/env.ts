@@ -271,6 +271,11 @@ export type RuntimeConfig = {
   /** Reverse proxies whose X-Forwarded-For the server trusts; server only. */
   trustedProxies?: TrustedProxies;
   /**
+   * Isolated draft workers at once (`BAKERY_DRAFT_WORKER_POOL_SIZE`); server
+   * only. Absent means the built-in default pool.
+   */
+  draftWorkerPoolSize?: number;
+  /**
    * How draft isolation workers start (`BAKERY_DRAFT_ISOLATION`); server
    * only. Read here with the rest of the configuration, so the app never
    * reads the environment itself (#306).
@@ -827,6 +832,10 @@ export function readRuntimeConfig(
       invalidConfig.push("BAKERY_SKILL_FILE_ROOT");
     }
   }
+  // An invalid size fails start-up (DRAFT_WORKER_POOL_SIZE_INVALID).
+  const draftWorkerPoolSize = kind === "server"
+    ? readDraftWorkerPoolSize(env)
+    : undefined;
   // An unknown launcher fails start-up (DRAFT_ISOLATION_CONFIG_INVALID), as
   // it did when the app read it: never fall back to a weaker isolation.
   const draftIsolationLauncher = kind === "server"
@@ -835,6 +844,7 @@ export function readRuntimeConfig(
   const config: RuntimeConfig = {
     sentry: readSentryConfig(env, kind, environment),
     ...(draftIsolationLauncher ? { draftIsolationLauncher } : {}),
+    ...(draftWorkerPoolSize === undefined ? {} : { draftWorkerPoolSize }),
     ...(budget ? { budget } : {}),
     ...(configuredSecretsKey?.success
       ? { secretsKey: configuredSecretsKey.data }
@@ -940,6 +950,24 @@ export function readDraftIsolationLauncher(
     throw new Error("DRAFT_ISOLATION_CONFIG_INVALID");
   }
   return value;
+}
+
+/**
+ * `BAKERY_DRAFT_WORKER_POOL_SIZE`: how many isolated draft workers may run at
+ * once, process-wide (#243, #297). Unset means the built-in default. Each
+ * organization always gets half of it (rounded up, at least 1), and more
+ * while one slot stays free. Read once by readRuntimeConfig; the app never
+ * reads the environment itself.
+ */
+export function readDraftWorkerPoolSize(
+  env: Record<string, string | undefined>,
+): number | undefined {
+  const raw = env.BAKERY_DRAFT_WORKER_POOL_SIZE?.trim();
+  if (!raw) return undefined;
+  if (!/^[1-9][0-9]?$/.test(raw)) {
+    throw new Error("DRAFT_WORKER_POOL_SIZE_INVALID");
+  }
+  return Number(raw);
 }
 
 export type ArtifactStorageConfig = {
