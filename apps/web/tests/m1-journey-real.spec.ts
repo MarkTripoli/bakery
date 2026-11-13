@@ -682,7 +682,7 @@ test("P3 worker: Machines UI enrollment, token reveal, worker start, truthful re
 
   await startWorker();
   // The page polls the enrollment and says so when the machine registers.
-  await expect(page.getByText("Connected.")).toBeVisible({
+  await expect(page.getByText("m1-claude-worker is connected.")).toBeVisible({
     timeout: 5 * MINUTE,
   });
   await page.getByRole("button", { name: "Done" }).click();

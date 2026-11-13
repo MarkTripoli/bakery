@@ -16,8 +16,8 @@ type EnrollmentRow = WorkerEnrollmentListResponse["items"][number];
 /**
  * Machines whose setup was started and not finished (#70): "Finishing setup",
  * at the top of the list. A setup that is waiting for its machine can be
- * continued or canceled; one whose settings expired can be continued, which
- * gets new settings. Connected and canceled setups are not listed: a
+ * given new settings or canceled; so can one whose settings expired (the
+ * server cancels any setup that has not connected). Connected and canceled setups are not listed: a
  * connected machine is a row in the list below.
  */
 export function FinishingSetup(
@@ -82,66 +82,66 @@ export function FinishingSetup(
   };
 
   return (
-    <UI.Stack gap="standard" data-testid="machines-finishing-setup">
-      <UI.Heading level="section" rank={2}>
-        {translate("machines.finishing.title" as never)}
-      </UI.Heading>
-      {failed
-        ? (
-          <UI.AlertBanner tone="error">
-            {translate("machines.finishing.error" as never)}
-          </UI.AlertBanner>
-        )
-        : null}
-      <UI.Stack
-        gap="none"
-        role="list"
-        aria-label={translate("machines.finishing.title" as never)}
-      >
-        {rows.map(({ row, state }) => (
-          <div
-            key={row.enrollmentId}
-            role="listitem"
-            data-enrollment-id={row.enrollmentId}
-          >
-            <UI.StackedRow
-              title={row.name}
-              status={
-                <UI.Badge tone={state === "expired" ? "warning" : "neutral"}>
+    <>
+      <UI.Stack gap="standard" data-testid="machines-finishing-setup">
+        <UI.Heading level="section" rank={2} inset="row">
+          {translate("machines.finishing.title" as never)}
+        </UI.Heading>
+        {failed
+          ? (
+            <UI.AlertBanner tone="error">
+              {translate("machines.finishing.error" as never)}
+            </UI.AlertBanner>
+          )
+          : null}
+        <UI.Stack
+          gap="none"
+          role="list"
+          aria-label={translate("machines.finishing.title" as never)}
+        >
+          {rows.map(({ row, state }) => (
+            <div
+              key={row.enrollmentId}
+              role="listitem"
+              data-enrollment-id={row.enrollmentId}
+            >
+              <UI.StackedRow
+                title={row.name}
+                status={
+                  <UI.Badge tone={state === "expired" ? "warning" : "neutral"}>
+                    {translate(
+                      (state === "expired"
+                        ? "machines.finishing.badge.expired"
+                        : "machines.finishing.badge.waiting") as never,
+                    )}
+                  </UI.Badge>
+                }
+              >
+                <UI.Text variant="caption">
                   {translate(
                     (state === "expired"
-                      ? "machines.finishing.badge.expired"
-                      : "machines.finishing.badge.waiting") as never,
+                      ? "machines.finishing.expired"
+                      : "machines.finishing.waiting") as never,
                   )}
-                </UI.Badge>
-              }
-            >
-              <UI.Text variant="caption">
-                {translate(
-                  (state === "expired"
-                    ? "machines.finishing.expired"
-                    : "machines.finishing.waiting") as never,
-                )}
-              </UI.Text>
-              <UI.Inline gap="compact">
-                <UI.Button
-                  variant="primary"
-                  aria-label={translate(
-                    "machines.finishing.continueNamed" as never,
-                    { name: row.name },
-                  )}
-                  onClick={() =>
-                    void navigate({
-                      to: "/machines/new",
-                      search: { finish: row.enrollmentId },
-                    })}
-                >
-                  {translate("machines.finishing.continue" as never)}
-                </UI.Button>
-                {state === "waiting"
-                  ? (
+                </UI.Text>
+                <UI.Inline gap="compact">
+                  <UI.Button
+                    variant="secondary"
+                    aria-label={translate(
+                      "machines.finishing.continueNamed" as never,
+                      { name: row.name },
+                    )}
+                    onClick={() =>
+                      void navigate({
+                        to: "/machines/new",
+                        search: { finish: row.enrollmentId },
+                      })}
+                  >
+                    {translate("machines.finishing.continue" as never)}
+                  </UI.Button>
+                  {
                     <UI.Button
-                      variant="secondary"
+                      variant="destructive-outline"
                       aria-label={translate(
                         "machines.finishing.cancelNamed" as never,
                         { name: row.name },
@@ -150,13 +150,17 @@ export function FinishingSetup(
                     >
                       {translate("machines.finishing.cancel" as never)}
                     </UI.Button>
-                  )
-                  : null}
-              </UI.Inline>
-            </UI.StackedRow>
-          </div>
-        ))}
+                  }
+                </UI.Inline>
+              </UI.StackedRow>
+            </div>
+          ))}
+        </UI.Stack>
       </UI.Stack>
-    </UI.Stack>
+      {/* The machines below the group get their own heading at the same level. */}
+      <UI.Heading level="section" rank={2} inset="row">
+        {translate("machines.finishing.machines" as never)}
+      </UI.Heading>
+    </>
   );
 }

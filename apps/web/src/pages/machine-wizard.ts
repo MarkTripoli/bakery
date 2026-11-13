@@ -108,6 +108,24 @@ const HARNESS: Readonly<
   pi: { prefix: "PI", program: "pi" },
 };
 
+/** The folder the coding agent works in unless the person changes it. */
+export const HARNESS_REPOSITORY = "/workspace/repository";
+
+/** The setting that names that folder, for the sentence that tells the person to change it. */
+export function harnessRepositorySetting(agent: CodingAgent): string {
+  return `BAKERY_${HARNESS[agent].prefix}_HARNESS_REPOSITORY`;
+}
+
+/**
+ * Whether Bakery can run its worker on this system by the steps the wizard
+ * shows. Only Linux can: its steps are the production layout
+ * (`infra/production`). There is no installer, and no tested way to run the
+ * worker, on macOS yet.
+ */
+export function hasInstaller(os: MachineSystem): boolean {
+  return os === "linux";
+}
+
 /**
  * The settings the worker is started with: the exact values, in the order the
  * install step shows them. The setup code itself is never in them: the worker
@@ -129,7 +147,7 @@ export function workerEnvironment(options: {
     `BAKERY_WORKER_SLOTS=${input.slots}`,
     `BAKERY_WORKER_CAPABILITIES=${input.capabilities.join(",")}`,
     `BAKERY_${prefix}_HARNESS=1`,
-    `BAKERY_${prefix}_HARNESS_REPOSITORY=/workspace/repository`,
+    `${harnessRepositorySetting(options.agent)}=${HARNESS_REPOSITORY}`,
     `BAKERY_${prefix}_HARNESS_TIME_LIMIT_MS=120000`,
     `BAKERY_${prefix}_HARNESS_EXECUTABLE=${program}`,
   ].join("\n");

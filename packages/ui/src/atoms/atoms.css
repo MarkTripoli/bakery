@@ -268,3 +268,11 @@
     font: var(--type-hint);
   }
 }
+
+/* A heading above stacked rows lines up with the rows' text on a phone, where
+   a stacked row insets its content from the page edge by the row's padding. */
+@media (max-width: 743px) {
+  .ui-heading[data-inset="row"] {
+    padding-inline: var(--space-4);
+  }
+}

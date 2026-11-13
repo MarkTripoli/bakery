@@ -19,6 +19,8 @@ import {
   agentOfCapabilities,
   type EnrollmentInput,
   enrollmentInput,
+  harnessRepositorySetting,
+  hasInstaller,
   initialAnswers,
   installState,
   type MachineSystem,
@@ -51,30 +53,33 @@ function Numbered(
   { n, text }: { n: number; text: string },
 ) {
   return (
-    <UI.Heading level="subsection" rank={3}>
+    <UI.Heading level="subsection" rank={2}>
       {`${n}. ${text}`}
     </UI.Heading>
   );
 }
 
-/** A block of values to copy, with its own Copy button. */
+/** A value or block of values to copy, with its one Copy button under it. */
 function Copyable(
-  { code, label, translate }: {
+  { code, label, translate, secret = false }: {
     code: string;
     label: string;
     translate: Translator;
+    /** A one-time secret: shown as the setup-code plate, not as code. */
+    secret?: boolean;
   },
 ) {
   const [copied, setCopied] = useState(false);
   return (
     <UI.Stack gap="compact">
-      <UI.CodeBlock
-        code={code}
-        language="dotenv"
-        variant="command"
-        copied={copied}
-        aria-label={label}
-      />
+      {secret ? <UI.SetupKey>{code}</UI.SetupKey> : (
+        <UI.CodeBlock
+          code={code}
+          language="dotenv"
+          variant="command"
+          aria-label={label}
+        />
+      )}
       <UI.Inline gap="compact">
         <UI.Button
           variant="secondary"
@@ -135,6 +140,9 @@ function SystemStep(
         />
       </UI.Field>
       <UI.Stack gap="compact">
+        <UI.Text variant="strong">
+          {translate("machines.wizard.os" as never)}
+        </UI.Text>
         <UI.SegmentedControl
           aria-label={translate("machines.wizard.os" as never)}
           name="machine-wizard-os"
@@ -162,17 +170,22 @@ function SystemStep(
           {translate("machines.wizard.osHint" as never)}
         </UI.Text>
       </UI.Stack>
-      <UI.SegmentedControl
-        aria-label={translate("machines.wizard.processor" as never)}
-        name="machine-wizard-processor"
-        variant="inline"
-        value={answers.architecture}
-        onChange={(architecture) => onChange({ ...answers, architecture })}
-        options={PROCESSORS.map((value) => ({
-          value,
-          label: translate(`machines.wizard.processor.${value}` as never),
-        }))}
-      />
+      <UI.Stack gap="compact">
+        <UI.Text variant="strong">
+          {translate("machines.wizard.processor" as never)}
+        </UI.Text>
+        <UI.SegmentedControl
+          aria-label={translate("machines.wizard.processor" as never)}
+          name="machine-wizard-processor"
+          variant="inline"
+          value={answers.architecture}
+          onChange={(architecture) => onChange({ ...answers, architecture })}
+          options={PROCESSORS.map((value) => ({
+            value,
+            label: translate(`machines.wizard.processor.${value}` as never),
+          }))}
+        />
+      </UI.Stack>
       <UI.Field
         label={translate("machines.wizard.slots" as never)}
         htmlFor="machine-wizard-slots"
@@ -207,13 +220,13 @@ function AgentStep(
     translate: Translator;
   },
 ) {
+  const question = translate("machines.wizard.agent.question" as never);
   return (
     <UI.Stack gap="standard">
-      <UI.Stack
-        gap="compact"
-        role="radiogroup"
-        aria-label={translate("machines.wizard.agent.legend" as never)}
-      >
+      <UI.Heading level="section" rank={2}>
+        {question}
+      </UI.Heading>
+      <UI.Stack gap="compact" role="radiogroup" aria-label={question}>
         {AGENTS.map((agent) => (
           <UI.PresetOption
             key={agent}
@@ -222,7 +235,6 @@ function AgentStep(
             checked={answers.agent === agent}
             onChange={() => onChange({ ...answers, agent })}
             title={translate(`machines.agent.${agent}` as never)}
-            description={translate(`machines.wizard.agent.${agent}` as never)}
           />
         ))}
       </UI.Stack>
@@ -240,16 +252,56 @@ function AgentStep(
   );
 }
 
+/** What a Mac gets: no installer exists, so no setup is made and nothing is invented. */
+function MacNotice(
+  { translate, onAddLinux, onToList }: {
+    translate: Translator;
+    onAddLinux: () => void;
+    onToList: () => void;
+  },
+) {
+  return (
+    <UI.Stack gap="standard">
+      <UI.AlertBanner tone="information" role="status">
+        {translate("machines.wizard.install.macos" as never)}
+      </UI.AlertBanner>
+      <UI.Text>
+        {translate("machines.wizard.install.macosHelp" as never)}
+      </UI.Text>
+      <UI.Inline gap="compact">
+        <UI.Button variant="primary" onClick={onAddLinux}>
+          {translate("machines.wizard.install.addLinux" as never)}
+        </UI.Button>
+        <UI.Button variant="secondary" onClick={onToList}>
+          {translate("machines.wizard.toList" as never)}
+        </UI.Button>
+      </UI.Inline>
+    </UI.Stack>
+  );
+}
+
 /** The install step: what to do on the machine, then waiting for it to connect. */
 function InstallStep(
-  { input, agent, issued, enrollmentId, translate, onNewSettings, onDone }: {
+  {
+    input,
+    agent,
+    issued,
+    enrollmentId,
+    translate,
+    onNewSettings,
+    onDone,
+    onToList,
+    onAddLinux,
+  }: {
     input: EnrollmentInput;
     agent: CodingAgent;
     issued: IssuedCode | null;
     enrollmentId: string | null;
     translate: Translator;
     onNewSettings: (version: number) => void;
-    onDone: (workerHostId: string | null) => void;
+    onDone: (workerHostId: string) => void;
+    onToList: () => void;
+    onAddLinux: () => void;
   },
 ) {
   const api = useBakeryApi();
@@ -265,24 +317,28 @@ function InstallStep(
     enabled: enrollmentId !== null && Boolean(scope.organizationId),
   });
   const connected = status.data?.state === "consumed";
+  const hostId = status.data?.workerHostId ?? null;
+  const refetchStatus = status.refetch;
+  // The enrollment can read consumed a moment before it names the machine
+  // (and polling stops at consumed): keep asking until it does, so Done never
+  // leads anywhere but the machine.
+  useEffect(() => {
+    if (!connected || hostId !== null) return;
+    const timer = setInterval(() => void refetchStatus(), 2_000);
+    return () => clearInterval(timer);
+  }, [connected, hostId, refetchStatus]);
   useEffect(() => {
     if (!connected) return;
-    void queryClient.invalidateQueries({
-      queryKey: [
-        "protected",
-        scope.sessionGeneration,
-        scope.organizationId ?? "none",
-        "workers.list",
-      ],
-    });
-    void queryClient.invalidateQueries({
-      queryKey: [
-        "protected",
-        scope.sessionGeneration,
-        scope.organizationId ?? "none",
-        "workerEnrollments.list",
-      ],
-    });
+    for (const family of ["workers.list", "workerEnrollments.list"]) {
+      void queryClient.invalidateQueries({
+        queryKey: [
+          "protected",
+          scope.sessionGeneration,
+          scope.organizationId ?? "none",
+          family,
+        ],
+      });
+    }
   }, [connected, queryClient, scope.organizationId, scope.sessionGeneration]);
   const serverUrl = globalThis.location?.origin ?? "";
   const agentName = translate(`machines.agent.${agent}` as never);
@@ -292,16 +348,30 @@ function InstallStep(
     ? installState({ state: "pending", expiresAt: issued.expiresAt }, now)
     : "waiting";
 
+  if (!hasInstaller(input.os)) {
+    return (
+      <MacNotice
+        translate={translate}
+        onAddLinux={onAddLinux}
+        onToList={onToList}
+      />
+    );
+  }
   if (state === "connected") {
     return (
       <UI.Stack gap="standard">
         <UI.AlertBanner tone="success" role="status">
-          {translate("machines.wizard.install.connected" as never)}
+          {translate("machines.wizard.install.connected" as never, {
+            name: input.name,
+          })}
         </UI.AlertBanner>
         <UI.Inline gap="compact">
           <UI.Button
             variant="primary"
-            onClick={() => onDone(status.data?.workerHostId ?? null)}
+            disabled={hostId === null}
+            onClick={() => {
+              if (hostId !== null) onDone(hostId);
+            }}
           >
             {translate("machines.wizard.done" as never)}
           </UI.Button>
@@ -348,6 +418,7 @@ function InstallStep(
   let n = 0;
   return (
     <UI.Stack gap="standard">
+      <UI.Text>{translate("machines.wizard.install.intro" as never)}</UI.Text>
       <UI.Text variant="muted">
         {translate("machines.wizard.install.expires" as never, {
           minutes: minutesLeft(issued.expiresAt, now),
@@ -357,7 +428,12 @@ function InstallStep(
         n={++n}
         text={translate("machines.wizard.install.copyCode" as never)}
       />
-      <UI.SetupKey>{issued.code}</UI.SetupKey>
+      <Copyable
+        secret
+        code={issued.code}
+        label={translate("machines.wizard.install.copyCode" as never)}
+        translate={translate}
+      />
       <Numbered
         n={++n}
         text={translate("machines.wizard.install.saveCode" as never)}
@@ -372,24 +448,22 @@ function InstallStep(
       </UI.Text>
       <Numbered
         n={++n}
-        text={translate(
-          `machines.wizard.install.settings.${input.os}` as never,
-          { agent: agentName },
-        )}
+        text={translate("machines.wizard.install.settings.linux" as never)}
       />
       <Copyable
         code={settings}
-        label={translate(
-          `machines.wizard.install.settings.${input.os}` as never,
-          { agent: agentName },
-        )}
+        label={translate("machines.wizard.install.settings.linux" as never)}
         translate={translate}
       />
+      <UI.Text variant="muted">
+        {translate("machines.wizard.install.change" as never, {
+          setting: harnessRepositorySetting(agent),
+          agent: agentName,
+        })}
+      </UI.Text>
       <Numbered
         n={++n}
-        text={translate(
-          `machines.wizard.install.start.${input.os}` as never,
-        )}
+        text={translate("machines.wizard.install.start.linux" as never)}
       />
       {startCommand
         ? (
@@ -400,9 +474,17 @@ function InstallStep(
           />
         )
         : null}
-      <UI.Text variant="muted" role="status" aria-live="polite">
+      <UI.AlertBanner tone="information" role="status" aria-live="polite">
         {translate("machines.wizard.install.waiting" as never)}
+      </UI.AlertBanner>
+      <UI.Text variant="muted">
+        {translate("machines.wizard.install.leave" as never)}
       </UI.Text>
+      <UI.Inline gap="compact">
+        <UI.Button variant="secondary" onClick={onToList}>
+          {translate("machines.wizard.toList" as never)}
+        </UI.Button>
+      </UI.Inline>
     </UI.Stack>
   );
 }
@@ -535,7 +617,8 @@ export function MachineWizardPage(
       }
       setShowProblems(false);
       setStep("install");
-      void createSettings();
+      // A Mac has no installer: nothing is created that could not be finished.
+      if (hasInstaller(answers.os)) void createSettings();
     }
   };
   const back = () => {
@@ -626,9 +709,6 @@ export function MachineWizardPage(
             name: stepName,
           })}
         />
-        <UI.Heading level="section" rank={2}>
-          {stepName}
-        </UI.Heading>
         {step === "system"
           ? (
             <SystemStep
@@ -649,7 +729,8 @@ export function MachineWizardPage(
             />
           )
           : null}
-        {installReady
+        {installReady &&
+            (issued !== null || finishId || !hasInstaller(input.os))
           ? (
             <InstallStep
               input={input}
@@ -659,25 +740,24 @@ export function MachineWizardPage(
               translate={translate}
               onNewSettings={(version) => void newSettings(version)}
               onDone={(workerHostId) =>
-                void navigate(
-                  workerHostId
-                    ? {
-                      to: "/machines/$machineId",
-                      params: { machineId: workerHostId },
-                    }
-                    : { to: "/machines" },
-                )}
+                void navigate({
+                  to: "/machines/$machineId",
+                  params: { machineId: workerHostId },
+                })}
+              onToList={toList}
+              onAddLinux={() => {
+                setAnswers({
+                  ...answers,
+                  os: "linux",
+                  architecture: suggestedProcessor("linux"),
+                });
+                setStep("system");
+              }}
             />
           )
           : null}
-        {step === "install" && !installReady && !failed
-          ? (
-            <UI.Text variant="muted" role="status">
-              {translate("machines.wizard.install.creating" as never)}
-            </UI.Text>
-          )
-          : null}
-        {step === "install" && busy && issued === null
+        {step === "install" && !finishId && !failed && issued === null &&
+            (input === null || hasInstaller(input.os))
           ? (
             <UI.Text variant="muted" role="status">
               {translate("machines.wizard.install.creating" as never)}
@@ -700,7 +780,7 @@ export function MachineWizardPage(
             )
             : null}
           {step === "agent" || (step === "install" && issued === null &&
-              !finishId && failed)
+              !finishId && (failed || !hasInstaller(answers.os)))
             ? (
               <UI.Button variant="secondary" onClick={back}>
                 {translate("machines.wizard.back" as never)}

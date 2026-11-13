@@ -224,11 +224,11 @@ test.describe("machines list layout", () => {
       await expect(expired).toContainText(EXPIRED_NAME);
       await expect(expired).toContainText("Expired");
       await expect(expired).toContainText("The settings expired.");
-      // An expired setup can only be continued; there is nothing to cancel.
-      await expect(expired.getByRole("button")).toHaveCount(1);
+      // Either can be given new settings or canceled.
+      await expect(expired.getByRole("button")).toHaveCount(2);
       await expect(pending.getByRole("button")).toHaveCount(2);
 
-      for (const label of ["Continue setup", "Cancel"]) {
+      for (const label of ["Get new settings", "Cancel setup"]) {
         const button = pending.getByRole("button", { name: label });
         await expect(button).toBeVisible();
         const box = await button.boundingBox();
@@ -260,7 +260,7 @@ test.describe("machines list layout", () => {
           `/v1/worker-enrollments/${PENDING_ID}` &&
         request.method() === "PATCH"
       );
-      await pending.getByRole("button", { name: "Cancel" }).click();
+      await pending.getByRole("button", { name: "Cancel setup" }).click();
       expect((await cancel).headers()["idempotency-key"]).toBeTruthy();
     },
   );

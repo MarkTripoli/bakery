@@ -138,7 +138,14 @@ test.describe("add a machine wizard", () => {
     await expect(page.getByRole("heading", { name: "Add a machine", level: 1 }))
       .toBeVisible();
     await expect(page.getByText("Step 1 of 3 · Name and system")).toBeVisible();
+    // The step's name is the progress line's; it is not printed a second time.
+    await expect(page.getByRole("heading", { name: "Name and system" }))
+      .toHaveCount(0);
     await expect(page.getByText("Windows is not supported yet.")).toBeVisible();
+    // The two choices are labelled.
+    await expect(page.getByText("Operating system", { exact: true }))
+      .toBeVisible();
+    await expect(page.getByText("Processor", { exact: true })).toBeVisible();
     // The old form's words are gone.
     for (
       const word of [
@@ -154,7 +161,7 @@ test.describe("add a machine wizard", () => {
     // Step 1 refuses an empty name and a bad number of slots, in words.
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByText("Enter a name.")).toBeVisible();
-    await page.getByLabel("Name").fill("build-mac-01");
+    await page.getByLabel("Name").fill("build-box-01");
     await page.getByLabel("How many tasks at once").fill("0");
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByText("Enter a whole number from 1 to 100."))
@@ -166,19 +173,31 @@ test.describe("add a machine wizard", () => {
     await page.getByRole("radio", { name: "macOS" }).check({ force: true });
     await expect(page.getByRole("radio", { name: /Apple silicon/ }))
       .toBeChecked();
-    await expect(page.getByRole("link", { name: /Name/ })).toHaveCount(0);
+    await page.getByRole("radio", { name: "Linux" }).check({ force: true });
+    await expect(page.getByRole("radio", { name: /Intel or AMD/ }))
+      .toBeChecked();
+    await page.getByRole("radio", { name: /Apple silicon/ }).check({
+      force: true,
+    });
     await shot(page, "machines-wizard-system");
     const axeSystem = await new AxeBuilder({ page }).analyze();
     expect(axeSystem.violations.map((v) => v.id)).toEqual([]);
     await page.getByRole("button", { name: "Continue" }).click();
 
-    // Step 2: one coding agent, with the line about paying later.
+    // Step 2: the question is the heading; the cards carry only the agent's name.
     await expect(page.getByText("Step 2 of 3 · Coding agent")).toBeVisible();
     await expect(
+      page.getByRole("heading", {
+        name: "Which coding agent will this machine run?",
+      }),
+    ).toBeVisible();
+    await expect(
       page.getByText(
-        "You choose how it pays for models after the machine connects.",
+        "One coding agent per machine. You choose how it pays for models after the machine connects.",
       ),
     ).toBeVisible();
+    await expect(page.getByText("on this machine.", { exact: false }))
+      .toHaveCount(0);
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByText("Choose a coding agent to continue."))
       .toBeVisible();
@@ -194,13 +213,18 @@ test.describe("add a machine wizard", () => {
     expect(setup.creates).toHaveLength(1);
     expect(setup.creates[0]!.headers()["idempotency-key"]).toBeTruthy();
     expect(setup.creates[0]!.postDataJSON()).toEqual({
-      name: "build-mac-01",
-      os: "macos",
+      name: "build-box-01",
+      os: "linux",
       architecture: "arm64",
       capabilities: ["git", "shell", "web", "model", "codex"],
       slots: 2,
     });
-    await expect(page.getByText(/These settings work for (9|10) minutes\./))
+    await expect(
+      page.getByText(
+        "The Bakery worker is the program that runs agents on this machine.",
+      ),
+    ).toBeVisible();
+    await expect(page.getByText(/These settings work for 10 minutes\./))
       .toBeVisible();
     for (
       const [n, text] of [
@@ -209,21 +233,27 @@ test.describe("add a machine wizard", () => {
           2,
           "On the machine, save the code in a file that only its owner can read.",
         ],
-        [3, "Give Bakery on the Mac these settings."],
-        [4, "Start Bakery on the Mac with these settings."],
+        [3, "Add these settings to /etc/bakery/worker.env."],
+        [4, "Start the Bakery worker."],
       ] as const
     ) {
       await expect(page.getByRole("heading", { name: `${n}. ${text}` }))
         .toBeVisible();
     }
     const settings = settingsOf(page);
-    await expect(settings).toContainText("BAKERY_WORKER_NAME=build-mac-01");
+    await expect(settings).toContainText("BAKERY_WORKER_NAME=build-box-01");
     await expect(settings).toContainText("BAKERY_WORKER_SLOTS=2");
     await expect(settings).toContainText(
       "BAKERY_WORKER_CAPABILITIES=git,shell,web,model,codex",
     );
     await expect(settings).toContainText("BAKERY_CODEX_HARNESS=1");
     await expect(settings).not.toContainText(/CLAUDE|BAKERY_PI_/);
+    // The value that must change is named, with what to put there.
+    await expect(
+      page.getByText(
+        "Change BAKERY_CODEX_HARNESS_REPOSITORY to the folder of the Git repository Codex works in on this machine.",
+      ),
+    ).toBeVisible();
     // The setup code travels in a file; it is not in the settings, and the
     // page keeps it out of the address and the browser's storage.
     await expect(settings).not.toContainText(SETUP_CODE);
@@ -235,30 +265,84 @@ test.describe("add a machine wizard", () => {
       ])
     );
     expect(stored).not.toContain(SETUP_CODE);
-    await expect(page.getByText("Waiting for the machine to connect…"))
-      .toBeVisible();
-    // No command to start Bakery on a Mac is invented.
+    // The wait is a notice, and the page says what leaving costs.
     await expect(
-      page.locator("[data-ui-component=codeBlock]").filter({
-        hasText: "systemctl",
+      page.getByRole("status").filter({
+        hasText: "Waiting for the machine to connect…",
       }),
-    ).toHaveCount(0);
-    // "harness" is only ever inside a setting name.
-    await expect(page.getByText(/harness/i).and(page.locator(":not(code)")))
-      .toHaveCount(0);
-    await page.getByRole("button", { name: "Copy" }).first().click();
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        "If you leave this page the setup code is lost. You can get new settings from Finishing setup on the Machines page.",
+      ),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Back to machines" }))
+      .toBeVisible();
+    // "harness" is only ever inside a literal setting name (BAKERY_..._HARNESS...).
+    const prose = await page.getByTestId("machine-wizard").evaluate((element) =>
+      (element as HTMLElement).innerText.replace(/BAKERY_[A-Z0-9_]+/g, "")
+    );
+    expect(prose).not.toMatch(/harness/i);
+    // One Copy for the setup code and one for each block, one state each.
+    const copies = page.getByRole("button", { name: "Copy", exact: true });
+    await expect(copies).toHaveCount(4);
+    await copies.first().click();
+    await expect(page.getByRole("button", { name: "Copied", exact: true }))
+      .toHaveCount(1);
+    await expect(page.locator(".ui-code-block__copied")).toHaveCount(0);
     await shot(page, "machines-wizard-install");
     const axeInstall = await new AxeBuilder({ page }).analyze();
     expect(axeInstall.violations.map((v) => v.id)).toEqual([]);
 
-    // The machine connects: the page says so and leads to the machine.
+    // The enrollment can read consumed a moment before it names the machine:
+    // the page says it is connected, and Done waits for the machine.
     setup.state = "consumed";
-    setup.workerHostId = MACHINE_ID;
-    await expect(page.getByText("Connected.")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText("build-box-01 is connected.")).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByRole("button", { name: "Done" })).toBeDisabled();
     await shot(page, "machines-wizard-connected");
+    setup.workerHostId = MACHINE_ID;
+    await expect(page.getByRole("button", { name: "Done" })).toBeEnabled({
+      timeout: 30_000,
+    });
     await page.getByRole("button", { name: "Done" }).click();
     await expect(page).toHaveURL(new RegExp(`/machines/${MACHINE_ID}$`));
     expect(setup.creates).toHaveLength(1);
+  });
+
+  test("a Mac is told there is no installer and no setup is made", async ({ page }) => {
+    const setup = newSetup();
+    await open(page, setup);
+    await page.getByLabel("Name").fill("build-mac-01");
+    await page.getByRole("radio", { name: "macOS" }).check({ force: true });
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("radio", { name: /Claude Code/ }).check({
+      force: true,
+    });
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByText("Step 3 of 3 · Install")).toBeVisible();
+    await expect(page.getByText("Bakery has no installer for macOS yet."))
+      .toBeVisible();
+    await expect(
+      page.getByText(
+        "A one-step installer is coming. Until it ships, a Mac cannot join through this page; add a Linux machine to start work.",
+      ),
+    ).toBeVisible();
+    await shot(page, "machines-wizard-mac");
+    // Nothing was created that could not be finished, and nothing is invented.
+    expect(setup.creates).toHaveLength(0);
+    await expect(page.locator("[data-ui-component=codeBlock]")).toHaveCount(0);
+    await expect(page.locator("[data-ui-component=setupKey]")).toHaveCount(0);
+    await expect(page.getByText("/var/lib/bakery")).toHaveCount(0);
+    // The way on is a Linux machine, with the answers kept.
+    await page.getByRole("button", { name: "Add a Linux machine" }).click();
+    await expect(page.getByText("Step 1 of 3 · Name and system")).toBeVisible();
+    await expect(page.getByLabel("Name")).toHaveValue("build-mac-01");
+    await expect(page.getByRole("radio", { name: "Linux" })).toBeChecked();
+    await expect(page.getByRole("radio", { name: /Intel or AMD/ }))
+      .toBeChecked();
+    expect(setup.creates).toHaveLength(0);
   });
 
   test("a Linux machine gets its environment file and the command that starts it", async ({ page }) => {
@@ -278,15 +362,6 @@ test.describe("add a machine wizard", () => {
       capabilities: ["git", "shell", "web", "model", "claude"],
     });
     await expect(
-      page.getByRole("heading", {
-        name: "3. Add these settings to /etc/bakery/worker.env.",
-      }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("heading", { name: "4. Start Bakery on the machine." }),
-    )
-      .toBeVisible();
-    await expect(
       page.locator("[data-ui-component=codeBlock]").filter({
         hasText: "sudo systemctl enable --now bakery-worker",
       }),
@@ -302,9 +377,11 @@ test.describe("add a machine wizard", () => {
       "BAKERY_CLAUDE_HARNESS_EXECUTABLE=claude",
     );
     await expect(settings).not.toContainText(/CODEX|BAKERY_PI_/);
+    await page.getByRole("button", { name: "Back to machines" }).click();
+    await expect(page).toHaveURL(/\/machines$/);
   });
 
-  test("a failed create says so and the retry is the same request", async ({ page }) => {
+  test("a failed create says so once and the retry is the same request", async ({ page }) => {
     const setup = newSetup({ failures: 1 });
     await open(page, setup);
     await page.getByLabel("Name").fill("retry-box");
@@ -314,6 +391,11 @@ test.describe("add a machine wizard", () => {
     await expect(
       page.getByText("Bakery could not create the settings. Try again."),
     ).toBeVisible();
+    // One message and one way on: nothing about a lost code, no disabled button.
+    await expect(page.getByText("was shown once")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Get new settings" }))
+      .toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Try again" })).toBeEnabled();
     await shot(page, "machines-wizard-failed");
     await page.getByRole("button", { name: "Try again" }).click();
     await expect(page.getByText(SETUP_CODE)).toBeVisible();
@@ -333,7 +415,11 @@ test.describe("add a machine wizard", () => {
       force: true,
     });
     await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByText("The settings expired.")).toBeVisible();
+    await expect(
+      page.getByText(
+        "The settings expired. Getting new settings makes a new setup code.",
+      ),
+    ).toBeVisible();
     await shot(page, "machines-wizard-expired");
     await page.getByRole("button", { name: "Get new settings" }).click();
     await expect(page.getByText(NEW_SETUP_CODE)).toBeVisible();
@@ -368,9 +454,10 @@ test.describe("add a machine wizard", () => {
       path: `/machines/new?finish=${ENROLLMENT_ID}`,
     });
     await expect(page.getByText("Step 3 of 3 · Install")).toBeVisible();
+    // What the button does: it ends the old code and makes a new one.
     await expect(
       page.getByText(
-        "The setup code for half-done-box was shown once and is not available again.",
+        "The setup code for half-done-box was shown once and is not available again. Getting new settings cancels the old code and makes a new one.",
       ),
     ).toBeVisible();
     await shot(page, "machines-wizard-continue");

@@ -2,6 +2,8 @@ import { assertEquals } from "@std/assert";
 import {
   agentOfCapabilities,
   enrollmentInput,
+  harnessRepositorySetting,
+  hasInstaller,
   initialAnswers,
   installState,
   minutesLeft,
@@ -136,6 +138,39 @@ Deno.test("the setup code is typed into a file only its owner can read, and a Li
     "sudo systemctl enable --now bakery-worker",
   );
   assertEquals(startWorkerCommand("macos"), null);
+});
+
+Deno.test("only Linux has steps to run the worker, and the repository setting is named per agent", () => {
+  assertEquals(hasInstaller("linux"), true);
+  assertEquals(hasInstaller("macos"), false);
+  assertEquals(
+    harnessRepositorySetting("claude"),
+    "BAKERY_CLAUDE_HARNESS_REPOSITORY",
+  );
+  assertEquals(
+    harnessRepositorySetting("codex"),
+    "BAKERY_CODEX_HARNESS_REPOSITORY",
+  );
+  assertEquals(harnessRepositorySetting("pi"), "BAKERY_PI_HARNESS_REPOSITORY");
+  // The setting the sentence names is the one in the settings block.
+  const input = enrollmentInput({
+    name: "x",
+    os: "linux",
+    architecture: "x86_64",
+    slots: "1",
+    agent: "pi",
+  })!;
+  const settings = workerEnvironment({
+    serverUrl: "https://b.example",
+    input,
+    agent: "pi",
+  });
+  assertEquals(
+    settings.includes(
+      `${harnessRepositorySetting("pi")}=/workspace/repository`,
+    ),
+    true,
+  );
 });
 
 Deno.test("an existing enrollment's agent is read back from its capabilities", () => {
