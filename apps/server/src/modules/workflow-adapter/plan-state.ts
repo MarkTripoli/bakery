@@ -109,6 +109,35 @@ export function planTaskFromSnapshot(snapshot: unknown): JsonValue {
   return snapshot["task"] as JsonValue;
 }
 
+const ACTION_NAME = /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$/;
+const AGENT_VERSION_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/**
+ * The agent each action falls back to when a step names none: the workflow's
+ * own `agents` binding, else the repository profile's, frozen by admission so a
+ * later edit of either cannot change an old run. A run that froze none has an
+ * empty map. Every id is a lower-case agent version id; the agent itself is
+ * read from `planAgents` under that id.
+ */
+export function planActionAgentsFromSnapshot(
+  snapshot: unknown,
+): Readonly<Record<string, string>> {
+  if (!isRecord(snapshot)) throw new PlanStateError("plan_snapshot_invalid");
+  const value = snapshot["planActionAgents"];
+  if (value === undefined) return {};
+  if (!isRecord(value) || Object.keys(value).length > 100) {
+    throw new PlanStateError("plan_snapshot_invalid");
+  }
+  for (const [action, agentVersionId] of Object.entries(value)) {
+    if (
+      !ACTION_NAME.test(action) || typeof agentVersionId !== "string" ||
+      !AGENT_VERSION_ID.test(agentVersionId)
+    ) throw new PlanStateError("plan_snapshot_invalid");
+  }
+  return value as Readonly<Record<string, string>>;
+}
+
 /** A stored step row, as much of it as the interpreter reads. */
 export type PlanStepRow = Readonly<{
   stepKey: string;

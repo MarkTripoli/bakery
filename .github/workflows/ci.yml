@@ -38,7 +38,7 @@ env:
 jobs:
   changes:
     name: route / changed files
-    # Fork PRs never reach self-hosted runners; a maintainer re-pushes them to a branch.
+    # Fork pull requests do not run this job; a maintainer re-pushes them to a branch.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     outputs:
       route: ${{ steps.classify.outputs.route }}
@@ -126,7 +126,7 @@ jobs:
         run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log rails
   git_diff_check:
     name: fast / git diff check
-    # Fork PRs never reach self-hosted runners; a maintainer re-pushes them to a branch.
+    # Fork pull requests do not run this job; a maintainer re-pushes them to a branch.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     steps:
@@ -165,7 +165,7 @@ jobs:
         run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log git_diff_check
   semantic_metadata:
     name: fast / semantic metadata
-    # Fork PRs never reach self-hosted runners; a maintainer re-pushes them to a branch.
+    # Fork pull requests do not run this job; a maintainer re-pushes them to a branch.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     steps:
@@ -375,9 +375,8 @@ jobs:
       - name: Ensure psql client
         shell: bash
         run: |
-          # The self-hosted runner image does not preinstall the PostgreSQL
-          # client that hosted runners ship by default; install it once per
-          # job only when missing.
+          # Hosted runners ship the PostgreSQL client, so this normally does
+          # nothing; it installs the client only when it is missing.
           command -v psql >/dev/null 2>&1 || {
             sudo apt-get update -qq
             sudo apt-get install -y --no-install-recommends postgresql-client
@@ -484,9 +483,8 @@ jobs:
       - name: Ensure psql client
         shell: bash
         run: |
-          # The self-hosted runner image does not preinstall the PostgreSQL
-          # client that hosted runners ship by default; install it once per
-          # job only when missing.
+          # Hosted runners ship the PostgreSQL client, so this normally does
+          # nothing; it installs the client only when it is missing.
           command -v psql >/dev/null 2>&1 || {
             sudo apt-get update -qq
             sudo apt-get install -y --no-install-recommends postgresql-client
@@ -575,9 +573,8 @@ jobs:
       - name: Ensure psql client
         shell: bash
         run: |
-          # The self-hosted runner image does not preinstall the PostgreSQL
-          # client that hosted runners ship by default; install it once per
-          # job only when missing.
+          # Hosted runners ship the PostgreSQL client, so this normally does
+          # nothing; it installs the client only when it is missing.
           command -v psql >/dev/null 2>&1 || {
             sudo apt-get update -qq
             sudo apt-get install -y --no-install-recommends postgresql-client
@@ -2495,7 +2492,7 @@ jobs:
 
   aggregate:
     name: required / full-stack aggregate
-    # Fork PRs never reach self-hosted runners; a maintainer re-pushes them to a branch.
+    # Fork pull requests do not run this job; a maintainer re-pushes them to a branch.
     if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     needs: [
       changes,
