@@ -298,6 +298,12 @@ test.describe("machines list states", () => {
     await page.unrouteAll({ behavior: "ignoreErrors" });
     await open(page, { workersStatus: 500 });
     await expect(page.getByText("Machines could not be loaded")).toBeVisible();
+    // A failed read is not a refused one: Add machine stays, at both widths
+    // (top bar on a wide screen, under the title on a phone), once.
+    await expect(page.getByRole("button", { name: "Add machine", exact: true }))
+      .toHaveCount(1);
+    await expect(page.getByRole("button", { name: "Add machine", exact: true }))
+      .toBeVisible();
     await shot(page, "machines-list-error");
     await page.unrouteAll({ behavior: "ignoreErrors" });
     await open(page, { hang: true });

@@ -247,6 +247,11 @@ export function MachinesPage() {
   const forbidden = workers.isError && isForbiddenFailure(workers.error);
   // The add action is for an administrator who can read the list at all.
   const canAdd = isAdmin && !forbidden;
+  // The empty card carries its own Add machine; everywhere else the page's
+  // action is in the top bar (wide) or under the title (phone), on a failed
+  // read too, and nowhere when the read is refused.
+  const emptyCardShown = !forbidden && !workers.isError &&
+    rows.length === 0 && !workers.isPending;
   const connectivityKind = asyncKindForConnectivity(connectivity);
   const phone = useShellViewport() === "phone";
   const openMachine = (row: MachineRow) =>
@@ -285,7 +290,7 @@ export function MachinesPage() {
           variant="list"
           title={translate("machines.title")}
           subtitle={translate("machines.description")}
-          actions={canAdd && phone && rows.length > 0 ? addMachine : null}
+          actions={canAdd && phone && !emptyCardShown ? addMachine : null}
         />
         {connectivityKind
           ? (
