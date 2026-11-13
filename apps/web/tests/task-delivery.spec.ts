@@ -395,6 +395,10 @@ test("results for an older commit are marked and the card says a fix is running"
   await expect(notice).toHaveAttribute("data-variant", "neutral");
   await expect(now).toContainText("Fixing review findings · try 1 of 2");
   await expect(now).toHaveAttribute("data-variant", "information");
+  // The count never breaks across lines ("try 1 of" / "2" on a phone).
+  expect(await now.getByRole("heading").textContent()).toContain(
+    "try\u00a01\u00a0of\u00a02",
+  );
   const nowBox = await now.boundingBox();
   const noticeBox = await notice.boundingBox();
   expect(nowBox).not.toBeNull();

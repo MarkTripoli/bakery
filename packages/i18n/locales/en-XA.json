@@ -2781,7 +2781,6 @@
   "tasks.delivery.now.openRules": "⟦Ôþëñ ŕëþôšïŧôŕÿ ŕûļëš ŧëšŧŧ⟧",
   "tasks.delivery.now.checking.title": "⟦Çĥëçķïñĝ ŧĥë çĥàñĝëš ŧëšŧ⟧",
   "tasks.delivery.now.checking.body": "⟦Ñôŧĥïñĝ ƒôŕ ÿôû ŧô ðô ÿëŧ. ŧëšŧ çô⟧",
-  "tasks.delivery.now.fixing.title": "⟦Ƒïẋïñĝ ŕëṽïëŵ ƒïñðïñĝš · ŧŕÿ {attempt} ôƒ {max} ŧëšŧ çôþÿ ŧëšŧ⟧",
   "tasks.delivery.now.fixing.body": "⟦Ñôŧĥïñĝ ƒôŕ ÿôû ŧô ðô ÿëŧ. Ïƒ ŧĥïš ŧŕÿ ƒàïļš, Ɓàķëŕÿ šŧôþš àñð àšķš ÿôû. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "tasks.delivery.now.paused.title": "⟦Þàûšëð…⟧",
   "tasks.delivery.now.paused.body": "⟦Ñôŧĥïñĝ ŕûñš ûñŧïļ ïŧ ïš ŕëšûɱëð. Ŕëšûɱë ïŧ ƒŕôɱ ŧĥë ŕûñ çôñŧŕôļš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
@@ -2852,5 +2851,6 @@
   "tasks.delivery.olderResult.failed": "⟦Ƒàïļëð ôñ ôļðëŕ çôɱɱïŧ {sha} ŧëšŧ çô⟧",
   "tasks.delivery.olderResult.running": "⟦Ŕûññïñĝ ôñ ôļðëŕ çôɱɱïŧ {sha} ŧëšŧ çôþ⟧",
   "tasks.delivery.olderResult.unavailable": "⟦Ûñàṽàïļàƀļë ôñ ôļðëŕ çôɱɱïŧ {sha} ŧëšŧ çôþÿ⟧",
-  "tasks.delivery.olderResult.canceled": "⟦Çàñçëļëð ôñ ôļðëŕ çôɱɱïŧ {sha} ŧëšŧ çôþ⟧"
+  "tasks.delivery.olderResult.canceled": "⟦Çàñçëļëð ôñ ôļðëŕ çôɱɱïŧ {sha} ŧëšŧ çôþ⟧",
+  "tasks.delivery.now.fixing.title": "⟦Ƒïẋïñĝ ŕëṽïëŵ ƒïñðïñĝš · ŧŕÿ {attempt} ôƒ {max} ŧëšŧ çôþÿ ŧëšŧ⟧"
 }

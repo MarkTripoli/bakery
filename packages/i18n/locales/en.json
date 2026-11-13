@@ -2782,7 +2782,7 @@
   "tasks.delivery.now.openRules": "Open repository rules",
   "tasks.delivery.now.checking.title": "Checking the changes",
   "tasks.delivery.now.checking.body": "Nothing for you to do yet.",
-  "tasks.delivery.now.fixing.title": "Fixing review findings · try {attempt} of {max}",
+  "tasks.delivery.now.fixing.title": "Fixing review findings · try {attempt} of {max}",
   "tasks.delivery.now.fixing.body": "Nothing for you to do yet. If this try fails, Bakery stops and asks you.",
   "tasks.delivery.now.paused.title": "Paused",
   "tasks.delivery.now.paused.body": "Nothing runs until it is resumed. Resume it from the run controls.",
