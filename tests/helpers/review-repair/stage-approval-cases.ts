@@ -83,6 +83,33 @@ async function cleanReview(world: LoopWorld): Promise<void> {
   assertEquals(response.status, 200, await response.clone().text());
 }
 
+/**
+ * The loop world's cleanup removes the run, task and conversation but not
+ * conversation messages; remove the agent request a request_changes queued
+ * (and any turn it started) so the conversation can be dropped.
+ */
+async function removeQueuedRequest(
+  world: LoopWorld,
+  approvalId: string,
+): Promise<void> {
+  const params = [
+    world.fixture.organizationId,
+    `approval:${approvalId}:changes`,
+  ];
+  await world.fixture.pgDatabase.query(
+    `delete from bakery.conversation_turns
+      where organization_id = $1 and trigger_message_id in (
+        select id from bakery.messages
+         where organization_id = $1 and client_message_id = $2)`,
+    params,
+  );
+  await world.fixture.pgDatabase.query(
+    `delete from bakery.messages
+      where organization_id = $1 and client_message_id = $2`,
+    params,
+  );
+}
+
 export function registerStageApprovalCases(): void {
   Deno.test("with review set to human_approval, a clean candidate opens one run_stage approval and may not merge until a person approves it", () =>
     withReviewedRun(async (world) => {
@@ -115,29 +142,32 @@ export function registerStageApprovalCases(): void {
       await requireReviewApproval(world);
       await cleanReview(world);
       const [approval] = await stageApprovals(world);
-
-      const changes = await decide(
-        world,
-        approval,
-        "request_changes",
-        "Rename the flag before this ships.",
-      );
-      assertEquals(changes.status, 200, await changes.clone().text());
-      assertEquals((await gate(world)).reasons, [
-        "approval_changes_requested",
-      ]);
-      const message = await world.fixture.pgDatabase.query<{ body: string }>(
-        `select body from bakery.messages
-          where organization_id = $1 and client_message_id = $2`,
-        [world.fixture.organizationId, `approval:${approval.id}:changes`],
-      );
-      assertEquals(message.rows.length, 1);
-      assert(
-        message.rows[0].body.includes("Rename the flag before this ships."),
-      );
-      // The first decision wins: the approval cannot be approved afterwards.
-      const late = await decide(world, approval, "approve");
-      assertEquals(late.status, 409);
+      try {
+        const changes = await decide(
+          world,
+          approval,
+          "request_changes",
+          "Rename the flag before this ships.",
+        );
+        assertEquals(changes.status, 200, await changes.clone().text());
+        assertEquals((await gate(world)).reasons, [
+          "approval_changes_requested",
+        ]);
+        const message = await world.fixture.pgDatabase.query<{ body: string }>(
+          `select body from bakery.messages
+            where organization_id = $1 and client_message_id = $2`,
+          [world.fixture.organizationId, `approval:${approval.id}:changes`],
+        );
+        assertEquals(message.rows.length, 1);
+        assert(
+          message.rows[0].body.includes("Rename the flag before this ships."),
+        );
+        // The first decision wins: the approval cannot be approved afterwards.
+        const late = await decide(world, approval, "approve");
+        assertEquals(late.status, 409);
+      } finally {
+        await removeQueuedRequest(world, approval.id);
+      }
     }));
 
   Deno.test("a newer delivery decision supersedes the approval: deciding it is refused and changes nothing", () =>
