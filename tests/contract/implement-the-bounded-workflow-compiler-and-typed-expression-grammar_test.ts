@@ -4,7 +4,6 @@ import {
   compileWorkflowDocument,
   decodeWorkflowJson,
   expandStepKeys,
-  isExactNumberText,
   sha256Hex,
   WORKFLOW_COMPILER_DIAGNOSTIC_CODES,
   WORKFLOW_COMPILER_MESSAGES,
@@ -17,9 +16,11 @@ import {
 } from "../../apps/server/src/platform/canonical-json.ts";
 import { descriptionDefectKind } from "../../packages/contracts/src/description-quality.ts";
 import { createDesignCatalog } from "../fixtures/workflow-compiler/design-catalog.ts";
-import { specimenDefinition } from "../fixtures/workflow-compiler/specimen.ts";
+import {
+  specimenDefinition,
+  strictYaml,
+} from "../fixtures/workflow-compiler/specimen.ts";
 import { z } from "zod";
-import { isAlias, isScalar, parseAllDocuments, visit } from "yaml";
 
 Deno.test("canonical JSON and digest helpers match the server byte for byte", async () => {
   const reordered = decodeWorkflowJson('{"b":{"y":1,"x":[2,1]},"a":true}');
@@ -100,54 +101,6 @@ type Def = Record<string, unknown>;
 
 const REPO = "11111111-1111-4111-8111-111111111111";
 const AGENT = "22222222-2222-4222-8222-222222222222";
-
-/** Strict YAML 1.2 profile: no aliases, custom tags, merge keys or extra documents. */
-function strictYaml(text: string): unknown {
-  const documents = parseAllDocuments(text, {
-    version: "1.2",
-    schema: "core",
-    uniqueKeys: true,
-    merge: false,
-    keepSourceTokens: true,
-  });
-  assertEquals(documents.length, 1, "multiple YAML documents");
-  const [document] = documents;
-  assert(document);
-  assertEquals(document.errors.length, 0, "YAML errors");
-  assertEquals(
-    document.warnings.length,
-    0,
-    "YAML warnings such as unresolved tags",
-  );
-  visit(document, {
-    Alias() {
-      throw new Error("YAML alias rejected");
-    },
-    Node(_key, node) {
-      const tag = (node as { tag?: string }).tag;
-      if (tag && !tag.startsWith("tag:yaml.org,2002:")) {
-        throw new Error("YAML custom tag rejected");
-      }
-    },
-    Pair(_key, pair) {
-      if (isScalar(pair.key) && pair.key.value === "<<") {
-        throw new Error("YAML merge key rejected");
-      }
-    },
-    Scalar(_key, node) {
-      if (typeof node.value === "number") {
-        const source = (node as unknown as { srcToken?: { source?: string } })
-          .srcToken?.source;
-        assert(
-          isExactNumberText(source ?? String(node.value)),
-          "YAML number is not exact",
-        );
-      }
-    },
-  });
-  assert(!isAlias(document.contents));
-  return document.toJS();
-}
 
 function reorder(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(reorder);

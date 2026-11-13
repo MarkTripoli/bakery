@@ -25,6 +25,9 @@ export type {
   WorkflowJsonValue,
 } from "./json-value.ts";
 export { parseDuration, WORKFLOW_COMPILER_LIMITS } from "./limits.ts";
+export { inputTypesOf } from "./passes/references.ts";
+export { decodeWorkflowYaml, encodeWorkflowYaml } from "./yaml.ts";
+export type { WorkflowYamlEncodeResult } from "./yaml.ts";
 export {
   WORKFLOW_COMPARE_OPERATORS,
   WORKFLOW_REFERENCE_ROOTS,
