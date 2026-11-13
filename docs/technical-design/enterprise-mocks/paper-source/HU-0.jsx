@@ -303,7 +303,7 @@
               <path d="m6 9 6 6 6-6" fill="none" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '18px' }}>
-              Revision 3
+              Plan, version 3
             </div>
           </div>
         </div>
@@ -385,7 +385,7 @@
           </div>
           <div style={{ alignItems: 'center', backgroundColor: 'var(--color-primary)', borderColor: 'var(--color-primary)', borderRadius: 'var(--radius-4)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', fontFamily: 'var(--font-sans)', gap: '8px', justifyContent: 'center', minHeight: '36px', paddingInline: '12px' }}>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-primary-foreground)', display: 'flex', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '18px' }}>
-              Approve revision 3
+              Approve plan, version 3
             </div>
           </div>
         </div>

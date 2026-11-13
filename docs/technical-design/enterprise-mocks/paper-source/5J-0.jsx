@@ -218,7 +218,7 @@
               Stage
             </div>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', flexShrink: '0', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px', width: '88px' }}>
-              Harness
+              Coding agent
             </div>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', flexShrink: '0', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px', width: '48px' }}>
               Age
@@ -530,7 +530,7 @@
             Activity
           </div>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', lineHeight: '20px' }}>
-            Evidence
+            Results
           </div>
         </div>
         <div style={{ alignItems: 'start', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>

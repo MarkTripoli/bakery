@@ -38,7 +38,7 @@
       "pageId": "E-0",
       "frameName": "01 · Work queue · Rail · 1440",
       "source": "5J-0.jsx",
-      "sha256": "ba543b20b229b2e77f86842266d1b684a219aee35fca9819f85a6ea267a78796"
+      "sha256": "d9fda68ede155e0d3049450bb451490167cbba3e015b73026f6840cb72f441f5"
     },
     {
       "id": "queue",
@@ -66,7 +66,7 @@
       "pageId": "E-0",
       "frameName": "03 · Shared session & plan · Rail · 1440",
       "source": "HU-0.jsx",
-      "sha256": "8c8c1e27e02c96e95d297e02f2ffff3ac7844fba8b60c0533912fcd1447f1755"
+      "sha256": "e60b36b612a8a8ec74e797c2aae2e358ad81136678167c5ed09c70b2b052d5dc"
     },
     {
       "id": "session",
@@ -94,7 +94,7 @@
       "pageId": "p-18-0",
       "frameName": "01 · Task conversation · default · light · 1440",
       "source": "2IBL-0.jsx",
-      "sha256": "12ef286d702fad9e2a6de4bdfd6c897a0645ba45398f8ebed08b8c0ce6a02185"
+      "sha256": "b824e83a1ba5e81cd25b49cfdbead7eeb37e45792638eae9a5bc32bbb1029a8a"
     },
     {
       "id": "task-conversation",
@@ -108,7 +108,7 @@
       "pageId": "p-18-0",
       "frameName": "02 · Task conversation · default · dark · 1440",
       "source": "2IFZ-0.jsx",
-      "sha256": "de1aaa54b402d1995ebe9f1ef0b9365ecafd783ec9ba8df6f348d9d4426aaa73"
+      "sha256": "c7edba28af65ad558ddd88ba2c799cf8a2fea7cdd84b28a784ab8d7019352a74"
     },
     {
       "id": "task-conversation",
@@ -136,7 +136,7 @@
       "pageId": "p-18-0",
       "frameName": "04 · Task conversation · plan-review · light · 1440",
       "source": "2IK1-0.jsx",
-      "sha256": "48f7e69e6b3630197ce58fdd4a7bfebb47aa931bdb63d41df7e8162706e53b2c"
+      "sha256": "f110b85be09f3a2663bbb0980e43395334ed5dce4ec5bf22e75fc2f63da8fdf8"
     },
     {
       "id": "task-conversation",
@@ -178,7 +178,7 @@
       "pageId": "p-18-0",
       "frameName": "07 · Task conversation · conflict · light · 1440",
       "source": "2IW7-0.jsx",
-      "sha256": "0a0e562109d9d264d8b5377b0cf9c0c87442ea4439c51674f84bf9b05fc5aed5"
+      "sha256": "a5f2427f57b4c9c132c46dac3a10100885327e0cef80e0415ab57131a2d8a56d"
     },
     {
       "id": "task-coordination",
@@ -192,7 +192,7 @@
       "pageId": "p-18-0",
       "frameName": "08 · Coordination plan · default · light · 1440",
       "source": "2J64-0.jsx",
-      "sha256": "748899ca210d36af3e223e81b263a59919071fec2c579cb79382275082cd6298"
+      "sha256": "760ca92ee8799c4e5d41ff71f3a99caa0c84166b505cbe0dbb3ccb49d426fbc1"
     },
     {
       "id": "task-coordination",
@@ -206,7 +206,7 @@
       "pageId": "p-18-0",
       "frameName": "09 · Coordination plan · default · dark · 1440",
       "source": "2JD6-0.jsx",
-      "sha256": "26f74e5be1ce5c0960e327f7e6390e4d6dac4345dd9bde500d72b9f0e8facf28"
+      "sha256": "c374f993d6dfe5502ad480b38df3a2dd8a83a1a01f6b982f1c210d3f608ddc72"
     },
     {
       "id": "task-coordination",
@@ -248,7 +248,7 @@
       "pageId": "p-18-0",
       "frameName": "12 · Coordination plan · partial · light · 1440",
       "source": "2JLA-0.jsx",
-      "sha256": "68e96cdbe738c3186d389f3a06ac7bff83819af711b313d8d865c59d0c506db0"
+      "sha256": "0978e1d8884526b2a735542370d6338fb2d8c818c42336688e4400ad2fd8c812"
     },
     {
       "id": "projects-onboarding",

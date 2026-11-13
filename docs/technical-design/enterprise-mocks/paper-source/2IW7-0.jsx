@@ -266,10 +266,7 @@
             <path d="M6 3h9l4 4v14H6zM9 12h7M9 16h7" fill="none" stroke="var(--color-muted-foreground)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <div id="2IWW-0" style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', flexGrow: '1', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>
-            Plan
-          </div>
-          <div id="2IWV-0" style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
-            Revision 2
+            Plan, version 2
           </div>
         </div>
         <div id="2IWK-0" style={{ borderBottomColor: 'var(--color-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '12px', paddingBlock: '20px', paddingInline: '24px' }}>
@@ -303,7 +300,7 @@
               <path d="M12 3 2 20h20zM12 10v4M12 17v.5" fill="none" stroke="var(--color-warning)" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <div id="2J3A-0" style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
-              Revision 1 is obsolete. A newer revision replaced it and cannot be approved.
+              Plan, version 1 is out of date. A newer version replaced it and cannot be approved.
             </div>
           </div>
           <div id="2J3B-0" style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -312,12 +309,12 @@
             </div>
             <div id="2J3D-0" style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '8px' }}>
               <div id="2J3E-0" style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
-                Revision 1
+                Plan, version 1
               </div>
               <div id="2J3F-0" style={{ alignItems: 'center', backgroundColor: 'var(--color-light-subtle)', borderRadius: '4px', boxSizing: 'border-box', display: 'flex', gap: '6px', paddingInline: '8px' }}>
                 <div id="2J3G-0" style={{ backgroundColor: 'var(--color-muted-foreground)', borderRadius: '999px', boxSizing: 'border-box', flexShrink: '0', height: '6px', width: '6px' }} />
                 <div id="2J3H-0" style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '12px', lineHeight: '20px' }}>
-                  Replaced by a newer revision
+                  Replaced by a newer version
                 </div>
               </div>
             </div>
@@ -331,7 +328,7 @@
           <div id="2J3K-0" style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px', paddingTop: '4px' }}>
             <div id="2J3L-0" style={{ alignItems: 'center', backgroundColor: 'var(--color-light-subtle)', borderRadius: '6px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', fontFamily: 'var(--font-sans)', height: '36px', justifyContent: 'center' }}>
               <div id="2J3M-0" style={{ boxSizing: 'border-box', color: 'var(--color-light-fg-disabled)', display: 'flex', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>
-                Approve revision 1
+                Approve plan, version 1
               </div>
             </div>
             <div id="2J3N-0" style={{ alignItems: 'center', borderColor: 'var(--color-border)', borderRadius: '6px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', fontFamily: 'var(--font-sans)', height: '36px', justifyContent: 'center' }}>
