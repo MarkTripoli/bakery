@@ -518,26 +518,73 @@ test.describe("settings routes and navigation", () => {
     });
   }
 
-  test("lists the sections in order, with the connected-clients item", async ({ page }) => {
+  test("lists the sections under two labelled groups, with the connected-clients item and without Machines", async ({ page }) => {
     await mockAuthenticatedSession(page);
     await page.setViewportSize({ width: 1280, height: 960 });
     await page.goto("/settings/security");
-    await expect(page.locator(".bakery-section-navigation a")).toHaveText([
-      "Machines",
+    const navigation = page.getByRole("navigation", {
+      name: "Settings sections",
+    }).first();
+    // Two groups, in order, each a list named by its heading.
+    await expect(navigation.locator(".bakery-section-navigation__heading"))
+      .toHaveText(["Your account", "Organization"]);
+    await expect(
+      navigation.getByRole("list", { name: "Your account" }).getByRole("link"),
+    ).toHaveText([
       "Profile",
       "Account & security",
       "Active sessions",
       "Connected clients",
       "Appearance",
       "Your access",
-      "Organization access",
+    ]);
+    await expect(
+      navigation.getByRole("list", { name: "Organization" }).getByRole("link"),
+    ).toHaveText([
+      "Members & access",
       "Custom roles",
       "Repository rules",
       "Integrations",
       "Audit log",
       "Single sign-on",
-      "SCIM",
+      "User provisioning",
     ]);
+    // Machines is in the main rail only.
+    await shot(page, "settings-navigation-grouped");
+    await expect(navigation.getByRole("link", { name: "Machines" }))
+      .toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: "Machines", exact: true }).first(),
+    ).toBeVisible();
+  });
+
+  test("on a phone the settings menu opens one sheet with both groups as headings", async ({ page }) => {
+    await mockAuthenticatedSession(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/settings/security");
+    await page.locator(".bakery-section-navigation__summary").click();
+    const sheet = page.locator(".bakery-section-navigation__mobile");
+    await expect(sheet.locator(".bakery-section-navigation__heading"))
+      .toHaveText(["Your account", "Organization"]);
+    await shot(page, "settings-navigation-sheet", [], {
+      windowOnly: true,
+      only: "mobile",
+    });
+    // Headings are not controls, and every link is reachable and not truncated.
+    await expect(
+      sheet.locator(
+        ".bakery-section-navigation__heading a, .bakery-section-navigation__heading button",
+      ),
+    )
+      .toHaveCount(0);
+    const links = sheet.getByRole("link");
+    await expect(links).toHaveCount(13);
+    for (let index = 0; index < 13; index += 1) {
+      const clipped = await links.nth(index).evaluate((node) =>
+        node.scrollWidth > node.clientWidth + 1
+      );
+      expect(clipped).toBe(false);
+    }
   });
 
   test("a phone gets the section index at /settings and each row opens its page", async ({ page }) => {

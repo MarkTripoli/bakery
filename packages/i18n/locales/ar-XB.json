@@ -1702,7 +1702,6 @@
   "settings.audit.retention.save": "⟪Save retention⟫",
   "settings.audit.retention.saved": "⟪Retention saved.⟫",
   "settings.audit.retention.error": "⟪Retention could not be saved. Try again.⟫",
-  "shell.navigation.organizationAccess": "⟪Organization access⟫",
   "settings.orgAccess.organization": "⟪Organization⟫",
   "settings.orgAccess.title": "⟪Access⟫",
   "settings.orgAccess.description": "⟪Members, roles by scope, service accounts and connected clients for {organization}.⟫",
@@ -2676,5 +2675,9 @@
   "settings.repositoryRules.stale.keepMine.named": "⟪Keep mine for {rule}⟫",
   "settings.repositoryRules.draft.blocked": "⟪Decide {count, plural, one {# rule} other {# rules}} above to review.⟫",
   "settings.repositoryRules.stale.mine": "⟪Yours⟫",
-  "settings.repositoryRules.stale.theirs": "⟪Revision {revision}⟫"
+  "settings.repositoryRules.stale.theirs": "⟪Revision {revision}⟫",
+  "shell.navigation.membersAndAccess": "⟪Members & access⟫",
+  "shell.navigation.userProvisioning": "⟪User provisioning⟫",
+  "shell.navigation.group.account": "⟪Your account⟫",
+  "shell.navigation.group.organization": "⟪Organization⟫"
 }

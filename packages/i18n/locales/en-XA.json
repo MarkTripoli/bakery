@@ -1702,7 +1702,6 @@
   "settings.audit.retention.save": "⟦Šàṽë ŕëŧëñŧïôñ ŧë⟧",
   "settings.audit.retention.saved": "⟦Ŕëŧëñŧïôñ šàṽëð. ŧëš⟧",
   "settings.audit.retention.error": "⟦Ŕëŧëñŧïôñ çôûļð ñôŧ ƀë šàṽëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧ⟧",
-  "shell.navigation.organizationAccess": "⟦Ôŕĝàñïžàŧïôñ àççëšš ŧëšŧ⟧",
   "settings.orgAccess.organization": "⟦Ôŕĝàñïžàŧïôñ ŧë⟧",
   "settings.orgAccess.title": "⟦Àççëšš…⟧",
   "settings.orgAccess.description": "⟦Ṁëɱƀëŕš, ŕôļëš ƀÿ šçôþë, šëŕṽïçë àççôûñŧš àñð çôññëçŧëð çļïëñŧš ƒôŕ {organization}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
@@ -2676,5 +2675,9 @@
   "settings.repositoryRules.stale.keepMine.named": "⟦Ķëëþ ɱïñë ƒôŕ {rule} ŧëšŧ⟧",
   "settings.repositoryRules.draft.blocked": "⟦Ðëçïðë {count, plural, one {# rule} other {# rules}} àƀôṽë ŧô ŕëṽïëŵ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "settings.repositoryRules.stale.mine": "⟦Ÿôûŕš⟧",
-  "settings.repositoryRules.stale.theirs": "⟦Ŕëṽïšïôñ {revision} ŧëšŧ⟧"
+  "settings.repositoryRules.stale.theirs": "⟦Ŕëṽïšïôñ {revision} ŧëšŧ⟧",
+  "shell.navigation.membersAndAccess": "⟦Ṁëɱƀëŕš & àççëšš ŧëš⟧",
+  "shell.navigation.userProvisioning": "⟦Ûšëŕ þŕôṽïšïôñïñĝ ŧëš⟧",
+  "shell.navigation.group.account": "⟦Ÿôûŕ àççôûñŧ ŧë⟧",
+  "shell.navigation.group.organization": "⟦Ôŕĝàñïžàŧïôñ ŧë⟧"
 }

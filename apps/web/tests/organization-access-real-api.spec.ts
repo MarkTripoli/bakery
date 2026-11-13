@@ -74,7 +74,7 @@ async function openAccess(
       await page.getByRole("link", { name: "Profile", exact: true }).click();
       await expect(page).toHaveURL("/settings/profile");
     }
-    await page.getByRole("link", { name: "Organization access", exact: true })
+    await page.getByRole("link", { name: "Members & access", exact: true })
       .click();
     await expect(page).toHaveURL(ACCESS_PATH);
   };

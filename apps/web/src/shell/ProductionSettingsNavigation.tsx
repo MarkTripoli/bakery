@@ -7,12 +7,8 @@ import type { ShellViewport } from "../app/responsive.ts";
  * Production Settings navigation. The `settings-*` ids keep production
  * destinations distinct from the synthetic `__fixtures__` model.
  */
-export const productionSettingsRoutes = [
-  {
-    id: "machines",
-    label: <I18nText id="shell.navigation.machines" />,
-    href: "/machines",
-  },
+/** Settings that belong to the signed-in person. */
+export const productionAccountRoutes = [
   {
     id: "settings-profile",
     label: <I18nText id="shell.navigation.profile" />,
@@ -43,9 +39,13 @@ export const productionSettingsRoutes = [
     label: <I18nText id="shell.navigation.access" />,
     href: "/settings/access",
   },
+] satisfies readonly UI.SectionNavigationItem[];
+
+/** Settings that change the organization for everyone in it. */
+export const productionOrganizationRoutes = [
   {
     id: "settings-organization-access",
-    label: <I18nText id="shell.navigation.organizationAccess" />,
+    label: <I18nText id="shell.navigation.membersAndAccess" />,
     href: "/settings/organization/access",
   },
   {
@@ -75,7 +75,7 @@ export const productionSettingsRoutes = [
   },
   {
     id: "settings-scim",
-    label: <I18nText id="shell.navigation.scimShort" />,
+    label: <I18nText id="shell.navigation.userProvisioning" />,
     href: "/settings/scim",
   },
 ] satisfies readonly UI.SectionNavigationItem[];
@@ -96,7 +96,18 @@ export function ProductionSettingsNavigation({
   return (
     <UI.SectionNavigation
       currentPath={currentPath}
-      items={productionSettingsRoutes}
+      groups={[
+        {
+          id: "account",
+          heading: translate("shell.navigation.group.account"),
+          items: productionAccountRoutes,
+        },
+        {
+          id: "organization",
+          heading: translate("shell.navigation.group.organization"),
+          items: productionOrganizationRoutes,
+        },
+      ]}
       label={translate("shell.navigation.settingsSections")}
       narrowMode="menu"
       onNavigate={onNavigate}

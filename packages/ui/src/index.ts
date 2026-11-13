@@ -117,6 +117,7 @@ export {
 } from "./atoms/theme.ts";
 export {
   SectionNavigation,
+  type SectionNavigationGroup,
   type SectionNavigationItem,
   type SectionNavigationProps,
 } from "./organisms/SectionNavigation.tsx";
