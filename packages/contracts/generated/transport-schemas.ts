@@ -18038,6 +18038,7 @@ const transportSchemas = {
         "status",
         "lastCheckedAt",
         "createdAt",
+        "createdBy",
         "updatedAt",
         "version"
       ],
@@ -18052,6 +18053,7 @@ const transportSchemas = {
         "status": "enum(pending|enabled|disabled|degraded|revoked)",
         "lastCheckedAt": "timestamp|null",
         "createdAt": "timestamp",
+        "createdBy": "uuid",
         "updatedAt": "timestamp",
         "version": "integer"
       },
@@ -18071,6 +18073,7 @@ const transportSchemas = {
         "status": "Client-facing connection state folded from the stored status and health columns: `pending` after verified setup until an Admin enables it, `revoked` when the provider revoked authorization, `disabled` when an Admin disabled it, `degraded` when an enabled connection's health is degraded or auth_required, otherwise `enabled`.",
         "lastCheckedAt": "UTC timestamp when the record was last checked.",
         "createdAt": "UTC timestamp when the record was created.",
+        "createdBy": "Principal id of the member who connected it (completed the provider setup), so a client can show who connected the integration and when; resolve the name through the organization member list.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record."
       }
