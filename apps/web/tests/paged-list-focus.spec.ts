@@ -260,6 +260,7 @@ for (
       await expect(retry).toBeVisible();
       await expect(retry).toBeFocused();
       await expect(heading).not.toBeFocused();
+      await shot(page, "machines-first-read-retry-focus");
       // The server recovers; the next retry, from the keyboard, lands on the heading.
       firstRead.failing = false;
       await page.keyboard.press("Enter");
