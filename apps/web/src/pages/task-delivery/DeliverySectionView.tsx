@@ -138,6 +138,24 @@ function stoppedCopy(
   }
 }
 
+/**
+ * The Now card's tone says whose turn it is: success when nothing is waiting,
+ * information while Bakery is working, warning when it is the person's turn.
+ */
+function nowTone(now: NowCard): "success" | "information" | "warning" {
+  switch (now.kind) {
+    case "clean":
+      return "success";
+    case "checking":
+    case "fixing":
+      return "information";
+    case "paused":
+    case "checksFailed":
+    case "stopped":
+      return "warning";
+  }
+}
+
 const CHECK_TONE = {
   passed: "success",
   failed: "danger",
@@ -152,6 +170,14 @@ const CHECK_LABEL: Readonly<Record<CheckRow["result"], MessageKey>> = {
   pending: "tasks.delivery.check.running",
   unavailable: "tasks.delivery.check.unavailable",
   canceled: "tasks.delivery.check.canceled",
+};
+
+const OLDER_RESULT_LABEL: Readonly<Record<CheckRow["result"], MessageKey>> = {
+  passed: "tasks.delivery.olderResult.passed",
+  failed: "tasks.delivery.olderResult.failed",
+  pending: "tasks.delivery.olderResult.running",
+  unavailable: "tasks.delivery.olderResult.unavailable",
+  canceled: "tasks.delivery.olderResult.canceled",
 };
 
 const SEVERITY_LABEL: Readonly<Record<FindingRow["severity"], MessageKey>> = {
@@ -249,18 +275,10 @@ function ReadyView(
   );
   return (
     <>
-      {model.outOfDate && (
-        <UI.AlertBanner tone="warning">
-          <UI.Heading level="subsection">
-            {t("tasks.delivery.outOfDate.title")}
-          </UI.Heading>
-          <UI.Text>{t("tasks.delivery.outOfDate.body")}</UI.Text>
-        </UI.AlertBanner>
-      )}
       <UI.AlertBanner
         action={action}
         data-testid="delivery-now"
-        tone="information"
+        tone={nowTone(model.now)}
       >
         <UI.Heading level="subsection">{copy.title}</UI.Heading>
         <UI.Text>{copy.body}</UI.Text>
@@ -272,6 +290,18 @@ function ReadyView(
           </UI.Text>
         )}
       </UI.AlertBanner>
+      {model.outOfDate && (
+        <UI.InlineNotice
+          data-testid="delivery-out-of-date"
+          icon="refresh"
+          tone="neutral"
+        >
+          <UI.Heading level="subsection">
+            {t("tasks.delivery.outOfDate.title")}
+          </UI.Heading>
+          <UI.Text>{t("tasks.delivery.outOfDate.body")}</UI.Text>
+        </UI.InlineNotice>
+      )}
       <Steps model={model} />
     </>
   );
@@ -294,8 +324,9 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
       base: model.baseSha.slice(0, 7),
     });
 
-  const failedAny = checks.rows.some((row) => row.result === "failed");
+  const failedAny = checks.failed > 0;
   const olderRows = checks.rows.filter((row) => row.olderSha !== null);
+  const headShort = model.headSha === null ? null : model.headSha.slice(0, 7);
   const checksStatus = failedAny
     ? "failed"
     : checks.running > 0 || (checks.rows.length > 0 && olderRows.length > 0)
@@ -311,7 +342,6 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
   const shownChecks = showAllChecks
     ? sortedChecks
     : sortedChecks.slice(0, SHOWN);
-  const olderSha = olderRows[0]?.olderSha ?? null;
 
   const reviewStatus = review === null
     ? "upcoming"
@@ -345,29 +375,19 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
       <UI.StepItem
         status={checksStatus}
         statusLabel={label(checksStatus)}
-        summary={checks.rows.length === 0 ? t("tasks.delivery.checks.none") : (
-          <>
-            {failedAny
-              ? t("tasks.delivery.checks.failedOf", {
-                failed: checks.rows.filter((row) =>
-                  row.result === "failed"
-                ).length,
-                total: checks.rows.length,
-              })
-              : t("tasks.delivery.checks.passedOf", {
-                passed: checks.passed,
-                total: checks.rows.length,
-              })}
-            {olderSha !== null && (
-              <>
-                {" "}
-                <UI.Badge>
-                  {t("tasks.delivery.olderCommit", { sha: olderSha })}
-                </UI.Badge>
-              </>
-            )}
-          </>
-        )}
+        summary={checks.rows.length === 0
+          ? t("tasks.delivery.checks.none")
+          : olderRows.length > 0 && headShort !== null
+          ? t("tasks.delivery.checks.runningAgain", { sha: headShort })
+          : failedAny
+          ? t("tasks.delivery.checks.failedOf", {
+            failed: checks.failed,
+            total: checks.total,
+          })
+          : t("tasks.delivery.checks.passedOf", {
+            passed: checks.passed,
+            total: checks.total,
+          })}
         title={<>{t("tasks.delivery.checks.title")}{helpTip("checks")}</>}
       >
         {checksStatus === "done" || checks.rows.length === 0
@@ -376,18 +396,19 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
             <UI.Stack gap="compact">
               {shownChecks.map((row) => (
                 <UI.Text key={row.id}>
-                  {row.name}{" "}
-                  <UI.Badge tone={CHECK_TONE[row.result]}>
-                    {t(CHECK_LABEL[row.result])}
-                  </UI.Badge>
-                  {row.olderSha !== null && (
-                    <>
-                      {" "}
-                      <UI.Badge>
-                        {t("tasks.delivery.olderCommit", { sha: row.olderSha })}
+                  {row.name} {row.olderSha === null
+                    ? (
+                      <UI.Badge tone={CHECK_TONE[row.result]}>
+                        {t(CHECK_LABEL[row.result])}
                       </UI.Badge>
-                    </>
-                  )}
+                    )
+                    : (
+                      <UI.Badge>
+                        {t(OLDER_RESULT_LABEL[row.result], {
+                          sha: row.olderSha,
+                        })}
+                      </UI.Badge>
+                    )}
                 </UI.Text>
               ))}
               {!showAllChecks && sortedChecks.length > SHOWN && (
@@ -460,9 +481,20 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
       </UI.StepItem>
       {fixing !== null && (
         <UI.StepItem
-          status={fixing.running ? "running" : "done"}
-          statusLabel={label(fixing.running ? "running" : "done")}
-          summary={fixing.running
+          status={fixing.stopped
+            ? "failed"
+            : fixing.running
+            ? "running"
+            : "done"}
+          statusLabel={label(
+            fixing.stopped ? "failed" : fixing.running ? "running" : "done",
+          )}
+          summary={fixing.stopped
+            ? t("tasks.delivery.fixing.stopped", {
+              attempt: fixing.attempt,
+              count: fixing.blocking,
+            })
+            : fixing.running
             ? t("tasks.delivery.fixing.running", {
               attempt: fixing.attempt,
               max: fixing.max,

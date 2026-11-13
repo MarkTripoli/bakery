@@ -24,6 +24,13 @@
   grid-template-columns:
     calc(var(--space-5) + var(--space-2)) minmax(0, 1fr) auto;
   padding: var(--space-4);
+  /* The title row is as tall as a help button (--target-min), so every step
+     lines up whether or not it has one, with no box overflowing or overlapping
+     another. The row's extra height above the text comes out of the top
+     padding, so the title stays where it was. */
+  padding-block-start: calc(
+    var(--space-4) - (var(--target-min) - var(--space-5)) / 2
+  );
 }
 
 .ui-step-item:last-child {
@@ -35,10 +42,11 @@
   block-size: var(--space-5);
   border-radius: var(--radius-pill);
   display: inline-flex;
-  font: var(--type-avatar); /* 600 12px/1: the mark's own metrics in the design */
   inline-size: var(--space-5);
   justify-content: center;
-  margin-block-start: var(--space-0-5);
+  margin-block-start: calc(
+    (var(--target-min) - var(--space-5)) / 2 + var(--space-0-5)
+  );
 }
 
 .ui-step-item[data-state="done"] .ui-step-item__mark {
@@ -82,6 +90,7 @@
   flex-wrap: wrap;
   font: var(--type-control);
   gap: var(--space-1);
+  min-block-size: var(--target-min);
 }
 
 .ui-step-item__summary {
@@ -110,6 +119,7 @@
 .ui-step-item__action {
   display: flex;
   justify-self: end;
+  margin-block-start: calc((var(--target-min) - var(--space-5)) / 2);
   min-inline-size: 0;
 }
 
@@ -143,5 +153,6 @@
   .ui-step-item__action {
     grid-column: 2;
     justify-self: start;
+    margin-block-start: var(--space-0);
   }
 }

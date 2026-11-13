@@ -153,7 +153,15 @@ export type DeliveryModel = Readonly<{
     } | null
   >;
   fixing: Readonly<
-    { attempt: number; max: number; running: boolean } | null
+    {
+      attempt: number;
+      max: number;
+      running: boolean;
+      /** The run stopped (a stop reason other than stale evidence). */
+      stopped: boolean;
+      /** Blocking findings still open, from the stop decision when stopped. */
+      blocking: number;
+    } | null
   >;
   now: NowCard;
 }>;
@@ -268,10 +276,18 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
     latestDecision?.reason === "stale_evidence"
   );
 
+  const stopped = latestDecision?.decision === "stop" &&
+    latestDecision.reason !== "stale_evidence" &&
+    STOP_REASONS.has(latestDecision.reason);
+  const openBlocking = open.filter((finding) => finding.blocking).length;
   const fixing = repairs === 0 ? null : {
     attempt: repairs,
     max: maxRepairs,
     running: latestDecision?.decision === "repair",
+    stopped,
+    blocking: stopped
+      ? latestDecision.blockingFingerprints.length || openBlocking
+      : openBlocking,
   };
 
   return {

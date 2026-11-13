@@ -234,7 +234,13 @@ Deno.test("an attempt is a repair decision; the maximum is the latest decision's
       }),
     ],
   }));
-  assertEquals(model.fixing, { attempt: 2, max: 3, running: true });
+  assertEquals(model.fixing, {
+    attempt: 2,
+    max: 3,
+    running: true,
+    stopped: false,
+    blocking: 0,
+  });
   assertEquals(model.now, { kind: "fixing", attempt: 2, max: 3 });
 });
 
@@ -293,6 +299,44 @@ Deno.test("each stop reason gives a stopped card with what the sentence needs", 
     unavailableChecks: 0,
     findingTitle: "Refund amount is not validated.",
   });
+});
+
+Deno.test("a stopped run marks the Fixing step stopped with the blocking count", () => {
+  const stopped = (reason: string) =>
+    deliveryModel(input({
+      reviews: [review({
+        status: "changes_requested",
+        findingCount: 1,
+        blockingCount: 1,
+      })],
+      findings: [finding({ id: "b", severity: "blocker" })],
+      decisions: [
+        decision({ ordinal: 0, decision: "repair", reason: "repair_selected" }),
+        decision({
+          ordinal: 1,
+          decision: "stop",
+          reason,
+          blockingFingerprints: ["f1", "f2"],
+        }),
+      ],
+    })).fixing;
+  assertEquals(stopped("repair_cycles_exhausted"), {
+    attempt: 1,
+    max: 2,
+    running: false,
+    stopped: true,
+    blocking: 2,
+  });
+  assertEquals(
+    stopped("stale_evidence")?.stopped,
+    false,
+    "stale evidence is the out-of-date notice, not a stop",
+  );
+  assertEquals(
+    stopped("something_new")?.stopped,
+    false,
+    "an unknown reason is not drawn as a stop",
+  );
 });
 
 Deno.test("an unknown stop reason is not drawn as a stop", () => {

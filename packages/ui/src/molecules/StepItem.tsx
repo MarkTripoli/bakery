@@ -1,5 +1,6 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import type { SemanticNativeProps } from "../foundations/semantic-native-props.ts";
+import { Icon } from "../atoms/Icon.tsx";
 import { IconGlyph } from "../atoms/IconGlyph.tsx";
 import { VisuallyHidden } from "../atoms/VisuallyHidden.tsx";
 import "../steps.css";
@@ -37,12 +38,33 @@ export type StepItemProps =
     children?: ReactNode;
   };
 
+/**
+ * Every mark is drawn at the tick's size (a 16px icon in the 20px circle), so a
+ * cross, three dots, an exclamation or a question mark is never smaller than
+ * the tick. The shared glyph table has only the tick, so the rest are drawn
+ * here with `Icon`, as the catalogue says for a glyph outside the table.
+ */
 const MARKS = {
-  failed: "×",
-  running: "…",
-  waiting: "!",
-  upcoming: "",
-  unknown: "?",
+  failed: <path d="M6 6l12 12M18 6 6 18" />,
+  running: (
+    <>
+      <circle cx="5" cy="12" fill="currentColor" r="1.75" stroke="none" />
+      <circle cx="12" cy="12" fill="currentColor" r="1.75" stroke="none" />
+      <circle cx="19" cy="12" fill="currentColor" r="1.75" stroke="none" />
+    </>
+  ),
+  waiting: (
+    <>
+      <path d="M12 5v9" />
+      <circle cx="12" cy="18.5" fill="currentColor" r="1.5" stroke="none" />
+    </>
+  ),
+  unknown: (
+    <>
+      <path d="M8.5 9a3.5 3.5 0 1 1 5 3.2c-1 .5-1.5 1.1-1.5 2.3" />
+      <circle cx="12" cy="18.5" fill="currentColor" r="1.5" stroke="none" />
+    </>
+  ),
 } as const;
 
 /** One gate of a `StepList`: a status, a name, a result and an open detail. */
@@ -62,7 +84,9 @@ export function StepItem(
         <span aria-hidden="true">
           {status === "done"
             ? <IconGlyph name="check" size="small" />
-            : MARKS[status]}
+            : status === "upcoming"
+            ? null
+            : <Icon size="small">{MARKS[status]}</Icon>}
         </span>
         <VisuallyHidden>{statusLabel}</VisuallyHidden>
       </span>

@@ -2732,7 +2732,6 @@
   "repository.rules.list.title": "⟪Rules⟫",
   "repository.rules.details.copyFailed": "⟪Could not copy the fingerprint. Select it and copy it yourself.⟫",
   "tasks.delivery.heading": "⟪Delivery⟫",
-  "tasks.delivery.purpose": "⟪From finished changes to a running release.⟫",
   "tasks.delivery.loading": "⟪Loading delivery status⟫",
   "tasks.delivery.error.title": "⟪Delivery status could not be loaded.⟫",
   "tasks.delivery.error.description": "⟪Check your connection, then try again.⟫",
@@ -2810,5 +2809,13 @@
   "tasks.delivery.help.review.text": "⟪A second agent that did not write the change reads it and reports problems. Blockers and majors must be fixed.⟫",
   "tasks.delivery.help.fixing.label": "⟪About fixing⟫",
   "tasks.delivery.help.fixing.text": "⟪When a check or the review fails, Bakery asks the agent to fix it, up to {max, plural, one {# time} other {# times}}.⟫",
-  "tasks.delivery.review.changesBlockingOnly": "⟪Changes requested · {blocking} blocking⟫"
+  "tasks.delivery.review.changesBlockingOnly": "⟪Changes requested · {blocking} blocking⟫",
+  "tasks.delivery.purpose": "⟪Whether this change is ready, and what it is waiting for.⟫",
+  "tasks.delivery.fixing.stopped": "⟪Stopped after {attempt, plural, one {# try} other {# tries}}.{count, plural, =0 {} one { # blocking finding remains.} other { # blocking findings remain.}}⟫",
+  "tasks.delivery.checks.runningAgain": "⟪Running again for commit {sha}.⟫",
+  "tasks.delivery.olderResult.passed": "⟪Passed on older commit {sha}⟫",
+  "tasks.delivery.olderResult.failed": "⟪Failed on older commit {sha}⟫",
+  "tasks.delivery.olderResult.running": "⟪Running on older commit {sha}⟫",
+  "tasks.delivery.olderResult.unavailable": "⟪Unavailable on older commit {sha}⟫",
+  "tasks.delivery.olderResult.canceled": "⟪Canceled on older commit {sha}⟫"
 }

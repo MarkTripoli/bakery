@@ -2732,7 +2732,6 @@
   "repository.rules.list.title": "⟦Ŕûļëš⟧",
   "repository.rules.details.copyFailed": "⟦Çôûļð ñôŧ çôþÿ ŧĥë ƒïñĝëŕþŕïñŧ. Šëļëçŧ ïŧ àñð çôþÿ ïŧ ÿôûŕšëļƒ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "tasks.delivery.heading": "⟦Ðëļïṽëŕÿ…⟧",
-  "tasks.delivery.purpose": "⟦Ƒŕôɱ ƒïñïšĥëð çĥàñĝëš ŧô à ŕûññïñĝ ŕëļëàšë. ŧëšŧ çôþÿ ŧëš⟧",
   "tasks.delivery.loading": "⟦Ļôàðïñĝ ðëļïṽëŕÿ šŧàŧûš ŧëšŧ ç⟧",
   "tasks.delivery.error.title": "⟦Ðëļïṽëŕÿ šŧàŧûš çôûļð ñôŧ ƀë ļôàðëð. ŧëšŧ çôþÿŧ⟧",
   "tasks.delivery.error.description": "⟦Çĥëçķ ÿôûŕ çôññëçŧïôñ, ŧĥëñ ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧ⟧",
@@ -2810,5 +2809,13 @@
   "tasks.delivery.help.review.text": "⟦À šëçôñð àĝëñŧ ŧĥàŧ ðïð ñôŧ ŵŕïŧë ŧĥë çĥàñĝë ŕëàðš ïŧ àñð ŕëþôŕŧš þŕôƀļëɱš. Ɓļôçķëŕš àñð ɱàĵôŕš ɱûšŧ ƀë ƒïẋëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "tasks.delivery.help.fixing.label": "⟦Àƀôûŧ ƒïẋïñĝ ŧë⟧",
   "tasks.delivery.help.fixing.text": "⟦Ŵĥëñ à çĥëçķ ôŕ ŧĥë ŕëṽïëŵ ƒàïļš, Ɓàķëŕÿ àšķš ŧĥë àĝëñŧ ŧô ƒïẋ ïŧ, ûþ ŧô {max, plural, one {# time} other {# times}}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
-  "tasks.delivery.review.changesBlockingOnly": "⟦Çĥàñĝëš ŕëǫûëšŧëð · {blocking} ƀļôçķïñĝ ŧëšŧ çôþÿ ŧ⟧"
+  "tasks.delivery.review.changesBlockingOnly": "⟦Çĥàñĝëš ŕëǫûëšŧëð · {blocking} ƀļôçķïñĝ ŧëšŧ çôþÿ ŧ⟧",
+  "tasks.delivery.purpose": "⟦Ŵĥëŧĥëŕ ŧĥïš çĥàñĝë ïš ŕëàðÿ, àñð ŵĥàŧ ïŧ ïš ŵàïŧïñĝ ƒôŕ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "tasks.delivery.fixing.stopped": "⟦Šŧôþþëð àƒŧëŕ {attempt, plural, one {# try} other {# tries}}.{count, plural, =0 {} one { # blocking finding remains.} other { # blocking findings remain.}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "tasks.delivery.checks.runningAgain": "⟦Ŕûññïñĝ àĝàïñ ƒôŕ çôɱɱïŧ {sha}. ŧëšŧ çôþ⟧",
+  "tasks.delivery.olderResult.passed": "⟦Þàššëð ôñ ôļðëŕ çôɱɱïŧ {sha} ŧëšŧ çô⟧",
+  "tasks.delivery.olderResult.failed": "⟦Ƒàïļëð ôñ ôļðëŕ çôɱɱïŧ {sha} ŧëšŧ çô⟧",
+  "tasks.delivery.olderResult.running": "⟦Ŕûññïñĝ ôñ ôļðëŕ çôɱɱïŧ {sha} ŧëšŧ çôþ⟧",
+  "tasks.delivery.olderResult.unavailable": "⟦Ûñàṽàïļàƀļë ôñ ôļðëŕ çôɱɱïŧ {sha} ŧëšŧ çôþÿ⟧",
+  "tasks.delivery.olderResult.canceled": "⟦Çàñçëļëð ôñ ôļðëŕ çôɱɱïŧ {sha} ŧëšŧ çôþ⟧"
 }

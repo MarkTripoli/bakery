@@ -358,6 +358,11 @@ test("a clean run says nothing is waiting, offers no buttons and draws no step t
   );
   await expect(now).toContainText("Nothing is waiting for you.");
   await expect(now.getByRole("button")).toHaveCount(0);
+  await expect(now).toHaveAttribute("data-variant", "success");
+  await expect(section).toContainText(
+    "Whether this change is ready, and what it is waiting for.",
+  );
+  await expect(section).not.toContainText("release");
   const steps = section.getByRole("list", { name: "Delivery steps" });
   await expect(steps.getByRole("listitem")).toHaveCount(3);
   await expect(steps).toContainText("Commit 91d0aa3 on top of a7254e7");
@@ -380,15 +385,64 @@ test("results for an older commit are marked and the card says a fix is running"
   await mockDelivery(page, FIXING);
   await page.goto(`/tasks/${id}`);
   const section = page.getByTestId("delivery-section");
-  await expect(section).toContainText(
+  const now = section.getByTestId("delivery-now");
+  const notice = section.getByTestId("delivery-out-of-date");
+  await expect(notice).toContainText(
     "The changes were updated after these results",
   );
-  await expect(section.getByTestId("delivery-now")).toContainText(
-    "Fixing review findings · try 1 of 2",
-  );
+  // Nothing is wrong and nothing is asked of the person: a neutral notice,
+  // under the card that says whose turn it is.
+  await expect(notice).toHaveAttribute("data-variant", "neutral");
+  await expect(now).toContainText("Fixing review findings · try 1 of 2");
+  await expect(now).toHaveAttribute("data-variant", "information");
+  const nowBox = await now.boundingBox();
+  const noticeBox = await notice.boundingBox();
+  expect(nowBox).not.toBeNull();
+  expect(noticeBox).not.toBeNull();
+  expect(nowBox!.y).toBeLessThan(noticeBox!.y);
   await expect(section.getByText("Older commit 4be19c2").first()).toBeVisible();
   const steps = section.getByRole("list", { name: "Delivery steps" });
   await expect(steps).toContainText("Try 1 of 2 is running.");
+  // A result that no longer counts is never drawn as passed.
+  const checks = steps.getByRole("listitem").filter({ hasText: "Checks" });
+  await expect(checks).toContainText("Running again for commit 91d0aa3.");
+  await expect(checks.getByText("Passed on older commit 4be19c2"))
+    .toBeVisible();
+  await expect(checks.getByText("Passed", { exact: true })).toHaveCount(0);
+  // Every step lines up, whether or not it has a help button: the mark is level
+  // with the title, the title sits the same distance from its summary, and
+  // every mark is drawn at the tick's size.
+  const metrics = await steps.evaluate((list) =>
+    [...list.querySelectorAll(":scope > li")].map((item) => {
+      const rect = (selector: string) => {
+        const element = item.querySelector(selector);
+        if (element === null) throw new Error(`missing ${selector}`);
+        const box = element.getBoundingClientRect();
+        return {
+          top: box.top,
+          bottom: box.bottom,
+          height: box.height,
+          width: box.width,
+        };
+      };
+      const mark = rect(".ui-step-item__mark");
+      const title = rect(".ui-step-item__title");
+      const summary = rect(".ui-step-item__summary");
+      const icon = rect(".ui-step-item__mark svg");
+      return {
+        markMiddle: mark.top + mark.height / 2,
+        titleMiddle: title.top + title.height / 2,
+        gap: summary.top - title.bottom,
+        icon: [icon.width, icon.height],
+      };
+    })
+  );
+  expect(metrics).toHaveLength(4);
+  for (const row of metrics) {
+    expect(Math.abs(row.markMiddle - row.titleMiddle)).toBeLessThanOrEqual(3);
+    expect(Math.abs(row.gap - metrics[0].gap)).toBeLessThanOrEqual(1);
+    expect(row.icon).toEqual([16, 16]);
+  }
   const findings = steps.getByRole("listitem").filter({ hasText: "Review" });
   await expect(findings.getByText("Blocker", { exact: true })).toBeVisible();
   await expect(findings.getByText("Major", { exact: true })).toBeVisible();
@@ -405,6 +459,14 @@ test("a stopped run names the reason and its one button moves focus to the messa
     "It tried 2 times and 1 blocking finding remains.",
   );
   await expect(now).toContainText("Send a message to say what to do next.");
+  await expect(now).toHaveAttribute("data-variant", "warning");
+  const fixing = page.getByRole("list", { name: "Delivery steps" })
+    .getByRole("listitem").last();
+  await expect(fixing).toContainText(
+    "Stopped after 2 tries. 1 blocking finding remains.",
+  );
+  await expect(fixing).toContainText("Failed");
+  await expect(fixing).not.toContainText("finished");
   await expect(now.getByRole("button")).toHaveCount(1);
   await now.getByRole("button", { name: "Tell Bakery what to change" }).click();
   await expect(page.locator("#task-message-field")).toBeFocused();
