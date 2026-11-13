@@ -2,16 +2,21 @@
  * The environment of the lanes that run a real stack (#246), defense in depth
  * for the owner-account rule (#207). The security, integration and e2e lanes
  * start with an empty HOME, no CODEX_HOME and no BAKERY_CODEX_AUTH_SOURCE_DIR,
- * their own XDG directories and a minimal git config, so no test can reach the
- * operator's real login or settings by any path, including ones a source scan
- * cannot see.
+ * their own XDG directories and a minimal git config, so no path a test derives
+ * from HOME, CODEX_HOME, XDG_* or git's global config reaches the operator's
+ * Codex login or settings, including paths a source scan cannot see.
+ *
+ * What this is not: a sandbox. The lanes run with a global `--allow-read`, so a
+ * test that names an absolute path can still read it, and only the Codex login
+ * is in scope: every other credential the operator's environment holds
+ * (OPENAI_API_KEY, GITHUB_TOKEN, AWS_*, SSH_AUTH_SOCK, DOCKER_CONFIG ...)
+ * passes through to the lane unchanged, as PATH, database URLs and TMPDIR do.
  *
  * Only what the lanes need to keep working is carried across, and only by name:
  * the module cache (`DENO_DIR`) and the browser cache stay pinned where they
  * are, because they hold no credentials and an empty one would make every run
  * download them again; `BAKERY_TEST_CODEX_AUTH_DIR`, the dedicated and explicit
- * opt-in of #207, stays the operator's decision. Everything else of the
- * operator's environment (PATH, database URLs, TMPDIR) passes through.
+ * opt-in of #207, stays the operator's decision.
  *
  * The functions here are pure: the lane runner makes the directories.
  */
@@ -60,6 +65,33 @@ export function laneEnvPaths(root: string) {
       join(base, "xdg-cache"),
     ],
   };
+}
+
+/**
+ * The caches a lane keeps pointing at the operator's own: the module cache and
+ * the browser cache. The variable wins when it is set and not empty; otherwise
+ * the module cache is where `deno info` says it is (`denoInfoDir`, which the
+ * caller asks for only when it is needed) and the browser cache is
+ * `$HOME/.cache/ms-playwright`. A cache that cannot be found is left out, and
+ * the lane then finds its own.
+ */
+export function pinnedCaches(options: {
+  environment: Readonly<Record<string, string>>;
+  denoInfoDir: string | undefined;
+}): Record<string, string> {
+  const { environment } = options;
+  const pinned: Record<string, string> = {};
+  const set = (name: string): string | undefined =>
+    environment[name] !== undefined && environment[name]!.length > 0
+      ? environment[name]
+      : undefined;
+  const denoDir = set("DENO_DIR") ?? options.denoInfoDir;
+  if (denoDir !== undefined && denoDir.length > 0) pinned.DENO_DIR = denoDir;
+  const home = set("HOME");
+  const browsers = set("PLAYWRIGHT_BROWSERS_PATH") ??
+    (home === undefined ? undefined : join(home, ".cache", "ms-playwright"));
+  if (browsers !== undefined) pinned.PLAYWRIGHT_BROWSERS_PATH = browsers;
+  return pinned;
 }
 
 /**

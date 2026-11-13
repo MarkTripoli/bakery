@@ -8,6 +8,7 @@ import {
   isolatedLaneEnvironment,
   laneEnvPaths,
   MINIMAL_GIT_CONFIG,
+  pinnedCaches,
 } from "../../scripts/ci/lane-environment.ts";
 
 // #246, defense in depth for the owner-account rule (#207): the security,
@@ -119,6 +120,17 @@ Deno.test("the minimal git config names a committer and nothing else of the oper
   assert(!MINIMAL_GIT_CONFIG.includes("signingkey"));
 });
 
+// The system git, not whatever `git` the PATH holds first: a version manager's
+// shim reads its own config from the HOME the child is given, which the
+// isolated lane deliberately empties.
+const GIT = ["/usr/bin/git", "/bin/git"].find((path) => {
+  try {
+    return Deno.statSync(path).isFile;
+  } catch {
+    return false;
+  }
+}) ?? "git";
+
 const run = (
   file: string,
   args: string[],
@@ -174,11 +186,127 @@ Deno.test("a child process in the isolated environment cannot see a sentinel hom
     assertEquals(closed.envSource, null);
 
     const name = (env: Record<string, string>) =>
-      run("git", ["config", "--global", "user.name"], env);
+      run(GIT, ["config", "--global", "user.name"], env);
     assertEquals(await name(base), "The Operator");
     assertEquals(await name(isolated), "Bakery Test");
   } finally {
     await rm(sentinel, { recursive: true, force: true });
     await rm(laneRoot, { recursive: true, force: true });
   }
+});
+
+Deno.test("the module and browser caches are pinned from the variable, else from where they are", () => {
+  // Both variables set: the operator's own, untouched.
+  assertEquals(
+    pinnedCaches({
+      environment: {
+        DENO_DIR: "/ops/deno",
+        PLAYWRIGHT_BROWSERS_PATH: "/ops/browsers",
+        HOME: "/home/operator",
+      },
+      denoInfoDir: "/from/deno/info",
+    }),
+    { DENO_DIR: "/ops/deno", PLAYWRIGHT_BROWSERS_PATH: "/ops/browsers" },
+  );
+  // Neither set: what `deno info` says, and the default under the operator's HOME.
+  assertEquals(
+    pinnedCaches({
+      environment: { HOME: "/home/operator" },
+      denoInfoDir: "/from/deno/info",
+    }),
+    {
+      DENO_DIR: "/from/deno/info",
+      PLAYWRIGHT_BROWSERS_PATH: "/home/operator/.cache/ms-playwright",
+    },
+  );
+  // An empty variable is not set: it does not hide where the cache is.
+  assertEquals(
+    pinnedCaches({
+      environment: {
+        DENO_DIR: "",
+        PLAYWRIGHT_BROWSERS_PATH: "",
+        HOME: "/home/operator",
+      },
+      denoInfoDir: "/from/deno/info",
+    }),
+    {
+      DENO_DIR: "/from/deno/info",
+      PLAYWRIGHT_BROWSERS_PATH: "/home/operator/.cache/ms-playwright",
+    },
+  );
+  // A cache that cannot be found is left out; the lane then finds its own.
+  assertEquals(
+    pinnedCaches({ environment: {}, denoInfoDir: undefined }),
+    {},
+  );
+  assertEquals(
+    pinnedCaches({ environment: { HOME: "" }, denoInfoDir: "" }),
+    {},
+  );
+  // Only the variable and `deno info` decide DENO_DIR; HOME alone does not.
+  assertEquals(
+    pinnedCaches({
+      environment: { HOME: "/home/operator" },
+      denoInfoDir: undefined,
+    }),
+    { PLAYWRIGHT_BROWSERS_PATH: "/home/operator/.cache/ms-playwright" },
+  );
+});
+
+Deno.test("git reads the minimal config as a committer on main, with signing off", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "bakery-gitconfig-"));
+  try {
+    const file = join(dir, "gitconfig");
+    await writeFile(file, MINIMAL_GIT_CONFIG);
+    const read = (key: string) =>
+      run(GIT, ["config", "--file", file, "--get", key], {
+        PATH: Deno.env.get("PATH") ?? "",
+      });
+    assertEquals(await read("user.name"), "Bakery Test");
+    assertEquals(await read("user.email"), "test@example.test");
+    assertEquals(await read("init.defaultBranch"), "main");
+    assertEquals(await read("commit.gpgsign"), "false");
+    assertEquals(await read("tag.gpgsign"), "false");
+    // And nothing else: five keys, the whole of it.
+    assertEquals(
+      (await run(GIT, ["config", "--file", file, "--list"], {
+        PATH: Deno.env.get("PATH") ?? "",
+      })).split("\n").length,
+      5,
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+Deno.test("only the Codex login is removed: every other operator variable reaches the lane, as the header says", () => {
+  const env = isolatedLaneEnvironment({
+    lane: "security",
+    environment: {
+      ...operator,
+      OPENAI_API_KEY: "sk-operator",
+      GITHUB_TOKEN: "ghp_operator",
+      GH_TOKEN: "ghp_operator",
+      AWS_ACCESS_KEY_ID: "AKIAOPERATOR",
+      SSH_AUTH_SOCK: "/run/user/1000/ssh-agent",
+      DOCKER_CONFIG: "/home/operator/.docker",
+    },
+    root,
+    pinned,
+  });
+  assert(env !== null);
+  for (
+    const key of [
+      "OPENAI_API_KEY",
+      "GITHUB_TOKEN",
+      "GH_TOKEN",
+      "AWS_ACCESS_KEY_ID",
+      "SSH_AUTH_SOCK",
+      "DOCKER_CONFIG",
+    ]
+  ) {
+    assert(Object.hasOwn(env, key), `${key} is still the operator's`);
+  }
+  assertEquals(Object.hasOwn(env, "CODEX_HOME"), false);
+  assertEquals(Object.hasOwn(env, "BAKERY_CODEX_AUTH_SOURCE_DIR"), false);
 });
