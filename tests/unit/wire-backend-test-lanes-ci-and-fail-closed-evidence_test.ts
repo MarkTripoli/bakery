@@ -28,6 +28,22 @@ const dependencies = "deno:2.9.1,node:22.22.0,pnpm:10.33.0";
 const readWorkflow = (name: string) =>
   Deno.readTextFile(`.github/workflows/${name}`);
 
+/** The body of one job of `ci.yml`, from its id line to the next job. */
+const jobBodyOf = (workflow: string, id: string): string => {
+  const [, jobsBlock] = workflow.split(/^jobs:\n/m);
+  const found = jobsBlock.split(/^\x20{2}(?=[a-z0-9_]+:\n)/m)
+    .find((candidate) => candidate.startsWith(`${id}:\n`));
+  assert(found, `job ${id} exists`);
+  return found;
+};
+
+const jobIdsOf = (workflow: string): string[] => {
+  const [, jobsBlock] = workflow.split(/^jobs:\n/m);
+  return [...jobsBlock.matchAll(/^ {2}([a-z0-9_]+):\n/gm)].map((match) =>
+    match[1]
+  );
+};
+
 const expectedLaneOrder = [
   "rails",
   "git_diff_check",
@@ -700,6 +716,15 @@ Deno.test("pull-request lane flags match the workflow gate routing", async () =>
       admitsGate,
       `${lane.lane}: policy pullRequestRequired disagrees with ci.yml routing`,
     );
+    // #330: a pull request must never wait for the self-hosted pool, so every
+    // lane it runs is on a GitHub-hosted image.
+    if (admitsGate) {
+      assertMatch(
+        body,
+        /^ {4}runs-on: ubuntu-24\.04$/m,
+        `${lane.lane}: a lane a pull request runs must use a GitHub-hosted runner`,
+      );
+    }
     if (admitsGate) gated++;
     else postMerge++;
   }
@@ -713,6 +738,55 @@ Deno.test("pull-request lane flags match the workflow gate routing", async () =>
     workflow.includes("post-merge lane ran on a pull request"),
     "the aggregate rejects a post-merge lane on a pull request",
   );
+});
+
+Deno.test("the route job, the docs validation, the aggregate and the description policy run on GitHub-hosted runners", async () => {
+  // The route job and the docs validation are not required-check lanes, so the
+  // per-lane rule does not reach them. The aggregate is the last job of every
+  // pull-request run and the description policy answers every issue and
+  // pull-request edit: none of these may queue behind the self-hosted pool
+  // (#330).
+  const workflow = await readWorkflow("ci.yml");
+  for (const id of ["changes", "docs_validation", "aggregate"]) {
+    assertMatch(
+      jobBodyOf(workflow, id),
+      /^ {4}runs-on: ubuntu-24\.04$/m,
+      `${id} must use a GitHub-hosted runner`,
+    );
+  }
+  const policy = await readWorkflow("description-policy.yml");
+  assertEquals(
+    [...policy.matchAll(/^ {4}runs-on: (.+)$/gm)].map((match) => match[1]),
+    ["ubuntu-24.04", "ubuntu-24.04"],
+  );
+});
+
+Deno.test("fork pull requests are skipped at the root jobs, and no other job is a root", async () => {
+  // Four jobs have no `needs`: the route job, the two cheap root lanes and the
+  // aggregate. Each skips a fork pull request with the same-repository guard;
+  // every other job needs one of them, so a skipped root skips it too.
+  const workflow = await readWorkflow("ci.yml");
+  const guard =
+    "github.event.pull_request.head.repo.full_name == github.repository";
+  const roots = ["changes", "git_diff_check", "semantic_metadata", "aggregate"];
+  for (const id of roots) {
+    const condition = jobBodyOf(workflow, id).split("\n").find((line) =>
+      line.startsWith("    if: ")
+    );
+    assert(
+      condition?.includes(guard),
+      `${id} must skip fork pull requests with the same-repository guard`,
+    );
+  }
+  for (const id of jobIdsOf(workflow)) {
+    if (id === "aggregate") continue;
+    const needsAnother = /^ {4}needs: /m.test(jobBodyOf(workflow, id));
+    assertEquals(
+      needsAnother,
+      !roots.includes(id),
+      `${id}: only the root jobs may run without needs (a fork pull request would reach it)`,
+    );
+  }
 });
 
 Deno.test("affected push routing selects lanes through the classifier union", async () => {
@@ -841,14 +915,21 @@ Deno.test("TypeSafe advisory steps can never gate and always run for pull reques
     workflow.split("secrets.TYPESAFE_API_KEY").length - 1,
     advisory.length,
   );
-  // A newer pull-request or main push supersedes the older run on the same
-  // ref; scheduled and manual runs keep their own group.
+  // A newer pull-request run supersedes the older one on the same ref. A main
+  // push never cancels the push before it (#330): the running push finishes and
+  // GitHub keeps one newer push pending behind it, so main gets completed runs
+  // instead of a stream of cancelled ones. Scheduled and manual runs keep their
+  // own group.
   assert(workflow.includes(
     "group: bakery-ci-${{ (github.event_name == 'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}",
   ));
   assert(workflow.includes(
-    "cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}",
+    "cancel-in-progress: ${{ github.event_name == 'pull_request' }}",
   ));
+  assert(
+    !/cancel-in-progress:[^\n]*'push'/.test(workflow),
+    "a main push must not cancel the push before it",
+  );
   // The title gate validates the squashed subject.
   assert(workflow.includes('--pull-request-number "$PR_NUMBER"'));
 });

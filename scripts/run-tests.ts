@@ -1,3 +1,9 @@
+import {
+  ISOLATED_HOME_LANES,
+  isolatedLaneEnvironment,
+  pinnedCaches,
+} from "./ci/lane-environment.ts";
+
 const lane = Deno.args[0];
 const knownLanes = new Set([
   "rails",
@@ -150,6 +156,22 @@ const rootTool = async (...args: string[]) => {
     text: new TextDecoder().decode(output.stdout).trim(),
   };
 };
+// A terminated run still sweeps its root (#246). The listeners go in before any
+// root exists, remember which signal came and pass it on to the test process
+// once there is one; a signal that comes before the test process starts means
+// it never starts. Either way the run reaches the sweep below.
+let received: "SIGINT" | "SIGTERM" | undefined;
+let testProcess: Deno.ChildProcess | undefined;
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  Deno.addSignalListener(signal, () => {
+    received ??= signal;
+    try {
+      testProcess?.kill(signal);
+    } catch {
+      // Already gone.
+    }
+  });
+}
 let laneRoot: string | undefined;
 if (lane === "unit") {
   const created = await rootTool("create", temporaryDirectory);
@@ -157,6 +179,55 @@ if (lane === "unit") {
   else {console.error(
       "test temp root: could not create one; using the system temp dir",
     );}
+}
+
+// The lanes that run a real stack start with an empty HOME and no path to the
+// operator's Codex login (#246). The module and browser caches are pinned where
+// they are so the lane does not download them again; see
+// scripts/ci/lane-environment.ts.
+let isolatedRoot: string | undefined;
+let isolatedEnv: Record<string, string> | undefined;
+if (ISOLATED_HOME_LANES.includes(lane)) {
+  const created = await rootTool("create", temporaryDirectory);
+  if (created.code !== 0 || created.text.length === 0) {
+    console.error(
+      "lane HOME: could not create an isolated root; refusing to run",
+    );
+    Deno.exit(3);
+  }
+  isolatedRoot = created.text;
+  const made = await rootTool("skeleton", temporaryDirectory, isolatedRoot);
+  if (made.code !== 0) {
+    // The root exists but is not a home: it goes, and nothing runs in it.
+    await rootTool("sweep", temporaryDirectory, isolatedRoot);
+    console.error(
+      "lane HOME: could not prepare the isolated home; refusing to run",
+    );
+    Deno.exit(3);
+  }
+  const operator = Deno.env.toObject();
+  const askDeno = (operator.DENO_DIR ?? "").length === 0;
+  const pinned = pinnedCaches({
+    environment: operator,
+    denoInfoDir: askDeno
+      ? JSON.parse(
+        new TextDecoder().decode(
+          (await new Deno.Command(Deno.execPath(), {
+            args: ["info", "--json"],
+            stdin: "null",
+            stdout: "piped",
+            stderr: "null",
+          }).output()).stdout,
+        ),
+      ).denoDir
+      : undefined,
+  });
+  isolatedEnv = isolatedLaneEnvironment({
+    lane,
+    environment: operator,
+    root: isolatedRoot,
+    pinned,
+  }) ?? undefined;
 }
 
 // #229: the lane's --allow-run is resolved against the PATH this process
@@ -171,7 +242,7 @@ const laneAllowRun = allowRunFlag === undefined
   ? "(all)"
   : allowRunFlag.slice("--allow-run=".length);
 
-const process = new Deno.Command(Deno.execPath(), {
+const command = new Deno.Command(Deno.execPath(), {
   args: [
     "test",
     "--preload",
@@ -180,25 +251,52 @@ const process = new Deno.Command(Deno.execPath(), {
     ...parallel,
     ...paths,
   ],
-  env: {
-    ...(laneRoot === undefined ? {} : { TMPDIR: laneRoot }),
-    BAKERY_TEST_STARTUP_PATH: Deno.env.get("PATH") ?? "",
-    BAKERY_TEST_ALLOW_RUN: laneAllowRun,
-  },
+  ...(isolatedEnv !== undefined
+    // The isolated lanes (#246) run with exactly this environment, plus the
+    // two diagnostics of #229 that tell the test process which PATH and
+    // --allow-run it was started with.
+    ? {
+      clearEnv: true,
+      env: {
+        ...isolatedEnv,
+        BAKERY_TEST_STARTUP_PATH: Deno.env.get("PATH") ?? "",
+        BAKERY_TEST_ALLOW_RUN: laneAllowRun,
+      },
+    }
+    : {
+      env: {
+        ...(laneRoot === undefined ? {} : { TMPDIR: laneRoot }),
+        BAKERY_TEST_STARTUP_PATH: Deno.env.get("PATH") ?? "",
+        BAKERY_TEST_ALLOW_RUN: laneAllowRun,
+      },
+    }),
   stdout: "inherit",
   stderr: "inherit",
-}).spawn();
-// A terminated run still sweeps its root: pass the signal on and carry on.
-for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  Deno.addSignalListener(signal, () => {
-    try {
-      process.kill(signal);
-    } catch {
-      // Already gone.
-    }
-  });
+});
+let code: number;
+if (received !== undefined) {
+  // Terminated before the tests started: they do not, and the roots go.
+  code = received === "SIGINT" ? 130 : 143;
+} else {
+  testProcess = command.spawn();
+  // A signal between the check above and the process existing.
+  if (received !== undefined) testProcess.kill(received);
+  code = (await testProcess.status).code;
 }
-let code = (await process.status).code;
+if (isolatedRoot !== undefined) {
+  const swept = await rootTool("sweep", temporaryDirectory, isolatedRoot);
+  try {
+    const { homeEntries } = JSON.parse(swept.text) as { homeEntries?: number };
+    // What a lane writes into its isolated HOME is what depended on a real one.
+    if (homeEntries !== undefined && homeEntries > 0) {
+      console.error(
+        `lane HOME: ${homeEntries} entries were written to the isolated home`,
+      );
+    }
+  } catch {
+    console.error("lane HOME: the sweep did not report; the root may remain");
+  }
+}
 if (laneRoot !== undefined) {
   const swept = await rootTool("sweep", temporaryDirectory, laneRoot);
   try {

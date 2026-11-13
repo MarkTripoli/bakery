@@ -28,6 +28,11 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
+import { MachineList } from "./MachineList.tsx";
+import { type MachineFilter, machineMatchesFilter } from "./machine-state.ts";
+
+// Above this many machines the list offers a filter; below it, it is just a list.
+const FILTER_MIN_MACHINES = 10;
 
 export type EnrollmentToken = Readonly<{
   enrollmentId: string;
@@ -42,12 +47,6 @@ type Readiness = NonNullable<WorkerResponse["readiness"]>;
 type Connectivity = NonNullable<WorkerResponse["connectivity"]>;
 type WorkerStatus = WorkerResponse["status"];
 type EnrollmentState = EnrollmentRow["state"];
-
-function textList(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((entry): entry is string => typeof entry === "string")
-    : [];
-}
 
 export function formatMachineDate(
   value: string | null | undefined,
@@ -94,29 +93,6 @@ export function toneForConnectivity(
   return "neutral";
 }
 
-function labelForReadiness(
-  readiness: Readiness | null | undefined,
-  translate: Translator,
-): string {
-  if (!readiness) return translate("machines.unknown" as never);
-  return translate(`machines.readiness.${readiness}` as never);
-}
-
-function labelForConnectivity(
-  connectivity: Connectivity | null | undefined,
-  translate: Translator,
-): string {
-  if (!connectivity) return translate("machines.unknown" as never);
-  return translate(`machines.connectivity.${connectivity}` as never);
-}
-
-function labelForWorkerStatus(
-  status: WorkerStatus,
-  translate: Translator,
-): string {
-  return translate(`machines.status.${status}` as never);
-}
-
 function labelForEnrollmentState(
   state: EnrollmentState,
   translate: Translator,
@@ -129,11 +105,6 @@ function statusForEnrollment(state: EnrollmentState): UI.Status {
   if (state === "consumed") return "healthy";
   if (state === "expired") return "degraded";
   return "disabled";
-}
-
-function machineCapabilities(worker: MachineRow, unknown: string): string {
-  const values = textList(worker.capabilities);
-  return values.length ? values.join(", ") : unknown;
 }
 
 function StateError({
@@ -727,94 +698,14 @@ function EnrollmentPanel({
   );
 }
 
-function MachineCards(
-  { rows, loading, stale, date, onOpen, translate }: {
-    rows: readonly MachineRow[];
-    loading: boolean;
-    stale: boolean;
-    date: (value: string | null | undefined) => string;
-    onOpen: (row: MachineRow) => void;
-    translate: Translator;
-  },
-) {
-  return (
-    <>
-      {loading && rows.length === 0
-        ? (
-          <UI.Text variant="muted" role="status">
-            {translate("machines.loading" as never)}
-          </UI.Text>
-        )
-        : null}
-      <UI.Stack
-        gap="none"
-        role="list"
-        aria-label={translate("machines.table" as never)}
-        aria-busy={loading || undefined}
-        data-list-state={loading ? "loading" : stale ? "stale" : "ready"}
-      >
-        {rows.map((row) => (
-          <div key={row.id} role="listitem" data-machine-id={row.id}>
-            <UI.StackedRow
-              title={
-                <UI.Button
-                  variant="text"
-                  onClick={() => onOpen(row)}
-                >
-                  {row.name}
-                </UI.Button>
-              }
-              status={
-                <UI.StatusBadge status={statusForReadiness(row.readiness)}>
-                  {labelForReadiness(row.readiness, translate)}
-                </UI.StatusBadge>
-              }
-            >
-              <UI.DataText variant="timestamp">
-                {`${row.os} · ${row.architecture}`}
-              </UI.DataText>
-              <UI.Text variant="caption">
-                {`${translate("machines.connectivity.label" as never)}: `}
-                <UI.StatusDot
-                  tone={toneForConnectivity(row.connectivity)}
-                  size="small"
-                >
-                  {labelForConnectivity(row.connectivity, translate)}
-                </UI.StatusDot>
-              </UI.Text>
-              <UI.Text variant="caption">
-                {`${translate("machines.status.label" as never)}: ${
-                  labelForWorkerStatus(row.status, translate)
-                }`}
-              </UI.Text>
-              <UI.Text variant="caption">
-                {`${translate("machines.capabilities" as never)}: ${
-                  machineCapabilities(
-                    row,
-                    translate("machines.unknown" as never),
-                  )
-                }`}
-              </UI.Text>
-              <UI.Text variant="caption">
-                {`${translate("machines.lastHeartbeat" as never)}: ${
-                  date(row.lastHeartbeatAt)
-                }`}
-              </UI.Text>
-            </UI.StackedRow>
-          </div>
-        ))}
-      </UI.Stack>
-    </>
-  );
-}
-
 export function MachinesPage() {
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const navigate = useNavigate();
-  const { translate, locale, timeZone } = useI18n();
+  const { translate } = useI18n();
   useRestoreOrganizationScope();
   const [workerCursor, setWorkerCursor] = useState<string | null>(null);
+  const [filter, setFilter] = useState<MachineFilter>("all");
   const workers = useQuery(
     workersListQueryOptions(api, scope, { limit: 100 }),
   );
@@ -838,20 +729,16 @@ export function MachinesPage() {
     setWorkerCursor(null);
   }, [scope.organizationId]);
   const organizationId = scope.organizationId;
-  const date = (value: string | null | undefined) =>
-    formatMachineDate(
-      value,
-      locale,
-      timeZone,
-      translate("machines.never" as never),
-    );
   const rows = [
     ...(workers.data?.items ?? []),
     ...(workerContinuation.data?.items ?? []),
   ];
+  const visible = rows.filter((row) => machineMatchesFilter(row, filter));
   const nextWorkerCursor = workerContinuation.data?.nextCursor ??
     workers.data?.nextCursor;
   const forbidden = workers.isError && isForbiddenFailure(workers.error);
+  // The add action is for an administrator who can read the list at all.
+  const canAdd = isAdmin && !forbidden;
   const connectivityKind = asyncKindForConnectivity(connectivity);
   const phone = useShellViewport() === "phone";
   const openMachine = (row: MachineRow) =>
@@ -859,6 +746,17 @@ export function MachinesPage() {
       to: "/machines/$machineId",
       params: { machineId: row.id },
     });
+  // The page's one primary action: in the top bar on a wide screen, under the
+  // title on a phone (the page header hides its actions on a wide one).
+  const addMachine = (
+    <UI.Button
+      variant="primary"
+      onClick={() =>
+        document.getElementById("machine-enrollment-name")?.focus()}
+    >
+      {translate("machines.add" as never)}
+    </UI.Button>
+  );
   return (
     <>
       <ShellActiveNavigation id="machines" />
@@ -871,22 +769,15 @@ export function MachinesPage() {
           ]}
         />
       </ShellSlot>
+      {canAdd && !phone
+        ? <ShellSlot name="actions">{addMachine}</ShellSlot>
+        : null}
       <UI.SettingsContent data-testid="machines-page">
         <UI.PageHeader
           variant="list"
           title={translate("machines.title")}
           subtitle={translate("machines.description")}
-          actions={isAdmin
-            ? (
-              <UI.Button
-                variant="primary"
-                onClick={() =>
-                  document.getElementById("machine-enrollment-name")?.focus()}
-              >
-                {translate("machines.enrollment.create")}
-              </UI.Button>
-            )
-            : null}
+          actions={canAdd && phone && rows.length > 0 ? addMachine : null}
         />
         {connectivityKind
           ? (
@@ -919,7 +810,12 @@ export function MachinesPage() {
           ? (
             <UI.EmptyState
               title={translate("machines.empty.title")}
-              description={translate("machines.empty.description")}
+              description={translate(
+                (isAdmin
+                  ? "machines.empty.description"
+                  : "machines.empty.adminOnly") as never,
+              )}
+              action={isAdmin ? addMachine : undefined}
               variant="firstUse"
             />
           )
@@ -934,107 +830,30 @@ export function MachinesPage() {
                   </UI.AlertBanner>
                 )
                 : null}
-              {phone
+              {rows.length > FILTER_MIN_MACHINES
                 ? (
-                  <MachineCards
-                    rows={rows}
-                    loading={workers.isPending}
-                    stale={connectivity !== "online"}
-                    date={date}
-                    onOpen={openMachine}
-                    translate={translate}
+                  <UI.SegmentedControl
+                    aria-label={translate("machines.filter.label" as never)}
+                    name="machine-filter"
+                    variant="inline"
+                    value={filter}
+                    onChange={(value) => setFilter(value as MachineFilter)}
+                    options={(["all", "needsAttention", "offline"] as const)
+                      .map((value) => ({
+                        value,
+                        label: translate(`machines.filter.${value}` as never),
+                      }))}
                   />
                 )
-                : (
-                  <UI.DataTable<MachineRow>
-                    caption={translate("machines.table" as never)}
-                    rows={rows}
-                    state={workers.isPending
-                      ? "loading"
-                      : connectivity !== "online"
-                      ? "stale"
-                      : "ready"}
-                    emptyMessage={translate(
-                      "machines.empty.description" as never,
-                    )}
-                    getRowKey={(row) => row.id}
-                    columns={[
-                      {
-                        id: "name",
-                        header: translate("machines.name" as never),
-                        cell: (row) => (
-                          <UI.ObjectRow
-                            variant="compact"
-                            identity={
-                              <UI.Button
-                                variant="text"
-                                onClick={() => openMachine(row)}
-                              >
-                                {row.name}
-                              </UI.Button>
-                            }
-                            metadata={`${row.os} · ${row.architecture}`}
-                            status={
-                              <UI.StatusBadge
-                                status={statusForReadiness(row.readiness)}
-                              >
-                                {labelForReadiness(row.readiness, translate)}
-                              </UI.StatusBadge>
-                            }
-                          />
-                        ),
-                      },
-                      {
-                        id: "readiness",
-                        header: translate("machines.readiness.label" as never),
-                        cell: (row) => (
-                          <UI.StatusBadge
-                            status={statusForReadiness(row.readiness)}
-                          >
-                            {labelForReadiness(row.readiness, translate)}
-                          </UI.StatusBadge>
-                        ),
-                      },
-                      {
-                        id: "connectivity",
-                        header: translate(
-                          "machines.connectivity.label" as never,
-                        ),
-                        cell: (row) => (
-                          <UI.StatusDot
-                            tone={toneForConnectivity(row.connectivity)}
-                            size="small"
-                          >
-                            {labelForConnectivity(row.connectivity, translate)}
-                          </UI.StatusDot>
-                        ),
-                      },
-                      {
-                        id: "status",
-                        header: translate("machines.status.label" as never),
-                        cell: (row) => (
-                          <UI.StatusBadge status={statusForWorker(row.status)}>
-                            {labelForWorkerStatus(row.status, translate)}
-                          </UI.StatusBadge>
-                        ),
-                      },
-                      {
-                        id: "capabilities",
-                        header: translate("machines.capabilities" as never),
-                        cell: (row) =>
-                          machineCapabilities(
-                            row,
-                            translate("machines.unknown" as never),
-                          ),
-                      },
-                      {
-                        id: "heartbeat",
-                        header: translate("machines.lastHeartbeat" as never),
-                        cell: (row) => date(row.lastHeartbeatAt),
-                      },
-                    ]}
-                  />
-                )}
+                : null}
+              <MachineList
+                rows={visible}
+                loading={workers.isPending}
+                stale={connectivity !== "online"}
+                phone={phone}
+                onOpen={openMachine}
+                translate={translate}
+              />
               {workerContinuation.isError
                 ? (
                   <UI.AlertBanner tone="error">
@@ -1068,13 +887,6 @@ export function MachinesPage() {
               scope={scope}
               api={api}
             />
-          )
-          : null}
-        {access.isError && !isAdmin
-          ? (
-            <UI.Text variant="muted">
-              {translate("machines.enrollment.adminOnly")}
-            </UI.Text>
           )
           : null}
       </UI.SettingsContent>

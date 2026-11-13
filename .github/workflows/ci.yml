@@ -17,8 +17,10 @@ permissions:
 
 concurrency:
   group: bakery-ci-${{ (github.event_name == 'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
-  # A newer pull-request or main push supersedes the older run on the same ref; scheduled and manual runs keep their own group.
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+  # A newer pull-request run supersedes the older one on the same ref. A main push never cancels the one before it: the running push finishes,
+  # GitHub keeps at most one newer push pending behind it (a still-newer push replaces the pending one), so main always gets a completed run
+  # instead of a stream of cancelled ones. Scheduled and manual runs keep their own group.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   PNPM_VERSION: 10.33.0
@@ -36,13 +38,13 @@ env:
 jobs:
   changes:
     name: route / changed files
-    # Fork PRs never reach self-hosted runners; a maintainer re-pushes them to a branch.
+    # Fork pull requests do not run this job; a maintainer re-pushes them to a branch.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     outputs:
       route: ${{ steps.classify.outputs.route }}
       lanes: ${{ steps.classify.outputs.lanes }}
       base_sha: ${{ steps.base.outputs.base_sha }}
-    runs-on: [self-hosted, hetzner, linux, x64]
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -82,7 +84,7 @@ jobs:
     name: fast / backend rails
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
     needs: [changes]
-    runs-on: [self-hosted, hetzner, linux, x64]
+    runs-on: ubuntu-24.04
     steps:
       - name: Select per-runner handoff directories
         shell: bash
@@ -124,9 +126,9 @@ jobs:
         run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log rails
   git_diff_check:
     name: fast / git diff check
-    # Fork PRs never reach self-hosted runners; a maintainer re-pushes them to a branch.
+    # Fork pull requests do not run this job; a maintainer re-pushes them to a branch.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, hetzner, linux, x64]
+    runs-on: ubuntu-24.04
     steps:
       - name: Select per-runner handoff directories
         shell: bash
@@ -163,9 +165,9 @@ jobs:
         run: deno run --allow-env --allow-read="$HANDOFF_DIR,scripts/ci/release-evidence.ts" --allow-write="$HANDOFF_DIR" --allow-run=zip scripts/ci/release-evidence.ts emit-log git_diff_check
   semantic_metadata:
     name: fast / semantic metadata
-    # Fork PRs never reach self-hosted runners; a maintainer re-pushes them to a branch.
+    # Fork pull requests do not run this job; a maintainer re-pushes them to a branch.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: [self-hosted, hetzner, linux, x64]
+    runs-on: ubuntu-24.04
     steps:
       - name: Select per-runner handoff directories
         shell: bash
@@ -252,7 +254,7 @@ jobs:
     name: fast / format
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
     needs: [changes]
-    runs-on: [self-hosted, hetzner, linux, x64]
+    runs-on: ubuntu-24.04
     steps:
       - name: Select per-runner handoff directories
         shell: bash
@@ -293,7 +295,7 @@ jobs:
     name: fast / typecheck
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
     needs: [changes]
-    runs-on: [self-hosted, hetzner, linux, x64]
+    runs-on: ubuntu-24.04
     steps:
       - name: Select per-runner handoff directories
         shell: bash
@@ -334,7 +336,7 @@ jobs:
     name: fast / contract descriptions
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
     needs: [changes]
-    runs-on: [self-hosted, hetzner, linux, x64]
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
@@ -373,9 +375,8 @@ jobs:
       - name: Ensure psql client
         shell: bash
         run: |
-          # The self-hosted runner image does not preinstall the PostgreSQL
-          # client that hosted runners ship by default; install it once per
-          # job only when missing.
+          # Hosted runners ship the PostgreSQL client, so this normally does
+          # nothing; it installs the client only when it is missing.
           command -v psql >/dev/null 2>&1 || {
             sudo apt-get update -qq
             sudo apt-get install -y --no-install-recommends postgresql-client
@@ -443,7 +444,7 @@ jobs:
     name: fast / contract descriptions b
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
     needs: [changes]
-    runs-on: [self-hosted, hetzner, linux, x64]
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
@@ -482,9 +483,8 @@ jobs:
       - name: Ensure psql client
         shell: bash
         run: |
-          # The self-hosted runner image does not preinstall the PostgreSQL
-          # client that hosted runners ship by default; install it once per
-          # job only when missing.
+          # Hosted runners ship the PostgreSQL client, so this normally does
+          # nothing; it installs the client only when it is missing.
           command -v psql >/dev/null 2>&1 || {
             sudo apt-get update -qq
             sudo apt-get install -y --no-install-recommends postgresql-client
@@ -534,7 +534,7 @@ jobs:
     name: fast / contract descriptions c
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
     needs: [changes]
-    runs-on: [self-hosted, hetzner, linux, x64]
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
@@ -573,9 +573,8 @@ jobs:
       - name: Ensure psql client
         shell: bash
         run: |
-          # The self-hosted runner image does not preinstall the PostgreSQL
-          # client that hosted runners ship by default; install it once per
-          # job only when missing.
+          # Hosted runners ship the PostgreSQL client, so this normally does
+          # nothing; it installs the client only when it is missing.
           command -v psql >/dev/null 2>&1 || {
             sudo apt-get update -qq
             sudo apt-get install -y --no-install-recommends postgresql-client
@@ -625,7 +624,7 @@ jobs:
     name: fast / focused unit
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
     needs: [changes]
-    runs-on: [self-hosted, hetzner, linux, x64]
+    runs-on: ubuntu-24.04
     steps:
       - name: Select per-runner handoff directories
         shell: bash
@@ -673,7 +672,7 @@ jobs:
     name: fast / provider conformance
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
     needs: [changes]
-    runs-on: [self-hosted, hetzner, linux, x64]
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Select per-runner handoff directories
@@ -715,7 +714,7 @@ jobs:
     name: fast / focused unit b
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
     needs: [changes]
-    runs-on: [self-hosted, hetzner, linux, x64]
+    runs-on: ubuntu-24.04
     steps:
       - name: Select per-runner handoff directories
         shell: bash
@@ -1167,7 +1166,7 @@ jobs:
     name: ui / catalog and storybook
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
     needs: [changes]
-    runs-on: [self-hosted, hetzner, linux, x64]
+    runs-on: ubuntu-24.04
     steps:
       - name: Select per-runner handoff directories
         shell: bash
@@ -1212,7 +1211,7 @@ jobs:
     name: ui / tokens and architecture
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || needs.changes.outputs.route == 'gate' || needs.changes.outputs.route == 'affected') }}
     needs: [changes]
-    runs-on: [self-hosted, hetzner, linux, x64]
+    runs-on: ubuntu-24.04
     steps:
       - name: Select per-runner handoff directories
         shell: bash
@@ -1261,7 +1260,7 @@ jobs:
     name: ui / architecture rules and debt
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_architecture'))) }}
     needs: [changes]
-    runs-on: [self-hosted, hetzner, linux, x64]
+    runs-on: ubuntu-24.04
     steps:
       - name: Select per-runner handoff directories
         shell: bash
@@ -2478,7 +2477,7 @@ jobs:
     name: docs / validation
     needs: [changes, git_diff_check, semantic_metadata]
     if: ${{ needs.changes.result == 'success' && needs.changes.outputs.route == 'docs' && needs.git_diff_check.result == 'success' && needs.semantic_metadata.result == 'success' }}
-    runs-on: [self-hosted, hetzner, linux, x64]
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -2493,7 +2492,7 @@ jobs:
 
   aggregate:
     name: required / full-stack aggregate
-    # Fork PRs never reach self-hosted runners; a maintainer re-pushes them to a branch.
+    # Fork pull requests do not run this job; a maintainer re-pushes them to a branch.
     if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
     needs: [
       changes,
@@ -2527,7 +2526,7 @@ jobs:
       ui_paper_artifacts,
       native_worker,
     ]
-    runs-on: [self-hosted, hetzner, linux, x64]
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:

@@ -104,7 +104,7 @@ function canonical(value: unknown, omitRootKey?: string): string {
 
 type JsonRecord = Record<string, unknown>;
 
-type FrozenStepAgent = Readonly<{
+export type FrozenStepAgent = Readonly<{
   agentVersionId: string;
   revision: number;
   digest: string;
@@ -732,25 +732,38 @@ function planAgentFromSnapshot(
   snapshot: JsonRecord,
   agentVersionId: string | undefined,
 ): FrozenStepAgent | null {
-  const value = snapshot.planAgents;
-  const agents = new Map<string, FrozenStepAgent>();
-  if (value !== undefined) {
-    if (
-      value === null || typeof value !== "object" || Array.isArray(value) ||
-      Object.keys(value).length > 100
-    ) throw new Error("FROZEN_STEP_AGENTS_INVALID");
-    for (const [key, agent] of Object.entries(value)) {
-      const parsed = parseFrozenStepAgent(agent);
-      if (parsed.agentVersionId !== key) {
-        throw new Error("FROZEN_STEP_AGENT_INVALID");
-      }
-      agents.set(key, parsed);
-    }
-  }
+  const agents = readPlanAgents(snapshot);
   if (agentVersionId === undefined) return null;
   const frozen = agents.get(agentVersionId);
   if (!frozen) throw new Error("FROZEN_STEP_AGENT_MISSING");
   return frozen;
+}
+
+/**
+ * Every agent a run froze for its compiled plan, keyed by version id. Admission
+ * writes this map and the engine reads it back through this one function, so
+ * what is written is exactly what is read: a map that is not an object, holds
+ * more than 100 agents, or files an agent under another version's id is
+ * refused by name.
+ */
+export function readPlanAgents(
+  snapshot: Readonly<Record<string, unknown>>,
+): ReadonlyMap<string, FrozenStepAgent> {
+  const value = snapshot.planAgents;
+  const agents = new Map<string, FrozenStepAgent>();
+  if (value === undefined) return agents;
+  if (
+    value === null || typeof value !== "object" || Array.isArray(value) ||
+    Object.keys(value).length > 100
+  ) throw new Error("FROZEN_STEP_AGENTS_INVALID");
+  for (const [key, agent] of Object.entries(value)) {
+    const parsed = parseFrozenStepAgent(agent);
+    if (parsed.agentVersionId !== key) {
+      throw new Error("FROZEN_STEP_AGENT_INVALID");
+    }
+    agents.set(key, parsed);
+  }
+  return agents;
 }
 
 /** The dispatch the engine recorded for a plan step, as much as a job is built from. */
