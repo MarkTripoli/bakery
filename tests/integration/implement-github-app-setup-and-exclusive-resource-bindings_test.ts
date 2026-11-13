@@ -3367,14 +3367,22 @@ async function seedConnectionEffect(
      )
      select $1, connection.organization_id, 'github.issue.comment.create', 1,
        'resource:' || resource.id, connection.id, resource.id, 'inst-1', $4,
-       $4, $5, repeat('a', 64), connection.external_account_id,
+       $7, $5, repeat('a', 64), connection.external_account_id,
        resource.external_id, 'github@2026-03-10',
        connection.authorization_revision, $6, '{"body":"secret-ish"}'::jsonb
        from bakery.integration_connections connection
        join bakery.integration_resources resource
          on resource.connection_id = connection.id
       where connection.id = $2 and resource.id = $3`,
-    [id, connectionId, resourceId, f.adminId, `activity-${id}`, status],
+    [
+      id,
+      connectionId,
+      resourceId,
+      f.adminId,
+      `activity-${id}`,
+      status,
+      f.adminId,
+    ],
   );
   return id;
 }
