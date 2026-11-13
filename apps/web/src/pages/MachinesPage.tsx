@@ -744,6 +744,17 @@ export function MachinesPage() {
       to: "/machines/$machineId",
       params: { machineId: row.id },
     });
+  // The page's one primary action: in the top bar on a wide screen, under the
+  // title on a phone (the page header hides its actions on a wide one).
+  const addMachine = (
+    <UI.Button
+      variant="primary"
+      onClick={() =>
+        document.getElementById("machine-enrollment-name")?.focus()}
+    >
+      {translate("machines.add" as never)}
+    </UI.Button>
+  );
   return (
     <>
       <ShellActiveNavigation id="machines" />
@@ -756,22 +767,15 @@ export function MachinesPage() {
           ]}
         />
       </ShellSlot>
+      {isAdmin && !phone
+        ? <ShellSlot name="actions">{addMachine}</ShellSlot>
+        : null}
       <UI.SettingsContent data-testid="machines-page">
         <UI.PageHeader
           variant="list"
           title={translate("machines.title")}
           subtitle={translate("machines.description")}
-          actions={isAdmin
-            ? (
-              <UI.Button
-                variant="primary"
-                onClick={() =>
-                  document.getElementById("machine-enrollment-name")?.focus()}
-              >
-                {translate("machines.add" as never)}
-              </UI.Button>
-            )
-            : null}
+          actions={isAdmin && phone ? addMachine : null}
         />
         {connectivityKind
           ? (
