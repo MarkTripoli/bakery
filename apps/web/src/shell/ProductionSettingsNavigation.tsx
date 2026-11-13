@@ -1,6 +1,11 @@
+import { useQuery } from "@tanstack/react-query";
 import type { MouseEvent } from "react";
 import type { MessageKey } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
+import { useBakeryApi } from "../api/context.tsx";
+import { effectiveAccessQueryOptions } from "../api/query.ts";
+import { useProtectedScope } from "../app/query-scope-context.tsx";
+import { useSession } from "../app/session-context.tsx";
 import { I18nText, useI18n } from "../i18n/I18nProvider.tsx";
 import type { ShellViewport } from "../app/responsive.ts";
 
@@ -131,6 +136,19 @@ export function ProductionSettingsNavigation({
   readonly viewport: ShellViewport;
 }) {
   const { translate } = useI18n();
+  const api = useBakeryApi();
+  const scope = useProtectedScope();
+  const session = useSession();
+  // Organization settings change things for everyone in the organization, so a
+  // member without administrator rights does not see the group. While the role
+  // is not known (or cannot be read) the group stays, as the design allows.
+  const access = useQuery({
+    ...effectiveAccessQueryOptions(api, scope),
+    enabled: session.status === "authenticated" &&
+      scope.organizationId !== null,
+  });
+  const showOrganization = access.data === undefined ||
+    access.data.role === "admin";
   return (
     <UI.SectionNavigation
       currentPath={owningSettingsHref(currentPath)}
@@ -140,11 +158,13 @@ export function ProductionSettingsNavigation({
           heading: translate("shell.navigation.group.account"),
           items: productionAccountRoutes,
         },
-        {
-          id: "organization",
-          heading: translate("shell.navigation.group.organization"),
-          items: productionOrganizationRoutes,
-        },
+        ...(showOrganization
+          ? [{
+            id: "organization",
+            heading: translate("shell.navigation.group.organization"),
+            items: productionOrganizationRoutes,
+          }]
+          : []),
       ]}
       label={translate("shell.navigation.settingsSections")}
       narrowMode="menu"
