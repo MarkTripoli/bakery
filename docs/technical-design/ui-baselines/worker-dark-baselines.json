@@ -34,8 +34,8 @@
       "packages/ui/scripts/render-enterprise-references.mjs",
       "packages/ui/scripts/worker-readiness-reference.mjs"
     ],
-    "revision": "paper:ebf667e2; mock:f929e4ca; rendered:2026-11-10",
-    "digest": "f929e4ca43bf60c83b0b8de50011398002dd06ceb3158333f7354c9fd5bcbeb3"
+    "revision": "paper:ebf667e2; mock:a99a2126; rendered:2026-11-12",
+    "digest": "a99a212672a189ecaa1f90a1060a78152647c50d28082d20ed22c7d1fea7fda6"
   },
   "reference": {
     "hidden": [],
