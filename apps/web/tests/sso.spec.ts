@@ -480,14 +480,13 @@ test.describe("single sign-on settings", () => {
     expect(state.enforcement).toEqual([]);
     await confirm.getByRole("button", { name: "Require SSO" }).click();
     await expect.poll(() => state.enforcement).toEqual([true]);
-    // Required: the break-glass note shows.
+    // Required: the note says administrators can still sign in with a password
+    // or passkey (the confirmation closes with the same sentence, so only the
+    // visible one counts).
     await expect(
       page.getByText(
         "Organization administrators who still have a password or passkey",
-        {
-          exact: false,
-        },
-      ),
+      ).filter({ visible: true }),
     ).toBeVisible();
     await shot(page, "sso-require-on");
     await expect(page.getByLabel("Require SSO for all members"))
