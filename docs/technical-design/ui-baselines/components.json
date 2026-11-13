@@ -1,5 +1,5 @@
 {
-  "revision": "aaf7871ff41f05d1e8cde2d439fc5795090d43481bc5b1e9215038175b86d967",
+  "revision": "578c0ef7865072f677403b22a6b85fc5ff122501008a609b15432dae26fab494",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -4039,8 +4039,7 @@
       "variants": [
         "sidebar",
         "index",
-        "menu",
-        "grouped"
+        "menu"
       ],
       "states": [
         "default",
@@ -4074,8 +4073,7 @@
           "variants": [
             "sidebar",
             "index",
-            "menu",
-            "grouped"
+            "menu"
           ],
           "states": [
             "default",
