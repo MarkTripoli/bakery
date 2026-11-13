@@ -481,8 +481,9 @@ test.describe("single sign-on settings", () => {
     await confirm.getByRole("button", { name: "Require SSO" }).click();
     await expect.poll(() => state.enforcement).toEqual([true]);
     // Required: the note says administrators can still sign in with a password
-    // or passkey (the confirmation closes with the same sentence, so only the
-    // visible one counts).
+    // or passkey. The confirmation closes with the same sentence, so wait for it
+    // to be gone before looking for the note.
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
     await expect(
       page.getByText(
         "Organization administrators who still have a password or passkey",
