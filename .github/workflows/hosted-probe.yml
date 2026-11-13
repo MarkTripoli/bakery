@@ -2,6 +2,12 @@
 # (ui_architecture, docs_validation) and of the description policy's pull-request job on a hosted
 # runner, so their first hosted run is not on main. Removed before review.
 name: 'Hosted probe (temporary, #330)'
+on:
+  pull_request:
+    types:
+    - opened
+    - synchronize
+    - reopened
 permissions:
   contents: read
 env:
@@ -20,7 +26,14 @@ jobs:
     steps:
     - name: Select per-runner handoff directories
       shell: bash
-      run: "root=\"$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT\"\n{\n  echo \"HANDOFF_ROOT=$root\"\n  echo \"HANDOFF_DIR=$root/$GITHUB_JOB\"\n  echo \"EVIDENCE_DIR=$root/$GITHUB_JOB/evidence\"\n  echo \"ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts\"\n} >> \"$GITHUB_ENV\"\n"
+      run: |
+        root="$RUNNER_TEMP/bakery-ci-$RUN_ID-$RUN_ATTEMPT"
+        {
+          echo "HANDOFF_ROOT=$root"
+          echo "HANDOFF_DIR=$root/$GITHUB_JOB"
+          echo "EVIDENCE_DIR=$root/$GITHUB_JOB/evidence"
+          echo "ARTIFACT_DIR=$root/$GITHUB_JOB/candidate-artifacts"
+        } >> "$GITHUB_ENV"
     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       with:
         fetch-depth: 0
@@ -88,49 +101,42 @@ jobs:
         GITHUB_TOKEN: ${{ github.token }}
         PR_NUMBER: ${{ github.event.pull_request.number }}
       run: deno run --no-config --allow-read=scripts/authoring --allow-env=GITHUB_REPOSITORY,GITHUB_TOKEN --allow-net=api.github.com scripts/authoring/github.ts check pr "$PR_NUMBER"
-'on':
-  pull_request:
-    types:
-    - opened
-    - synchronize
-    - reopened
-
   probe_deno_path:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          persist-credentials: false
-      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
-        with:
-          deno-version: v2.9.1
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
-        with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-      - name: Where does the deno node shim directory come from
-        shell: bash
-        run: |
-          echo "PATH=$PATH"
-          echo "node: $(command -v node || echo none) | deno: $(command -v deno)"
-          env | sort | grep -E '^(DENO|NODE|HOME|ImageOS|RUNNER_TOOL|XDG)' || true
-          ls -la "$HOME/.cache/deno" 2>&1 | head -12 || true
-          ls -la "$HOME/.cache/deno/node_compat_bin" 2>&1 | head -6 || true
-          printf 'console.log("PATH in process =", Deno.env.get("PATH"));\n' > "$RUNNER_TEMP/p.ts"
-          printf 'Deno.test("p", () => console.log("PATH in test    =", Deno.env.get("PATH")));\n' > "$RUNNER_TEMP/p_test.ts"
-          for P in "/usr/bin" "/usr/bin:/bin"; do
-            echo "--- PATH given: $P"
-            env -i HOME="$HOME" PATH="$P" deno run --allow-env "$RUNNER_TEMP/p.ts"
-            env -i HOME="$HOME" PATH="$P" deno test --allow-env "$RUNNER_TEMP/p_test.ts" 2>&1 | grep "PATH in test"
-          done
-          echo "--- a deno process spawning a deno child with PATH=/usr/bin"
-          deno eval 'const o = await new Deno.Command(Deno.execPath(), { args: ["eval", "console.log(Deno.env.get(\"PATH\"))"], env: { PATH: "/usr/bin" }, clearEnv: true }).output(); console.log("child PATH =", new TextDecoder().decode(o.stdout).trim());' --allow-run
-          echo "--- through pnpm"
-          cd "$GITHUB_WORKSPACE" && env PATH="/usr/bin:$PATH" pnpm exec deno run --allow-env "$RUNNER_TEMP/p.ts" || true
-      - name: The failing rail and unit test, verbose
-        shell: bash
-        run: |
-          pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile > /dev/null 2>&1 || true
-          deno run --allow-env --allow-read --allow-run scripts/run-tests.ts rails tests/rails/refused-spawn-report_test.ts 2>&1 | tail -60 || true
+    - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      with:
+        persist-credentials: false
+    - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+      with:
+        deno-version: v2.9.1
+    - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+      with:
+        version: ${{ env.PNPM_VERSION }}
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+    - name: Where does the deno node shim directory come from
+      shell: bash
+      run: |
+        echo "PATH=$PATH"
+        echo "node: $(command -v node || echo none) | deno: $(command -v deno)"
+        env | sort | grep -E '^(DENO|NODE|HOME|ImageOS|RUNNER_TOOL|XDG)' || true
+        ls -la "$HOME/.cache/deno" 2>&1 | head -12 || true
+        ls -la "$HOME/.cache/deno/node_compat_bin" 2>&1 | head -6 || true
+        printf 'console.log("PATH in process =", Deno.env.get("PATH"));\n' > "$RUNNER_TEMP/p.ts"
+        printf 'Deno.test("p", () => console.log("PATH in test    =", Deno.env.get("PATH")));\n' > "$RUNNER_TEMP/p_test.ts"
+        for P in "/usr/bin" "/usr/bin:/bin"; do
+          echo "--- PATH given: $P"
+          env -i HOME="$HOME" PATH="$P" deno run --allow-env "$RUNNER_TEMP/p.ts"
+          env -i HOME="$HOME" PATH="$P" deno test --allow-env "$RUNNER_TEMP/p_test.ts" 2>&1 | grep "PATH in test"
+        done
+        echo "--- a deno process spawning a deno child with PATH=/usr/bin"
+        deno eval 'const o = await new Deno.Command(Deno.execPath(), { args: ["eval", "console.log(Deno.env.get(\"PATH\"))"], env: { PATH: "/usr/bin" }, clearEnv: true }).output(); console.log("child PATH =", new TextDecoder().decode(o.stdout).trim());' --allow-run
+        echo "--- through pnpm"
+        cd "$GITHUB_WORKSPACE" && env PATH="/usr/bin:$PATH" pnpm exec deno run --allow-env "$RUNNER_TEMP/p.ts" || true
+    - name: The failing rail and unit test, verbose
+      shell: bash
+      run: |
+        pnpm install --frozen-lockfile --ignore-scripts --ignore-pnpmfile > /dev/null 2>&1 || true
+        deno run --allow-env --allow-read --allow-run scripts/run-tests.ts rails tests/rails/refused-spawn-report_test.ts 2>&1 | tail -60 || true
