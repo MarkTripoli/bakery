@@ -103,7 +103,7 @@ for (
       });
       await page.goto("/settings/scim");
       await expect(
-        page.getByRole("heading", { name: "SCIM", exact: true })
+        page.getByRole("heading", { name: "User provisioning", exact: true })
           .first(),
       ).toBeVisible();
       await page.getByRole("button", { name: "Create connection" }).click();
@@ -179,7 +179,8 @@ for (
       await scimFixture(page, { initial: "none" });
       await page.goto("/settings/scim");
       const trail = page.getByRole("navigation", { name: "Breadcrumb" });
-      await expect(trail.getByText("SCIM", { exact: true })).toBeVisible();
+      await expect(trail.getByText("User provisioning", { exact: true }))
+        .toBeVisible();
       await expect(trail.getByText("Organization", { exact: true }))
         .toBeVisible();
       await expect(trail.getByText("Settings", { exact: true })).toHaveCount(0);

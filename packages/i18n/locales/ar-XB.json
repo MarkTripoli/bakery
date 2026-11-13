@@ -1703,7 +1703,6 @@
   "settings.audit.retention.saved": "⟪Retention saved.⟫",
   "settings.audit.retention.error": "⟪Retention could not be saved. Try again.⟫",
   "settings.orgAccess.organization": "⟪Organization⟫",
-  "settings.orgAccess.title": "⟪Access⟫",
   "settings.orgAccess.description": "⟪Members, roles by scope, service accounts and connected clients for {organization}.⟫",
   "settings.orgAccess.forbidden": "⟪Only organization admins can manage access. Ask an admin if you need a change.⟫",
   "settings.orgAccess.error.title": "⟪Access could not be loaded⟫",
@@ -2516,8 +2515,6 @@
   "tasks.composer.setup.review_agent_unavailable": "⟪The repository profile has no usable agent for the independent review step. Bind an enabled, billed and priced agent that may run model and reviewer work.⟫",
   "tasks.composer.setup.repair_agent_unavailable": "⟪The repository profile has no usable agent for the repair step. Bind an enabled, billed and priced agent that may run the repair step.⟫",
   "settings.sso.dialog.metadataInvalid": "⟪That is not SAML metadata. Paste the identity provider's metadata XML, which names its single sign-on endpoint.⟫",
-  "settings.scim.title": "⟪SCIM⟫",
-  "settings.scim.description": "⟪Provision and deprovision members from your identity provider.⟫",
   "settings.scim.status": "⟪Status⟫",
   "settings.scim.status.active": "⟪Connected⟫",
   "settings.scim.baseUrl": "⟪Base URL⟫",
@@ -2733,5 +2730,8 @@
   "shell.navigation.membersAndAccess": "⟪Members & access⟫",
   "shell.navigation.userProvisioning": "⟪User provisioning⟫",
   "shell.navigation.group.account": "⟪Your account⟫",
-  "shell.navigation.group.organization": "⟪Organization⟫"
+  "shell.navigation.group.organization": "⟪Organization⟫",
+  "settings.orgAccess.title": "⟪Members & access⟫",
+  "settings.scim.title": "⟪User provisioning⟫",
+  "settings.scim.description": "⟪Add and remove members automatically from your identity provider, using SCIM.⟫"
 }

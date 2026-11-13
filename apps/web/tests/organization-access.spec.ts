@@ -388,7 +388,7 @@ for (
       const world = fullWorld();
       await accessFixture(page, world);
       await page.goto("/settings/organization/access");
-      await expect(page.locator("main h1")).toHaveText("Access");
+      await expect(page.locator("main h1")).toHaveText("Members & access");
       await expect(page.getByTestId("org-access-members")).toContainText(
         "Ada Rivera",
       );
