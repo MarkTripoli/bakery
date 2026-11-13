@@ -2319,6 +2319,35 @@ export const clientManifest = {
     {
       "group": "Extensions",
       "method": "POST",
+      "path": "/v1/integration-connections/{id}/removal",
+      "action": "integrationConnections.remove",
+      "access": "Admin",
+      "permission": "integrationConnection:manage",
+      "input": "Empty",
+      "output": "IntegrationConnection",
+      "event": "integrationConnections.updated",
+      "mcp": "bakery_integrationConnections_remove",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Extensions",
+      "method": "POST",
       "path": "/v1/integration-connections/{id}/checks",
       "action": "integrationConnections.check",
       "access": "Admin",
@@ -9963,6 +9992,7 @@ export const clientManifest = {
             "integrationConnections.get",
             "integrationConnections.create",
             "integrationConnections.update",
+            "integrationConnections.remove",
             "integrationConnections.check",
             "integrationConnections.invoke",
             "mcpServers.list",
@@ -26169,6 +26199,12 @@ export const clientManifest = {
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
                 "description": "UTC timestamp when the record was created."
               },
+              "createdBy": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Principal id of the member who connected it (completed the provider setup), so a client can show who connected the integration and when; resolve the name through the organization member list."
+              },
               "updatedAt": {
                 "type": "string",
                 "format": "date-time",
@@ -26193,6 +26229,7 @@ export const clientManifest = {
               "status",
               "lastCheckedAt",
               "createdAt",
+              "createdBy",
               "updatedAt",
               "version"
             ],
@@ -26615,6 +26652,7 @@ export const clientManifest = {
                   "integrationConnections.get",
                   "integrationConnections.create",
                   "integrationConnections.update",
+                  "integrationConnections.remove",
                   "integrationConnections.check",
                   "integrationConnections.invoke",
                   "mcpServers.list",
@@ -40299,6 +40337,12 @@ export const clientManifest = {
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
           "description": "UTC timestamp when the record was created."
         },
+        "createdBy": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Principal id of the member who connected it (completed the provider setup), so a client can show who connected the integration and when; resolve the name through the organization member list."
+        },
         "updatedAt": {
           "type": "string",
           "format": "date-time",
@@ -40323,6 +40367,7 @@ export const clientManifest = {
         "status",
         "lastCheckedAt",
         "createdAt",
+        "createdBy",
         "updatedAt",
         "version"
       ],
@@ -40685,6 +40730,7 @@ export const clientManifest = {
             "integrationConnections.get",
             "integrationConnections.create",
             "integrationConnections.update",
+            "integrationConnections.remove",
             "integrationConnections.check",
             "integrationConnections.invoke",
             "mcpServers.list",

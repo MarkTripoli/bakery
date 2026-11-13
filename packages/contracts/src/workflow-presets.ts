@@ -202,7 +202,9 @@ export const FIXED_CODING_PRESET: WorkflowPresetDefinition = Object.freeze({
       Object.freeze({
         id: "review",
         waits: "automatic",
-        policySelectable: false,
+        // A task may require a person to approve a clean candidate before it
+        // may merge (#37); the approval binds that exact candidate.
+        policySelectable: true,
       }),
     ] as const,
   ),

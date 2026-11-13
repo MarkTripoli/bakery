@@ -1,3 +1,4 @@
+import { effectiveApprovalPolicy } from "../work/stage-policy.ts";
 import {
   type CheckReason,
   type CheckResult,
@@ -237,6 +238,52 @@ async function pinsOfDecision(
 }
 
 /**
+ * Why a person's approval still blocks this decision's candidate, or
+ * undefined when the task's review stage is automatic or the person approved
+ * it. Only an `answered` approval with decision `approve` on this exact
+ * delivery decision counts; an approval for an older decision never carries
+ * over to a repaired candidate.
+ */
+async function stageApprovalReason(
+  transaction: PgTransactionClient,
+  input: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly deliveryDecisionId: string;
+  },
+): Promise<string | undefined> {
+  const policy = await transaction.query<{ approval_policy: unknown }>(
+    `select t.approval_policy
+       from bakery.workflow_runs r
+       join bakery.tasks t
+         on t.organization_id = r.organization_id and t.id = r.task_id
+      where r.organization_id = $1 and r.id = $2`,
+    [input.organizationId, input.runId],
+  );
+  if (
+    effectiveApprovalPolicy(policy.rows[0]?.approval_policy).review !==
+      "human_approval"
+  ) return undefined;
+  const approval = await transaction.query<
+    { status: string; decision: string | null }
+  >(
+    `select status, decision from bakery.questions
+      where organization_id = $1 and kind = 'approval'
+        and subject_type = 'run_stage' and subject_id = $2
+      order by created_at desc
+      limit 1`,
+    [input.organizationId, input.deliveryDecisionId],
+  );
+  const row = approval.rows[0];
+  if (row?.status === "answered" && row.decision === "approve") {
+    return undefined;
+  }
+  if (row?.decision === "request_changes") return "approval_changes_requested";
+  if (row?.decision === "reject") return "approval_rejected";
+  return "approval_pending";
+}
+
+/**
  * Decides, from stored facts, whether the run's candidate may merge. The
  * candidate is the head of the last harness step that reported one. The
  * candidate may merge only when all of these hold, and each failure adds its
@@ -249,7 +296,10 @@ async function pinsOfDecision(
  * - `candidate_moved`: the latest `proceed` judged a different head;
  * - `checks_blocked`: a required check of the policy that decision was taken
  *   under is not a fresh pass for this head right now;
- * - `review_missing`: no approved review cycle exists for this head.
+ * - `review_missing`: no approved review cycle exists for this head;
+ * - `approval_pending`, `approval_changes_requested`, `approval_rejected`:
+ *   the task's policy makes the review stage wait for a person, and that
+ *   person has not approved this exact decision's run-stage approval (#37).
  *
  * A review never approves by itself: the checks are read again here, so a
  * newer failed row blocks a candidate an older decision let through.
@@ -316,6 +366,12 @@ export async function evaluateDeliveryCandidate(
       if (review === null || review.status !== "approved") {
         reasons.push("review_missing");
       }
+      const approval = await stageApprovalReason(transaction, {
+        organizationId,
+        runId,
+        deliveryDecisionId: decision.id,
+      });
+      if (approval) reasons.push(approval);
     }
   }
   return {

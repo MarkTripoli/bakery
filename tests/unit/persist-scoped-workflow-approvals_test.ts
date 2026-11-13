@@ -19,7 +19,7 @@ Deno.test("the fixed coding preset declares ordered stages and keeps its digest"
   assertEquals(
     FIXED_CODING_PRESET.stages.filter((stage) => stage.policySelectable)
       .map((stage) => stage.id),
-    ["plan"],
+    ["plan", "review"],
   );
   assertEquals(
     await sha256Hex(canonicalJson(FIXED_CODING_PRESET.spec)),
