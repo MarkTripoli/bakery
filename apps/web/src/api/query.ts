@@ -19,10 +19,12 @@ import type {
   ArtifactVersionListResponse,
   BakeryApiClient,
   BrowserSessionList,
+  CheckRunListResponse,
   ConnectedClientList,
   ConversationParticipantListResponse,
   ConversationTurnListResponse,
   CoordinationPlanListResponse,
+  DeliveryDecisionListResponse,
   DispatchBlockersResponse,
   EffectiveAccess,
   EnrollmentStatus,
@@ -47,6 +49,8 @@ import type {
   RepositoryProfileListResponse,
   RepositoryProfileObservationResponse,
   RepositoryResponse,
+  ReviewCycleListResponse,
+  ReviewFindingListResponse,
   RoleBindingListResponse,
   RunControlCapabilities,
   RunListResponse,
@@ -556,6 +560,146 @@ export function runStepsListQueryOptions(
           limit: input.limit,
           signal,
         }),
+      );
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+// The delivery reads are listed oldest first, up to 100 a page, and the delivery
+// section needs the newest rows, so they follow the cursor to the end. Five
+// pages is far more than a run produces; past that the last cursor stays set.
+const DELIVERY_PAGE_LIMIT = 100;
+const DELIVERY_PAGE_CAP = 5;
+
+async function allPages<
+  Page extends { items: readonly unknown[]; nextCursor: string | null },
+>(fetchPage: (cursor: string | undefined) => Promise<Page>): Promise<Page> {
+  const items: unknown[] = [];
+  let cursor: string | undefined;
+  let last: Page | undefined;
+  for (let page = 0; page < DELIVERY_PAGE_CAP; page += 1) {
+    last = await fetchPage(cursor);
+    items.push(...last.items);
+    if (!last.nextCursor) break;
+    cursor = last.nextCursor;
+  }
+  return { ...last, items } as unknown as Page;
+}
+
+const deliveryScope = (scope: ApiScope): string => {
+  if (!scope.organizationId) {
+    throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+  }
+  return scope.organizationId;
+};
+
+export function runChecksQueryOptions(
+  client: Pick<BakeryApiClient, "listRunChecks">,
+  scope: ApiScope,
+  runId: string,
+) {
+  return queryOptions<CheckRunListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "checks.list", { runId }),
+    queryFn: ({ signal }) => {
+      const organizationId = deliveryScope(scope);
+      return allPages(async (cursor) =>
+        unwrap(
+          await client.listRunChecks({
+            organizationId,
+            runId,
+            cursor,
+            limit: DELIVERY_PAGE_LIMIT,
+            signal,
+          }),
+        )
+      );
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+export function runReviewsQueryOptions(
+  client: Pick<BakeryApiClient, "listRunReviews">,
+  scope: ApiScope,
+  runId: string,
+) {
+  return queryOptions<ReviewCycleListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "runReviews.list", { runId }),
+    queryFn: ({ signal }) => {
+      const organizationId = deliveryScope(scope);
+      return allPages(async (cursor) =>
+        unwrap(
+          await client.listRunReviews({
+            organizationId,
+            runId,
+            cursor,
+            limit: DELIVERY_PAGE_LIMIT,
+            signal,
+          }),
+        )
+      );
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The findings of one review cycle; `runId` is in the key so a run sync refreshes it. */
+export function reviewFindingsQueryOptions(
+  client: Pick<BakeryApiClient, "listReviewFindings">,
+  scope: ApiScope,
+  runId: string,
+  reviewCycleId: string | null,
+) {
+  return queryOptions<ReviewFindingListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "reviewFindings.list", {
+      runId,
+      reviewCycleId,
+    }),
+    queryFn: ({ signal }) => {
+      const organizationId = deliveryScope(scope);
+      if (reviewCycleId === null) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      return allPages(async (cursor) =>
+        unwrap(
+          await client.listReviewFindings({
+            organizationId,
+            reviewCycleId,
+            cursor,
+            limit: DELIVERY_PAGE_LIMIT,
+            signal,
+          }),
+        )
+      );
+    },
+    enabled: Boolean(scope.organizationId) && reviewCycleId !== null,
+    retry: retryNetworkOnce,
+  });
+}
+
+export function runDeliveryDecisionsQueryOptions(
+  client: Pick<BakeryApiClient, "listRunDeliveryDecisions">,
+  scope: ApiScope,
+  runId: string,
+) {
+  return queryOptions<DeliveryDecisionListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "runDeliveryDecisions.list", { runId }),
+    queryFn: ({ signal }) => {
+      const organizationId = deliveryScope(scope);
+      return allPages(async (cursor) =>
+        unwrap(
+          await client.listRunDeliveryDecisions({
+            organizationId,
+            runId,
+            cursor,
+            limit: DELIVERY_PAGE_LIMIT,
+            signal,
+          }),
+        )
       );
     },
     enabled: Boolean(scope.organizationId),

@@ -66,6 +66,11 @@ export type RunListResponse = ClientOutputMap["Page<Run>"];
 export type RunResponse = ClientOutputMap["Run"];
 export type RunControlCapabilities = ClientOutputMap["RunControlCapabilities"];
 export type RunStepListResponse = ClientOutputMap["Page<RunStep>"];
+export type CheckRunListResponse = ClientOutputMap["Page<CheckRun>"];
+export type ReviewCycleListResponse = ClientOutputMap["Page<ReviewCycle>"];
+export type ReviewFindingListResponse = ClientOutputMap["Page<ReviewFinding>"];
+export type DeliveryDecisionListResponse =
+  ClientOutputMap["Page<DeliveryDecision>"];
 export type SyncQuery = ClientInputMap["SyncQuery"];
 export type SyncResponse = ClientOutputMap["SyncSnapshot"];
 export type PrincipalIdentity = ClientOutputMap["PrincipalIdentity"];
@@ -960,6 +965,34 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<RunStepListResponse>>;
+  readonly listRunChecks: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<CheckRunListResponse>>;
+  readonly listRunReviews: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<ReviewCycleListResponse>>;
+  readonly listReviewFindings: (options: {
+    readonly organizationId: string;
+    readonly reviewCycleId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<ReviewFindingListResponse>>;
+  readonly listRunDeliveryDecisions: (options: {
+    readonly organizationId: string;
+    readonly runId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<DeliveryDecisionListResponse>>;
   readonly sync: (
     options: SyncQuery & {
       readonly organizationId: string;
@@ -3382,6 +3415,82 @@ export function createBakeryApiClient({
       organizationId = options.organizationId;
       try {
         const data = await client.actions["runSteps.list"](
+          {
+            id: options.runId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listRunChecks(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["checks.list"](
+          {
+            id: options.runId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listRunReviews(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["runReviews.list"](
+          {
+            id: options.runId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listReviewFindings(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["reviewFindings.list"](
+          {
+            id: options.reviewCycleId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listRunDeliveryDecisions(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["runDeliveryDecisions.list"](
           {
             id: options.runId,
             ...(options.cursor === undefined ? {} : { cursor: options.cursor }),

@@ -10,6 +10,8 @@ export * from "./organisms/MessageComposer.tsx";
 export * from "./organisms/RunIdentity.tsx";
 export * from "./organisms/WorkflowStageStrip.tsx";
 export * from "./molecules/PaneSection.tsx";
+export * from "./molecules/StepItem.tsx";
+export * from "./molecules/StepList.tsx";
 export * from "./molecules/PlanRevisionSummary.tsx";
 export * from "./molecules/PlanSummaryCard.tsx";
 export * from "./molecules/StackedRow.tsx";
