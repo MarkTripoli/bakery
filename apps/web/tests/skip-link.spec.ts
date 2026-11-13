@@ -64,7 +64,8 @@ for (
       expect(
         await page.getByText("Bakery", { exact: true }).first().boundingBox(),
       ).toEqual(logoBefore);
-      await shot(page, "skip-link-focused");
+      // A window-only capture: a full-page one would not show the link over the page.
+      await shot(page, "skip-link-focused", [], { windowOnly: true });
       // Leaving it hides it again.
       await name.focus();
       await expect.poll(async () => (await skip.boundingBox())?.width ?? 0)
