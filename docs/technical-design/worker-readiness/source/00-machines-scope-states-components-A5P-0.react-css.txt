@@ -61,7 +61,7 @@ export default function () {
             Enrollment token expired
           </div>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
-            Create a new token for Mark’s workspace. The expired token can no longer enroll a machine.
+            Create a new token for Alex’s workspace. The expired token can no longer enroll a machine.
           </div>
           <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
             <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: 'var(--radius-6)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', justifyContent: 'center', minHeight: '44px', paddingBlock: '8px', paddingInline: '14px' }}>

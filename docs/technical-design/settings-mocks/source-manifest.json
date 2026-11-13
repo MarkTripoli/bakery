@@ -83,7 +83,7 @@
       "pageId": "O-0",
       "frameName": "01 · Profile · Desktop",
       "source": "HJE-0.jsx",
-      "sha256": "2ef3a7936239fcdefe13b8c35fa7f4dd3f1023424475156e8dd55d83dc6c9903",
+      "sha256": "9e2786d8b2476c9e08bc4c8b5aacccba8bb1e68c4e7bcc31ab5b7ce912886962",
       "exportPath": "HJE-0.png",
       "exportSha256": "989da85c0f923c7dac47dc2f183c641a826f873420d941e6b029333bbb295dac",
       "exportOrigin": {
@@ -110,7 +110,7 @@
       "pageId": "O-0",
       "frameName": "01 · Profile · Phone",
       "source": "IG3-0.jsx",
-      "sha256": "fab78ef022d001286d13b4a10a28199a5d1db8e30d1d5003e65d49b5a95392a0",
+      "sha256": "63f3d0c25bec685b5930276af75f89b120bd4c59a7e867d66bc27d9e506d0692",
       "exportPath": "IG3-0.png",
       "exportSha256": "3f44c03568071867117e30200e3825083b0f012962f8d27a543c8ae32fdd0308",
       "exportOrigin": {
@@ -137,7 +137,7 @@
       "pageId": "O-0",
       "frameName": "05 · Appearance · Desktop · Light",
       "source": "N1T-0.jsx",
-      "sha256": "84873fd89c0be1c397e83d697bfe929a44af5f5bf197c6068df84079b877eb6b",
+      "sha256": "9394654b305c276ade45d6ca1294ec418e309e27a591571a33b3f1267303b500",
       "exportPath": "N1T-0.png",
       "exportSha256": "a3a3a9afef4656943100f41179a893bfefa666a6240da48500cc9cec7beedf43",
       "exportOrigin": {
@@ -191,7 +191,7 @@
       "pageId": "O-0",
       "frameName": "05 · Appearance · Desktop · Dark",
       "source": "SGB-0.jsx",
-      "sha256": "1fa8df50f0c7e0c92d2de023c08f62891b401080b883b6456eb5c7b83bf9c242",
+      "sha256": "fa48e462603c3ec02b6046e3904e19bdb39558d20998ef0a44dc71e644147715",
       "exportPath": "SGB-0.png",
       "exportSha256": "f8902edbe5217f7c4cf6689ca99b64c4e2a6eb1082796189703014b4eed82d2c",
       "exportOrigin": {
@@ -245,7 +245,7 @@
       "pageId": "O-0",
       "frameName": "06 · Your access · Developer · Desktop",
       "source": "KHJ-0.jsx",
-      "sha256": "97f94cf056a9130cd7f001875ce7b8698fbb8e43887d55a4f89b987d44876d2c",
+      "sha256": "ad32fbfb27307e8febc07f474ca62a13feda7caa57d2d5bc9d2bf676c5aa898d",
       "exportPath": "KHJ-0.png",
       "exportSha256": "06c075d420e1ce7cb1055eaa582e0dcb5030def734c8b0509eb813d75fd2cab9",
       "exportOrigin": {
@@ -299,7 +299,7 @@
       "pageId": "O-0",
       "frameName": "09 · Settings · Section index · Phone",
       "source": "QM9-0.jsx",
-      "sha256": "5c92c614efaae4054ccf1516f175d03658d0cd434d961eebec6dd1bc234a47bc",
+      "sha256": "5385453cb129fa6b903859e032cb32d224984b285b69522987322168a1ea457b",
       "exportPath": "QM9-0.png",
       "exportSha256": "33dca69069bd01e87d00be5f36809da6edab7ec456fd3c87ea65c481fd0f7bfc",
       "exportOrigin": {

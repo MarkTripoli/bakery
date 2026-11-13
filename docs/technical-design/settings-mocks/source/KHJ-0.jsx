@@ -114,11 +114,11 @@
         <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px', padding: '8px' }}>
           <div style={{ backgroundColor: 'var(--color-dark-border)', borderRadius: '20px', boxSizing: 'border-box', fontFamily: 'var(--font-sans)', padding: '4px' }}>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-dark-fg)', fontFamily: 'var(--font-sans)', fontSize: '12px', lineHeight: '20px' }}>
-              MT
+              AM
             </div>
           </div>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-dark-fg)', flexBasis: '0%', flexGrow: '1', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
-            Mark Tripoli
+            Alex Morgan
           </div>
           <svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: '0' }}>
             <path d="m6 9 6 6 6-6" fill="none" stroke="var(--color-dark-fg)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -204,7 +204,7 @@
             <div style={{ alignItems: 'center', borderColor: 'var(--color-dark-border)', borderRadius: '6px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', gap: '16px', padding: '20px' }}>
               <div style={{ alignItems: 'center', backgroundColor: 'var(--color-dark-canvas)', borderRadius: '999px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '40px', justifyContent: 'center', width: '40px' }}>
                 <div style={{ boxSizing: 'border-box', color: 'var(--color-dark-fg)', display: 'flex', fontFamily: 'system-ui, sans-serif', fontSize: '14px', lineHeight: '20px' }}>
-                  MT
+                  AM
                 </div>
               </div>
               <div style={{ boxSizing: 'border-box', display: 'flex', flexBasis: '0%', flexDirection: 'column', flexGrow: '1', gap: '4px' }}>

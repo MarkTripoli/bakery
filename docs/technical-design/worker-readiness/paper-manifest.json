@@ -7,7 +7,7 @@
     {
       "path": "source/list-light-desktop-8SD-0.react-css.txt",
       "originalPath": "/tmp/bakery-294-approved-inputs/visuals/list-light-desktop-8SD-0.react-css.txt",
-      "sha256": "085163150328eabcee56e57baeb74071192a0959b38fdda31643c9c4c2fdc5dc"
+      "sha256": "36bff976c4502f9fbe5ecfc3e73c8fac7e4691f820a74a3e32f8ae79a5c30ee5"
     },
     {
       "path": "source/list-light-desktop-8SD-0.png",
@@ -17,7 +17,7 @@
     {
       "path": "source/list-light-mobile-8SE-0.react-css.txt",
       "originalPath": "/tmp/bakery-294-approved-inputs/visuals/list-light-mobile-8SE-0.react-css.txt",
-      "sha256": "ef333be42838cb36a9ca998c1d92bef1733afd921961dbd94d9ced0554495fa6"
+      "sha256": "e4067681b302d289c876f51d0a03e5b1d766183ab8840d244a9f24e86218b188"
     },
     {
       "path": "source/list-light-mobile-8SE-0.png",
@@ -27,7 +27,7 @@
     {
       "path": "source/list-dark-desktop-A8Y-0.react-css.txt",
       "originalPath": "/tmp/bakery-294-approved-inputs/visuals/list-dark-desktop-A8Y-0.react-css.txt",
-      "sha256": "b09624c242e4f7e754e54efafb21bdec17c5c5207f06f45d9932648a8e1b35a2"
+      "sha256": "15b057c42db8b91ec749725a13dd506cfe93150f2a76beb30165799c344fe4ba"
     },
     {
       "path": "source/list-dark-desktop-A8Y-0.png",
@@ -37,7 +37,7 @@
     {
       "path": "source/list-dark-mobile-AD7-0.react-css.txt",
       "originalPath": "/tmp/bakery-294-approved-inputs/visuals/list-dark-mobile-AD7-0.react-css.txt",
-      "sha256": "877fb50e0925a76266937e9400b7971448f07dcc7312426f9eda7fa91056290c"
+      "sha256": "58b52ca4a7feb799d7375aedf91d62e287a55ab8dc4edcf171c27516792ea8dd"
     },
     {
       "path": "source/list-dark-mobile-AD7-0.png",
@@ -47,7 +47,7 @@
     {
       "path": "source/onboarding-start-light-desktop-9VJ-0.react-css.txt",
       "originalPath": "/tmp/bakery-294-approved-inputs/visuals/onboarding-start-light-desktop-9VJ-0.react-css.txt",
-      "sha256": "4e5a8a5a762c7c83985490ddcd1ff5c139dc9041fbb28d521a3c681cd4264c8e"
+      "sha256": "28276fc64458df4e8a7d0bfbfee40d188019b687db93190ff4ecc87601d45d41"
     },
     {
       "path": "source/onboarding-start-light-desktop-9VJ-0.png",
@@ -57,7 +57,7 @@
     {
       "path": "source/onboarding-start-light-mobile-9ZB-0.react-css.txt",
       "originalPath": "/tmp/bakery-294-approved-inputs/visuals/onboarding-start-light-mobile-9ZB-0.react-css.txt",
-      "sha256": "bb75b3adfcf0df990cb76533a1c0f8ed8afcc0ea7ede9d3df8eea3013aa7de16"
+      "sha256": "10a25f4b5242ba2e9f486f01771fe7ac6bbbde7f0a52f7e94e7e973a577a36e8"
     },
     {
       "path": "source/onboarding-start-light-mobile-9ZB-0.png",
@@ -67,7 +67,7 @@
     {
       "path": "source/onboarding-listening-light-desktop-AMY-0.react-css.txt",
       "originalPath": "/tmp/bakery-294-approved-inputs/visuals/onboarding-listening-light-desktop-AMY-0.react-css.txt",
-      "sha256": "9be190d0784dc9e74001d74c325b17f99fda938791393c6df92ab45e132b5f0e"
+      "sha256": "da8fd35cd0398dcd8f0867021eb8b20ecfaf632f7a836a31aa959f64071cd891"
     },
     {
       "path": "source/onboarding-listening-light-desktop-AMY-0.png",
@@ -77,7 +77,7 @@
     {
       "path": "source/onboarding-listening-light-mobile-AR1-0.react-css.txt",
       "originalPath": "/tmp/bakery-294-approved-inputs/visuals/onboarding-listening-light-mobile-AR1-0.react-css.txt",
-      "sha256": "174ff0f687a73d4e7fd710c581b83c941d85d9a82850a7eb75104c69a104d479"
+      "sha256": "368add9c41e70afaaca736056afd6133796942e7e60e8527e851897637787695"
     },
     {
       "path": "source/onboarding-listening-light-mobile-AR1-0.png",
@@ -87,7 +87,7 @@
     {
       "path": "source/onboarding-connected-light-desktop-ATN-0.react-css.txt",
       "originalPath": "/tmp/bakery-294-approved-inputs/visuals/onboarding-connected-light-desktop-ATN-0.react-css.txt",
-      "sha256": "39a30de42460ca0820dfc0cea19928f7f6fa46ea3cd6ba3714e000f659611d8a"
+      "sha256": "509570d844b206f830806ed4ea86bf0dcfa104b2361264466211c1782c8d10f2"
     },
     {
       "path": "source/onboarding-connected-light-desktop-ATN-0.png",
@@ -97,7 +97,7 @@
     {
       "path": "source/onboarding-connected-light-mobile-AXQ-0.react-css.txt",
       "originalPath": "/tmp/bakery-294-approved-inputs/visuals/onboarding-connected-light-mobile-AXQ-0.react-css.txt",
-      "sha256": "b5ebcd2538079e7c77e460e9879d3a40778b2451c3caccaa8db85bc358bc9c1f"
+      "sha256": "eec738dfef32f3ce42dbde8cf844f83fa87f3b33623e56613a0dbeb01a3a7f65"
     },
     {
       "path": "source/onboarding-connected-light-mobile-AXQ-0.png",
@@ -112,7 +112,7 @@
     {
       "path": "source/00-machines-scope-states-components-A5P-0.react-css.txt",
       "originalPath": "/tmp/bakery-294-approved-inputs/presentation-sources/00-machines-scope-states-components-A5P-0.react-css.txt",
-      "sha256": "aff8cbd35578b004941aa22973f5615598dcce8bc3566ddd878b2735c39336a5"
+      "sha256": "2b2d879237fbdc2ea0bcae54aff40fe5a08c462de875a8821d3be1ea1bba301d"
     },
     {
       "path": "theme-values.json",
@@ -167,7 +167,7 @@
     {
       "path": "source/detail-light-desktop-8Y2-0.react-css.txt",
       "originalPath": "~/.agents/worktrees/bakery/worker-readiness-fixtures/.agents/tasks/build-worker-readiness-presentation/tmp/detail-approved-inputs/8Y2-0.react-css.txt",
-      "sha256": "c6c9975a8fbc02f45725f8a00b315773b4a0824474feb6abc29137b4f21442a2"
+      "sha256": "4d508058860855471b7a84f6b9a2475865bbd89f2116fdac17e6a78c7344b917"
     },
     {
       "path": "source/detail-light-phone-90D-0.png",
@@ -177,7 +177,7 @@
     {
       "path": "source/detail-light-phone-90D-0.react-css.txt",
       "originalPath": "~/.agents/worktrees/bakery/worker-readiness-fixtures/.agents/tasks/build-worker-readiness-presentation/tmp/detail-approved-inputs/90D-0.react-css.txt",
-      "sha256": "9a12b215049ae345ca49cad6710e00c93101e7bdd1be674930735346195d8982"
+      "sha256": "7d365b573955dabc1e80d339f0efa5afe09571037b8949b3b74df55b055c668f"
     }
   ],
   "screens": [

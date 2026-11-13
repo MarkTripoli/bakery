@@ -15,7 +15,7 @@
           <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '44px', justifyContent: 'center', width: '44px' }}>
             <div style={{ alignItems: 'center', backgroundColor: 'var(--color-dark-canvas)', borderRadius: '999px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '28px', justifyContent: 'center', width: '28px' }}>
               <div style={{ boxSizing: 'border-box', color: 'var(--color-dark-fg)', display: 'flex', fontFamily: 'system-ui, sans-serif', fontSize: '12px', lineHeight: '18px' }}>
-                MT
+                AM
               </div>
             </div>
           </div>
@@ -75,7 +75,7 @@
         </div>
         <div style={{ borderTopColor: 'var(--color-dark-border)', borderTopStyle: 'solid', borderTopWidth: '1px', boxSizing: 'border-box', paddingBlock: '12px' }}>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-dark-fg-secondary)', fontFamily: 'system-ui, sans-serif', fontSize: '13px', lineHeight: '20px' }}>
-            9 Oct 11:03 · Mark Tripoli
+            9 Oct 11:03 · Alex Morgan
           </div>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-dark-fg)', fontFamily: 'system-ui, sans-serif', fontSize: '14px', lineHeight: '20px' }}>
             Applied licence key ed25519:7f3a…c91e

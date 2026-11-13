@@ -114,11 +114,11 @@
         <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px', padding: '8px' }}>
           <div style={{ backgroundColor: 'var(--color-border)', borderRadius: '20px', boxSizing: 'border-box', fontFamily: 'var(--font-sans)', padding: '4px' }}>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '12px', lineHeight: '20px' }}>
-              MT
+              AM
             </div>
           </div>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', flexBasis: '0%', flexGrow: '1', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
-            Mark Tripoli
+            Alex Morgan
           </div>
           <svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: '0' }}>
             <path d="m6 9 6 6 6-6" fill="none" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -149,7 +149,7 @@
             </div>
             <div style={{ alignItems: 'center', backgroundColor: 'var(--color-border)', borderRadius: '999px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '32px', justifyContent: 'center', width: '32px' }}>
               <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', display: 'flex', fontFamily: 'system-ui, sans-serif', fontSize: '12px', fontWeight: 500, lineHeight: '16px' }}>
-                MT
+                AM
               </div>
             </div>
           </div>
@@ -242,7 +242,7 @@
                   9 Oct 11:03
                 </div>
                 <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', flexShrink: '0', fontFamily: 'system-ui, sans-serif', fontSize: '14px', fontWeight: 500, lineHeight: '20px', width: '140px' }}>
-                  Mark Tripoli
+                  Alex Morgan
                 </div>
                 <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', flexBasis: '0px', flexGrow: '1', fontFamily: 'system-ui, sans-serif', fontSize: '14px', lineHeight: '20px' }}>
                   Applied licence key ed25519:7f3a…c91e

@@ -320,7 +320,7 @@ function installationSettingsCapturePage(page, designCase) {
           body: JSON.stringify({
             principalId,
             principalType: "human",
-            displayName: "Mark Tripoli",
+            displayName: "Alex Morgan",
             locale: "en",
             direction: "ltr",
             catalogVersion: "10",
@@ -499,7 +499,7 @@ function ssoCapturePage(page, designCase) {
       route.fulfill(json({
         principalId,
         principalType: "human",
-        displayName: "Mark Tripoli",
+        displayName: "Alex Morgan",
         locale: "en",
         direction: "ltr",
         catalogVersion: "10",
@@ -848,7 +848,7 @@ export function accessCapturePage(page, designCase) {
       route.fulfill(json({
         principalId,
         principalType: "human",
-        displayName: "Mark Tripoli",
+        displayName: "Alex Morgan",
         locale: "en",
         direction: "ltr",
         catalogVersion: "10",

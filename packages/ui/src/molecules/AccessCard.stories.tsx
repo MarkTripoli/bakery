@@ -11,7 +11,7 @@ export const Contract: StoryObj = {
   render: () => (
     <AccessCard
       description="Organization role · Managed by an admin"
-      leading={<Avatar alt="Mark Tripoli" size="large" />}
+      leading={<Avatar alt="Alex Morgan" size="large" />}
       title="Developer"
       trailing={<Badge tone="success">Active</Badge>}
     >

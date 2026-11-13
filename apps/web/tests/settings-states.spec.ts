@@ -1681,7 +1681,7 @@ test.describe("profile page", () => {
       `?photo=${encodeURIComponent(broken)}`,
     );
     await expect(avatar).toHaveAttribute("data-state", "fallback");
-    await expect(avatar).toHaveText("MT");
+    await expect(avatar).toHaveText("AM");
     await expect(avatar.locator("img")).toHaveCount(0);
     // The form stays usable; the broken photo never blocks it.
     await page.getByLabel("Display name").fill("Alex M.");

@@ -32,7 +32,7 @@ export default function () {
           </div>
         </div>
         <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-13)', fontWeight: 'var(--font-weight-regular)', lineHeight: 'var(--leading-13)' }}>
-          Mark’s workspace⌄
+          Alex’s workspace⌄
         </div>
       </div>
       <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', gap: 'var(--spacing-24)', paddingBottom: 'var(--spacing-32)', paddingInline: 'var(--spacing-16)', paddingTop: 'var(--spacing-24)', width: '390px' }}>
@@ -46,7 +46,7 @@ export default function () {
                 Connect web-worker-03
               </div>
               <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', fontWeight: 'var(--font-weight-regular)', lineHeight: 'var(--leading-14)' }}>
-                Add this Linux machine to Mark’s workspace.
+                Add this Linux machine to Alex’s workspace.
               </div>
             </div>
           </div>
@@ -133,7 +133,7 @@ export default function () {
                   </div>
                 </div>
                 <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-12)', fontWeight: 'var(--font-weight-regular)', lineHeight: 'var(--leading-12)' }}>
-                  Mark’s workspace only. Expires in 9:42.
+                  Alex’s workspace only. Expires in 9:42.
                 </div>
               </div>
             </div>

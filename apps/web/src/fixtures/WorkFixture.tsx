@@ -111,7 +111,7 @@ const groups: readonly WorkQueueGroup[] = [
 ];
 
 const detail: WorkQueueInspectorDetail = {
-  participants: ["Mark Tripoli", "Sam Lin"],
+  participants: ["Alex Morgan", "Sam Lin"],
   question: {
     allowFreeText: false,
     defaultOptionId: "bakery",

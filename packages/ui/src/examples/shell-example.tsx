@@ -104,7 +104,7 @@ export function PaperSidebar(
             { id: "sign-out", label: "Sign out" },
           ]}
           label="Account"
-          name="Mark Tripoli"
+          name="Alex Morgan"
           variant={compact ? "compact" : "full"}
         />
       }
@@ -130,12 +130,12 @@ export function PaperSidebar(
       workspace={
         <UI.WorkspaceSwitcher
           items={[
-            { id: "mark", label: "Mark’s workspace", selected: true },
+            { id: "alex", label: "Alex’s workspace", selected: true },
             { id: "example", label: "Example team" },
           ]}
           label="Switch workspace"
           variant={compact ? "compact" : "full"}
-          workspace="Mark’s workspace"
+          workspace="Alex’s workspace"
         />
       }
     />
