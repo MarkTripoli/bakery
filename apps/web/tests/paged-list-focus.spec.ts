@@ -282,7 +282,10 @@ for (
       // The same failure gets the same button everywhere: it says Retry.
       const retry = page.getByRole("button", { name: "Retry" });
       await expect(retry).toBeFocused();
-      await shot(page, "machines-load-more-failed");
+      // Window-only, scrolled to the notice: a full-page capture of this long page
+      // draws the sticky rail below a blank gap.
+      await retry.scrollIntoViewIfNeeded();
+      await shot(page, "machines-load-more-failed", [], { windowOnly: true });
       await retry.click();
       await expect(added(page)).toBeFocused();
     });
