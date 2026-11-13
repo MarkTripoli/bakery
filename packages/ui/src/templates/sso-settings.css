@@ -159,9 +159,10 @@
 .ui-sso-settings__form .ui-field {
   gap: var(--space-1-5);
 }
+/* The inputs keep the control height every settings input has, so the client
+   secret (a password input) and the text inputs next to it are the same height. */
 .ui-sso-settings__form .ui-text-input,
 .ui-sso-settings__form textarea {
-  min-block-size: 2.25rem;
   font: var(--type-body);
 }
 /* Paper add-OIDC draws the client ID, an opaque identifier, in the data face. */

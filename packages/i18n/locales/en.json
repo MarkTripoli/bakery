@@ -2168,7 +2168,7 @@
   "settings.sso.verify.done": "Domain verified.",
   "settings.sso.verify.error": "The domain could not be checked right now.",
   "settings.sso.enforce.label": "Require SSO for all members",
-  "settings.sso.enforce.breakGlass": "Break-glass: organization administrators who still hold a password or passkey can always sign in with it, so a broken provider never locks you out.",
+  "settings.sso.enforce.breakGlass": "Organization administrators who still have a password or passkey can always sign in with it, so a broken provider cannot lock everyone out.",
   "settings.sso.enforce.needsProvider": "Add a provider and verify its domain before requiring SSO.",
   "settings.sso.require.help": "Everyone in this organization must sign in through your provider. Organization administrators who still have a password or passkey can always sign in with it.",
   "settings.sso.require.confirm.title": "Require single sign-on for everyone?",

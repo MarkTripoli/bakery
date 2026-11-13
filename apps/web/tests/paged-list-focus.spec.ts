@@ -256,8 +256,12 @@ for (
       await expect(retry).toBeVisible();
       await retry.focus();
       await page.keyboard.press("Enter");
-      // The server is still down: the read fails again and Retry is back.
-      await expect(retry).toBeVisible();
+      // While the retry is pending Retry stays where it is, busy and focused:
+      // focus never falls to the body, not even for the wait.
+      await expect(retry).toHaveAttribute("aria-busy", "true");
+      await expect(retry).toBeFocused();
+      // The server is still down: the read fails again and Retry is idle again.
+      await expect(retry).not.toHaveAttribute("aria-busy", "true");
       await expect(retry).toBeFocused();
       await expect(heading).not.toBeFocused();
       await shot(page, "machines-first-read-retry-focus");

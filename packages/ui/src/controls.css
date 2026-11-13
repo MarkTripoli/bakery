@@ -235,10 +235,11 @@ input:not([type="hidden"]) {
 :dir(rtl) .ui-switch input:checked::after {
   translate: calc(var(--size-checkbox) - var(--size-switch)) -50%;
 }
-/* A disabled switch reads as disabled at a glance: the track and the label take
-   the disabled foreground instead of fading the whole control. */
+/* A disabled switch reads as disabled at a glance: the track takes the disabled
+   foreground instead of fading the whole control, and the label stays in the
+   muted text colour so it can still be read. */
 .ui-switch[data-state="disabled"] {
-  color: var(--color-fg-disabled);
+  color: var(--color-fg-muted);
 }
 .ui-switch input:disabled {
   cursor: not-allowed;

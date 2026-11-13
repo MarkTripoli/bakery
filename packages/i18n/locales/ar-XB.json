@@ -1936,7 +1936,6 @@
   "settings.sso.verify.done": "⟪Domain verified.⟫",
   "settings.sso.verify.error": "⟪The domain could not be checked right now.⟫",
   "settings.sso.enforce.label": "⟪Require SSO for all members⟫",
-  "settings.sso.enforce.breakGlass": "⟪Break-glass: organization administrators who still hold a password or passkey can always sign in with it, so a broken provider never locks you out.⟫",
   "settings.sso.enforce.needsProvider": "⟪Add a provider and verify its domain before requiring SSO.⟫",
   "settings.sso.enforce.error": "⟪Single sign-on enforcement could not be changed.⟫",
   "shell.navigation.customRoles": "⟪Custom roles⟫",
@@ -2741,5 +2740,6 @@
   "settings.sso.require.confirm.body": "⟪Members of {organization} will have to sign in through {provider}. Signing in with a password stops working for them. Organization administrators who still have a password or passkey can always sign in with it, so a broken provider cannot lock everyone out.⟫",
   "settings.sso.require.confirm.bodyMany": "⟪Members of {organization} will have to sign in through one of your providers. Signing in with a password stops working for them. Organization administrators who still have a password or passkey can always sign in with it, so a broken provider cannot lock everyone out.⟫",
   "settings.sso.require.confirm.confirm": "⟪Require SSO⟫",
-  "settings.sso.require.confirm.thisOrganization": "⟪this organization⟫"
+  "settings.sso.require.confirm.thisOrganization": "⟪this organization⟫",
+  "settings.sso.enforce.breakGlass": "⟪Organization administrators who still have a password or passkey can always sign in with it, so a broken provider cannot lock everyone out.⟫"
 }

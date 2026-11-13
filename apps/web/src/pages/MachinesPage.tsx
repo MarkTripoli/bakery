@@ -138,22 +138,27 @@ function machineCapabilities(worker: MachineRow, unknown: string): string {
 }
 
 function StateError({
+  busy = false,
   kind,
   onRetry,
   translate,
 }: {
+  /** A retry is in flight: the button stays where it is, busy, so focus never leaves it. */
+  readonly busy?: boolean;
   readonly kind: "offline" | "error";
   readonly onRetry: () => void;
   readonly translate: Translator;
 }) {
   return (
     <UI.ErrorState
+      state={busy ? "retrying" : "default"}
       title={translate(`machines.${kind}.title` as never)}
       description={translate(`machines.${kind}.description` as never)}
       action={
         <UI.Button
+          aria-busy={busy || undefined}
           variant="secondary"
-          onClick={onRetry}
+          onClick={busy ? undefined : onRetry}
           // The paged-focus rule's retry target: a retried first read that
           // fails again puts focus back on this button.
           data-paged-retry="machines"
@@ -889,6 +894,14 @@ export function MachinesPage() {
     ...(workers.data?.items ?? []),
     ...(workerContinuation.data?.items ?? []),
   ];
+  // A retried first read: the failure stays on screen, with its Retry button
+  // busy, until the answer arrives. Without it the button would be replaced by
+  // the loading state and focus would fall to the page body for the wait.
+  const [retryingFirst, setRetryingFirst] = useState<
+    "offline" | "error" | null
+  >(
+    null,
+  );
   const forbidden = workers.isError && isForbiddenFailure(workers.error);
   const connectivityKind = asyncKindForConnectivity(connectivity);
   const phone = useShellViewport() === "phone";
@@ -946,16 +959,24 @@ export function MachinesPage() {
               variant="firstUse"
             />
           )
-          : workers.isError
+          : workers.isError || retryingFirst !== null
           ? (
             <StateError
-              kind={asyncKindForError(workers.error) === "offline"
+              busy={retryingFirst !== null}
+              kind={retryingFirst ?? (asyncKindForError(workers.error) ===
+                  "offline"
                 ? "offline"
-                : "error"}
+                : "error")}
               onRetry={() => {
-                // A failed first read, retried: focus lands on the page heading.
+                // A failed first read, retried: focus lands on the page heading
+                // when it works, back on Retry when it fails again.
                 workerPaging.ask("first");
-                void workers.refetch();
+                setRetryingFirst(
+                  asyncKindForError(workers.error) === "offline"
+                    ? "offline"
+                    : "error",
+                );
+                void workers.refetch().finally(() => setRetryingFirst(null));
               }}
               translate={translate}
             />
