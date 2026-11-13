@@ -522,7 +522,8 @@ test.describe("settings routes and navigation", () => {
   test("lists the sections under two labelled groups, with the connected-clients item and without Machines", async ({ page }) => {
     await mockAuthenticatedSession(page);
     await page.setViewportSize({ width: 1280, height: 960 });
-    await page.goto("/settings/security");
+    await page.goto("/settings/sessions");
+    await expect(page.getByText("This device")).toBeVisible();
     const navigation = page.getByRole("navigation", {
       name: "Settings sections",
     }).first();
@@ -562,7 +563,8 @@ test.describe("settings routes and navigation", () => {
   test("on a phone the settings menu opens one sheet with both groups as headings", async ({ page }) => {
     await mockAuthenticatedSession(page);
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/settings/security");
+    await page.goto("/settings/sessions");
+    await expect(page.getByText("This device")).toBeVisible();
     await page.locator(".bakery-section-navigation__summary").click();
     const sheet = page.locator(".bakery-section-navigation__mobile");
     await expect(sheet.locator(".bakery-section-navigation__heading"))
