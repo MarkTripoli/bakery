@@ -66,9 +66,11 @@ import { admitStagePolicy } from "./stage-admission.ts";
 import { ticketRequestBlocksRun } from "./ticket-run-guard.ts";
 import { pinEffectiveRepositoryRules } from "../repository-rules/pinned.ts";
 import { assertStepsSatisfyRules } from "../workflows/rule-guard.ts";
-import { declaresCompilerGrammar } from "../workflows/validation.ts";
 import { writePlanRun } from "../workflow-adapter/plan-admission.ts";
-import { resolvePlanAdmission } from "./plan-run-admission.ts";
+import {
+  type PlanAdmission,
+  resolvePlanAdmission,
+} from "./plan-run-admission.ts";
 import {
   ensurePresetWorkflowVersion,
   fixedPolicyDeniesSteps,
@@ -1011,17 +1013,33 @@ export async function createRunCommand(
       params: { reason: "repository_required" },
     });
   }
-  // A definition that declares `apiVersion` is a compiled plan: no fixed step
-  // list, and the engine decides each step as the run goes. Everything else is
-  // the fixed workflow this admission has always written.
-  const planAdmission = declaresCompilerGrammar(workflow.normalized_spec)
-    ? await resolvePlanAdmission(transaction, {
-      organizationId,
-      definition: workflow.normalized_spec,
-      profileAgentBindings: profile?.config.agentBindings,
-    })
-    : null;
+  // The fixed executor runs a flat list of actions. A compiler-grammar version
+  // that has container nodes is one it cannot run: it is a compiled plan, and
+  // the engine decides each of its steps as the run goes.
   let steps: readonly FixedWorkflowStep[] = [];
+  let planAdmission: PlanAdmission | null = null;
+  try {
+    steps = extractFixedWorkflowSteps(
+      workflow.normalized_spec,
+      profile?.config.workflow.kind,
+    );
+  } catch (error) {
+    if (error instanceof WorkflowNotExecutableError) {
+      planAdmission = await resolvePlanAdmission(transaction, {
+        organizationId,
+        definition: workflow.normalized_spec,
+        profileAgentBindings: profile?.config.agentBindings,
+      });
+    } else if (error instanceof WorkflowNotFixedError) {
+      throw new StandardError({
+        code: "STATE_CONFLICT",
+        params: { reason: "workflow_not_fixed" },
+      });
+    } else {
+      throw new Error("WORKFLOW_VERSION_INVALID", { cause: error });
+    }
+  }
+
   let reviewLoop: ReviewLoopLimits | null = null;
   let stepAgents: FrozenStepAgents = {};
   if (planAdmission !== null) {
@@ -1034,27 +1052,6 @@ export async function createRunCommand(
       budgetLimitUsd,
     );
   } else {
-    try {
-      steps = extractFixedWorkflowSteps(
-        workflow.normalized_spec,
-        profile?.config.workflow.kind,
-      );
-    } catch (error) {
-      if (error instanceof WorkflowNotFixedError) {
-        throw new StandardError({
-          code: "STATE_CONFLICT",
-          params: { reason: "workflow_not_fixed" },
-        });
-      }
-      if (error instanceof WorkflowNotExecutableError) {
-        throw new StandardError({
-          code: "STATE_CONFLICT",
-          params: { reason: "workflow_not_executable" },
-        });
-      }
-      throw new Error("WORKFLOW_VERSION_INVALID", { cause: error });
-    }
-
     // A review and repair loop runs checks and a review after implement, so a
     // profile that cannot run them must fail here, not after implement spends.
     reviewLoop = reviewLoopLimitsFor(workflow.normalized_spec);

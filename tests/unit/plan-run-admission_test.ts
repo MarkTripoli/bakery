@@ -8,6 +8,7 @@ import {
 import { readPlanAgents } from "../../packages/persistence/src/repository-admission.ts";
 import {
   planActionAgentBindings,
+  planHoldsUnsupportedNodes,
   planRunInputs,
   referencedPlanAgentIds,
   writePlanRun,
@@ -19,7 +20,12 @@ import {
   PlanStateError,
   planTaskFromSnapshot,
 } from "../../apps/server/src/modules/workflow-adapter/plan-state.ts";
-import { REPO_ID, workflow } from "../helpers/workflow-interpreter.ts";
+import {
+  compiled,
+  noop,
+  REPO_ID,
+  workflow,
+} from "../helpers/workflow-interpreter.ts";
 
 // #30 E3b-2c. Admission writes the sections a compiled plan runs on: its
 // frozen document and pin, the task and inputs `$task` and `$input` read, and
@@ -445,4 +451,89 @@ Deno.test("a run cannot freeze more than 100 agents, and the bound is judged bef
     Error,
     "FROZEN_STEP_AGENT_INVALID",
   );
+});
+
+Deno.test("a wait or a parallel group is found wherever it is nested, and nothing else is", async () => {
+  const wait = { id: "pause", wait: { duration: "5m" } };
+  const parallel = {
+    id: "fan",
+    parallel: {
+      maxConcurrency: 2,
+      join: "all-required",
+      failurePolicy: "stop-dependent",
+      branches: [
+        { id: "lane_a", repository: "repo_a", steps: [noop("work_a")] },
+        { id: "lane_b", repository: "repo_b", steps: [noop("work_b")] },
+      ],
+    },
+  };
+  const repeat = (extra: object, seed: object) => ({
+    id: "loop",
+    repeat: {
+      max: 2,
+      seed,
+      until: "$repeat.currentCandidate.n >= 1",
+      steps: [noop("bump", { with: { n: "$repeat.currentCandidate.n" } })],
+      outputs: { currentCandidate: { n: "$step.loop.bump.next" } },
+      ...extra,
+    },
+  });
+  const mapping = { currentCandidate: { n: 0 } };
+  const branch = (then: object[], other: object[]) => ({
+    id: "choose",
+    branch: { when: "$input.on == true", then, else: other, outputs: {} },
+  });
+  const inputs = { on: { type: "boolean", required: true } };
+  const found: [string, object[]][] = [
+    ["top-level wait", [wait]],
+    ["top-level parallel", [parallel]],
+    ["wait in a sequence", [{ id: "seq", steps: [noop("alpha"), wait] }]],
+    ["wait in a then arm", [branch([wait], [noop("left_x")])]],
+    ["wait in an else arm", [branch([noop("left_x")], [wait])]],
+    ["parallel in an arm", [branch([noop("left_x")], [parallel])]],
+    ["wait in a repeat body", [
+      repeat({
+        steps: [
+          noop("bump", { with: { n: "$repeat.currentCandidate.n" } }),
+          wait,
+        ],
+      }, mapping),
+    ]],
+    ["wait in a repeat seed", [
+      repeat({}, {
+        steps: [noop("prepare"), { id: "hold", wait: { duration: "1m" } }],
+        outputs: { currentCandidate: { n: 0 } },
+      }),
+    ]],
+    ["wait in a nested sequence", [{
+      id: "outer",
+      steps: [{ id: "inner", steps: [wait] }],
+    }]],
+  ];
+  for (const [name, steps] of found) {
+    assertEquals(
+      planHoldsUnsupportedNodes(await compiled(steps as never, inputs)),
+      true,
+      name,
+    );
+  }
+  const plain: [string, object[]][] = [
+    ["actions", [noop("alpha"), noop("beta", { needs: ["alpha"] })]],
+    ["sequence", [{ id: "seq", steps: [noop("alpha"), noop("beta")] }]],
+    ["branch", [branch([noop("left_x")], [noop("right_y")])]],
+    ["repeat with a mapping seed", [repeat({}, mapping)]],
+    ["repeat with a sequence seed", [
+      repeat({}, {
+        steps: [noop("prepare")],
+        outputs: { currentCandidate: { n: 0 } },
+      }),
+    ]],
+  ];
+  for (const [name, steps] of plain) {
+    assertEquals(
+      planHoldsUnsupportedNodes(await compiled(steps as never, inputs)),
+      false,
+      name,
+    );
+  }
 });

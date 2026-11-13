@@ -11,7 +11,10 @@ import {
   workflowActionCapabilities,
 } from "@bakery/persistence";
 import type { PgTransactionClient } from "../../platform/database.ts";
-import { planActionAgentBindings } from "../workflow-adapter/plan-admission.ts";
+import {
+  planActionAgentBindings,
+  planHoldsUnsupportedNodes,
+} from "../workflow-adapter/plan-admission.ts";
 import {
   type AgentVersionSelection,
   type FrozenStepAgent,
@@ -59,6 +62,8 @@ export async function resolvePlanAdmission(
   );
   if (!result.ok) conflict("workflow_plan_not_compilable");
   const document = result.document;
+  // The reason the fixed executor gave for any plan it could not run.
+  if (planHoldsUnsupportedNodes(document)) conflict("workflow_not_executable");
   const stepAgentVersion = new Map(
     result.plan.steps.flatMap((step) =>
       step.kind === "action" ? [[step.qualifiedId, step.agentVersionId]] : []

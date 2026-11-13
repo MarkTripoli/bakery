@@ -34,57 +34,69 @@ import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 // A flat workflow is admitted as before.
 
 type RunBody = { id: string; status: string; workflowVersionId: string };
-type PlanDefinition = { steps: { with: Record<string, unknown> }[] };
+type PlanDefinition = {
+  steps: { steps: { with: Record<string, unknown> }[] }[];
+};
 
 const plan = (
   over: {
     stepAgent?: string;
     agents?: Record<string, string>;
     unboundSecondStep?: boolean;
+    /** The steps as a bare list, which the fixed executor runs. */
+    flat?: boolean;
+    /** A wait between the two steps, which the engine cannot run yet. */
+    wait?: boolean;
   } = {},
-) => ({
-  apiVersion: "bakery.dev/v1",
-  kind: "workflow",
-  name: "plan-admission",
-  description: "A compiled plan admitted by the run command.",
-  ...(over.agents === undefined ? {} : { agents: over.agents }),
-  inputs: {
-    repositoryId: { type: "uuid", required: true },
-    brief: { type: "TaskBrief", required: true },
-    instructions: { type: "string", required: true },
-    note: { type: "string", required: false },
-  },
-  steps: [
+) => {
+  const artifact = `$step.${
+    over.flat === true ? "" : "flow."
+  }brief.artifact.versionId`;
+  const implement = (id: string, needs: string, extra: object = {}) => ({
+    id,
+    needs: [needs],
+    uses: "harness.implement",
+    ...extra,
+    with: {
+      repositoryId: "$input.repositoryId",
+      planArtifact: artifact,
+      instructions: "$input.instructions",
+    },
+  });
+  const body = [
     {
       id: "brief",
       uses: "task.brief",
       with: { brief: "$input.brief", repositoryId: "$input.repositoryId" },
     },
-    {
-      id: "implement",
-      needs: ["brief"],
-      uses: "harness.implement",
-      ...(over.stepAgent === undefined
-        ? {}
-        : { agentVersionId: over.stepAgent }),
-      with: {
-        repositoryId: "$input.repositoryId",
-        planArtifact: "$step.brief.artifact.versionId",
-        instructions: "$input.instructions",
-      },
+    ...(over.wait !== true
+      ? []
+      : [{ id: "pause", needs: ["brief"], wait: { duration: "1m" } }]),
+    implement(
+      "implement",
+      over.wait === true ? "pause" : "brief",
+      over.stepAgent === undefined ? {} : { agentVersionId: over.stepAgent },
+    ),
+    ...(over.unboundSecondStep !== true
+      ? []
+      : [implement("again", "implement")]),
+  ];
+  return {
+    apiVersion: "bakery.dev/v1",
+    kind: "workflow",
+    name: "plan-admission",
+    description: "A compiled plan admitted by the run command.",
+    ...(over.agents === undefined ? {} : { agents: over.agents }),
+    inputs: {
+      repositoryId: { type: "uuid", required: true },
+      brief: { type: "TaskBrief", required: true },
+      instructions: { type: "string", required: true },
+      note: { type: "string", required: false },
     },
-    ...(over.unboundSecondStep !== true ? [] : [{
-      id: "again",
-      needs: ["implement"],
-      uses: "harness.implement",
-      with: {
-        repositoryId: "$input.repositoryId",
-        planArtifact: "$step.brief.artifact.versionId",
-        instructions: "$input.instructions",
-      },
-    }]),
-  ],
-});
+    // A sequence is a container node, which makes this a compiled plan.
+    steps: over.flat === true ? body : [{ id: "flow", steps: body }],
+  };
+};
 
 const runInputs = (repository: { repositoryId: string }) => ({
   repositoryId: repository.repositoryId,
@@ -238,10 +250,10 @@ Deno.test("the engine runs the admitted plan on: it appends each step, and the f
     assert(owner !== undefined);
 
     const first = await engine.findNext(run.id, owner);
-    assertEquals(first?.stepKey, "brief");
+    assertEquals(first?.stepKey, "flow.brief");
     let rows = await stepRows(fixture, run.id);
     assertEquals(rows.map((row) => [row.stepKey, row.status]), [[
-      "brief",
+      "flow.brief",
       "pending",
     ]]);
     assertEquals(rows[0].dispatch?.action, "task.brief");
@@ -255,16 +267,19 @@ Deno.test("the engine runs the admitted plan on: it appends each step, and the f
     await fixture.pgDatabase.query(
       `update bakery.run_steps
           set status = 'completed', finished_at = now(), output = $2::jsonb
-        where run_id = $1 and step_key = 'brief'`,
+        where run_id = $1 and step_key = 'flow.brief'`,
       [
         run.id,
         JSON.stringify({ artifact: { versionId: crypto.randomUUID() } }),
       ],
     );
     const second = await engine.findNext(run.id, owner);
-    assertEquals(second?.stepKey, "implement");
+    assertEquals(second?.stepKey, "flow.implement");
     rows = await stepRows(fixture, run.id);
-    assertEquals(rows.map((row) => row.stepKey), ["brief", "implement"]);
+    assertEquals(rows.map((row) => row.stepKey), [
+      "flow.brief",
+      "flow.implement",
+    ]);
     assertEquals(rows[1].dispatch?.action, "harness.implement");
     // The step names no agent; its action's fallback was frozen at admission.
     assertEquals(rows[1].dispatch?.agentVersionId, agent);
@@ -377,7 +392,7 @@ Deno.test("a step keeps its own agent while a later step of the same action take
     );
     assert(owner !== undefined);
     const agents: Record<string, unknown> = {};
-    for (const key of ["brief", "implement", "again"]) {
+    for (const key of ["flow.brief", "flow.implement", "flow.again"]) {
       assertEquals((await engine.findNext(run.id, owner))?.stepKey, key);
       agents[key] = (await stepRows(fixture, run.id)).find((row) =>
         row.stepKey === key
@@ -394,9 +409,9 @@ Deno.test("a step keeps its own agent while a later step of the same action take
       );
     }
     assertEquals(agents, {
-      brief: undefined,
-      implement: stepAgent,
-      again: agent,
+      "flow.brief": undefined,
+      "flow.implement": stepAgent,
+      "flow.again": agent,
     });
   }));
 
@@ -553,7 +568,7 @@ Deno.test("a published plan that no longer compiles is refused, not half started
       `select normalized_spec as spec from bakery.workflow_versions where id = $1`,
       [versionId],
     )).rows[0].spec;
-    stored.steps[0].with.brief = 7;
+    stored.steps[0].steps[0].with.brief = 7;
     await fixture.pgDatabase.query(
       `update bakery.workflow_versions
           set normalized_spec = $2::jsonb, digest = $3
@@ -586,6 +601,40 @@ Deno.test("a repository rule that requires a check stage refuses a plan, which t
       "workflow_plan_rules_unsupported",
     );
     // (The same plan is admitted where no rule requires a stage: the first test.)
+  }));
+
+Deno.test("a compiler-grammar workflow that is a bare list of steps stays on the fixed executor, rows and all", () =>
+  withWorkerFixture(async (fixture) => {
+    const { repository } = await repositoryWithAgent(fixture, "bare");
+    const { versionId } = await publishWorkflow(
+      fixture,
+      fixture,
+      "plan-bare-list",
+      plan({ flat: true }),
+    );
+    const { response } = await start(fixture, repository, versionId);
+    const run = await expectJson<RunBody>(response, 201);
+    const snapshot = await snapshotOf(fixture, run.id);
+    assert(!Object.hasOwn(snapshot, "runtime"));
+    assertEquals(
+      (await stepRows(fixture, run.id)).map((row) => row.stepKey),
+      ["brief", "implement"],
+    );
+  }));
+
+Deno.test("a plan with a wait, which the engine cannot run yet, is refused as the fixed executor refused it", () =>
+  withWorkerFixture(async (fixture) => {
+    const { repository } = await repositoryWithAgent(fixture, "wait");
+    const { versionId } = await publishWorkflow(
+      fixture,
+      fixture,
+      "plan-wait",
+      plan({ wait: true }),
+    );
+    assertEquals(
+      (await refused(fixture, repository, versionId, 409)).reason,
+      "workflow_not_executable",
+    );
   }));
 
 Deno.test("a flat workflow is admitted exactly as before: its rows, its agents, no runtime section", () =>

@@ -109,6 +109,36 @@ export function planActionAgentBindings(
   return bindings;
 }
 
+/**
+ * Whether the plan holds a node the engine cannot run yet: a wait or a
+ * parallel group, wherever it is nested. Such a plan is refused at admission,
+ * as the fixed executor refused it, rather than started and failed when the
+ * interpreter reaches the node.
+ */
+export function planHoldsUnsupportedNodes(
+  document: WorkflowSemanticDocument,
+): boolean {
+  type Node = WorkflowSemanticDocument["steps"][number];
+  const unsupported = (nodes: readonly Node[]): boolean =>
+    nodes.some((node) => {
+      switch (node.kind) {
+        case "wait":
+        case "parallel":
+          return true;
+        case "sequence":
+          return unsupported(node.steps);
+        case "branch":
+          return unsupported(node.then) || unsupported(node.else);
+        case "repeat":
+          return unsupported(node.steps) ||
+            (node.seed.form === "sequence" && unsupported(node.seed.steps));
+        default:
+          return false;
+      }
+    });
+  return unsupported(document.steps);
+}
+
 /** Every agent version a plan's steps can run as, sorted and once each. */
 export function referencedPlanAgentIds(
   document: WorkflowSemanticDocument,
