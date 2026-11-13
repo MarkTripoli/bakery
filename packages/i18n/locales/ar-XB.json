@@ -2261,7 +2261,6 @@
   "settings.orgAccess.token.none": "⟪No live tokens⟫",
   "settings.roles.listTitle": "⟪Roles⟫",
   "settings.roles.forbidden": "⟪Only organization admins can manage custom roles. Ask an admin if you need a change.⟫",
-  "shell.navigation.scimShort": "⟪SCIM⟫",
   "settings.orgAccess.loading": "⟪Loading members and roles…⟫",
   "settings.orgAccess.token.shownOnceShort": "⟪New token shown once:⟫",
   "tasks.timeline.budgetCapExceeded": "⟪The run budget cannot cover this step's model reservation. Start a new run with a higher budget limit.⟫",

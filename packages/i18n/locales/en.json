@@ -1881,7 +1881,6 @@
   "settings.roles.error.conflict": "That conflicts with the current state: the key may be taken, the role changed, it still has members, or it would leave the organization without an administrator.",
   "settings.roles.error.invalid": "Check the role key and permissions and try again.",
   "shell.navigation.scim": "SCIM provisioning",
-  "shell.navigation.scimShort": "SCIM",
   "shell.navigation.userProvisioning": "User provisioning",
   "shell.navigation.group.account": "Your account",
   "shell.navigation.group.organization": "Organization",
