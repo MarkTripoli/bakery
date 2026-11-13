@@ -1253,15 +1253,13 @@ export async function createRunCommand(
   );
   const run = inserted.rows[0];
   if (!run) throw new Error("RUN_INSERT_FAILED");
-  // A plan run has no rows up front: the engine appends each step as the plan
-  // decides it.
-  if (planAdmission === null) {
-    await insertRunSteps(transaction, {
-      organizationId,
-      runId: run.id,
-      steps,
-    });
-  }
+  // A plan run has no steps here (the engine appends each one as the plan
+  // decides it), so nothing is inserted for it.
+  await insertRunSteps(transaction, {
+    organizationId,
+    runId: run.id,
+    steps,
+  });
   const taskUpdate = await transaction.query<{ id: string; version: number }>(
     `update bakery.tasks
         set status = $3, current_run_id = $4,

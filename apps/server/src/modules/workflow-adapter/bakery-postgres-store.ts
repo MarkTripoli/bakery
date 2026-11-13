@@ -855,11 +855,9 @@ async function findNextPlanKey(
   let dispatch = answer.step;
   try {
     const fallbacks = planActionAgentsFromSnapshot(context.runSnapshot);
-    if (
-      dispatch.kind === "action" && dispatch.agentVersionId === undefined &&
-      Object.hasOwn(fallbacks, dispatch.action)
-    ) {
-      dispatch = { ...dispatch, agentVersionId: fallbacks[dispatch.action] };
+    const fallback = fallbacks[dispatch.action];
+    if (dispatch.agentVersionId === undefined && fallback !== undefined) {
+      dispatch = { ...dispatch, agentVersionId: fallback };
     }
   } catch (error) {
     if (error instanceof PlanStateError) {

@@ -37,16 +37,22 @@ type RunBody = { id: string; status: string; workflowVersionId: string };
 type PlanDefinition = { steps: { with: Record<string, unknown> }[] };
 
 const plan = (
-  over: { stepAgent?: string; inputs?: Record<string, unknown> } = {},
+  over: {
+    stepAgent?: string;
+    agents?: Record<string, string>;
+    unboundSecondStep?: boolean;
+  } = {},
 ) => ({
   apiVersion: "bakery.dev/v1",
   kind: "workflow",
   name: "plan-admission",
   description: "A compiled plan admitted by the run command.",
-  inputs: over.inputs ?? {
+  ...(over.agents === undefined ? {} : { agents: over.agents }),
+  inputs: {
     repositoryId: { type: "uuid", required: true },
     brief: { type: "TaskBrief", required: true },
     instructions: { type: "string", required: true },
+    note: { type: "string", required: false },
   },
   steps: [
     {
@@ -67,6 +73,16 @@ const plan = (
         instructions: "$input.instructions",
       },
     },
+    ...(over.unboundSecondStep !== true ? [] : [{
+      id: "again",
+      needs: ["implement"],
+      uses: "harness.implement",
+      with: {
+        repositoryId: "$input.repositoryId",
+        planArtifact: "$step.brief.artifact.versionId",
+        instructions: "$input.instructions",
+      },
+    }]),
   ],
 });
 
@@ -172,7 +188,8 @@ Deno.test("a published plan is admitted as a plan: frozen sections, no step rows
     assertEquals(read.pin, await pinWorkflowRuntime(read.document));
     assertEquals(read.document.apiVersion, "bakery.dev/v1");
     // The inputs are frozen whole; `$task` is the task as it was admitted.
-    assertEquals(snapshot.inputs, runInputs(repository));
+    // An optional input the run did not give is frozen as null.
+    assertEquals(snapshot.inputs, { ...runInputs(repository), note: null });
     const frozenTask = planTaskFromSnapshot(snapshot) as Record<
       string,
       unknown
@@ -310,6 +327,117 @@ async function refused(
     issues?: { path: string[] }[];
   };
 }
+
+Deno.test("the workflow's own agents map wins over the profile's binding, and only the winner is frozen", () =>
+  withWorkerFixture(async (fixture) => {
+    const { repository } = await repositoryWithAgent(fixture, "profile");
+    const workflowAgent = await seedFundedCodingAgent(fixture, fixture, "wf");
+    const { versionId } = await publishWorkflow(
+      fixture,
+      fixture,
+      "plan-workflow-agents",
+      plan({ agents: { "harness.implement": workflowAgent } }),
+    );
+    const { response } = await start(fixture, repository, versionId);
+    const run = await expectJson<RunBody>(response, 201);
+    const snapshot = await snapshotOf(fixture, run.id);
+    assertEquals(Object.keys(snapshot.planAgents as object), [workflowAgent]);
+    assertEquals(snapshot.planActionAgents, {
+      "harness.implement": workflowAgent,
+    });
+  }));
+
+Deno.test("a step keeps its own agent while a later step of the same action takes the fallback", () =>
+  withWorkerFixture(async (fixture) => {
+    const { agent, repository } = await repositoryWithAgent(fixture, "profile");
+    const stepAgent = await seedFundedCodingAgent(fixture, fixture, "step");
+    const { versionId } = await publishWorkflow(
+      fixture,
+      fixture,
+      "plan-two-implements",
+      plan({ stepAgent, unboundSecondStep: true }),
+    );
+    const { response } = await start(fixture, repository, versionId);
+    const run = await expectJson<RunBody>(response, 201);
+    const snapshot = await snapshotOf(fixture, run.id);
+    assertEquals(
+      Object.keys(snapshot.planAgents as object).sort(),
+      [agent, stepAgent].sort(),
+    );
+    assertEquals(snapshot.planActionAgents, { "harness.implement": agent });
+
+    const engine = createBakeryPostgresWorkflowRepository({
+      database: fixture.pgDatabase,
+      maxAttempts: 3,
+    });
+    const owner = await engine.acquireEngineOwner(
+      run.id,
+      `e3b2c-${crypto.randomUUID()}`,
+      60_000,
+    );
+    assert(owner !== undefined);
+    const agents: Record<string, unknown> = {};
+    for (const key of ["brief", "implement", "again"]) {
+      assertEquals((await engine.findNext(run.id, owner))?.stepKey, key);
+      agents[key] = (await stepRows(fixture, run.id)).find((row) =>
+        row.stepKey === key
+      )?.dispatch?.agentVersionId;
+      await fixture.pgDatabase.query(
+        `update bakery.run_steps
+            set status = 'completed', finished_at = now(), output = $3::jsonb
+          where run_id = $1 and step_key = $2`,
+        [
+          run.id,
+          key,
+          JSON.stringify({ artifact: { versionId: crypto.randomUUID() } }),
+        ],
+      );
+    }
+    assertEquals(agents, {
+      brief: undefined,
+      implement: stepAgent,
+      again: agent,
+    });
+  }));
+
+Deno.test("a run whose fallback-agent section is malformed ends failed by name when the engine reaches it, never half dispatched", () =>
+  withWorkerFixture(async (fixture) => {
+    const { repository } = await repositoryWithAgent(fixture, "malformed");
+    const { versionId } = await publishWorkflow(
+      fixture,
+      fixture,
+      "plan-malformed",
+      plan(),
+    );
+    const { task, response } = await start(fixture, repository, versionId);
+    const run = await expectJson<RunBody>(response, 201);
+    await fixture.pgDatabase.query(
+      `update bakery.workflow_runs
+          set snapshot = jsonb_set(snapshot, '{planActionAgents}', '"x"'::jsonb)
+        where id = $1`,
+      [run.id],
+    );
+    const engine = createBakeryPostgresWorkflowRepository({
+      database: fixture.pgDatabase,
+      maxAttempts: 3,
+    });
+    const owner = await engine.acquireEngineOwner(
+      run.id,
+      `e3b2c-${crypto.randomUUID()}`,
+      60_000,
+    );
+    assert(owner !== undefined);
+    // The first step (task.brief) has no agent but the section is still read.
+    assertEquals(await engine.findNext(run.id, owner), undefined);
+    assertEquals(await stepRows(fixture, run.id), []);
+    assertEquals((await facts(fixture, task.id)).status, "failed");
+    const codes = (await fixture.pgDatabase.query<{ code: string }>(
+      `select details->>'code' as code from bakery.audit_events
+        where resource_id = $1 and operation = 'workflow.plan_failed'`,
+      [run.id],
+    )).rows.map((row) => row.code);
+    assertEquals(codes, ["plan_snapshot_invalid"]);
+  }));
 
 Deno.test("inputs the plan cannot start with are refused at their own path and leave nothing behind", () =>
   withWorkerFixture(async (fixture) => {

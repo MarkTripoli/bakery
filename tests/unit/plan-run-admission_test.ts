@@ -341,6 +341,13 @@ Deno.test("agents the plan does not reference, or references and the run did not
   await refuses({
     agents: { ...frozenBoth, [PROFILE_AGENT]: frozen(PROFILE_AGENT) },
   });
+  // As many agents as the plan names, but not the ones it names.
+  await refuses({
+    agents: {
+      [BUILD_AGENT]: frozen(BUILD_AGENT),
+      [PROFILE_AGENT]: frozen(PROFILE_AGENT),
+    },
+  });
   // A frozen agent filed under another version's id.
   await refuses({
     agents: { ...frozenBoth, [DEFAULT_AGENT]: frozen(BUILD_AGENT) },
@@ -415,5 +422,27 @@ Deno.test("the fallback-agent section is read strictly, and a run that froze non
   assertEquals(
     refused({ planActionAgents: tooMany }),
     "plan_snapshot_invalid",
+  );
+});
+
+Deno.test("a run cannot freeze more than 100 agents, and the bound is judged before any agent is read", () => {
+  const entries = (count: number) =>
+    Object.fromEntries(
+      Array.from({ length: count }, (_, index) => [
+        `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+        {},
+      ]),
+    );
+  // Over the bound the section is refused as a whole.
+  assertThrows(
+    () => readPlanAgents({ planAgents: entries(101) }),
+    Error,
+    "FROZEN_STEP_AGENTS_INVALID",
+  );
+  // At the bound each agent is read, and these are not agents.
+  assertThrows(
+    () => readPlanAgents({ planAgents: entries(100) }),
+    Error,
+    "FROZEN_STEP_AGENT_INVALID",
   );
 });

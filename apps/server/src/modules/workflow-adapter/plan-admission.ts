@@ -131,8 +131,8 @@ export type PlanRunSections = Readonly<{
   }>;
   task: JsonValue;
   inputs: Record<string, JsonValue>;
-  planAgents: Readonly<Record<string, unknown>>;
-  planActionAgents: Readonly<Record<string, string>>;
+  planAgents: JsonValue;
+  planActionAgents: JsonValue;
 }>;
 
 const invalid = () => new PlanStateError("plan_snapshot_invalid");
@@ -173,16 +173,13 @@ export async function writePlanRun(options: {
   } catch {
     throw invalid();
   }
-  if (!isRecord(task) || !isRecord(planAgents) || !isRecord(planActionAgents)) {
-    throw invalid();
-  }
 
   const sections: PlanRunSections = {
     runtime: { pin: await pinWorkflowRuntime(document), document },
     task,
     inputs,
     planAgents,
-    planActionAgents: planActionAgents as Record<string, string>,
+    planActionAgents,
   };
 
   // Read it back as the engine will: from jsonb, through its own readers.
@@ -190,7 +187,7 @@ export async function writePlanRun(options: {
     JSON.stringify({ schemaVersion: 1, ...sections }),
   );
   try {
-    if (await planRuntimeFromSnapshot(snapshot) === null) throw invalid();
+    await planRuntimeFromSnapshot(snapshot);
     planInputsFromSnapshot(snapshot);
     planTaskFromSnapshot(snapshot);
     const agents = readPlanAgents(snapshot);
