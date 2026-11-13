@@ -521,6 +521,21 @@ a.bakery-application-rail__link:hover {
   padding: var(--space-8) var(--space-4);
 }
 
+/* Grouped navigation: a non-interactive heading over each list, starting where
+   the links' text starts (the list inset plus the link inset). */
+.bakery-section-navigation__group > .bakery-section-navigation__heading {
+  color: var(--color-fg-muted);
+  font: var(--type-label);
+  padding: var(--space-4) calc(var(--space-4) + var(--space-3))
+    var(--space-1-5);
+}
+.bakery-section-navigation__group:first-child > .bakery-section-navigation__heading {
+  padding-block-start: var(--space-8);
+}
+.bakery-section-navigation__group > .bakery-section-navigation__list {
+  padding-block: var(--space-0);
+}
+
 .bakery-section-navigation__mobile {
   display: none;
 }
@@ -998,6 +1013,9 @@ a.bakery-application-rail__link:hover {
   }
   .bakery-section-navigation__mobile .bakery-section-navigation__list {
     padding: var(--space-2) var(--space-4) var(--space-4);
+  }
+  .bakery-section-navigation__mobile .bakery-section-navigation__group:first-child > .bakery-section-navigation__heading {
+    padding-block-start: var(--space-2);
   }
   .bakery-section-navigation__narrow-index .bakery-section-navigation__list {
     padding: var(--space-2) var(--space-4) var(--space-4);
