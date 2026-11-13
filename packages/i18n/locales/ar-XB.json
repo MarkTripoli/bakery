@@ -2730,5 +2730,14 @@
   "repository.rules.unavailable.back": "⟪Back to projects⟫",
   "repository.rules.error.body": "⟪Check your connection, then try again.⟫",
   "repository.rules.list.title": "⟪Rules⟫",
-  "repository.rules.details.copyFailed": "⟪Could not copy the fingerprint. Select it and copy it yourself.⟫"
+  "repository.rules.details.copyFailed": "⟪Could not copy the fingerprint. Select it and copy it yourself.⟫",
+  "shell.startup.slow": "⟪This is taking longer than usual.⟫",
+  "shell.startup.organizationError.title": "⟪Bakery could not load your organization⟫",
+  "shell.startup.organizationError.body": "⟪Check your connection, then try again.⟫",
+  "shell.startup.offline.title": "⟪You are offline⟫",
+  "shell.startup.offline.body": "⟪Bakery will load when you are back online.⟫",
+  "shell.leave.title": "⟪Leave without saving?⟫",
+  "shell.leave.body": "⟪Your changes on this page will be lost.⟫",
+  "shell.leave.stay": "⟪Stay⟫",
+  "shell.leave.confirm": "⟪Leave⟫"
 }

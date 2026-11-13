@@ -11,6 +11,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useBakeryApi } from "../api/context.tsx";
 import { installationSettingsQueryOptions } from "../api/query.ts";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
+import { OrganizationSwitchGuard } from "./OrganizationSwitchGuard.tsx";
+import { StartupGate } from "./StartupGate.tsx";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import * as UI from "@bakery/ui";
 import { useI18n } from "../i18n/I18nProvider.tsx";
@@ -453,10 +455,17 @@ function ShellFrame() {
   const [navigationOpen, setNavigationOpen] = useState(false);
   const ssoFixture = isSsoFixturePath(pathname);
   const fixture = isWorkFixturePath(pathname) || ssoFixture;
-  // Org-scoped shell chrome needs the scope on any route.
-  // Quiet: a multi-organization person is never sent to /organizations here.
-  useRestoreOrganizationScope({
-    redirect: false,
+  // Installation pages need no organization: they restore the scope quietly
+  // (a multi-organization person is never sent to /organizations from them)
+  // and are not held back. Every other page waits for the organization (see
+  // `StartupGate`), so a person who has to choose is sent to /organizations
+  // here, before any page content is drawn.
+  const needsOrganization = !fixture &&
+    !pathname.startsWith("/__fixtures__/") &&
+    !isAuthEntryPath(pathname) && !pathname.startsWith("/installation/") &&
+    pathname !== INSTALLATION_INTEGRATIONS_PATH;
+  const restore = useRestoreOrganizationScope({
+    redirect: needsOrganization,
     enabled: !fixture && !pathname.startsWith("/__fixtures__/") &&
       !isAuthEntryPath(pathname),
   });
@@ -723,7 +732,16 @@ function ShellFrame() {
       )}
       variant={shellVariant}
     >
-      <Outlet />
+      <StartupGate
+        enabled={needsOrganization}
+        failure={restore.failure}
+        onRetry={restore.retry}
+        onSignOut={() => void navigate({ to: SIGN_OUT_PATH })}
+        signOutHref={SIGN_OUT_PATH}
+      >
+        <Outlet />
+      </StartupGate>
+      <OrganizationSwitchGuard onAsk={() => setNavigationOpen(false)} />
     </UI.AppShell>
   );
 }

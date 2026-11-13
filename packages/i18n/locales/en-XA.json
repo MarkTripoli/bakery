@@ -2730,5 +2730,14 @@
   "repository.rules.unavailable.back": "⟦Ɓàçķ ŧô þŕôĵëçŧš ŧëš⟧",
   "repository.rules.error.body": "⟦Çĥëçķ ÿôûŕ çôññëçŧïôñ, ŧĥëñ ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧ⟧",
   "repository.rules.list.title": "⟦Ŕûļëš⟧",
-  "repository.rules.details.copyFailed": "⟦Çôûļð ñôŧ çôþÿ ŧĥë ƒïñĝëŕþŕïñŧ. Šëļëçŧ ïŧ àñð çôþÿ ïŧ ÿôûŕšëļƒ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
+  "repository.rules.details.copyFailed": "⟦Çôûļð ñôŧ çôþÿ ŧĥë ƒïñĝëŕþŕïñŧ. Šëļëçŧ ïŧ àñð çôþÿ ïŧ ÿôûŕšëļƒ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "shell.startup.slow": "⟦Ŧĥïš ïš ŧàķïñĝ ļôñĝëŕ ŧĥàñ ûšûàļ. ŧëšŧ çôþÿ⟧",
+  "shell.startup.organizationError.title": "⟦Ɓàķëŕÿ çôûļð ñôŧ ļôàð ÿôûŕ ôŕĝàñïžàŧïôñ ŧëšŧ çôþÿ ŧ⟧",
+  "shell.startup.organizationError.body": "⟦Çĥëçķ ÿôûŕ çôññëçŧïôñ, ŧĥëñ ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧ⟧",
+  "shell.startup.offline.title": "⟦Ÿôû àŕë ôƒƒļïñë ŧëš⟧",
+  "shell.startup.offline.body": "⟦Ɓàķëŕÿ ŵïļļ ļôàð ŵĥëñ ÿôû àŕë ƀàçķ ôñļïñë. ŧëšŧ çôþÿ ŧë⟧",
+  "shell.leave.title": "⟦Ļëàṽë ŵïŧĥôûŧ šàṽïñĝ? ŧëšŧŧ⟧",
+  "shell.leave.body": "⟦Ÿôûŕ çĥàñĝëš ôñ ŧĥïš þàĝë ŵïļļ ƀë ļôšŧ. ŧëšŧ çôþÿ ŧ⟧",
+  "shell.leave.stay": "⟦Šŧàÿ⟧",
+  "shell.leave.confirm": "⟦Ļëàṽë⟧"
 }
