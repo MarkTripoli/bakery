@@ -3,6 +3,7 @@ import { registerLoopReadCases } from "../helpers/review-repair/loop-read-cases.
 import { registerMigrationCases } from "../helpers/review-repair/migration-cases.ts";
 import { registerPresetIntegrationCases } from "../helpers/review-repair/preset-integration-cases.ts";
 import { registerReviewerClaimCases } from "../helpers/review-repair/reviewer-claim-cases.ts";
+import { registerStageApprovalCases } from "../helpers/review-repair/stage-approval-cases.ts";
 
 // Issue #94 (B10.03). Phase 1 proves migration 0147 against real Postgres:
 // three insert-only evidence tables, their keys and the application role's
@@ -17,3 +18,5 @@ registerPresetIntegrationCases();
 registerLoopIntegrationCases();
 registerLoopReadCases();
 registerReviewerClaimCases();
+// #37 with #57 slice 2: a review stage that waits for a person.
+registerStageApprovalCases();
