@@ -298,6 +298,11 @@ for (
           only,
         });
       }
+      // Back to the describe's own size for the rest of the test.
+      await page.setViewportSize({
+        width: viewport.width,
+        height: viewport.height,
+      });
       await retry.click();
       await expect(added(page)).toBeFocused();
     });
