@@ -3635,6 +3635,7 @@
       "npm:pg@8.23.0",
       "npm:postgres@3.4.7",
       "npm:samlify@2.13.1",
+      "npm:yaml@2.8.1",
       "npm:zod@4.5.4"
     ],
     "packageJson": {
@@ -3716,6 +3717,7 @@
         "packageJson": {
           "dependencies": [
             "npm:hono@4.13.7",
+            "npm:yaml@2.8.1",
             "npm:zod@4.5.4"
           ]
         }
