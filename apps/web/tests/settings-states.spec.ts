@@ -1653,7 +1653,7 @@ async function mockProfile(
 
 test.describe("profile page", () => {
   test("fixture: a saved photo shows and a broken one falls back to initials", async ({ page }) => {
-    const photo = "https://photos.example/mark.png";
+    const photo = "https://photos.example/alex.png";
     const png = Buffer.from(
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
       "base64",
@@ -1684,13 +1684,13 @@ test.describe("profile page", () => {
     await expect(avatar).toHaveText("MT");
     await expect(avatar.locator("img")).toHaveCount(0);
     // The form stays usable; the broken photo never blocks it.
-    await page.getByLabel("Display name").fill("Mark T.");
+    await page.getByLabel("Display name").fill("Alex M.");
     await expect(page.getByRole("button", { name: "Save profile" }))
       .toBeEnabled();
   });
 
   test("shows the saved photo, and a photo that fails to load keeps the initials", async ({ page }) => {
-    const photo = "https://photos.example/mark.png";
+    const photo = "https://photos.example/alex.png";
     // 1x1 transparent PNG.
     const png = Buffer.from(
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
