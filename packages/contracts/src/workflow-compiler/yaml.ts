@@ -41,21 +41,43 @@ import { WORKFLOW_COMPILER_LIMITS } from "./limits.ts";
 const encoder = new TextEncoder();
 
 /**
- * What YAML 1.2 does not list as printable (`c-printable`): C0 controls other
- * than tab, line feed and carriage return, DEL, the C1 controls other than
- * NEL, U+FFFE and U+FFFF, and a surrogate that is not half of a pair. The JSON
- * decoder refuses a raw control character in a string; this refuses them in
- * the text before it is parsed, so no parser decides what they mean.
+ * Whether the code unit at `index` is one YAML 1.2 does not list as printable
+ * (`c-printable`): a C0 control other than tab, line feed and carriage return,
+ * DEL, a C1 control other than NEL, U+FFFE, U+FFFF, or a surrogate that is not
+ * half of a pair. The JSON decoder refuses a raw control character in a
+ * string; the importer refuses these in the text before it is parsed, so no
+ * parser decides what they mean. (Read by code unit, not by regular
+ * expression: this module builds no pattern from data.)
  */
-const hex = (code: number) => `\\u${code.toString(16).padStart(4, "0")}`;
-const NON_PRINTABLE = new RegExp(
-  `[${
-    [[0x00, 0x08], [0x0b, 0x0c], [0x0e, 0x1f], [0x7f, 0x84], [0x86, 0x9f], [
-      0xfffe,
-      0xffff,
-    ]].map(([from, to]) => `${hex(from!)}-${hex(to!)}`).join("")
-  }]|[\\ud800-\\udbff](?![\\udc00-\\udfff])|(?<![\\ud800-\\udbff])[\\udc00-\\udfff]`,
-);
+function isNonPrintable(text: string, index: number): boolean {
+  const code = text.charCodeAt(index);
+  if (code < 0x20) return code !== 0x09 && code !== 0x0a && code !== 0x0d;
+  if (code < 0x7f) return false;
+  if (code <= 0x9f) return code !== 0x85;
+  if (code === 0xfffe || code === 0xffff) return true;
+  if (code >= 0xd800 && code <= 0xdbff) {
+    const next = text.charCodeAt(index + 1);
+    return !(next >= 0xdc00 && next <= 0xdfff);
+  }
+  if (code >= 0xdc00 && code <= 0xdfff) {
+    const previous = text.charCodeAt(index - 1);
+    return !(previous >= 0xd800 && previous <= 0xdbff);
+  }
+  return false;
+}
+
+const BYTE_ORDER_MARK = 0xfeff;
+
+/** Whether the text holds a non-printable code unit, and a BOM when asked. */
+function hasSpecial(text: string, withBom: boolean): boolean {
+  for (let index = 0; index < text.length; index += 1) {
+    if (
+      isNonPrintable(text, index) ||
+      (withBom && text.charCodeAt(index) === BYTE_ORDER_MARK)
+    ) return true;
+  }
+  return false;
+}
 const PARSE_OPTIONS = Object.freeze(
   {
     version: "1.2",
@@ -202,7 +224,7 @@ export function decodeWorkflowYaml(
   if (textBytes(text) > WORKFLOW_COMPILER_LIMITS.bytes) {
     return failed(collector, "", "definition_too_large");
   }
-  if (NON_PRINTABLE.test(text)) {
+  if (hasSpecial(text, false)) {
     return failed(collector, "", "yaml_syntax_invalid");
   }
   try {
@@ -276,15 +298,16 @@ const YAML_1_1_WORD = /^(y|n|yes|no|on|off|true|false|null|~|<<)$/i;
 // byte order mark (read as one, not as data, at the start of a document) or a
 // character the importer refuses raw. It is double quoted, and every such
 // character is written as an escape.
-const NEEDS_ESCAPES = new RegExp(`${NON_PRINTABLE.source}|\\uFEFF`);
-const ESCAPED_EACH = new RegExp(`${NON_PRINTABLE.source}|\\uFEFF`, "g");
-
-function escapeUnit(unit: string): string {
-  return `\\u${unit.charCodeAt(0).toString(16).padStart(4, "0")}`;
-}
-
 function escaped(text: string): string {
-  return text.replace(ESCAPED_EACH, escapeUnit);
+  if (!hasSpecial(text, true)) return text;
+  let out = "";
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    out += isNonPrintable(text, index) || code === BYTE_ORDER_MARK
+      ? `\\u${code.toString(16).padStart(4, "0")}`
+      : text[index];
+  }
+  return out;
 }
 
 // A fresh tree: nothing is shared, so the stringifier never needs an anchor.
@@ -322,7 +345,7 @@ export function encodeWorkflowYaml(value: unknown): WorkflowYamlEncodeResult {
   visit(document, {
     Scalar(_key, node) {
       if (typeof node.value !== "string") return;
-      if (YAML_1_1_WORD.test(node.value) || NEEDS_ESCAPES.test(node.value)) {
+      if (YAML_1_1_WORD.test(node.value) || hasSpecial(node.value, true)) {
         node.type = Scalar.QUOTE_DOUBLE;
       }
     },
