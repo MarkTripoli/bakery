@@ -1416,6 +1416,7 @@ Deno.test("integrationConnections.get returns the pending connection to members 
       assertEquals(Object.keys(connection).sort(), [
         "config",
         "createdAt",
+        "createdBy",
         "externalAccountId",
         "grantedScopes",
         "id",
@@ -1438,6 +1439,9 @@ Deno.test("integrationConnections.get returns the pending connection to members 
       assertEquals(connection.grantedScopes, installation.permissions);
       assertEquals(connection.config, {});
       assertEquals(connection.secretId, null);
+      // #68: who connected it is the member who started the provider setup
+      // (connectionFlow creates the attempt as the admin).
+      assertEquals(connection.createdBy, f.adminId);
       assertEquals(connection.lastCheckedAt, null);
       assertEquals(connection.version, 1);
     }
