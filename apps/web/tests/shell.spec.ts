@@ -519,6 +519,71 @@ test.describe("settings routes and navigation", () => {
     });
   }
 
+  test("a sub-page keeps its section selected and names itself in the breadcrumb, with no back link", async ({ page }) => {
+    await mockAuthenticatedSession(page);
+    await page.setViewportSize({ width: 1280, height: 960 });
+    await page.goto("/settings/security/password");
+    await expect(page.locator("main h1")).toBeVisible();
+    const navigation = page.getByRole("navigation", {
+      name: "Settings sections",
+    }).first();
+    await expect(navigation.getByRole("link", { name: "Account & security" }))
+      .toHaveAttribute("aria-current", "page");
+    const trail = page.getByRole("navigation", { name: "Breadcrumb" });
+    await expect(trail).toContainText("Settings");
+    await expect(trail).toContainText("Account & security");
+    await expect(trail.locator("[aria-current=page]")).toHaveText(
+      "Change password",
+    );
+    // The breadcrumb does the back link's job.
+    await expect(
+      page.locator("main").getByRole("link", { name: "Account and security" }),
+    ).toHaveCount(0);
+  });
+
+  test("every settings page opens with one title style and one typeface", async ({ page }) => {
+    await mockAuthenticatedSession(page);
+    await page.route("**/v1/me/profile", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          principalId: "00000000-0000-4000-8000-000000000001",
+          name: "Mark Tripoli",
+          firstName: "Mark",
+          lastName: "Tripoli",
+          title: null,
+          image: null,
+          email: "me@marktripoli.com",
+          emailVerified: true,
+          version: 3,
+          updatedAt: "2026-01-02T00:00:00.000Z",
+        }),
+      }));
+    await page.setViewportSize({ width: 1280, height: 960 });
+    const styles: string[] = [];
+    for (
+      const path of [
+        "/settings/profile",
+        "/settings/sessions",
+        "/settings/clients",
+        "/settings/appearance",
+      ]
+    ) {
+      await page.goto(path);
+      const title = page.locator("main h1");
+      await expect(title).toBeVisible();
+      styles.push(
+        await title.evaluate((node) => {
+          const style = getComputedStyle(node);
+          return `${style.fontFamily} ${style.fontSize}/${style.lineHeight} ${style.fontWeight}`;
+        }),
+      );
+    }
+    expect(new Set(styles).size, styles.join(" | ")).toBe(1);
+    expect(styles[0]).not.toContain("system-ui");
+  });
+
   test("lists the sections under two labelled groups, with the connected-clients item and without Machines", async ({ page }) => {
     await mockAuthenticatedSession(page);
     await page.setViewportSize({ width: 1280, height: 960 });
@@ -639,8 +704,8 @@ test.describe("settings routes and navigation", () => {
     // It is organization administration, not a personal section.
     await expect(page.locator(".bakery-section-navigation")).toHaveCount(0);
     const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
+    await expect(breadcrumb).toContainText("Settings");
     await expect(breadcrumb).toContainText("Organization settings");
-    await expect(breadcrumb).not.toContainText("Settings Organization");
   });
 
   test("organization settings is reached from the workspace switcher", async ({ page }) => {

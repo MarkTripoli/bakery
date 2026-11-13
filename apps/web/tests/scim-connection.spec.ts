@@ -174,16 +174,16 @@ for (
         .toHaveCount(0);
     });
 
-    test("sits under the Organization breadcrumb, as the Paper frames draw it", async ({ page }) => {
+    test("sits under the Settings breadcrumb", async ({ page }) => {
       test.skip(viewport.name === "phone", "a phone shows the section title");
       await scimFixture(page, { initial: "none" });
       await page.goto("/settings/scim");
       const trail = page.getByRole("navigation", { name: "Breadcrumb" });
       await expect(trail.getByText("User provisioning", { exact: true }))
         .toBeVisible();
+      await expect(trail.getByText("Settings", { exact: true })).toBeVisible();
       await expect(trail.getByText("Organization", { exact: true }))
-        .toBeVisible();
-      await expect(trail.getByText("Settings", { exact: true })).toHaveCount(0);
+        .toHaveCount(0);
     });
 
     test("the lifetime select and Create connection have a gap between them", async ({ page }) => {

@@ -1588,10 +1588,13 @@ a.bakery-application-rail__link:hover {
 .ui-settings-content:is([data-variant="personal"], [data-variant="access"]) {
   max-inline-size: none;
 }
-.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-auth-heading .ui-heading--page {
+/* One page-title style on every settings page: the 24/32 page heading over a
+   14px muted description, whatever the page's variant. The authentication
+   screens keep the larger 28/36 heading. */
+.ui-settings-content > .ui-auth-heading .ui-heading--page {
   font: var(--type-heading-page);
 }
-.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-auth-heading__description {
+.ui-settings-content > .ui-auth-heading .ui-auth-heading__description {
   font: var(--type-body);
 }
 .ui-settings-content:is([data-variant="personal"], [data-variant="access"]) form {
@@ -1676,22 +1679,6 @@ a.bakery-application-rail__link:hover {
   border-width: 0;
   padding-inline: var(--space-3-5);
 }
-/* Paper O-0 sets the page title, subtitle, person block, Display name label,
-   email row and buttons in the platform UI font (`system-ui`) while every other
-   label stays in Geist; the parity gate scores glyph shapes, so the same
-   elements use the same family. */
-.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-auth-heading .ui-heading--page,
-.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-auth-heading__description,
-.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-avatar,
-.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-identity__name,
-.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-identity__detail,
-.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) form > .ui-stack > .ui-field:first-of-type > label,
-.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field__heading > label:not([for]),
-.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field__body > .ui-inline > .ui-text,
-.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-field__body > .ui-inline > .ui-badge,
-.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) .ui-button {
-  font-family: system-ui, sans-serif;
-}
 @media (max-width: 743px) {
   .ui-settings-content:is([data-variant="personal"], [data-variant="access"]) {
     margin-block-start: var(--space-0);
@@ -1749,12 +1736,6 @@ a.bakery-application-rail__link:hover {
 }
 .ui-settings-content[data-variant="preferences"] > .ui-auth-heading {
   padding-block-end: var(--space-6);
-}
-.ui-settings-content[data-variant="preferences"] > .ui-auth-heading .ui-heading--page {
-  font: var(--type-heading-page);
-}
-.ui-settings-content[data-variant="preferences"] > .ui-auth-heading .ui-auth-heading__description {
-  font: var(--type-body);
 }
 .ui-settings-content[data-variant="preferences"] .ui-settings-section {
   display: flex;
@@ -1852,13 +1833,8 @@ a.bakery-application-rail__link:hover {
   }
 }
 
-/* Paper O-0 Your access (`access`): the personal column in the platform UI
-   font, with section headings over rows and bordered cards. */
-/* The repeated :not() only raises specificity above the component `font`
-   shorthands, which would otherwise reset the family back to Geist. */
-.ui-settings-content[data-variant="access"] *:not([hidden]):not([hidden]):not([hidden]) {
-  font-family: system-ui, sans-serif;
-}
+/* Paper O-0 Your access (`access`): section headings over rows and bordered
+   cards, in the same typeface as every other settings page. */
 .ui-settings-content[data-variant="access"] .ui-settings-section {
   display: grid;
   gap: var(--space-4);

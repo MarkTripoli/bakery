@@ -1,4 +1,5 @@
 import type { MouseEvent } from "react";
+import type { MessageKey } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
 import { I18nText, useI18n } from "../i18n/I18nProvider.tsx";
 import type { ShellViewport } from "../app/responsive.ts";
@@ -80,6 +81,43 @@ export const productionOrganizationRoutes = [
   },
 ] satisfies readonly UI.SectionNavigationItem[];
 
+/**
+ * The navigation item that owns a settings path: the path itself, or the
+ * section a sub-page belongs to (Passkeys under Account & security), so the
+ * section stays selected on its sub-pages.
+ */
+export function owningSettingsHref(pathname: string): string {
+  const hrefs = [...productionAccountRoutes, ...productionOrganizationRoutes]
+    .map((item) => item.href);
+  return hrefs.find((href) =>
+    pathname === href || pathname.startsWith(`${href}/`)
+  ) ??
+    pathname;
+}
+
+/** The name each section goes by in the breadcrumb, before its page has claimed one. */
+const SECTION_LABEL_KEYS: Readonly<Record<string, MessageKey>> = {
+  "/settings/profile": "shell.navigation.profile",
+  "/settings/security": "shell.navigation.security",
+  "/settings/sessions": "shell.navigation.sessions",
+  "/settings/clients": "shell.navigation.clients",
+  "/settings/appearance": "shell.navigation.appearance",
+  "/settings/access": "shell.navigation.access",
+  "/settings/organization/access": "shell.navigation.membersAndAccess",
+  "/settings/organization/roles": "shell.navigation.customRoles",
+  "/settings/organization/repository-rules": "shell.navigation.repositoryRules",
+  "/settings/organization/integrations":
+    "shell.navigation.organizationIntegrations",
+  "/settings/audit": "shell.navigation.audit",
+  "/settings/organization/sso": "shell.navigation.sso",
+  "/settings/scim": "shell.navigation.userProvisioning",
+};
+
+/** The section a settings path belongs to, as a message key, or `null` outside the sections. */
+export function settingsSectionKey(pathname: string): MessageKey | null {
+  return SECTION_LABEL_KEYS[owningSettingsHref(pathname)] ?? null;
+}
+
 export function ProductionSettingsNavigation({
   currentPath,
   onNavigate,
@@ -95,7 +133,7 @@ export function ProductionSettingsNavigation({
   const { translate } = useI18n();
   return (
     <UI.SectionNavigation
-      currentPath={currentPath}
+      currentPath={owningSettingsHref(currentPath)}
       groups={[
         {
           id: "account",
