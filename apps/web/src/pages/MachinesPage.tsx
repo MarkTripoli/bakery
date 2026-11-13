@@ -151,7 +151,13 @@ function StateError({
       title={translate(`machines.${kind}.title` as never)}
       description={translate(`machines.${kind}.description` as never)}
       action={
-        <UI.Button variant="secondary" onClick={onRetry}>
+        <UI.Button
+          variant="secondary"
+          onClick={onRetry}
+          // The paged-focus rule's retry target: a retried first read that
+          // fails again puts focus back on this button.
+          data-paged-retry="machines"
+        >
           {translate("machines.retry" as never)}
         </UI.Button>
       }

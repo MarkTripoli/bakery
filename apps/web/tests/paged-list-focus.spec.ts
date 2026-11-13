@@ -150,8 +150,12 @@ async function machinesFixture(
   page: Page,
   options: {
     failLastPage?: boolean;
-    /** While `failing` is true the first read of the list fails, whatever the retries. */
-    firstRead?: { failing: boolean };
+    /**
+     * While `failing` is true the first read of the list fails, whatever the
+     * retries; `delayMs` holds each of those answers back, so the pending state
+     * lasts long enough to be sampled.
+     */
+    firstRead?: { failing: boolean; delayMs?: number };
   } = {},
 ) {
   await mockAuthenticatedSession(page);
@@ -171,10 +175,12 @@ async function machinesFixture(
   );
   await page.route(
     (url) => url.pathname === "/v1/workers",
-    (route) => {
+    async (route) => {
       const cursor = new URL(route.request().url()).searchParams.get("cursor");
       const index = cursor ? Number(cursor.slice(1)) : 1;
       if (!cursor && options.firstRead?.failing) {
+        const delay = options.firstRead.delayMs ?? 0;
+        if (delay > 0) await new Promise((r) => setTimeout(r, delay));
         return route.fulfill(problem(500, "INTERNAL_ERROR"));
       }
       if (index === 11 && failures > 0) {
@@ -238,6 +244,28 @@ for (
         .toBeVisible();
       await expect(page.getByRole("heading", { name: "Machines", level: 1 }))
         .toBeFocused();
+    });
+
+    test("a failed first read, retried while the server is still down, puts focus back on Retry, and a later good retry puts it on the heading", async ({ page }) => {
+      // Slow enough that the pending state is on screen when the read fails again.
+      const firstRead = { failing: true, delayMs: 600 };
+      await machinesFixture(page, { firstRead });
+      await page.goto("/machines");
+      const retry = page.getByRole("button", { name: "Retry" });
+      const heading = page.getByRole("heading", { name: "Machines", level: 1 });
+      await expect(retry).toBeVisible();
+      await retry.focus();
+      await page.keyboard.press("Enter");
+      // The server is still down: the read fails again and Retry is back.
+      await expect(retry).toBeVisible();
+      await expect(retry).toBeFocused();
+      await expect(heading).not.toBeFocused();
+      // The server recovers; the next retry, from the keyboard, lands on the heading.
+      firstRead.failing = false;
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("button", { name: "Load more" }))
+        .toBeVisible();
+      await expect(heading).toBeFocused();
     });
 
     test("a failed load of more machines leaves focus on the button that retries it", async ({ page }) => {
