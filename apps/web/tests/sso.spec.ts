@@ -482,9 +482,12 @@ test.describe("single sign-on settings", () => {
     await expect.poll(() => state.enforcement).toEqual([true]);
     // Required: the break-glass note shows.
     await expect(
-      page.getByText("organization administrators who still hold a password", {
-        exact: false,
-      }),
+      page.getByText(
+        "Organization administrators who still have a password or passkey",
+        {
+          exact: false,
+        },
+      ),
     ).toBeVisible();
     await shot(page, "sso-require-on");
     await expect(page.getByLabel("Require SSO for all members"))
@@ -591,8 +594,14 @@ test.describe("single sign-on settings", () => {
     await shot(page, "sso-require-unavailable");
     expect(await background()).toBe(await tokenColor("--color-surface"));
     const label = page.locator(".ui-switch").filter({ hasText: REQUIRE });
+    // The label is the muted text colour, so it can be read; the track stays disabled.
     expect(await label.evaluate((node) => getComputedStyle(node).color))
-      .toBe(await tokenColor("--color-fg-disabled"));
+      .toBe(await tokenColor("--color-fg-muted"));
+    expect(
+      await page.getByLabel(REQUIRE).evaluate((node) =>
+        getComputedStyle(node, "::before").backgroundColor
+      ),
+    ).toBe(await tokenColor("--color-fg-disabled"));
     // Verified, off: still neutral, and the label is back to the normal colour.
     state.providers = [VERIFIED];
     await page.reload();
@@ -600,7 +609,7 @@ test.describe("single sign-on settings", () => {
     await shot(page, "sso-require-off");
     expect(await background()).toBe(await tokenColor("--color-surface"));
     expect(await label.evaluate((node) => getComputedStyle(node).color))
-      .not.toBe(await tokenColor("--color-fg-disabled"));
+      .not.toBe(await tokenColor("--color-fg-muted"));
     // On: the warning tone.
     await page.getByLabel(REQUIRE).click();
     await page.getByRole("alertdialog", { name: dialogName })
