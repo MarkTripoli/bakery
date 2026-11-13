@@ -97,6 +97,18 @@ export function planInputsFromSnapshot(
   return snapshot["inputs"] as Readonly<Record<string, JsonValue>>;
 }
 
+/**
+ * The run's frozen `$task`: what the plan may read about the task it runs
+ * for. Admission writes it into the snapshot beside the runtime section, so a
+ * later edit of the task cannot change what an old run's references resolve to.
+ */
+export function planTaskFromSnapshot(snapshot: unknown): JsonValue {
+  if (!isRecord(snapshot) || !isRecord(snapshot["task"])) {
+    throw new PlanStateError("plan_snapshot_invalid");
+  }
+  return snapshot["task"] as JsonValue;
+}
+
 /** A stored step row, as much of it as the interpreter reads. */
 export type PlanStepRow = Readonly<{
   stepKey: string;
