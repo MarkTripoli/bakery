@@ -4000,7 +4000,7 @@ const transportSchemas = {
           "bounds": {
             "maxBytes": 1000
           },
-          "description": "Stage policy snapshot for the task, an object with `plan` set to `automatic` or `human_approval`. Omitted means `{\"plan\":\"automatic\"}`; with `human_approval`, runs.create requires a valid approvalId for the approved plan revision."
+          "description": "Stage policy snapshot for the task, an object with `plan` set to `automatic` or `human_approval`, and optionally `review` set to `automatic` or `human_approval`. Omitted means `{\"plan\":\"automatic\"}`; plan `human_approval` makes runs.create require a valid approvalId for the approved plan revision, and review `human_approval` makes a clean reviewed candidate wait for an approved run_stage approval before it may merge."
         },
         {
           "name": "planningOnly",
