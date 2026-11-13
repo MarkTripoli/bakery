@@ -220,6 +220,14 @@
   background: var(--color-status-success-surface); /* auth.css:8 .badge.success */
   color: var(--color-status-success);
 }
+.ui-badge--warning {
+  background: var(--color-status-warning-surface);
+  color: var(--color-status-warning);
+}
+.ui-badge--danger {
+  background: var(--color-destructive-surface);
+  color: var(--color-destructive);
+}
 .ui-status-label::before {
   content: "●";
 }
@@ -406,6 +414,11 @@
 }
 .ui-description-item__action {
   flex: none;
+}
+/* A value beside a button in an item's action takes the room it needs, not a line to itself. */
+.ui-description-item__action .ui-inline > .ui-data-text {
+  flex: 0 1 auto;
+  inline-size: auto;
 }
 .ui-description-item__avatar {
   align-items: center;

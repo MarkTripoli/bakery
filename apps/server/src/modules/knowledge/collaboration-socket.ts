@@ -38,7 +38,11 @@ import {
   readDraftState,
   StaleDraftCandidateError,
 } from "./draft-persistence.ts";
-import { type DraftIsolation, DraftIsolationError } from "./draft-isolation.ts";
+import {
+  type DraftIsolation,
+  DraftIsolationError,
+  workerRefusalParams,
+} from "./draft-isolation.ts";
 import { DRAFT_LIMITS } from "./drafts.ts";
 import { sha256Bytes } from "./bytes.ts";
 
@@ -913,6 +917,8 @@ export function createCollaborationSocketHandler(
         candidate = await options.isolation.importUpdate(
           prepared.currentState,
           frame.payload,
+          undefined,
+          connection.organizationId,
         );
       } catch (error) {
         if (
@@ -924,7 +930,12 @@ export function createCollaborationSocketHandler(
         problem(
           connection,
           null,
-          new StandardError({ code: "DEPENDENCY_UNAVAILABLE" }),
+          new StandardError({
+            code: "DEPENDENCY_UNAVAILABLE",
+            ...(error instanceof DraftIsolationError
+              ? workerRefusalParams(error)
+              : {}),
+          }),
         );
         return;
       }

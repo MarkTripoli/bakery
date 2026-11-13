@@ -5078,6 +5078,13 @@
       "frames": []
     },
     {
+      "routeId": "repository-rules",
+      "path": "/projects/repositories/$repositoryId/rules",
+      "status": "no-mock",
+      "rationale": "Repository effective rules page (#65 PR3): the rules in force for one repository, rule by rule, with where each came from (inherited, locked by the organization, repository override, repository only), what Bakery can and cannot check, and the provider branch protection that Bakery does not read (always Unknown). Paper page 61 draws no repository frame this page could be scored against, and design-ux's UX design comment on #65 (section E) is the reference; the screen reads the server's effective projection and keeps no state of its own.",
+      "frames": []
+    },
+    {
       "routeId": "settings-organization-sso",
       "path": "/settings/organization/sso",
       "status": "no-mock",

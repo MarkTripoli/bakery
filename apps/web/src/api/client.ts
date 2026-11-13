@@ -178,6 +178,9 @@ export type ApplicationResponse = ClientOutputMap["Application"];
 export type WorkflowDefinitionResponse = ClientOutputMap["Workflow"];
 export type RepositoryResponse = ClientOutputMap["Repository"];
 export type RepositoryProfileResponse = ClientOutputMap["RepositoryProfile"];
+/** The rules in force for one repository, each with where it came from, and what could check them. */
+export type RepositoryEffectiveRulesResponse =
+  ClientOutputMap["RepositoryEffectiveRules"];
 /** The latest published organization rules baseline, or the empty one at revision 0. */
 export type OrganizationRepositoryRulesResponse =
   ClientOutputMap["OrganizationRepositoryRulesRead"];
@@ -1053,6 +1056,12 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<OrganizationRepositoryRulePreviewResponse>>;
+  /** `GET /v1/repositories/:id/rules`: the rules in force for one repository (Developer access). */
+  readonly getRepositoryEffectiveRules: (options: {
+    readonly organizationId: string;
+    readonly repositoryId: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<RepositoryEffectiveRulesResponse>>;
   /** `POST /v1/organizations/:id/repository-rule-versions`: publishes a draft as the next revision. */
   readonly publishOrganizationRepositoryRules: (options: {
     readonly organizationId: string;
@@ -3785,6 +3794,24 @@ export function createBakeryApiClient({
           },
           { signal: options.signal },
         );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getRepositoryEffectiveRules(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["repositoryRules.getEffective"](
+          { id: options.repositoryId },
+          { signal: options.signal },
+        );
+        if (data.repositoryId !== options.repositoryId) {
+          throw new ApiTransportError("protocol", 200);
+        }
         return { ok: true, data };
       } catch (error) {
         return failed(error);

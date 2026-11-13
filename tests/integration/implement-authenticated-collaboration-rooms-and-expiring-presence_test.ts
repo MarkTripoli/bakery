@@ -20,6 +20,10 @@ import {
   decodeBinaryFrame,
   encodeBinaryFrame,
 } from "../../apps/server/src/modules/knowledge/collaboration-socket.ts";
+import {
+  createDraftIsolation,
+  type DraftIsolation,
+} from "../../apps/server/src/modules/knowledge/draft-isolation.ts";
 import { LoroDoc } from "loro-crdt";
 
 // An update is acknowledged only after its isolated worker starts and
@@ -117,9 +121,11 @@ async function openHarness(
     request: Request,
     options: Deno.UpgradeWebSocketOptions,
   ) => Deno.WebSocketUpgrade,
+  draftIsolation?: DraftIsolation,
 ): Promise<Harness> {
   const fixture = await openDraftFixture("alpha target omega", {
     collaborationSocket: { limits, upgradeWebSocket },
+    draftIsolation,
   });
   const opened = await fixture.app.fetch(draftRequest(
     fixture,
@@ -818,6 +824,37 @@ Deno.test("an update is acknowledged only after its receipt commits, then relaye
     );
     assertEquals((await until(a, "ack", ACK_WAIT_MS)).receipt, null);
     assertEquals(await receiptCount(harness), 1);
+  } finally {
+    await closeHarness(harness);
+  }
+});
+
+Deno.test("a collaboration update counts toward its own organization's worker share (#297)", async () => {
+  const real = createDraftIsolation();
+  const seen: (string | undefined)[] = [];
+  const isolation: DraftIsolation = {
+    ...real,
+    importUpdate(current, update, signal, organizationId) {
+      seen.push(organizationId);
+      return real.importUpdate(current, update, signal, organizationId);
+    },
+  };
+  const harness = await openHarness({}, undefined, isolation);
+  try {
+    const a = await open(harness, harness.owner);
+    const synced = await joinAndSync(a, harness);
+    keepPresent(harness, a);
+    await a.sendRaw(
+      0x2,
+      updateFrame(
+        harness,
+        synced.epoch,
+        crypto.randomUUID(),
+        localEdit(synced.doc, 0, "Hi "),
+      ),
+    );
+    await until(a, "ack", ACK_WAIT_MS);
+    assertEquals(seen, [harness.fixture.ids.organizationId]);
   } finally {
     await closeHarness(harness);
   }
