@@ -64,8 +64,18 @@ for (
       expect(
         await page.getByText("Bakery", { exact: true }).first().boundingBox(),
       ).toEqual(logoBefore);
-      // A window-only capture: a full-page one would not show the link over the page.
-      await shot(page, "skip-link-focused", [], { windowOnly: true });
+      // Evidence: a window-only capture at each size, focusing the link after the
+      // resize (a resize can rebuild the shell and drop focus).
+      for (
+        const [only, size] of [
+          ["desktop", { width: 1440, height: 900 }],
+          ["mobile", { width: 390, height: 844 }],
+        ] as const
+      ) {
+        await page.setViewportSize(size);
+        await skip.focus();
+        await shot(page, "skip-link-focused", [], { windowOnly: true, only });
+      }
       // Leaving it hides it again.
       await name.focus();
       await expect.poll(async () => (await skip.boundingBox())?.width ?? 0)

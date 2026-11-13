@@ -162,6 +162,53 @@ for (
         .not.toContain("content-removed");
     });
 
+    test("the skeleton can be seen in the dark theme", async ({ page }) => {
+      await page.emulateMedia({ colorScheme: "dark" });
+      await mockAuthenticatedSession(page);
+      await stubProfile(page, { name: "Mark Tripoli", reads: 0 });
+      await stubOrganizations(page, {
+        delayMs: 1500,
+        failing: false,
+        requests: 0,
+      });
+      await page.goto("/settings/profile");
+      const skeleton = page.getByTestId("startup-skeleton").locator(
+        '[data-ui-component="skeleton"]',
+      ).first();
+      await expect(skeleton).toBeVisible();
+      const [fill, ground] = await skeleton.evaluate((node) => {
+        const opaque = (element: Element | null): string => {
+          for (let up = element; up; up = up.parentElement) {
+            const color = getComputedStyle(up).backgroundColor;
+            if (!/rgba\(.*,\s*0\)|transparent/.test(color)) return color;
+          }
+          return "rgb(0, 0, 0)";
+        };
+        return [
+          getComputedStyle(node).backgroundColor,
+          opaque(node.parentElement),
+        ];
+      });
+      const luminance = (color: string) => {
+        const [r, g, b] = (color.match(/[\d.]+/g) ?? ["0", "0", "0"]).slice(
+          0,
+          3,
+        )
+          .map((value) => {
+            const channel = Number(value) / 255;
+            return channel <= 0.03928
+              ? channel / 12.92
+              : ((channel + 0.055) / 1.055) ** 2.4;
+          });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      const [light, dark] = [luminance(fill), luminance(ground)].sort((a, b) =>
+        b - a
+      );
+      expect((light + 0.05) / (dark + 0.05), `${fill} on ${ground}`)
+        .toBeGreaterThanOrEqual(1.3);
+    });
+
     test("a fast organization answer shows no skeleton at all", async ({ page }) => {
       await mockAuthenticatedSession(page);
       await stubProfile(page, { name: "Mark Tripoli", reads: 0 });
