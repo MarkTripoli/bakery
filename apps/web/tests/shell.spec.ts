@@ -586,7 +586,8 @@ test.describe("settings routes and navigation", () => {
       );
     }
     expect(new Set(styles).size, styles.join(" | ")).toBe(1);
-    expect(styles[0]).not.toContain("system-ui");
+    // The app's typeface, not the platform font the personal pages used to set.
+    expect(styles[0]).toMatch(/^Geist\b/);
   });
 
   test("lists the sections under two labelled groups, with the connected-clients item and without Machines", async ({ page }) => {
