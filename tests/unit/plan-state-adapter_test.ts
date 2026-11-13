@@ -14,6 +14,7 @@ import {
   planRuntimeFromSnapshot,
   PlanStateError,
   type PlanStepRow,
+  planTaskFromSnapshot,
   recordsFromRows,
 } from "../../apps/server/src/modules/workflow-adapter/plan-state.ts";
 import {
@@ -89,6 +90,19 @@ Deno.test("a run admitted before plans has no runtime and stays on the flat loop
     await planRuntimeFromSnapshot({ schemaVersion: 1, inputs: {} }),
     null,
   );
+});
+
+Deno.test("the frozen $task is the snapshot's own task object, and a snapshot without one is refused by name", () => {
+  const task = { title: "frozen", labels: ["a"] };
+  assertEquals(planTaskFromSnapshot({ task, inputs: {} }), task);
+  for (
+    const snapshot of [{}, { task: null }, { task: [] }, { task: "t" }, null]
+  ) {
+    assertEquals(
+      planError(() => planTaskFromSnapshot(snapshot)),
+      "plan_snapshot_invalid",
+    );
+  }
 });
 
 Deno.test("the persistence marker and the adapter agree on which snapshots belong to a plan", async () => {

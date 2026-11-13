@@ -17,7 +17,14 @@
  *   revision; answers the HTTP status and body.
  * - GET /state: the published revisions as the database holds them.
  * - GET /probe?who=admin|developer&path=/v1/...: a read of that path as that
- *   person; answers the HTTP status and the problem code, if any.
+ *   person; answers the HTTP status, the problem code, if any, and the body.
+ * - POST /repository {owner, name}: inserts an application and a repository
+ *   directly (there is no endpoint that creates one without a Git provider);
+ *   answers its id.
+ * - POST /profile {repositoryId, revision, repositoryRules?,
+ *   expectedOrganizationRulesRevision?}: the Admin creates a repository
+ *   profile, which is how a repository overrides the organization's rules;
+ *   answers the HTTP status and body.
  *
  * Runs until stdin closes or SIGTERM, then removes what it seeded.
  */
@@ -25,6 +32,8 @@ import process from "node:process";
 import { authTestOrigin } from "./auth.ts";
 import { call } from "./account-settings.ts";
 import { openInstallationFixture } from "./installation-settings.ts";
+import { baseProfileConfig } from "./repository-rule-entries.ts";
+import { profileBody } from "./repository-rules-fixture.ts";
 
 const f = await openInstallationFixture(true);
 
@@ -55,6 +64,81 @@ async function control(request: Request): Promise<Response> {
     return Response.json({
       status: response.status,
       code: parsed.code ?? null,
+      body: text.length > 0 ? parsed : null,
+    });
+  }
+  if (request.method === "POST" && path === "/repository") {
+    const { owner, name } = await request.json() as {
+      owner: string;
+      name: string;
+    };
+    const applicationId = crypto.randomUUID();
+    const repositoryId = crypto.randomUUID();
+    await f.pgDatabase.query(
+      `insert into bakery.applications (id, organization_id, slug, name)
+       values ($1, $2, $3, $4)`,
+      [
+        applicationId,
+        f.organizationId,
+        `app-${applicationId}`,
+        "Rules application",
+      ],
+    );
+    await f.pgDatabase.query(
+      `insert into bakery.repositories (
+         id, organization_id, application_id, integration_connection_id,
+         provider_repo_id, owner, name, default_branch
+       ) values ($1, $2, $3, $4, $5, $6, $7, 'main')`,
+      [
+        repositoryId,
+        f.organizationId,
+        applicationId,
+        crypto.randomUUID(),
+        `repo-${repositoryId}`,
+        owner,
+        name,
+      ],
+    );
+    return Response.json({ repositoryId });
+  }
+  if (request.method === "POST" && path === "/profile") {
+    const input = await request.json() as {
+      repositoryId: string;
+      revision: number;
+      repositoryRules?: unknown;
+      expectedOrganizationRulesRevision?: number;
+    };
+    const version = (await f.pgDatabase.query<{ version: number }>(
+      "select version from bakery.repositories where id = $1",
+      [input.repositoryId],
+    )).rows[0]?.version;
+    const response = await call(
+      f,
+      "POST",
+      `/v1/repositories/${input.repositoryId}/profiles`,
+      f.adminCookie,
+      {
+        body: await profileBody(
+          input.revision,
+          {
+            ...baseProfileConfig,
+            ...(input.repositoryRules === undefined
+              ? {}
+              : { repositoryRules: input.repositoryRules }),
+          },
+          input.expectedOrganizationRulesRevision,
+        ),
+        headers: {
+          "Idempotency-Key": crypto.randomUUID(),
+          "Bakery-Organization-Id": f.organizationId,
+          "If-Match": `"${version}"`,
+        },
+      },
+    );
+    const text = await response.text();
+    return Response.json({
+      status: response.status,
+      body: text.length > 0 ? JSON.parse(text) : null,
     });
   }
   const body = request.method === "POST"

@@ -16,9 +16,14 @@ export const DRAFT_LIMITS = Object.freeze({
    * that end a growing worker sooner.
    */
   processDataBytes: 1_073_741_824,
-  // A backstop above start-up CPU plus the 2 s work budget, so the wall-clock
-  // deadline (a typed timeout) fires first for a CPU-bound runaway.
-  processCpuSeconds: 4,
+  // RLIMIT_CPU is only a backstop for a parent that failed to kill. Like
+  // systemd's RuntimeMaxSec it is both wall budgets plus a second
+  // (ceil((workerStartupMs + workerRuntimeMs) / 1000) + 1), so the parent's
+  // deadline, a typed timeout, always fires first: a single-threaded spinner
+  // cannot spend more CPU seconds than wall seconds. At 2x the work budget a
+  // parent timer late by a second on a loaded host lost the race and the
+  // worker ended as an untyped WORKER_EXIT_137 (#305).
+  processCpuSeconds: 8,
   processHeapMegabytes: 192,
   processWasmPages: 4_096,
   workerTasks: 32,

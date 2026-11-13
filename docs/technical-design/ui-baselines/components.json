@@ -1,5 +1,5 @@
 {
-  "revision": "578c0ef7865072f677403b22a6b85fc5ff122501008a609b15432dae26fab494",
+  "revision": "12b58fbdf45d137c2d01eb158f2500d4aad94c906d488d60b60d93e78a74f829",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -5352,12 +5352,12 @@
     {
       "id": "ui.badge",
       "name": "Badge",
-      "description": "Tags a row with a short caption on a plate, e.g. \"Current\" on the active session.",
+      "description": "Tags a row with a short caption on a plate, e.g. \"Current\" on the active session; the tone can be success, warning or danger.",
       "level": "atom",
       "owner": "Mark Tripoli",
       "storyTitle": "Bakery/Atoms/Badge",
       "usage": {
-        "whenToUse": "Tag a row with a short caption on a plate (Paper auth.css:8 .badge, .badge.success).",
+        "whenToUse": "Tag a row with a short caption on a plate (Paper auth.css:8 .badge, .badge.success), or mark what needs care (warning) or blocks something (danger).",
         "whenNotToUse": "Use StatusBadge for the runtime lifecycle vocabulary and Label for field metadata.",
         "ruleIds": [
           "ui.semantic-import",
@@ -5391,16 +5391,22 @@
         "keyboard": []
       },
       "tokens": [
+        "--color-destructive",
+        "--color-destructive-surface",
         "--color-fg",
         "--color-status-success",
         "--color-status-success-surface",
+        "--color-status-warning",
+        "--color-status-warning-surface",
         "--color-surface-subtle",
         "--radius-control",
         "--type-caption"
       ],
       "variants": [
         "neutral",
-        "success"
+        "success",
+        "warning",
+        "danger"
       ],
       "states": [
         "default"
@@ -5431,7 +5437,9 @@
           "description": "Exercises the documented Badge variants and observable states across required contexts.",
           "variants": [
             "neutral",
-            "success"
+            "success",
+            "warning",
+            "danger"
           ],
           "states": [
             "default"
@@ -7131,6 +7139,151 @@
           "desktop-light-fine"
         ]
       }
+    },
+    {
+      "id": "ui.helpTip",
+      "name": "HelpTip",
+      "description": "Explains the label it sits after: an information button that shows its help text on hover, focus and tap; a tooltip from 744px, a bottom panel with the label and a close button below it.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/HelpTip",
+      "usage": {
+        "whenToUse": "Explain a column header, a term or a value in place, one tip per label.",
+        "whenNotToUse": "Do not hide instructions a person needs to finish the task, or the only accessible name or error message.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "The explanation is essential to the task",
+            "use": "ui.inlineNotice"
+          },
+          {
+            "when": "A familiar compact control needs a short name",
+            "use": "ui.tooltip"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "button",
+        "accessibleName": "aria-label",
+        "keyboard": [
+          "Enter/Space or a tap opens the help; hover and focus show it",
+          "Escape dismisses it; leaving the button, a tap elsewhere and (on a phone) scrolling close it",
+          "The phone panel has a close button; focus stays on the help button"
+        ],
+        "targetSize": "min 44px (coarse pointer)",
+        "notes": "The help text describes the button through aria-describedby; it is not the button's name and is never the only way to do the task."
+      },
+      "tokens": [
+        "--border-default",
+        "--color-border",
+        "--color-fg",
+        "--color-fg-muted",
+        "--color-surface-raised",
+        "--layer-tooltip",
+        "--layout-inspector",
+        "--radius-overlay",
+        "--shadow-subtle",
+        "--space-0",
+        "--space-1",
+        "--space-2",
+        "--space-3",
+        "--space-4",
+        "--space-8",
+        "--target-min",
+        "--type-caption",
+        "--type-control"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "closed",
+        "open",
+        "focus"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises the documented HelpTip states across required contexts: closed, open on hover and focused.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "closed",
+            "open",
+            "focus"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.auth"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.helpTip.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.helpTip.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.helpTip.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the #65 UX design comment (section E amendment, 2026-11-12); no Paper frame names it."
     },
     {
       "id": "ui.popover",

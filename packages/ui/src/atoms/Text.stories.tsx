@@ -50,6 +50,7 @@ const InkStory: StoryObj = {
       <Text variant="hintInk">Waits for: contract</Text>
       <Text variant="captionInk">Plan · Waits for your approval</Text>
       <Text variant="positive">Committed</Text>
+      <Text variant="error">Could not copy</Text>
     </Stack>
   ),
 };

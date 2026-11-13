@@ -168,6 +168,7 @@ export * from "./molecules/ThemeChoice.tsx";
 export * from "./molecules/Sheet.tsx";
 export * from "./molecules/Tabs.tsx";
 export * from "./molecules/Toast.tsx";
+export * from "./molecules/HelpTip.tsx";
 export * from "./molecules/Tooltip.tsx";
 export * from "./molecules/UserMenu.tsx";
 export * from "./molecules/WorkspaceSwitcher.tsx";
