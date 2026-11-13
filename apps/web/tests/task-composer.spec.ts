@@ -135,7 +135,7 @@ const REASON_COPY: Record<string, string> = {
   coding_agent_disabled:
     "The coding agent chosen for this repository is turned off or no longer available. An organization administrator can turn it on or choose another.",
   coding_agent_unbilled:
-    "The coding agent has no way to pay for its model. An organization administrator can add one on the machine or with an API key.",
+    "The coding agent has no way to pay for its model. Add a billing source on the machine it runs on, or publish a new version of the agent with an API key and choose it for this repository.",
   coding_agent_capability_denied:
     "The coding agent chosen for this repository is not allowed to change code. An organization administrator can choose a different agent.",
   coding_agent_unpriced:
@@ -149,7 +149,7 @@ const REASON_COPY: Record<string, string> = {
   budget_below_reservation:
     "The budget for this task is lower than the amount Bakery must set aside to start. Raise the budget.",
   budget_policy_unavailable:
-    "Bakery could not read your organization's budget settings, so it cannot set money aside for this task. Try again in a moment; if it continues, ask an organization administrator.",
+    "Bakery could not read your organization's budget settings, so it cannot set money aside for this task. Try again in a moment; if it continues, ask whoever runs your Bakery server.",
   required_check_missing:
     "Your organization requires a check that this workflow does not run. Choose a workflow that runs checks, or ask an organization administrator to change the rule in Repository rules.",
 };
@@ -380,7 +380,11 @@ test("a setup-required preset names every missing requirement and blocks submit"
   await field.title(page).fill("Needs setup");
   const list = form(page).getByRole("listitem");
   await expect(list).toHaveCount(Object.keys(REASON_COPY).length);
-  for (const text of Object.values(REASON_COPY)) {
+  for (const [reason, copy] of Object.entries(REASON_COPY)) {
+    // The budget reason also names the smallest budget that works ($6.00).
+    const text = reason === "budget_below_reservation"
+      ? `${copy} The smallest budget that works is $6.00.`
+      : copy;
     await expect(form(page).getByText(text, { exact: true })).toBeVisible();
   }
   await expect(field.start(page)).toBeDisabled();
@@ -407,9 +411,10 @@ test("Start is disabled for a budget below the reservation", async ({ page }) =>
     /budget_below_reservation/,
   );
   await expect(
-    form(page).getByText(REASON_COPY.budget_below_reservation, {
-      exact: true,
-    }),
+    form(page).getByText(
+      `${REASON_COPY.budget_below_reservation} The smallest budget that works is $1.50.`,
+      { exact: true },
+    ),
   ).toBeVisible();
   await field.budget(page).fill("2");
   await expect(field.start(page)).toBeEnabled();

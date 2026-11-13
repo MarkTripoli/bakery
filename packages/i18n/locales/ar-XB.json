@@ -2696,7 +2696,6 @@
   "tasks.queue.inspector.evidence": "⟪Results⟫",
   "tasks.composer.setup.no_active_profile": "⟪This repository is not set up for Bakery yet. Finish its setup in Projects.⟫",
   "tasks.composer.setup.coding_agent_unbound": "⟪No coding agent is chosen for this repository. An organization administrator can choose one in the repository's setup.⟫",
-  "tasks.composer.setup.coding_agent_unbilled": "⟪The coding agent has no way to pay for its model. An organization administrator can add one on the machine or with an API key.⟫",
   "tasks.composer.setup.coding_agent_unpriced": "⟪Bakery has no price for the model this coding agent uses, so it cannot work out a budget. Ask whoever runs your Bakery server to add the price.⟫",
   "tasks.composer.setup.repository_archived": "⟪This repository is archived. Restore it in Projects to start tasks here.⟫",
   "tasks.preset.fixedCoding.description": "⟪Write the task brief, then run the coding agent once.⟫",
@@ -2710,7 +2709,6 @@
   "tasks.composer.setup.review_agent_unavailable": "⟪This workflow includes a review, and no agent is available to do it. An organization administrator can choose a reviewing agent that is turned on and has a way to pay for its model.⟫",
   "tasks.composer.setup.repair_agent_unavailable": "⟪This workflow fixes problems it finds, and no agent is available to do that. An organization administrator can choose an agent for fixes that is turned on and has a way to pay for its model.⟫",
   "tasks.composer.setup.budget_below_reservation": "⟪The budget for this task is lower than the amount Bakery must set aside to start. Raise the budget.⟫",
-  "tasks.composer.setup.budget_policy_unavailable": "⟪Bakery could not read your organization's budget settings, so it cannot set money aside for this task. Try again in a moment; if it continues, ask an organization administrator.⟫",
   "tasks.composer.setup.unknown": "⟪Something in this repository's setup is not ready, and Bakery could not tell what. Check the repository in Projects, or ask an organization administrator.⟫",
   "tasks.composer.setupHeading": "⟪This workflow cannot start here yet⟫",
   "tasks.composer.setupBadge": "⟪Not ready⟫",
@@ -2772,5 +2770,8 @@
   "workerList.breadcrumb": "⟪Organization · Alex’s workspace⟫",
   "workerList.ownershipHint": "⟪Only Alex’s workspace can use these machines. Connect your own Linux server or Mac to add capacity.⟫",
   "workerDetail.platform": "⟪Linux · Hetzner · Alex’s workspace⟫",
-  "workerDetail.owner": "⟪Alex’s workspace · synthetic⟫"
+  "workerDetail.owner": "⟪Alex’s workspace · synthetic⟫",
+  "tasks.composer.setup.coding_agent_unbilled": "⟪The coding agent has no way to pay for its model. Add a billing source on the machine it runs on, or publish a new version of the agent with an API key and choose it for this repository.⟫",
+  "tasks.composer.setup.budget_policy_unavailable": "⟪Bakery could not read your organization's budget settings, so it cannot set money aside for this task. Try again in a moment; if it continues, ask whoever runs your Bakery server.⟫",
+  "tasks.composer.budgetMinimum": "⟪The smallest budget that works is {amount}.⟫"
 }
