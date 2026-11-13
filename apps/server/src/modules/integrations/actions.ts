@@ -63,6 +63,7 @@ import {
   getInstallation,
 } from "./installations.ts";
 import {
+  authorizeEffectRead,
   createConnection,
   createIntegrationListHandlers,
   getConnection,
@@ -727,6 +728,7 @@ export function createIntegrationsActionRegistry(
   const effectQuery = {
     ...memberQuery,
     access: ActionAccess.DeveloperAndResourceRead,
+    authorize: authorizeEffectRead,
   } as const;
   registry.register({
     name: IntegrationsImplementedAction.IntegrationConnectionsList,

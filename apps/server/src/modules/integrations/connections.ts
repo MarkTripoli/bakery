@@ -10,6 +10,7 @@ import {
   encodeCursor,
 } from "../../platform/cursor.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
+import { authorize } from "../auth/application/authorize.ts";
 import { organizationActor } from "./auth-attempts.ts";
 import { GITHUB_PROVIDER_ID } from "./postgres.ts";
 
@@ -387,6 +388,21 @@ export function createIntegrationListHandlers(cursorSecret: string) {
       };
     },
   };
+}
+
+/**
+ * The guard for integrationEffects.list and .get ("Developer+resource read"):
+ * reading what a connection did needs the effect read and read access to the
+ * connection's resources. Either missing reads as not found.
+ */
+export function authorizeEffectRead(context: ActionContext): void {
+  const { actor } = organizationActor(context);
+  authorize(actor, "integrationEffect:read", {
+    action: Action.IntegrationEffectsList,
+  });
+  authorize(actor, "integrationResource:read", {
+    action: Action.IntegrationEffectsList,
+  });
 }
 
 function requirePathId(raw: unknown): string {
