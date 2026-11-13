@@ -119,22 +119,28 @@ jobs:
     - name: Where does the deno node shim directory come from
       shell: bash
       run: |
-        echo "PATH=$PATH"
-        echo "node: $(command -v node || echo none) | deno: $(command -v deno)"
-        env | sort | grep -E '^(DENO|NODE|HOME|ImageOS|RUNNER_TOOL|XDG)' || true
-        ls -la "$HOME/.cache/deno" 2>&1 | head -12 || true
-        ls -la "$HOME/.cache/deno/node_compat_bin" 2>&1 | head -6 || true
-        printf 'console.log("PATH in process =", Deno.env.get("PATH"));\n' > "$RUNNER_TEMP/p.ts"
-        printf 'Deno.test("p", () => console.log("PATH in test    =", Deno.env.get("PATH")));\n' > "$RUNNER_TEMP/p_test.ts"
-        for P in "/usr/bin" "/usr/bin:/bin"; do
-          echo "--- PATH given: $P"
-          env -i HOME="$HOME" PATH="$P" deno run --allow-env "$RUNNER_TEMP/p.ts"
-          env -i HOME="$HOME" PATH="$P" deno test --allow-env "$RUNNER_TEMP/p_test.ts" 2>&1 | grep "PATH in test"
-        done
-        echo "--- a deno process spawning a deno child with PATH=/usr/bin"
-        deno eval 'const o = await new Deno.Command(Deno.execPath(), { args: ["eval", "console.log(Deno.env.get(\"PATH\"))"], env: { PATH: "/usr/bin" }, clearEnv: true }).output(); console.log("child PATH =", new TextDecoder().decode(o.stdout).trim());' --allow-run
-        echo "--- through pnpm"
-        cd "$GITHUB_WORKSPACE" && env PATH="/usr/bin:$PATH" pnpm exec deno run --allow-env "$RUNNER_TEMP/p.ts" || true
+        set +e
+        DENO="$(command -v deno)"
+        echo "deno=$DENO node=$(command -v node)  CI=${CI:-unset} GITHUB_ACTIONS=${GITHUB_ACTIONS:-unset} DENO_DIR=${DENO_DIR:-unset}"
+        echo "cache dir before: $(ls -d "$HOME/.cache/deno" 2>&1 | head -1)"
+        show() { echo "[$1] $2"; }
+        P='console.log("   PATH seen =", Deno.env.get("PATH"));'
+        show E1 "minimal env, PATH=/usr/bin, cwd=repo"
+        env -i HOME="$HOME" PATH=/usr/bin "$DENO" eval "$P" 2>&1 | tail -1
+        show E2 "same plus CI=true GITHUB_ACTIONS=true"
+        env -i HOME="$HOME" PATH=/usr/bin CI=true GITHUB_ACTIONS=true "$DENO" eval "$P" 2>&1 | tail -1
+        show E3 "inherited runner env, only PATH replaced with /usr/bin"
+        env PATH=/usr/bin "$DENO" eval "$P" 2>&1 | tail -1
+        show E4 "runner env, a deno parent spawns a deno child with env PATH=/usr/bin (like the rail fixture)"
+        "$DENO" eval --allow-run 'const o = await new Deno.Command(Deno.execPath(), { args: ["eval", "console.log(Deno.env.get(\"PATH\"))"], env: { PATH: "/usr/bin" }, stdout: "piped" }).output(); console.log("   child PATH =", new TextDecoder().decode(o.stdout).trim());' 2>&1 | tail -1
+        show E5 "E4 with clearEnv"
+        "$DENO" eval --allow-run 'const o = await new Deno.Command(Deno.execPath(), { args: ["eval", "console.log(Deno.env.get(\"PATH\"))"], env: { PATH: "/usr/bin" }, clearEnv: true, stdout: "piped" }).output(); console.log("   child PATH =", new TextDecoder().decode(o.stdout).trim());' 2>&1 | tail -1
+        show E6 "the fixture shape: deno run with --preload of the repo helper, env PATH=/usr/bin"
+        printf 'console.log("   PATH seen =", Deno.env.get("PATH"));\n' > "$RUNNER_TEMP/p.ts"
+        env PATH=/usr/bin "$DENO" run --allow-env --allow-read --allow-run=git,/usr/bin/git --preload "$GITHUB_WORKSPACE/tests/helpers/temp-cleanup-preload.ts" "$RUNNER_TEMP/p.ts" 2>&1 | tail -2
+        show E7 "E6 without the preload"
+        env PATH=/usr/bin "$DENO" run --allow-env "$RUNNER_TEMP/p.ts" 2>&1 | tail -1
+        echo "cache dir after: $(ls -d "$HOME/.cache/deno/node_compat_bin" 2>&1 | head -1)"
     - name: The failing rail and unit test, verbose
       shell: bash
       run: |
