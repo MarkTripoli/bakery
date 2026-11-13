@@ -6,6 +6,7 @@ import {
   createDiagnosticCollector,
   createWorkflowCompilerCatalog,
   decodeWorkflowJson as rawDecodeWorkflowJson,
+  decodeWorkflowYaml as rawDecodeWorkflowYaml,
   expandStepKeys,
   isAssignable,
   isExactNumberText,
@@ -70,6 +71,9 @@ const compileWorkflowDocument = (
 const decodeWorkflowJson = (
   ...args: Parameters<typeof rawDecodeWorkflowJson>
 ) => recordCodes(rawDecodeWorkflowJson(...args));
+const decodeWorkflowYaml = (
+  ...args: Parameters<typeof rawDecodeWorkflowYaml>
+) => recordCodes(rawDecodeWorkflowYaml(...args));
 const snapshotWorkflowValue = (
   ...args: Parameters<typeof rawSnapshotWorkflowValue>
 ) => recordCodes(rawSnapshotWorkflowValue(...args));
@@ -4063,6 +4067,22 @@ Deno.test("decoder reports forbidden keys and excessive depth", () => {
   const snapshot = snapshotWorkflowValue({ constructor: 1 });
   assert(!snapshot.ok);
   assertEquals(snapshot.diagnostics[0]?.code, "definition_key_forbidden");
+});
+
+Deno.test("the YAML decoder reaches each of its own codes (full cases: ship-locked-workflows suite)", () => {
+  const expected: Record<string, string> = {
+    "a: [1, 2\n": "yaml_syntax_invalid",
+    "a: 1\n---\nb: 2\n": "yaml_multiple_documents",
+    "a: &x 1\nb: *x\n": "yaml_alias_forbidden",
+    "a: !custom x\n": "yaml_tag_forbidden",
+    "c: {<<: {b: 2}}\n": "yaml_merge_key_forbidden",
+    "a: 1\na: 2\n": "definition_duplicate_key",
+  };
+  for (const [text, code] of Object.entries(expected)) {
+    const result = decodeWorkflowYaml(text);
+    assert(!result.ok, text);
+    assertEquals(result.diagnostics[0]?.code, code, text);
+  }
 });
 
 Deno.test("every closed diagnostic code is exercised by this suite", () => {

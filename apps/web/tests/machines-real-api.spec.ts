@@ -119,7 +119,7 @@ test.describe("real API machines authenticated projections", () => {
     });
     await page.goto("/machines");
     await expect(
-      page.getByRole("button", { name: "Enroll machine", exact: true }),
+      page.getByRole("button", { name: "Add machine", exact: true }),
     ).toHaveCount(0);
     await expect(page.getByTestId("machine-enrollment")).toHaveCount(0);
   });

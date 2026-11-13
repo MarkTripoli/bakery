@@ -18,6 +18,7 @@ import {
 import { WORKFLOW_ACTION_METADATA } from "@bakery/contracts/workflow-action-registry";
 import {
   type PinnedRepositoryRules,
+  repositoryRuleStageRequirements,
   STEP_OUTPUT_ALLOWANCE_BYTES,
 } from "@bakery/contracts/repository-rules";
 import { workflowPresetById } from "@bakery/contracts/workflow-presets";
@@ -34,7 +35,9 @@ import {
   appendTaskProjectionEvent,
   loadTaskScope,
   lockApplication,
+  type TaskRow,
   toIso,
+  toTask,
 } from "./postgres.ts";
 import {
   extractFixedWorkflowSteps,
@@ -63,6 +66,11 @@ import { admitStagePolicy } from "./stage-admission.ts";
 import { ticketRequestBlocksRun } from "./ticket-run-guard.ts";
 import { pinEffectiveRepositoryRules } from "../repository-rules/pinned.ts";
 import { assertStepsSatisfyRules } from "../workflows/rule-guard.ts";
+import { writePlanRun } from "../workflow-adapter/plan-admission.ts";
+import {
+  type PlanAdmission,
+  resolvePlanAdmission,
+} from "./plan-run-admission.ts";
 import {
   ensurePresetWorkflowVersion,
   fixedPolicyDeniesSteps,
@@ -77,6 +85,11 @@ type TaskAdmissionRow = {
   application_id: string;
   repository_id: string | null;
   conversation_id: string;
+  parent_task_id: string | null;
+  priority: number;
+  created_by: string;
+  created_at: Date | string;
+  updated_at: Date | string;
   title: string;
   description: string;
   task_type: string;
@@ -273,6 +286,16 @@ type RunSnapshot = {
   reviewLoop?: ReviewLoopLimits;
   /** Present only for a coordination lane child: plan identity and typed handoffs. */
   coordination?: LaneCoordinationSnapshot;
+  /**
+   * Present only for a compiled-plan run: the frozen document and its pin, the
+   * `$task` the plan reads, the agents its steps run as and each action's
+   * fallback agent. Written by `writePlanRun`, which reads it back as the
+   * engine will before this snapshot is inserted.
+   */
+  runtime?: unknown;
+  task?: unknown;
+  planAgents?: unknown;
+  planActionAgents?: unknown;
 };
 
 export function resolveDependencyReadiness(
@@ -325,7 +348,7 @@ function buildRunSnapshot(options: {
  * without a model action reserve nothing and are not checked.
  */
 function assertBudgetCoversReservations(
-  steps: readonly FixedWorkflowStep[],
+  steps: readonly Pick<FixedWorkflowStep, "key" | "action">[],
   stepAgents: FrozenStepAgents,
   budgetLimitUsd: string,
 ): void {
@@ -555,6 +578,7 @@ async function loadTaskForAdmission(
 ): Promise<TaskAdmissionRow> {
   const result = await transaction.query<TaskAdmissionRow>(
     `select id, application_id, repository_id, conversation_id, title,
+            parent_task_id, priority, created_by, created_at, updated_at,
             description, task_type, status, archived_at, current_run_id, version,
             repository_profile_id, repository_profile_revision,
             repository_profile_digest, observation_id, observation_digest, base_sha,
@@ -803,6 +827,16 @@ function assertJobInputsFit(
     }
     throw unprocessable(inputsPath, "inputs_too_large");
   };
+  // A compiled plan has no steps to resolve here: each action's input is built
+  // by the engine from earlier results. What admission can bound is the run's
+  // own inputs plus the profile and rules every job carries.
+  if (snapshot.runtime !== undefined) {
+    refuse({
+      inputs: snapshot.inputs,
+      stepOutputAllowance: "x".repeat(STEP_OUTPUT_ALLOWANCE_BYTES),
+    });
+    return;
+  }
   for (const step of steps) {
     // A step whose input cannot be resolved here (it reads an earlier step's
     // output, or, for a plain workflow, a request key that is absent) is
@@ -979,45 +1013,63 @@ export async function createRunCommand(
       params: { reason: "repository_required" },
     });
   }
-  let steps: readonly FixedWorkflowStep[];
+  // The fixed executor runs a flat list of actions. A compiler-grammar version
+  // that has container nodes is one it cannot run: it is a compiled plan, and
+  // the engine decides each of its steps as the run goes.
+  let steps: readonly FixedWorkflowStep[] = [];
+  let planAdmission: PlanAdmission | null = null;
   try {
     steps = extractFixedWorkflowSteps(
       workflow.normalized_spec,
       profile?.config.workflow.kind,
     );
   } catch (error) {
-    if (error instanceof WorkflowNotFixedError) {
+    if (error instanceof WorkflowNotExecutableError) {
+      planAdmission = await resolvePlanAdmission(transaction, {
+        organizationId,
+        definition: workflow.normalized_spec,
+        profileAgentBindings: profile?.config.agentBindings,
+      });
+    } else if (error instanceof WorkflowNotFixedError) {
       throw new StandardError({
         code: "STATE_CONFLICT",
         params: { reason: "workflow_not_fixed" },
       });
+    } else {
+      throw new Error("WORKFLOW_VERSION_INVALID", { cause: error });
     }
-    if (error instanceof WorkflowNotExecutableError) {
-      throw new StandardError({
-        code: "STATE_CONFLICT",
-        params: { reason: "workflow_not_executable" },
-      });
-    }
-    throw new Error("WORKFLOW_VERSION_INVALID", { cause: error });
   }
 
-  // A review and repair loop runs checks and a review after implement, so a
-  // profile that cannot run them must fail here, not after implement spends.
-  const reviewLoop = reviewLoopLimitsFor(workflow.normalized_spec);
-  if (
-    reviewLoop !== null && profile !== null &&
-    fixedPolicyDeniesSteps(profile.config, steps)
-  ) {
-    throw unprocessable(["repositoryProfileId"], "profile_effect_denied");
-  }
+  let reviewLoop: ReviewLoopLimits | null = null;
+  let stepAgents: FrozenStepAgents = {};
+  if (planAdmission !== null) {
+    assertBudgetCoversReservations(
+      planAdmission.sites.map((site) => ({
+        key: site.qualifiedId,
+        action: site.action,
+      })),
+      planAdmission.stepAgents,
+      budgetLimitUsd,
+    );
+  } else {
+    // A review and repair loop runs checks and a review after implement, so a
+    // profile that cannot run them must fail here, not after implement spends.
+    reviewLoop = reviewLoopLimitsFor(workflow.normalized_spec);
+    if (
+      reviewLoop !== null && profile !== null &&
+      fixedPolicyDeniesSteps(profile.config, steps)
+    ) {
+      throw unprocessable(["repositoryProfileId"], "profile_effect_denied");
+    }
 
-  const stepAgents = await resolveFrozenStepAgents(
-    transaction,
-    organizationId,
-    steps,
-    profile?.config.agentBindings,
-  );
-  assertBudgetCoversReservations(steps, stepAgents, budgetLimitUsd);
+    stepAgents = await resolveFrozenStepAgents(
+      transaction,
+      organizationId,
+      steps,
+      profile?.config.agentBindings,
+    );
+    assertBudgetCoversReservations(steps, stepAgents, budgetLimitUsd);
+  }
 
   const dependencies = await loadDependencies(
     transaction,
@@ -1079,10 +1131,41 @@ export async function createRunCommand(
     );
   // The run's own steps must carry every check the pinned rules require; this
   // evaluates only the run being admitted, never a run already admitted.
-  if (pinnedRules !== null) assertStepsSatisfyRules(pinnedRules, steps);
+  if (pinnedRules !== null) {
+    if (planAdmission === null) {
+      assertStepsSatisfyRules(pinnedRules, steps);
+    } else if (repositoryRuleStageRequirements(pinnedRules).length > 0) {
+      // A plan's stages are not yet read against a `require` rule, and a
+      // definition the guard cannot read proves nothing: it is refused, as
+      // publication refuses it, never passed.
+      throw new StandardError({
+        code: "STATE_CONFLICT",
+        params: { reason: "workflow_plan_rules_unsupported" },
+      });
+    }
+  }
+  // What a plan run freezes beside the sections every run has, read back the
+  // way the engine reads it before anything is inserted. The `$task` is the
+  // task as it is at admission.
+  const planSections = planAdmission === null ? null : await writePlanRun({
+    document: planAdmission.document,
+    task: toTask(
+      {
+        ...task,
+        archived_at: task.archived_at === null
+          ? null
+          : new Date(task.archived_at),
+        created_at: new Date(task.created_at),
+        updated_at: new Date(task.updated_at),
+      } as TaskRow,
+    ),
+    inputs,
+    agents: planAdmission.agents,
+    actionAgents: planAdmission.actionAgents,
+  });
   const builtSnapshot = buildRunSnapshot({
     executionMode: input.executionMode,
-    inputs,
+    inputs: planSections === null ? inputs : planSections.inputs,
     workflow: {
       id: workflow.id,
       revision: workflow.revision,
@@ -1111,10 +1194,17 @@ export async function createRunCommand(
     dependencies: dependencySnapshot,
     reviewLoop,
   });
-  const snapshot: RunSnapshot = lane === null ? builtSnapshot : {
+  const laneSnapshot: RunSnapshot = lane === null ? builtSnapshot : {
     ...builtSnapshot,
     admission: { ...builtSnapshot.admission, status, reason },
     coordination: lane.snapshot,
+  };
+  const snapshot: RunSnapshot = planSections === null ? laneSnapshot : {
+    ...laneSnapshot,
+    runtime: planSections.runtime,
+    task: planSections.task,
+    planAgents: planSections.planAgents,
+    planActionAgents: planSections.planActionAgents,
   };
 
   if (preset || snapshot.repositoryProfile !== null) {
@@ -1160,6 +1250,8 @@ export async function createRunCommand(
   );
   const run = inserted.rows[0];
   if (!run) throw new Error("RUN_INSERT_FAILED");
+  // A plan run has no steps here (the engine appends each one as the plan
+  // decides it), so nothing is inserted for it.
   await insertRunSteps(transaction, {
     organizationId,
     runId: run.id,

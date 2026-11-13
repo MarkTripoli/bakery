@@ -193,6 +193,30 @@ export const waitViolations = (source) =>
   occurrences(source, SPECIMEN)
     .filter((at) => !source.startsWith(".evaluate(", at + SPECIMEN.length))
     .map((at) => lineOf(source, at));
+/** Offsets in the harness that locate the specimen. */
+export const specimenSites = (harness) => occurrences(harness, SPECIMEN);
+/** The match of `waitForSpecimen()`'s source in the harness, or null. */
+export const waitHelperOf = (harness) =>
+  execInCode(harness, /export async function waitForSpecimen\([\s\S]*?\n}/);
+/** Whether the helper waits for visibility on the shared budget. */
+export const waitsForVisibility = (helper) =>
+  execInCode(
+    helper,
+    /waitFor\(\{[^}]*state: "visible"[^}]*timeout: specimenTimeout[^}]*\}\)/,
+  ) !== null;
+export const sharedBudgetUses = (helper) =>
+  occurrences(helper, "timeout: specimenTimeout").length;
+export const reloadCalls = (helper) => occurrences(helper, ".reload(").length;
+/** Whether a spec imports `waitForSpecimen` from the harness. */
+export const importsSharedWait = (source) =>
+  execInCode(
+    source,
+    /import \{[\s\S]*?waitForSpecimen,[\s\S]*?\} from\s+"\.\/storybook-harness\.ts"/,
+  ) !== null;
+/** Calls to the shared wait in a spec, counting `openStory`, which waits through it. */
+export const sharedWaitCalls = (source) =>
+  occurrences(source, "waitForSpecimen(").length +
+  occurrences(source, "openStory(").length;
 export const fixedSweepBudgets = (spec) => {
   const call = "test.setTimeout(";
   return occurrences(spec, call)
@@ -201,37 +225,31 @@ export const fixedSweepBudgets = (spec) => {
 };
 
 test("packages/ui/tests holds exactly one specimen wait, in the harness", () => {
-  const sites = occurrences(harness, SPECIMEN);
+  const sites = specimenSites(harness);
   assert.equal(
     sites.length,
     1,
     `storybook-harness.ts locates the specimen ${sites.length} times; the ` +
       "harness must hold exactly one, inside waitForSpecimen()",
   );
-  const helper = execInCode(
-    harness,
-    /export async function waitForSpecimen\([\s\S]*?\n}/,
-  );
+  const helper = waitHelperOf(harness);
   assert.ok(helper, "storybook-harness.ts must export waitForSpecimen()");
   assert.ok(
     sites[0] > helper.index && sites[0] < helper.index + helper[0].length,
     "the specimen locator must live inside waitForSpecimen()",
   );
   assert.ok(
-    execInCode(
-      helper[0],
-      /waitFor\(\{[^}]*state: "visible"[^}]*timeout: specimenTimeout[^}]*\}\)/,
-    ),
+    waitsForVisibility(helper[0]),
     "waitForSpecimen() must wait for visibility on the specimenTimeout budget",
   );
   assert.equal(
-    occurrences(helper[0], "timeout: specimenTimeout").length,
+    sharedBudgetUses(helper[0]),
     2,
     "both the first wait and the wait after recovery must take the shared " +
       "budget",
   );
   assert.equal(
-    occurrences(helper[0], ".reload(").length,
+    reloadCalls(helper[0]),
     1,
     "recovery must reload exactly once; a loop would turn a broken story " +
       "into a hang instead of a failure",
@@ -273,10 +291,7 @@ test("every spec that waits takes the wait from the harness", () => {
   const missing = specs.filter((name) => {
     const source = read(name);
     if (occurrences(source, "waitForSpecimen(").length === 0) return false;
-    return execInCode(
-      source,
-      /import \{[\s\S]*?waitForSpecimen,[\s\S]*?\} from\s+"\.\/storybook-harness\.ts"/,
-    ) === null;
+    return !importsSharedWait(source);
   });
   assert.deepEqual(
     missing,
@@ -297,11 +312,7 @@ test("the catalog loops that exposed the race all use it", () => {
   // openStory (storybook-harness.ts) opens a story through waitForSpecimen
   // and only adds a named failure report, so it counts as the shared wait.
   const observed = Object.fromEntries(
-    Object.keys(expected).map((name) => [
-      name,
-      occurrences(read(name), "waitForSpecimen(").length +
-      occurrences(read(name), "openStory(").length,
-    ]),
+    Object.keys(expected).map((name) => [name, sharedWaitCalls(read(name))]),
   );
   assert.deepEqual(
     observed,
@@ -575,5 +586,72 @@ test("a comment or string that holds the specimen wait or the openStory call doe
   assert.deepEqual(
     waitViolations('await page.locator(".storybook-story").evaluate(() => 1);'),
     [],
+  );
+});
+
+// --- the first test, the import check and the catalog loops, each fed a decoy
+// (QA of #318, low): the old text in a comment or a string must not stand in
+
+test("a comment or string does not stand in for the harness's specimen wait, its budget or its one reload", () => {
+  const locator = 'page.locator(".storybook-story")';
+  assert.equal(
+    specimenSites(`// ${locator}\nconst s = '${locator}';`).length,
+    0,
+  );
+  assert.equal(specimenSites(`const l = ${locator};`).length, 1);
+  assert.equal(
+    // The header is commented out; the closing brace on its own line is code.
+    waitHelperOf("// export async function waitForSpecimen(page) {\n}\n"),
+    null,
+  );
+  assert.ok(waitHelperOf("export async function waitForSpecimen(page) {\n}\n"));
+  const visible =
+    'await x.waitFor({ state: "visible", timeout: specimenTimeout });';
+  assert.equal(waitsForVisibility(`// ${visible}`), false);
+  assert.equal(waitsForVisibility(`const note = '${visible}';`), false);
+  assert.equal(waitsForVisibility(visible), true);
+  assert.equal(
+    sharedBudgetUses(
+      "// timeout: specimenTimeout\n// timeout: specimenTimeout",
+    ),
+    0,
+  );
+  assert.equal(sharedBudgetUses("const s = 'timeout: specimenTimeout';"), 0);
+  assert.equal(
+    sharedBudgetUses(
+      "{ timeout: specimenTimeout } { timeout: specimenTimeout }",
+    ),
+    2,
+  );
+  assert.equal(
+    reloadCalls("// await page.reload();\nconst s = 'x.reload(';"),
+    0,
+  );
+  assert.equal(reloadCalls("await page.reload();"), 1);
+  // A loop around the reload is two reload sites once written twice, and a
+  // comment is not one.
+  assert.equal(reloadCalls("await page.reload(); // page.reload()"), 1);
+});
+
+test("a comment or string does not stand in for a spec's import of the shared wait or its calls", () => {
+  const imp = 'import { waitForSpecimen, } from "./storybook-harness.ts";';
+  assert.equal(importsSharedWait(imp), true);
+  assert.equal(importsSharedWait(`// ${imp}`), false);
+  assert.equal(importsSharedWait(`const note = '${imp}';`), false);
+  assert.equal(importsSharedWait(`/* ${imp} */`), false);
+  assert.equal(
+    sharedWaitCalls("await waitForSpecimen(page); await openStory(page, id);"),
+    2,
+  );
+  assert.equal(
+    sharedWaitCalls("// await waitForSpecimen(page);\n// openStory(page, id)"),
+    0,
+  );
+  assert.equal(
+    sharedWaitCalls(
+      "const a = 'waitForSpecimen(page)'; const b = `openStory(x) ${openStory(page, id)}`;",
+    ),
+    1,
+    "template text is not a call, but the call inside ${} is",
   );
 });
