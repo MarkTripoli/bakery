@@ -17,7 +17,7 @@ concurrency:
 jobs:
   issue:
     if: github.event_name == 'issues'
-    runs-on: [self-hosted, hetzner, linux, x64]
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
@@ -38,7 +38,7 @@ jobs:
 
   pull-request:
     if: github.event_name == 'pull_request_target'
-    runs-on: [self-hosted, hetzner, linux, x64]
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read

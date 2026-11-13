@@ -13,6 +13,27 @@ import { removeTreeSync } from "../../scripts/ci/temp-tree.ts";
 const repository = new URL("../../", import.meta.url).pathname;
 const decoder = new TextDecoder();
 
+// Deno 2.9 creates $DENO_DIR/node_compat_bin and puts it in front of its own
+// PATH when it cannot find `node` on the PATH it starts with. A hosted runner
+// keeps node in its tool cache, not in /usr/bin (#330), so a fixture that builds
+// its PATH by hand would see "the PATH changed since start" for a reason that
+// has nothing to do with the spawn under test. These fixtures give their PATH a
+// directory where `node` resolves, so what they assert does not depend on where
+// the host keeps node.
+function withNode(path: string): string {
+  const hasNode = (directory: string) => {
+    try {
+      return Deno.statSync(join(directory, "node")).isFile;
+    } catch {
+      return false;
+    }
+  };
+  if (path.split(":").some(hasNode)) return path;
+  const found = (Deno.env.get("PATH") ?? "").split(":").find(hasNode);
+  return found === undefined ? path : `${path}:${found}`;
+}
+const FIXTURE_PATH = withNode("/usr/bin");
+
 const FIXTURE = `
 const [mode, shadow, method] = Deno.args;
 if (mode === "shadow") {
@@ -80,8 +101,8 @@ async function withFixture(
           method,
         ],
         env: {
-          PATH: "/usr/bin",
-          BAKERY_TEST_STARTUP_PATH: "/usr/bin",
+          PATH: FIXTURE_PATH,
+          BAKERY_TEST_STARTUP_PATH: FIXTURE_PATH,
           BAKERY_TEST_ALLOW_RUN: "git,/usr/bin/git",
         },
         cwd: repository,
@@ -107,7 +128,7 @@ Deno.test("a PATH that changes after the start refuses a bare git, with the same
     assertStringIncludes(err, "[bakery-test] spawn refused (#229)");
     assertStringIncludes(err, "PATH changed since start: YES");
     assertStringIncludes(err, "resolves to the same path: NO");
-    assertStringIncludes(err, "PATH at lane start:      /usr/bin");
+    assertStringIncludes(err, `PATH at lane start:      ${FIXTURE_PATH}`);
     assertStringIncludes(err, "lane --allow-run:        git,/usr/bin/git");
     assertStringIncludes(err, "shadow-bin/git -> /usr/bin/git");
   });
@@ -161,7 +182,7 @@ Deno.test("a program the grant never named is reported too, and the PATH is said
 });
 
 Deno.test("the lane runner hands the test process its startup PATH and its --allow-run grant", async () => {
-  const marker = "/usr/bin:/bin:/bakery-lane-probe-marker";
+  const marker = withNode("/usr/bin:/bin:/bakery-lane-probe-marker");
   const run = await new Deno.Command(Deno.execPath(), {
     args: [
       "run",
