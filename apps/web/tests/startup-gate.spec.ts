@@ -36,11 +36,11 @@ const organization = {
 const profile = (name: string, version: number) => ({
   principalId: "00000000-0000-4000-8000-000000000001",
   name,
-  firstName: "Mark",
-  lastName: "Tripoli",
+  firstName: "Alex",
+  lastName: "Morgan",
   title: null,
   image: null,
-  email: "me@marktripoli.com",
+  email: "alex.morgan@example.com",
   emailVerified: true,
   version,
   updatedAt: "2026-01-02T00:00:00.000Z",
@@ -132,7 +132,7 @@ for (
 
     test("a slow organization answer shows the skeleton once, then the content once, and never takes it back", async ({ page }) => {
       await mockAuthenticatedSession(page);
-      await stubProfile(page, { name: "Mark Tripoli", reads: 0 });
+      await stubProfile(page, { name: "Alex Morgan", reads: 0 });
       const lookup: Lookup = { delayMs: 1500, failing: false, requests: 0 };
       await stubOrganizations(page, lookup);
       await watchStartup(page);
@@ -165,7 +165,7 @@ for (
     test("the skeleton can be seen in the dark theme", async ({ page }) => {
       await page.emulateMedia({ colorScheme: "dark" });
       await mockAuthenticatedSession(page);
-      await stubProfile(page, { name: "Mark Tripoli", reads: 0 });
+      await stubProfile(page, { name: "Alex Morgan", reads: 0 });
       await stubOrganizations(page, {
         delayMs: 1500,
         failing: false,
@@ -211,7 +211,7 @@ for (
 
     test("a fast organization answer shows no skeleton at all", async ({ page }) => {
       await mockAuthenticatedSession(page);
-      await stubProfile(page, { name: "Mark Tripoli", reads: 0 });
+      await stubProfile(page, { name: "Alex Morgan", reads: 0 });
       const lookup: Lookup = { delayMs: 0, failing: false, requests: 0 };
       await stubOrganizations(page, lookup);
       await watchStartup(page);
@@ -223,7 +223,7 @@ for (
 
     test("a long wait says it is taking longer than usual", async ({ page }) => {
       await mockAuthenticatedSession(page);
-      await stubProfile(page, { name: "Mark Tripoli", reads: 0 });
+      await stubProfile(page, { name: "Alex Morgan", reads: 0 });
       await stubOrganizations(page, {
         delayMs: 9_500,
         failing: false,
@@ -243,7 +243,7 @@ for (
 
     test("a failed organization lookup says so, keeps the shell and recovers with Try again", async ({ page }) => {
       await mockAuthenticatedSession(page);
-      await stubProfile(page, { name: "Mark Tripoli", reads: 0 });
+      await stubProfile(page, { name: "Alex Morgan", reads: 0 });
       const lookup: Lookup = { delayMs: 0, failing: true, requests: 0 };
       await stubOrganizations(page, lookup);
       await page.goto("/settings/profile");
@@ -267,7 +267,7 @@ for (
 
     test("the rail names the organization, with a skeleton line until it is known", async ({ page }) => {
       await mockAuthenticatedSession(page);
-      await stubProfile(page, { name: "Mark Tripoli", reads: 0 });
+      await stubProfile(page, { name: "Alex Morgan", reads: 0 });
       await stubOrganizations(page, {
         delayMs: 1200,
         failing: false,
@@ -287,7 +287,7 @@ for (
 
     test("typed input survives a background reload of the page's data", async ({ page }) => {
       await mockAuthenticatedSession(page);
-      const state = { name: "Mark Tripoli", reads: 0 };
+      const state = { name: "Alex Morgan", reads: 0 };
       await stubProfile(page, state);
       await stubOrganizations(page, {
         delayMs: 0,
@@ -296,22 +296,22 @@ for (
       });
       await page.goto("/settings/profile");
       const name = page.getByLabel("Display name");
-      await expect(name).toHaveValue("Mark Tripoli");
-      await name.fill("Mark T.");
+      await expect(name).toHaveValue("Alex Morgan");
+      await name.fill("Alex M.");
       const before = state.reads;
       // The server's copy changes elsewhere and the page reloads in the background.
-      state.name = "Mark Tripoli (changed elsewhere)";
+      state.name = "Alex Morgan (changed elsewhere)";
       await page.evaluate(() => {
         globalThis.dispatchEvent(new Event("offline"));
         globalThis.dispatchEvent(new Event("online"));
       });
       await expect.poll(() => state.reads).toBeGreaterThan(before);
-      await expect(name).toHaveValue("Mark T.");
+      await expect(name).toHaveValue("Alex M.");
     });
 
     test("leaving for another organization with unsaved input asks first, and Stay keeps the input", async ({ page }) => {
       await mockAuthenticatedSession(page);
-      await stubProfile(page, { name: "Mark Tripoli", reads: 0 });
+      await stubProfile(page, { name: "Alex Morgan", reads: 0 });
       await stubOrganizations(page, {
         delayMs: 0,
         failing: false,
@@ -319,7 +319,7 @@ for (
       });
       await page.goto("/settings/profile");
       const name = page.getByLabel("Display name");
-      await name.fill("Mark T.");
+      await name.fill("Alex M.");
       await (await openAccountMenu(page, "Fixture Admin"))
         .getByRole("button", { name: "Switch organization" }).click();
       const dialog = page.getByRole("alertdialog", {
@@ -332,7 +332,7 @@ for (
       await dialog.getByRole("button", { name: "Stay" }).click();
       await expect(dialog).toHaveCount(0);
       await expect(page).toHaveURL(/\/settings\/profile/);
-      await expect(name).toHaveValue("Mark T.");
+      await expect(name).toHaveValue("Alex M.");
       // Leaving on purpose goes through.
       await (await openAccountMenu(page, "Fixture Admin"))
         .getByRole("button", { name: "Switch organization" }).click();
