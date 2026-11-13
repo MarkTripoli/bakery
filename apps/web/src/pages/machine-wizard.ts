@@ -160,10 +160,15 @@ export function agentOfCapabilities(capabilities: unknown): CodingAgent | null {
   return codingAgents(capabilities as never)[0] ?? null;
 }
 
-/** Whole minutes left until `expiresAt`, never below zero. */
+/**
+ * Minutes left until `expiresAt`, to the nearest minute and never below one
+ * while any time remains, so a code issued for ten minutes reads ten however
+ * long the page took to show it. Zero only when it has run out.
+ */
 export function minutesLeft(expiresAt: string, now: number): number {
   const left = Date.parse(expiresAt) - now;
-  return Number.isFinite(left) ? Math.max(0, Math.ceil(left / 60_000)) : 0;
+  if (!Number.isFinite(left) || left <= 0) return 0;
+  return Math.max(1, Math.round(left / 60_000));
 }
 
 /** Where the install step stands, from the enrollment's state and the clock. */

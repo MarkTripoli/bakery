@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import type { Translator } from "@bakery/i18n";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
@@ -558,28 +558,55 @@ export function MachineWizardPage(
     </ShellSlot>
   );
 
-  if (access.data !== undefined && !isAdmin) {
-    return (
-      <>
-        <ShellActiveNavigation id="machines" />
-        {breadcrumbs}
-        <UI.SettingsContent data-testid="machine-wizard">
-          <UI.PageHeader
-            variant="list"
-            title={translate("machines.wizard.title" as never)}
-          />
-          <UI.EmptyState
-            title={translate("machines.wizard.adminOnly.title" as never)}
-            description={translate("machines.empty.adminOnly" as never)}
-            action={
-              <UI.Button variant="secondary" onClick={toList}>
-                {translate("machines.wizard.toList" as never)}
-              </UI.Button>
-            }
-            variant="firstUse"
-          />
-        </UI.SettingsContent>
-      </>
+  const frame = (content: ReactNode) => (
+    <>
+      <ShellActiveNavigation id="machines" />
+      {breadcrumbs}
+      <UI.SettingsContent data-testid="machine-wizard">
+        <UI.PageHeader
+          variant="list"
+          title={translate("machines.wizard.title" as never)}
+        />
+        {content}
+      </UI.SettingsContent>
+    </>
+  );
+  // Nothing of the form until it is known who is asking.
+  if (access.isPending) {
+    return frame(
+      <UI.Text variant="muted" role="status">
+        {translate("machines.loading" as never)}
+      </UI.Text>,
+    );
+  }
+  if (access.isError) {
+    return frame(
+      <UI.ErrorState
+        title={translate("machines.error.title" as never)}
+        description={translate("machines.error.description" as never)}
+        action={
+          <UI.Button
+            variant="secondary"
+            onClick={() => void access.refetch()}
+          >
+            {translate("machines.retry" as never)}
+          </UI.Button>
+        }
+      />,
+    );
+  }
+  if (!isAdmin) {
+    return frame(
+      <UI.EmptyState
+        title={translate("machines.wizard.adminOnly.title" as never)}
+        description={translate("machines.empty.adminOnly" as never)}
+        action={
+          <UI.Button variant="secondary" onClick={toList}>
+            {translate("machines.wizard.toList" as never)}
+          </UI.Button>
+        }
+        variant="firstUse"
+      />,
     );
   }
 

@@ -93,7 +93,11 @@ export function FinishingSetup(
           </UI.AlertBanner>
         )
         : null}
-      <UI.Stack gap="none" role="list">
+      <UI.Stack
+        gap="none"
+        role="list"
+        aria-label={translate("machines.finishing.title" as never)}
+      >
         {rows.map(({ row, state }) => (
           <div
             key={row.enrollmentId}

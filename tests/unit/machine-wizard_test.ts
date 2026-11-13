@@ -151,7 +151,12 @@ Deno.test("an existing enrollment's agent is read back from its capabilities", (
 Deno.test("the install step counts whole minutes left and reads the enrollment's state against the clock", () => {
   const now = Date.parse("2026-01-01T00:00:00.000Z");
   assertEquals(minutesLeft("2026-01-01T00:30:00.000Z", now), 30);
+  // A page that showed the code a moment late still reads the whole ten minutes,
+  // and one that is nearly out never reads zero while it still works.
+  assertEquals(minutesLeft("2026-01-01T00:10:00.200Z", now), 10);
+  assertEquals(minutesLeft("2026-01-01T00:09:59.000Z", now), 10);
   assertEquals(minutesLeft("2026-01-01T00:00:01.000Z", now), 1);
+  assertEquals(minutesLeft("2026-01-01T00:00:00.000Z", now), 0);
   assertEquals(minutesLeft("2025-12-31T23:00:00.000Z", now), 0);
   assertEquals(minutesLeft("not a date", now), 0);
   const live = "2026-01-01T00:30:00.000Z";
