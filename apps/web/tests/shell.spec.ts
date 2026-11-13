@@ -7,6 +7,7 @@ import {
   revealShellNavigation,
 } from "./helpers/shell-navigation.ts";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
+import { shot } from "./helpers/real-api.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { firstRender } from "./helpers/first-render.ts";
 
@@ -566,10 +567,7 @@ test.describe("settings routes and navigation", () => {
     const sheet = page.locator(".bakery-section-navigation__mobile");
     await expect(sheet.locator(".bakery-section-navigation__heading"))
       .toHaveText(["Your account", "Organization"]);
-    await shot(page, "settings-navigation-sheet", [], {
-      windowOnly: true,
-      only: "mobile",
-    });
+    await shot(page, "settings-navigation-sheet");
     // Headings are not controls, and every link is reachable and not truncated.
     await expect(
       sheet.locator(
