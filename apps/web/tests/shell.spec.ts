@@ -6,7 +6,10 @@ import {
   openAccountMenu,
   revealShellNavigation,
 } from "./helpers/shell-navigation.ts";
-import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
+import {
+  MOCK_ORGANIZATION_ID,
+  mockAuthenticatedSession,
+} from "./helpers/mock-session.ts";
 import { shot } from "./helpers/real-api.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { firstRender } from "./helpers/first-render.ts";
@@ -519,6 +522,41 @@ test.describe("settings routes and navigation", () => {
     });
   }
 
+  /** The person's role in the organization, which decides whether the Organization group shows. */
+  async function stubRole(page: Page, role: "admin" | "developer") {
+    await page.route(
+      `**/v1/organizations/${MOCK_ORGANIZATION_ID}/effective-access`,
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            organizationId: MOCK_ORGANIZATION_ID,
+            role,
+            capabilities: [],
+          }),
+        }),
+    );
+  }
+
+  test("a member without administrator rights does not see the Organization group", async ({ page }) => {
+    await mockAuthenticatedSession(page);
+    await stubRole(page, "developer");
+    await page.setViewportSize({ width: 1280, height: 960 });
+    await page.goto("/settings/sessions");
+    await expect(page.getByText("This device")).toBeVisible();
+    const navigation = page.getByRole("navigation", {
+      name: "Settings sections",
+    }).first();
+    await expect(navigation.getByRole("list", { name: "Your account" }))
+      .toBeVisible();
+    await expect(navigation.getByRole("list", { name: "Organization" }))
+      .toHaveCount(0);
+    await expect(navigation.getByRole("link", { name: "Members & access" }))
+      .toHaveCount(0);
+    await shot(page, "settings-navigation-member");
+  });
+
   test("a sub-page keeps its section selected and names itself in the breadcrumb, with no back link", async ({ page }) => {
     await mockAuthenticatedSession(page);
     await page.setViewportSize({ width: 1280, height: 960 });
@@ -544,18 +582,39 @@ test.describe("settings routes and navigation", () => {
 
   test("every settings page opens with one title style and one typeface", async ({ page }) => {
     await mockAuthenticatedSession(page);
+    await stubRole(page, "admin");
+    // Your access reads the organization's name.
+    await page.route(
+      `**/v1/organizations/${MOCK_ORGANIZATION_ID}`,
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            id: MOCK_ORGANIZATION_ID,
+            name: "Fixture Org",
+            slug: "fixture-org",
+            logo: null,
+            defaultLocale: null,
+            metadata: {},
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+            version: 1,
+          }),
+        }),
+    );
     await page.route("**/v1/me/profile", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
           principalId: "00000000-0000-4000-8000-000000000001",
-          name: "Mark Tripoli",
-          firstName: "Mark",
-          lastName: "Tripoli",
+          name: "Alex Morgan",
+          firstName: "Alex",
+          lastName: "Morgan",
           title: null,
           image: null,
-          email: "me@marktripoli.com",
+          email: "alex.morgan@example.com",
           emailVerified: true,
           version: 3,
           updatedAt: "2026-01-02T00:00:00.000Z",
@@ -569,6 +628,7 @@ test.describe("settings routes and navigation", () => {
         "/settings/sessions",
         "/settings/clients",
         "/settings/appearance",
+        "/settings/access",
       ]
     ) {
       await page.goto(path);
@@ -592,6 +652,7 @@ test.describe("settings routes and navigation", () => {
 
   test("lists the sections under two labelled groups, with the connected-clients item and without Machines", async ({ page }) => {
     await mockAuthenticatedSession(page);
+    await stubRole(page, "admin");
     await page.setViewportSize({ width: 1280, height: 960 });
     await page.goto("/settings/sessions");
     await expect(page.getByText("This device")).toBeVisible();

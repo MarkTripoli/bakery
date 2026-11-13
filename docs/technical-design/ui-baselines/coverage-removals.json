@@ -4,7 +4,7 @@
     {
       "kind": "section-route",
       "identity": "apps/web/src/shell/ProductionSettingsNavigation.tsx|machines|/machines|",
-      "baseSha": "2fde2606f1f367c6fc0f3d4c3be3639080317c8d",
+      "baseSha": "e414a831b879c8b18cd2f6aec02b5e1ee93af2ad",
       "rationale": "Machines is a top-level item in the main rail; design-ux's settings navigation design (#232) removes the duplicate entry so settings lists only settings.",
       "retired": true
     }
