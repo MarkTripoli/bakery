@@ -110,7 +110,14 @@ async function expectSourceError(
 Deno.test("real loopback HTTP proves strong ETag, mutation, validation, and bounds", async () => {
   const fixture = await startRemoteSkillSourceFixture();
   try {
+    // Every ordinary fetch gets a generous deadline: a loaded host can take
+    // longer than 100 ms to answer, which is a timeout this test does not mean.
+    // Only the one fetch that is meant to time out gets the short one.
     const adapter = createSkillSourceAdapterForTest({
+      allowInsecureLoopback: true,
+      timeoutMs: 5_000,
+    });
+    const impatient = createSkillSourceAdapterForTest({
       allowInsecureLoopback: true,
       timeoutMs: 100,
     });
@@ -164,7 +171,7 @@ Deno.test("real loopback HTTP proves strong ETag, mutation, validation, and boun
     );
     await expectSourceError(
       () =>
-        adapter.fetchPinnedSource({
+        impatient.fetchPinnedSource({
           sourceType: "url",
           locator: fixture.timeoutArchiveUrl,
           requestedRevision: fixture.etag,

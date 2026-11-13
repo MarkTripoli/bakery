@@ -359,6 +359,12 @@ const ALLOWED: Record<string, string> = {
 // Files that name `.codex` as a path inside a home directory they invent. Each
 // says why that is not the operator's.
 const MAY_NAME_PATH: Record<string, string> = {
+  "tests/helpers/isolated-lane-home.ts":
+    "asserts that no .codex exists in the isolated lane HOME; it only checks for absence and reads nothing from it",
+  "tests/rails/lane-home-isolation_test.ts":
+    "plants .codex/auth.json in a temporary sentinel home to prove the real lane runner starts the lane without it",
+  "tests/unit/lane-isolated-environment_test.ts":
+    "plants .codex/auth.json in a temporary sentinel home to prove a child in the isolated lane environment cannot see it",
   "tests/provider/harness-credential-isolation_test.ts":
     "plants .codex/auth.json in a temporary home it builds, to prove the harness never copies it",
   "tests/unit/worker-codex-harness-config_test.ts":
@@ -370,6 +376,12 @@ const MAY_NAME_PATH: Record<string, string> = {
 // Files that mention the two login variables without reading the operator's
 // environment for them. Each says what it does with them.
 const MAY_NAME_VARIABLES: Record<string, string> = {
+  "tests/helpers/isolated-lane-home.ts":
+    "asserts CODEX_HOME and BAKERY_CODEX_AUTH_SOURCE_DIR are unset in the lane; it never reads a login through them",
+  "tests/rails/lane-home-isolation_test.ts":
+    "sets CODEX_HOME and BAKERY_CODEX_AUTH_SOURCE_DIR to a temporary sentinel home in the environment it gives the lane runner, to prove the lane drops them",
+  "tests/unit/lane-isolated-environment_test.ts":
+    "puts CODEX_HOME and BAKERY_CODEX_AUTH_SOURCE_DIR into a sentinel environment and asserts the isolated environment omits them",
   "tests/e2e/implement-independent-review-and-bounded-repair-loops.child.ts":
     "sets BAKERY_CODEX_AUTH_SOURCE_DIR to ${scratch}/codex-auth, a directory it creates",
   "tests/e2e/run-deterministic-checks-bound-to-candidate-and-metadata.child.ts":
@@ -400,8 +412,11 @@ const MAY_READ_ENVIRONMENT: Record<string, string> = {
     "the stack helpers it imports pass HOME to the processes they start, but it sets BAKERY_CODEX_AUTH_SOURCE_DIR to ${scratch}/codex-auth, a directory it creates",
 };
 
-// Files that run the Codex CLI themselves. None does today.
-const MAY_RUN_CLI: Record<string, string> = {};
+// Files that run the Codex CLI themselves, or that the pattern takes for it.
+const MAY_RUN_CLI: Record<string, string> = {
+  "tests/unit/lane-isolated-environment_test.ts":
+    "spawns node and git, never a codex binary, in a sentinel environment; the pattern matches because the file also names the sentinel's .codex",
+};
 
 const ALLOW_BY_REASON: Record<Reason, Record<string, string>> = {
   path: MAY_NAME_PATH,
