@@ -81,10 +81,10 @@ const SectionsStory: StoryObj = {
         <>
           <IconGlyph name="plan" />
           <Text>Plan</Text>
-          <Text variant="hint">Revision 2</Text>
+          <Text variant="hint">Plan, version 2</Text>
         </>
       }
-      footer={<Button>Approve revision 2</Button>}
+      footer={<Button>Approve plan, version 2</Button>}
     >
       <PaneSection ruled title="Participants (2)">
         <Text>Priya Raman (you)</Text>

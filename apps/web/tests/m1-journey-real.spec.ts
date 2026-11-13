@@ -617,7 +617,7 @@ test("P2 repository, profile and agents through the API; onboarding in the UI", 
     "P2 composer check",
     "Not submitted.",
   );
-  await expect(page.getByText("Setup required before this preset can run"))
+  await expect(page.getByText("This workflow cannot start here yet"))
     .toHaveCount(0);
   await axeClean(page, "/tasks/new");
   await shot(shots(), page, "P2-composer-ready-desktop");
@@ -803,8 +803,8 @@ test("P4 plan: a real coordinator turn, a question, a revision and a refused sta
   await expect(page.getByText("Recorded answer")).toBeVisible();
   remember("questionId", answered.id ?? "unreadable");
 
-  // Plan revision 1 with an open approval.
-  await expect(plan).toContainText("Revision 1", { timeout: 8 * MINUTE });
+  // Plan, version 1 with an open approval.
+  await expect(plan).toContainText("Plan, version 1", { timeout: 8 * MINUTE });
   expect(await plan.getByRole("listitem").count()).toBeGreaterThan(0);
   await expect(approve(page, 1)).toBeEnabled();
   await shot(shots(), page, "P4-plan-revision-1-desktop");
@@ -828,7 +828,7 @@ test("P4 plan: a real coordinator turn, a question, a revision and a refused sta
     M1_CHANGE_REQUEST,
   );
   await page.getByRole("button", { name: "Send change request" }).click();
-  await expect(plan).toContainText("Revision 2", { timeout: 8 * MINUTE });
+  await expect(plan).toContainText("Plan, version 2", { timeout: 8 * MINUTE });
   await expect(approve(page, 2)).toBeEnabled();
   await shot(shots(), page, "P4-plan-revision-2-desktop");
   const revisions = await revisionsOf(api, j.taskId);
@@ -844,7 +844,7 @@ test("P4 plan: a real coordinator turn, a question, a revision and a refused sta
   await approve(stale, 1).click();
   await expect(stale.getByText("Nothing was decided")).toBeVisible();
   await blocked.restore();
-  await expect(stale.getByText("Revision 1 is obsolete")).toBeVisible({
+  await expect(stale.getByText("Plan, version 1 is obsolete")).toBeVisible({
     timeout: 30_000,
   });
   await expect(approve(stale, 2)).toBeVisible();
@@ -864,7 +864,7 @@ test("P4 plan: a real coordinator turn, a question, a revision and a refused sta
     j.organizationId,
     `/tasks/${j.taskId}`,
     "P4-plan",
-    (other) => expect(planRegion(other)).toContainText("Revision 2"),
+    (other) => expect(planRegion(other)).toContainText("Plan, version 2"),
   );
   // The coordinator ran on the pinned model. A coordinator turn has no output
   // stream and no usage record, so the worker's result stored on the turn's
@@ -917,7 +917,7 @@ test("P5 wait and restart: browser, server and engine restart with the approval 
   const first = await open(browser, { video: "P5" });
   const { context, page, api } = first;
   await page.goto(`/tasks/${j.taskId}`);
-  await expect(planRegion(page)).toContainText("Revision 2", {
+  await expect(planRegion(page)).toContainText("Plan, version 2", {
     timeout: 30_000,
   });
   const before = {
@@ -951,7 +951,7 @@ test("P5 wait and restart: browser, server and engine restart with the approval 
   const againApi = new M1Api(again.request, webOrigin(), j.organizationId);
   await again.goto(`/tasks/${j.taskId}`);
   await expect(conversationRegion(again)).toBeVisible({ timeout: 60_000 });
-  await expect(planRegion(again)).toContainText("Revision 2");
+  await expect(planRegion(again)).toContainText("Plan, version 2");
   await expect(approve(again, 2)).toBeEnabled();
   await expect(again.getByRole("log").getByText("keep this change tiny"))
     .toBeVisible();
@@ -1058,7 +1058,7 @@ test("P6 approve and run: revision 2 by keyboard, one run on the enrolled host",
   // The start form reads the approval id from its own query; its hint goes
   // away once that read has caught up with the decision.
   await expect(page.getByText(
-    "This task waits for an approved plan revision. The run starts from the revision you approve.",
+    "This task waits for an approved plan. The run starts from the plan you approve.",
   )).toHaveCount(0);
   await fundedStep("P6 executor run");
   // A double click on Start run admits one run, not two.
@@ -1439,7 +1439,7 @@ test("P9 changes, cancel and recover: revision 3, a cancelled run, a run queued 
     "Ask agent",
     "The run finished. Please revise the plan so the comment also names the fallback value.",
   );
-  await expect(planRegion(page)).toContainText("Revision 3", {
+  await expect(planRegion(page)).toContainText("Plan, version 3", {
     timeout: 8 * MINUTE,
   });
   await expect(approve(page, 3)).toBeEnabled();
@@ -1671,7 +1671,7 @@ test("P10 negatives: reject, expiry, stale and duplicate approvals never execute
   };
   await page.reload();
   await expect(approve(page, 1)).toHaveCount(0);
-  await expect(page.getByText("No approval request is open for this revision."))
+  await expect(page.getByText("No approval request is open for this version."))
     .toBeVisible();
   await shot(shots(), page, "P10-open-approval-expired-desktop");
 
@@ -1681,7 +1681,7 @@ test("P10 negatives: reject, expiry, stale and duplicate approvals never execute
     "Ask agent",
     "The approval expired. Please propose the plan again.",
   );
-  await expect(planRegion(page)).toContainText("Revision 2", {
+  await expect(planRegion(page)).toContainText("Plan, version 2", {
     timeout: 8 * MINUTE,
   });
   await expect(approve(page, 2)).toBeEnabled();

@@ -33,7 +33,7 @@ const props: RunOutputPageProps = {
     <RunIdentity
       title="Execution identity"
       worker="atlas-01"
-      attempt="Attempt 2"
+      attempt="Try 2"
       lease="Lease active"
       detail="Codex · trusted worker record"
       unknownLabel="Unknown"
@@ -54,7 +54,7 @@ const props: RunOutputPageProps = {
   ),
   revision: (
     <RevisionSummary
-      title="Repository revision"
+      title="Changes"
       baseRevision="8ac02e1"
       candidateRevision="5d138ac"
       summary="3 files · +84 −12"

@@ -663,7 +663,7 @@ test("revision preview verifies the exact immutable version bytes", async ({ pag
     });
   });
   await expect(
-    page.getByText("Revision evidence unavailable.", { exact: true }),
+    page.getByText("The changes could not be loaded.", { exact: true }),
   ).toBeVisible();
   await expect(page.locator('[data-ui-component="codeBlock"]')).toHaveCount(0);
   await expect(page.getByText("1 files · +1 −1", { exact: true })).toHaveCount(
@@ -692,7 +692,7 @@ for (
       outcome: { reasonCode: "lease_lost" },
       status: "lost",
       leaseState: "lost",
-      title: "Worker lease lost",
+      title: "Task taken back",
     },
     {
       name: "cancel pending",
@@ -763,7 +763,7 @@ for (
       page.getByRole("heading", { name: scenario.title, exact: true }),
     ).toBeVisible();
     await expect(page.getByText("atlas-01", { exact: true })).toBeVisible();
-    await expect(page.getByText("Attempt 2", { exact: true })).toBeVisible();
+    await expect(page.getByText("Try 2", { exact: true })).toBeVisible();
     await expect(page.getByText("Provider usage: unknown", { exact: true }))
       .toBeVisible();
     await expect(
@@ -803,19 +803,19 @@ test("three timed-out attempts end on the timeout heading with the history kept"
   ).toBeVisible();
   await expect(
     page.getByRole("region", { name: "Execution identity" }).getByText(
-      "Attempt 3",
+      "Try 3",
       { exact: true },
     ),
   ).toBeVisible();
   await expect(page.getByText("atlas-01", { exact: true })).toBeVisible();
   await expect(
-    page.getByRole("combobox", { name: "Execution attempt", exact: true })
+    page.getByRole("combobox", { name: "Try", exact: true })
       .locator("option"),
   ).toHaveText([
-    "Current attempt",
-    "Attempt 3",
-    "Attempt 2",
-    "Attempt 1",
+    "Current try",
+    "Try 3",
+    "Try 2",
+    "Try 1",
   ]);
 });
 
@@ -1166,7 +1166,7 @@ test("current attempt selection returns from historical pages", async ({ page })
   await page.locator("button:enabled").filter({ hasText: /^Next$/ }).click();
   await expect(page.getByText("historical-worker", { exact: true }))
     .toBeVisible();
-  await page.getByRole("combobox", { name: "Execution attempt", exact: true })
+  await page.getByRole("combobox", { name: "Try", exact: true })
     .selectOption("");
   await expect(page.getByText("atlas-01", { exact: true })).toBeVisible();
   await expect(page.getByText("historical-worker", { exact: true }))
@@ -1311,7 +1311,7 @@ test("a run without an admission pin shows the workspace base it started from", 
   await page.goto(`/tasks/${id}`);
   const revision = page.locator('[data-ui-component="revisionSummary"]').filter(
     {
-      hasText: "Repository revision",
+      hasText: "Changes",
     },
   );
   await expect(revision).toContainText("ddddddd");
@@ -1371,11 +1371,11 @@ test("a retried job's output names the attempt that wrote each line", async ({ p
   const position = (text: string) =>
     rows.findIndex((row) => row.includes(text));
   expect(rows).toHaveLength(5);
-  expect(rows[0]).toContain("Attempt 1");
-  expect(rows[0]).toContain("Output from this attempt starts here.");
+  expect(rows[0]).toContain("Try 1");
+  expect(rows[0]).toContain("Output from this try starts here.");
   expect(position("first attempt line one")).toBe(1);
   expect(position("first attempt line two")).toBe(2);
-  expect(rows[3]).toContain("Attempt 2");
+  expect(rows[3]).toContain("Try 2");
   expect(position("second attempt line")).toBe(4);
   // The downloaded text is the committed bytes: no marker enters it.
   const download = page.waitForEvent("download");
@@ -1387,7 +1387,7 @@ test("a retried job's output names the attempt that wrote each line", async ({ p
   const text = Buffer.concat(chunks).toString("utf8");
   expect(text).toContain("first attempt line one");
   expect(text).toContain("second attempt line");
-  expect(text).not.toContain("Output from this attempt starts here.");
+  expect(text).not.toContain("Output from this try starts here.");
 });
 
 test("a stream written by one attempt shows no attempt marker", async ({ page }) => {
@@ -1405,7 +1405,7 @@ test("a stream written by one attempt shows no attempt marker", async ({ page })
   await page.goto(`/tasks/${id}`);
   await expect(page.getByText("only line two", { exact: true })).toBeVisible();
   expect(await logRows(page)).toHaveLength(2);
-  await expect(page.getByText("Output from this attempt starts here."))
+  await expect(page.getByText("Output from this try starts here."))
     .toHaveCount(0);
 });
 
@@ -1458,9 +1458,9 @@ test("a retry that began after the list loaded reloads the list once and names i
   await expect(page.getByText("line from attempt three", { exact: true }))
     .toBeVisible();
   await expect.poll(async () => (await logRows(page)).join("|"))
-    .toContain("Attempt 3");
+    .toContain("Try 3");
   const rows = await logRows(page);
-  expect(rows.filter((row) => row.includes("Unlisted attempt")))
+  expect(rows.filter((row) => row.includes("Unlisted try")))
     .toHaveLength(0);
   expect(rows).toHaveLength(6);
   expect(listReads).toBe(2);

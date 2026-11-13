@@ -351,7 +351,7 @@ async function pauseResume(page, input) {
   });
   await expect(control(page, "Request pause")).toBeVisible({ timeout: 90_000 });
   const REASON = {
-    no_active_attempt: "No active attempt can receive this request.",
+    no_active_attempt: "Nothing is running that this can be sent to.",
     already_terminal: "This run is already terminal.",
     authority_unavailable: "Request authority is unavailable.",
     unsupported: "This worker's adapter does not support this control.",
@@ -386,7 +386,7 @@ async function pauseResume(page, input) {
     ?.canRequest;
   let paused = false;
   let resumed = false;
-  const receipt = page.getByRole("status", { name: "Control request receipt" });
+  const receipt = page.getByRole("status", { name: "Request sent" });
   // Admission is not a worker effect: the receipt says admitted, and the run
   // state shown must equal whatever the server reads back.
   const settle = async () => {

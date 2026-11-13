@@ -11,7 +11,7 @@ export const Contract: StoryObj = {
   render: () => (
     <Stack>
       <RevisionSummary
-        title="Repository revision"
+        title="Changes"
         baseRevision="8ac02e1"
         candidateRevision="5d138ac"
         summary="3 files · +84 −12"
@@ -20,7 +20,7 @@ export const Contract: StoryObj = {
         diffLink={{ href: "#diff", label: "View diff" }}
       />
       <RevisionSummary
-        title="Repository revision unavailable"
+        title="Changes unavailable"
         baseRevision={null}
         candidateRevision={null}
         summary={null}

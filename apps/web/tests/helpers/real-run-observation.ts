@@ -525,7 +525,7 @@ const OUTCOME_HEADING: Record<string, RegExp> = {
   failed: /Execution failed/,
   timeout: /Run timed out/,
   quota: /Provider quota exceeded/,
-  "lost-lease": /Worker lease lost/,
+  "lost-lease": /Task taken back/,
   canceled: /Run canceled/,
 };
 
@@ -670,7 +670,7 @@ export async function assertCompleted(
   }
   const identity = page.locator('[data-ui-component="runIdentity"]');
   await expect(identity).toContainText(worker.name);
-  await expect(identity).toContainText("Attempt 1");
+  await expect(identity).toContainText("Try 1");
   await expect(identity).toContainText("trusted worker record");
 
   // Completion copy: no review or merge decision implied.

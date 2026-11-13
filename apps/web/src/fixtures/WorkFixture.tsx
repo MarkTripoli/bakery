@@ -132,7 +132,7 @@ const detail: WorkQueueInspectorDetail = {
     },
     {
       id: "plan",
-      title: "Plan revision 3 published",
+      title: "Plan, version 3 published",
       time: "10:29",
       description: "2 comments",
     },

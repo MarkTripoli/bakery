@@ -26,7 +26,7 @@ const queue = (rows: { id: string; title: string; stage: string }[]) => (
       task: "Task",
       application: "Application",
       stage: "Stage",
-      harness: "Harness",
+      harness: "Coding agent",
       age: "Age",
     }}
     groups={[{

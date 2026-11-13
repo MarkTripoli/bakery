@@ -70,7 +70,7 @@ async function shot(page: Page, name: string) {
 const message = (page: Page) =>
   page.getByRole("textbox", { name: "Message this task" });
 const approve = (page: Page, n: number) =>
-  page.getByRole("button", { name: `Approve revision ${n}`, exact: true });
+  page.getByRole("button", { name: `Approve plan, version ${n}`, exact: true });
 
 async function say(page: Page, intent: "Discuss" | "Ask agent", body: string) {
   await page.getByLabel(intent, { exact: true }).check({ force: true });
@@ -132,14 +132,14 @@ async function planned(browser: Browser) {
   return { context, page, task };
 }
 
-/** Approve revision 1 and start the run; returns the admitted run id. */
+/** Approve plan, version 1 and start the run; returns the admitted run id. */
 async function started(page: Page, task: Task): Promise<string> {
   await approve(page, 1).click();
   await expect(page.getByText("You approved revision 1")).toBeVisible();
   // The start form reads the approval id from its own query; its hint goes
   // away once that read has caught up with the decision.
   await expect(page.getByText(
-    "This task waits for an approved plan revision. The run starts from the revision you approve.",
+    "This task waits for an approved plan. The run starts from the plan you approve.",
   )).toHaveCount(0);
   await page.getByRole("button", { name: "Start run" }).click();
   await expect.poll(
@@ -162,7 +162,7 @@ const reasonOf = async (page: Page, runId: string, action: string) =>
 const controlButton = (page: Page, name: string) =>
   page.getByRole("button", { name, exact: true });
 const receipt = (page: Page) =>
-  page.getByRole("status", { name: "Control request receipt" });
+  page.getByRole("status", { name: "Request sent" });
 
 test.afterAll(() => {
   for (const file of placed) rmSync(file, { force: true });
@@ -196,7 +196,7 @@ test("a requested change on the current revision keeps the gated run from starti
   await expect(approve(page, 1)).toHaveCount(0);
 
   await expect(page.getByText(
-    "This task waits for an approved plan revision. The run starts from the revision you approve.",
+    "This task waits for an approved plan. The run starts from the plan you approve.",
   )).toBeVisible();
   await page.getByRole("button", { name: "Start run" }).click();
   await expect(page.getByText("The server did not admit the run."))
@@ -249,7 +249,7 @@ test("a requested change on the current revision keeps the gated run from starti
   // The gate survives a reload: still no run and the same copy.
   await page.reload();
   await expect(page.getByText(
-    "This task waits for an approved plan revision. The run starts from the revision you approve.",
+    "This task waits for an approved plan. The run starts from the plan you approve.",
   )).toBeVisible();
   expect(
     (await api<{ items: unknown[] }>(page, `/v1/tasks/${task.id}/runs`)).items,
@@ -267,7 +267,7 @@ test("cancel ends an admitted run that no worker has claimed", async ({ browser 
   });
   await expect(controlButton(page, "Request pause")).toBeDisabled();
   await expect(
-    page.getByText("No active attempt can receive this request.")
+    page.getByText("Nothing is running that this can be sent to.")
       .first(),
   ).toBeVisible();
   await shot(page, "cancel-before");

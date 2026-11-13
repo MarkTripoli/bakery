@@ -89,7 +89,7 @@ const send = (page: Page) =>
   page.getByRole("button", { name: "Send", exact: true });
 const log = (page: Page) => page.getByRole("log");
 const approve = (page: Page, n: number) =>
-  page.getByRole("button", { name: `Approve revision ${n}`, exact: true });
+  page.getByRole("button", { name: `Approve plan, version ${n}`, exact: true });
 const planningOnly = (page: Page) =>
   page.getByRole("switch", { name: "Planning only" });
 
@@ -341,8 +341,8 @@ test(
     // ---- the plan appears for both; the teammate decides explicitly --------
     const planA = a.locator('[data-ui-region="plan-revision"]');
     const planB = b.locator('[data-ui-region="plan-revision"]');
-    await expect(planA).toContainText("Revision 1", { timeout: 60_000 });
-    await expect(planB).toContainText("Revision 1", { timeout: 30_000 });
+    await expect(planA).toContainText("Plan, version 1", { timeout: 60_000 });
+    await expect(planB).toContainText("Plan, version 1", { timeout: 30_000 });
     await expect(approve(a, 1)).toBeEnabled();
     await expect(approve(b, 1)).toBeEnabled();
 
