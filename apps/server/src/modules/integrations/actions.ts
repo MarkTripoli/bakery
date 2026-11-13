@@ -765,6 +765,8 @@ export function createIntegrationsActionRegistry(
     output: contractSchemas.IntegrationConnection,
     policy: adminEdit,
     explicitIdempotency: "key-and-if-match",
+    // The removed connection is returned; nothing is created.
+    successStatus: 200,
     handler: removeConnection,
   }).register({
     name: IntegrationsImplementedAction.IntegrationResourcesUpdate,

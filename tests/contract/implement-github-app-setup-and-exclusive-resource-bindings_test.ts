@@ -40,6 +40,7 @@ const implementedIntegrationActions = [
   "integrationConnections.list",
   "integrationResources.list",
   "integrationConnections.update",
+  "integrationConnections.remove",
   "integrationResources.update",
   "integrationConnections.check",
   "integrationDiscoveries.create",
