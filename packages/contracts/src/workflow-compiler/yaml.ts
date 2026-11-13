@@ -1,10 +1,11 @@
 import {
+  Composer,
   Document,
   isAlias,
   isMap,
   isScalar,
   isSeq,
-  parseAllDocuments,
+  Parser,
   Scalar,
   visit,
 } from "yaml";
@@ -39,7 +40,22 @@ import { WORKFLOW_COMPILER_LIMITS } from "./limits.ts";
 
 const encoder = new TextEncoder();
 
-const CORE_TAG_HANDLE = "tag:yaml.org,2002:";
+/**
+ * What YAML 1.2 does not list as printable (`c-printable`): C0 controls other
+ * than tab, line feed and carriage return, DEL, the C1 controls other than
+ * NEL, U+FFFE and U+FFFF, and a surrogate that is not half of a pair. The JSON
+ * decoder refuses a raw control character in a string; this refuses them in
+ * the text before it is parsed, so no parser decides what they mean.
+ */
+const hex = (code: number) => `\\u${code.toString(16).padStart(4, "0")}`;
+const NON_PRINTABLE = new RegExp(
+  `[${
+    [[0x00, 0x08], [0x0b, 0x0c], [0x0e, 0x1f], [0x7f, 0x84], [0x86, 0x9f], [
+      0xfffe,
+      0xffff,
+    ]].map(([from, to]) => `${hex(from!)}-${hex(to!)}`).join("")
+  }]|[\\ud800-\\udbff](?![\\udc00-\\udfff])|(?<![\\ud800-\\udbff])[\\udc00-\\udfff]`,
+);
 const PARSE_OPTIONS = Object.freeze(
   {
     version: "1.2",
@@ -65,14 +81,6 @@ function failed(
 ): WorkflowJsonResult {
   collector.add(path, code);
   return { ok: false, diagnostics: collector.list() };
-}
-
-function directiveFound(document: Document.Parsed): boolean {
-  const { yaml, tags } = document.directives;
-  if (yaml.explicit) return true;
-  const handles = Object.keys(tags);
-  return handles.length !== 1 || handles[0] !== "!!" ||
-    tags["!!"] !== CORE_TAG_HANDLE;
 }
 
 type PathNode = {
@@ -194,6 +202,9 @@ export function decodeWorkflowYaml(
   if (textBytes(text) > WORKFLOW_COMPILER_LIMITS.bytes) {
     return failed(collector, "", "definition_too_large");
   }
+  if (NON_PRINTABLE.test(text)) {
+    return failed(collector, "", "yaml_syntax_invalid");
+  }
   try {
     return decodeParsed(text, options, collector);
   } catch (error) {
@@ -214,7 +225,21 @@ function decodeParsed(
   options: SnapshotOptions,
   collector: DiagnosticCollector,
 ): WorkflowJsonResult {
-  const documents = parseAllDocuments(text, PARSE_OPTIONS) as Document.Parsed[];
+  // The parse `parseAllDocuments` makes, with one addition: a directive of any
+  // kind (`%YAML`, `%TAG`, an unknown one, even one that restates a default) is
+  // seen in the token stream, where the document no longer says it was there.
+  let directive = false;
+  const tokens = new Parser().parse(text);
+  const watched = (function* () {
+    for (const token of tokens) {
+      if (token.type === "directive") directive = true;
+      yield token;
+    }
+  })();
+  const documents = Array.from(
+    new Composer(PARSE_OPTIONS).compose(watched),
+  ) as Document.Parsed[];
+  if (directive) return failed(collector, "", "yaml_tag_forbidden");
   if (documents.length > 1) {
     return failed(collector, "", "yaml_multiple_documents");
   }
@@ -223,21 +248,11 @@ function decodeParsed(
   if (document === undefined || document.errors.length > 0) {
     return failed(collector, "", "yaml_syntax_invalid");
   }
-  if (directiveFound(document)) {
-    return failed(collector, "", "yaml_tag_forbidden");
-  }
   if (!inspect(document, collector)) {
     return { ok: false, diagnostics: collector.list() };
   }
-  const warning = document.warnings[0];
-  if (warning !== undefined) {
-    return failed(
-      collector,
-      "",
-      warning.code === "TAG_RESOLVE_FAILED" || warning.code === "BAD_DIRECTIVE"
-        ? "yaml_tag_forbidden"
-        : "yaml_syntax_invalid",
-    );
+  if (document.warnings.length > 0) {
+    return failed(collector, "", "yaml_syntax_invalid");
   }
   return snapshotWorkflowValue(
     document.toJS({ maxAliasCount: 0 }),
@@ -256,6 +271,21 @@ export type WorkflowYamlEncodeResult =
 // Words a YAML 1.1 reader turns into booleans, null or a merge, and the 1.2
 // core schema leaves as strings. Quoted on export so any reader agrees.
 const YAML_1_1_WORD = /^(y|n|yes|no|on|off|true|false|null|~|<<)$/i;
+
+// A string the plain and block styles cannot carry through a round trip: a
+// byte order mark (read as one, not as data, at the start of a document) or a
+// character the importer refuses raw. It is double quoted, and every such
+// character is written as an escape.
+const NEEDS_ESCAPES = new RegExp(`${NON_PRINTABLE.source}|\\uFEFF`);
+const ESCAPED_EACH = new RegExp(`${NON_PRINTABLE.source}|\\uFEFF`, "g");
+
+function escapeUnit(unit: string): string {
+  return `\\u${unit.charCodeAt(0).toString(16).padStart(4, "0")}`;
+}
+
+function escaped(text: string): string {
+  return text.replace(ESCAPED_EACH, escapeUnit);
+}
 
 // A fresh tree: nothing is shared, so the stringifier never needs an anchor.
 function sortedTree(value: WorkflowJsonValue): unknown {
@@ -280,22 +310,30 @@ function sortedTree(value: WorkflowJsonValue): unknown {
 export function encodeWorkflowYaml(value: unknown): WorkflowYamlEncodeResult {
   const snapshot = snapshotWorkflowValue(value);
   if (!snapshot.ok) return snapshot;
+  const json = escaped(canonicalJson(snapshot.value));
+  // A definition's root is an object. Anything else (a bare string, which block
+  // YAML writes as a block scalar that does not always read back, a number, a
+  // list) is exported as its canonical JSON.
+  if (!isPlainObject(snapshot.value)) return { ok: true, text: json };
   const document = new Document(sortedTree(snapshot.value), {
     version: "1.2",
     schema: "core",
   });
   visit(document, {
     Scalar(_key, node) {
-      if (typeof node.value === "string" && YAML_1_1_WORD.test(node.value)) {
+      if (typeof node.value !== "string") return;
+      if (YAML_1_1_WORD.test(node.value) || NEEDS_ESCAPES.test(node.value)) {
         node.type = Scalar.QUOTE_DOUBLE;
       }
     },
   });
-  const text = document.toString({ lineWidth: 0 });
+  const text = escaped(document.toString({ lineWidth: 0 }));
   return {
     ok: true,
-    text: textBytes(text) <= WORKFLOW_COMPILER_LIMITS.bytes
-      ? text
-      : canonicalJson(snapshot.value),
+    text: textBytes(text) <= WORKFLOW_COMPILER_LIMITS.bytes ? text : json,
   };
+}
+
+function isPlainObject(value: WorkflowJsonValue): boolean {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }

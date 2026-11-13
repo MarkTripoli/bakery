@@ -88,6 +88,8 @@ Deno.test("every explicit tag and every directive is refused, standard or not", 
       "%YAML 1.1\n---\na: yes\n",
       "%TAG !e! tag:evil.example,2002:\n---\na: 1\n",
       "%TAG !! tag:evil.example,2002:\n---\na: 1\n",
+      "%TAG !! tag:yaml.org,2002:\n---\na: 1\n",
+      "%TAG !e! tag:yaml.org,2002:\n---\na: 1\n",
       "%YAML 1.2\n---\na: 1\n",
       "%FOO bar\n---\na: 1\n",
       "!!str a: 1\n",
@@ -398,6 +400,15 @@ const AWKWARD_STRINGS = [
   "bom\ufeffinside",
   "line\u2028separator",
   "para\u2029separator",
+  "\ufeffa",
+  "\ufeff",
+  "x\ufeffy",
+  "del\x7fhere",
+  "c1\x80\x84\x86\x9fend",
+  "nonchar\ufffe\uffffend",
+  "  indented\nline",
+  " x\n y",
+  "\tx\ny",
   "lone\ud800high",
   "lone\udc00low",
   "next\u0085line",
@@ -559,3 +570,120 @@ Deno.test("export refuses a value past the definition ceiling, as import would",
     "definition_too_large",
   ]);
 });
+
+Deno.test("a byte order mark inside a key or value is data: it round-trips to the same digest", () => {
+  for (const value of [{ "\ufeffa": 1 }, { "\ufeff": 1 }, { k: "\ufeffx" }]) {
+    const exported = encodeWorkflowYaml(value);
+    assert(exported.ok);
+    assert(!exported.text.includes("\ufeff"), "written as an escape");
+    const imported = decodeWorkflowYaml(exported.text);
+    assert(imported.ok, exported.text);
+    assertEquals(canonicalJson(imported.value), canonicalJson(value));
+  }
+});
+
+Deno.test("a byte order mark at the very start of the text is the stream's, and is ignored", () => {
+  assertEquals(accepted("\ufeffa: 1\n"), { a: 1 });
+});
+
+Deno.test("a definition whose root is not an object exports as its canonical JSON, which imports", () => {
+  for (
+    const root of [
+      "  indented\nline",
+      " x\n y",
+      "plain",
+      "",
+      7,
+      -0.5,
+      true,
+      null,
+      [],
+      ["a", { b: [1, "  c\nd"] }],
+    ]
+  ) {
+    const exported = encodeWorkflowYaml(root);
+    assert(exported.ok);
+    assertEquals(exported.text, canonicalJson(root));
+    const imported = decodeWorkflowYaml(exported.text);
+    assert(imported.ok, exported.text);
+    assertEquals(canonicalJson(imported.value), canonicalJson(root));
+  }
+});
+
+Deno.test("the byte ceiling counts bytes, not UTF-16 units", () => {
+  const text = "#" + "\u20ac".repeat(33_400) + "\na: 1"; // 100,206 bytes, 33,406 units
+  const result = decodeWorkflowYaml(text);
+  assert(!result.ok);
+  assertEquals(result.diagnostics[0]?.code, "definition_too_large");
+});
+
+Deno.test("a character YAML 1.2 does not list as printable is refused raw, wherever it stands", () => {
+  const raw = [
+    "\u0000",
+    "\u0001",
+    "\u0008",
+    "\u000b",
+    "\u000c",
+    "\u001f",
+    "\u007f",
+    "\u0080",
+    "\u0084",
+    "\u0086",
+    "\u009f",
+    "\ufffe",
+    "\uffff",
+    "\ud800",
+    "\udc00",
+    "\ud83dx",
+    "x\ude00",
+  ];
+  for (const char of raw) {
+    for (
+      const text of [
+        `a: ${char}\n`,
+        `a: "${char}"\n`,
+        `a: 'x${char}y'\n`,
+        `# ${char}\na: 1\n`,
+        `${char}a: 1\n`,
+        `a: |\n  ${char}\n`,
+      ]
+    ) {
+      assertEquals(
+        codesOf(text),
+        ["yaml_syntax_invalid"],
+        JSON.stringify(text),
+      );
+    }
+  }
+  // Tab, line feed, carriage return, NEL, a surrogate pair and the BOM are text.
+  assertEquals(accepted('a: "x\ty"\r\nb: 2\r\n'), { a: "x\ty", b: 2 });
+  assertEquals(accepted('a: "\u0085\ud83d\ude00\ufeff"\n'), {
+    a: "\u0085\ud83d\ude00\ufeff",
+  });
+  // The same characters as escapes are data the JSON decoder would take.
+  assertEquals(accepted('a: "\\u0000\\x7f"\n'), { a: "\u0000\u007f" });
+});
+
+Deno.test("an exported string with a character the importer refuses raw is written as an escape and imports", () => {
+  const value = {
+    k: "a\u0000b\u007f\u0085\u0090\ufffe\uffff\ud800",
+    "\u007f": 1,
+  };
+  const exported = encodeWorkflowYaml(value);
+  assert(exported.ok);
+  assert(!hasRawSpecial(exported.text), exported.text);
+  const imported = decodeWorkflowYaml(exported.text);
+  assert(imported.ok, exported.text);
+  assertEquals(canonicalJson(imported.value), canonicalJson(value));
+});
+
+/** True when the text holds a BOM, a raw non-printable or half a surrogate pair. */
+function hasRawSpecial(text: string): boolean {
+  return [...text].some((char) => {
+    const code = char.codePointAt(0)!;
+    return code < 0x20 && code !== 0x09 && code !== 0x0a && code !== 0x0d ||
+      code >= 0x7f && code <= 0x84 || code >= 0x86 && code <= 0x9f ||
+      code === 0xfffe || code === 0xffff || code === 0xfeff ||
+      code >= 0xd800 && code <= 0xdfff;
+  });
+}
