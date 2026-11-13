@@ -3369,6 +3369,35 @@ Deno.test("an Admin removes a connection: it ends revoked, its repositories are 
     assertEquals(stale.status, 412, await stale.clone().text());
     assertEquals((await connectionState(f, connectionId)).status, "pending");
 
+    // An Admin of another organization cannot see it to remove it, and
+    // nothing of it changes: status, secret reference and selections.
+    const before = await f.pgDatabase.query<
+      { status: string; secret_id: string | null; version: number }
+    >(
+      `select status, secret_id, version from bakery.integration_connections
+        where id = $1`,
+      [connectionId],
+    );
+    const otherOrganization = await secondOrganization(f);
+    const foreign = await removeConnection(f, connectionId, {
+      organizationId: otherOrganization,
+    });
+    assertEquals(foreign.status, 404, await foreign.clone().text());
+    assert((await foreign.text()).includes("RESOURCE_NOT_FOUND"));
+    const after = await f.pgDatabase.query<
+      { status: string; secret_id: string | null; version: number }
+    >(
+      `select status, secret_id, version from bakery.integration_connections
+        where id = $1`,
+      [connectionId],
+    );
+    assertEquals(after.rows[0], before.rows[0]);
+    assertEquals(
+      (await connectionState(f, connectionId)).resources
+        .filter((row) => row.selected).map((row) => row.id),
+      [target.id],
+    );
+
     const removed = await removeConnection(f, connectionId);
     assertEquals(removed.status, 200, await removed.clone().text());
     const connection = await removed.json();

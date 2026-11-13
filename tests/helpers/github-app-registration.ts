@@ -726,7 +726,11 @@ export async function patchConnection(
 export async function removeConnection(
   fixture: InstallationFixture,
   connectionId: string,
-  options: { cookie?: string; ifMatch?: string | null } = {},
+  options: {
+    cookie?: string;
+    ifMatch?: string | null;
+    organizationId?: string;
+  } = {},
 ): Promise<Response> {
   const ifMatch = options.ifMatch === undefined
     ? versionTag(await connectionVersion(fixture, connectionId))
@@ -739,7 +743,8 @@ export async function removeConnection(
     {
       body: {},
       headers: {
-        "Bakery-Organization-Id": fixture.organizationId,
+        "Bakery-Organization-Id": options.organizationId ??
+          fixture.organizationId,
         ...(ifMatch === null ? {} : { "If-Match": ifMatch }),
         "Idempotency-Key": crypto.randomUUID(),
       },
