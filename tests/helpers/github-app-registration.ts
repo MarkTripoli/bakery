@@ -719,6 +719,39 @@ export async function patchConnection(
   );
 }
 
+/**
+ * POSTs integrationConnections.remove (#68), with patchConnection's header
+ * defaults: If-Match is the stored version unless given, null omits it.
+ */
+export async function removeConnection(
+  fixture: InstallationFixture,
+  connectionId: string,
+  options: {
+    cookie?: string;
+    ifMatch?: string | null;
+    organizationId?: string;
+  } = {},
+): Promise<Response> {
+  const ifMatch = options.ifMatch === undefined
+    ? versionTag(await connectionVersion(fixture, connectionId))
+    : options.ifMatch;
+  return await call(
+    fixture,
+    "POST",
+    `${connectionsPath}/${connectionId}/removal`,
+    options.cookie ?? fixture.adminCookie,
+    {
+      body: {},
+      headers: {
+        "Bakery-Organization-Id": options.organizationId ??
+          fixture.organizationId,
+        ...(ifMatch === null ? {} : { "If-Match": ifMatch }),
+        "Idempotency-Key": crypto.randomUUID(),
+      },
+    },
+  );
+}
+
 /** PATCHes integrationResources.update, with the same header defaults. */
 export async function patchResource(
   fixture: InstallationFixture,
