@@ -134,7 +134,7 @@ test.describe("machines list layout", () => {
       for (const item of WORKERS) {
         const row = machines.locator(`[data-machine-id="${item.id}"]`);
         await expect(row).toContainText(item.name);
-        const button = row.getByRole("button");
+        const button = row.getByRole("link");
         await expect(button).toHaveCount(1);
         const box = await button.boundingBox();
         expect(box?.height ?? 999).toBeGreaterThanOrEqual(44);
@@ -144,12 +144,12 @@ test.describe("machines list layout", () => {
       const first = rows.first();
       await expect(first).toContainText("macOS · Claude Code, Codex · 1 slot");
       await expect(first).toContainText("Ready");
-      await expect(first.getByRole("button", { name: `Open ${LONG_NAME}` }))
+      await expect(first.getByRole("link", { name: `Open ${LONG_NAME}` }))
         .toBeVisible();
       const second = rows.nth(1);
       await expect(second).toContainText("Needs attention");
       await expect(
-        second.getByRole("button", { name: "Fix linux-builder-x86-02" }),
+        second.getByRole("link", { name: "Fix linux-builder-x86-02" }),
       )
         .toBeVisible();
       for (const word of ["Connectivity", "Last heartbeat", "Readiness"]) {
@@ -162,7 +162,7 @@ test.describe("machines list layout", () => {
       }));
       expect(overflow.scroll).toBeLessThanOrEqual(overflow.client);
 
-      await machines.getByRole("button", { name: `Open ${LONG_NAME}` }).click();
+      await machines.getByRole("link", { name: `Open ${LONG_NAME}` }).click();
       await expect(page).toHaveURL(new RegExp(`/machines/${WORKERS[0]!.id}$`));
     },
   );
@@ -175,10 +175,10 @@ test.describe("machines list layout", () => {
     await expect(table).toBeVisible();
     await expect(page.locator('[data-ui-component="stackedRow"]'))
       .toHaveCount(0);
-    await expect(table.getByRole("button", { name: `Open ${LONG_NAME}` }))
+    await expect(table.getByRole("link", { name: `Open ${LONG_NAME}` }))
       .toBeVisible();
     await expect(
-      table.getByRole("button", { name: "Fix linux-builder-x86-02" }),
+      table.getByRole("link", { name: "Fix linux-builder-x86-02" }),
     ).toBeVisible();
     // Three columns: the machine and its line, one badge, one button.
     await expect(table.getByRole("columnheader")).toHaveText([

@@ -148,9 +148,9 @@ test.describe("machines list states", () => {
       const row = rowOf(page, name);
       await expect(row, name).toContainText(badge);
       await expect(row, name).toContainText(line);
-      await expect(row.getByRole("button"), name).toHaveCount(1);
+      await expect(row.getByRole("link"), name).toHaveCount(1);
       await expect(
-        row.getByRole("button", { name: `${action} ${name}` }),
+        row.getByRole("link", { name: `${action} ${name}` }),
         name,
       ).toBeVisible();
       // One badge on the row, not three.

@@ -49,6 +49,11 @@ function MachineBadge(
   );
 }
 
+/**
+ * The row's one control. It goes to the machine's page, so it is a link given
+ * a button's frame, not a button: inside a table the stylesheet flattens every
+ * `button` to one neutral look, which would hide which row has a fix to make.
+ */
 function RowAction(
   { row, onOpen, translate }: {
     row: MachineRow;
@@ -58,16 +63,20 @@ function RowAction(
 ) {
   const fix = machineRowAction(row) === "fix";
   return (
-    <UI.Button
-      variant={fix ? "primary" : "secondary"}
+    <UI.Link
+      href={`/machines/${row.id}`}
+      variant={fix ? "primaryButton" : "button"}
       aria-label={translate(
         (fix ? "machines.row.fixNamed" : "machines.row.openNamed") as never,
         { name: row.name },
       )}
-      onClick={() => onOpen(row)}
+      onClick={(event) => {
+        event.preventDefault();
+        onOpen(row);
+      }}
     >
       {translate((fix ? "machines.row.fix" : "machines.row.open") as never)}
-    </UI.Button>
+    </UI.Link>
   );
 }
 
