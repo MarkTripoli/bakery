@@ -6,11 +6,13 @@ import {
   assertSecretIdentityRepositoryAdmission,
   executionJobInputFitsTransport,
   loadExecutableRepositoryProfile,
+  planDispatchFromRow,
   repositoryExecutionRequirements,
 } from "@bakery/persistence/repository-admission";
 import { StandardError } from "@bakery/contracts/http";
 import { workerActionOutputCarriesSession } from "@bakery/contracts/contracts";
 import {
+  appendAudit,
   appendDomainEvent,
   assertActionAgentPolicy,
   assertActionInput,
@@ -21,6 +23,7 @@ import {
   workflowActionCapabilities,
 } from "@bakery/persistence";
 import { type Inngest, NonRetriableError } from "inngest";
+import { WorkflowInterpreterError } from "@bakery/contracts/workflow-interpreter";
 import { canonicalJson } from "../../platform/canonical-json.ts";
 import { reconcileCoordinationForTerminalTask } from "../work/coordination-projection.ts";
 import {
@@ -35,6 +38,13 @@ import {
 } from "./invocation-contract.ts";
 import type { AuthoritativeState } from "./resume-decision.ts";
 import { runFixedWorkflow } from "./fixed-workflow.ts";
+import {
+  nextPlanStep,
+  planInputsFromSnapshot,
+  planRuntimeFromSnapshot,
+  PlanStateError,
+  planTaskFromSnapshot,
+} from "./plan-state.ts";
 const terminalStatuses: Record<string, true> = {
   completed: true,
   failed: true,
@@ -121,6 +131,8 @@ type LogicalRow = {
   stepStatus: string;
   stepOutput: unknown;
   stepError: unknown;
+  /** What the engine decided for a compiled-plan step; null for a flat run's. */
+  stepDispatch: unknown;
   jobId: string | null;
   action: string | null;
   jobStatus: string | null;
@@ -169,6 +181,7 @@ type AdmissionStepRow = Pick<
   | "stepStatus"
   | "stepOutput"
   | "stepError"
+  | "stepDispatch"
   | "jobId"
   | "jobStatus"
   | "cancelRequestedAt"
@@ -373,6 +386,7 @@ async function loadLogical(
             step.id as "runStepId", step.step_key as "stepKey",
             step.iteration, step.status as "stepStatus",
             step.output as "stepOutput", step.error as "stepError",
+            step.dispatch as "stepDispatch",
             job.id as "jobId", job.action,
             job.status as "jobStatus",
             job.cancel_requested_at as "cancelRequestedAt",
@@ -646,16 +660,23 @@ function requireOwnerValue(owner: EngineOwner | undefined): EngineOwner {
   return owner;
 }
 
+type RunEndRow = RunEndContext & {
+  runSnapshot: unknown;
+  runStatus: string;
+  requestedBy: string;
+  workflowVersionId: string;
+};
+
 /** The run, its task and its original trace, locked, with the snapshot to classify it. */
 async function loadRunEndContext(
   transaction: PgTransactionClient,
   runId: string,
-): Promise<RunEndContext & { runSnapshot: unknown }> {
-  const result = await transaction.query<
-    RunEndContext & { runSnapshot: unknown }
-  >(
+): Promise<RunEndRow | undefined> {
+  const result = await transaction.query<RunEndRow>(
     `select run.organization_id as "organizationId", run.id as "runId",
-            run.snapshot as "runSnapshot",
+            run.snapshot as "runSnapshot", run.status as "runStatus",
+            run.requested_by as "requestedBy",
+            run.workflow_version_id as "workflowVersionId",
             task.id as "taskId", task.application_id as "applicationId",
             task.repository_id as "repositoryId",
             task.conversation_id as "conversationId",
@@ -676,9 +697,181 @@ async function loadRunEndContext(
         for update of run, task`,
     [runId],
   );
-  const row = result.rows[0];
-  if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  return row;
+  return result.rows[0];
+}
+
+/**
+ * Ends a plan run as failed for a reason that belongs to no step (the plan
+ * cannot be read, or asks for something this engine does not run yet). The run
+ * has no reason column, so the stable code goes to the audit log, which an
+ * operator can read, next to the run it names.
+ */
+async function endPlanRunFailed(
+  transaction: PgTransactionClient,
+  context: RunEndRow,
+  owner: EngineOwner | undefined,
+  code: string,
+): Promise<void> {
+  await finishPlanRunIn(transaction, context, "failed", owner, code);
+}
+
+/**
+ * The one place a compiled-plan run ends, inside a caller's transaction:
+ * `finishPlanRun`, the engine's finished and halted answers, an unreadable
+ * plan and an engine failure all come through here, so the closed outcome
+ * set, the plan-run requirement and the shared run-end statements are
+ * enforced once. A failure that belongs to no step passes its stable `code`,
+ * which goes to the audit log because the run has no reason column.
+ */
+async function finishPlanRunIn(
+  transaction: PgTransactionClient,
+  context: RunEndRow,
+  outcome: PlanRunOutcome,
+  owner: EngineOwner | undefined,
+  code?: string,
+): Promise<void> {
+  if (typeof outcome !== "string" || !Object.hasOwn(RUN_END_STATUS, outcome)) {
+    throw new Error("WORKFLOW_PLAN_OUTCOME_INVALID");
+  }
+  if (!carriesPlanRuntime(context.runSnapshot)) {
+    throw new Error("WORKFLOW_PLAN_RUN_REQUIRED");
+  }
+  await projectRunEnd(
+    transaction,
+    context,
+    outcome,
+    owner,
+    "WORKFLOW_PLAN_PROJECTION_CONFLICT",
+  );
+  if (code === undefined) return;
+  await appendAudit(transaction, {
+    organizationId: context.organizationId,
+    principalId: context.requestedBy,
+    operation: "workflow.plan_failed",
+    resourceType: "workflow_run",
+    resourceId: context.runId,
+    requestId: `plan-run:${context.runId}`,
+    traceId: originalTraceId(context),
+    outcome: "failed",
+    details: { code },
+  });
+}
+
+/**
+ * Asks a plan run's own interpreter revision what to do next, from the frozen
+ * document, inputs and task and the stored step rows. Throws the adapter's or
+ * the interpreter's stable error when the plan cannot be read.
+ */
+async function askPlan(
+  transaction: PgTransactionClient,
+  run: Pick<RunEndRow, "organizationId" | "runId" | "runSnapshot">,
+) {
+  const runtime = await planRuntimeFromSnapshot(run.runSnapshot);
+  if (runtime === null) throw new PlanStateError("plan_snapshot_invalid");
+  const rows = await transaction.query<
+    { stepKey: string; iteration: number; status: string; output: unknown }
+  >(
+    `select step_key as "stepKey", iteration, status, output
+       from bakery.run_steps
+      where organization_id = $1 and run_id = $2
+      order by position, id`,
+    [run.organizationId, run.runId],
+  );
+  return nextPlanStep(runtime, {
+    inputs: planInputsFromSnapshot(run.runSnapshot),
+    task: planTaskFromSnapshot(run.runSnapshot),
+    rows: rows.rows,
+  });
+}
+
+/**
+ * What the engine does next for a compiled-plan run, or `null` for a flat run,
+ * which keeps the row-order loop. The run's own interpreter revision answers
+ * from the frozen document and the stored rows: a dispatch gets its step row
+ * appended on demand (idempotent, so a replay finds the same row) and the key
+ * goes to the engine; finished or halted ends the run; anything else the plan
+ * asks for, or a plan that cannot be read, ends it failed with a stable code.
+ */
+async function findNextPlanKey(
+  transaction: PgTransactionClient,
+  runId: string,
+  owner: EngineOwner | undefined,
+): Promise<LogicalInvocationKey | undefined | null> {
+  // A flat run is served by the row-order loop and must not queue behind a lock
+  // on its run or task row, which only deciding a plan run needs. A run's
+  // snapshot never changes after admission, so a plain read says which kind it
+  // is; only a plan run is then read again, locked.
+  const kind = await transaction.query<{ runtime: boolean }>(
+    `select snapshot ? 'runtime' as runtime
+       from bakery.workflow_runs where id = $1`,
+    [runId],
+  );
+  if (kind.rows[0]?.runtime !== true) return null;
+  const context = await loadRunEndContext(transaction, runId);
+  if (!context || !carriesPlanRuntime(context.runSnapshot)) return null;
+  if (context.runStatus !== "queued" && context.runStatus !== "running") {
+    return undefined;
+  }
+  const activeOwner = requireOwnerValue(owner);
+  let answer;
+  try {
+    answer = await askPlan(transaction, context);
+  } catch (error) {
+    if (
+      error instanceof PlanStateError ||
+      error instanceof WorkflowInterpreterError
+    ) {
+      await endPlanRunFailed(transaction, context, activeOwner, error.code);
+      return undefined;
+    }
+    throw error;
+  }
+  if (answer.kind === "finished") {
+    await finishPlanRunIn(transaction, context, "completed", activeOwner);
+    return undefined;
+  }
+  if (answer.kind === "halted") {
+    await finishPlanRunIn(
+      transaction,
+      context,
+      answer.outcome === "canceled" ? "canceled" : "failed",
+      activeOwner,
+    );
+    return undefined;
+  }
+  if (answer.step.kind === "wait") {
+    await endPlanRunFailed(
+      transaction,
+      context,
+      activeOwner,
+      "plan_wait_unsupported",
+    );
+    return undefined;
+  }
+  await transaction.query(
+    `insert into bakery.run_steps (
+       organization_id, run_id, step_key, position, iteration, status, input,
+       dispatch
+     )
+     select $1, $2, $3, coalesce(max(position), 0) + 1, 0, 'pending', $4::jsonb,
+            $5::jsonb
+       from bakery.run_steps
+      where organization_id = $1 and run_id = $2
+     on conflict (run_id, step_key, iteration) do nothing`,
+    [
+      context.organizationId,
+      context.runId,
+      answer.step.key,
+      JSON.stringify(answer.step.input),
+      JSON.stringify(answer.step),
+    ],
+  );
+  return {
+    runId: context.runId,
+    stepKey: answer.step.key,
+    iteration: 0,
+    actionVersion: context.workflowVersionId,
+  };
 }
 
 async function projectFailure(
@@ -1058,6 +1251,8 @@ export function createBakeryPostgresWorkflowRepository(options: {
     async findNext(runId, owner) {
       return await withPgTransaction(options.database, async (transaction) => {
         await requireEngineOwner(transaction, runId, owner);
+        const planKey = await findNextPlanKey(transaction, runId, owner);
+        if (planKey !== null) return planKey;
         return await loadNext(transaction, runId);
       });
     },
@@ -1219,6 +1414,12 @@ export function createBakeryPostgresWorkflowRepository(options: {
         ) {
           return { key, terminal: true };
         }
+        // A compiled-plan step carries the dispatch the engine recorded with
+        // its row; actionAndInputFromSnapshot reads it, and the step's own
+        // declared attempts become the job's.
+        const planDispatch = carriesPlanRuntime(row.runSnapshot)
+          ? planDispatchFromRow(row.stepDispatch)
+          : null;
         const {
           action,
           input: resolvedInput,
@@ -1322,7 +1523,9 @@ export function createBakeryPostgresWorkflowRepository(options: {
             row.runStepId,
             action,
             JSON.stringify(input ?? {}),
-            action === "secret.identity.read" ? 1 : options.maxAttempts,
+            action === "secret.identity.read"
+              ? 1
+              : planDispatch?.retry.maxAttempts ?? options.maxAttempts,
             row.runApplicationId,
             row.runRepositoryId,
             row.runRepositoryProfileId,
@@ -1467,22 +1670,16 @@ export function createBakeryPostgresWorkflowRepository(options: {
       });
     },
     async finishPlanRun(runId, outcome, owner) {
-      if (!Object.hasOwn(RUN_END_STATUS, outcome)) {
+      if (
+        typeof outcome !== "string" || !Object.hasOwn(RUN_END_STATUS, outcome)
+      ) {
         throw new Error("WORKFLOW_PLAN_OUTCOME_INVALID");
       }
       await withPgTransaction(options.database, async (transaction) => {
         const context = await loadRunEndContext(transaction, runId);
+        if (!context) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
         await requireEngineOwner(transaction, runId, requireOwnerValue(owner));
-        if (!carriesPlanRuntime(context.runSnapshot)) {
-          throw new Error("WORKFLOW_PLAN_RUN_REQUIRED");
-        }
-        await projectRunEnd(
-          transaction,
-          context,
-          outcome,
-          owner,
-          "WORKFLOW_PLAN_PROJECTION_CONFLICT",
-        );
+        await finishPlanRunIn(transaction, context, outcome, owner);
       });
     },
     async markEngineFailure(runId, reason, ownerReference) {
@@ -1498,15 +1695,8 @@ export function createBakeryPostgresWorkflowRepository(options: {
         } else if (ownerReference) {
           ownerToken = ownerReference;
         }
-        const key = await loadNext(transaction, runId);
-        if (!key) return;
-        await lockExistingJob(transaction, key);
-        const row = await loadLogical(
-          transaction,
-          key,
-          true,
-        ) as AdmissionStepRow;
-        if (ownerToken) {
+        const ownerFromToken = async (): Promise<EngineOwner | undefined> => {
+          if (!ownerToken) return owner;
           const result = await transaction.query<{ generation: string }>(
             `select engine_owner_generation as generation
                from bakery.workflow_runs
@@ -1516,13 +1706,42 @@ export function createBakeryPostgresWorkflowRepository(options: {
                 and status not in ('completed', 'failed', 'canceled', 'blocked')`,
             [runId, ownerToken],
           );
-          if (!result.rows[0]) return;
-          owner = {
+          if (!result.rows[0]) return undefined;
+          return {
             runId,
             token: ownerToken,
             generation: result.rows[0].generation,
             leaseMs: MIN_ENGINE_OWNER_LEASE_MS,
           };
+        };
+        const key = await loadNext(transaction, runId);
+        if (!key) {
+          // A compiled-plan run has no open row between steps, and an engine
+          // failure there still has to end the run, not leave it running.
+          const context = await loadRunEndContext(transaction, runId);
+          if (
+            !context || !carriesPlanRuntime(context.runSnapshot) ||
+            (context.runStatus !== "queued" && context.runStatus !== "running")
+          ) return;
+          const planOwner = await ownerFromToken();
+          if (ownerToken && !planOwner) return;
+          await endPlanRunFailed(
+            transaction,
+            context,
+            planOwner,
+            failureProjection(reason).code,
+          );
+          return;
+        }
+        await lockExistingJob(transaction, key);
+        const row = await loadLogical(
+          transaction,
+          key,
+          true,
+        ) as AdmissionStepRow;
+        if (ownerToken) {
+          owner = await ownerFromToken();
+          if (!owner) return;
         }
         await projectFailure(transaction, row, reason, owner);
       });

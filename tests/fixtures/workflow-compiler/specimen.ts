@@ -1,5 +1,4 @@
-import { isAlias, isScalar, parseAllDocuments, visit } from "yaml";
-import { isExactNumberText } from "../../../packages/contracts/src/workflow-compiler/mod.ts";
+import { decodeWorkflowYaml } from "../../../packages/contracts/src/workflow-compiler/mod.ts";
 
 const DOC = new URL(
   "../../../docs/technical-design/06-workflows-delivery-and-acceptance.md",
@@ -7,49 +6,18 @@ const DOC = new URL(
 );
 
 /**
- * Strict YAML 1.2 profile: one document, unique keys, no aliases, custom
- * tags, merge keys or inexact numbers. Throws on any violation.
+ * The production strict YAML 1.2 profile (one document, unique keys, no
+ * aliases, tags, directives, merge keys or inexact numbers). Throws on any
+ * violation, naming the diagnostic code.
  */
 export function strictYaml(text: string): unknown {
-  const documents = parseAllDocuments(text, {
-    version: "1.2",
-    schema: "core",
-    uniqueKeys: true,
-    merge: false,
-    keepSourceTokens: true,
-  });
-  if (documents.length !== 1) throw new Error("multiple YAML documents");
-  const [document] = documents;
-  if (!document) throw new Error("empty YAML");
-  if (document.errors.length > 0) throw new Error("YAML errors");
-  if (document.warnings.length > 0) throw new Error("YAML warnings");
-  visit(document, {
-    Alias() {
-      throw new Error("YAML alias rejected");
-    },
-    Node(_key, node) {
-      const tag = (node as { tag?: string }).tag;
-      if (tag && !tag.startsWith("tag:yaml.org,2002:")) {
-        throw new Error("YAML custom tag rejected");
-      }
-    },
-    Pair(_key, pair) {
-      if (isScalar(pair.key) && pair.key.value === "<<") {
-        throw new Error("YAML merge key rejected");
-      }
-    },
-    Scalar(_key, node) {
-      if (typeof node.value === "number") {
-        const source = (node as unknown as { srcToken?: { source?: string } })
-          .srcToken?.source;
-        if (!isExactNumberText(source ?? String(node.value))) {
-          throw new Error("YAML number is not exact");
-        }
-      }
-    },
-  });
-  if (isAlias(document.contents)) throw new Error("YAML alias rejected");
-  return document.toJS();
+  const result = decodeWorkflowYaml(text);
+  if (!result.ok) {
+    throw new Error(
+      `strict YAML refused: ${result.diagnostics.map((d) => d.code).join(",")}`,
+    );
+  }
+  return result.value;
 }
 
 /** First fenced yaml block after the "## Workflow DSL" heading of doc 06. */

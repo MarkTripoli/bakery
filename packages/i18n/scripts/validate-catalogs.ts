@@ -28,6 +28,7 @@ const namespacePrefixes = [
   "features.",
   "access.",
   "machines.",
+  "repository.rules.",
 ] as const;
 
 /**
@@ -50,6 +51,7 @@ const pseudoExpansionPrefixes = [
   "access.",
   "shell.navigation.machines",
   "machines.",
+  "repository.rules.",
 ] as const;
 
 function argumentNames(message: string): string[] {

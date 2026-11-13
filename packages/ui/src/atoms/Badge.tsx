@@ -6,8 +6,12 @@ export type BadgeProps =
   & SemanticNativeProps<HTMLAttributes<HTMLSpanElement>>
   & {
     children: ReactNode;
-    /** `success` tints the pill with the success surface, e.g. "Current". */
-    tone?: "neutral" | "success";
+    /**
+     * `success` tints the plate with the success surface, e.g. "Current";
+     * `warning` and `danger` do the same with the warning and destructive
+     * pairs, for what needs care or blocks something. The text still says so.
+     */
+    tone?: "neutral" | "success" | "warning" | "danger";
   };
 
 /**
@@ -19,7 +23,7 @@ export type BadgeProps =
 export function Badge({ children, tone = "neutral", ...props }: BadgeProps) {
   return (
     <span
-      className={["ui-badge", tone === "success" ? "ui-badge--success" : ""]
+      className={["ui-badge", tone === "neutral" ? "" : `ui-badge--${tone}`]
         .filter(Boolean)
         .join(" ")}
       {...props}

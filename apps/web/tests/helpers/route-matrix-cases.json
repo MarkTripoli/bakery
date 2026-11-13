@@ -52,6 +52,10 @@
     "path": "/projects/onboarding"
   },
   {
+    "id": "repository-rules",
+    "path": "/projects/repositories/$repositoryId/rules"
+  },
+  {
     "id": "sign-in",
     "path": "/sign-in"
   },

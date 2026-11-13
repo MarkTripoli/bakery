@@ -37,6 +37,14 @@ Run the gallery browser checks when revising shared UI. Every catalog entry must
 have a real rendered specimen, and its screenshot is a baseline for iteration
 rather than proof that every product screen is complete.
 
+CI runner placement (#330): every lane a pull request runs, the aggregate and
+the description policy run on GitHub-hosted `ubuntu-24.04` runners (the
+repository is public), so a pull request never waits for the three self-hosted
+runners. Only the post-merge heavy lanes stay self-hosted: the `amd` lanes and
+the Postgres, cgroup and browser lanes. A new lane that a pull request runs
+goes on a hosted runner; `tests/unit/wire-backend-test-lanes-ci-and-fail-closed-evidence_test.ts`
+fails otherwise. A main push does not cancel the push before it.
+
 The pull request route can skip the Paper parity lanes, so a change to a story,
 a catalog entry or `docs/technical-design/ui-baselines/runtime-cases.json` runs
 them locally before merge, as `.github/workflows/ci.yml` does, after
@@ -48,8 +56,14 @@ them locally before merge, as `.github/workflows/ci.yml` does, after
   `paper:site:check -- --site artifacts`, `render:paper:worker-dark -- --check`,
   then `capture:<site> -- --all --web-base-url <URL>` and
   `compare:paper -- --manifest <site> --cycle 1` for `artifacts`, `enterprise`
-  and `worker-dark`. The worker-dark digest covers `runtime-cases.json`, so
-  `render:paper:worker-dark -- --write` regenerates it after a runtime case edit.
+  and `worker-dark`. The worker-dark digest covers only the one runtime context
+  its renderer reads (`worker-dark-mocks/runtime-context.json`, derived from
+  `runtime-cases.json`), so a new runtime case needs no repin; editing the
+  `paper-detail-light-phone` context does, and
+  `render:paper:worker-dark -- --write` regenerates the file and the digest.
+  `capture:worker-dark` still needs exactly one registered runtime case for
+  the worker detail story (same args, dark, coarse); a second case matching
+  those fails the capture, not the digest.
 - `ui / paper parity entitlements`:
   `node packages/ui/scripts/paper-jsx-to-html.mjs --site entitlements --check`,
   then `capture:<site> -- --all --web-base-url <URL>` and

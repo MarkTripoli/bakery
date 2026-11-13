@@ -613,12 +613,24 @@ export function actionAndInputFromSnapshot(row: {
   stepKey: string;
   stepOutputs: unknown;
   repositoryId: string | null;
+  /** The dispatch recorded with a compiled-plan run's step row; null for a flat run's. */
+  stepDispatch?: unknown;
 }): {
   action: string;
   input: unknown;
   agent: FrozenStepAgent | null;
   requiredCapabilities: readonly string[];
 } {
+  if (
+    row.runSnapshot !== null && typeof row.runSnapshot === "object" &&
+    !Array.isArray(row.runSnapshot) &&
+    Object.hasOwn(row.runSnapshot, "runtime")
+  ) {
+    return actionAndInputFromPlanDispatch({
+      snapshot: row.runSnapshot,
+      dispatch: planDispatchFromRow(row.stepDispatch),
+    });
+  }
   const snapshot = row.runSnapshot !== null &&
       typeof row.runSnapshot === "object" &&
       !Array.isArray(row.runSnapshot)
@@ -706,6 +718,126 @@ export function actionAndInputFromSnapshot(row: {
     ),
     agent,
     requiredCapabilities,
+  };
+}
+
+/**
+ * The frozen agent a compiled plan's step runs as. A plan names agents by
+ * version id; admission freezes each one it references into `planAgents`,
+ * keyed by that id, so a later edit of an agent cannot change an old run.
+ * A step with no agent has none; a named agent that was not frozen, or whose
+ * frozen record names another version, is refused.
+ */
+function planAgentFromSnapshot(
+  snapshot: JsonRecord,
+  agentVersionId: string | undefined,
+): FrozenStepAgent | null {
+  const value = snapshot.planAgents;
+  const agents = new Map<string, FrozenStepAgent>();
+  if (value !== undefined) {
+    if (
+      value === null || typeof value !== "object" || Array.isArray(value) ||
+      Object.keys(value).length > 100
+    ) throw new Error("FROZEN_STEP_AGENTS_INVALID");
+    for (const [key, agent] of Object.entries(value)) {
+      const parsed = parseFrozenStepAgent(agent);
+      if (parsed.agentVersionId !== key) {
+        throw new Error("FROZEN_STEP_AGENT_INVALID");
+      }
+      agents.set(key, parsed);
+    }
+  }
+  if (agentVersionId === undefined) return null;
+  const frozen = agents.get(agentVersionId);
+  if (!frozen) throw new Error("FROZEN_STEP_AGENT_MISSING");
+  return frozen;
+}
+
+/** The dispatch the engine recorded for a plan step, as much as a job is built from. */
+export type PlanDispatch = Readonly<{
+  action: string;
+  input: unknown;
+  requires: readonly string[];
+  agentVersionId?: string;
+  retry: Readonly<{ maxAttempts: number }>;
+}>;
+
+/**
+ * Reads the recorded dispatch of a plan step. A plan run's row without one
+ * (or with one that is not a dispatch) is a state conflict, never a guess: the
+ * job must be exactly what the engine decided.
+ */
+export function planDispatchFromRow(value: unknown): PlanDispatch {
+  const invalid = () =>
+    new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "workflow_plan_dispatch_invalid" },
+    });
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw invalid();
+  }
+  const record = value as JsonRecord;
+  const retry = record.retry;
+  if (
+    typeof record.action !== "string" || record.action.length === 0 ||
+    !Object.hasOwn(record, "input") || !Array.isArray(record.requires) ||
+    record.requires.some((entry) => typeof entry !== "string") ||
+    (record.agentVersionId !== undefined &&
+      typeof record.agentVersionId !== "string") ||
+    retry === null || typeof retry !== "object" || Array.isArray(retry) ||
+    !Number.isSafeInteger((retry as JsonRecord).maxAttempts) ||
+    Number((retry as JsonRecord).maxAttempts) < 1
+  ) throw invalid();
+  return {
+    action: record.action,
+    input: record.input,
+    requires: record.requires as string[],
+    ...(record.agentVersionId === undefined
+      ? {}
+      : { agentVersionId: record.agentVersionId as string }),
+    retry: { maxAttempts: Number((retry as JsonRecord).maxAttempts) },
+  };
+}
+
+/**
+ * What a compiled plan's dispatch asks the worker to run, in the shape
+ * `actionAndInputFromSnapshot` gives a flat step: the action, its input (the
+ * interpreter already resolved every reference from the recorded state), the
+ * capabilities it requires and the frozen agent. The dispatch is recomputed
+ * from the frozen document and the stored rows by the caller, so nothing here
+ * is read from a mutable place.
+ */
+export function actionAndInputFromPlanDispatch(options: {
+  snapshot: unknown;
+  dispatch: Readonly<{
+    action: string;
+    input: unknown;
+    requires: readonly string[];
+    agentVersionId?: string;
+  }>;
+}): {
+  action: string;
+  input: unknown;
+  agent: FrozenStepAgent | null;
+  requiredCapabilities: readonly string[];
+} {
+  const { snapshot, dispatch } = options;
+  if (
+    snapshot === null || typeof snapshot !== "object" || Array.isArray(snapshot)
+  ) throw new Error("WORKFLOW_PLAN_SNAPSHOT_INVALID");
+  const record = snapshot as JsonRecord;
+  return {
+    action: dispatch.action,
+    input: withBriefInstructions(
+      dispatch.action,
+      dispatch.input,
+      record.inputs ?? {},
+    ),
+    agent: planAgentFromSnapshot(record, dispatch.agentVersionId),
+    requiredCapabilities: executionActionCapabilities(
+      dispatch.action,
+      dispatch.requires,
+    ),
   };
 }
 
@@ -1278,6 +1410,7 @@ export async function admitRepositoryExecutionJob(
     };
     task_type: string;
     step_key: string;
+    step_dispatch: unknown;
     step_outputs: unknown;
     task_repository_id: string | null;
     action: string;
@@ -1294,7 +1427,8 @@ export async function admitRepositoryExecutionJob(
             job.repository_profile_revision, job.repository_profile_digest,
             job.observation_id, job.observation_digest, job.base_sha,
             run.snapshot, task.task_type, task.repository_id as task_repository_id,
-            step.step_key, coalesce(outputs.step_outputs, '{}'::jsonb) as step_outputs,
+            step.step_key, step.dispatch as step_dispatch,
+            coalesce(outputs.step_outputs, '{}'::jsonb) as step_outputs,
             job.action, job.input, job.requirements, job.agent_version_id,
             job.agent_config, job.skill_refs
        from bakery.jobs job
@@ -1349,6 +1483,7 @@ export async function admitRepositoryExecutionJob(
     const authorized = actionAndInputFromSnapshot({
       runSnapshot: row.snapshot,
       stepKey: row.step_key,
+      stepDispatch: row.step_dispatch,
       stepOutputs: row.step_outputs,
       repositoryId: row.task_repository_id,
     });

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import type {
   ApplicationResponse,
@@ -6,6 +7,7 @@ import type {
   RepositoryResponse,
   RoleBindingResponse,
 } from "../../api/client.ts";
+import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { type ProjectsOnboardingLabels } from "./labels.ts";
 import { readOnlyProfileHistoryRows } from "./identity.ts";
 import { useProfileDate } from "./ProjectsLists.tsx";
@@ -38,9 +40,14 @@ const shortDigest = (digest: string) =>
 export function RepositoryInspector(props: Props) {
   const { application, labels, repository } = props;
   const formatDate = useProfileDate();
+  const { translate } = useI18n();
+  const navigate = useNavigate();
   const heading = repository === null
     ? application.name
     : `${repository.owner}/${repository.name}`;
+  const rulesPath = repository === null
+    ? null
+    : `/projects/repositories/${repository.id}/rules`;
   return (
     <UI.InspectorPanel
       header={
@@ -51,6 +58,26 @@ export function RepositoryInspector(props: Props) {
               ? labels.applications.editHeading
               : labels.repositories.editHeading}
           </UI.Button>
+          {rulesPath
+            ? (
+              // The rules in force for this repository: a page of its own.
+              <UI.Link
+                aria-label={translate("repository.rules.link.named", {
+                  repository: heading,
+                })}
+                href={rulesPath}
+                onClick={(event) => {
+                  event.preventDefault();
+                  void navigate({
+                    to: "/projects/repositories/$repositoryId/rules",
+                    params: { repositoryId: repository?.id ?? "" },
+                  });
+                }}
+              >
+                {translate("repository.rules.link")}
+              </UI.Link>
+            )
+            : null}
         </>
       }
       label={heading}

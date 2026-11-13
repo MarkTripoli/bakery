@@ -53,6 +53,27 @@ Deno.test("the process launcher runs the real worker and produces a draft candid
   });
 });
 
+Deno.test("the CPU backstop never beats a late deadline: a spinning worker still ends with the typed timeout (#305)", async () => {
+  // The parent's deadline arrives 4 s after the work budget, standing in for
+  // a timer delayed on a loaded host. The real launcher's RLIMIT_CPU must
+  // still be above what the spinner can spend by then; at 2x the work budget
+  // (the old --cpu) it killed the worker first, as an untyped WORKER_EXIT_137.
+  const lateDeadlineMs = DRAFT_LIMITS.workerRuntimeMs + 4_000;
+  await withLauncher(
+    { workerPath: fixture("timeout.ts"), totalDeadlineMs: lateDeadlineMs },
+    async (isolation) => {
+      const error = await assertRejects(
+        () => isolation.initialize("x"),
+        DraftIsolationError,
+      );
+      assertEquals(
+        [error.kind, error.message],
+        ["timeout", "WORKER_DEADLINE_EXCEEDED"],
+      );
+    },
+  );
+});
+
 Deno.test("process-launched workers that hang, exhaust memory, trap or flood are killed with a typed error", async () => {
   const cases = [
     ["timeout.ts", "timeout"],
@@ -303,6 +324,62 @@ Deno.test("the default pool is process-wide: shared by instances, sized from DRA
       (await fresh.initialize("after the waves")).text,
       "after the waves",
     );
+  } finally {
+    await hold.cleanup();
+    await real.cleanup();
+  }
+});
+
+Deno.test("one organization saturating draft work cannot starve another (#297)", async () => {
+  // The default, process-wide pool. Organization A asks for the whole pool at
+  // once and gets all but one slot; B's edit still gets that one meanwhile.
+  const hold = await launcherCopy({ workerPath: fixture("timeout.ts") });
+  const real = await launcherCopy({});
+  try {
+    const cap = DRAFT_LIMITS.maxConcurrentWorkers;
+    const admitted = cap - 1;
+    const busy = createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: hold.path,
+    });
+    const worker = createDraftIsolation({
+      launcher: "process",
+      workerLauncherPath: real.path,
+    });
+    const flood = Array.from(
+      { length: cap },
+      () =>
+        busy.initialize("x", undefined, "org-a").then(
+          () => "succeeded",
+          (error) => {
+            assert(error instanceof DraftIsolationError, String(error));
+            return error.message;
+          },
+        ),
+    );
+    // Let A's admitted workers take their slots before B arrives.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const other = await worker.initialize(
+      "org b still works",
+      undefined,
+      "org-b",
+    );
+    assertEquals(other.text, "org b still works");
+    const outcomes = await Promise.all(flood);
+    assertEquals(
+      outcomes.filter((m) => m === "WORKER_ORGANIZATION_SHARE_EXHAUSTED")
+        .length,
+      cap - admitted,
+      JSON.stringify(outcomes),
+    );
+    assertEquals(
+      outcomes.filter((m) => m === "WORKER_DEADLINE_EXCEEDED").length,
+      admitted,
+      JSON.stringify(outcomes),
+    );
+    // Every slot came back: A gets a worker again.
+    const again = await worker.initialize("a again", undefined, "org-a");
+    assertEquals(again.text, "a again");
   } finally {
     await hold.cleanup();
     await real.cleanup();
