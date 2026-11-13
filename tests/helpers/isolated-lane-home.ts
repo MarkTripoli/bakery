@@ -52,19 +52,14 @@ export function assertIsolatedLaneHome(): void {
     );
   }
   // A sentinel home the rail plants as the operator's: this lane is not in it,
-  // and the mise directories are where mise would put them under that home.
+  // and the mise directories the rail set (all four, under the sentinel) reach
+  // the lane unchanged.
   const sentinel = Deno.env.get("BAKERY_LANE_HOME_SENTINEL");
   if (sentinel !== undefined) {
     assert(!home.startsWith(sentinel), "the lane HOME is outside the sentinel");
-    assertEquals(
-      Deno.env.get("MISE_DATA_DIR"),
-      `${sentinel}/.local/share/mise`,
-    );
-    assertEquals(Deno.env.get("MISE_CONFIG_DIR"), `${sentinel}/.config/mise`);
-    assertEquals(Deno.env.get("MISE_CACHE_DIR"), `${sentinel}/.cache/mise`);
-    assertEquals(
-      Deno.env.get("MISE_STATE_DIR"),
-      `${sentinel}/.local/state/mise`,
-    );
+    assertEquals(Deno.env.get("MISE_DATA_DIR"), `${sentinel}/mise-data`);
+    assertEquals(Deno.env.get("MISE_CONFIG_DIR"), `${sentinel}/mise-config`);
+    assertEquals(Deno.env.get("MISE_CACHE_DIR"), `${sentinel}/mise-cache`);
+    assertEquals(Deno.env.get("MISE_STATE_DIR"), `${sentinel}/mise-state`);
   }
 }
