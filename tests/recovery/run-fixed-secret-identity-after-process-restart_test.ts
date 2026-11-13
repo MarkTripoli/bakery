@@ -452,9 +452,13 @@ async function startChild(
     }
     await process.status.catch(() => undefined);
     await Promise.all([stdoutTask, stderrTask]);
+    // Deno names the variable for a single read, not for a whole-environment
+    // read (Deno.env.toObject()), which must still classify as env, not
+    // "uncaught" (#306).
     const deniedEnvironment = stderr.match(
       /Requires env access to ["']([A-Z0-9_]+)["']/,
-    )?.[1];
+    )?.[1] ??
+      (stderr.includes("Requires env access") ? "all" : undefined);
     const startupReason = stderr.includes("Requires net access")
       ? "net-permission"
       : stderr.includes("Requires read access")

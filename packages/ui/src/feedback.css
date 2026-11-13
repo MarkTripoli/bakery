@@ -245,6 +245,85 @@
   display: none;
 }
 
+/* HelpTip: the information button after a label. Its box is the pointer
+   target (28px fine, 44px coarse); the glyph stays 16px and muted until the
+   button is hovered or focused. From 744px the text is a tooltip anchored to
+   the start of the button, up to 320px wide; below that it is a panel pinned
+   to the bottom of the screen with the label as its first line and a close
+   button (design-ux). It is help, not a dialog: no backdrop. */
+.ui-help-tip {
+  display: inline-flex;
+  margin-inline-start: var(--space-1);
+  position: relative;
+  vertical-align: middle;
+}
+/* The same plain icon everywhere, including in a table header, whose own
+   button rule draws a bordered box. */
+.ui-help-tip .ui-icon-button,
+.ui-data-table .ui-help-tip .ui-icon-button {
+  background: transparent;
+  block-size: var(--target-min);
+  border: var(--border-none);
+  color: var(--color-fg-muted);
+  inline-size: var(--target-min);
+  min-block-size: var(--target-min);
+  padding: var(--space-0);
+}
+.ui-help-tip .ui-icon-button:hover,
+.ui-help-tip .ui-icon-button:focus-visible {
+  color: var(--color-fg);
+}
+.ui-help-tip__panel {
+  background: var(--color-surface-raised);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-overlay);
+  box-shadow: var(--shadow-subtle);
+  box-sizing: border-box;
+  color: var(--color-fg);
+  display: none;
+  font: var(--type-caption);
+  inline-size: max-content;
+  /* Placed against the window by HelpTip, which sets its start edge and its
+     top or bottom edge from the button, so no scroll container clips it; the
+     margin is the gap to the button. */
+  margin-block: var(--space-2);
+  max-inline-size: min(var(--layout-inspector), calc(100dvi - var(--space-8)));
+  padding: var(--space-2) var(--space-3);
+  position: fixed;
+  text-align: start;
+  white-space: normal;
+  z-index: var(--layer-tooltip);
+}
+.ui-help-tip[data-state="open"] .ui-help-tip__panel,
+.ui-help-tip[data-state="focus"] .ui-help-tip__panel {
+  display: block;
+}
+.ui-help-tip__head {
+  display: none;
+}
+@media (max-width: 743px) {
+  .ui-help-tip__panel {
+    inline-size: auto;
+    inset-block-end: calc(var(--space-4) + env(safe-area-inset-bottom));
+    inset-block-start: auto;
+    inset-inline: var(--space-4);
+    margin-block: var(--space-0);
+    max-block-size: 50dvb;
+    max-inline-size: none;
+    overflow-y: auto;
+    position: fixed;
+  }
+  .ui-help-tip__head {
+    align-items: center;
+    display: flex;
+    gap: var(--space-2);
+    justify-content: space-between;
+  }
+  .ui-help-tip__title {
+    font: var(--type-control);
+  }
+}
+
 /* A popover at the end of an `Inline between` header opens toward the start, so
    its panel stays inside the column instead of running past the window edge. */
 .ui-inline--between > .ui-popover .ui-popover__content {

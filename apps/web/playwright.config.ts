@@ -149,6 +149,7 @@ export const REAL_M1_SPECS: readonly string[] = [
  */
 export const REAL_RULES_SPECS: readonly string[] = [
   "**/organization-repository-rules-real-api.spec.ts",
+  "**/repository-rules-real-api.spec.ts",
 ];
 
 /**

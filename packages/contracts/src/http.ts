@@ -259,6 +259,20 @@ function safeConflictReason(value: unknown): string | undefined {
     ? value
     : undefined;
 }
+/**
+ * The only reasons a DEPENDENCY_UNAVAILABLE may name: a busy draft worker pool
+ * or the caller's own organization share of it (#297). An exact allowlist,
+ * so a 503 never carries free text or anything about another tenant.
+ */
+const UNAVAILABLE_REASONS: ReadonlySet<string> = new Set([
+  "draft_worker_pool_busy",
+  "draft_worker_organization_share_used",
+]);
+function safeUnavailableReason(value: unknown): string | undefined {
+  return typeof value === "string" && UNAVAILABLE_REASONS.has(value)
+    ? value
+    : undefined;
+}
 function problemKey(
   code: ProblemCode,
   part: "title" | "description",
@@ -369,6 +383,8 @@ export function toProblem(
     : undefined;
   const reason = standard?.code === "STATE_CONFLICT"
     ? safeConflictReason(rawParams?.reason)
+    : standard?.code === "DEPENDENCY_UNAVAILABLE"
+    ? safeUnavailableReason(rawParams?.reason)
     : undefined;
   const requiredScopes = code === "INSUFFICIENT_SCOPE" &&
       Array.isArray(rawParams?.requiredScopes)

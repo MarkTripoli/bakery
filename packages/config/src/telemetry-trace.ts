@@ -127,6 +127,58 @@ export function childTraceContext(
   };
 }
 
+const TRACE_ID_LAYOUT = /^[0-9a-f]{32}$/;
+
+/**
+ * The span an operation (one HTTP command) runs in, from what the edge already
+ * knows: the `trace_id` it will persist and the `traceparent` header it was
+ * sent, if any. The result always names the same trace as `traceId` when that
+ * is a usable trace id (32 hex characters, capitals lowered, not all zeros),
+ * so the persisted id and the span context never disagree.
+ *
+ * - A header `parseTraceparent` can read is the parent when `traceId` names the
+ *   same trace, or when `traceId` is not usable (a dashed UUID, all zeros, a
+ *   wrong length: the operation then continues the caller's trace). The
+ *   operation gets a new span in it and the caller's sampling decision stands.
+ *   A later version is read by the version-00 layout, as `parseTraceparent`
+ *   does, and is a parent like any other; what is stored is always version 00.
+ * - A header for another trace than a usable `traceId`, or one
+ *   `parseTraceparent` cannot read (the wrong layout, version ff, all-zero
+ *   identifiers, version 00 with fields after its own), is not a parent. A
+ *   usable `traceId` then gets a new recorded span in its trace; with neither
+ *   a usable `traceId` nor a readable header the operation starts a new
+ *   recorded trace.
+ *
+ * Capitals in a hex `traceId` are lowered, which the specification requires of
+ * the header. It never throws into the request it describes: a getter that
+ * throws, or no object at all, is the same as nothing sent.
+ */
+export function operationTraceContext(
+  request: { readonly traceId?: unknown; readonly traceparent?: unknown },
+  random: RandomBytes = cryptoBytes,
+): TraceContext {
+  let traceId: unknown;
+  let traceparent: unknown;
+  try {
+    traceId = request.traceId;
+    traceparent = request.traceparent;
+  } catch {
+    // A request that cannot be read is a request that sent nothing usable.
+  }
+  const asked = typeof traceId === "string" ? traceId.toLowerCase() : "";
+  const usable = TRACE_ID_LAYOUT.test(asked) && asked !== ZERO_TRACE_ID;
+  const parent = parseTraceparent(
+    typeof traceparent === "string" ? traceparent : undefined,
+  );
+  if (parent && (!usable || parent.traceId === asked)) {
+    return childTraceContext(parent, random);
+  }
+  if (usable) {
+    return { traceId: asked, spanId: randomId(8, random), sampled: true };
+  }
+  return newTraceContext(random);
+}
+
 /** The reference another trace stores to point back at this span. */
 export function traceLinkOf(context: TraceContext | TraceLink): TraceLink {
   return { traceId: context.traceId, spanId: context.spanId };

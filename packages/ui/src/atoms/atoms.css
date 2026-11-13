@@ -34,6 +34,10 @@
   color: var(--color-status-success);
   font: var(--type-caption);
 }
+.ui-text--error {
+  color: var(--color-destructive);
+  font: var(--type-caption);
+}
 .ui-text--field-preview,
 .ui-text--responsive-hint,
 .ui-text--muted {

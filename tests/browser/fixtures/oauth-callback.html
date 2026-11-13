@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Bakery OAuth callback fixture</title>
+  </head>
+  <body>
+    <main>
+      <h1>OAuth callback</h1>
+      <p>Code: <output id="code" data-testid="code"></output></p>
+      <p>Error: <output id="error" data-testid="error"></output></p>
+    </main>
+    <script type="module">
+    const params = new URLSearchParams(location.search);
+    document.querySelector("#code").textContent = params.get("code") ?? "";
+    document.querySelector("#error").textContent = params.get("error") ?? "";
+    </script>
+  </body>
+</html>
