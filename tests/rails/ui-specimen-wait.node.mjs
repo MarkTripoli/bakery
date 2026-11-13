@@ -27,6 +27,15 @@ const specs = readdirSync(TESTS).filter((name) => name.endsWith(".spec.ts"));
 // argument (#190). `codeMask` marks which characters are code; a match counts
 // only when it starts in code. Strings, template text, comments and regular
 // expression literals are not code; the expressions inside `${}` are.
+//
+// It is a small scanner, not a parser: it decides whether a `/` opens a regular
+// expression from the last significant character before it. That is right for
+// everything the rail reads today and has known limits it does not try to
+// resolve: a regex after `)` (`if (x) /re/.test(y)`) or after `else`, a `/`
+// after the `}` that closes an object (`{}\n/ 2`), `Array<T> / 2`, JSX text
+// with an apostrophe (the rail reads `.ts`), and a `//` comment ended only by
+// U+2028 or a lone CR are read the other way. Where it cannot tell it reads a
+// `/` as division, so what follows stays code.
 const REGEX_PRECEDERS = new Set("(,=:[!&|?{};+-*%<>~^".split(""));
 const REGEX_KEYWORDS = /(?:^|[^\w$])(?:return|typeof|case|void|throw|in|of)$/;
 
@@ -34,6 +43,11 @@ export function codeMask(source) {
   const mask = new Uint8Array(source.length);
   const templates = []; // brace depth inside each open `${ }`
   let previous = ""; // last significant code character
+  let beforePrevious = ""; // the one before it, to tell `n++ / 2` from `+ /re/`
+  const significant = (character) => {
+    beforePrevious = previous;
+    previous = character;
+  };
   let i = 0;
   const skipString = (quote) => {
     i += 1;
@@ -66,15 +80,23 @@ export function codeMask(source) {
       i = end === -1 ? source.length : end + 2;
     } else if (char === "'" || char === '"') {
       skipString(char);
-      previous = "s";
+      significant("s");
     } else if (char === "`") {
       i += 1;
       skipTemplate();
-      previous = "s";
+      significant("s");
     } else if (
       char === "/" &&
-      (previous === "" || REGEX_PRECEDERS.has(previous) ||
-        REGEX_KEYWORDS.test(source.slice(Math.max(0, i - 8), i)))
+      (previous === "" ||
+        // `n++ / 2` and `n-- / 2` divide: a `+` or `-` that repeats is a
+        // postfix operator, not the start of an operand.
+        (REGEX_PRECEDERS.has(previous) &&
+          !((previous === "+" || previous === "-") &&
+            beforePrevious === previous)) ||
+        // `return /re/`: the keyword ends just before the spaces.
+        REGEX_KEYWORDS.test(
+          source.slice(Math.max(0, i - 200), i).trimEnd().slice(-8),
+        ))
     ) {
       i += 1;
       let inClass = false;
@@ -86,7 +108,7 @@ export function codeMask(source) {
         i += 1;
       }
       i += 1;
-      previous = "s";
+      significant("s");
     } else {
       if (templates.length > 0) {
         if (char === "{") templates[templates.length - 1] += 1;
@@ -95,14 +117,14 @@ export function codeMask(source) {
             templates.pop();
             i += 1;
             skipTemplate();
-            previous = "s";
+            significant("s");
             continue;
           }
           templates[templates.length - 1] -= 1;
         }
       }
       mask[i] = 1;
-      if (!/\s/.test(char)) previous = char;
+      if (!/\s/.test(char)) significant(char);
       i += 1;
     }
   }
@@ -142,6 +164,35 @@ const SCENARIO_BUDGET =
   /test\.setTimeout\(sweepTimeoutMs\(scenarios\.length\)\)/;
 export const budgetsEveryScenario = (spec) =>
   execInCode(spec, SCENARIO_BUDGET) !== null;
+const digits = (match) => (match ? Number(match[1].replaceAll("_", "")) : null);
+/** The harness's `specimenTimeout`, or null. */
+export const specimenTimeoutOf = (harness) =>
+  digits(execInCode(harness, /export const specimenTimeout = ([\d_]+);/));
+/** The Playwright `expect` timeout the config sets, or null when it keeps the default. */
+export const expectTimeoutOf = (config) =>
+  digits(execInCode(config, /expect:\s*\{[^}]*timeout:\s*([\d_]+)/));
+/** The per-story sweep allowance the harness exports, or null. */
+export const sweepAllowanceOf = (harness) =>
+  digits(execInCode(harness, /export const SWEEP_MS_PER_STORY = ([\d_]+);/));
+export const multipliesCatalog = (harness) =>
+  execInCode(
+    harness,
+    /catalog\.entries\.length \* passes \* SWEEP_MS_PER_STORY/,
+  ) !== null;
+export const loopsScenarios = (spec) =>
+  execInCode(spec, /for \(const scenario of scenarios\)/) !== null;
+export const openStoryWaits = (harness) => {
+  const body = execInCode(
+    harness,
+    /export async function openStory\([\s\S]*?\n}\n/,
+  )?.[0] ?? "";
+  return execInCode(body, /await waitForSpecimen\(page\)/) !== null;
+};
+/** Lines of a spec that locate the specimen for something other than evaluate(). */
+export const waitViolations = (source) =>
+  occurrences(source, SPECIMEN)
+    .filter((at) => !source.startsWith(".evaluate(", at + SPECIMEN.length))
+    .map((at) => lineOf(source, at));
 export const fixedSweepBudgets = (spec) => {
   const call = "test.setTimeout(";
   return occurrences(spec, call)
@@ -188,16 +239,12 @@ test("packages/ui/tests holds exactly one specimen wait, in the harness", () => 
 });
 
 test("the shared wait outlasts the expect default it replaced", () => {
-  const declared = execInCode(
-    harness,
-    /export const specimenTimeout = ([\d_]+);/,
+  const budget = specimenTimeoutOf(harness);
+  assert.ok(
+    budget !== null,
+    "storybook-harness.ts must export specimenTimeout",
   );
-  assert.ok(declared, "storybook-harness.ts must export specimenTimeout");
-  const budget = Number(declared[1].replaceAll("_", ""));
-  const configured = execInCode(config, /expect:\s*\{[^}]*timeout:\s*([\d_]+)/);
-  const expectBudget = configured
-    ? Number(configured[1].replaceAll("_", ""))
-    : EXPECT_DEFAULT;
+  const expectBudget = expectTimeoutOf(config) ?? EXPECT_DEFAULT;
   assert.ok(
     budget > expectBudget,
     `specimenTimeout ${budget}ms must exceed the expect budget ` +
@@ -211,12 +258,9 @@ test("the shared wait outlasts the expect default it replaced", () => {
 });
 
 test("no spec waits on the specimen outside the harness", () => {
-  const violations = specs.flatMap((name) => {
-    const source = read(name);
-    return occurrences(source, SPECIMEN)
-      .filter((at) => !source.startsWith(".evaluate(", at + SPECIMEN.length))
-      .map((at) => `${name}:${lineOf(source, at)}`);
-  });
+  const violations = specs.flatMap((name) =>
+    waitViolations(read(name)).map((line) => `${name}:${line}`)
+  );
   assert.deepEqual(
     violations,
     [],
@@ -281,29 +325,25 @@ test("a canonical-story sweep budget scales with the catalog", () => {
       "so it grows with the catalog",
   );
   assert.ok(
-    execInCode(
-      harness,
-      /catalog\.entries\.length \* passes \* SWEEP_MS_PER_STORY/,
-    ),
+    multipliesCatalog(harness),
     "sweepTimeoutMs must multiply the catalog size by the per-story allowance",
   );
   // A sweep that repeats the catalog once per scenario must budget one pass per
   // scenario. Without the argument the budget silently halves and every other
   // check here stays green, because they only look at the call, not its count.
   assert.ok(
-    execInCode(spec, /for \(const scenario of scenarios\)/),
+    loopsScenarios(spec),
     "the multi-scenario sweep this check guards is gone; update the check",
   );
   assert.ok(
     budgetsEveryScenario(spec),
     "a sweep over scenarios must budget scenarios.length passes",
   );
-  const allowance = execInCode(
-    harness,
-    /export const SWEEP_MS_PER_STORY = ([\d_]+);/,
+  const perStory = sweepAllowanceOf(harness);
+  assert.ok(
+    perStory !== null,
+    "storybook-harness.ts must export SWEEP_MS_PER_STORY",
   );
-  assert.ok(allowance, "storybook-harness.ts must export SWEEP_MS_PER_STORY");
-  const perStory = Number(allowance[1].replaceAll("_", ""));
   assert.ok(
     perStory >= 10_000,
     `SWEEP_MS_PER_STORY ${perStory}ms is below the 10 s that keeps a slow ` +
@@ -313,12 +353,8 @@ test("a canonical-story sweep budget scales with the catalog", () => {
 });
 
 test("openStory waits through the shared specimen wait", () => {
-  const body = execInCode(
-    harness,
-    /export async function openStory\([\s\S]*?\n}\n/,
-  )?.[0] ?? "";
   assert.ok(
-    execInCode(body, /await waitForSpecimen\(page\)/),
+    openStoryWaits(harness),
     "openStory must wait for the specimen with waitForSpecimen(page)",
   );
 });
@@ -393,5 +429,151 @@ test("the code mask reads comments, strings, templates and regular expressions a
   assert.equal(
     count('page.locator(".storybook-story")', 'locator(".storybook-story")'),
     1,
+  );
+});
+
+// --- the scanner's remaining edge cases (QA of #318): each was a wrong mask
+
+test("the code mask keeps code after a block comment, reads an escaped slash in a regex, and tells division from a regex", () => {
+  const count = (source, needle) => occurrences(source, needle).length;
+  // Code after a block comment on the same line is code.
+  assert.equal(count("/* a */ foo();", "foo("), 1);
+  // An escaped slash does not end a regular expression.
+  assert.equal(count("const r = /a\\/foo(/; bar();", "foo("), 0);
+  assert.equal(count("const r = /a\\/foo(/; bar();", "bar("), 1);
+  // After the `}` that ends an object inside `${}` the expression goes on.
+  assert.equal(count("`${ { k: 1 }.k + foo() }`", "foo("), 1);
+  // An escaped backtick does not end a template.
+  assert.equal(count("const t = `a \\` foo() b`; bar();", "foo("), 0);
+  assert.equal(count("const t = `a \\` foo() b`; bar();", "bar("), 1);
+  // A slash right after a string is division, so the next string stays text.
+  assert.equal(
+    count('const x = "a" / 2; foo(); const s = "foo()";', "foo("),
+    1,
+  );
+  // A `;` or `,` inside a line comment does not end it early.
+  assert.equal(count("// note; foo()\nbar();", "foo("), 0);
+  assert.equal(count("// a, b, foo()\nbar();", "foo("), 0);
+  assert.equal(count("// note; foo()\nbar();", "bar("), 1);
+});
+
+test("a regex after return, typeof, case, throw, void, in or of is a regex, and n++ / 2 divides", () => {
+  const count = (source, needle) => occurrences(source, needle).length;
+  for (
+    const keyword of ["return", "typeof", "case", "throw", "void", "in", "of"]
+  ) {
+    // The regex body is text, and the code after it is code.
+    assert.equal(
+      count(`x = ${keyword} /foo(/.test(y); bar();`, "foo("),
+      0,
+      `${keyword} /re/`,
+    );
+    assert.equal(
+      count(`x = ${keyword} /foo(/.test(y); bar();`, "bar("),
+      1,
+      `${keyword} /re/ then code`,
+    );
+  }
+  // The pin cannot be satisfied by a regex literal after a keyword and a space.
+  assert.equal(
+    budgetsEveryScenario(
+      `${LOST_BUDGET}\nconst decoy = () => { return /${REAL_BUDGET}/; }`,
+    ),
+    false,
+  );
+  // A postfix operator before a slash is division, so what follows stays code.
+  assert.deepEqual(
+    fixedSweepBudgets("let n = 1; n++ / 2; test.setTimeout(360_000);"),
+    [1],
+  );
+  assert.deepEqual(
+    fixedSweepBudgets("let n = 1; n-- / 2; test.setTimeout(360_000);"),
+    [1],
+  );
+  // A prefix `+` before a regex is still a regex.
+  assert.equal(count("x = a + /foo(/.test(y); bar();", "foo("), 0);
+});
+
+// --- the other call sites, each fed one decoy: the old text in a comment or a
+// string beside a changed value must not stand in for the value
+
+test("a comment or string that holds the old harness or config value does not stand in for the real one", () => {
+  assert.equal(
+    specimenTimeoutOf(
+      "// export const specimenTimeout = 60_000;\nexport const specimenTimeout = 1_000;",
+    ),
+    1000,
+  );
+  assert.equal(
+    specimenTimeoutOf('const old = "export const specimenTimeout = 60_000;";'),
+    null,
+  );
+  assert.equal(
+    expectTimeoutOf(
+      "// expect: { timeout: 60_000 },\nexpect: { timeout: 5_000 },",
+    ),
+    5000,
+  );
+  assert.equal(
+    expectTimeoutOf("/* expect: { timeout: 60_000 } */ export default {};"),
+    null,
+  );
+  assert.equal(
+    sweepAllowanceOf(
+      "// export const SWEEP_MS_PER_STORY = 20_000;\nexport const SWEEP_MS_PER_STORY = 1_000;",
+    ),
+    1000,
+  );
+  assert.equal(
+    sweepAllowanceOf("// export const SWEEP_MS_PER_STORY = 20_000;"),
+    null,
+  );
+  assert.equal(
+    multipliesCatalog(
+      "// catalog.entries.length * passes * SWEEP_MS_PER_STORY\nreturn 360_000;",
+    ),
+    false,
+  );
+  assert.equal(
+    multipliesCatalog(
+      "return catalog.entries.length * passes * SWEEP_MS_PER_STORY;",
+    ),
+    true,
+  );
+  assert.equal(
+    loopsScenarios(
+      '// for (const scenario of scenarios) {}\nconst note = "for (const scenario of scenarios)";',
+    ),
+    false,
+  );
+  assert.equal(loopsScenarios("for (const scenario of scenarios) {}"), true);
+});
+
+test("a comment or string that holds the specimen wait or the openStory call does not stand in for the real one", () => {
+  const withoutWait =
+    'export async function openStory(page) {\n  // await waitForSpecimen(page)\n  const note = "await waitForSpecimen(page)";\n}\n';
+  assert.equal(openStoryWaits(withoutWait), false);
+  assert.equal(
+    openStoryWaits(
+      "export async function openStory(page) {\n  await waitForSpecimen(page);\n}\n",
+    ),
+    true,
+  );
+  // A specimen locator in a comment or a string is not a wait outside the harness.
+  assert.deepEqual(
+    waitViolations('// page.locator(".storybook-story").waitFor()'),
+    [],
+  );
+  assert.deepEqual(
+    waitViolations("const s = 'page.locator(\".storybook-story\").waitFor()';"),
+    [],
+  );
+  assert.deepEqual(
+    waitViolations('await page.locator(".storybook-story").waitFor();'),
+    [1],
+  );
+  assert.deepEqual(
+    waitViolations('await page.locator(".storybook-story").evaluate(() => 1);'),
+    [],
   );
 });
