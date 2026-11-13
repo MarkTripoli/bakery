@@ -33,6 +33,14 @@ Deno.test("the launcher pins the worker module, cache and limits the server expe
     ),
     "prlimit bounds",
   );
+  // The CPU backstop never undercuts the parent's typed deadline (#305): it
+  // covers both wall budgets plus a second, as RuntimeMaxSec does for systemd.
+  assertEquals(
+    DRAFT_LIMITS.processCpuSeconds,
+    Math.ceil(
+      (DRAFT_LIMITS.workerStartupMs + DRAFT_LIMITS.workerRuntimeMs) / 1_000,
+    ) + 1,
+  );
   for (
     const flag of ["--cached-only", "--no-prompt", "--deny-import", "--frozen"]
   ) {
