@@ -737,6 +737,8 @@ export function MachinesPage() {
   const nextWorkerCursor = workerContinuation.data?.nextCursor ??
     workers.data?.nextCursor;
   const forbidden = workers.isError && isForbiddenFailure(workers.error);
+  // The add action is for an administrator who can read the list at all.
+  const canAdd = isAdmin && !forbidden;
   const connectivityKind = asyncKindForConnectivity(connectivity);
   const phone = useShellViewport() === "phone";
   const openMachine = (row: MachineRow) =>
@@ -767,7 +769,7 @@ export function MachinesPage() {
           ]}
         />
       </ShellSlot>
-      {isAdmin && !phone
+      {canAdd && !phone
         ? <ShellSlot name="actions">{addMachine}</ShellSlot>
         : null}
       <UI.SettingsContent data-testid="machines-page">
@@ -775,7 +777,7 @@ export function MachinesPage() {
           variant="list"
           title={translate("machines.title")}
           subtitle={translate("machines.description")}
-          actions={isAdmin && phone ? addMachine : null}
+          actions={canAdd && phone && rows.length > 0 ? addMachine : null}
         />
         {connectivityKind
           ? (
@@ -813,6 +815,7 @@ export function MachinesPage() {
                   ? "machines.empty.description"
                   : "machines.empty.adminOnly") as never,
               )}
+              action={isAdmin ? addMachine : undefined}
               variant="firstUse"
             />
           )
@@ -884,13 +887,6 @@ export function MachinesPage() {
               scope={scope}
               api={api}
             />
-          )
-          : null}
-        {access.isError && !isAdmin
-          ? (
-            <UI.Text variant="muted">
-              {translate("machines.enrollment.adminOnly")}
-            </UI.Text>
           )
           : null}
       </UI.SettingsContent>

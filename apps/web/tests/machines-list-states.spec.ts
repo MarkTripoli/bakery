@@ -132,25 +132,44 @@ test.describe("machines list states", () => {
       ],
       ["build-mac-01", "Ready", "macOS · Claude Code, Pi · 1 slot", "Open"],
       ["ci-linux-02", "Needs attention", "2 checks failed.", "Fix"],
-      ["ci-linux-03", "Not responding", "Not responding.", "Open"],
+      [
+        "ci-linux-03",
+        "Not responding",
+        "Not responding. It has stopped answering Bakery.",
+        "Open",
+      ],
       ["ci-linux-04", "Offline", "Offline. Bakery cannot reach it.", "Open"],
-      ["spare-linux-05", "Paused", "Paused.", "Fix"],
-      ["spare-linux-06", "Finishing up", "Finishing up.", "Fix"],
+      [
+        "spare-linux-05",
+        "Paused",
+        "Paused. It takes no new work until someone resumes it.",
+        "Open",
+      ],
+      [
+        "spare-linux-06",
+        "Finishing up",
+        "Finishing its current work. It takes no new work.",
+        "Open",
+      ],
       [
         "new-linux-07",
         "Checking",
         "Linux · Claude Code, Codex · 2 slots",
         "Open",
       ],
-      ["old-mac-08", "Retired", "Retired.", "Open"],
+      ["old-mac-08", "Retired", "Retired. It no longer takes work.", "Open"],
     ];
     for (const [name, badge, line, action] of expectations) {
       const row = rowOf(page, name);
       await expect(row, name).toContainText(badge);
       await expect(row, name).toContainText(line);
-      await expect(row.getByRole("link"), name).toHaveCount(1);
+      // One control per row: a link on a wide screen, a button on a phone.
+      const control = row.getByRole("link").or(row.getByRole("button"));
+      await expect(control, name).toHaveCount(1);
       await expect(
-        row.getByRole("link", { name: `${action} ${name}` }),
+        row.getByRole("link", { name: `${action} ${name}` }).or(
+          row.getByRole("button", { name: `${action} ${name}` }),
+        ),
         name,
       ).toBeVisible();
       // One badge on the row, not three.
@@ -221,8 +240,13 @@ test.describe("machines list states", () => {
         "Agents run on your own computers. Add one to start work.",
       ),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: "Add machine", exact: true }))
-      .toBeVisible();
+    // The invitation carries the action itself, in the card.
+    await expect(
+      page.locator("[data-ui-component=emptyState]").getByRole("button", {
+        name: "Add machine",
+        exact: true,
+      }),
+    ).toBeVisible();
     await shot(page, "machines-list-empty");
     await page.unrouteAll({ behavior: "ignoreErrors" });
     await open(page, { workers: [], role: "member" });
@@ -231,12 +255,19 @@ test.describe("machines list states", () => {
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "Add machine", exact: true }))
       .toHaveCount(0);
+    await expect(page.getByText("Enrollment controls are available"))
+      .toHaveCount(0);
     await shot(page, "machines-list-empty-member");
   });
 
   test("a refused read, a failed read and a slow read each say so", async ({ page }) => {
     await open(page, { workersStatus: 403 });
-    await expect(page.getByText("Machines access is restricted")).toBeVisible();
+    await expect(page.getByText("You cannot see machines")).toBeVisible();
+    await expect(
+      page.getByText("Only organization members can see machines."),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Add machine", exact: true }))
+      .toHaveCount(0);
     await shot(page, "machines-list-forbidden");
     await page.unrouteAll({ behavior: "ignoreErrors" });
     await open(page, { workersStatus: 500 });
@@ -245,6 +276,9 @@ test.describe("machines list states", () => {
     await page.unrouteAll({ behavior: "ignoreErrors" });
     await open(page, { hang: true });
     await expect(page.getByTestId("machines-page")).toBeVisible();
+    // Placeholder rows, and no table headings until there is data.
+    await expect(page.locator("[data-ui-component=skeleton]")).toHaveCount(3);
+    await expect(page.getByRole("table", { name: "Machines" })).toHaveCount(0);
     await shot(page, "machines-list-loading");
   });
 });

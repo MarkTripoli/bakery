@@ -116,19 +116,13 @@ export function machineReason(machine: MachineFacts): MachineReason | null {
 }
 
 /**
- * The row's one button. "Fix" where the machine page has something to do
- * about it (failed checks, a paused or finishing machine that can take work
- * again); "Open" everywhere else, where the machine mends itself or is gone.
+ * The row's one button. "Fix" only where something is broken (a machine that
+ * needs attention); a machine someone paused or is finishing up is working as
+ * asked, and one that is offline, not responding or retired mends itself or is
+ * gone, so each of those gets "Open", the neutral button.
  */
 export function machineRowAction(machine: MachineFacts): "fix" | "open" {
-  switch (machineBadge(machine)) {
-    case "needsAttention":
-    case "paused":
-    case "finishing":
-      return "fix";
-    default:
-      return "open";
-  }
+  return machineBadge(machine) === "needsAttention" ? "fix" : "open";
 }
 
 /** The coding agents a machine advertises, in the order it lists them. */

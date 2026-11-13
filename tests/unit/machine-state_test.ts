@@ -167,19 +167,21 @@ Deno.test("a machine that cannot take work says why in one sentence's worth of d
   );
 });
 
-Deno.test("the row's button is Fix where the machine page has something to do, Open where it does not", () => {
-  const fix = [
-    machine({ readiness: "needs_attention" }),
-    machine({ desiredMode: "paused" }),
-    machine({ desiredMode: "draining" }),
-  ];
-  for (const facts of fix) assertEquals(machineRowAction(facts), "fix");
+Deno.test("the row's button is Fix only for a machine that needs attention, Open for every other", () => {
+  assertEquals(
+    machineRowAction(machine({ readiness: "needs_attention" })),
+    "fix",
+  );
   const open = [
     machine(),
     machine({ readiness: "checking" }),
+    machine({ desiredMode: "paused" }),
+    machine({ desiredMode: "draining" }),
     machine({ connectivity: "stale" }),
     machine({ connectivity: "offline" }),
     machine({ desiredMode: "revoked", status: "revoked" }),
+    // Needs attention does not outrank being unreachable: that badge is Offline.
+    machine({ connectivity: "offline", readiness: "needs_attention" }),
   ];
   for (const facts of open) assertEquals(machineRowAction(facts), "open");
 });
