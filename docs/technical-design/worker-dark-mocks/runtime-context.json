@@ -1,0 +1,22 @@
+{
+  "note": "Derived from runtime-cases.json by render-worker-dark-references.mjs: the one runtime context the worker-dark renderer reads. Not edited by hand.",
+  "derivedFrom": "docs/technical-design/ui-baselines/runtime-cases.json",
+  "contexts": {
+    "paper-detail-light-phone": {
+      "viewport": {
+        "width": 390,
+        "height": 1483
+      },
+      "dpr": 1,
+      "theme": "light",
+      "storedPreference": "light",
+      "pointer": "coarse",
+      "locale": "en-US",
+      "direction": "ltr",
+      "timezone": "UTC",
+      "reducedMotion": "no-preference",
+      "zoom": 1,
+      "interaction": "load"
+    }
+  }
+}
