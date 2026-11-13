@@ -276,12 +276,14 @@ for (
     test("a failed load of more machines leaves focus on the button that retries it", async ({ page }) => {
       await machinesFixture(page, { failLastPage: true });
       await page.goto("/machines");
-      const more = page.getByRole("button", { name: "Load more" });
-      await more.click();
+      await page.getByRole("button", { name: "Load more" }).click();
       await expect(page.getByText("More records could not be loaded."))
         .toBeVisible();
-      await expect(more).toBeFocused();
-      await more.click();
+      // The same failure gets the same button everywhere: it says Retry.
+      const retry = page.getByRole("button", { name: "Retry" });
+      await expect(retry).toBeFocused();
+      await shot(page, "machines-load-more-failed");
+      await retry.click();
       await expect(added(page)).toBeFocused();
     });
   });

@@ -721,6 +721,8 @@ function EnrollmentPanel({
           >
             {enrollmentContinuation.isFetching
               ? translate("machines.pagination.loadingMore" as never)
+              : enrollmentContinuation.isError
+              ? translate("machines.retry" as never)
               : translate("machines.pagination.loadMore" as never)}
           </UI.Button>
         )
@@ -941,6 +943,8 @@ export function MachinesPage() {
                   >
                     {workerContinuation.isFetching
                       ? translate("machines.pagination.loadingMore" as never)
+                      : workerContinuation.isError
+                      ? translate("machines.retry" as never)
                       : translate("machines.pagination.loadMore" as never)}
                   </UI.Button>
                 )
