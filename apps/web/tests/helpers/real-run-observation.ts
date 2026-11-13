@@ -671,7 +671,7 @@ export async function assertCompleted(
   const identity = page.locator('[data-ui-component="runIdentity"]');
   await expect(identity).toContainText(worker.name);
   await expect(identity).toContainText("Try 1");
-  await expect(identity).toContainText("trusted worker record");
+  await expect(identity).toContainText(`on ${worker.name}`);
 
   // Completion copy: no review or merge decision implied.
   await expect(

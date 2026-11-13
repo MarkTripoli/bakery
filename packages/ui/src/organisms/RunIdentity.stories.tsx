@@ -15,7 +15,7 @@ export const Contract: StoryObj = {
         worker="atlas-01"
         attempt="Try 2"
         lease="Lease active"
-        detail="Codex · trusted worker record · run_42 / step_3"
+        detail="Codex on atlas-01 · run_42 / step_3"
         unknownLabel="Unknown"
       />
       <RunIdentity

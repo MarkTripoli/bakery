@@ -19,6 +19,7 @@ import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { commandFailure } from "../task-conversation/model.ts";
 import { LaneCards, useLaneColumns } from "./LaneRow.tsx";
 import { PlanProvenance, PlanTicketClaim } from "./PlanProvenance.tsx";
+import { FingerprintRow } from "../FingerprintRow.tsx";
 import { useShellViewport } from "../../app/responsive.ts";
 import { ShellFlushMain, ShellSlot } from "../../shell/shell-slots.tsx";
 import {
@@ -603,6 +604,14 @@ export function TaskCoordinationPage(
           </UI.InlineNotice>
         )}
         {body}
+        {plan && typeof plan.digest === "string" && plan.digest !== ""
+          ? (
+            <FingerprintRow
+              fingerprint={plan.digest}
+              helpText={t("tasks.coordination.digestHint")}
+            />
+          )
+          : null}
       </div>
     </>
   );

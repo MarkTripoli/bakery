@@ -487,11 +487,9 @@ export function TaskConversation(
   const planCard = (
     <UI.PlanSummaryCard
       title={revision
-        ? `${t("tasks.conversation.plan.heading")} · ${
-          t("tasks.conversation.plan.revision", {
-            revision: String(revision.revision),
-          })
-        }`
+        ? t("tasks.conversation.plan.revision", {
+          revision: String(revision.revision),
+        })
         : (shownQuestions[0]?.prompt ?? t("tasks.conversation.plan.heading"))}
       meta={revision
         ? t(`tasks.conversation.plan.status.${revision.status}`)
@@ -609,14 +607,13 @@ export function TaskConversation(
             header={
               <>
                 <UI.IconGlyph name="plan" />
-                <UI.Text>{t("tasks.conversation.plan.heading")}</UI.Text>
-                {revision && (
-                  <UI.Text variant="hint">
-                    {t("tasks.conversation.plan.revision", {
+                <UI.Text>
+                  {revision
+                    ? t("tasks.conversation.plan.revision", {
                       revision: String(revision.revision),
-                    })}
-                  </UI.Text>
-                )}
+                    })
+                    : t("tasks.conversation.plan.heading")}
+                </UI.Text>
               </>
             }
             footer={plan?.footer}

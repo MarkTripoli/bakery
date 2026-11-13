@@ -621,6 +621,14 @@ test("revision preview verifies the exact immutable version bytes", async ({ pag
   await page.routeWebSocket("**/v1/events?*", () => {});
   await page.goto(`/tasks/${id}`);
   await page.getByRole("button", { name: "View diff", exact: true }).click();
+  // The version is a plain "Version 3"; its SHA-256 sits behind a fingerprint
+  // row (first 12 characters and Copy), not in the main line.
+  await expect(page.getByText("Version 3", { exact: true })).toBeVisible();
+  const fingerprint = page.getByTestId("fingerprint-row");
+  await expect(fingerprint).toContainText("Fingerprint");
+  await expect(fingerprint).toContainText(digest.slice(0, 12));
+  await expect(fingerprint).not.toContainText(digest.slice(0, 13));
+  await expect(fingerprint.getByRole("button", { name: "Copy" })).toBeVisible();
   await expect(page.getByText("Patch: 1 files · +1 −1", { exact: true }))
     .toBeVisible();
   await expect(page.getByText("1 files · +1 −1", { exact: true }))

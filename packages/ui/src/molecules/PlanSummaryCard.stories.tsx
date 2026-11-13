@@ -11,7 +11,7 @@ export const Contract: StoryObj = {
   render: () => (
     <>
       <PlanSummaryCard
-        title="Plan · Revision 2"
+        title="Plan, version 2"
         meta="Awaiting your decision"
         tone="warning"
       />

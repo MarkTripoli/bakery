@@ -35,7 +35,7 @@ const props: RunOutputPageProps = {
       worker="atlas-01"
       attempt="Try 2"
       lease="Lease active"
-      detail="Codex · trusted worker record"
+      detail="Codex on atlas-01"
       unknownLabel="Unknown"
     />
   ),

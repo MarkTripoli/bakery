@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
+import { formatDate } from "@bakery/i18n";
 import type { RunControl } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
 import { useConnectivity } from "../app/connectivity.ts";
@@ -39,7 +40,7 @@ export function TaskRunControls(
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const cache = useQueryClient();
-  const { translate: t } = useI18n();
+  const { translate: t, locale, timeZone } = useI18n();
   const capabilities = useQuery({
     ...runControlCapabilitiesQueryOptions(api, scope, runId),
     enabled: enabled && scope.organizationId !== null,
@@ -137,9 +138,14 @@ export function TaskRunControls(
     onReceipt({
       id: `receipt:${next.key}:${++receiptSequence.current}`,
       scope: "control",
-      title: `${t("tasks.controls.receipt")} — ${
-        t(`tasks.controls.action.${action}`)
-      }`,
+      title: `${
+        t("tasks.controls.receiptAt", {
+          time: formatDate(new Date(), locale, {
+            timeZone,
+            timeStyle: "short",
+          }),
+        })
+      } — ${t(`tasks.controls.action.${action}`)}`,
       description: t(receiptLabels[outcome]),
     });
     await refreshWinner();
