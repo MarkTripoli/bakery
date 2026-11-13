@@ -539,6 +539,7 @@ test.describe("settings routes and navigation", () => {
     await expect(
       page.locator("main").getByRole("link", { name: "Account and security" }),
     ).toHaveCount(0);
+    await shot(page, "settings-subpage-selected");
   });
 
   test("every settings page opens with one title style and one typeface", async ({ page }) => {
@@ -573,6 +574,10 @@ test.describe("settings routes and navigation", () => {
       await page.goto(path);
       const title = page.locator("main h1");
       await expect(title).toBeVisible();
+      await shot(
+        page,
+        `settings-title${path.replace("/settings", "").replace("/", "-")}`,
+      );
       styles.push(
         await title.evaluate((node) => {
           const style = getComputedStyle(node);
