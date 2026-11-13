@@ -195,6 +195,14 @@ Deno.test("a child process in the isolated environment cannot see a sentinel hom
   }
 });
 
+/** What mise itself would use under `home`, with no XDG variable set. */
+const miseUnder = (home: string) => ({
+  MISE_DATA_DIR: `${home}/.local/share/mise`,
+  MISE_CONFIG_DIR: `${home}/.config/mise`,
+  MISE_CACHE_DIR: `${home}/.cache/mise`,
+  MISE_STATE_DIR: `${home}/.local/state/mise`,
+});
+
 Deno.test("the module and browser caches are pinned from the variable, else from where they are", () => {
   // Both variables set: the operator's own, untouched.
   assertEquals(
@@ -206,7 +214,11 @@ Deno.test("the module and browser caches are pinned from the variable, else from
       },
       denoInfoDir: "/from/deno/info",
     }),
-    { DENO_DIR: "/ops/deno", PLAYWRIGHT_BROWSERS_PATH: "/ops/browsers" },
+    {
+      DENO_DIR: "/ops/deno",
+      PLAYWRIGHT_BROWSERS_PATH: "/ops/browsers",
+      ...miseUnder("/home/operator"),
+    },
   );
   // Neither set: what `deno info` says, and the default under the operator's HOME.
   assertEquals(
@@ -217,6 +229,7 @@ Deno.test("the module and browser caches are pinned from the variable, else from
     {
       DENO_DIR: "/from/deno/info",
       PLAYWRIGHT_BROWSERS_PATH: "/home/operator/.cache/ms-playwright",
+      ...miseUnder("/home/operator"),
     },
   );
   // An empty variable is not set: it does not hide where the cache is.
@@ -232,6 +245,7 @@ Deno.test("the module and browser caches are pinned from the variable, else from
     {
       DENO_DIR: "/from/deno/info",
       PLAYWRIGHT_BROWSERS_PATH: "/home/operator/.cache/ms-playwright",
+      ...miseUnder("/home/operator"),
     },
   );
   // A cache that cannot be found is left out; the lane then finds its own.
@@ -249,8 +263,97 @@ Deno.test("the module and browser caches are pinned from the variable, else from
       environment: { HOME: "/home/operator" },
       denoInfoDir: undefined,
     }),
-    { PLAYWRIGHT_BROWSERS_PATH: "/home/operator/.cache/ms-playwright" },
+    {
+      PLAYWRIGHT_BROWSERS_PATH: "/home/operator/.cache/ms-playwright",
+      ...miseUnder("/home/operator"),
+    },
   );
+});
+
+// #246 follow-up: under an empty HOME a `docker` or `git` that is a mise shim
+// cannot find mise's installed tools, configuration or trust record, looks
+// them up on GitHub and is rate limited; `docker compose version` took 99 ms
+// with the real HOME and 25 s or more with an empty HOME and XDG.
+Deno.test("each mise directory is pinned from its variable, else from XDG, else from HOME, and never from the lane's home", () => {
+  // The variables win, one by one, and the others fall back.
+  assertEquals(
+    pinnedCaches({
+      environment: {
+        HOME: "/home/operator",
+        MISE_DATA_DIR: "/ops/mise-data",
+        MISE_STATE_DIR: "/ops/mise-state",
+      },
+      denoInfoDir: undefined,
+    }),
+    {
+      PLAYWRIGHT_BROWSERS_PATH: "/home/operator/.cache/ms-playwright",
+      ...miseUnder("/home/operator"),
+      MISE_DATA_DIR: "/ops/mise-data",
+      MISE_STATE_DIR: "/ops/mise-state",
+    },
+  );
+  // XDG decides where mise puts each directory when the variable is not set.
+  assertEquals(
+    pinnedCaches({
+      environment: {
+        HOME: "/home/operator",
+        XDG_DATA_HOME: "/xdg/data",
+        XDG_CONFIG_HOME: "/xdg/config",
+        XDG_CACHE_HOME: "/xdg/cache",
+        XDG_STATE_HOME: "/xdg/state",
+      },
+      denoInfoDir: undefined,
+    }),
+    {
+      PLAYWRIGHT_BROWSERS_PATH: "/home/operator/.cache/ms-playwright",
+      MISE_DATA_DIR: "/xdg/data/mise",
+      MISE_CONFIG_DIR: "/xdg/config/mise",
+      MISE_CACHE_DIR: "/xdg/cache/mise",
+      MISE_STATE_DIR: "/xdg/state/mise",
+    },
+  );
+  // An empty variable is not set, and without a HOME or XDG there is nothing to pin.
+  assertEquals(
+    pinnedCaches({
+      environment: { MISE_DATA_DIR: "", MISE_CONFIG_DIR: "" },
+      denoInfoDir: undefined,
+    }),
+    {},
+  );
+  // XDG alone, with no HOME, still places that one directory.
+  assertEquals(
+    pinnedCaches({
+      environment: { XDG_STATE_HOME: "/xdg/state" },
+      denoInfoDir: undefined,
+    }),
+    { MISE_STATE_DIR: "/xdg/state/mise" },
+  );
+});
+
+Deno.test("the mise directories reach the lane as the operator's own, outside the lane's isolated home", () => {
+  const env = isolatedLaneEnvironment({
+    lane: "e2e",
+    environment: operator,
+    root,
+    pinned: pinnedCaches({ environment: operator, denoInfoDir: undefined }),
+  })!;
+  const paths = laneEnvPaths(root);
+  // The lane's own HOME and XDG are empty, and mise still finds the operator's.
+  assertEquals(env.HOME, paths.home);
+  assertEquals(env.MISE_DATA_DIR, "/home/operator/.local/share/mise");
+  assertEquals(env.MISE_CONFIG_DIR, "/home/operator/.config/mise");
+  assertEquals(env.MISE_CACHE_DIR, "/home/operator/.cache/mise");
+  assertEquals(env.MISE_STATE_DIR, "/home/operator/.local/state/mise");
+  for (
+    const name of [
+      "MISE_DATA_DIR",
+      "MISE_CONFIG_DIR",
+      "MISE_CACHE_DIR",
+      "MISE_STATE_DIR",
+    ]
+  ) {
+    assertEquals(env[name]!.startsWith(paths.base), false, name);
+  }
 });
 
 Deno.test("git reads the minimal config as a committer on main, with signing off", async () => {
