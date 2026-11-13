@@ -24,8 +24,12 @@ const structuralLines = [
   /^min-inline-size: 200px$/,
   /^max-inline-size: 65ch$/,
   /^max-inline-size: 32ch$/,
+  // HelpTip's phone panel: at most half the screen, longer text scrolls inside it.
+  /^max-block-size: 50dvb$/,
   /^max-inline-size: min\(360px, calc\(100vw - var\(--space-8\)\)\)$/,
   /^max-inline-size: min\(var\(--layout-dialog\), calc\(100dvi - var\(--space-8\)\)\)$/,
+  // HelpTip's tooltip: the inspector width, bounded by the logical viewport.
+  /^max-inline-size: min\(var\(--layout-inspector\), calc\(100dvi - var\(--space-8\)\)\)$/,
   /^inline-size: min\(100%, 32ch\)$/,
   /^inline-size: min\(var\(--layout-content\), 100dvi\)$/,
   // Tokenized E05 dialog width, bounded by the logical viewport with a token gutter.

@@ -864,6 +864,13 @@
       "context": "desktop-light-fine"
     },
     {
+      "id": "ui.helpTip.contract.desktop-light-fine",
+      "catalogId": "ui.helpTip",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-helptip--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.popover.contract.desktop-light-fine",
       "catalogId": "ui.popover",
       "requiredCaseId": "contract",

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Badge, Inline } from "@bakery/ui";
+import { Badge, Inline, Stack } from "@bakery/ui";
 
 const meta = {
   title: "Bakery/Atoms/Badge",
@@ -9,9 +9,19 @@ export default meta;
 
 export const Contract: StoryObj = {
   render: () => (
-    <Inline>
-      <Badge>Password</Badge>
-      <Badge tone="success">Current</Badge>
-    </Inline>
+    <Stack gap="compact">
+      <Inline>
+        <Badge>Password</Badge>
+      </Inline>
+      <Inline>
+        <Badge tone="success">Current</Badge>
+      </Inline>
+      <Inline>
+        <Badge tone="warning">Needs care</Badge>
+      </Inline>
+      <Inline>
+        <Badge tone="danger">Blocked</Badge>
+      </Inline>
+    </Stack>
   ),
 };

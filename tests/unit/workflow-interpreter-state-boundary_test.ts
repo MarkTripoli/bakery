@@ -334,3 +334,37 @@ Deno.test("a pin records the document's own compiler version, and resolves again
     WorkflowInterpreterError,
   );
 });
+
+// --- #279: the two limits are pinned by number. The bound test above states
+// the node budget through the imported constant, so loosening the constant
+// loosens that test with it. These use the literals: changing a limit fails one.
+
+Deno.test("the node budget is exactly 500,000 visits: 499,999 numbers in a list copy and 500,000 are refused", () => {
+  const numbers = (count: number) => Array.from({ length: count }, () => 1);
+  // The list is one visit and each number another.
+  assertEquals((cloneJson(numbers(499_999)) as unknown[]).length, 499_999);
+  assertEquals(code(() => cloneJson(numbers(500_000))), "state_too_large");
+});
+
+Deno.test("the depth limit is exactly 256: 256 levels copy and 257 are refused, in lists and in objects", () => {
+  const nestedList = (levels: number) => {
+    let value: unknown = 0;
+    for (let level = 0; level < levels; level += 1) value = [value];
+    return value;
+  };
+  const nestedObject = (levels: number) => {
+    let value: unknown = 0;
+    for (let level = 0; level < levels; level += 1) value = { a: value };
+    return value;
+  };
+  for (
+    const [name, nest] of [["lists", nestedList], [
+      "objects",
+      nestedObject,
+    ]] as const
+  ) {
+    const accepted = nest(256);
+    assertEquals(cloneJson(accepted), accepted, name);
+    assertEquals(code(() => cloneJson(nest(257))), "state_not_json", name);
+  }
+});

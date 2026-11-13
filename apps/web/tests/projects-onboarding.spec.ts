@@ -288,6 +288,48 @@ test("projects onboarding restores the repository profile boundary from a stable
     .toBeVisible();
 });
 
+test("a selected repository links to the rules in force for it", async ({ page }) => {
+  await mockProjects(page);
+  await page.route(
+    `**/v1/repositories/${repositoryId}/rules`,
+    (route) =>
+      route.fulfill({
+        json: {
+          repositoryId,
+          profileId,
+          profileRevision: 7,
+          organizationRevision: 0,
+          entries: [],
+          supersededOverrides: [],
+          digest,
+          repositoryVersion: 3,
+          checkers: { state: "not_required", unavailableRuleKeys: [] },
+          providerProtection: { state: "unknown", reason: "not_checked" },
+        },
+      }),
+  );
+  await page.goto(deepLink);
+  // On a phone the repository's panel is a sheet that opens from its row.
+  if ((page.viewportSize()?.width ?? 1440) < 744) {
+    await page.getByRole("button", { name: /MarkTripoli\/bakery/ }).first()
+      .click();
+  }
+  const link = page.getByRole("link", {
+    name: "Rules for MarkTripoli/bakery",
+  });
+  await expect(link).toBeVisible();
+  await expect(link).toHaveAttribute(
+    "href",
+    `/projects/repositories/${repositoryId}/rules`,
+  );
+  await link.click();
+  await expect(page).toHaveURL(`/projects/repositories/${repositoryId}/rules`);
+  await expect(page.getByRole("heading", { name: "Rules", level: 1 }))
+    .toBeVisible();
+  await expect(page.getByText("No rules apply to this repository"))
+    .toBeVisible();
+});
+
 test("projects onboarding preserves draft input and requires explicit profile reselection after conflict", async ({ page }) => {
   const mocked = await mockProjects(page);
   await page.goto(deepLink);

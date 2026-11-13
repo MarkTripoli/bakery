@@ -797,6 +797,16 @@ async function findNextPlanKey(
   runId: string,
   owner: EngineOwner | undefined,
 ): Promise<LogicalInvocationKey | undefined | null> {
+  // A flat run is served by the row-order loop and must not queue behind a lock
+  // on its run or task row, which only deciding a plan run needs. A run's
+  // snapshot never changes after admission, so a plain read says which kind it
+  // is; only a plan run is then read again, locked.
+  const kind = await transaction.query<{ runtime: boolean }>(
+    `select snapshot ? 'runtime' as runtime
+       from bakery.workflow_runs where id = $1`,
+    [runId],
+  );
+  if (kind.rows[0]?.runtime !== true) return null;
   const context = await loadRunEndContext(transaction, runId);
   if (!context || !carriesPlanRuntime(context.runSnapshot)) return null;
   if (context.runStatus !== "queued" && context.runStatus !== "running") {
