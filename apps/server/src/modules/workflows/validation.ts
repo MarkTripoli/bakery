@@ -402,7 +402,7 @@ async function compileDefinition(
  * flat documents (the shipped presets among them) never carry the field, so
  * each document has exactly one structural authority.
  */
-function declaresCompilerGrammar(
+export function declaresCompilerGrammar(
   definition: unknown,
 ): definition is RecordValue {
   return isRecord(definition) && Object.hasOwn(definition, "apiVersion");

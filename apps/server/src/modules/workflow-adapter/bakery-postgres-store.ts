@@ -40,6 +40,7 @@ import type { AuthoritativeState } from "./resume-decision.ts";
 import { runFixedWorkflow } from "./fixed-workflow.ts";
 import {
   nextPlanStep,
+  planActionAgentsFromSnapshot,
   planInputsFromSnapshot,
   planRuntimeFromSnapshot,
   PlanStateError,
@@ -848,6 +849,25 @@ async function findNextPlanKey(
     );
     return undefined;
   }
+  // The agent a step runs as is its own, else the one its action falls back
+  // to, frozen at admission beside the plan; the dispatch records the answer so
+  // the job is built from exactly what was decided here.
+  let dispatch = answer.step;
+  try {
+    const fallbacks = planActionAgentsFromSnapshot(context.runSnapshot);
+    if (
+      dispatch.kind === "action" && dispatch.agentVersionId === undefined &&
+      Object.hasOwn(fallbacks, dispatch.action)
+    ) {
+      dispatch = { ...dispatch, agentVersionId: fallbacks[dispatch.action] };
+    }
+  } catch (error) {
+    if (error instanceof PlanStateError) {
+      await endPlanRunFailed(transaction, context, activeOwner, error.code);
+      return undefined;
+    }
+    throw error;
+  }
   await transaction.query(
     `insert into bakery.run_steps (
        organization_id, run_id, step_key, position, iteration, status, input,
@@ -862,8 +882,8 @@ async function findNextPlanKey(
       context.organizationId,
       context.runId,
       answer.step.key,
-      JSON.stringify(answer.step.input),
-      JSON.stringify(answer.step),
+      JSON.stringify(dispatch.input),
+      JSON.stringify(dispatch),
     ],
   );
   return {
