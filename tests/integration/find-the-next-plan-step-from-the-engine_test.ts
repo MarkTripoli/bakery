@@ -5,6 +5,7 @@ import {
   planRuntimeFromSnapshot,
 } from "../../apps/server/src/modules/workflow-adapter/plan-state.ts";
 import { pinWorkflowRuntime } from "../../packages/contracts/src/workflow-interpreter/mod.ts";
+import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
 import { seedFundedModelJob } from "../helpers/funded-model-job.ts";
 import type { WorkerFixture } from "../helpers/worker-execution.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
@@ -373,4 +374,242 @@ Deno.test("a flat run is still served by the row-order loop", () =>
     const key = await repository.findNext(job.runId, owner);
     assertEquals(key?.runId, job.runId);
     assertEquals(key?.iteration, 0);
+  }));
+
+// --- coverage QA found missing at 28e62793 (#282 review), each pinned by a mutant
+
+Deno.test("six engines asking at once for the same completed step get one key and one appended row", () =>
+  withWorkerFixture(async (fixture) => {
+    const seeded = await seedPlanRun(fixture, await chain());
+    await setRow(fixture, seeded, seeded.firstKey, "completed", { n: 1 });
+    const results = await Promise.all(
+      Array.from(
+        { length: 6 },
+        () => seeded.repository.findNext(seeded.job.runId, seeded.owner),
+      ),
+    );
+    const keys = results.map((key) => `${key?.stepKey}#${key?.iteration}`);
+    assertEquals(new Set(keys).size, 1, JSON.stringify(keys));
+    const stored = await rows(fixture, seeded);
+    assertEquals(stored.length, 2);
+    // Positions follow one another: the appended row is the next position.
+    assertEquals(stored.map((row) => row.position), [1, 2]);
+  }));
+
+Deno.test("findNext waiting behind a committing cancel appends nothing and ends nothing", () =>
+  withWorkerFixture(async (fixture) => {
+    const seeded = await seedPlanRun(fixture, await chain());
+    await setRow(fixture, seeded, seeded.firstKey, "completed", { n: 1 });
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let canceled = false;
+    const holder = withPgTransaction(fixture.pgDatabase, async (tx) => {
+      await tx.query(
+        `update bakery.workflow_runs set status = 'canceled', finished_at = now() where id = $1`,
+        [seeded.job.runId],
+      );
+      canceled = true;
+      await gate;
+    });
+    while (!canceled) await new Promise((resolve) => setTimeout(resolve, 10));
+    // The cancel is uncommitted and holds the run row: the engine's question
+    // waits for it instead of reading a run that is about to be canceled.
+    const asked = seeded.repository.findNext(seeded.job.runId, seeded.owner)
+      .then((key) => ({ key }), (error) => ({ error: String(error) }));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    release();
+    await holder;
+    await asked;
+    assertEquals((await rows(fixture, seeded)).length, 1);
+    assertEquals((await state(fixture, seeded)).run.status, "canceled");
+    assertEquals(await audit(fixture, seeded), []);
+  }));
+
+for (
+  const [label, sql] of [
+    ["the task is missing from the snapshot", `snapshot = snapshot - 'task'`],
+    [
+      "the task is an array",
+      `snapshot = jsonb_set(snapshot, '{task}', '[]'::jsonb)`,
+    ],
+    [
+      "the runtime is a string",
+      `snapshot = jsonb_set(snapshot, '{runtime}', '"x"'::jsonb)`,
+    ],
+    [
+      "the runtime is null",
+      `snapshot = jsonb_set(snapshot, '{runtime}', 'null'::jsonb)`,
+    ],
+    [
+      "the runtime is an empty object",
+      `snapshot = jsonb_set(snapshot, '{runtime}', '{}'::jsonb)`,
+    ],
+    [
+      "the pin is null",
+      `snapshot = jsonb_set(snapshot, '{runtime,pin}', 'null'::jsonb)`,
+    ],
+    [
+      "the document is null",
+      `snapshot = jsonb_set(snapshot, '{runtime,document}', 'null'::jsonb)`,
+    ],
+    [
+      "the document is an array",
+      `snapshot = jsonb_set(snapshot, '{runtime,document}', '[]'::jsonb)`,
+    ],
+    [
+      "the document has no steps",
+      `snapshot = jsonb_set(snapshot, '{runtime,document}', '{}'::jsonb)`,
+    ],
+    [
+      "the inputs are a string",
+      `snapshot = jsonb_set(snapshot, '{inputs}', '"x"'::jsonb)`,
+    ],
+    ["the inputs are missing", `snapshot = snapshot - 'inputs'`],
+  ] as const
+) {
+  Deno.test(`a malformed snapshot (${label}) fails the run by name: findNext does not throw, hang or append`, () =>
+    withWorkerFixture(async (fixture) => {
+      const seeded = await seedPlanRun(fixture, await chain());
+      await fixture.pgDatabase.query(
+        `update bakery.workflow_runs set ${sql} where id = $1`,
+        [seeded.job.runId],
+      );
+      const before = (await rows(fixture, seeded)).length;
+      // Throwing here would send the Inngest function into its retries.
+      const key = await seeded.repository.findNext(
+        seeded.job.runId,
+        seeded.owner,
+      );
+      assertEquals(key, undefined);
+      const end = await state(fixture, seeded);
+      assertEquals(end.run.status, "failed");
+      assertEquals(end.task.status, "failed");
+      assertEquals((await audit(fixture, seeded)).length, 1);
+      assertEquals((await rows(fixture, seeded)).length, before);
+    }));
+}
+
+Deno.test("a canceled step halts the plan as canceled: the run and its task end canceled, with no failure logged", () =>
+  withWorkerFixture(async (fixture) => {
+    const seeded = await seedPlanRun(fixture, await chain());
+    await setRow(fixture, seeded, seeded.firstKey, "canceled", null);
+    assertEquals(
+      await seeded.repository.findNext(seeded.job.runId, seeded.owner),
+      undefined,
+    );
+    const end = await state(fixture, seeded);
+    assertEquals(end.run.status, "canceled");
+    assertEquals(end.task.status, "canceled");
+    assertEquals(await audit(fixture, seeded), []);
+  }));
+
+Deno.test("a plan that finishes leaves no workflow.plan_failed audit row", () =>
+  withWorkerFixture(async (fixture) => {
+    const seeded = await seedPlanRun(fixture, await chain());
+    await setRow(fixture, seeded, seeded.firstKey, "completed", { n: 1 });
+    const second = await seeded.repository.findNext(
+      seeded.job.runId,
+      seeded.owner,
+    );
+    assert(second !== undefined);
+    await setRow(fixture, seeded, second.stepKey, "completed", { n: 2 });
+    assertEquals(
+      await seeded.repository.findNext(seeded.job.runId, seeded.owner),
+      undefined,
+    );
+    assertEquals((await state(fixture, seeded)).run.status, "completed");
+    assertEquals(
+      await audit(fixture, seeded),
+      [],
+      "a successful run must not log a failure",
+    );
+  }));
+
+Deno.test("an engine failure reported after the plan run already completed changes nothing", () =>
+  withWorkerFixture(async (fixture) => {
+    const seeded = await seedPlanRun(fixture, await chain());
+    await setRow(fixture, seeded, seeded.firstKey, "completed", { n: 1 });
+    const second = await seeded.repository.findNext(
+      seeded.job.runId,
+      seeded.owner,
+    );
+    assert(second !== undefined);
+    await setRow(fixture, seeded, second.stepKey, "completed", { n: 2 });
+    await seeded.repository.findNext(seeded.job.runId, seeded.owner);
+    assertEquals((await state(fixture, seeded)).run.status, "completed");
+    await seeded.repository.markEngineFailure(
+      seeded.job.runId,
+      "ATTEMPT_BUDGET_EXHAUSTED:late failure",
+      seeded.owner.token,
+    );
+    const end = await state(fixture, seeded);
+    assertEquals(end.run.status, "completed");
+    assertEquals(end.task.status, "completed");
+    assertEquals(await audit(fixture, seeded), []);
+  }));
+
+Deno.test("an engine failure from a superseded owner token cannot end an open plan run", () =>
+  withWorkerFixture(async (fixture) => {
+    const seeded = await seedPlanRun(fixture, await chain());
+    await setRow(fixture, seeded, seeded.firstKey, "completed", { n: 1 });
+    await setRow(fixture, seeded, "second", "completed", {});
+    // No open row is left, the plan branch's case; the token is not the
+    // run's current owner, as after a handoff to a successor engine.
+    await seeded.repository.markEngineFailure(
+      seeded.job.runId,
+      "ATTEMPT_BUDGET_EXHAUSTED:stale engine",
+      "not-the-current-owner-token",
+    );
+    const end = await state(fixture, seeded);
+    assertEquals(end.run.status, "running");
+    assertEquals(end.task.status, "active");
+    assertEquals(await audit(fixture, seeded), []);
+  }));
+
+Deno.test("a flat run's findNext does not wait on a lock another transaction holds on its task", () =>
+  withWorkerFixture(async (fixture) => {
+    const job = await seedFundedModelJob(
+      fixture.pgDatabase,
+      fixture.organizationId,
+      fixture.principalId,
+    );
+    await fixture.pgDatabase.query(
+      `update bakery.workflow_runs set status = 'running' where organization_id = $1 and id = $2`,
+      [fixture.organizationId, job.runId],
+    );
+    const repository = createBakeryPostgresWorkflowRepository({
+      database: fixture.pgDatabase,
+      maxAttempts: 3,
+    });
+    const owner = await repository.acquireEngineOwner(
+      job.runId,
+      `flat-${crypto.randomUUID()}`,
+      60_000,
+    );
+    assert(owner !== undefined);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let locked = false;
+    const holder = withPgTransaction(fixture.pgDatabase, async (tx) => {
+      await tx.query(`select 1 from bakery.tasks where id = $1 for update`, [
+        job.taskId,
+      ]);
+      locked = true;
+      await gate;
+    });
+    while (!locked) await new Promise((resolve) => setTimeout(resolve, 10));
+    try {
+      // Only a plan run needs the run and task rows locked to decide; a flat
+      // run's answer must not queue behind whoever holds them.
+      const answered = await Promise.race([
+        repository.findNext(job.runId, owner).then(() => true),
+        new Promise<boolean>((resolve) =>
+          setTimeout(() => resolve(false), 3_000)
+        ),
+      ]);
+      assertEquals(answered, true, "the flat findNext waited on the task lock");
+    } finally {
+      release();
+      await holder;
+    }
   }));
