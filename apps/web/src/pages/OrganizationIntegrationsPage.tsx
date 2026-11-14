@@ -22,6 +22,7 @@ import {
 import * as organizationSelection from "../app/organization-selection.ts";
 import { protectedQueryKey } from "../app/query-scope.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
+import { usePagedFocus } from "../app/focus.ts";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import {
   type CheckResult,
@@ -303,6 +304,13 @@ function ConnectionContainer(
   const [check, setCheck] = useState<CheckResult | null>(null);
   const resources = repositories.data?.pages.flatMap((page) => page.items) ??
     [];
+  const paging = usePagedFocus("repositories", {
+    pending: repositories.isFetching,
+    failed: repositories.isError,
+    rowCount: resources.length,
+    hasMore: repositories.hasNextPage,
+    rowSelector: 'input[name="repository"]',
+  });
 
   const replaceResource = (updated: IntegrationResource) => {
     queryClient.setQueryData<{ pages: ResourcePage[] }>(
@@ -480,8 +488,14 @@ function ConnectionContainer(
         })),
         hasMore: repositories.hasNextPage,
         loadingMore: repositories.isFetchingNextPage,
-        onLoadMore: () => void repositories.fetchNextPage(),
-        onRetry: () => void repositories.refetch(),
+        onLoadMore: () => {
+          paging.ask();
+          void repositories.fetchNextPage();
+        },
+        onRetry: () => {
+          paging.ask(repositories.data ? "more" : "first");
+          void repositories.refetch();
+        },
         onToggle: (id, selected) => void toggle(id, selected),
         failure: selectionFailure,
       }}

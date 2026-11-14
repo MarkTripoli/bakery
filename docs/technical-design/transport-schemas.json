@@ -3989,7 +3989,7 @@
           "bounds": {
             "maxBytes": 1000
           },
-          "description": "Stage policy snapshot for the task, an object with `plan` set to `automatic` or `human_approval`. Omitted means `{\"plan\":\"automatic\"}`; with `human_approval`, runs.create requires a valid approvalId for the approved plan revision."
+          "description": "Stage policy snapshot for the task, an object with `plan` set to `automatic` or `human_approval`, and optionally `review` set to `automatic` or `human_approval`. Omitted means `{\"plan\":\"automatic\"}`; plan `human_approval` makes runs.create require a valid approvalId for the approved plan revision, and review `human_approval` makes a clean reviewed candidate wait for an approved run_stage approval before it may merge."
         },
         {
           "name": "planningOnly",
@@ -18027,6 +18027,7 @@
         "status",
         "lastCheckedAt",
         "createdAt",
+        "createdBy",
         "updatedAt",
         "version"
       ],
@@ -18041,6 +18042,7 @@
         "status": "enum(pending|enabled|disabled|degraded|revoked)",
         "lastCheckedAt": "timestamp|null",
         "createdAt": "timestamp",
+        "createdBy": "uuid",
         "updatedAt": "timestamp",
         "version": "integer"
       },
@@ -18060,6 +18062,7 @@
         "status": "Client-facing connection state folded from the stored status and health columns: `pending` after verified setup until an Admin enables it, `revoked` when the provider revoked authorization, `disabled` when an Admin disabled it, `degraded` when an enabled connection's health is degraded or auth_required, otherwise `enabled`.",
         "lastCheckedAt": "UTC timestamp when the record was last checked.",
         "createdAt": "UTC timestamp when the record was created.",
+        "createdBy": "Principal id of the member who connected it (completed the provider setup), so a client can show who connected the integration and when; resolve the name through the organization member list.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record."
       }

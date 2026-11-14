@@ -25,6 +25,7 @@ import {
   TWO_FACTOR_PATH,
 } from "../app/auth-required.tsx";
 import { rememberDestination } from "../app/auth-return.ts";
+import { usePagedFocus } from "../app/focus.ts";
 import * as organizationSelection from "../app/organization-selection.ts";
 import {
   useProtectedScope,
@@ -335,6 +336,12 @@ export function ArtifactRetrievalPage(
         }),
       ), [api, scope, artifactId, queryClient]),
   );
+  const versionPaging = usePagedFocus("versions", {
+    pending: versionPages.loadingMore,
+    failed: versionPages.moreError,
+    rowCount: versionPages.items.length,
+    hasMore: versionPages.hasNext,
+  });
 
   /**
    * Abandons any in-flight download: the counter invalidates a response that
@@ -1005,7 +1012,14 @@ export function ArtifactRetrievalPage(
                   ? (
                     <UI.Button
                       variant="secondary"
-                      onClick={versionPages.loadMore}
+                      data-paged-more="versions"
+                      data-paged-retry={versionPages.moreError
+                        ? "versions"
+                        : undefined}
+                      onClick={() => {
+                        versionPaging.ask();
+                        versionPages.loadMore();
+                      }}
                       disabled={versionPages.loadingMore}
                     >
                       {translate("artifact.version.more")}

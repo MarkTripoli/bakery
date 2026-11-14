@@ -2319,6 +2319,35 @@ export const clientManifest = {
     {
       "group": "Extensions",
       "method": "POST",
+      "path": "/v1/integration-connections/{id}/removal",
+      "action": "integrationConnections.remove",
+      "access": "Admin",
+      "permission": "integrationConnection:manage",
+      "input": "Empty",
+      "output": "IntegrationConnection",
+      "event": "integrationConnections.updated",
+      "mcp": "bakery_integrationConnections_remove",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Extensions",
+      "method": "POST",
       "path": "/v1/integration-connections/{id}/checks",
       "action": "integrationConnections.check",
       "access": "Admin",
@@ -5481,6 +5510,52 @@ export const clientManifest = {
         "MALFORMED_REQUEST",
         "SCOPE_REQUIRED",
         "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Integrations",
+      "method": "GET",
+      "path": "/v1/integration-connections/{id}/effects",
+      "action": "integrationEffects.list",
+      "access": "Developer+resource read",
+      "permission": "integrationEffect:read",
+      "input": "IntegrationEffectQuery",
+      "output": "Page<ExternalEffect>",
+      "event": "",
+      "mcp": "bakery_integrationEffects_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Integrations",
+      "method": "GET",
+      "path": "/v1/integration-connections/{id}/effects/{effectId}",
+      "action": "integrationEffects.get",
+      "access": "Developer+resource read",
+      "permission": "integrationEffect:read",
+      "input": "IdPath",
+      "output": "ExternalEffect",
+      "event": "",
+      "mcp": "bakery_integrationEffects_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -9963,6 +10038,7 @@ export const clientManifest = {
             "integrationConnections.get",
             "integrationConnections.create",
             "integrationConnections.update",
+            "integrationConnections.remove",
             "integrationConnections.check",
             "integrationConnections.invoke",
             "mcpServers.list",
@@ -14574,6 +14650,49 @@ export const clientManifest = {
       "properties": {},
       "additionalProperties": false,
       "description": "Triggers a bounded rediscovery scan of this connection's provider resources; only a complete, successful scan may mark previously seen resources unavailable, so a partial or throttled scan leaves the existing inventory untouched."
+    },
+    "IntegrationEffectQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "resourceId": {
+          "description": "Restricts results to effects targeting one selected integration resource.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "subscriptionId": {
+          "description": "Restricts results to effects that a specific event subscription produced.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "status": {
+          "description": "Filters this connection's effects by lifecycle stage, prepared, submitted, confirmed, uncertain or failed, matching the ledger's effect state machine.",
+          "type": "string",
+          "enum": [
+            "prepared",
+            "submitted",
+            "confirmed",
+            "uncertain",
+            "failed"
+          ]
+        },
+        "cursor": {
+          "description": "IntegrationEffectQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "IntegrationEffectQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Filters the external effects dispatched through this connection, scoped to resources the caller has read access to."
     },
     "TicketSourceQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -26169,6 +26288,12 @@ export const clientManifest = {
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
                 "description": "UTC timestamp when the record was created."
               },
+              "createdBy": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Principal id of the member who connected it (completed the provider setup), so a client can show who connected the integration and when; resolve the name through the organization member list."
+              },
               "updatedAt": {
                 "type": "string",
                 "format": "date-time",
@@ -26193,6 +26318,7 @@ export const clientManifest = {
               "status",
               "lastCheckedAt",
               "createdAt",
+              "createdBy",
               "updatedAt",
               "version"
             ],
@@ -26615,6 +26741,7 @@ export const clientManifest = {
                   "integrationConnections.get",
                   "integrationConnections.create",
                   "integrationConnections.update",
+                  "integrationConnections.remove",
                   "integrationConnections.check",
                   "integrationConnections.invoke",
                   "mcpServers.list",
@@ -30215,6 +30342,258 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of CheckRun."
+    },
+    "Page<ExternalEffect>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the external effect record."
+              },
+              "runStepId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID linking this record to the related run step entity."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "ExternalEffect.runStepId may be null in this transport value."
+              },
+              "operation": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Operation name associated with the record."
+              },
+              "target": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "External resource targeted by the effect."
+              },
+              "idempotencyKey": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Key used to deduplicate external effect attempts."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "prepared",
+                  "submitted",
+                  "confirmed",
+                  "uncertain",
+                  "failed"
+                ],
+                "description": "Current lifecycle status of the record."
+              },
+              "remoteId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Stable UUID linking this record to the related remote entity."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "ExternalEffect.remoteId may be null in this transport value."
+              },
+              "lastCheckedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC timestamp when the record was last checked."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "ExternalEffect.lastCheckedAt may be null in this transport value."
+              },
+              "requestingPrincipalId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID linking this record to the related requesting principal entity."
+              },
+              "integrationConnectionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID linking this record to the related integration connection entity."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "ExternalEffect.integrationConnectionId may be null in this transport value."
+              },
+              "mcpConnectionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID linking this record to the related mcp connection entity."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "ExternalEffect.mcpConnectionId may be null in this transport value."
+              },
+              "repositoryProfileId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID linking this record to the related repository profile entity."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "ExternalEffect.repositoryProfileId may be null in this transport value."
+              },
+              "adapterVersion": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Version of the adapter used to communicate with the provider."
+              },
+              "credentialVersionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Stable UUID linking this record to the related credential version entity."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "ExternalEffect.credentialVersionId may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was last updated."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version used when updating the record."
+              }
+            },
+            "required": [
+              "id",
+              "runStepId",
+              "operation",
+              "target",
+              "idempotencyKey",
+              "status",
+              "remoteId",
+              "lastCheckedAt",
+              "requestingPrincipalId",
+              "integrationConnectionId",
+              "mcpConnectionId",
+              "repositoryProfileId",
+              "adapterVersion",
+              "credentialVersionId",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "Response and requestDigest are intentionally omitted from the default projection; any reconciliation detail is a separately authorized bounded view."
+          },
+          "description": "Page<ExternalEffect>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<ExternalEffect>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Page<ExternalEffect>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<ExternalEffect>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<ExternalEffect>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of ExternalEffect."
     },
     "Page<AuditEvent>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -40299,6 +40678,12 @@ export const clientManifest = {
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
           "description": "UTC timestamp when the record was created."
         },
+        "createdBy": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Principal id of the member who connected it (completed the provider setup), so a client can show who connected the integration and when; resolve the name through the organization member list."
+        },
         "updatedAt": {
           "type": "string",
           "format": "date-time",
@@ -40323,6 +40708,7 @@ export const clientManifest = {
         "status",
         "lastCheckedAt",
         "createdAt",
+        "createdBy",
         "updatedAt",
         "version"
       ],
@@ -40685,6 +41071,7 @@ export const clientManifest = {
             "integrationConnections.get",
             "integrationConnections.create",
             "integrationConnections.update",
+            "integrationConnections.remove",
             "integrationConnections.check",
             "integrationConnections.invoke",
             "mcpServers.list",
@@ -42113,6 +42500,198 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "usage.list GET /v1/usage includes matching installation periods and optional runId account; knownCostUsd includes only costs backed by an immutable matching provider receipt, while unverifiedCostUsd preserves worker-asserted costs separately. Fixed and incremental charges stay separately attributed by billing type. completeness is complete only when unknownCount=0 and unverifiedCount=0, partial when authoritative and unresolved records coexist, otherwise unknown."
+    },
+    "ExternalEffect": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the external effect record."
+        },
+        "runStepId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID linking this record to the related run step entity."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ExternalEffect.runStepId may be null in this transport value."
+        },
+        "operation": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Operation name associated with the record."
+        },
+        "target": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "External resource targeted by the effect."
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Key used to deduplicate external effect attempts."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "prepared",
+            "submitted",
+            "confirmed",
+            "uncertain",
+            "failed"
+          ],
+          "description": "Current lifecycle status of the record."
+        },
+        "remoteId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Stable UUID linking this record to the related remote entity."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ExternalEffect.remoteId may be null in this transport value."
+        },
+        "lastCheckedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when the record was last checked."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ExternalEffect.lastCheckedAt may be null in this transport value."
+        },
+        "requestingPrincipalId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID linking this record to the related requesting principal entity."
+        },
+        "integrationConnectionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID linking this record to the related integration connection entity."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ExternalEffect.integrationConnectionId may be null in this transport value."
+        },
+        "mcpConnectionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID linking this record to the related mcp connection entity."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ExternalEffect.mcpConnectionId may be null in this transport value."
+        },
+        "repositoryProfileId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID linking this record to the related repository profile entity."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ExternalEffect.repositoryProfileId may be null in this transport value."
+        },
+        "adapterVersion": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Version of the adapter used to communicate with the provider."
+        },
+        "credentialVersionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Stable UUID linking this record to the related credential version entity."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ExternalEffect.credentialVersionId may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the record was last updated."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version used when updating the record."
+        }
+      },
+      "required": [
+        "id",
+        "runStepId",
+        "operation",
+        "target",
+        "idempotencyKey",
+        "status",
+        "remoteId",
+        "lastCheckedAt",
+        "requestingPrincipalId",
+        "integrationConnectionId",
+        "mcpConnectionId",
+        "repositoryProfileId",
+        "adapterVersion",
+        "credentialVersionId",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "Response and requestDigest are intentionally omitted from the default projection; any reconciliation detail is a separately authorized bounded view."
     },
     "WorkflowActionDeclaration": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

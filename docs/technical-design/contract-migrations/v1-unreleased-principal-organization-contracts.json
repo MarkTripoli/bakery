@@ -1,13 +1,22 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "86dd7889ae8fbd618cd4953635971885841d89c5"
+    "51fe48c657dd15c45a5ddf3dfe01046bd0900108"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:1ed6bad0484976eed09deea818a1a340eab2668f5de555c36169c18d611b01a2",
-  "reason": "#138 contract re-bind by dev-server on 2026-11-11 under owner's standing breaking-change authorization (2026-10-09), main 86dd7889ae8fbd618cd4953635971885841d89c5: RepositoryEffectiveRules gains required repositoryVersion, checkers and providerProtection (re-bound after merging main).",
+  "targetCompatibilityDigest": "sha256:c078bd6d5c6a6da2de8bd282e3509208b0aa436cc0e0f681d477e8047b72989d",
+  "reason": "#68 contract re-bind by dev-server on 2026-11-13 under owner's standing breaking-change authorization (2026-10-09), main 51fe48c657dd15c45a5ddf3dfe01046bd0900108: IntegrationConnection gains required createdBy (who connected).",
   "priorApprovals": [
+    {
+      "allowBreaking": true,
+      "fromBaseRefs": [
+        "86dd7889ae8fbd618cd4953635971885841d89c5"
+      ],
+      "reason": "#138 contract re-bind by dev-server on 2026-11-11 under owner's standing breaking-change authorization (2026-10-09), main 86dd7889ae8fbd618cd4953635971885841d89c5: RepositoryEffectiveRules gains required repositoryVersion, checkers and providerProtection (re-bound after merging main).",
+      "status": "approved",
+      "targetCompatibilityDigest": "sha256:1ed6bad0484976eed09deea818a1a340eab2668f5de555c36169c18d611b01a2"
+    },
     {
       "allowBreaking": true,
       "fromBaseRefs": [

@@ -315,11 +315,33 @@ async function stubArtifactReads(page: Page, options: {
   readonly listStatus?: number;
   readonly listNextCursor?: string | null;
   readonly onArtifactRequest?: () => void;
+  /** Serve the versions in two pages: the newest first, an older one behind a cursor. */
+  readonly pagedVersions?: { readonly failLaterPageOnce?: boolean };
 } = {}): Promise<void> {
+  let laterPageFailures = options.pagedVersions?.failLaterPageOnce ? 1 : 0;
   await page.route("**/v1/artifacts**", async (route) => {
     options.onArtifactRequest?.();
     const url = new URL(route.request().url());
     if (url.pathname.endsWith("/versions")) {
+      if (options.pagedVersions) {
+        if (url.searchParams.get("cursor")) {
+          if (laterPageFailures > 0) {
+            laterPageFailures -= 1;
+            return await route.fulfill(problemResponse(500, "INTERNAL_ERROR"));
+          }
+          return await route.fulfill(json({
+            items: [{
+              ...VERSION,
+              id: "00000000-0000-4000-8000-000000000107",
+              revision: 0,
+            }],
+            nextCursor: null,
+          }));
+        }
+        return await route.fulfill(
+          json({ items: [VERSION], nextCursor: "older" }),
+        );
+      }
       return await route.fulfill(json({
         items: [options.version ?? VERSION],
         nextCursor: null,
@@ -1286,6 +1308,32 @@ test.describe("artifact retrieval states", () => {
 
     await expect(page.getByTestId("artifact-retrieval-page")).toBeVisible();
     await expect(page.getByText(/artifacts? in this task/)).toHaveCount(0);
+  });
+
+  test("loading the last older versions puts focus on the version selector, the list they joined", async ({ page }) => {
+    await stubArtifactReads(page, { pagedVersions: {} });
+    await page.goto(ARTIFACT_PATH);
+    await page.getByRole("button", { name: "View details" }).click();
+    const more = page.getByRole("button", { name: "Load more versions" });
+    await more.click();
+    await expect(more).toHaveCount(0);
+    // The button is gone and a version is not itself a focus target: the selector holds them.
+    await expect(page.locator('[data-paged-list="versions"]')).toBeFocused();
+  });
+
+  test("a failed load of older versions leaves focus on the button that retries it", async ({ page }) => {
+    await stubArtifactReads(page, {
+      pagedVersions: { failLaterPageOnce: true },
+    });
+    await page.goto(ARTIFACT_PATH);
+    await page.getByRole("button", { name: "View details" }).click();
+    const more = page.getByRole("button", { name: "Load more versions" });
+    await more.click();
+    await expect(more).toBeEnabled();
+    await expect(more).toBeFocused();
+    await more.click();
+    await expect(more).toHaveCount(0);
+    await expect(page.locator('[data-paged-list="versions"]')).toBeFocused();
   });
 
   test("does not report a page of artifacts as the task total", async ({ page }) => {

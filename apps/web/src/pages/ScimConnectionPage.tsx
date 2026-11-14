@@ -8,6 +8,7 @@ import { failureStatus, isForbiddenFailure } from "../app/async-state.ts";
 import { useSingleFlightSubmit } from "../app/auth-form.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
+import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation } from "../shell/shell-slots.tsx";
 
@@ -60,6 +61,12 @@ export function ScimConnectionPage() {
   const data = connection.data;
   const forbidden = failure === "forbidden" ||
     (connection.isError && isRefusedRead(connection.error));
+  const phone = useShellViewport() === "phone";
+  // The phone list drops the time so a date never wraps: "Nov 12, 2026".
+  const shortDate = (value: string) =>
+    new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone }).format(
+      new Date(value),
+    );
   const date = (value: string | null) =>
     value
       ? new Intl.DateTimeFormat(locale, {
@@ -250,38 +257,91 @@ export function ScimConnectionPage() {
                 : null}
               {data.credentials.length > 0
                 ? (
-                  <UI.DataTable<Credential>
-                    caption={translate("settings.scim.credentials.caption")}
-                    columns={[
-                      {
-                        id: "prefix",
-                        header: translate("settings.scim.column.prefix"),
-                        cell: (row) => `${row.prefix}…`,
-                      },
-                      {
-                        id: "status",
-                        header: translate("settings.scim.column.status"),
-                        cell: (row) =>
-                          translate(`settings.scim.credential.${row.status}`),
-                      },
-                      {
-                        id: "expires",
-                        header: translate("settings.scim.column.expires"),
-                        cell: (row) => date(row.expiresAt),
-                      },
-                      {
-                        id: "lastUsed",
-                        header: translate("settings.scim.column.lastUsed"),
-                        cell: (row) => date(row.lastUsedAt),
-                      },
-                    ]}
-                    emptyMessage=""
-                    error=""
-                    getRowKey={(row) => row.id}
-                    rows={data.credentials}
-                    state="ready"
-                    variant="table"
-                  />
+                  phone
+                    ? (
+                      <div
+                        aria-label={translate(
+                          "settings.scim.credentials.caption",
+                        )}
+                        data-testid="scim-credentials-list"
+                        role="list"
+                      >
+                        {data.credentials.map((row) => (
+                          <div key={row.id} role="listitem">
+                            <UI.ListRow
+                              badge={
+                                <UI.Badge
+                                  tone={row.status === "active"
+                                    ? "success"
+                                    : "neutral"}
+                                >
+                                  <UI.VisuallyHidden>
+                                    {`${
+                                      translate("settings.scim.column.status")
+                                    }: `}
+                                  </UI.VisuallyHidden>
+                                  {translate(
+                                    `settings.scim.credential.${row.status}`,
+                                  )}
+                                </UI.Badge>
+                              }
+                              detail={[
+                                translate("settings.scim.credential.expires", {
+                                  date: shortDate(row.expiresAt),
+                                }),
+                                row.lastUsedAt
+                                  ? translate(
+                                    "settings.scim.credential.lastUsed",
+                                    {
+                                      date: shortDate(row.lastUsedAt),
+                                    },
+                                  )
+                                  : translate(
+                                    "settings.scim.credential.neverUsed",
+                                  ),
+                              ].join(" · ")}
+                              title={`${row.prefix}…`}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )
+                    : (
+                      <UI.DataTable<Credential>
+                        caption={translate("settings.scim.credentials.caption")}
+                        columns={[
+                          {
+                            id: "prefix",
+                            header: translate("settings.scim.column.prefix"),
+                            cell: (row) => `${row.prefix}…`,
+                          },
+                          {
+                            id: "status",
+                            header: translate("settings.scim.column.status"),
+                            cell: (row) =>
+                              translate(
+                                `settings.scim.credential.${row.status}`,
+                              ),
+                          },
+                          {
+                            id: "expires",
+                            header: translate("settings.scim.column.expires"),
+                            cell: (row) => date(row.expiresAt),
+                          },
+                          {
+                            id: "lastUsed",
+                            header: translate("settings.scim.column.lastUsed"),
+                            cell: (row) => date(row.lastUsedAt),
+                          },
+                        ]}
+                        emptyMessage=""
+                        error=""
+                        getRowKey={(row) => row.id}
+                        rows={data.credentials}
+                        state="ready"
+                        variant="table"
+                      />
+                    )
                 )
                 : null}
               {status === "active"

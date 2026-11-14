@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
 import type { JobAttemptRead } from "../api/client.ts";
@@ -18,6 +19,8 @@ import { TaskRunOutput } from "./TaskRunOutput.tsx";
 import { TaskRunControls } from "./TaskRunControls.tsx";
 import { runTimelineEvents } from "./task-timeline.ts";
 import { TaskRunSectionView } from "./task-run-section-view.tsx";
+import { DeliverySection } from "./task-delivery/DeliverySection.tsx";
+import { focusMessageField } from "./task-delivery/focus-message.ts";
 
 /**
  * Picks the step whose output the run view shows: the viewer's choice when it
@@ -65,6 +68,7 @@ export function TaskRunSection(
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
+  const navigate = useNavigate();
   const { translate: t } = useI18n();
   const [outputStepId, setOutputStepId] = useState<string | null>(null);
   const [cursors, setCursors] = useState<(string | undefined)[]>([undefined]);
@@ -286,6 +290,22 @@ export function TaskRunSection(
         )
         : null}
       artifacts={artifacts}
+      delivery={activeRun && run.data
+        ? (
+          <DeliverySection
+            taskId={taskId}
+            runId={runId}
+            enabled={activeRun}
+            baseSha={run.data.workspaceBaseSha ?? run.data.baseSha}
+            paused={run.data.status === "paused"}
+            offline={connectivity === "offline" ||
+              connectivity === "reconnecting"}
+            onTellBakery={() => void focusMessageField()}
+            onOpenRules={() =>
+              void navigate({ to: "/settings/organization/repository-rules" })}
+          />
+        )
+        : null}
       execution={run.isPending
         ? <UI.Text>{t("tasks.session.state.loading")}</UI.Text>
         : run.isError || mismatch

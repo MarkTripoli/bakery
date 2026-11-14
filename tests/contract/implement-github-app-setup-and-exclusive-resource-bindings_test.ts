@@ -39,7 +39,10 @@ const implementedIntegrationActions = [
   "integrationConnections.get",
   "integrationConnections.list",
   "integrationResources.list",
+  "integrationEffects.list",
+  "integrationEffects.get",
   "integrationConnections.update",
+  "integrationConnections.remove",
   "integrationResources.update",
   "integrationConnections.check",
   "integrationDiscoveries.create",
@@ -677,6 +680,7 @@ Deno.test("the connection projection names the provider, includes pending and ca
   assertEquals(Object.keys(schema.shape).sort(), [
     "config",
     "createdAt",
+    "createdBy",
     "externalAccountId",
     "grantedScopes",
     "id",
@@ -698,6 +702,7 @@ Deno.test("the connection projection names the provider, includes pending and ca
     grantedScopes: { metadata: "read" },
     lastCheckedAt: null,
     createdAt: "2026-10-26T12:00:00.000000Z",
+    createdBy: crypto.randomUUID(),
     updatedAt: "2026-10-26T12:00:00.000000Z",
     version: 1,
   };

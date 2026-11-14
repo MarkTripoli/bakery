@@ -4108,6 +4108,20 @@
       "context": "rtl"
     },
     {
+      "id": "ui.stepList.contract.desktop-light-fine",
+      "catalogId": "ui.stepList",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-steplist--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.stepItem.contract.desktop-light-fine",
+      "catalogId": "ui.stepItem",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-stepitem--contract",
+      "context": "desktop-light-fine"
+    },
+    {
       "id": "ui.planRevisionSummary.contract.desktop-light-fine",
       "catalogId": "ui.planRevisionSummary",
       "requiredCaseId": "contract",

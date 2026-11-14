@@ -26,6 +26,7 @@ import { useConnectivity } from "../app/connectivity.ts";
 import { useShellViewport } from "../app/responsive.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
+import { usePagedFocus } from "../app/focus.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { MachineList } from "./MachineList.tsx";
@@ -108,20 +109,31 @@ function statusForEnrollment(state: EnrollmentState): UI.Status {
 }
 
 function StateError({
+  busy = false,
   kind,
   onRetry,
   translate,
 }: {
+  /** A retry is in flight: the button stays where it is, busy, so focus never leaves it. */
+  readonly busy?: boolean;
   readonly kind: "offline" | "error";
   readonly onRetry: () => void;
   readonly translate: Translator;
 }) {
   return (
     <UI.ErrorState
+      state={busy ? "retrying" : "default"}
       title={translate(`machines.${kind}.title` as never)}
       description={translate(`machines.${kind}.description` as never)}
       action={
-        <UI.Button variant="secondary" onClick={onRetry}>
+        <UI.Button
+          aria-busy={busy || undefined}
+          variant="secondary"
+          onClick={busy ? undefined : onRetry}
+          // The paged-focus rule's retry target: a retried first read that
+          // fails again puts focus back on this button.
+          data-paged-retry="machines"
+        >
           {translate("machines.retry" as never)}
         </UI.Button>
       }
@@ -384,13 +396,23 @@ function EnrollmentPanel({
       queryKey: enrollmentsOptions.queryKey,
     });
   };
+  // The last page of the continuation ends the list: its null cursor must not
+  // fall back to the first page's cursor, which would offer Load more forever.
+  const nextEnrollmentCursor = enrollmentContinuation.data
+    ? enrollmentContinuation.data.nextCursor
+    : enrollments.data?.nextCursor;
+  const enrollmentPaging = usePagedFocus("enrollments", {
+    pending: enrollmentContinuation.isFetching,
+    failed: enrollmentContinuation.isError,
+    rowCount: (enrollments.data?.items.length ?? 0) +
+      (enrollmentContinuation.data?.items.length ?? 0),
+    hasMore: Boolean(nextEnrollmentCursor),
+  });
   if (!isAdmin) return null;
   const rows = [
     ...(enrollments.data?.items ?? []),
     ...(enrollmentContinuation.data?.items ?? []),
   ];
-  const nextEnrollmentCursor = enrollmentContinuation.data?.nextCursor ??
-    enrollments.data?.nextCursor;
   const tableState = enrollments.isPending && rows.length === 0
     ? "loading"
     : enrollments.isError
@@ -604,6 +626,7 @@ function EnrollmentPanel({
           <UI.Stack
             gap="none"
             role="list"
+            data-paged-list="enrollments"
             aria-label={translate("machines.enrollment.table" as never)}
             aria-busy={tableState === "loading" || undefined}
           >
@@ -633,43 +656,45 @@ function EnrollmentPanel({
           </UI.Stack>
         )
         : (
-          <UI.DataTable<EnrollmentRow>
-            caption={translate("machines.enrollment.table" as never)}
-            rows={rows}
-            state={tableState}
-            error={translate("machines.error.description" as never)}
-            emptyMessage={translate("machines.enrollment.empty" as never)}
-            getRowKey={(row) => row.enrollmentId}
-            getRowAttributes={(row) => ({ "data-enrollment-name": row.name })}
-            columns={[
-              {
-                id: "name",
-                header: translate("machines.enrollment.name" as never),
-                cell: (row) => row.name,
-              },
-              {
-                id: "status",
-                header: translate("machines.status.label" as never),
-                cell: (row) => (
-                  <UI.StatusBadge status={statusForEnrollment(row.state)}>
-                    {labelForEnrollmentState(row.state, translate)}
-                  </UI.StatusBadge>
-                ),
-              },
-              {
-                id: "expires",
-                header: translate("machines.enrollment.expires" as never),
-                cell: (row) => formatDate(row.expiresAt),
-              },
-              {
-                id: "actions",
-                header: translate("machines.enrollment.actions" as never),
-                cell: (row) => (
-                  actions(row)
-                ),
-              },
-            ]}
-          />
+          <div data-paged-list="enrollments">
+            <UI.DataTable<EnrollmentRow>
+              caption={translate("machines.enrollment.table" as never)}
+              rows={rows}
+              state={tableState}
+              error={translate("machines.error.description" as never)}
+              emptyMessage={translate("machines.enrollment.empty" as never)}
+              getRowKey={(row) => row.enrollmentId}
+              getRowAttributes={(row) => ({ "data-enrollment-name": row.name })}
+              columns={[
+                {
+                  id: "name",
+                  header: translate("machines.enrollment.name" as never),
+                  cell: (row) => row.name,
+                },
+                {
+                  id: "status",
+                  header: translate("machines.status.label" as never),
+                  cell: (row) => (
+                    <UI.StatusBadge status={statusForEnrollment(row.state)}>
+                      {labelForEnrollmentState(row.state, translate)}
+                    </UI.StatusBadge>
+                  ),
+                },
+                {
+                  id: "expires",
+                  header: translate("machines.enrollment.expires" as never),
+                  cell: (row) => formatDate(row.expiresAt),
+                },
+                {
+                  id: "actions",
+                  header: translate("machines.enrollment.actions" as never),
+                  cell: (row) => (
+                    actions(row)
+                  ),
+                },
+              ]}
+            />
+          </div>
         )}
       {enrollmentContinuation.isError
         ? (
@@ -682,14 +707,22 @@ function EnrollmentPanel({
         ? (
           <UI.Button
             variant="secondary"
+            data-paged-more="enrollments"
+            data-paged-retry={enrollmentContinuation.isError
+              ? "enrollments"
+              : undefined}
             disabled={enrollmentContinuation.isFetching}
-            onClick={() =>
-              enrollmentContinuation.isError
-                ? void enrollmentContinuation.refetch()
-                : setEnrollmentCursor(nextEnrollmentCursor)}
+            onClick={() => {
+              enrollmentPaging.ask("more", enrollments.data?.items.length);
+              if (enrollmentContinuation.isError) {
+                void enrollmentContinuation.refetch();
+              } else setEnrollmentCursor(nextEnrollmentCursor);
+            }}
           >
             {enrollmentContinuation.isFetching
               ? translate("machines.pagination.loadingMore" as never)
+              : enrollmentContinuation.isError
+              ? translate("machines.retry" as never)
               : translate("machines.pagination.loadMore" as never)}
           </UI.Button>
         )
@@ -734,8 +767,22 @@ export function MachinesPage() {
     ...(workerContinuation.data?.items ?? []),
   ];
   const visible = rows.filter((row) => machineMatchesFilter(row, filter));
-  const nextWorkerCursor = workerContinuation.data?.nextCursor ??
-    workers.data?.nextCursor;
+  // As above: the continuation's null cursor ends the list.
+  const nextWorkerCursor = workerContinuation.data
+    ? workerContinuation.data.nextCursor
+    : workers.data?.nextCursor;
+  const workerPaging = usePagedFocus("machines", {
+    pending: workerContinuation.isFetching || workers.isFetching,
+    failed: workerContinuation.isError || workers.isError,
+    rowCount: rows.length,
+    hasMore: Boolean(nextWorkerCursor),
+  });
+  // A retried first read: the failure stays on screen, with its Retry button
+  // busy, until the answer arrives. Without it the button would be replaced by
+  // the loading state and focus would fall to the page body for the wait.
+  const [retryingFirst, setRetryingFirst] = useState<
+    "offline" | "error" | null
+  >(null);
   const forbidden = workers.isError && isForbiddenFailure(workers.error);
   // The add action is for an administrator who can read the list at all.
   const canAdd = isAdmin && !forbidden;
@@ -773,12 +820,15 @@ export function MachinesPage() {
         ? <ShellSlot name="actions">{addMachine}</ShellSlot>
         : null}
       <UI.SettingsContent data-testid="machines-page">
-        <UI.PageHeader
-          variant="list"
-          title={translate("machines.title")}
-          subtitle={translate("machines.description")}
-          actions={canAdd && phone && rows.length > 0 ? addMachine : null}
-        />
+        {/* The wrapper is what the first-read retry looks for; the focus goes to its heading. */}
+        <div data-paged-heading="machines">
+          <UI.PageHeader
+            variant="list"
+            title={translate("machines.title")}
+            subtitle={translate("machines.description")}
+            actions={canAdd && phone && rows.length > 0 ? addMachine : null}
+          />
+        </div>
         {connectivityKind
           ? (
             <UI.AlertBanner
@@ -796,13 +846,25 @@ export function MachinesPage() {
               variant="firstUse"
             />
           )
-          : workers.isError
+          : workers.isError || retryingFirst !== null
           ? (
             <StateError
-              kind={asyncKindForError(workers.error) === "offline"
+              busy={retryingFirst !== null}
+              kind={retryingFirst ?? (asyncKindForError(workers.error) ===
+                  "offline"
                 ? "offline"
-                : "error"}
-              onRetry={() => void workers.refetch()}
+                : "error")}
+              onRetry={() => {
+                // A failed first read, retried: focus lands on the page heading
+                // when it works, back on Retry when it fails again.
+                workerPaging.ask("first");
+                setRetryingFirst(
+                  asyncKindForError(workers.error) === "offline"
+                    ? "offline"
+                    : "error",
+                );
+                void workers.refetch().finally(() => setRetryingFirst(null));
+              }}
               translate={translate}
             />
           )
@@ -846,14 +908,16 @@ export function MachinesPage() {
                   />
                 )
                 : null}
-              <MachineList
-                rows={visible}
-                loading={workers.isPending}
-                stale={connectivity !== "online"}
-                phone={phone}
-                onOpen={openMachine}
-                translate={translate}
-              />
+              <div data-paged-list="machines">
+                <MachineList
+                  rows={visible}
+                  loading={workers.isPending}
+                  stale={connectivity !== "online"}
+                  phone={phone}
+                  onOpen={openMachine}
+                  translate={translate}
+                />
+              </div>
               {workerContinuation.isError
                 ? (
                   <UI.AlertBanner tone="error">
@@ -865,14 +929,22 @@ export function MachinesPage() {
                 ? (
                   <UI.Button
                     variant="secondary"
+                    data-paged-more="machines"
+                    data-paged-retry={workerContinuation.isError
+                      ? "machines"
+                      : undefined}
                     disabled={workerContinuation.isFetching}
-                    onClick={() =>
-                      workerContinuation.isError
-                        ? void workerContinuation.refetch()
-                        : setWorkerCursor(nextWorkerCursor)}
+                    onClick={() => {
+                      workerPaging.ask("more", workers.data?.items.length);
+                      if (workerContinuation.isError) {
+                        void workerContinuation.refetch();
+                      } else setWorkerCursor(nextWorkerCursor);
+                    }}
                   >
                     {workerContinuation.isFetching
                       ? translate("machines.pagination.loadingMore" as never)
+                      : workerContinuation.isError
+                      ? translate("machines.retry" as never)
                       : translate("machines.pagination.loadMore" as never)}
                   </UI.Button>
                 )
