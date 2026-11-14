@@ -13,7 +13,6 @@ import {
 import { shot } from "./helpers/real-api.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { firstRender } from "./helpers/first-render.ts";
-import { shot } from "./helpers/real-api.ts";
 
 registerPageHealth(test);
 
