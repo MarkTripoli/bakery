@@ -286,7 +286,8 @@ const connection = (
   ...overrides,
 });
 const repository = (index: number, selected = false): Resource => ({
-  id: `00000000-0000-4000-8000-0000000001a${index}`,
+  // A fixed-width tail, so repository 12 is as valid a UUID as repository 1.
+  id: `00000000-0000-4000-8000-00000001a${String(index).padStart(3, "0")}`,
   name: `acme-org/repo-${index}`,
   selected,
   available: true,
