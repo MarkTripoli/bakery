@@ -437,6 +437,25 @@
 .ui-description-item__action {
   flex: none;
 }
+/* A phone row whose action sits under the text (actionPlacement="below"): the
+   action takes its own line, left-aligned, and its buttons keep their labels
+   on one line. */
+@media (max-width: 743px) {
+  .ui-description-item[data-action-placement="below"] {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .ui-description-item[data-action-placement="below"] .ui-description-item__action {
+    flex: 1 0 100%;
+  }
+  .ui-description-item[data-action-placement="below"] .ui-description-item__action .ui-inline {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+  .ui-description-item[data-action-placement="below"] .ui-description-item__action .ui-button {
+    white-space: nowrap;
+  }
+}
 /* A value beside a button in an item's action takes the room it needs, not a line to itself. */
 .ui-description-item__action .ui-inline > .ui-data-text {
   flex: 0 1 auto;
