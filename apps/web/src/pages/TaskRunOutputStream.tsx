@@ -217,6 +217,13 @@ export function StreamOutput({ stream, onUsageChange, onReload }: {
           : stream.reason === "lease-lost"
           ? t("tasks.run.identity.lostLease")
           : null,
+        leaseTone: attempt
+          ? attempt.leaseState === "expired" || attempt.leaseState === "lost"
+            ? "warning" as const
+            : undefined
+          : stream.reason === "lease-lost"
+          ? "warning" as const
+          : undefined,
         notice: outcome === "running" || outcome === "unknown"
           ? captureNotice
           : {

@@ -31,6 +31,10 @@
   font-weight: var(--weight-medium);
   padding: var(--space-1) var(--space-2);
 }
+.ui-run-card__badge[data-tone="warning"] {
+  background: var(--color-status-warning-surface);
+  color: var(--color-status-warning);
+}
 .ui-run-card__meta {
   color: var(--color-fg-muted);
   font: var(--type-meta);

@@ -359,7 +359,7 @@
       "pageId": "E05-artifacts",
       "frameName": "task-run--lost-lease--light--desktop",
       "source": "task-run--lost-lease--light--desktop.jsx",
-      "sha256": "e55481a6362fa6f73af0f9f39918893a291c575b8e665811e9a19655ea46b559"
+      "sha256": "b0a6b891f296675b6caa51456419ed994fc46b64ebc36e08c27d67e9f0a1620c"
     },
     {
       "id": "task-run",
@@ -373,7 +373,7 @@
       "pageId": "E05-artifacts",
       "frameName": "task-run--lost-lease--light--phone",
       "source": "task-run--lost-lease--light--phone.jsx",
-      "sha256": "329dd0a8916e78e0c52fbf73b58c62087b88f1f4fab23fe5a1d675fc18b25080"
+      "sha256": "aa0d1a48ec5f471148330b239cf51c9163e103a1dcc3ef5f8f5962e56d7fd1e5"
     },
     {
       "id": "artifact",

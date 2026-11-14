@@ -113,7 +113,7 @@ const stateData: Record<RunOutputFixtureState, FixtureState> = {
     },
   },
   "lost-lease": {
-    lease: "Machine stopped responding",
+    lease: "Machine stopped responding. Bakery took the task back.",
     outputState: "interrupted",
     notice: {
       title: "Task taken back",
@@ -162,6 +162,8 @@ export function runOutputFixtureData(state: string): RunOutputFixtureData {
       worker: "atlas-01",
       attempt: "Try 2",
       lease: fixture.lease,
+      // A lease that was taken back is a warning, like the page.
+      leaseTone: selected === "lost-lease" ? "warning" : undefined,
       detail: "Codex on atlas-01 · run_42 / step_3",
       unknownLabel: "Unknown",
     },

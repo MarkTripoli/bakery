@@ -716,7 +716,7 @@ for (
       outcome: { reasonCode: "lease_lost" },
       status: "lost",
       leaseState: "lost",
-      lease: "Machine stopped responding",
+      lease: "Machine stopped responding. Bakery took the task back.",
       title: "Task taken back",
     },
     {
@@ -799,8 +799,12 @@ for (
       .toHaveAttribute("href", /^\/machines\/[0-9a-f-]{36}$/);
     await expect(page.getByText("Try 2", { exact: true })).toBeVisible();
     // What the machine is doing is said in words, never as a lease.
-    await expect(page.getByText(scenario.lease, { exact: true }).first())
-      .toBeVisible();
+    const badge = page.getByText(scenario.lease, { exact: true }).first();
+    await expect(badge).toBeVisible();
+    // A task that was taken back is a warning; a finished try is not.
+    if (scenario.leaseState === "lost") {
+      await expect(badge).toHaveAttribute("data-tone", "warning");
+    } else await expect(badge).not.toHaveAttribute("data-tone", /.+/);
     await expect(page.getByText(/^Lease /)).toHaveCount(0);
     if ("says" in scenario) {
       await expect(page.getByText(scenario.says, { exact: true }))
@@ -819,7 +823,7 @@ for (
 for (
   const [leaseState, says] of [
     ["active", "Machine is working on it"],
-    ["expired", "Machine stopped responding"],
+    ["expired", "Machine has not responded for a while"],
     ["unknown", "Machine status unknown"],
   ] as const
 ) {
@@ -834,7 +838,12 @@ for (
     );
     await page.routeWebSocket("**/v1/events?*", () => {});
     await page.goto(`/tasks/${id}`);
-    await expect(page.getByText(says, { exact: true })).toBeVisible();
+    const badge = page.getByText(says, { exact: true });
+    await expect(badge).toBeVisible();
+    // Only an expired lease is a warning here; active and unknown are not.
+    if (leaseState === "expired") {
+      await expect(badge).toHaveAttribute("data-tone", "warning");
+    } else await expect(badge).not.toHaveAttribute("data-tone", /.+/);
     await expect(page.getByText(/^Lease /)).toHaveCount(0);
   });
 }

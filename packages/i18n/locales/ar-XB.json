@@ -1418,7 +1418,6 @@
   "tasks.run.step.skipped": "⟪Skipped⟫",
   "tasks.run.step.canceled": "⟪Canceled⟫",
   "tasks.run.identity.title": "⟪Execution identity⟫",
-  "tasks.run.identity.lostLease": "⟪Machine stopped responding⟫",
   "tasks.run.revision.title": "⟪Changes⟫",
   "tasks.run.revision.disclaimer": "⟪Observed repository state. No review or merge decision recorded.⟫",
   "tasks.run.output.title": "⟪Run output⟫",
@@ -1457,7 +1456,6 @@
   "tasks.run.output.download": "⟪Download displayed output⟫",
   "tasks.run.output.usage": "⟪Provider usage: {input} input tokens · {output} output tokens · USD {cost}⟫",
   "tasks.run.outcome.exit.code": "⟪Process exited with code {code}. Review and merge are separate decisions.⟫",
-  "tasks.run.identity.lease.lost": "⟪Machine stopped responding⟫",
   "tasks.run.outcome.exit.title": "⟪Process exited⟫",
   "tasks.run.outcome.exit.description": "⟪Execution finished. Review and merge are separate decisions.⟫",
   "tasks.run.outcome.completed.title": "⟪Execution completed⟫",
@@ -3162,7 +3160,6 @@
   "tasks.composer.setup.required_check_missing": "⟪Your organization requires a check that this workflow does not run. Choose a workflow that runs checks, or ask an organization administrator to change the rule in {rules}.⟫",
   "tasks.composer.setup.rulesPage": "⟪Repository rules⟫",
   "tasks.run.identity.lease.active": "⟪Machine is working on it⟫",
-  "tasks.run.identity.lease.expired": "⟪Machine stopped responding⟫",
   "tasks.run.identity.lease.closed": "⟪Machine is no longer working on it⟫",
   "tasks.run.identity.lease.unknown": "⟪Machine status unknown⟫",
   "tasks.run.outcome.failed.description": "⟪The worker recorded a failed result. The output saved so far is kept.⟫",
@@ -3171,5 +3168,8 @@
   "tasks.run.identity.unavailable": "⟪Bakery cannot tell which machine ran this.⟫",
   "tasks.run.artifact.revision": "⟪Version {revision}⟫",
   "tasks.run.artifact.detail": "⟪A saved version never changes.⟫",
-  "tasks.run.output.durable": "⟪Last saved output⟫"
+  "tasks.run.output.durable": "⟪Last saved output⟫",
+  "tasks.run.identity.lostLease": "⟪Machine stopped responding. Bakery took the task back.⟫",
+  "tasks.run.identity.lease.expired": "⟪Machine has not responded for a while⟫",
+  "tasks.run.identity.lease.lost": "⟪Machine stopped responding. Bakery took the task back.⟫"
 }

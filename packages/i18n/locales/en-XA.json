@@ -1416,7 +1416,6 @@
   "tasks.run.step.skipped": "⟦Šķïþþëð…⟧",
   "tasks.run.step.canceled": "⟦Çàñçëļëð…⟧",
   "tasks.run.identity.title": "⟦Ëẋëçûŧïôñ ïðëñŧïŧÿ ŧëšŧ⟧",
-  "tasks.run.identity.lostLease": "⟦Ṁàçĥïñë šŧôþþëð ŕëšþôñðïñĝ ŧëšŧ çô⟧",
   "tasks.run.revision.title": "⟦Çĥàñĝëš…⟧",
   "tasks.run.revision.disclaimer": "⟦Ôƀšëŕṽëð ŕëþôšïŧôŕÿ šŧàŧë. Ñô ŕëṽïëŵ ôŕ ɱëŕĝë ðëçïšïôñ ŕëçôŕðëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "tasks.run.output.title": "⟦Ŕûñ ôûŧþûŧ ŧ⟧",
@@ -1455,7 +1454,6 @@
   "tasks.run.output.download": "⟦Ðôŵñļôàð ðïšþļàÿëð ôûŧþûŧ ŧëšŧ ç⟧",
   "tasks.run.output.usage": "⟦Þŕôṽïðëŕ ûšàĝë: {input} ïñþûŧ ŧôķëñš · {output} ôûŧþûŧ ŧôķëñš · ÛŠÐ {cost} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "tasks.run.outcome.exit.code": "⟦Þŕôçëšš ëẋïŧëð ŵïŧĥ çôðë {code}. Ŕëṽïëŵ àñð ɱëŕĝë àŕë šëþàŕàŧë ðëçïšïôñš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
-  "tasks.run.identity.lease.lost": "⟦Ṁàçĥïñë šŧôþþëð ŕëšþôñðïñĝ ŧëšŧ çô⟧",
   "tasks.run.outcome.exit.title": "⟦Þŕôçëšš ëẋïŧëð ŧë⟧",
   "tasks.run.outcome.exit.description": "⟦Ëẋëçûŧïôñ ƒïñïšĥëð. Ŕëṽïëŵ àñð ɱëŕĝë àŕë šëþàŕàŧë ðëçïšïôñš. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "tasks.run.outcome.completed.title": "⟦Ëẋëçûŧïôñ çôɱþļëŧëð ŧëšŧ⟧",
@@ -3162,7 +3160,6 @@
   "tasks.composer.setup.required_check_missing": "⟦Ÿôûŕ ôŕĝàñïžàŧïôñ ŕëǫûïŕëš à çĥëçķ ŧĥàŧ ŧĥïš ŵôŕķƒļôŵ ðôëš ñôŧ ŕûñ. Çĥôôšë à ŵôŕķƒļôŵ ŧĥàŧ ŕûñš çĥëçķš, ôŕ àšķ àñ ôŕĝàñïžàŧïôñ àðɱïñïšŧŕàŧôŕ ŧô çĥàñĝë ŧĥë ŕûļë ïñ {rules}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "tasks.composer.setup.rulesPage": "⟦Ŕëþôšïŧôŕÿ ŕûļëš ŧëš⟧",
   "tasks.run.identity.lease.active": "⟦Ṁàçĥïñë ïš ŵôŕķïñĝ ôñ ïŧ ŧëšŧ ç⟧",
-  "tasks.run.identity.lease.expired": "⟦Ṁàçĥïñë šŧôþþëð ŕëšþôñðïñĝ ŧëšŧ çô⟧",
   "tasks.run.identity.lease.closed": "⟦Ṁàçĥïñë ïš ñô ļôñĝëŕ ŵôŕķïñĝ ôñ ïŧ ŧëšŧ çôþÿ⟧",
   "tasks.run.identity.lease.unknown": "⟦Ṁàçĥïñë šŧàŧûš ûñķñôŵñ ŧëšŧŧ⟧",
   "tasks.run.outcome.failed.description": "⟦Ŧĥë ŵôŕķëŕ ŕëçôŕðëð à ƒàïļëð ŕëšûļŧ. Ŧĥë ôûŧþûŧ šàṽëð šô ƒàŕ ïš ķëþŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
@@ -3171,5 +3168,8 @@
   "tasks.run.identity.unavailable": "⟦Ɓàķëŕÿ çàññôŧ ŧëļļ ŵĥïçĥ ɱàçĥïñë ŕàñ ŧĥïš. ŧëšŧ çôþÿ ŧë⟧",
   "tasks.run.artifact.revision": "⟦Ṽëŕšïôñ {revision} ŧëšŧ⟧",
   "tasks.run.artifact.detail": "⟦À šàṽëð ṽëŕšïôñ ñëṽëŕ çĥàñĝëš. ŧëšŧ çôþ⟧",
-  "tasks.run.output.durable": "⟦Ļàšŧ šàṽëð ôûŧþûŧ ŧëš⟧"
+  "tasks.run.output.durable": "⟦Ļàšŧ šàṽëð ôûŧþûŧ ŧëš⟧",
+  "tasks.run.identity.lostLease": "⟦Ṁàçĥïñë šŧôþþëð ŕëšþôñðïñĝ. Ɓàķëŕÿ ŧôôķ ŧĥë ŧàšķ ƀàçķ. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "tasks.run.identity.lease.expired": "⟦Ṁàçĥïñë ĥàš ñôŧ ŕëšþôñðëð ƒôŕ à ŵĥïļë ŧëšŧ çôþÿŧ⟧",
+  "tasks.run.identity.lease.lost": "⟦Ṁàçĥïñë šŧôþþëð ŕëšþôñðïñĝ. Ɓàķëŕÿ ŧôôķ ŧĥë ŧàšķ ƀàçķ. ŧëšŧ çôþÿ ŧëšŧ ç⟧"
 }

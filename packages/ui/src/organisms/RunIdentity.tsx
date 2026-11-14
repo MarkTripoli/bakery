@@ -7,12 +7,14 @@ export type RunIdentityProps = {
   worker: string | null;
   attempt: string | null;
   lease: string | null;
+  /** `warning` when the machine stopped answering or the task was taken back. */
+  leaseTone?: "warning";
   detail: ReactNode;
   unknownLabel: string;
 };
 
 export function RunIdentity(
-  { title, notice, worker, attempt, lease, detail, unknownLabel }:
+  { title, notice, worker, attempt, lease, leaseTone, detail, unknownLabel }:
     RunIdentityProps,
 ) {
   return (
@@ -37,7 +39,9 @@ export function RunIdentity(
         <div className="ui-run-card__row">
           <span className="ui-run-card__badge">{worker ?? unknownLabel}</span>
           <span className="ui-run-card__badge">{attempt ?? unknownLabel}</span>
-          <span className="ui-run-card__badge">{lease ?? unknownLabel}</span>
+          <span className="ui-run-card__badge" data-tone={leaseTone}>
+            {lease ?? unknownLabel}
+          </span>
         </div>
         <p className="ui-run-card__meta">{detail}</p>
       </section>
