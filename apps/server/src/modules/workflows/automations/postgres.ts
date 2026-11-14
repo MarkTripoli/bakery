@@ -359,6 +359,13 @@ export async function updateAutomation(context: ActionContext, input: unknown) {
   if (expectedVersion === undefined) {
     throw new StandardError({ code: "PRECONDITION_REQUIRED" });
   }
+  // An update that changes nothing is refused, not recorded as a change.
+  if (
+    value.name === undefined && value.enabled === undefined &&
+    value.activeVersionId === undefined
+  ) {
+    throw unprocessable(["body"], "no_changes");
+  }
   const locked = await transaction.query<LockedDefinition>(
     `select enabled, active_version_id, next_fire_at
        from bakery.automation_definitions

@@ -727,6 +727,272 @@ Deno.test("automations: definitions, versions with a validated trigger, lifecycl
         404,
       );
     });
+
+    await test.step("a body nested too deep or with a __proto__ key is refused as malformed, not a server error; equivalent schedules are one digest; an empty update is refused", async () => {
+      const nestedText = (depth: number) =>
+        `${'{"a":'.repeat(depth)}1${"}".repeat(depth)}`;
+      const raw = (path: string, text: string, method = "POST") =>
+        fixture.app.fetch(
+          new Request(`${authTestOrigin}${path}`, {
+            method,
+            headers: {
+              cookie: cookies.adminA,
+              "Bakery-Organization-Id": organizationAId,
+              "content-type": "application/json",
+              origin: authTestOrigin,
+              "Idempotency-Key": crypto.randomUUID(),
+            },
+            body: text,
+          }),
+        );
+      const versionPath = `/v1/automations/${automationId}/versions`;
+      const before = await facts();
+      const bodyWith = (field: string, value: string) =>
+        `{"trigger":${
+          field === "trigger" ? value : JSON.stringify(schedule)
+        },"workflowVersionId":"${publishedA}","inputs":${
+          field === "inputs" ? value : "{}"
+        },"misfirePolicy":"coalesce","overlapPolicy":"skip"}`;
+      for (
+        const text of [
+          // Deep nesting, where the recursive schemas overflowed the stack.
+          bodyWith("inputs", nestedText(5_000)),
+          bodyWith(
+            "trigger",
+            `{"type":"event","provider":"github","kind":"issues","filter":${
+              nestedText(5_000)
+            }}`,
+          ),
+          bodyWith("inputs", nestedText(3_200)),
+          // A key the parser would silently drop.
+          bodyWith(
+            "trigger",
+            '{"type":"event","provider":"github","kind":"issues","filter":{"__proto__":"x"}}',
+          ),
+          bodyWith("inputs", '{"__proto__":{"admin":true}}'),
+          bodyWith("inputs", '{"a":[{"b":{"__proto__":1}}]}'),
+        ]
+      ) {
+        const response = await raw(versionPath, text);
+        assertEquals(response.status, 400, text.slice(0, 80));
+        assertEquals(
+          (await response.json() as { code: string }).code,
+          "MALFORMED_REQUEST",
+        );
+      }
+      // The same elsewhere in the API.
+      const elsewhere = await raw(
+        "/v1/automations",
+        `{"slug":"deep","name":"Deep","description":"","x":${
+          nestedText(5_000)
+        }}`,
+      );
+      assertEquals(elsewhere.status, 400);
+      await elsewhere.body?.cancel();
+      assertEquals(await facts(), before);
+      // The same bound on every route that takes a body: the update, the shared
+      // definition create of workflows, and the existing run create.
+      const currentForDepth = await send(
+        "GET",
+        `/v1/automations/${automationId}`,
+        read(cookies.adminA, organizationAId),
+      );
+      const depthVersion = (await currentForDepth.json() as { version: number })
+        .version;
+      for (
+        const [method, path, text] of [
+          [
+            "PATCH",
+            `/v1/automations/${automationId}`,
+            `{"name":"x","extra":${nestedText(5_000)}}`,
+          ],
+          [
+            "POST",
+            "/v1/workflows",
+            `{"slug":"deep","name":"Deep","description":"","x":${
+              nestedText(5_000)
+            }}`,
+          ],
+          [
+            "POST",
+            `/v1/tasks/${crypto.randomUUID()}/runs`,
+            `{"inputs":${nestedText(5_000)}}`,
+          ],
+        ] as const
+      ) {
+        const response = await fixture.app.fetch(
+          new Request(`${authTestOrigin}${path}`, {
+            method,
+            headers: {
+              cookie: cookies.adminA,
+              "Bakery-Organization-Id": organizationAId,
+              "content-type": "application/json",
+              origin: authTestOrigin,
+              "Idempotency-Key": crypto.randomUUID(),
+              "If-Match": `"${depthVersion}"`,
+            },
+            body: text,
+          }),
+        );
+        assertEquals(response.status, 400, `${method} ${path}`);
+        assertEquals(
+          (await response.json() as { code: string }).code,
+          "MALFORMED_REQUEST",
+        );
+      }
+      // A NUL cannot be stored: refused before any write, wherever it is, however it is written.
+      for (
+        const [method, path, text] of [
+          [
+            "POST",
+            "/v1/automations",
+            '{"slug":"nul-a","name":"bad\\u0000name","description":""}',
+          ],
+          [
+            "POST",
+            "/v1/automations",
+            '{"slug":"nul-b","name":"ok","description":"bad\\u0000description"}',
+          ],
+          [
+            "POST",
+            "/v1/workflows",
+            '{"slug":"nul-c","name":"bad\\u0000name","description":""}',
+          ],
+          [
+            "PATCH",
+            `/v1/automations/${automationId}`,
+            '{"name":"bad\\u0000name"}',
+          ],
+          [
+            "POST",
+            versionPath,
+            bodyWith(
+              "trigger",
+              '{"type":"event","provider":"github","kind":"issues","filter":{"k":"v\\u0000"}}',
+            ),
+          ],
+          [
+            "POST",
+            versionPath,
+            bodyWith(
+              "trigger",
+              '{"type":"event","provider":"github","kind":"issues","filter":{"k\\u0000":"v"}}',
+            ),
+          ],
+          ["POST", versionPath, bodyWith("inputs", '"text\\u0000"')],
+          ["POST", versionPath, bodyWith("inputs", '{"a\\u0000b":1}')],
+          ["POST", versionPath, bodyWith("inputs", '["ok","x\\u0000"]')],
+          [
+            "POST",
+            versionPath,
+            bodyWith("inputs", '{"deep":{"list":[{"v":"\\u0000"}]}}'),
+          ],
+        ] as const
+      ) {
+        const factsNow = await facts();
+        const response = await fixture.app.fetch(
+          new Request(`${authTestOrigin}${path}`, {
+            method,
+            headers: {
+              cookie: cookies.adminA,
+              "Bakery-Organization-Id": organizationAId,
+              "content-type": "application/json",
+              origin: authTestOrigin,
+              "Idempotency-Key": crypto.randomUUID(),
+              "If-Match": `"${depthVersion}"`,
+            },
+            body: text,
+          }),
+        );
+        assertEquals(
+          response.status,
+          400,
+          `${method} ${path} ${text.slice(0, 70)}`,
+        );
+        assertEquals(
+          (await response.json() as { code: string }).code,
+          "MALFORMED_REQUEST",
+        );
+        assertEquals(await facts(), factsNow);
+      }
+      // Nesting inside the limit is still accepted.
+      const fine = await raw(versionPath, bodyWith("inputs", nestedText(100)));
+      assertEquals(fine.status, 201);
+      await fine.body?.cancel();
+
+      // Equivalent schedules are stored in one form and have one digest.
+      const canonical = await send(
+        "POST",
+        versionPath,
+        command({
+          body: versionBody({
+            trigger: {
+              type: "schedule",
+              cron: "0 9 * * mon-fri",
+              timezone: "Europe/Berlin",
+            },
+            inputs: { z: 1, a: 2 },
+          }),
+        }),
+      );
+      const variant = await send(
+        "POST",
+        versionPath,
+        command({
+          body: versionBody({
+            trigger: {
+              type: "schedule",
+              cron: " 0  9\t* * MON-FRI ",
+              timezone: "europe/berlin",
+            },
+            inputs: { a: 2, z: 1 },
+          }),
+        }),
+      );
+      assertEquals(canonical.status, 201);
+      assertEquals(variant.status, 201);
+      const canonicalBody = await canonical.json() as {
+        digest: string;
+        trigger: unknown;
+      };
+      const variantBody = await variant.json() as {
+        digest: string;
+        trigger: unknown;
+      };
+      assertEquals(variantBody.digest, canonicalBody.digest);
+      assertEquals(variantBody.trigger, canonicalBody.trigger);
+      assertEquals(variantBody.trigger, {
+        type: "schedule",
+        cron: "0 9 * * mon-fri",
+        timezone: "Europe/Berlin",
+      });
+
+      // An update that changes nothing is refused and writes nothing.
+      const current = await send(
+        "GET",
+        `/v1/automations/${automationId}`,
+        read(cookies.adminA, organizationAId),
+      );
+      const { version } = await current.json() as { version: number };
+      const factsBefore = await facts();
+      const empty = await send(
+        "PATCH",
+        `/v1/automations/${automationId}`,
+        command({ body: {}, ifMatch: `"${version}"` }),
+      );
+      assertEquals(empty.status, 422);
+      await empty.body?.cancel();
+      assertEquals(await facts(), factsBefore);
+      const unchanged = await send(
+        "GET",
+        `/v1/automations/${automationId}`,
+        read(cookies.adminA, organizationAId),
+      );
+      assertEquals(
+        (await unchanged.json() as { version: number }).version,
+        version,
+      );
+    });
   } finally {
     await fixture.close();
   }

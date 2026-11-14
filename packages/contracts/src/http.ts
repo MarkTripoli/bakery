@@ -28,6 +28,7 @@ import {
 } from "./action-registry.ts";
 import { contractSchemas, routeParameterNames } from "./contracts.ts";
 import { BakeryException } from "./exceptions.ts";
+import { unsafeRequestJson } from "./request-json.ts";
 
 export const FAULTS = {
   AUTH_REQUIRED: [401, false, "auth-required"],
@@ -870,6 +871,10 @@ export function createApiRouter(
             body = await readJson(context, maxBodyBytes, controller.signal);
           }
           if (!body || typeof body !== "object" || Array.isArray(body)) {
+            throw new StandardError({ code: "MALFORMED_REQUEST" });
+          }
+          // Too deep for the recursive schemas, or a key that would be dropped.
+          if (unsafeRequestJson(body) !== null) {
             throw new StandardError({ code: "MALFORMED_REQUEST" });
           }
           // Route fields are part of generated input shapes even when their

@@ -7,12 +7,13 @@
  *     "filter": { "repository": "acme/web" } }
  *
  * A schedule is a five-field cron expression and an IANA timezone (see
- * `schedule.ts`). An event names the provider and the kind (and optionally the
+ * `schedule.ts`); both are stored in one canonical form (single spaces and lower
+ * case in the expression, the runtime's name for the zone). An event names the provider and the kind (and optionally the
  * action) of a verified inbound event and an explicit filter: equality on the
  * named fields of the event's normalized projection, at most 16 of them, scalar
  * values only. There is no predicate language, no pattern and no nesting.
  */
-import { isValidTimeZone, parseCron } from "./schedule.ts";
+import { canonicalTimeZone, isValidTimeZone, parseCron } from "./schedule.ts";
 
 export type ScheduleTrigger = Readonly<{
   type: "schedule";
@@ -117,10 +118,12 @@ export function parseTrigger(value: unknown): AutomationTrigger {
     ) {
       throw new TriggerError(["timezone"], "timezone_invalid");
     }
+    // Stored in one form, so equivalent schedules are equal and have one digest:
+    // single spaces and lower-case names, and the runtime's own name for the zone.
     return {
       type: "schedule",
-      cron: value.cron.trim(),
-      timezone: value.timezone,
+      cron: value.cron.trim().replace(/[ \t]+/g, " ").toLowerCase(),
+      timezone: canonicalTimeZone(value.timezone),
     };
   }
   if (value.type === "event") {

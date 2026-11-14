@@ -1,5 +1,6 @@
 import { assert, assertEquals, assertThrows } from "@std/assert";
 import {
+  canonicalTimeZone,
   CronError,
   isValidTimeZone,
   nextOccurrence,
@@ -771,6 +772,40 @@ Deno.test("a trigger is exactly a schedule or an event: data, with nothing else 
     parseTrigger({ type: "event", provider: "github", kind: "issues" }),
     { type: "event", provider: "github", kind: "issues", filter: {} },
   );
+  // One canonical form: equivalent schedules are equal.
+  assertEquals(
+    parseTrigger({
+      type: "schedule",
+      cron: "0 \t 9  * *\tMON-FRI",
+      timezone: "europe/berlin",
+    }),
+    { type: "schedule", cron: "0 9 * * mon-fri", timezone: "Europe/Berlin" },
+  );
+  assertEquals(
+    parseTrigger({ type: "schedule", cron: "0 0 * * *", timezone: "utc" }),
+    { type: "schedule", cron: "0 0 * * *", timezone: "UTC" },
+  );
+  assertEquals(
+    JSON.stringify(
+      parseTrigger({
+        type: "schedule",
+        cron: "0 9 * * 1",
+        timezone: "US/PACIFIC",
+      }),
+    ),
+    JSON.stringify(
+      parseTrigger({
+        type: "schedule",
+        cron: " 0   9 * *  1 ",
+        timezone: "us/pacific",
+      }),
+    ),
+  );
+  assertEquals(
+    canonicalTimeZone("Asia/Kolkata"),
+    canonicalTimeZone("asia/kolkata"),
+  );
+  assertEquals(canonicalTimeZone("Europe/Berlin"), "Europe/Berlin");
   // The filter is sorted by key, so the same trigger is the same bytes.
   assertEquals(
     JSON.stringify(
