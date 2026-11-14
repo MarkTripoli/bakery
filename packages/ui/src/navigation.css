@@ -2045,7 +2045,7 @@ a.bakery-application-rail__link:hover {
 }
 /* The current page's name is cut with an ellipsis when it is long. */
 .bakery-top-bar .ui-breadcrumbs li:last-child > span {
-  max-inline-size: 40ch;
+  max-inline-size: var(--layout-inspector);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
