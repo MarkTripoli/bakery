@@ -370,7 +370,7 @@ export function ProjectsPage() {
               ) => (
                 <div key={application.id} data-application-id={application.id}>
                   <UI.Stack gap="compact">
-                    <UI.Inline variant="between">
+                    <UI.Inline variant="between" data-trailing-popover="">
                       <UI.Stack gap="tight">
                         <UI.Heading level="section">
                           {application.name}
@@ -589,6 +589,9 @@ export function ProjectsPage() {
             <UI.Stack gap="compact">
               <UI.Text>
                 {translate("projects.list.archiveDialog.body" as never)}
+              </UI.Text>
+              <UI.Text variant="muted">
+                {translate("projects.list.archiveDialog.restore" as never)}
               </UI.Text>
               {failure !== null
                 ? (

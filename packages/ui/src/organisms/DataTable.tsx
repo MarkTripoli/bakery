@@ -20,6 +20,12 @@ export type DataTableProps<Row> = {
    */
   captionHidden?: boolean;
   columns: DataTableColumn<Row>[];
+  /**
+   * Keeps the column headings for assistive technology and hides them
+   * visually, for a table whose rows explain themselves (a name, a line and a
+   * button) and that repeats under several headings.
+   */
+  headingsHidden?: boolean;
   emptyMessage?: ReactNode;
   error?: ReactNode;
   getRowKey: (row: Row) => string;
@@ -61,6 +67,7 @@ export function DataTable<Row>(
   {
     caption,
     captionHidden = false,
+    headingsHidden = false,
     columns,
     emptyMessage = "No results.",
     error,
@@ -94,6 +101,7 @@ export function DataTable<Row>(
       aria-label={caption}
       className={`ui-data-table ui-data-table--${variant}`}
       data-caption={captionHidden ? "hidden" : undefined}
+      data-headings={headingsHidden ? "hidden" : undefined}
       data-inset={variant === "ruled" ? inset : undefined}
       data-rows={variant === "ruled" ? rowSize : undefined}
       data-state={state}

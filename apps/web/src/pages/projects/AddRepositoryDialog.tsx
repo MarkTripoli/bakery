@@ -61,7 +61,17 @@ export function AddRepositoryDialog(
   const id = useId();
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<Candidate | null>(null);
-  const [applicationId, setApplicationId] = useState("");
+  // Nothing to choose from: a new application; one application: that one.
+  const [applicationId, setApplicationId] = useState(() => {
+    const open = applications.filter((application) =>
+      application.archivedAt === null
+    );
+    return open.length === 0
+      ? NEW_APPLICATION
+      : open.length === 1
+      ? open[0]!.id
+      : "";
+  });
   const [newName, setNewName] = useState("");
   const [newSlug, setNewSlug] = useState("");
   const [newSlugEdited, setNewSlugEdited] = useState(false);

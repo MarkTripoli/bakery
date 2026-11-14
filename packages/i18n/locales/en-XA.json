@@ -3217,13 +3217,10 @@
   "projects.list.application.archive": "⟦Àŕçĥïṽë…⟧",
   "projects.list.application.restore": "⟦Ŕëšŧôŕë…⟧",
   "projects.list.application.more": "⟦Ṁôŕë⟧",
-  "projects.list.application.moreAbout": "⟦ àƀôûŧ {application} ŧëšŧ⟧",
-  "projects.list.application.moreNamed": "⟦Ṁôŕë àƀôûŧ {application} ŧëšŧ ç⟧",
   "projects.list.application.count": "⟦{count, plural, one {# repository} other {# repositories}} ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "projects.list.application.noRepositories": "⟦Ñô ŕëþôšïŧôŕïëš ïñ ŧĥïš àþþļïçàŧïôñ ÿëŧ. ŧëšŧ çôþÿ ŧ⟧",
   "projects.list.application.onlyArchived": "⟦Ôñļÿ àŕçĥïṽëð ŕëþôšïŧôŕïëš. Šĥôŵ àŕçĥïṽëð ŧô šëë ŧĥëɱ. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "projects.list.archiveDialog.title": "⟦Àŕçĥïṽë {application}? ŧëšŧŧ⟧",
-  "projects.list.archiveDialog.body": "⟦Ïŧ ïš ĥïððëñ ƒŕôɱ ŧĥïš ļïšŧ. Šĥôŵ àŕçĥïṽëð ƀŕïñĝš ïŧ ƀàçķ, àñð ÿôû çàñ ŕëšŧôŕë ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "projects.list.add.button": "⟦Àðð ŕëþôšïŧôŕÿ ŧë⟧",
   "projects.list.add.title": "⟦Àðð ŕëþôšïŧôŕÿ ŧë⟧",
   "projects.list.add.pickIntro": "⟦Çĥôôšë à ŕëþôšïŧôŕÿ ƒŕôɱ ÿôûŕ ĜïŧĤûƀ çôññëçŧïôñ. ŧëšŧ çôþÿ ŧëšŧ⟧",
@@ -3259,5 +3256,10 @@
   "shell.startup.noAccess.action": "⟦Çĥôôšë àñôŧĥëŕ ôŕĝàñïžàŧïôñ ŧëšŧ çô⟧",
   "shell.startup.verify.title": "⟦Çôñƒïŕɱ ïŧ ïš ÿôû ŧëš⟧",
   "shell.startup.verify.body": "⟦Ɓàķëŕÿ ñëëðš ÿôû ŧô ṽëŕïƒÿ ÿôûŕ ïðëñŧïŧÿ ƀëƒôŕë ïŧ šĥôŵš ŧĥïš ôŕĝàñïžàŧïôñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
-  "shell.startup.verify.action": "⟦Ṽëŕïƒÿ…⟧"
+  "shell.startup.verify.action": "⟦Ṽëŕïƒÿ…⟧",
+  "projects.list.application.moreAbout": "⟦ àçŧïôñš ƒôŕ {application} ŧëšŧ çô⟧",
+  "projects.list.application.moreNamed": "⟦Ṁôŕë àçŧïôñš ƒôŕ {application} ŧëšŧ çôþ⟧",
+  "projects.list.archiveDialog.body": "⟦Ɓàķëŕÿ ŵïļļ ñôŧ šŧàŕŧ ñëŵ ŧàšķš ïñ ïŧš ŕëþôšïŧôŕïëš, àñð ŧĥëïŕ šëŧŧïñĝš çàñ ñô ļôñĝëŕ ƀë çĥàñĝëð. Ŵôŕķ àļŕëàðÿ ŕûññïñĝ ïš ñôŧ šŧôþþëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "shell.navigation.projects": "⟦Þŕôĵëçŧš…⟧",
+  "projects.list.archiveDialog.restore": "⟦Ŧĥë àþþļïçàŧïôñ ïš ĥïððëñ ƒŕôɱ ŧĥïš ļïšŧ. Çĥôôšë Šĥôŵ àŕçĥïṽëð, ŧĥëñ Ŕëšŧôŕë, ŧô ƀŕïñĝ ïŧ ƀàçķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧"
 }

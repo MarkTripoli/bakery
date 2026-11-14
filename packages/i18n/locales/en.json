@@ -2455,13 +2455,13 @@
   "projects.list.application.archive": "Archive",
   "projects.list.application.restore": "Restore",
   "projects.list.application.more": "More",
-  "projects.list.application.moreAbout": " about {application}",
-  "projects.list.application.moreNamed": "More about {application}",
+  "projects.list.application.moreAbout": " actions for {application}",
+  "projects.list.application.moreNamed": "More actions for {application}",
   "projects.list.application.count": "{count, plural, one {# repository} other {# repositories}}",
   "projects.list.application.noRepositories": "No repositories in this application yet.",
   "projects.list.application.onlyArchived": "Only archived repositories. Show archived to see them.",
   "projects.list.archiveDialog.title": "Archive {application}?",
-  "projects.list.archiveDialog.body": "It is hidden from this list. Show archived brings it back, and you can restore it.",
+  "projects.list.archiveDialog.body": "Bakery will not start new tasks in its repositories, and their settings can no longer be changed. Work already running is not stopped.",
   "projects.list.add.button": "Add repository",
   "projects.list.add.title": "Add repository",
   "projects.list.add.pickIntro": "Choose a repository from your GitHub connection.",
@@ -3259,5 +3259,7 @@
   "machines.signIn.closeCancels": "Closing this cancels the sign-in.",
   "machines.signIn.dismiss": "Close, which cancels the sign-in",
   "machines.wizard.install.connectedSignIn": "{name} is connected. One thing left: sign in to {agent}.",
-  "machines.wizard.install.signInButton": "Sign in to {agent}"
+  "machines.wizard.install.signInButton": "Sign in to {agent}",
+  "shell.navigation.projects": "Projects",
+  "projects.list.archiveDialog.restore": "The application is hidden from this list. Choose Show archived, then Restore, to bring it back."
 }

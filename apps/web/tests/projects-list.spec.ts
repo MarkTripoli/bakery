@@ -140,7 +140,7 @@ for (
         .toHaveCount(0);
       await expect(page.getByRole("button", { name: "New application" }))
         .toHaveCount(0);
-      await expect(page.getByRole("button", { name: /^More about/ }))
+      await expect(page.getByRole("button", { name: /^More actions for/ }))
         .toHaveCount(0);
     });
 
@@ -207,6 +207,46 @@ for (
       });
       // It opens the new repository's own page.
       await expect(page).toHaveURL(/\/projects\/onboarding\?/);
+    });
+
+    test("with no application yet, Add repository goes straight to making the first one", async ({ page }) => {
+      await open(page, {
+        applications: [],
+        repositories: [],
+        offered: [{ id: "5009", name: "acme/payments-web" }],
+      });
+      await page.getByRole("button", { name: "Add repository" }).first()
+        .click();
+      const dialog = page.getByRole("dialog", { name: "Add repository" });
+      await dialog.getByRole("button", { name: /acme\/payments-web/ }).click();
+      // Nothing to choose from: the form is on "New application", with its
+      // name fields open, not a dropdown with nothing in it.
+      await expect(dialog.getByLabel("Application")).toHaveValue("__new__");
+      await expect(dialog.getByLabel(/^Name\b/)).toBeVisible();
+      await page.mouse.move(700, 700);
+      await shot(page, "projects-add-first-application", [], {
+        windowOnly: true,
+      });
+    });
+
+    test("the Application select is as tall and as ruled as the text fields under it", async ({ page }) => {
+      await open(page);
+      await page.getByRole("button", { name: "Add repository" }).first()
+        .click();
+      const dialog = page.getByRole("dialog", { name: "Add repository" });
+      await dialog.getByRole("button", { name: /acme\/payments-web/ }).click();
+      const style = (locator: ReturnType<Page["locator"]>) =>
+        locator.evaluate((element) => {
+          const computed = getComputedStyle(element);
+          return {
+            height: Math.round(element.getBoundingClientRect().height),
+            border: computed.borderTopWidth + " " + computed.borderTopColor,
+            radius: computed.borderTopLeftRadius,
+          };
+        });
+      const select = await style(dialog.getByLabel("Application"));
+      const field = await style(dialog.getByLabel("Short name"));
+      expect(select).toEqual(field);
     });
 
     test("a short name that does not fit, or an emptied branch, is named", async ({ page }) => {
@@ -296,7 +336,7 @@ for (
     test("Rename sends the new name with the version it saw", async ({ page }) => {
       const seen = await open(page);
       await section(page, "Payments").getByRole("button", {
-        name: "More about Payments",
+        name: "More actions for Payments",
       }).click();
       await page.getByRole("button", { name: "Rename" }).click();
       const dialog = page.getByRole("dialog", { name: "Rename application" });
@@ -319,17 +359,105 @@ for (
     test("Archive asks first, then hides the application until Show archived", async ({ page }) => {
       const seen = await open(page);
       await section(page, "Web storefront").getByRole("button", {
-        name: "More about Web storefront",
+        name: "More actions for Web storefront",
       }).click();
       await page.getByRole("button", { name: "Archive", exact: true }).click();
       const dialog = page.getByRole("alertdialog");
       await expect(dialog).toContainText("Archive Web storefront?");
+      // What it does to its repositories and to work in progress, and how to
+      // undo it, before anything is sent.
+      await expect(dialog).toContainText(
+        "Bakery will not start new tasks in its repositories, and their settings can no longer be changed. Work already running is not stopped.",
+      );
+      await expect(dialog).toContainText(
+        "Choose Show archived, then Restore, to bring it back.",
+      );
+      expect(seen.updates).toEqual([]);
+      await page.mouse.move(700, 700);
+      await shot(page, "projects-archive-dialog", [], { windowOnly: true });
       await dialog.getByRole("button", { name: "Archive", exact: true })
         .click();
       await expect.poll(() => seen.updates.length).toBe(1);
       expect(seen.updates[0]?.body.archivedAt).toEqual(expect.any(String));
       await expect(page.getByRole("heading", { name: /Web storefront/ }))
         .toHaveCount(0);
+      // Show archived brings it back, and Restore undoes the archive.
+      await page.getByRole("button", { name: "Show archived" }).click();
+      const archived = section(page, "Web storefront");
+      await expect(archived).toBeVisible();
+      await expect(archived.getByText("Archived").first()).toBeVisible();
+      await page.mouse.move(700, 700);
+      await shot(page, "projects-archived-shown");
+      await archived.getByRole("button", {
+        name: "More actions for Web storefront",
+      }).click();
+      await page.getByRole("button", { name: "Restore", exact: true }).click();
+      await expect.poll(() => seen.updates.length).toBe(2);
+      expect(seen.updates[1]?.body.archivedAt).toBeNull();
+    });
+
+    test("the main navigation names Projects, and a phone's top bar says so", async ({ page }) => {
+      await open(page);
+      await expect(
+        page.getByRole("link", { name: "Projects", exact: true })
+          .first(),
+      ).toBeVisible();
+      // The disabled "Applications · Soon" item is gone.
+      await expect(page.getByText("Applications", { exact: true }))
+        .toHaveCount(0);
+      if (viewport.name === "phone") {
+        await expect(
+          page.getByRole("banner").getByText("Projects", { exact: true }),
+        ).toBeVisible();
+        await expect(
+          page.getByRole("banner").getByText("Bakery", { exact: true }),
+        ).toHaveCount(0);
+      } else {
+        await expect(
+          page.getByRole("link", { name: "Projects", exact: true }).first(),
+        ).toHaveAttribute("aria-current", "page");
+      }
+    });
+
+    test("More is a standard-height button at the end of its application's heading, not a full-width sliver", async ({ page }) => {
+      await open(page);
+      const payments = section(page, "Payments");
+      const more = payments.getByRole("button", {
+        name: "More actions for Payments",
+      });
+      await expect(more).toHaveText(/^More/);
+      const box = (await more.boundingBox())!;
+      const heading = (await payments.getByRole("heading", {
+        name: "Payments",
+        level: 2,
+      }).boundingBox())!;
+      const row = (await payments.boundingBox())!;
+      // The standard control height, its natural width.
+      expect(box.height).toBeGreaterThanOrEqual(36);
+      expect(box.width).toBeLessThan(row.width / 2);
+      // At the end of the heading's row, level with the heading.
+      expect(Math.abs(box.x + box.width - (row.x + row.width)))
+        .toBeLessThanOrEqual(24);
+      expect(box.y).toBeLessThanOrEqual(heading.y + heading.height);
+    });
+
+    test("the table headings are kept for screen readers and not drawn under every application", async ({ page }) => {
+      test.skip(
+        viewport.name === "phone",
+        "A phone stacks rows with no table head.",
+      );
+      await open(page);
+      // Still in the page for assistive technology...
+      await expect(page.getByRole("columnheader", { name: "Repository" }))
+        .not.toHaveCount(0);
+      // ...but each table's head is a 1px clip, not a drawn row.
+      const heads = page.locator("thead");
+      expect(await heads.count()).toBeGreaterThan(1);
+      for (const head of await heads.all()) {
+        const box = (await head.boundingBox())!;
+        expect(box.width).toBeLessThanOrEqual(1);
+        expect(box.height).toBeLessThanOrEqual(1);
+      }
     });
 
     test("Cancel and Escape return focus to the button that opened a dialog", async ({ page }) => {
