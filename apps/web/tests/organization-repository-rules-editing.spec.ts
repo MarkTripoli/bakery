@@ -219,7 +219,8 @@ test.describe("organization repository rules: editing", () => {
     await expect(second).toHaveAccessibleDescription(
       "Enter a whole number between 20 and 200.",
     );
-    await shot(page, "rules-editor-errors");
+    // Window-only: a full-page capture of a scrolled page draws the sticky rail below a blank gap.
+    await shot(page, "rules-editor-errors", [], { windowOnly: true });
     await expect(page).toHaveURL(new RegExp(`${LIST_PATH}/commits.semantic$`));
     await page.getByLabel("Allowed types").fill("feat, fix");
     await page.getByLabel("Maximum subject length").fill("100");

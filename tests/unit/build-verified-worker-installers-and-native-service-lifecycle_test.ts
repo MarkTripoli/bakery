@@ -544,6 +544,35 @@ Deno.test("a size mismatch is refused, and a long stream is cut off early", asyn
   });
 });
 
+Deno.test("the cut-off is exact: the byte after the signed size ends the stream", async () => {
+  await withRoot(async (root) => {
+    const old = await installOld(root);
+    let pulled = 0;
+    async function* oneByteForever() {
+      for (;;) {
+        pulled += 1;
+        yield new Uint8Array(1);
+      }
+    }
+    assertEquals(
+      await codeOfAsync(() =>
+        installRelease({
+          root,
+          manifest: verified(),
+          download: oneByteForever,
+          uid: 1000,
+          now: NOW,
+          upgrade: true,
+        })
+      ),
+      "ARTIFACT_SIZE_MISMATCH",
+    );
+    // Not one byte more than the first that is over the size is ever asked for.
+    assertEquals(pulled, BINARY.byteLength + 1);
+    await assertOldIntact(root, old);
+  });
+});
+
 Deno.test("a refused permission changes nothing", async () => {
   await withRoot(async (root) => {
     const old = await installOld(root);

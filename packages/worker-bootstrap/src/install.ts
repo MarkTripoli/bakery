@@ -15,6 +15,7 @@ import {
 import { isAbsolute, join } from "node:path";
 import process from "node:process";
 import { BootstrapError } from "./errors.ts";
+import { readRecord } from "./bounded-read.ts";
 import type { VerifiedManifest } from "./manifest.ts";
 
 /**
@@ -123,7 +124,7 @@ async function exists(path: string) {
   });
 }
 
-async function sha256OfFile(path: string): Promise<string> {
+export async function sha256OfFile(path: string): Promise<string> {
   const hash = createHash("sha256");
   const handle = await open(path, "r");
   try {
@@ -153,7 +154,7 @@ function isRecord(value: unknown): value is Record_ {
 }
 
 /** The release `current` points at, read from that release's own record. */
-async function installed(
+export async function installed(
   root: string,
 ): Promise<{ name: string; record: Record_ } | null> {
   let target: string;
@@ -171,7 +172,7 @@ async function installed(
   let record: unknown;
   try {
     record = JSON.parse(
-      await readFile(join(root, "releases", match[1], RECORD_NAME), "utf8"),
+      await readRecord(join(root, "releases", match[1], RECORD_NAME)),
     );
   } catch {
     throw new BootstrapError("INSTALL_CORRUPT");
@@ -193,7 +194,7 @@ async function holdsRelease(
   if (directory === null || !directory.isDirectory()) return false;
   let record: unknown;
   try {
-    record = JSON.parse(await readFile(join(releaseDir, RECORD_NAME), "utf8"));
+    record = JSON.parse(await readRecord(join(releaseDir, RECORD_NAME)));
   } catch {
     return false;
   }
@@ -316,7 +317,7 @@ export const readProcessInfo: ProcessProbe = async (pid) => {
 async function readOwner(lockDir: string): Promise<LockOwner | null> {
   try {
     const parsed: unknown = JSON.parse(
-      await readFile(join(lockDir, OWNER_NAME), "utf8"),
+      await readRecord(join(lockDir, OWNER_NAME)),
     );
     if (typeof parsed !== "object" || parsed === null) return null;
     const { pid, start } = parsed as { pid?: unknown; start?: unknown };
@@ -439,7 +440,7 @@ async function sweepStaging(stagingRoot: string): Promise<void> {
  * write to: a release is verified once and run later, and another user able to
  * write here could swap it in between.
  */
-async function checkRoot(root: string): Promise<void> {
+export async function checkRoot(root: string): Promise<void> {
   const info = await lstat(root);
   const owner = typeof process.geteuid === "function"
     ? process.geteuid()

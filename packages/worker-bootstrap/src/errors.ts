@@ -48,6 +48,49 @@ export const BOOTSTRAP_ERRORS = {
     "A path in the install root is not what setup expects, so nothing was written.",
   INSTALL_IO_FAILED:
     "The install could not complete. The existing installation was not changed.",
+  PAIRING_SERVER_INVALID:
+    "The Bakery address must be an https address such as https://bakery.example, with no path, login or query.",
+  PAIRING_SERVER_INSECURE:
+    "Plain http is only allowed for a Bakery on this machine (localhost). Use the https address.",
+  PAIRING_TOKEN_UNREADABLE:
+    "The setup code could not be read. Enter it when asked, or point setup at a protected file or descriptor that holds only the code.",
+  PAIRING_TOKEN_UNPROTECTED:
+    "The setup code file can be read by other users. Make it readable by its owner only (mode 600) and try again.",
+  PAIRING_TOKEN_INVALID:
+    "The setup code is empty, spans more than one line or is not in the expected form.",
+  PAIRING_INSPECTION_FAILED:
+    "Bakery did not accept the setup code or could not be reached. Nothing was changed. Check the address and get new settings in Bakery if it expired.",
+  PAIRING_INSPECTION_MALFORMED:
+    "Bakery answered in a form setup does not recognise. Nothing was changed.",
+  PAIRING_NOT_PENDING:
+    "This setup code has expired or was canceled. Get new settings in Bakery.",
+  PAIRING_DECLINED: "Pairing was not confirmed. Nothing was changed.",
+  PAIRING_ORGANIZATION_DIFFERS:
+    "This installation is already paired with a different organization. It was not changed.",
+  PAIRING_ALREADY_PAIRED:
+    "This installation is already paired with this organization under another setup. It was not changed and no second machine was created.",
+  PAIRING_BINDING_CORRUPT:
+    "The record of this installation's pairing cannot be read. It was not replaced.",
+  DOWNLOAD_ORIGIN_INVALID:
+    "The release origin must be an https address with no path, login or query. The existing installation was not changed.",
+  DOWNLOAD_PATH_INVALID:
+    "The release file path is not an allowed path on the release origin. The existing installation was not changed.",
+  DOWNLOAD_REDIRECT_REFUSED:
+    "The release origin sent the download somewhere it may not go. The existing installation was not changed.",
+  DOWNLOAD_ENCODING_REFUSED:
+    "The release origin sent the file compressed or re-encoded, which is refused. The existing installation was not changed.",
+  SERVICE_SPEC_INVALID:
+    "A path or name for the service has characters the service definition does not allow. Nothing was written.",
+  SERVICE_SETTING_REFUSED:
+    "A setting for the service is not allowed in a service definition: the setup code is never written there.",
+  COMMAND_UNKNOWN:
+    "Unknown command or option. Use: setup --server URL, or pair --server URL, optionally with --root DIR and --token-file FILE or --token-fd N.",
+  COMMAND_TOKEN_SHORTCUT:
+    "The setup code is never taken from a flag or the environment. Enter it when asked, or use --token-file or --token-fd with a protected file or descriptor.",
+  SETUP_NOT_INSTALLED:
+    "The Bakery worker is not installed in this root yet. Install the verified release first, then run setup again.",
+  PAIRING_IO_FAILED:
+    "Pairing could not be recorded. The existing pairing was not changed.",
 } as const;
 
 export type BootstrapErrorCode = keyof typeof BOOTSTRAP_ERRORS;

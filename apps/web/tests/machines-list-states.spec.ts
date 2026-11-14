@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, type Route, test } from "@playwright/test";
 import {
   type RowActionGeometry,
   rowActionGeometry,
@@ -78,10 +78,13 @@ const FLEET = [
 async function open(
   page: Page,
   options: {
-    role?: "admin" | "member";
+    role?: "admin" | "developer";
     workers?: unknown;
     workersStatus?: number;
     hang?: boolean;
+    enrollments?: unknown[];
+    /** Answers the workers list itself (for paging): used instead of the fixed list. */
+    workersRoute?: (route: Route) => Promise<void> | void;
   } = {},
 ) {
   await mockAuthenticatedSession(page);
@@ -97,24 +100,31 @@ async function open(
   await page.route(
     (url) => url.pathname === "/v1/workers",
     (route) =>
-      options.hang ? undefined : route.fulfill(
-        options.workersStatus && options.workersStatus >= 400
-          ? {
-            status: options.workersStatus,
-            contentType: "application/problem+json",
-            body: JSON.stringify({
-              type: "https://bakery.example/problems/x",
-              title: "x",
+      options.workersRoute
+        ? options.workersRoute(route)
+        : options.hang
+        ? undefined
+        : route.fulfill(
+          options.workersStatus && options.workersStatus >= 400
+            ? {
               status: options.workersStatus,
-              code: options.workersStatus === 403 ? "FORBIDDEN" : "INTERNAL",
-            }),
-          }
-          : json({ items: options.workers ?? FLEET, nextCursor: null }),
-      ),
+              contentType: "application/problem+json",
+              body: JSON.stringify({
+                type: "https://bakery.example/problems/x",
+                title: "x",
+                status: options.workersStatus,
+                code: options.workersStatus === 403 ? "FORBIDDEN" : "INTERNAL",
+              }),
+            }
+            : json({ items: options.workers ?? FLEET, nextCursor: null }),
+        ),
   );
   await page.route(
     (url) => url.pathname === "/v1/worker-enrollments",
-    (route) => route.fulfill(json({ items: [], nextCursor: null })),
+    (route) =>
+      route.fulfill(
+        json({ items: options.enrollments ?? [], nextCursor: null }),
+      ),
   );
   await page.goto("/machines");
 }
@@ -271,7 +281,7 @@ test.describe("machines list states", () => {
     ).toBeVisible();
     await shot(page, "machines-list-empty");
     await page.unrouteAll({ behavior: "ignoreErrors" });
-    await open(page, { workers: [], role: "member" });
+    await open(page, { workers: [], role: "developer" });
     await expect(
       page.getByText("Ask an organization administrator to add one."),
     ).toBeVisible();
@@ -294,6 +304,12 @@ test.describe("machines list states", () => {
     await page.unrouteAll({ behavior: "ignoreErrors" });
     await open(page, { workersStatus: 500 });
     await expect(page.getByText("Machines could not be loaded")).toBeVisible();
+    // A failed read is not a refused one: Add machine stays, at both widths
+    // (top bar on a wide screen, under the title on a phone), once.
+    await expect(page.getByRole("button", { name: "Add machine", exact: true }))
+      .toHaveCount(1);
+    await expect(page.getByRole("button", { name: "Add machine", exact: true }))
+      .toBeVisible();
     await shot(page, "machines-list-error");
     await page.unrouteAll({ behavior: "ignoreErrors" });
     await open(page, { hang: true });
@@ -302,5 +318,148 @@ test.describe("machines list states", () => {
     await expect(page.locator("[data-ui-component=skeleton]")).toHaveCount(3);
     await expect(page.getByRole("table", { name: "Machines" })).toHaveCount(0);
     await shot(page, "machines-list-loading");
+  });
+
+  test("setups that are not finished are listed first, and only those", async ({ page }) => {
+    const row = (
+      id: string,
+      name: string,
+      state: string,
+      expiresAt: string,
+    ) => ({
+      enrollmentId: id,
+      state,
+      name,
+      os: "linux",
+      architecture: "x86_64",
+      capabilities: ["git", "shell", "web", "model", "claude"],
+      slots: 1,
+      expiresAt,
+      consumedAt: null,
+      canceledAt: null,
+      workerHostId: null,
+      replacementOfId: null,
+      targetWorkerHostId: null,
+      version: 1,
+    });
+    const later = new Date(Date.now() + 20 * 60_000).toISOString();
+    const earlier = "2026-01-01T00:00:00.000Z";
+    await open(page, {
+      enrollments: [
+        row(
+          "00000000-0000-4000-8000-0000000000f1",
+          "waiting-box",
+          "pending",
+          later,
+        ),
+        row(
+          "00000000-0000-4000-8000-0000000000f2",
+          "late-box",
+          "expired",
+          earlier,
+        ),
+        row(
+          "00000000-0000-4000-8000-0000000000f3",
+          "done-box",
+          "consumed",
+          earlier,
+        ),
+        row(
+          "00000000-0000-4000-8000-0000000000f4",
+          "dropped-box",
+          "canceled",
+          earlier,
+        ),
+      ],
+    });
+    const group = page.getByTestId("machines-finishing-setup");
+    await expect(group.getByRole("heading", { name: "Finishing setup" }))
+      .toBeVisible();
+    await expect(group.locator("[data-enrollment-id]")).toHaveCount(2);
+    await expect(group).toContainText("waiting-box");
+    await expect(group).toContainText("late-box");
+    await expect(group).not.toContainText("done-box");
+    await expect(group).not.toContainText("dropped-box");
+    // The machines below the group have their own heading, at the same level.
+    await expect(
+      page.getByRole("heading", { name: "Machines", level: 2 }),
+    ).toBeVisible();
+    // The machines come after the group.
+    const groupBox = await group.boundingBox();
+    const machinesBox = await rowOf(page, "build-linux-01").boundingBox();
+    expect(groupBox!.y).toBeLessThan(machinesBox!.y);
+    await shot(page, "machines-list-finishing");
+    await group.getByRole("button", { name: "Get new settings for late-box" })
+      .click();
+    await expect(page).toHaveURL(
+      /\/machines\/new\?finish=00000000-0000-4000-8000-0000000000f2$/,
+    );
+  });
+
+  test("the list with setups to finish, more machines to load and a failed load together", async ({ page }) => {
+    const later = new Date(Date.now() + 20 * 60_000).toISOString();
+    // One machine a page: the list reads ten pages itself, then offers Load more;
+    // the eleventh answer fails once.
+    let failures = 1;
+    await open(page, {
+      workersRoute: (route) => {
+        const cursor = new URL(route.request().url()).searchParams.get(
+          "cursor",
+        );
+        const index = cursor ? Number(cursor.slice(1)) : 1;
+        if (index === 11 && failures > 0) {
+          failures -= 1;
+          return route.fulfill({
+            status: 500,
+            contentType: "application/problem+json",
+            body: JSON.stringify({
+              type: "https://bakery.example/problems/x",
+              title: "x",
+              status: 500,
+              code: "INTERNAL_ERROR",
+              retryable: true,
+              detail: "Try again.",
+              requestId: "00000000-0000-4000-8000-00000000f002",
+              traceId: "00000000000000000000000000000002",
+            }),
+          });
+        }
+        return route.fulfill(json({
+          items: [FLEET[(index - 1) % FLEET.length]!],
+          nextCursor: index < 12 ? `c${index + 1}` : null,
+        }));
+      },
+      enrollments: [{
+        enrollmentId: "00000000-0000-4000-8000-0000000000f9",
+        state: "pending",
+        name: "waiting-box",
+        os: "linux",
+        architecture: "x86_64",
+        capabilities: ["git", "shell", "web", "model", "claude"],
+        slots: 1,
+        expiresAt: later,
+        consumedAt: null,
+        canceledAt: null,
+        workerHostId: null,
+        replacementOfId: null,
+        targetWorkerHostId: null,
+        version: 1,
+      }],
+    });
+    const group = page.getByTestId("machines-finishing-setup");
+    await expect(group).toContainText("waiting-box");
+    await expect(page.getByRole("heading", { name: "Machines", level: 2 }))
+      .toBeVisible();
+    // The failed load keeps what is there and offers Retry where Load more was.
+    const more = page.getByRole("button", { name: /Load more|Retry/ });
+    await expect(more).toBeVisible();
+    await more.click();
+    await expect(group).toContainText("waiting-box");
+    // Retry is at the bottom of the list, so the click scrolled the page. The
+    // shell's rail is sticky: a full-page capture taken scrolled keeps that
+    // offset, which shows the off-screen skip link and a rail that starts low.
+    // Back at the top, the capture is what a person sees on arrival.
+    await page.evaluate(() => globalThis.scrollTo(0, 0));
+    await shot(page, "machines-list-finishing-paged");
   });
 });

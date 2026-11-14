@@ -1087,7 +1087,7 @@ export function OrganizationAccessPage() {
         <UI.Breadcrumbs
           aria-label={translate("shell.navigation.breadcrumb")}
           items={[
-            { label: translate("settings.orgAccess.organization") },
+            { label: translate("shell.states.settingsTitle") },
             { label: translate("settings.orgAccess.title") },
           ]}
         />

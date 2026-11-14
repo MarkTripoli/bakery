@@ -454,7 +454,8 @@ test.describe("single sign-on settings against the real API", () => {
     await connect(page, baseURL!, server.adminCookie);
     await page.goto(SCIM_PAGE);
     await expect(
-      page.getByRole("heading", { name: "SCIM", exact: true }).first(),
+      page.getByRole("heading", { name: "User provisioning", exact: true })
+        .first(),
     ).toBeVisible();
     // No connection yet: provisioning refuses everyone.
     expect(await scimStatus("")).toBe(401);

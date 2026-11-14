@@ -74,7 +74,7 @@ async function openAccess(
       await page.getByRole("link", { name: "Profile", exact: true }).click();
       await expect(page).toHaveURL("/settings/profile");
     }
-    await page.getByRole("link", { name: "Organization access", exact: true })
+    await page.getByRole("link", { name: "Members & access", exact: true })
       .click();
     await expect(page).toHaveURL(ACCESS_PATH);
   };
@@ -557,7 +557,9 @@ test.describe("organization access against the real API", () => {
 
         await test.step("1. an organization with only the admin shows the empty state", async () => {
           await adminPage.goto(ACCESS_PATH);
-          await expect(adminPage.locator("main h1")).toHaveText("Access");
+          await expect(adminPage.locator("main h1")).toHaveText(
+            "Members & access",
+          );
           await expect(adminPage.getByTestId("org-access-empty")).toContainText(
             "Only you are in this organization",
           );
@@ -592,7 +594,9 @@ test.describe("organization access against the real API", () => {
             await probe.goto(ACCESS_PATH);
             const loading = probe.getByTestId("org-access-loading");
             await expect(loading).toBeVisible();
-            await expect(probe.locator("main h1")).toHaveText("Access");
+            await expect(probe.locator("main h1")).toHaveText(
+              "Members & access",
+            );
             await expect(probe.getByTestId("org-access-members")).toHaveCount(
               0,
             );

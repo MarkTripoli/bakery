@@ -3,7 +3,6 @@ import { TWO_FACTOR_SETTINGS_PATH } from "../app/auth-paths.ts";
 import { RouterLink } from "../app/router-link.tsx";
 import type { TwoFactorFailure } from "../app/two-factor-failures.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
-import { AccountSettingsBackLink } from "./settings-back.tsx";
 
 /** Exported so the container can focus the field a failure rejected. */
 export const TOTP_DISABLE_PASSWORD_INPUT_ID = "totp-disable-password";
@@ -46,10 +45,7 @@ export function TotpDisableScreen(
 
   if (state === "disabled") {
     return (
-      <UI.SettingsContent
-        back={<AccountSettingsBackLink />}
-        data-testid="totp-disable"
-      >
+      <UI.SettingsContent data-testid="totp-disable">
         <UI.FormContent>
           <UI.AuthHeading
             description={translate(
@@ -75,10 +71,7 @@ export function TotpDisableScreen(
   const invalidCode = failure?.kind === "invalidCode" ||
     failure?.kind === "factorProofRequired";
   return (
-    <UI.SettingsContent
-      back={<AccountSettingsBackLink />}
-      data-testid="totp-disable"
-    >
+    <UI.SettingsContent data-testid="totp-disable">
       <UI.FormContent>
         <UI.AuthHeading
           description={translate(
