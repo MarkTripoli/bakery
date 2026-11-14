@@ -212,9 +212,21 @@ async function prepare(
     pem,
     ...app
   } = conversion;
+  // Best effort (#20): a failed lookup stores null, and the installation
+  // reconcile fills it later; registration never waits on it for long.
+  let botUserId: number | null = null;
+  try {
+    botUserId = await dependencies.github.getBotUser(
+      app.slug,
+      AbortSignal.timeout(10_000),
+    );
+  } catch {
+    botUserId = null;
+  }
   return RegistrationPreparationSchema.parse({
     attemptId,
     keyId,
+    botUserId,
     app,
     secrets: {
       clientSecret: await seal(clientSecret),

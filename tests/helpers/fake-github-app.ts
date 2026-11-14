@@ -2126,6 +2126,20 @@ export function createFakeGitHubApp(
     ) {
       return await repositoryRead(request);
     }
+    // #20: the App's public bot user, "<slug>[bot]", a Bot with an id
+    // derived from the App's (so a test can predict it).
+    const botUser = /^https:\/\/api\.github\.com\/users\/([^/]+)$/.exec(
+      request.url,
+    );
+    if (request.method === "GET" && botUser) {
+      const login = decodeURIComponent(botUser[1]);
+      const owner = [...codes.values(), ...apps.values()].find((candidate) =>
+        `${candidate.slug}[bot]` === login
+      );
+      return owner
+        ? Response.json({ login, id: fakeBotUserId(owner.id), type: "Bot" })
+        : Response.json({ message: "Not Found" }, { status: 404 });
+    }
     const match =
       /^https:\/\/api\.github\.com\/app-manifests\/([^/]+)\/conversions$/
         .exec(request.url);
@@ -2226,4 +2240,9 @@ export function createFakeGitHubApp(
     appLookups: () =>
       calls.filter((call) => call.url === "https://api.github.com/app"),
   };
+}
+
+/** The bot user id the fake GitHub gives an App (#20). */
+export function fakeBotUserId(appId: number): number {
+  return 900_000_000 + appId;
 }
