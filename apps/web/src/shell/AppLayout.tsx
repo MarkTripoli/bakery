@@ -213,11 +213,13 @@ function usePrimaryDestinations(
       matchPath: "/issues",
       icon: <UI.IconGlyph name="issue" />,
     },
-    unshipped(
-      "applications",
-      translate("shell.navigation.applications"),
-      "applications",
-    ),
+    {
+      id: "projects",
+      label: translate("shell.navigation.projects"),
+      href: "/projects",
+      matchPath: "/projects",
+      icon: <UI.IconGlyph name="applications" />,
+    },
     unshipped(
       "sessions",
       translate("shell.navigation.sessionsArea"),
@@ -466,6 +468,9 @@ function usePageTitle(pathname: string): string | undefined {
   if (pathname === "/library" || pathname.startsWith("/library/")) {
     return translate("shell.navigation.library");
   }
+  if (pathname === "/projects" || pathname.startsWith("/projects/")) {
+    return translate("shell.navigation.projects");
+  }
   if (pathname === INSTALLATION_INTEGRATIONS_PATH) {
     return translate("shell.navigation.installation");
   }
@@ -628,7 +633,7 @@ function ShellFrame() {
   const title = pageTitle ?? productName;
   const destinations = primaryDestinations.filter((item) =>
     item.id === "work" || item.id === "applications" ||
-    item.id === "sessions"
+    item.id === "projects" || item.id === "sessions"
   ).map((item) =>
     item.id === "applications"
       ? {

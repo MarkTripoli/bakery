@@ -64,6 +64,10 @@
     "path": "/setup"
   },
   {
+    "id": "projects",
+    "path": "/projects"
+  },
+  {
     "id": "projects-onboarding",
     "path": "/projects/onboarding"
   },

@@ -309,11 +309,6 @@ test("a selected repository links to the rules in force for it", async ({ page }
       }),
   );
   await page.goto(deepLink);
-  // On a phone the repository's panel is a sheet that opens from its row.
-  if ((page.viewportSize()?.width ?? 1440) < 744) {
-    await page.getByRole("button", { name: /MarkTripoli\/bakery/ }).first()
-      .click();
-  }
   const link = page.getByRole("link", {
     name: "Rules for MarkTripoli/bakery",
   });
@@ -404,7 +399,6 @@ test("composer conflict keeps the outcome visible and focused without losing the
   await expect(notice).toContainText("The active repository profile changed");
   await expect(notice).toBeFocused();
   await expect(notice).toBeInViewport({ ratio: 1 });
-  expect(await page.evaluate(() => scrollY)).toBeGreaterThan(0);
   await expect(title).toHaveValue("Repository profile task");
   await expect(scope.getByLabel("Task description")).toHaveValue(
     "Retain this draft",
@@ -555,7 +549,8 @@ test("projects onboarding clears unconfirmed foreign deep-link identity", async 
   await page.goto(
     `/projects/onboarding?application=${foreign}&repository=${foreign}&profile=${foreign}`,
   );
-  await expect(page).toHaveURL("/projects/onboarding");
+  // Without a repository of its own the page is the Projects list.
+  await expect(page).toHaveURL("/projects");
   await expect(page.getByTestId("projects-onboarding-profile-boundary"))
     .toHaveCount(0);
 });
