@@ -16,7 +16,22 @@ export type Definition = {
   description: string | null;
   activeVersionId: string | null;
   enabled: boolean;
+  /** The definition's own version, sent back as If-Match. */
+  version?: number;
 };
+
+/** One version of a workflow, with the steps its specification holds. */
+export type VersionRow = {
+  id: string;
+  workflowId: string;
+  revision: number;
+  status: "draft" | "published" | "retired";
+  steps: { id: string; uses: string; agentVersionId?: string }[];
+  /** The workflow's agent bindings by action. */
+  agents?: Record<string, string>;
+  createdAt?: string;
+};
+export type AgentVersionRow = { id: string; agentId: string; revision: number };
 
 export const definition = (
   n: number,
@@ -35,6 +50,10 @@ export type Options = {
   role?: "admin" | "developer";
   workflows?: Definition[];
   agents?: Definition[];
+  versions?: VersionRow[];
+  agentVersions?: AgentVersionRow[];
+  /** A change that answers 409 (someone else got there first). */
+  conflict?: "activate" | "update";
   /** A read that answers 500 INTERNAL_ERROR, or 403 AUTH_FORBIDDEN. */
   failing?: "workflows" | "agents" | "presets";
   forbidden?: boolean;
@@ -74,18 +93,53 @@ const body = (item: Definition) => ({
   enabled: item.enabled,
   createdAt: STAMP,
   updatedAt: STAMP,
+  version: item.version ?? 1,
+});
+const versionBody = (row: VersionRow) => ({
+  id: row.id,
+  workflowId: row.workflowId,
+  revision: row.revision,
+  sourceYaml:
+    `kind: fixed\n# version ${row.revision} of ${row.workflowId}\nsteps:\n${
+      row.steps.map((step) => `  - id: ${step.id}\n    uses: ${step.uses}\n`)
+        .join("")
+    }`,
+  normalizedSpec: {
+    kind: "fixed",
+    workflow: { kind: "fixed" },
+    steps: row.steps,
+    ...(row.agents ? { agents: row.agents } : {}),
+  },
+  digest: String(row.revision).padStart(2, "0").repeat(32),
+  status: row.status,
+  createdBy: uuid(1),
+  createdAt: row.createdAt ?? "2026-02-0" + Math.min(row.revision, 9) +
+      "T10:00:00.000Z",
+  updatedAt: STAMP,
   version: 1,
 });
 
 /** Stubs the session, the role and the three Library reads; returns what it saw and a switch to stop failing. */
 export async function libraryFixture(page: Page, options: Options = {}) {
   await mockAuthenticatedSession(page);
+  const workflows = (options.workflows ?? []).map((item) => ({ ...item }));
+  const versions = (options.versions ?? []).map((row) => ({ ...row }));
   let release: () => void = () => {};
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
   const seen = {
     release: () => release(),
+    activations: [] as {
+      id: string;
+      ifMatch: string | null;
+      body: Record<string, unknown>;
+    }[],
+    updates: [] as {
+      id: string;
+      ifMatch: string | null;
+      body: Record<string, unknown>;
+    }[],
     workflowReads: 0,
     agentReads: 0,
     presetReads: 0,
@@ -130,7 +184,79 @@ export async function libraryFixture(page: Page, options: Options = {}) {
         }));
       }
       if (options.hold) await held;
-      return answer("workflows", (options.workflows ?? []).map(body))(route);
+      return answer("workflows", workflows.map(body))(route);
+    },
+  );
+  const conflict = (route: import("@playwright/test").Route) =>
+    route.fulfill(problem(409, "STATE_CONFLICT"));
+  await page.route(
+    (url) => /^\/v1\/workflows\/[^/]+$/.test(url.pathname),
+    (route) => {
+      const id = new URL(route.request().url()).pathname.split("/")[3] ?? "";
+      const target = workflows.find((item) => item.id === id);
+      if (!target) return route.fulfill(problem(404, "RESOURCE_NOT_FOUND"));
+      if (route.request().method() === "PATCH") {
+        seen.updates.push({
+          id,
+          ifMatch: route.request().headers()["if-match"] ?? null,
+          body: route.request().postDataJSON() as Record<string, unknown>,
+        });
+        if (options.conflict === "update") return conflict(route);
+        const patch = route.request().postDataJSON() as Partial<Definition>;
+        if (typeof patch.name === "string") target.name = patch.name;
+        if (typeof patch.enabled === "boolean") target.enabled = patch.enabled;
+        target.version = (target.version ?? 1) + 1;
+      }
+      return route.fulfill(json(body(target)));
+    },
+  );
+  await page.route(
+    (url) => /^\/v1\/workflows\/[^/]+\/versions$/.test(url.pathname),
+    (route) => {
+      const id = new URL(route.request().url()).pathname.split("/")[3] ?? "";
+      return route.fulfill(json({
+        items: versions.filter((row) => row.workflowId === id).map(versionBody),
+        nextCursor: null,
+      }));
+    },
+  );
+  await page.route(
+    (url) => /^\/v1\/workflows\/[^/]+\/activations$/.test(url.pathname),
+    (route) => {
+      const id = new URL(route.request().url()).pathname.split("/")[3] ?? "";
+      const request = route.request().postDataJSON() as { versionId: string };
+      seen.activations.push({
+        id,
+        ifMatch: route.request().headers()["if-match"] ?? null,
+        body: request,
+      });
+      if (options.conflict === "activate") return conflict(route);
+      const target = workflows.find((item) => item.id === id);
+      if (!target) return route.fulfill(problem(404, "RESOURCE_NOT_FOUND"));
+      target.activeVersionId = request.versionId;
+      target.version = (target.version ?? 1) + 1;
+      return route.fulfill(json(body(target)));
+    },
+  );
+  await page.route(
+    (url) => /^\/v1\/agents\/[^/]+\/versions$/.test(url.pathname),
+    (route) => {
+      const id = new URL(route.request().url()).pathname.split("/")[3] ?? "";
+      return route.fulfill(json({
+        items: (options.agentVersions ?? []).filter((row) => row.agentId === id)
+          .map((row) => ({
+            id: row.id,
+            agentId: row.agentId,
+            revision: row.revision,
+            config: {},
+            digest: "c".repeat(64),
+            createdBy: uuid(1),
+            createdAt: STAMP,
+            updatedAt: STAMP,
+            version: 1,
+          })),
+        nextCursor: null,
+      }));
     },
   );
   await page.route(
