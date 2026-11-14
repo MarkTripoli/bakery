@@ -416,7 +416,12 @@ export async function libraryFixture(page: Page, options: Options = {}) {
         }]
         : [];
       return route.fulfill(
-        json({ valid: errors.length === 0, errors, warnings }),
+        json({
+          valid: errors.length === 0,
+          errors,
+          warnings,
+          normalizedDigest: errors.length === 0 ? "a".repeat(64) : null,
+        }),
       );
     },
   );

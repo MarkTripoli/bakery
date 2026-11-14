@@ -948,6 +948,7 @@ test("an unreadable saved workflow falls back to its identifier", async ({ page 
     page,
     world({
       workflowStatus: 404,
+      versionsStatus: 404,
       plans: [withOrigin({
         kind: "saved_workflow",
         workflowId,

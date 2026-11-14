@@ -96,8 +96,17 @@ export function ImportDialog(
       try {
         const report = await validate.mutateAsync(read.definition);
         if (mine !== turn.current) return;
-        if (report.errors.length > 0) {
-          setCheck({ state: "invalid", problems: problemsOf(report.errors) });
+        // The compiler's findings are errors too (they name the node or field).
+        const errors = [
+          ...report.errors,
+          ...(report.compilerDiagnostics ?? []).filter((found) =>
+            !report.errors.some((known) =>
+              known.path === found.path && known.message === found.message
+            )
+          ),
+        ];
+        if (errors.length > 0) {
+          setCheck({ state: "invalid", problems: problemsOf(errors) });
         } else {
           setCheck({
             state: "valid",
