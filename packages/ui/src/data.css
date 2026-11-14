@@ -1674,3 +1674,11 @@
   min-block-size: var(--target-coarse);
   padding: var(--space-0);
 }
+
+/* Flush list sections and rows start at the page's own left edge. */
+.ui-list-section[data-inset="none"] .ui-list-section__header {
+  padding-inline: var(--space-0);
+}
+.ui-stacked-row[data-inset="none"] {
+  padding-inline: var(--space-0);
+}

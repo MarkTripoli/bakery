@@ -3177,7 +3177,6 @@
   "library.truncated": "⟦Ôñļÿ ŧĥë ƒïŕšŧ 500 àŕë šĥôŵñ. ŧëšŧ çôþ⟧",
   "library.builtIn.title": "⟦Ɓûïļŧ ïñ…⟧",
   "library.builtIn.description": "⟦Ṁàïñŧàïñëð ƀÿ Ɓàķëŕÿ. ŧëšŧŧ⟧",
-  "library.builtIn.badge": "⟦Ɓûïļŧ ïñ…⟧",
   "library.builtIn.version": "⟦Ṽëŕšïôñ {version} ŧëš⟧",
   "library.builtIn.steps": "⟦{count, plural, one {# step} other {# steps}} ŧëšŧ çôþÿ ŧëš⟧",
   "library.organization.title": "⟦Ÿôûŕ ôŕĝàñïžàŧïôñ ŧëš⟧",

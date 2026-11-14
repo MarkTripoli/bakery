@@ -3177,7 +3177,6 @@
   "library.truncated": "⟪Only the first 500 are shown.⟫",
   "library.builtIn.title": "⟪Built in⟫",
   "library.builtIn.description": "⟪Maintained by Bakery.⟫",
-  "library.builtIn.badge": "⟪Built in⟫",
   "library.builtIn.version": "⟪Version {version}⟫",
   "library.builtIn.steps": "⟪{count, plural, one {# step} other {# steps}}⟫",
   "library.organization.title": "⟪Your organization⟫",

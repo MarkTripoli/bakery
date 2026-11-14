@@ -6,7 +6,8 @@ export type LibraryRow = {
   readonly name: string;
   /** One line under the name: what it is for, or that it has no description. */
   readonly line: string;
-  readonly badge: string;
+  /** The row's one badge; null when the section heading already says it (Built in). */
+  readonly badge: string | null;
   readonly tone: "neutral" | "success" | "warning";
   /** Short facts after the badge, such as "Version 2 · 3 steps". */
   readonly note: string;
@@ -29,8 +30,11 @@ export function LibraryRows(
       {rows.map((row) => (
         <div key={row.id} role="listitem" data-library-id={row.id}>
           <UI.StackedRow
+            flush
             title={row.name}
-            status={<UI.Badge tone={row.tone}>{row.badge}</UI.Badge>}
+            status={row.badge === null
+              ? undefined
+              : <UI.Badge tone={row.tone}>{row.badge}</UI.Badge>}
           >
             <UI.Text variant="caption">{row.line}</UI.Text>
             {row.note !== ""

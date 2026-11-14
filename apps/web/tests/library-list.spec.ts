@@ -59,7 +59,8 @@ for (
       await expect(builtIn).toContainText("Maintained by Bakery.");
       const fixed = builtIn.locator("[data-library-id=fixed-coding]");
       await expect(fixed).toContainText("Fixed coding");
-      await expect(fixed).toContainText("Built in");
+      // The heading says Built in; the rows do not say it again.
+      await expect(fixed).not.toContainText("Built in");
       await expect(fixed).toContainText("Version 2 · 2 steps");
       await expect(builtIn.locator("[data-library-id=fixed-coding-reviewed]"))
         .toContainText("Version 3 · 3 steps");
@@ -78,6 +79,34 @@ for (
       await expect(row(13)).toContainText("No version in use");
       await page.mouse.move(700, 700);
       await shot(page, "library-workflows");
+    });
+
+    test("the title, the section headings and the rows share one left edge, and a list ends in one rule", async ({ page }) => {
+      await open(page);
+      await expect(page.getByTestId("library-built-in")).toBeVisible();
+      const left = async (locator: ReturnType<Page["locator"]>) =>
+        Math.round((await locator.boundingBox())!.x);
+      const title = await left(page.getByRole("heading", {
+        name: "Library",
+        level: 1,
+      }));
+      const heading = await left(
+        page.getByRole("heading", { name: "Built in" }),
+      );
+      const rowTitle = await left(
+        page.locator("[data-library-id=fixed-coding] .ui-stacked-row__title"),
+      );
+      const own = await left(page.getByRole("heading", {
+        name: "Your organization",
+      }));
+      expect([heading, rowTitle, own]).toEqual([title, title, title]);
+      // Tabs that lead to their own content close with no rule of their own;
+      // the last row's rule is the only one.
+      expect(
+        await page.locator(".ui-tabs").evaluate((element) =>
+          getComputedStyle(element).borderBlockEndWidth
+        ),
+      ).toBe("0px");
     });
 
     test("an organization with no workflows of its own says so, and the built-in ones stay", async ({ page }) => {
@@ -130,6 +159,56 @@ for (
       await expect(section(page, "library-organization")).toContainText(
         "Release train",
       );
+    });
+
+    test("while the library is read, a status line and placeholders stand in, with no rows", async ({ page }) => {
+      const seen = await libraryFixture(page, { ...WORLD, hold: true });
+      await page.goto("/library");
+      await expect(
+        page.getByRole("status").filter({
+          hasText: "Loading the library.",
+        }),
+      ).toBeVisible();
+      await expect(page.locator("[data-ui-component=skeleton]").first())
+        .toBeVisible();
+      await expect(page.locator("[data-library-id]")).toHaveCount(0);
+      seen.release();
+      await expect(section(page, "library-organization")).toContainText(
+        "Release train",
+      );
+      await expect(page.getByText("Loading the library.")).toHaveCount(0);
+    });
+
+    test("an unreachable read says the device is offline, with Try again and no rows", async ({ page }) => {
+      await libraryFixture(page, { ...WORLD, offline: true });
+      await page.goto("/library");
+      await expect(page.getByText("You are offline")).toBeVisible();
+      await expect(page.getByText(
+        "Bakery will load the library when you are back online.",
+      )).toBeVisible();
+      await expect(page.getByRole("button", { name: "Try again" }))
+        .toBeVisible();
+      await expect(page.locator("[data-library-id]")).toHaveCount(0);
+    });
+
+    test("a list longer than five pages says it was cut short; one that ends early does not", async ({ page }) => {
+      const seen = await libraryFixture(page, { ...WORLD, endless: true });
+      await page.goto("/library");
+      await expect(page.getByText("Only the first 500 are shown."))
+        .toBeVisible();
+      // Five pages of 100 are read, no more.
+      await expect.poll(() => seen.workflowReads).toBeGreaterThanOrEqual(5);
+      expect(seen.workflowReads).toBeLessThanOrEqual(10);
+      await expect(page.getByText("Page 5", { exact: true })).toBeVisible();
+    });
+
+    test("a list that ends early has no cut-short warning", async ({ page }) => {
+      await open(page);
+      await expect(section(page, "library-organization")).toContainText(
+        "Release train",
+      );
+      await expect(page.getByText("Only the first 500 are shown."))
+        .toHaveCount(0);
     });
 
     test("a member who cannot see the library is told so", async ({ page }) => {

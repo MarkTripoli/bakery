@@ -38,6 +38,12 @@ export type Options = {
   /** A read that answers 500 INTERNAL_ERROR, or 403 AUTH_FORBIDDEN. */
   failing?: "workflows" | "agents" | "presets";
   forbidden?: boolean;
+  /** The workflows read waits until `seen.release()`: the page is loading meanwhile. */
+  hold?: boolean;
+  /** The workflows read cannot connect, as when the device is offline. */
+  offline?: boolean;
+  /** Every workflows page says there is another, so the list is cut short. */
+  endless?: boolean;
 };
 
 const json = (body: unknown, status = 200) => ({
@@ -74,7 +80,12 @@ const body = (item: Definition) => ({
 /** Stubs the session, the role and the three Library reads; returns what it saw and a switch to stop failing. */
 export async function libraryFixture(page: Page, options: Options = {}) {
   await mockAuthenticatedSession(page);
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
   const seen = {
+    release: () => release(),
     workflowReads: 0,
     agentReads: 0,
     presetReads: 0,
@@ -102,8 +113,23 @@ export async function libraryFixture(page: Page, options: Options = {}) {
   };
   await page.route(
     (url) => url.pathname === "/v1/workflows",
-    (route) => {
+    async (route) => {
       seen.workflowReads += 1;
+      if (options.offline) return route.abort("failed");
+      if (options.endless) {
+        return route.fulfill(json({
+          items: [
+            body(
+              definition(
+                300 + seen.workflowReads,
+                `Page ${seen.workflowReads}`,
+              ),
+            ),
+          ],
+          nextCursor: `more-${seen.workflowReads}`,
+        }));
+      }
+      if (options.hold) await held;
       return answer("workflows", (options.workflows ?? []).map(body))(route);
     },
   );

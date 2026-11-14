@@ -89,7 +89,8 @@ export function LibraryPage() {
       id: preset.id,
       name: copy.title,
       line: copy.description ?? "",
-      badge: translate("library.builtIn.badge" as never),
+      // The section heading already says Built in.
+      badge: null,
       tone: "neutral",
       note: [
         translate("library.builtIn.version" as never, {
@@ -111,6 +112,7 @@ export function LibraryPage() {
   ) => (
     <UI.ListSection
       data-testid={id}
+      flush
       title={title}
       description={description}
       variant={phone ? "list" : "table"}
@@ -202,6 +204,7 @@ export function LibraryPage() {
                 : (
                   <UI.ListSection
                     data-testid="library-organization"
+                    flush
                     title={translate("library.organization.title" as never)}
                     variant={phone ? "list" : "table"}
                   >
@@ -224,6 +227,7 @@ export function LibraryPage() {
           : (
             <UI.ListSection
               data-testid="library-organization"
+              flush
               title={translate("library.organization.title" as never)}
               variant={phone ? "list" : "table"}
             >
@@ -259,6 +263,7 @@ export function LibraryPage() {
         />
         <UI.Tabs
           aria-label={translate("library.tabs.label" as never)}
+          variant="route"
           selectedId={tab}
           onSelect={(id) =>
             void navigate({
