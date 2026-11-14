@@ -103,8 +103,12 @@ function fakeApi(
       replace: rejecting,
     },
     workerComponents: { list: rejecting },
-    workerProviderBindings: { list: rejecting },
-    workerProviderAuth: { create: rejecting, get: rejecting },
+    workerProviderBindings: { list: rejecting, create: rejecting },
+    workerProviderAuth: {
+      create: rejecting,
+      get: rejecting,
+      cancel: rejecting,
+    },
     organizations: {
       get: rejecting,
       effectiveAccess: rejecting,

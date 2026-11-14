@@ -1007,10 +1007,21 @@ const machineNewRoute = createRoute({
 const machineDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/machines/$machineId",
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { signIn?: "claude" | "codex" | "pi" } => {
+    const agent = search.signIn;
+    return agent === "claude" || agent === "codex" || agent === "pi"
+      ? { signIn: agent }
+      : {};
+  },
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => (
-    <MachineDetailPage machineId={machineDetailRoute.useParams().machineId} />
+    <MachineDetailPage
+      machineId={machineDetailRoute.useParams().machineId}
+      signInAgent={machineDetailRoute.useSearch().signIn}
+    />
   ),
   errorComponent: ProtectedRouteError,
 });

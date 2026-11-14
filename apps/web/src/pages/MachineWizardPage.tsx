@@ -221,7 +221,7 @@ function InstallStep(
     enrollmentId: string | null;
     translate: Translator;
     onNewSettings: (version: number) => void;
-    onDone: (workerHostId: string) => void;
+    onDone: (workerHostId: string, agent: CodingAgent) => void;
     onToList: () => void;
   },
 ) {
@@ -281,8 +281,9 @@ function InstallStep(
     return (
       <UI.Stack gap="standard">
         <UI.AlertBanner tone="success" role="status">
-          {translate("machines.wizard.install.connected" as never, {
+          {translate("machines.wizard.install.connectedSignIn" as never, {
             name: input.name,
+            agent: translate(`machines.agent.${agent}` as never),
           })}
         </UI.AlertBanner>
         <UI.Inline gap="compact">
@@ -293,10 +294,12 @@ function InstallStep(
               ? "machine-wizard-opening"
               : undefined}
             onClick={() => {
-              if (hostId !== null) onDone(hostId);
+              if (hostId !== null) onDone(hostId, agent);
             }}
           >
-            {translate("machines.wizard.done" as never)}
+            {translate("machines.wizard.install.signInButton" as never, {
+              agent: translate(`machines.agent.${agent}` as never),
+            })}
           </UI.Button>
         </UI.Inline>
         {/* A disabled button says why: the machine is not named yet. */}
@@ -623,10 +626,11 @@ export function MachineWizardPage(
               enrollmentId={enrollmentId}
               translate={translate}
               onNewSettings={(version) => void newSettings(version)}
-              onDone={(workerHostId) =>
+              onDone={(workerHostId, signInAgent) =>
                 void navigate({
                   to: "/machines/$machineId",
                   params: { machineId: workerHostId },
+                  search: { signIn: signInAgent },
                 })}
               onToList={toList}
             />

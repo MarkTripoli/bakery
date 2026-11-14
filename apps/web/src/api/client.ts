@@ -154,6 +154,10 @@ export type WorkerProviderAuthAttemptResponse =
   ClientOutputMap["WorkerProviderAuthAttempt"];
 export type WorkerProviderAuthAttemptCreatedResponse =
   ClientOutputMap["WorkerProviderAuthAttemptCreated"];
+export type WorkerProviderBindingResponse =
+  ClientOutputMap["WorkerProviderBinding"];
+export type WorkerProviderBindingCreate =
+  ClientInputMap["WorkerProviderBindingCreate"];
 export type WorkerEnrollmentCreate = ClientInputMap["WorkerEnrollmentCreate"];
 export type WorkerUpdate = ClientInputMap["WorkerUpdate"];
 
@@ -772,6 +776,14 @@ export type BakeryApiClient = {
       readonly limit?: number;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<WorkerProviderBindingListResponse>>;
+    /** `POST /v1/workers/:id/provider-bindings`: one binding for a component the machine reported. */
+    readonly create: (options: {
+      readonly organizationId: string;
+      readonly workerId: string;
+      readonly input: WorkerProviderBindingCreate;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<WorkerProviderBindingResponse>>;
   };
   readonly workerProviderAuth: {
     readonly create: (options: {
@@ -786,6 +798,14 @@ export type BakeryApiClient = {
       readonly workerId: string;
       readonly bindingId: string;
       readonly authAttemptId: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<WorkerProviderAuthAttemptResponse>>;
+    readonly cancel: (options: {
+      readonly organizationId: string;
+      readonly workerId: string;
+      readonly bindingId: string;
+      readonly authAttemptId: string;
+      readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<WorkerProviderAuthAttemptResponse>>;
   };
@@ -2001,6 +2021,19 @@ export function createBakeryApiClient({
             }, { signal: options.signal }),
         );
       },
+      create(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["workerProviderBindings.create"]({
+              id: options.workerId,
+              ...options.input,
+            }, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
     },
     workerProviderAuth: {
       create(options) {
@@ -2025,6 +2058,20 @@ export function createBakeryApiClient({
               bindingId: options.bindingId,
               authAttemptId: options.authAttemptId,
             }, { signal: options.signal }),
+        );
+      },
+      cancel(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["workerProviderAuth.cancel"]({
+              id: options.workerId,
+              bindingId: options.bindingId,
+              authAttemptId: options.authAttemptId,
+            }, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
         );
       },
     },

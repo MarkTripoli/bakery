@@ -31,6 +31,12 @@ export const Contract: StoryObj = {
         title="Email and password"
       />
       <DescriptionItem
+        action={<Badge tone="neutral">Not checked</Badge>}
+        actionPlacement="below"
+        description="Its action sits under the text on a phone."
+        title="Action below on a phone"
+      />
+      <DescriptionItem
         action={<IconGlyph name="arrow" size="large" />}
         description="Owner"
         initial="A"
