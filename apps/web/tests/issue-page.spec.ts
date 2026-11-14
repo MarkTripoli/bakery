@@ -289,6 +289,7 @@ for (
       const side = card(page).first();
       await expect(side.getByText("Not checked", { exact: true }))
         .toBeVisible();
+      await expect(side.getByText(/^Checked /)).toHaveCount(0);
       await expect(side.getByRole("button", { name: "Start work" }))
         .toHaveCount(0);
       await page.mouse.move(700, 700);

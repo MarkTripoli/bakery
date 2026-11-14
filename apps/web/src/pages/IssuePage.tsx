@@ -279,7 +279,8 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
   const passing = guarded ? 0 : checks.length - failing.length;
   const closed = snapshot.state === "closed";
   const checkedAt = issueCheckedAt(row);
-  const checkedAge = ageOf(checkedAt, Date.now());
+  // While GitHub cannot be read the answer is "not checked", so no check age.
+  const checkedAge = guarded ? null : ageOf(checkedAt, Date.now());
   const canAsk = !offline && !check.isPending && policyRevision !== null &&
     !closed;
 
