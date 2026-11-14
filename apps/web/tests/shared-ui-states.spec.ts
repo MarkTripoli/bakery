@@ -23,8 +23,8 @@ const luminance = (color: string) => {
 
 test.describe("shared states", () => {
   test("the information notice draws an information glyph, not a document", async ({ page }) => {
-    await mockAuthenticatedSession(page);
-    await page.goto("/settings/sessions");
+    // The shell's reconnecting state is an information-tone notice.
+    await page.goto("/__fixtures__/shell/reconnecting");
     const notice = page.locator(".ui-inline-notice--information");
     await expect(notice.first()).toBeVisible();
     await expect(
