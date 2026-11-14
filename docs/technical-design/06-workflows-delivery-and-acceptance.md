@@ -1440,7 +1440,7 @@ key. DST behavior is deterministic: a nonexistent local time is advanced to
 the next valid local instant; an ambiguous fall-back time is one occurrence
 unless the schedule explicitly identifies the two UTC instants. After downtime,
 `automation.tick` computes due occurrences since the last successful tick.
-The default `misfire: coalesce_one` makes one queued firing for the missed
+The default `misfire: coalesce` makes one queued firing for the missed
 window; `misfire: skip` records the miss without running. The maximum catch-up
 window is one schedule interval. For a longer outage the coordinator creates
 at most one queued coalesced firing and records the remaining occurrences as
@@ -1929,7 +1929,7 @@ prerequisites without introducing a hidden framework or approval gate.
    repeated finding is deduplicated; ambiguous deploy creates one reconciliation
    item; successful merge/deploy requires provider identity and health evidence.
 7. **Automation and recovery.** Implement one `automation.tick`, timezone/DST,
-   misfire `coalesce_one|skip`, firing dedupe, event-trigger filtering, and restart
+   misfire `coalesce|skip`, firing dedupe, event-trigger filtering, and restart
    recovery. Acceptance: duplicate ticks create one firing, spring-forward and
    fall-back fixtures match the documented policy, an offline period coalesces
    as configured, and a restart continues future schedule occurrences.

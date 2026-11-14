@@ -356,6 +356,10 @@ export const RegistrationPreparationSchema = z.object({
   keyId: z.string().min(1).describe(
     "Key identity the three ciphertexts were sealed with.",
   ),
+  botUserId: z.number().int().positive().max(Number.MAX_SAFE_INTEGER)
+    .nullable().describe(
+      "The App's bot account id (#20), or null when the lookup failed; the installation reconcile fills it later.",
+    ),
   app: GitHubAppConversionSchema.omit({
     client_secret: true,
     webhook_secret: true,
@@ -431,9 +435,10 @@ export async function storeRegistration(
     `insert into bakery.integration_app_registrations (
        id, provider, external_app_id, slug, name, client_id, owner_login,
        owner_id, owner_type, html_url, permissions, events, client_secret_id,
-       private_key_secret_id, webhook_secret_id, status, registered_by
+       private_key_secret_id, webhook_secret_id, status, registered_by,
+       bot_user_id
      ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb,
-       $13, $14, $15, 'registered', $16)`,
+       $13, $14, $15, 'registered', $16, $17)`,
     [
       registrationId,
       GITHUB_PROVIDER,
@@ -451,6 +456,7 @@ export async function storeRegistration(
       prepared.secrets.privateKey.secretId,
       prepared.secrets.webhookSecret?.secretId ?? null,
       principalId,
+      prepared.botUserId,
     ],
   );
   await transaction.query(

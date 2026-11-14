@@ -14,6 +14,7 @@ import {
   startRemoteSkillSourceFixture,
   stopRemoteSkillSourceFixture,
 } from "./remote-skill-source.ts";
+import { registerLaneStack } from "../helpers/lane-stack-registry.ts";
 
 const decoder = new TextDecoder();
 const inngestImage =
@@ -226,6 +227,7 @@ export async function startRealSkillImportStack(): Promise<
   if (!/^bakery-278-[a-z0-9-]+$/.test(project)) {
     throw new Error("OWNED_PROJECT_INVALID");
   }
+  registerLaneStack(project);
   await Deno.mkdir(root, { recursive: true, mode: 0o700 });
   const rootStat = await Deno.stat(root);
   if ((rootStat.mode! & 0o777) !== 0o700) {
