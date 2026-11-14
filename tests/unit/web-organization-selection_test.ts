@@ -85,6 +85,8 @@ function fakeApi(
       request: rejecting,
       list: rejecting,
       sources: rejecting,
+      createSource: rejecting,
+      updateSource: rejecting,
       sync: rejecting,
     },
     workers: {

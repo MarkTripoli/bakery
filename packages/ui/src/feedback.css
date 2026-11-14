@@ -441,8 +441,11 @@
 .ui-sheet--side {
   block-size: 100dvb;
   border-radius: var(--radius-none);
+  inline-size: var(--layout-session-pane);
   inset-inline-end: 0;
+  inset-inline-start: auto;
   max-block-size: none;
+  max-inline-size: 100%;
 }
 .ui-sheet--bottom {
   inset-block-start: auto;
