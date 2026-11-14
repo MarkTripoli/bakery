@@ -477,7 +477,9 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
         <StartWorkNotices
           number={number}
           started={started}
-          refusal={refusal}
+          // Pressed twice, or by two people: the work is under way, which the
+          // card now says; that is not a refusal to report.
+          refusal={status === "inProgress" ? null : refusal}
           onDismiss={() => setRefusal(null)}
         />
         {phone ? card : null}

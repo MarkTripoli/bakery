@@ -141,7 +141,7 @@ export type Options = {
   sources?: "none" | "healthy" | "degraded" | "authRequired" | "unknown";
   pageSize?: number;
   /** What starting work answers: ok (default), or a refusal. */
-  start?: "ok" | "notReady" | "changed" | "unavailable";
+  start?: "ok" | "notReady" | "changed" | "unavailable" | "alreadyRunning";
 };
 
 /** Stubs the session, the role, the sources and the issues; returns the requests seen. */
@@ -151,6 +151,8 @@ export async function issuesFixture(page: Page, options: Options = {}) {
     lists: [] as string[],
     syncs: 0,
     checks: 0,
+    /** Issues somebody else already started. */
+    running: new Set<number>(),
     starts: [] as { intent: string; revision: number; digest: string }[],
   };
   await page.route(
@@ -261,7 +263,13 @@ export async function issuesFixture(page: Page, options: Options = {}) {
         ? route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify(ticket(found)),
+          body: JSON.stringify(
+            ticket(
+              seen.running.has(found.number)
+                ? { ...found, request: { disposition: "active" } }
+                : found,
+            ),
+          ),
         })
         : route.fulfill(problem(404, "NOT_FOUND"));
     },
@@ -292,6 +300,13 @@ export async function issuesFixture(page: Page, options: Options = {}) {
         digest: body.requirementsDigest,
       });
       const answer = options.start ?? "ok";
+      if (answer === "alreadyRunning") {
+        const found = everySeed.find((seed) =>
+          uuid(seed.number) === idOf(new URL(route.request().url()).pathname)
+        );
+        if (found) seen.running.add(found.number);
+        return route.fulfill(problem(409, "STATE_CONFLICT"));
+      }
       if (answer === "notReady") {
         return route.fulfill(problem(409, "STATE_CONFLICT"));
       }

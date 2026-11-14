@@ -257,6 +257,21 @@ for (
       });
     }
 
+    test("pressing Start work when someone else just started it shows In progress, not an error", async ({ page }) => {
+      await open(page, READY, { start: "alreadyRunning" });
+      await card(page).first().getByRole("button", { name: "Start work" })
+        .click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Start work",
+      }).click();
+      const side = card(page).first();
+      await expect(side.getByText("In progress", { exact: true }))
+        .toBeVisible();
+      await expect(page.getByText("This issue cannot start yet."))
+        .toHaveCount(0);
+      await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    });
+
     test("Check again asks the server to check, and is not offered while it works", async ({ page }) => {
       const seen = await open(page, WAITING);
       await card(page).first().getByRole("button", { name: "Check again" })
