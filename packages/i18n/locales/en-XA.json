@@ -2187,10 +2187,8 @@
   "machines.reconnecting.description": "⟦Çôññëçŧïôñ ŕëšŧôŕëð. Ŕëƒŕëšĥïñĝ ŧĥë ļàŧëšŧ ɱàçĥïñë šŧàŧë. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "machines.provider.checked": "⟦Àûŧĥ çĥëçķëð ŧë⟧",
   "machines.provider.instructions": "⟦Þŕôṽïðëŕ àûŧĥëñŧïçàŧïôñ ïñšŧŕûçŧïôñš ŧëšŧ çôþÿŧ⟧",
-  "machines.pagination.truncated": "⟦Šĥôŵïñĝ ŧĥë ƒïŕšŧ {count} ŕëçôŕðš. Ṁôŕë ŕëçôŕðš àŕë àṽàïļàƀļë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "machines.pagination.loadMore": "⟦Ļôàð ɱôŕë ŧ⟧",
   "machines.pagination.loadingMore": "⟦Ļôàðïñĝ ɱôŕë… ŧë⟧",
-  "machines.pagination.error": "⟦Ṁôŕë ŕëçôŕðš çôûļð ñôŧ ƀë ļôàðëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëš⟧",
   "machines.readiness.reason.revoked": "⟦Çŕëðëñŧïàļ ŕëṽôķëð ŧëšŧ⟧",
   "machines.readiness.reason.offline": "⟦Ôƒƒļïñë…⟧",
   "machines.readiness.reason.stale": "⟦Ĥëàŕŧƀëàŧ šŧàļë ŧëš⟧",
@@ -2946,5 +2944,11 @@
   "machines.repair.failed": "⟦Ɓàķëŕÿ çôûļð ñôŧ šŧàŕŧ ŧĥë šëŧûþ. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëš⟧",
   "machines.retire.dialogBody": "⟦Ïŧ šŧôþš ŧàķïñĝ ñëŵ ŵôŕķ ñôŵ àñð ïŧš šïĝñ-ïñ ŧô Ɓàķëŕÿ ëñðš. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "machines.retire.dialogWork": "⟦Ŧàšķš ŕûññïñĝ ôñ ïŧ àŕë ñôŧ šŧôþþëð ôŕ ɱôṽëð, àñð ïŧ çàñ ñô ļôñĝëŕ ŕëþôŕŧ ôñ ŧĥëɱ. Ŧô ļëŧ ŧĥëɱ ƒïñïšĥ ƒïŕšŧ, çĥôôšë Ƒïñïšĥ àñð šŧôþ, àñð ŕëŧïŕë ŧĥë ɱàçĥïñë ŵĥëñ ïŧ ĥàš ñô ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
-  "machines.retire.dialogAgain": "⟦Ŧĥë ɱàçĥïñë çàñ ƀë šëŧ ûþ àĝàïñ ļàŧëŕ. ŧëšŧ çôþÿ ŧ⟧"
+  "machines.retire.dialogAgain": "⟦Ŧĥë ɱàçĥïñë çàñ ƀë šëŧ ûþ àĝàïñ ļàŧëŕ. ŧëšŧ çôþÿ ŧ⟧",
+  "machines.pagination.truncated.machines": "⟦Šĥôŵïñĝ ŧĥë ƒïŕšŧ {count} ɱàçĥïñëš. Ṁôŕë àŕë àṽàïļàƀļë. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "machines.pagination.error.machines": "⟦Ṁôŕë ɱàçĥïñëš çôûļð ñôŧ ƀë ļôàðëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëš⟧",
+  "machines.pagination.truncated.components": "⟦Šĥôŵïñĝ ŧĥë ƒïŕšŧ {count} ïñšŧàļļëð çôɱþôñëñŧš. Ṁôŕë àŕë àṽàïļàƀļë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "machines.pagination.error.components": "⟦Ṁôŕë ïñšŧàļļëð çôɱþôñëñŧš çôûļð ñôŧ ƀë ļôàðëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "machines.pagination.truncated.providers": "⟦Šĥôŵïñĝ ŧĥë ƒïŕšŧ {count} çôðïñĝ àĝëñŧš. Ṁôŕë àŕë àṽàïļàƀļë. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "machines.pagination.error.providers": "⟦Ṁôŕë çôðïñĝ àĝëñŧš çôûļð ñôŧ ƀë ļôàðëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧŧ⟧"
 }

@@ -455,6 +455,11 @@ test.describe("machines list states", () => {
     await expect(more).toBeVisible();
     await more.click();
     await expect(group).toContainText("waiting-box");
+    // Retry is at the bottom of the list, so the click scrolled the page. The
+    // shell's rail is sticky: a full-page capture taken scrolled keeps that
+    // offset, which shows the off-screen skip link and a rail that starts low.
+    // Back at the top, the capture is what a person sees on arrival.
+    await page.evaluate(() => globalThis.scrollTo(0, 0));
     await shot(page, "machines-list-finishing-paged");
   });
 });

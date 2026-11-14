@@ -2187,10 +2187,8 @@
   "machines.reconnecting.description": "⟪Connection restored. Refreshing the latest machine state.⟫",
   "machines.provider.checked": "⟪Auth checked⟫",
   "machines.provider.instructions": "⟪Provider authentication instructions⟫",
-  "machines.pagination.truncated": "⟪Showing the first {count} records. More records are available.⟫",
   "machines.pagination.loadMore": "⟪Load more⟫",
   "machines.pagination.loadingMore": "⟪Loading more…⟫",
-  "machines.pagination.error": "⟪More records could not be loaded. Try again.⟫",
   "machines.readiness.reason.revoked": "⟪Credential revoked⟫",
   "machines.readiness.reason.offline": "⟪Offline⟫",
   "machines.readiness.reason.stale": "⟪Heartbeat stale⟫",
@@ -2946,5 +2944,11 @@
   "machines.repair.failed": "⟪Bakery could not start the setup. Try again.⟫",
   "machines.retire.dialogBody": "⟪It stops taking new work now and its sign-in to Bakery ends.⟫",
   "machines.retire.dialogWork": "⟪Tasks running on it are not stopped or moved, and it can no longer report on them. To let them finish first, choose Finish and stop, and retire the machine when it has no work.⟫",
-  "machines.retire.dialogAgain": "⟪The machine can be set up again later.⟫"
+  "machines.retire.dialogAgain": "⟪The machine can be set up again later.⟫",
+  "machines.pagination.truncated.machines": "⟪Showing the first {count} machines. More are available.⟫",
+  "machines.pagination.error.machines": "⟪More machines could not be loaded. Try again.⟫",
+  "machines.pagination.truncated.components": "⟪Showing the first {count} installed components. More are available.⟫",
+  "machines.pagination.error.components": "⟪More installed components could not be loaded. Try again.⟫",
+  "machines.pagination.truncated.providers": "⟪Showing the first {count} coding agents. More are available.⟫",
+  "machines.pagination.error.providers": "⟪More coding agents could not be loaded. Try again.⟫"
 }

@@ -895,9 +895,13 @@ export function MachineDetailPage(
                 {nextComponentCursor
                   ? (
                     <UI.AlertBanner tone="information">
-                      {message(translate, "machines.pagination.truncated", {
-                        count: componentItems.length,
-                      })}
+                      {message(
+                        translate,
+                        "machines.pagination.truncated.components",
+                        {
+                          count: componentItems.length,
+                        },
+                      )}
                     </UI.AlertBanner>
                   )
                   : null}
@@ -948,7 +952,10 @@ export function MachineDetailPage(
                 {componentContinuation.isError
                   ? (
                     <UI.AlertBanner tone="error">
-                      {message(translate, "machines.pagination.error")}
+                      {message(
+                        translate,
+                        "machines.pagination.error.components",
+                      )}
                     </UI.AlertBanner>
                   )
                   : null}
@@ -979,9 +986,13 @@ export function MachineDetailPage(
                 {nextProviderCursor
                   ? (
                     <UI.AlertBanner tone="information">
-                      {message(translate, "machines.pagination.truncated", {
-                        count: providerItems.length,
-                      })}
+                      {message(
+                        translate,
+                        "machines.pagination.truncated.providers",
+                        {
+                          count: providerItems.length,
+                        },
+                      )}
                     </UI.AlertBanner>
                   )
                   : null}
@@ -1039,7 +1050,10 @@ export function MachineDetailPage(
                 {providerContinuation.isError
                   ? (
                     <UI.AlertBanner tone="error">
-                      {message(translate, "machines.pagination.error")}
+                      {message(
+                        translate,
+                        "machines.pagination.error.providers",
+                      )}
                     </UI.AlertBanner>
                   )
                   : null}

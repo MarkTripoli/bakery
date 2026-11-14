@@ -200,7 +200,7 @@ function worker(f: Fixture) {
     name: "fixture-host",
     os: "linux",
     architecture: "x86_64",
-    capabilities: ["claude"],
+    capabilities: ["git", "shell", "web", "model", "claude"],
     toolchainVersions: {},
     slots: 2,
     status: f.facts.status,

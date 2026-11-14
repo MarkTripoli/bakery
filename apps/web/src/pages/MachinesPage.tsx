@@ -253,9 +253,12 @@ export function MachinesPage() {
               {nextWorkerCursor
                 ? (
                   <UI.AlertBanner tone="information">
-                    {translate("machines.pagination.truncated" as never, {
-                      count: rows.length,
-                    })}
+                    {translate(
+                      "machines.pagination.truncated.machines" as never,
+                      {
+                        count: rows.length,
+                      },
+                    )}
                   </UI.AlertBanner>
                 )
                 : null}
@@ -288,7 +291,7 @@ export function MachinesPage() {
               {workerContinuation.isError
                 ? (
                   <UI.AlertBanner tone="error">
-                    {translate("machines.pagination.error" as never)}
+                    {translate("machines.pagination.error.machines" as never)}
                   </UI.AlertBanner>
                 )
                 : null}

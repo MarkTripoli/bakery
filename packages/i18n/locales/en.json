@@ -2456,10 +2456,8 @@
   "machines.provider.authState.canceled": "Auth canceled",
   "machines.provider.authState.expired": "Auth expired",
   "machines.provider.authState.terminal": "Terminal handoff required",
-  "machines.pagination.truncated": "Showing the first {count} records. More records are available.",
   "machines.pagination.loadMore": "Load more",
   "machines.pagination.loadingMore": "Loading more…",
-  "machines.pagination.error": "More records could not be loaded. Try again.",
   "settings.integrations.section": "Integrations",
   "settings.integrations.title": "Integrations",
   "settings.integrations.description": "Connect this installation to GitHub. One GitHub App serves every organization.",
@@ -2946,5 +2944,11 @@
   "machines.repair.title": "Set up {name} again",
   "machines.repair.leave": "If you leave this page the setup code is lost. Select Set up again to get a new one.",
   "machines.repair.failed": "Bakery could not start the setup. Try again.",
-  "machines.retire.dialogAgain": "The machine can be set up again later."
+  "machines.retire.dialogAgain": "The machine can be set up again later.",
+  "machines.pagination.truncated.machines": "Showing the first {count} machines. More are available.",
+  "machines.pagination.error.machines": "More machines could not be loaded. Try again.",
+  "machines.pagination.truncated.components": "Showing the first {count} installed components. More are available.",
+  "machines.pagination.error.components": "More installed components could not be loaded. Try again.",
+  "machines.pagination.truncated.providers": "Showing the first {count} coding agents. More are available.",
+  "machines.pagination.error.providers": "More coding agents could not be loaded. Try again."
 }
