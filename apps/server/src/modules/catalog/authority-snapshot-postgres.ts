@@ -63,6 +63,8 @@ type GrantRow = {
   policy_revision: number;
 };
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /** A positive safe integer from a stored numeric string, else null. */
 function positiveId(value: string | null): number | null {
   if (value === null || !/^[1-9][0-9]{0,15}$/.test(value)) return null;
@@ -110,6 +112,12 @@ export async function loadSnapshot(
   registry: ActiveIntegrationRegistry,
   key: SnapshotKey,
 ): Promise<AuthoritySnapshot | null> {
+  // A key that names no well-formed record answers null, never a database
+  // error the gate would surface as a 500.
+  if (
+    ![key.organizationId, key.actorRef, key.connectionId, key.resourceId]
+      .every((value) => typeof value === "string" && UUID.test(value))
+  ) return null;
   const result = await transaction.query<Row>(
     `select principal.id as principal_id,
             principal.disabled_at::text as disabled_at,
@@ -180,15 +188,23 @@ export async function loadSnapshot(
   );
 
   const role = row.membership_status === "active" ? row.membership_role : null;
-  const permissions = role
-    ? (rolePermissions as Record<string, readonly string[]>)[role] ?? []
+  const active = row.disabled_at === null && role !== null;
+  // An inactive actor (disabled, or no active membership) holds nothing.
+  const permissions = active
+    ? (rolePermissions as Record<string, readonly string[]>)[role!] ?? []
     : [];
+  // The revision effects record as authorization_revision: the newest policy
+  // interpretation among the grants in force, or 1 when there are none.
+  const policyRevision = grants.rows.reduce(
+    (highest, grant) => Math.max(highest, grant.policy_revision),
+    1,
+  );
   return {
     organizationId: key.organizationId,
     actor: {
       principalId: row.principal_id,
       subjectType: "principal",
-      active: row.disabled_at === null && role !== null,
+      active,
       ...(role ? { membershipRoleKey: role } : {}),
       permissions,
     },
@@ -250,6 +266,6 @@ export async function loadSnapshot(
         policyRevision: grant.policy_revision,
       }) as IntegrationGrantRecord
     ),
-    policyRevision: 1,
+    policyRevision,
   };
 }

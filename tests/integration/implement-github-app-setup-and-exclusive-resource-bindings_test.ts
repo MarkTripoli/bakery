@@ -3756,6 +3756,29 @@ Deno.test("the production authority snapshot binds a live connection exactly and
       ["github.issue.comment.create"],
     );
 
+    // QA on #377: a malformed key answers null, never a database error.
+    for (const field of Object.keys(key) as (keyof typeof key)[]) {
+      assertEquals(await port.load({ ...key, [field]: "not-a-uuid" }), null);
+    }
+    // The snapshot carries the newest policy revision of its grants.
+    await f.pgDatabase.query(
+      "update bakery.integration_grants set policy_revision = 7 where connection_id = $1",
+      [connectionId],
+    );
+    assertEquals((await port.load(key))?.policyRevision, 7);
+    // A disabled principal is inactive and holds no permissions.
+    await f.pgDatabase.query(
+      "update bakery.principals set disabled_at = now() where id = $1",
+      [f.adminId],
+    );
+    const disabled = await port.load(key);
+    assertEquals(disabled?.actor.active, false);
+    assertEquals(disabled?.actor.permissions, []);
+    await f.pgDatabase.query(
+      "update bakery.principals set disabled_at = null where id = $1",
+      [f.adminId],
+    );
+
     // Another organization's key, an unknown resource, a missing bot user
     // and an archived resource each answer no snapshot.
     const otherOrganization = await secondOrganization(f);
