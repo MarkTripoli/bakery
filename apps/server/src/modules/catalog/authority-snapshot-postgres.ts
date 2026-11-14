@@ -3,7 +3,10 @@ import type {
   PgTransactionClient,
 } from "../../platform/database.ts";
 import { withPgTransaction } from "../../platform/database.ts";
-import { rolePermissions } from "../auth/application/permissions.ts";
+import type { OrganizationId, PrincipalId } from "@bakery/contracts/contracts";
+import { StandardError } from "@bakery/contracts/http";
+import { resolveOrganizationActor } from "../auth/adapters/authority-postgres.ts";
+import { organizationPermissions } from "../auth/application/authorize.ts";
 import type {
   ActiveIntegrationRegistry,
   AuthoritySnapshot,
@@ -28,8 +31,6 @@ const RESOURCE_KINDS: Readonly<Record<string, string>> = Object.freeze({
 type Row = {
   principal_id: string;
   disabled_at: string | null;
-  membership_role: string | null;
-  membership_status: string | null;
   connection_status: string;
   connection_health: string;
   granted_permissions: Record<string, string> | null;
@@ -121,8 +122,6 @@ export async function loadSnapshot(
   const result = await transaction.query<Row>(
     `select principal.id as principal_id,
             principal.disabled_at::text as disabled_at,
-            membership.role as membership_role,
-            membership.status as membership_status,
             connection.status as connection_status,
             connection.health as connection_health,
             connection.granted_permissions,
@@ -146,9 +145,6 @@ export async function loadSnapshot(
          on resource.organization_id = connection.organization_id
         and resource.connection_id = connection.id and resource.id = $4
        join bakery.principals principal on principal.id = $2
-       left join bakery.organization_memberships membership
-         on membership.organization_id = connection.organization_id
-        and membership.principal_id = principal.id
       where connection.organization_id = $1 and connection.id = $3
         and connection.archived_at is null`,
     [key.organizationId, key.actorRef, key.connectionId, key.resourceId],
@@ -187,12 +183,28 @@ export async function loadSnapshot(
     [key.organizationId, key.connectionId],
   );
 
-  const role = row.membership_status === "active" ? row.membership_role : null;
-  const active = row.disabled_at === null && role !== null;
-  // An inactive actor (disabled, or no active membership) holds nothing.
-  const permissions = active
-    ? (rolePermissions as Record<string, readonly string[]>)[role!] ?? []
-    : [];
+  // The actor exactly as the API derives it (QA on #377): the canonical
+  // resolver applies membership state, SCIM deprovisioning, custom roles and
+  // exact capability grants. Any refusal is an inactive actor holding
+  // nothing; a savepoint keeps a refusal from aborting this transaction.
+  let active = false;
+  let role: string | undefined;
+  let permissions: readonly string[] = [];
+  await transaction.query("savepoint snapshot_actor");
+  try {
+    const actor = await resolveOrganizationActor(
+      transaction,
+      key.actorRef as PrincipalId,
+      key.organizationId as OrganizationId,
+    );
+    await transaction.query("release savepoint snapshot_actor");
+    active = row.disabled_at === null;
+    role = actor.role;
+    permissions = active ? organizationPermissions(actor) : [];
+  } catch (error) {
+    await transaction.query("rollback to savepoint snapshot_actor");
+    if (!(error instanceof StandardError)) throw error;
+  }
   // The revision effects record as authorization_revision: the newest policy
   // interpretation among the grants in force, or 1 when there are none.
   const policyRevision = grants.rows.reduce(
@@ -205,7 +217,7 @@ export async function loadSnapshot(
       principalId: row.principal_id,
       subjectType: "principal",
       active,
-      ...(role ? { membershipRoleKey: role } : {}),
+      ...(role && active ? { membershipRoleKey: role } : {}),
       permissions,
     },
     install: {

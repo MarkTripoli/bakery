@@ -1,3 +1,11 @@
+import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
+import { StandardError } from "../../packages/contracts/src/http.ts";
+import { resolveOrganizationActor } from "../../apps/server/src/modules/auth/adapters/authority-postgres.ts";
+import { organizationPermissions } from "../../apps/server/src/modules/auth/application/authorize.ts";
+import type {
+  OrganizationId,
+  PrincipalId,
+} from "../../packages/contracts/src/contracts.ts";
 import { createPostgresAuthorityPort } from "../../apps/server/src/modules/catalog/authority-snapshot-postgres.ts";
 import { effectRegistry } from "../helpers/external-effects.ts";
 import {
@@ -3756,6 +3764,13 @@ Deno.test("the production authority snapshot binds a live connection exactly and
       ["github.issue.comment.create"],
     );
 
+    // Production runs as the application role: the same snapshot (QA).
+    assertEquals(
+      await createPostgresAuthorityPort(f.runtimePgDatabase!, effectRegistry)
+        .load(key),
+      snapshot,
+    );
+
     // QA on #377: a malformed key answers null, never a database error.
     for (const field of Object.keys(key) as (keyof typeof key)[]) {
       assertEquals(await port.load({ ...key, [field]: "not-a-uuid" }), null);
@@ -3804,5 +3819,120 @@ Deno.test("the production authority snapshot binds a live connection exactly and
       [target.id],
     );
     assertEquals(await port.load(key), null);
+  });
+});
+
+/** A live, selected, enabled connection and its resource, for actor cases. */
+async function liveSnapshotKey(f: GitHubAppFixture, actorRef: string) {
+  const { connectionId, resources } = await pendingConnection(f);
+  const [target] = resources;
+  assertEquals(
+    (await patchResource(f, connectionId, target.id, { selected: true }))
+      .status,
+    200,
+  );
+  assertEquals(
+    (await patchConnection(f, connectionId, { enabled: true })).status,
+    200,
+  );
+  return {
+    organizationId: f.organizationId,
+    actorRef,
+    connectionId,
+    resourceId: target.id,
+  };
+}
+
+async function developerPrincipal(f: GitHubAppFixture): Promise<string> {
+  const row = await f.pgDatabase.query<{ principal_id: string }>(
+    `select principal_id from bakery.organization_memberships
+      where organization_id = $1 and role = 'developer' and status = 'active'
+      limit 1`,
+    [f.organizationId],
+  );
+  assert(row.rows[0], "the fixture has an active developer");
+  return row.rows[0].principal_id;
+}
+
+/** The canonical actor permissions, or null when the resolver refuses. */
+async function canonicalPermissions(
+  f: GitHubAppFixture,
+  principalId: string,
+): Promise<string[] | null> {
+  return await withPgTransaction(f.pgDatabase, async (transaction) => {
+    try {
+      const actor = await resolveOrganizationActor(
+        transaction,
+        principalId as PrincipalId,
+        f.organizationId as OrganizationId,
+      );
+      return organizationPermissions(actor);
+    } catch (error) {
+      if (error instanceof StandardError) return null;
+      throw error;
+    }
+  });
+}
+
+Deno.test("the snapshot's actor is the canonical resolver's: a SCIM-deprovisioned member holds nothing (#20)", async () => {
+  await withFixture(async (f) => {
+    const developer = await developerPrincipal(f);
+    const key = await liveSnapshotKey(f, developer);
+    const port = createPostgresAuthorityPort(f.pgDatabase, effectRegistry);
+    assertEquals((await port.load(key))?.actor.active, true);
+    // Managed by SCIM with no active provisioned user: deprovisioned.
+    await f.pgDatabase.query(
+      `insert into bakery.scim_memberships (organization_id, principal_id)
+       values ($1, $2)`,
+      [f.organizationId, developer],
+    );
+    assertEquals(await canonicalPermissions(f, developer), null);
+    const snapshot = await port.load(key);
+    assertEquals(snapshot?.actor.active, false);
+    assertEquals(snapshot?.actor.permissions, []);
+  });
+});
+
+Deno.test("the snapshot's actor is the canonical resolver's: a custom-role member holds exactly the canonical permissions (#20)", async () => {
+  await withFixture(async (f) => {
+    const developer = await developerPrincipal(f);
+    const key = await liveSnapshotKey(f, developer);
+    const created = await call(
+      f,
+      "POST",
+      "/v1/organization-roles",
+      f.adminCookie,
+      {
+        body: {
+          key: `invoker-${crypto.randomUUID().slice(0, 8)}`,
+          name: "Integration invoker",
+          permissions: ["integrationConnection:invoke"],
+        },
+        headers: {
+          "Bakery-Organization-Id": f.organizationId,
+          "Idempotency-Key": crypto.randomUUID(),
+        },
+      },
+    );
+    assertEquals(created.status, 201, await created.clone().text());
+    const role = await created.json();
+    // A custom-role member is stored with the lowest system role.
+    await f.pgDatabase.query(
+      `update bakery.organization_memberships
+          set role = 'guest', custom_role_id = $3
+        where organization_id = $1 and principal_id = $2`,
+      [f.organizationId, developer, role.id],
+    );
+    const canonical = await canonicalPermissions(f, developer);
+    assert(canonical?.includes("integrationConnection:invoke"));
+    const snapshot = await createPostgresAuthorityPort(
+      f.pgDatabase,
+      effectRegistry,
+    ).load(key);
+    assertEquals(snapshot?.actor.active, true);
+    assertEquals(
+      [...snapshot!.actor.permissions].sort(),
+      [...canonical!].sort(),
+    );
   });
 });
