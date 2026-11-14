@@ -3554,7 +3554,8 @@ Deno.test("an Admin grants, lists and revokes one exact capability on a connecti
     });
     const body = {
       subjectType: "principal",
-      subjectPrincipalId: f.developerId,
+      // The fixture's admin is a current member; developerId is unset here.
+      subjectPrincipalId: f.adminId,
       direction: "out_of_bakery",
       capability: "github.issue.comment.create",
       actionVersion: 1,
@@ -3597,7 +3598,7 @@ Deno.test("an Admin grants, lists and revokes one exact capability on a connecti
     assertEquals(created.status, 201, await created.clone().text());
     const grant = await created.json();
     assertEquals(grant.connectionId, connectionId);
-    assertEquals(grant.subjectPrincipalId, f.developerId);
+    assertEquals(grant.subjectPrincipalId, f.adminId);
     assertEquals(grant.capability, "github.issue.comment.create");
     assertEquals(grant.resourceId, resources[0].id);
     assertEquals(grant.revokedAt, null);
