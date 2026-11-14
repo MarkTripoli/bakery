@@ -17,7 +17,7 @@ import {
   secondOrganization,
 } from "../helpers/github-app-registration.ts";
 import { contractSchemas } from "../../packages/contracts/src/contracts.ts";
-import { fakeRepositories } from "../helpers/fake-github-app.ts";
+import { fakeBotUserId, fakeRepositories } from "../helpers/fake-github-app.ts";
 import {
   connectionsAwaitingRevalidation,
   dueInstallations,
@@ -1044,6 +1044,29 @@ Deno.test("an installation whose reconcile keeps failing yields the sweep's batc
       (await dueInstallations(f.runtimePgDatabase!, 10_000, 0)).includes(
         row.id,
       ),
+    );
+  });
+});
+
+Deno.test("a reconcile backfills the App's bot user id when the registration has none (#20)", async () => {
+  await withFixture(async (f) => {
+    const { first } = await sharedInstallation(f);
+    const installation = await installationOf(f, first.connectionId);
+    // An App registered before migration 0157, or whose lookup failed.
+    await f.pgDatabase.query(
+      "update bakery.integration_app_registrations set bot_user_id = null",
+    );
+    await f.reconcile(installation.id);
+    const stored = await f.pgDatabase.query<
+      { bot_user_id: string | null; external_app_id: string }
+    >(
+      `select bot_user_id, external_app_id::text
+         from bakery.integration_app_registrations`,
+    );
+    assertEquals(stored.rows.length, 1);
+    assertEquals(
+      Number(stored.rows[0].bot_user_id),
+      fakeBotUserId(Number(stored.rows[0].external_app_id)),
     );
   });
 });
