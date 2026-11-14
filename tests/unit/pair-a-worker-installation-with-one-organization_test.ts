@@ -15,6 +15,7 @@ import {
   BootstrapError,
   type CommandIo,
   type EnrollmentPreview,
+  hasUnsafeCharacter,
   inspectEnrollment,
   normalizeServerOrigin,
   PAIRING_FILE,
@@ -326,7 +327,7 @@ Deno.test("an inspection answer in the wrong shape, or too big, is refused befor
     { ...preview(), slots: "2" },
     { ...preview(), capabilities: "git" },
     { ...preview(), capabilities: [1] },
-    { ...preview(), capabilities: Array(101).fill("a") },
+    { ...preview(), capabilities: Array(201).fill("a") },
     { ...preview(), state: "consumed" },
     { ...preview(), state: undefined },
   ];
@@ -342,7 +343,7 @@ Deno.test("an inspection answer in the wrong shape, or too big, is refused befor
   }
   // Valid JSON, padded past the bound: only the size limit can refuse it.
   const huge = server(() =>
-    new Response(JSON.stringify(preview()) + " ".repeat(40_000), {
+    new Response(JSON.stringify(preview()) + " ".repeat(70_000), {
       status: 200,
     })
   );
@@ -778,6 +779,212 @@ Deno.test("setup needs the worker installed first, then pairs the same way", asy
       0,
     );
     assertEquals(fake.calls.length, 1);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+// The confirmation prompt prints text the server supplied, and the person's
+// answer is the only protection against pairing with the wrong organization:
+// nothing that can erase or forge a line, or reorder what is read, may reach it.
+
+const HOSTILE: [string, string][] = [
+  ["escape sequence", "\u001b[2K\rOrganization: Acme Corp (your own)"],
+  ["escape only", "\u001b"],
+  ["clear screen", "\u001b[2J"],
+  ["cursor up", "\u001b[1A"],
+  ["carriage return", "a\rb"],
+  ["line feed", "a\nOrganization: Acme Corp (your own)"],
+  ["NUL", "a\u0000b"],
+  ["tab", "a\tb"],
+  ["bell", "a\u0007b"],
+  ["DEL", "a\u007fb"],
+  ["C1 next line", "a\u0085b"],
+  ["C1 CSI", "a\u009bb"],
+  ["right-to-left override", "a\u202eb"],
+  ["left-to-right embedding", "a\u202ab"],
+  ["isolate", "a\u2066b"],
+  ["pop isolate", "a\u2069b"],
+  ["zero-width space", "a\u200bb"],
+  ["left-to-right mark", "a\u200eb"],
+  ["right-to-left mark", "a\u200fb"],
+  ["line separator", "a\u2028b"],
+  ["paragraph separator", "a\u2029b"],
+  ["word joiner", "a\u2060b"],
+  ["byte-order mark", "a\ufeffb"],
+  ["arabic letter mark", "a\u061cb"],
+  ["mongolian vowel separator", "a\u180eb"],
+  ["interlinear anchor", "a\ufff9b"],
+  ["interlinear separator", "a\ufffab"],
+  ["interlinear terminator", "a\ufffbb"],
+  ["tag character", "a\u{e0041}b"],
+  ["lone surrogate", "a\ud800b"],
+];
+
+Deno.test("no text the server supplies can carry a control, line-break or direction-changing character to the person", async () => {
+  const fields: [string, (hostile: string) => unknown][] = [
+    [
+      "organizationName",
+      (hostile) => ({ ...preview(), organizationName: hostile }),
+    ],
+    ["name", (hostile) => ({ ...preview(), name: hostile })],
+    ["architecture", (hostile) => ({ ...preview(), architecture: hostile })],
+    ["os", (hostile) => ({ ...preview(), os: hostile })],
+    [
+      "a capability",
+      (hostile) => ({ ...preview(), capabilities: ["git", hostile] }),
+    ],
+    ["expiresAt", (hostile) => ({ ...preview(), expiresAt: hostile })],
+    ["enrollmentId", (hostile) => ({ ...preview(), enrollmentId: hostile })],
+  ];
+  for (const [field, build] of fields) {
+    for (const [label, hostile] of HOSTILE) {
+      const fake = server(() => ok(build(hostile)));
+      assertEquals(
+        await codeOf(
+          inspectEnrollment({
+            origin: ORIGIN,
+            token: SECRET,
+            fetch: fake.fetch,
+          }),
+        ),
+        "PAIRING_INSPECTION_MALFORMED",
+        `${field}: ${label}`,
+      );
+    }
+  }
+});
+
+Deno.test("the same unsafe characters are named by one check", () => {
+  for (const [label, hostile] of HOSTILE) {
+    assert(hasUnsafeCharacter(hostile), label);
+  }
+  // Ordinary names, including other scripts, are not touched.
+  for (
+    const fine of [
+      "Acme",
+      "Acme, Inc.",
+      "Zoë & Søn",
+      "株式会社ベーカリー",
+      "Ünïcode name",
+      "a b",
+      "名前 (東京)",
+    ]
+  ) {
+    assertFalse(hasUnsafeCharacter(fine), fine);
+  }
+});
+
+Deno.test("an answer with an extra or missing field, a blank name or an odd type is refused", async () => {
+  const bad: [string, unknown][] = [
+    ["extra field", { ...preview(), extra: "x" }],
+    ["extra field that looks harmless", { ...preview(), note: "" }],
+    [
+      "missing slots",
+      (() => {
+        const { slots: _slots, ...rest } = preview();
+        return rest;
+      })(),
+    ],
+    ["blank organization name", { ...preview(), organizationName: "   " }],
+    ["blank machine name", { ...preview(), name: "" }],
+    ["os not linux or macos", { ...preview(), os: "windows" }],
+    ["architecture with a space", { ...preview(), architecture: "x86 64" }],
+    ["architecture with a symbol", { ...preview(), architecture: "x64;rm" }],
+    ["expiry not a timestamp", { ...preview(), expiresAt: "tomorrow" }],
+    ["expiry impossible", { ...preview(), expiresAt: "2026-13-45T99:99:99Z" }],
+    ["expiry a date only", { ...preview(), expiresAt: "2026-11-14" }],
+    ["expiry with a space", {
+      ...preview(),
+      expiresAt: "2026-11-14 10:00:00Z",
+    }],
+    ["expiry in words", { ...preview(), expiresAt: "Nov 14 2026 10:00 GMT" }],
+    ["expiry a number", { ...preview(), expiresAt: "1789000000000" }],
+    ["blank capability", { ...preview(), capabilities: ["git", " "] }],
+    ["too long capability", { ...preview(), capabilities: ["a".repeat(201)] }],
+    ["capabilities over the byte budget", {
+      ...preview(),
+      capabilities: Array(200).fill("a".repeat(200)),
+    }],
+  ];
+  for (const [label, body] of bad) {
+    const fake = server(() => ok(body));
+    assertEquals(
+      await codeOf(
+        inspectEnrollment({ origin: ORIGIN, token: SECRET, fetch: fake.fetch }),
+      ),
+      "PAIRING_INSPECTION_MALFORMED",
+      label,
+    );
+  }
+  // The longest names the contract allows still pair.
+  const longest = server(() =>
+    ok(
+      preview({
+        organizationName: "O".repeat(200),
+        name: "n".repeat(200),
+        architecture: "a".repeat(100),
+      }),
+    )
+  );
+  const result = await inspectEnrollment({
+    origin: ORIGIN,
+    token: SECRET,
+    fetch: longest.fetch,
+  });
+  assertEquals(result.organizationName.length, 200);
+  // A capability set near the contract's 32000-byte budget (bigger than the
+  // rest of the answer many times over) still pairs.
+  const many = Array.from(
+    { length: 150 },
+    (_, index) => `${index}-${"c".repeat(190)}`,
+  );
+  assert(
+    JSON.stringify(many).length > 28_000 &&
+      JSON.stringify(many).length <= 32_000,
+  );
+  const large = server(() => ok(preview({ capabilities: many })));
+  const accepted = await inspectEnrollment({
+    origin: ORIGIN,
+    token: SECRET,
+    fetch: large.fetch,
+  });
+  assertEquals(accepted.capabilities.length, 150);
+});
+
+Deno.test("a hostile organization name never reaches the screen: nothing is printed, asked or written", async () => {
+  const root = await tempRoot();
+  try {
+    const file = await protectedCodeFile(root);
+    for (
+      const hostile of [
+        "\u001b[2K\rOrganization: Acme Corp (your own)",
+        "Acme\nOrganization: Acme Corp (your own)",
+        "Acme\u202e",
+      ]
+    ) {
+      const { io, out, asked } = commandIo(
+        server(() => ok(preview({ organizationName: hostile }))),
+        "y",
+      );
+      assertEquals(
+        await runCommand({
+          name: "pair",
+          server: ORIGIN,
+          root,
+          tokenFile: file,
+        }, io),
+        2,
+      );
+      const printed = out.join("");
+      assertFalse(printed.includes("\u001b"));
+      assertFalse(printed.includes("your own"));
+      assertFalse(printed.includes("Organization:"));
+      assertEquals(asked, []);
+    }
+    for (const name of [PAIRING_FILE, TOKEN_FILE]) {
+      await assertRejects(() => lstat(join(root, name)));
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
   }
