@@ -544,6 +544,7 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
           ? (
             <IssuesTroubleBanner
               trouble={trouble}
+              subject="issue"
               admin={isAdmin}
               refreshing={refresh.isPending}
               onRefresh={() => refresh.mutate()}

@@ -3134,5 +3134,6 @@
   "issues.start.openWork": "⟪Open Work⟫",
   "issues.dependency.openNamed": "⟪{reference} on GitHub (opens in a new tab)⟫",
   "issues.refused.notAllowed": "⟪You are not allowed to start work from issues in this repository. Nothing was started.⟫",
-  "issues.refused.gone": "⟪This issue is no longer there. Nothing was started.⟫"
+  "issues.refused.gone": "⟪This issue is no longer there. Nothing was started.⟫",
+  "issues.trouble.degradedIssue": "⟪Bakery is having trouble reading GitHub. This issue may be out of date.⟫"
 }

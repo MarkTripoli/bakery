@@ -451,7 +451,7 @@ for (
     test("trouble reading GitHub says so, shows the answer as not checked and offers no Start work", async ({ page }) => {
       await open(page, READY, { sources: "degraded" });
       await expect(page.getByText(
-        "Bakery is having trouble reading GitHub. This list may be out of date.",
+        "Bakery is having trouble reading GitHub. This issue may be out of date.",
       )).toBeVisible();
       await expect(page.getByRole("button", { name: "Refresh" }))
         .toBeVisible();

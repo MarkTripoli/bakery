@@ -2924,6 +2924,7 @@
   "issues.status.closed": "Closed",
   "issues.status.unknown": "Not checked",
   "issues.trouble.degraded": "Bakery is having trouble reading GitHub. This list may be out of date.",
+  "issues.trouble.degradedIssue": "Bakery is having trouble reading GitHub. This issue may be out of date.",
   "issues.trouble.authRequired": "GitHub no longer accepts Bakery's access, so issues cannot be updated or started.",
   "issues.empty.canStart.title": "No issue is ready to start",
   "issues.empty.canStart.description": "Issues appear here when they have the right label, acceptance criteria, and nothing open that they depend on.",

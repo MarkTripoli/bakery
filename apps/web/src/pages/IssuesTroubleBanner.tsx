@@ -10,10 +10,12 @@ import type { GitHubTrouble } from "./issue-state.ts";
  * actions are administrators'; everyone else is told what is wrong.
  */
 export function IssuesTroubleBanner(
-  { admin, onRefresh, refreshing, trouble }: {
+  { admin, onRefresh, refreshing, subject = "list", trouble }: {
     readonly admin: boolean;
     readonly onRefresh: () => void;
     readonly refreshing: boolean;
+    /** What the page shows: the list says "This list", an issue says "This issue". */
+    readonly subject?: "list" | "issue";
     readonly trouble: GitHubTrouble;
   },
 ) {
@@ -47,7 +49,11 @@ export function IssuesTroubleBanner(
         : "information"}
       action={action}
     >
-      {translate(`issues.trouble.${trouble}` as never)}
+      {translate(
+        (trouble === "degraded" && subject === "issue"
+          ? "issues.trouble.degradedIssue"
+          : `issues.trouble.${trouble}`) as never,
+      )}
     </UI.AlertBanner>
   );
 }
