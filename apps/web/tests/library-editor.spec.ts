@@ -65,6 +65,13 @@ for (
       page.getByTestId("editor-steps").locator("[data-step-index]");
     const state = (page: Page) => page.getByTestId("editor-state");
     const panel = (page: Page) => page.getByTestId("step-panel");
+    // On a phone the panel is a sheet over the page: close it to reach the header.
+    const closePanel = async (page: Page) => {
+      if (viewport.name === "phone") {
+        await page.keyboard.press("Escape");
+        await expect(panel(page)).toHaveCount(0);
+      }
+    };
     const select = async (page: Page, index: number) => {
       await rows(page).nth(index).getByRole("button", { name: /^Edit/ })
         .click();
@@ -101,6 +108,18 @@ for (
       await expect(rows(page).nth(1)).toContainText("2. Run the coding agent");
       await expect(rows(page).nth(2)).toContainText("3. Review the changes");
       await expect(state(page)).toHaveText("Draft");
+      // A step's button ends its title line at its label's width on a wide
+      // screen, and spans the row under the text on a phone.
+      const button = (await rows(page).nth(0).getByRole("button", {
+        name: /^Edit step 1/,
+      }).boundingBox())!;
+      const row = (await rows(page).nth(0).boundingBox())!;
+      if (viewport.name === "desktop") {
+        expect(button.width).toBeLessThan(260);
+        expect(button.y).toBeLessThan(row.y + 60);
+      } else {
+        expect(button.width).toBeGreaterThan(row.width - 8);
+      }
       await expect(page.getByTestId("publish-reason")).toHaveCount(0);
       await expect(page.getByRole("button", { name: "Publish" })).toBeEnabled();
       await select(page, 1);
@@ -112,6 +131,7 @@ for (
       const seen = await editor(page);
       await select(page, 1);
       await panel(page).getByLabel("Name").fill("build");
+      await closePanel(page);
       await expect(root(page)).toContainText("Unsaved changes");
       await expect(page.getByRole("button", { name: "Save draft" }))
         .toBeEnabled();
@@ -200,6 +220,7 @@ for (
       const seen = await editor(page);
       await select(page, 0);
       await panel(page).getByLabel("Name").fill("intro");
+      await closePanel(page);
       await page.getByRole("button", { name: "Publish" }).click();
       const confirm = page.getByRole("alertdialog", {
         name: "Publish version 3?",
@@ -226,6 +247,7 @@ for (
       await page.goBack();
       await select(page, 0);
       await panel(page).getByLabel("Name").fill("intro");
+      await closePanel(page);
       await page.getByRole("button", { name: "Back to the workflow" }).click();
       const ask = page.getByRole("alertdialog", {
         name: "Leave without saving?",
@@ -246,6 +268,7 @@ for (
       await editor(page, { ...WITH_DRAFT, editor: "save-conflict" });
       await select(page, 0);
       await panel(page).getByLabel("Name").fill("intro");
+      await closePanel(page);
       await page.getByRole("button", { name: "Save draft" }).click();
       await expect(root(page)).toContainText(
         "Someone else changed this draft.",

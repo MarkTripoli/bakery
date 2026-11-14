@@ -538,70 +538,93 @@ export function WorkflowEditorPage(
       </UI.Stack>
     );
 
+  const stepsList = (
+    <UI.Stack gap="standard">
+      <UI.Stack gap="none" role="list" data-testid="editor-steps">
+        {stepList.map((step, index) => {
+          const found = problemsOn(index);
+          const editButton = (
+            <UI.Button
+              variant="secondary"
+              aria-label={translate("library.editor.editStep" as never, {
+                number: index + 1,
+              })}
+              onClick={() => setSelected(index)}
+            >
+              {translate("library.editor.edit" as never)}
+            </UI.Button>
+          );
+          const fixBadge = found.length > 0
+            ? (
+              <UI.Badge tone="warning">
+                {translate("library.editor.fix" as never)}
+              </UI.Badge>
+            )
+            : null;
+          return (
+            <div
+              key={`${index}-${step.id}`}
+              role="listitem"
+              data-step-index={index}
+              data-selected={selected === index ? "true" : undefined}
+            >
+              {
+                /* On a wide screen the button ends the title's line at its label's
+                width; on a phone it spans the row under the text. */
+              }
+              <UI.StackedRow
+                flush
+                title={`${index + 1}. ${title(step.uses)}`}
+                status={phone
+                  ? fixBadge ?? undefined
+                  : (
+                    <UI.Inline gap="compact">
+                      {fixBadge}
+                      {editButton}
+                    </UI.Inline>
+                  )}
+              >
+                <UI.Text variant="caption">
+                  {step.id === ""
+                    ? translate("library.editor.noName" as never)
+                    : step.id}
+                </UI.Text>
+                {found.map((problem, at) => (
+                  <UI.Text key={at} variant="caption">
+                    {problem.message}
+                  </UI.Text>
+                ))}
+                {phone ? editButton : null}
+              </UI.StackedRow>
+            </div>
+          );
+        })}
+      </UI.Stack>
+      <UI.Inline gap="compact">
+        <UI.Button
+          variant="secondary"
+          onClick={() => {
+            setNewAction(known[0] ?? "");
+            open({ kind: "add" });
+          }}
+        >
+          {translate("library.editor.addStep" as never)}
+        </UI.Button>
+      </UI.Inline>
+    </UI.Stack>
+  );
   const stepsView = !hasStepList(current)
     ? (
       <UI.InlineNotice tone="information">
         {translate("library.editor.noStepList" as never)}
       </UI.InlineNotice>
     )
+    : phone
+    ? stepsList
     : (
-      <UI.Inline variant={phone ? "flow" : "split"} gap="spacious">
-        <UI.Stack gap="standard">
-          <UI.Stack gap="none" role="list" data-testid="editor-steps">
-            {stepList.map((step, index) => (
-              <div
-                key={`${index}-${step.id}`}
-                role="listitem"
-                data-step-index={index}
-                data-selected={selected === index ? "true" : undefined}
-              >
-                <UI.StackedRow
-                  flush
-                  title={`${index + 1}. ${title(step.uses)}`}
-                  status={problemsOn(index).length > 0
-                    ? (
-                      <UI.Badge tone="warning">
-                        {translate("library.editor.fix" as never)}
-                      </UI.Badge>
-                    )
-                    : undefined}
-                >
-                  <UI.Text variant="caption">
-                    {step.id === ""
-                      ? translate("library.editor.noName" as never)
-                      : step.id}
-                  </UI.Text>
-                  {problemsOn(index).map((problem, at) => (
-                    <UI.Text key={at} variant="caption">
-                      {problem.message}
-                    </UI.Text>
-                  ))}
-                  <UI.Button
-                    variant="secondary"
-                    aria-label={translate("library.editor.editStep" as never, {
-                      number: index + 1,
-                    })}
-                    onClick={() => setSelected(index)}
-                  >
-                    {translate("library.editor.edit" as never)}
-                  </UI.Button>
-                </UI.StackedRow>
-              </div>
-            ))}
-          </UI.Stack>
-          <UI.Inline gap="compact">
-            <UI.Button
-              variant="secondary"
-              onClick={() => {
-                setNewAction(known[0] ?? "");
-                open({ kind: "add" });
-              }}
-            >
-              {translate("library.editor.addStep" as never)}
-            </UI.Button>
-          </UI.Inline>
-        </UI.Stack>
-        {phone ? null : panel}
+      <UI.Inline variant="split" gap="spacious">
+        {stepsList}
+        {panel}
       </UI.Inline>
     );
 
