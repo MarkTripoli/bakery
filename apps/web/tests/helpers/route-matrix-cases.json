@@ -20,6 +20,10 @@
     "path": "/library"
   },
   {
+    "id": "library-workflow",
+    "path": "/library/workflows/$workflowId"
+  },
+  {
     "id": "issues",
     "path": "/issues"
   },

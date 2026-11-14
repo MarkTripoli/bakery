@@ -262,6 +262,10 @@ function fakeApi(
     getWorkflow: rejecting,
     listWorkflows: rejecting,
     listAgents: rejecting,
+    listWorkflowVersions: rejecting,
+    activateWorkflowVersion: rejecting,
+    updateWorkflow: rejecting,
+    listAgentVersions: rejecting,
   };
 }
 

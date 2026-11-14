@@ -65,6 +65,7 @@ export function LibraryPage() {
 
   const badgeRow = (
     definition: WorkflowDefinitionResponse | AgentDefinitionResponse,
+    openable = false,
   ): LibraryRow => {
     const badge = definitionBadge(definition);
     return {
@@ -81,6 +82,13 @@ export function LibraryPage() {
         ? "warning"
         : "neutral",
       note: "",
+      ...(openable
+        ? {
+          openLabel: translate("library.workflow.openNamed" as never, {
+            name: definition.name,
+          }),
+        }
+        : {}),
     };
   };
   const presetRow = (preset: WorkflowPresetResponse): LibraryRow => {
@@ -117,7 +125,16 @@ export function LibraryPage() {
       description={description}
       variant={phone ? "list" : "table"}
     >
-      <LibraryRows label={label} rows={rows} />
+      <LibraryRows
+        label={label}
+        onOpen={(row) =>
+          void navigate({
+            to: "/library/workflows/$workflowId",
+            params: { workflowId: row.id },
+          })}
+        rows={rows}
+        translate={translate}
+      />
     </UI.ListSection>
   );
   const empty = (title: string, description: string) => (
@@ -128,8 +145,12 @@ export function LibraryPage() {
     />
   );
 
-  const workflowRows = byName(workflows.data?.items ?? []).map(badgeRow);
-  const agentRows = byName(agents.data?.items ?? []).map(badgeRow);
+  const workflowRows = byName(workflows.data?.items ?? []).map((row) =>
+    badgeRow(row, true)
+  );
+  const agentRows = byName(agents.data?.items ?? []).map((row) =>
+    badgeRow(row)
+  );
   const truncated = tab === "workflows"
     ? workflows.data?.truncated
     : agents.data?.truncated;

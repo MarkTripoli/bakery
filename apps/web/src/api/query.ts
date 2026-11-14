@@ -1,6 +1,7 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type {
   AgentDefinitionResponse,
+  AgentVersionResponse,
   ApiFailure,
   ApiResult,
   ApplicationListResponse,
@@ -81,6 +82,7 @@ import type {
   WorkerResponse,
   WorkflowDefinitionResponse,
   WorkflowPresetListResponse,
+  WorkflowVersionResponse,
 } from "./client.ts";
 import { protectedQueryKey, type ProtectedScope } from "../app/query-scope.ts";
 
@@ -1836,6 +1838,79 @@ export function libraryAgentsQueryOptions(
         const read = unwrap(
           await client.listAgents({
             organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) return { items, truncated: false };
+        cursor = read.nextCursor;
+      }
+      return { items, truncated: true };
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Every version of one workflow (a few pages at most). */
+export function workflowVersionsQueryOptions(
+  client: Pick<BakeryApiClient, "listWorkflowVersions">,
+  scope: ApiScope,
+  workflowId: string,
+) {
+  return queryOptions<
+    { items: WorkflowVersionResponse[]; truncated: boolean },
+    ApiFailure
+  >({
+    queryKey: protectedQueryKey(scope, "library.workflowVersions", {
+      workflowId,
+    }),
+    queryFn: async ({ signal }) => {
+      const items: WorkflowVersionResponse[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listWorkflowVersions({
+            organizationId: requireOrganization(scope),
+            workflowId,
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) return { items, truncated: false };
+        cursor = read.nextCursor;
+      }
+      // The server lists newest first, so a cut-short list lacks the oldest.
+      return { items, truncated: true };
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Every version of one agent (a few pages at most), and whether the list was cut short. */
+export function agentVersionsQueryOptions(
+  client: Pick<BakeryApiClient, "listAgentVersions">,
+  scope: ApiScope,
+  agentId: string,
+) {
+  return queryOptions<
+    { items: AgentVersionResponse[]; truncated: boolean },
+    ApiFailure
+  >({
+    queryKey: protectedQueryKey(scope, "library.agentVersions", { agentId }),
+    queryFn: async ({ signal }) => {
+      const items: AgentVersionResponse[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listAgentVersions({
+            organizationId: requireOrganization(scope),
+            agentId,
             cursor,
             limit: 100,
             signal,

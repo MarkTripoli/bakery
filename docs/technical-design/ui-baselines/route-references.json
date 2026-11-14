@@ -5146,6 +5146,13 @@
       "status": "no-mock",
       "rationale": "The Library (workflows and agents, built in and the organization's own) is designed by design-ux on #66; Paper has no frame for it.",
       "frames": []
+    },
+    {
+      "routeId": "library-workflow",
+      "path": "/library/workflows/$workflowId",
+      "status": "no-mock",
+      "rationale": "One workflow of the organization (its steps, versions and the version in use) is designed by design-ux on #66; Paper has no frame for it.",
+      "frames": []
     }
   ]
 }

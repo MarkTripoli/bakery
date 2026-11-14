@@ -36,6 +36,12 @@ export type StepItemProps =
     action?: ReactNode;
     /** The open detail of a step that failed, is running or waits. */
     children?: ReactNode;
+    /**
+     * Opt-in: the mark holds this step's number and the title is in the
+     * normal colour, for a step of a definition that nothing is running (the
+     * default draws `upcoming` as "not done yet"). Use with `upcoming`.
+     */
+    number?: number;
   };
 
 /**
@@ -69,20 +75,23 @@ const MARKS = {
 
 /** One gate of a `StepList`: a status, a name, a result and an open detail. */
 export function StepItem(
-  { action, children, status, statusLabel, summary, title, ...props }:
+  { action, children, number, status, statusLabel, summary, title, ...props }:
     StepItemProps,
 ) {
   return (
     <li
       className="ui-step-item"
       {...props}
+      data-numbered={number === undefined ? undefined : "true"}
       data-state={status}
       data-ui-component="stepItem"
       data-variant="default"
     >
       <span className="ui-step-item__mark">
         <span aria-hidden="true">
-          {status === "done"
+          {number !== undefined
+            ? number
+            : status === "done"
             ? <IconGlyph name="check" size="small" />
             : status === "upcoming"
             ? null

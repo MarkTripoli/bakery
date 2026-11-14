@@ -29,10 +29,10 @@ import { authorize } from "../../auth/application/authorize.ts";
 import { createRunCommand } from "../../work/run-command.ts";
 import { createTaskCommand } from "../../work/postgres.ts";
 import { inSavepoint } from "../../work/ticket-sync.ts";
-import { appendFacts } from "./postgres.ts";
+import { appendFacts } from "./facts.ts";
 
 export type StartOutcome =
-  | Readonly<{ kind: "started"; runId: string }>
+  | Readonly<{ kind: "started"; runId: string; run: StartedRun }>
   | Readonly<{ kind: "failed"; code: string }>
   /** The firing is not queued, already has a run, or does not exist. */
   | Readonly<{ kind: "not_startable" }>;
@@ -121,7 +121,33 @@ function internalContext(
   } as ActionContext;
 }
 
+/** What `createRunCommand` returned for the run a firing started. */
+export type StartedRun = Awaited<ReturnType<typeof createRunCommand>>;
+
+/** How a start differs when a person asks for it by hand (`automations.run`). */
+export type StartOptions = Readonly<{
+  /** Overrides the version's stored inputs for this run only, key by key. */
+  inputs?: unknown;
+  /**
+   * `mark` (default): a refusal waiting will not change marks the firing
+   * failed. `throw`: the refusal is thrown to the caller, who asked for this
+   * run and is told why, and the caller's transaction undoes the firing.
+   */
+  refusals?: "mark" | "throw";
+}>;
+
 const SAVEPOINT = "automation_firing_start";
+
+/** The stored inputs with the caller's replaced by name; neither is edited. */
+export function mergedInputs(stored: unknown, override: unknown): unknown {
+  if (override === undefined) return stored;
+  const plain = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value);
+  if (!plain(override)) {
+    throw unprocessable(["inputs"], "inputs_invalid");
+  }
+  return plain(stored) ? { ...stored, ...override } : { ...override };
+}
 
 /**
  * Starts one queued firing. Safe to call again and from several workers at
@@ -132,32 +158,43 @@ export async function startFiring(options: {
   database: PgDatabase;
   firingId: string;
 }): Promise<StartOutcome> {
-  return await withPgTransaction(options.database, async (transaction) => {
-    const located = await transaction.query<
-      { organization_id: string; automation_id: string }
-    >(
-      `select f.organization_id, v.automation_id
+  return await withPgTransaction(
+    options.database,
+    (transaction) => startFiringIn(transaction, options.firingId),
+  );
+}
+
+/** `startFiring` inside a transaction the caller owns. */
+export async function startFiringIn(
+  transaction: PgTransactionClient,
+  firingId: string,
+  startOptions: StartOptions = {},
+): Promise<StartOutcome> {
+  const located = await transaction.query<
+    { organization_id: string; automation_id: string }
+  >(
+    `select f.organization_id, v.automation_id
          from bakery.automation_firings f
          join bakery.automation_versions v
            on v.organization_id = f.organization_id
           and v.id = f.automation_version_id
         where f.id = $1`,
-      [options.firingId],
-    );
-    const place = located.rows[0];
-    if (!place) return { kind: "not_startable" } as const;
+    [firingId],
+  );
+  const place = located.rows[0];
+  if (!place) return { kind: "not_startable" } as const;
 
-    // The definition first, then the firing: the order every writer uses.
-    await transaction.query(
-      `select 1 from bakery.automation_definitions
+  // The definition first, then the firing: the order every writer uses.
+  await transaction.query(
+    `select 1 from bakery.automation_definitions
         where organization_id = $1 and id = $2
         for update`,
-      [place.organization_id, place.automation_id],
-    );
-    const facts = await transaction.query<
-      FiringFacts & { status: string; run_id: string | null }
-    >(
-      `select f.organization_id, v.automation_id, f.scheduled_at, f.status,
+    [place.organization_id, place.automation_id],
+  );
+  const facts = await transaction.query<
+    FiringFacts & { status: string; run_id: string | null }
+  >(
+    `select f.organization_id, v.automation_id, f.scheduled_at, f.status,
               f.run_id, v.actor_id, v.workflow_version_id, v.inputs,
               v.application_id, v.repository_id,
               v.budget_limit_usd::text as budget_limit_usd, v.brief, d.name
@@ -169,119 +206,133 @@ export async function startFiring(options: {
            on d.organization_id = v.organization_id and d.id = v.automation_id
         where f.id = $1
         for update of f`,
-      [options.firingId],
-    );
-    const firing = facts.rows[0];
-    if (!firing || firing.status !== "queued" || firing.run_id !== null) {
-      return { kind: "not_startable" } as const;
-    }
-    const trace = {
-      requestId: crypto.randomUUID(),
-      traceId: crypto.randomUUID().replaceAll("-", ""),
-    };
+    [firingId],
+  );
+  const firing = facts.rows[0];
+  if (!firing || firing.status !== "queued" || firing.run_id !== null) {
+    return { kind: "not_startable" } as const;
+  }
+  const trace = {
+    requestId: crypto.randomUUID(),
+    traceId: crypto.randomUUID().replaceAll("-", ""),
+  };
 
-    const fail = async (code: string) => {
-      const marked = await transaction.query<{ version: number }>(
-        `update bakery.automation_firings
+  const fail = async (code: string) => {
+    const marked = await transaction.query<{ version: number }>(
+      `update bakery.automation_firings
             set status = 'failed', pending = false, failure_code = $2,
                 updated_at = now(), version = version + 1
           where id = $1
           returning version`,
-        [options.firingId, code],
-      );
-      await appendFacts(transaction, {
-        organizationId: firing.organization_id,
-        principalId: firing.actor_id,
-        operation: "automationFirings.start",
-        resourceType: "automation_firing",
-        resourceId: options.firingId,
-        eventType: "automation.firing_failed",
-        resourceVersion: marked.rows[0]!.version,
-        requestId: trace.requestId,
-        traceId: trace.traceId,
-        outcome: "failed",
-        details: { code },
-      });
-      return { kind: "failed", code } as const;
-    };
-
-    if (firing.application_id === null) return await fail("target_missing");
-    const actor = await liveActor(
-      transaction,
-      firing.organization_id,
-      firing.actor_id,
+      [firingId, code],
     );
-    if (actor === null) return await fail("actor_unavailable");
+    await appendFacts(transaction, {
+      organizationId: firing.organization_id,
+      principalId: firing.actor_id,
+      operation: "automationFirings.start",
+      resourceType: "automation_firing",
+      resourceId: firingId,
+      eventType: "automation.firing_failed",
+      resourceVersion: marked.rows[0]!.version,
+      requestId: trace.requestId,
+      traceId: trace.traceId,
+      outcome: "failed",
+      details: { code },
+    });
+    return { kind: "failed", code } as const;
+  };
 
-    try {
-      const started = await inSavepoint(transaction, SAVEPOINT, async () => {
-        const scheduledAt = new Date(firing.scheduled_at).toISOString();
-        const taskInput = contractSchemas.TaskCreate.safeParse({
-          applicationId: firing.application_id,
-          ...(firing.repository_id === null
-            ? {}
-            : { repositoryId: firing.repository_id }),
-          taskType: firing.repository_id === null ? "maintenance" : "feature",
-          title: `${firing.name.slice(0, 440)} ${scheduledAt}`,
-          ...(firing.brief === null ? {} : { description: firing.brief }),
-        });
-        if (!taskInput.success) {
-          throw unprocessable(["title"], "task_input_invalid", taskInput.error);
-        }
-        const task = await createTaskCommand(
-          internalContext(transaction, actor, trace, {}),
-          taskInput.data,
-        ) as { id: string; repositoryProfileId: string | null };
-        const runInput = contractSchemas.RunCreate.safeParse({
-          workflowVersionId: firing.workflow_version_id,
-          executionMode: firing.repository_id === null
-            ? "cloud_only"
-            : "repository",
-          ...(task.repositoryProfileId === null
-            ? {}
-            : { repositoryProfileId: task.repositoryProfileId }),
-          budgetLimitUsd: String(Number(firing.budget_limit_usd)),
-          inputs: firing.inputs,
-        });
-        if (!runInput.success) {
-          throw unprocessable(["inputs"], "run_input_invalid", runInput.error);
-        }
-        const run = await createRunCommand(
-          internalContext(transaction, actor, trace, { id: task.id }, {
-            operation: "runs.create",
-            idempotencyKey: `automation-firing:${options.firingId}`,
-            target: `/v1/tasks/${task.id}/runs`,
-          }),
-          runInput.data,
-        );
-        const marked = await transaction.query<{ version: number }>(
-          `update bakery.automation_firings
+  // A refusal of a firing is marked on it; one a person asked for is theirs.
+  const refuse = async (code: string) => {
+    if (startOptions.refusals === "throw") {
+      throw new StandardError({
+        code: "STATE_CONFLICT",
+        params: { reason: code },
+      });
+    }
+    return await fail(code);
+  };
+  if (firing.application_id === null) return await refuse("target_missing");
+  const actor = await liveActor(
+    transaction,
+    firing.organization_id,
+    firing.actor_id,
+  );
+  if (actor === null) return await refuse("actor_unavailable");
+
+  try {
+    const started = await inSavepoint(transaction, SAVEPOINT, async () => {
+      const scheduledAt = new Date(firing.scheduled_at).toISOString();
+      const taskInput = contractSchemas.TaskCreate.safeParse({
+        applicationId: firing.application_id,
+        ...(firing.repository_id === null
+          ? {}
+          : { repositoryId: firing.repository_id }),
+        taskType: firing.repository_id === null ? "maintenance" : "feature",
+        title: `${firing.name.slice(0, 440)} ${scheduledAt}`,
+        ...(firing.brief === null ? {} : { description: firing.brief }),
+      });
+      if (!taskInput.success) {
+        throw unprocessable(["title"], "task_input_invalid", taskInput.error);
+      }
+      const task = await createTaskCommand(
+        internalContext(transaction, actor, trace, {}),
+        taskInput.data,
+      ) as { id: string; repositoryProfileId: string | null };
+      const runInput = contractSchemas.RunCreate.safeParse({
+        workflowVersionId: firing.workflow_version_id,
+        executionMode: firing.repository_id === null
+          ? "cloud_only"
+          : "repository",
+        ...(task.repositoryProfileId === null
+          ? {}
+          : { repositoryProfileId: task.repositoryProfileId }),
+        budgetLimitUsd: String(Number(firing.budget_limit_usd)),
+        inputs: mergedInputs(firing.inputs, startOptions.inputs),
+      });
+      if (!runInput.success) {
+        throw unprocessable(["inputs"], "run_input_invalid", runInput.error);
+      }
+      const run = await createRunCommand(
+        internalContext(transaction, actor, trace, { id: task.id }, {
+          operation: "runs.create",
+          idempotencyKey: `automation-firing:${firingId}`,
+          target: `/v1/tasks/${task.id}/runs`,
+        }),
+        runInput.data,
+      );
+      const marked = await transaction.query<{ version: number }>(
+        `update bakery.automation_firings
               set status = 'started', pending = false, run_id = $2,
                   updated_at = now(), version = version + 1
             where id = $1 and status = 'queued' and run_id is null
             returning version`,
-          [options.firingId, run.id],
-        );
-        return { runId: run.id, version: marked.rows[0]!.version };
-      });
-      await appendFacts(transaction, {
-        organizationId: firing.organization_id,
-        principalId: firing.actor_id,
-        operation: "automationFirings.start",
-        resourceType: "automation_firing",
-        resourceId: options.firingId,
-        eventType: "automation.firing_started",
-        resourceVersion: started.version,
-        requestId: trace.requestId,
-        traceId: trace.traceId,
-      });
-      return { kind: "started", runId: started.runId } as const;
-    } catch (error) {
-      // inSavepoint has rolled the task and run back: only the firing is marked.
-      if (error instanceof StandardError && DETERMINISTIC.has(error.code)) {
-        return await fail(failureCodeOf(error));
-      }
-      throw error;
-    }
-  });
+        [firingId, run.id],
+      );
+      return { runId: run.id, run, version: marked.rows[0]!.version };
+    });
+    await appendFacts(transaction, {
+      organizationId: firing.organization_id,
+      principalId: firing.actor_id,
+      operation: "automationFirings.start",
+      resourceType: "automation_firing",
+      resourceId: firingId,
+      eventType: "automation.firing_started",
+      resourceVersion: started.version,
+      requestId: trace.requestId,
+      traceId: trace.traceId,
+    });
+    return {
+      kind: "started",
+      runId: started.runId,
+      run: started.run,
+    } as const;
+  } catch (error) {
+    // inSavepoint has rolled the task and run back: only the firing is marked.
+    if (
+      startOptions.refusals !== "throw" && error instanceof StandardError &&
+      DETERMINISTIC.has(error.code)
+    ) return await fail(failureCodeOf(error));
+    throw error;
+  }
 }

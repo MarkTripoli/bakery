@@ -2100,6 +2100,7 @@
       "action": "automations.run",
       "access": "Admin",
       "permission": "automation:control",
+      "organizationContext": "required_authenticated_context",
       "input": "ManualAutomationRun",
       "output": "Run",
       "event": "run.requested",
@@ -2112,7 +2113,9 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ]
     },
     {
