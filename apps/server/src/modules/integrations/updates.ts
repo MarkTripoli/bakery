@@ -171,7 +171,7 @@ const noSelectedResource = () =>
     params: { reason: "no_selected_resource" },
   });
 
-function requireExpectedVersion(context: ActionContext): number {
+export function requireExpectedVersion(context: ActionContext): number {
   const version = requireCommandMetadata(context).expectedVersion;
   if (version === undefined) {
     throw new StandardError({ code: "PRECONDITION_REQUIRED" });
@@ -180,7 +180,7 @@ function requireExpectedVersion(context: ActionContext): number {
 }
 
 /** The router validated the path; parse it again so no unchecked value is used. */
-function connectionPath(context: ActionContext): string {
+export function connectionPath(context: ActionContext): string {
   const parsed = contractSchemas.IdPath.safeParse({ id: context.params.id });
   if (!parsed.success) throw new StandardError({ code: "MALFORMED_REQUEST" });
   return parsed.data.id;

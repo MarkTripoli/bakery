@@ -277,7 +277,7 @@ for (
       await machinesFixture(page, { failLastPage: true });
       await page.goto("/machines");
       await page.getByRole("button", { name: "Load more" }).click();
-      await expect(page.getByText("More records could not be loaded."))
+      await expect(page.getByText("More machines could not be loaded."))
         .toBeVisible();
       // The same failure gets the same button everywhere: it says Retry.
       const retry = page.getByRole("button", { name: "Retry" });

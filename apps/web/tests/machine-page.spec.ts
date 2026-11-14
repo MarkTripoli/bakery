@@ -317,11 +317,13 @@ test.describe("machine page: the one banner", () => {
     // The line under the name is where it is and when it was last seen, not its status.
     await expect(detail.getByText(/^Linux · x86_64 · Last seen /))
       .toBeVisible();
-    // Until the coding-agent rows exist the old section has no internal words.
+    // The coding agents are rows with no internal words: this machine reports
+    // Claude Code and nothing has signed it in yet.
     await expect(detail.getByRole("heading", { name: "Coding agents" }))
       .toBeVisible();
-    await expect(detail.getByText("No coding agent is set up yet."))
-      .toBeVisible();
+    await expect(detail.getByTestId("coding-agent-claude")).toContainText(
+      "Bakery has not heard from Claude Code on this machine yet.",
+    );
     await expect(detail.getByText(/Provider bindings|provider bindings/))
       .toHaveCount(0);
     await shot(page, "machine-page-ready");
@@ -494,6 +496,7 @@ test.describe("machine page: mode and Retire", () => {
 
   test("a retired machine has one action, Set up again, which re-pairs the same machine in the wizard's words", async ({ page }) => {
     const f = fixture({ status: "revoked", desiredMode: "revoked" });
+    await page.clock.install();
     await open(page, f);
     // One action: the banner's. No second button in the header, no word "enrollment".
     await expect(page.getByRole("button", { name: /Repair|enrollment/i }))
@@ -529,9 +532,14 @@ test.describe("machine page: mode and Retire", () => {
     await shot(page, "machine-page-set-up-again");
     // It connects: the page says so.
     f.repairState = "consumed";
-    await expect(page.getByText("fixture-host is connected.")).toBeVisible({
-      timeout: 30_000,
-    });
+    // The page asks again on a timer that backs off from 5 to 30 seconds, so
+    // move its clock until it has asked, instead of waiting a wall-clock budget.
+    await expect(async () => {
+      await page.clock.fastForward(30_000);
+      await expect(page.getByText("fixture-host is connected.")).toBeVisible({
+        timeout: 2_000,
+      });
+    }).toPass();
   });
 
   test("anyone but an administrator sees the page without the controls", async ({ page }) => {

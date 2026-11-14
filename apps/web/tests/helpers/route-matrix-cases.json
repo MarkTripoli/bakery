@@ -20,8 +20,16 @@
     "path": "/issues"
   },
   {
+    "id": "issue-detail",
+    "path": "/issues/$issueId"
+  },
+  {
     "id": "machines",
     "path": "/machines"
+  },
+  {
+    "id": "machine-new",
+    "path": "/machines/new"
   },
   {
     "id": "machine-detail",

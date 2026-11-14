@@ -138,6 +138,8 @@ export type TicketSourceResponse = ClientOutputMap["TicketSource"];
 export type TicketSourceListResponse = ClientOutputMap["Page<TicketSource>"];
 export type TicketOperationReceiptResponse =
   ClientOutputMap["TicketOperationReceipt"];
+export type TicketRequestResponse = ClientOutputMap["TicketRequest"];
+export type TicketRequestIntent = "start" | "plan";
 export type WorkerResponse = ClientOutputMap["WorkerHost"];
 export type DispatchBlockersResponse = ClientOutputMap["DispatchBlockers"];
 export type WorkerEnrollmentListResponse =
@@ -152,6 +154,10 @@ export type WorkerProviderAuthAttemptResponse =
   ClientOutputMap["WorkerProviderAuthAttempt"];
 export type WorkerProviderAuthAttemptCreatedResponse =
   ClientOutputMap["WorkerProviderAuthAttemptCreated"];
+export type WorkerProviderBindingResponse =
+  ClientOutputMap["WorkerProviderBinding"];
+export type WorkerProviderBindingCreate =
+  ClientInputMap["WorkerProviderBindingCreate"];
 export type WorkerEnrollmentCreate = ClientInputMap["WorkerEnrollmentCreate"];
 export type WorkerUpdate = ClientInputMap["WorkerUpdate"];
 
@@ -638,6 +644,30 @@ export type BakeryApiClient = {
       readonly limit?: number;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<ExternalTicketListResponse>>;
+    /** `GET /v1/external-tickets/{id}`: one issue with its latest check and running request. */
+    readonly get: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<ExternalTicketResponse>>;
+    /** `POST /v1/external-tickets/{id}/readiness-checks`: asks Bakery to check the issue again. */
+    readonly check: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly expectedSourcePolicyRevision: number;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketOperationReceiptResponse>>;
+    /** `POST /v1/external-tickets/{id}/requests`: starts work on the issue (or plans it first). */
+    readonly request: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly intent: TicketRequestIntent;
+      readonly expectedSourcePolicyRevision: number;
+      readonly requirementsDigest: string;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketRequestResponse>>;
     /** `GET /v1/ticket-sources`: the repositories Bakery takes issues from. */
     readonly sources: (options: {
       readonly organizationId: string;
@@ -746,6 +776,14 @@ export type BakeryApiClient = {
       readonly limit?: number;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<WorkerProviderBindingListResponse>>;
+    /** `POST /v1/workers/:id/provider-bindings`: one binding for a component the machine reported. */
+    readonly create: (options: {
+      readonly organizationId: string;
+      readonly workerId: string;
+      readonly input: WorkerProviderBindingCreate;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<WorkerProviderBindingResponse>>;
   };
   readonly workerProviderAuth: {
     readonly create: (options: {
@@ -760,6 +798,14 @@ export type BakeryApiClient = {
       readonly workerId: string;
       readonly bindingId: string;
       readonly authAttemptId: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<WorkerProviderAuthAttemptResponse>>;
+    readonly cancel: (options: {
+      readonly organizationId: string;
+      readonly workerId: string;
+      readonly bindingId: string;
+      readonly authAttemptId: string;
+      readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<WorkerProviderAuthAttemptResponse>>;
   };
@@ -1762,6 +1808,45 @@ export function createBakeryApiClient({
             }, { signal: options.signal }),
         );
       },
+      get(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["externalTickets.get"]({ id: options.id }, {
+              signal: options.signal,
+            }),
+        );
+      },
+      check(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketReadiness.create"]({
+              id: options.id,
+              expectedSourcePolicyRevision:
+                options.expectedSourcePolicyRevision,
+            }, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+      request(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketRequests.create"]({
+              id: options.id,
+              intent: options.intent,
+              expectedSourcePolicyRevision:
+                options.expectedSourcePolicyRevision,
+              requirementsDigest: options.requirementsDigest,
+            }, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
       sources(options) {
         return workerResult(
           options.organizationId,
@@ -1936,6 +2021,19 @@ export function createBakeryApiClient({
             }, { signal: options.signal }),
         );
       },
+      create(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["workerProviderBindings.create"]({
+              id: options.workerId,
+              ...options.input,
+            }, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
     },
     workerProviderAuth: {
       create(options) {
@@ -1960,6 +2058,20 @@ export function createBakeryApiClient({
               bindingId: options.bindingId,
               authAttemptId: options.authAttemptId,
             }, { signal: options.signal }),
+        );
+      },
+      cancel(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["workerProviderAuth.cancel"]({
+              id: options.workerId,
+              bindingId: options.bindingId,
+              authAttemptId: options.authAttemptId,
+            }, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
         );
       },
     },

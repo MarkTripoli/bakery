@@ -1,10 +1,12 @@
 import { createSkillS3Client } from "../../apps/server/src/modules/catalog/storage-backend.ts";
 import type { S3Client } from "@aws-sdk/client-s3";
 import { S3SkillObjectStore } from "../../apps/server/src/modules/catalog/s3-store.ts";
+import { registerLaneStack } from "./lane-stack-registry.ts";
 
 export async function openSkillS3Fixture() {
   if (!Deno.env.get("DOCKER_HOST")) throw new Error("DOCKER_HOST_REQUIRED");
-  const project = `e05-r2-${crypto.randomUUID().slice(0, 8)}`;
+  const project = `bakery-e05-r2-${crypto.randomUUID().slice(0, 8)}`;
+  registerLaneStack(project);
   const compose = async (...args: string[]) => {
     const result = await new Deno.Command("docker", {
       args: [

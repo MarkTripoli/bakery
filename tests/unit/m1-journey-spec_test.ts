@@ -258,18 +258,22 @@ Deno.test("P3 waits for the machine's id before it reads it (live run, stage A)"
   );
   // The enrollment flips to Consumed on the worker's registration and names the
   // machine a moment later, so a single read at the flip is a race. The wizard
-  // shows "<name> is connected." at the flip, enables Done only once the
-  // machine is named, and Done opens the machine's page: the id is read from
-  // that address, after the wait for it.
+  // shows "<name> is connected." at the flip, enables its last button
+  // ("Sign in to Claude Code") only once the machine is named, and that button
+  // opens the machine's page: the id is read from that address, after the wait
+  // for it.
   const connected = p3.indexOf("m1-claude-worker is connected.");
-  const done = p3.indexOf('name: "Done"');
+  const done = p3.indexOf('name: "Sign in to Claude Code"');
   const address = p3.search(/toHaveURL\(\s*\/\\\/machines\\\/\[0-9a-f\]\{8\}-/);
   const read = p3.indexOf("j.hostId =");
   assert(
     connected >= 0,
     "P3 must wait for the wizard to say the machine is connected",
   );
-  assert(done > connected, "P3 must press Done after it is connected");
+  assert(
+    done > connected,
+    "P3 must press the wizard's last button after it is connected",
+  );
   assert(
     address > done,
     "P3 must wait for the machine's own address before it reads the host id",

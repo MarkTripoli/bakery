@@ -1,5 +1,5 @@
 {
-  "revision": "26a3dab777d62c8cdef9e4acc9025771c4d43373a17f06df02a4bdc478c57beb",
+  "revision": "0b080002bfbdc48efce46cb1bde5070b35d9999791d6e050e43ca1fcadccaf13",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -10949,7 +10949,7 @@
         "accessibleName": "none",
         "keyboard": [],
         "targetSize": "min 44px (coarse pointer)",
-        "notes": "Column layout (760px measure); maintains 44px control targets and Paper's 28px/24px gaps"
+        "notes": "Column layout (760px measure); maintains 44px control targets and Paper's 28px/24px gaps; the wide variant drops the measure for a main-rail list or detail page"
       },
       "tokens": [
         "--space-1-5",
@@ -10966,7 +10966,8 @@
         "default",
         "personal",
         "preferences",
-        "access"
+        "access",
+        "wide"
       ],
       "states": [
         "default"
@@ -10999,7 +11000,8 @@
             "default",
             "personal",
             "preferences",
-            "access"
+            "access",
+            "wide"
           ],
           "states": [
             "default"

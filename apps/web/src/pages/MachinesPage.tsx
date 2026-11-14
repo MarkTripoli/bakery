@@ -20,6 +20,7 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { usePagedFocus } from "../app/focus.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { FinishingSetup } from "./FinishingSetup.tsx";
 import { MachineList } from "./MachineList.tsx";
@@ -168,7 +169,10 @@ export function MachinesPage() {
         <UI.Breadcrumbs
           aria-label={translate("shell.navigation.breadcrumb")}
           items={[
-            { label: translate("shell.states.settingsTitle") },
+            {
+              href: WORK_HOME,
+              label: translate("shell.navigation.workspace"),
+            },
             { label: translate("shell.navigation.machines") },
           ]}
         />
@@ -176,10 +180,11 @@ export function MachinesPage() {
       {canAdd && !phone
         ? <ShellSlot name="actions">{addMachine}</ShellSlot>
         : null}
-      <UI.SettingsContent data-testid="machines-page">
+      <UI.SettingsContent data-testid="machines-page" variant="wide">
         {/* The wrapper is what the first-read retry looks for; the focus goes to its heading. */}
         <div data-paged-heading="machines">
           <UI.PageHeader
+            flush
             variant="list"
             title={translate("machines.title")}
             subtitle={translate("machines.description")}

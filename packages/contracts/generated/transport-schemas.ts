@@ -15300,6 +15300,10 @@ const transportSchemas = {
       "pageOf": "IntegrationConnection",
       "description": "Cursor page of this organization's integration connections — its bindings to host-owned provider installations, including status and health — returned by `GET /v1/integration-connections`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
+    "Page<IntegrationGrant>": {
+      "pageOf": "IntegrationGrant",
+      "description": "Cursor page of one integration connection's grants, revoked ones included, returned by `GET /v1/integration-connections/{id}/grants`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+    },
     "Page<McpServer>": {
       "pageOf": "McpServer",
       "description": "Cursor page of registered external MCP server definitions — transport, launch spec and required capabilities — returned by `GET /v1/mcp-servers`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
@@ -18076,6 +18080,81 @@ const transportSchemas = {
         "createdBy": "Principal id of the member who connected it (completed the provider setup), so a client can show who connected the integration and when; resolve the name through the organization member list.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record."
+      }
+    },
+    "IntegrationGrant": {
+      "projection": "integration_grants",
+      "fields": [
+        "id",
+        "connectionId",
+        "subjectType",
+        "subjectPrincipalId",
+        "subjectRole",
+        "automationDefinitionId",
+        "direction",
+        "capability",
+        "actionVersion",
+        "resourceId",
+        "applicationId",
+        "repositoryId",
+        "expiresAt",
+        "revokedAt",
+        "policyRevision",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "connectionId": "uuid",
+        "subjectType": "enum(principal|organization_role|automation)",
+        "subjectPrincipalId": "uuid|null",
+        "subjectRole": "enum(admin|developer|viewer|guest)|null",
+        "automationDefinitionId": "uuid|null",
+        "direction": "enum(into_bakery|out_of_bakery)",
+        "capability": "string",
+        "actionVersion": "integer|null",
+        "resourceId": "uuid|null",
+        "applicationId": "uuid|null",
+        "repositoryId": "uuid|null",
+        "expiresAt": "timestamp|null",
+        "revokedAt": "timestamp|null",
+        "policyRevision": "positiveInteger",
+        "createdAt": "timestamp",
+        "updatedAt": "timestamp",
+        "version": "integer"
+      },
+      "nullableFields": [
+        "subjectPrincipalId",
+        "subjectRole",
+        "automationDefinitionId",
+        "actionVersion",
+        "resourceId",
+        "applicationId",
+        "repositoryId",
+        "expiresAt",
+        "revokedAt"
+      ],
+      "description": "One exact integration grant: which subject may use which provider capability, in which direction, through one connection and optionally only on one resource, application or repository. Returned by the integrationGrants operations; revoked grants stay readable.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying this integration grant within its organization.",
+        "connectionId": "UUID of the integration connection this grant is scoped to; it never applies through another connection.",
+        "subjectType": "Who receives the grant: one principal, every member holding an organization role while a member, or one trusted automation.",
+        "subjectPrincipalId": "The principal receiving the grant when subjectType is principal; null otherwise.",
+        "subjectRole": "The organization role whose current members receive the grant when subjectType is organization_role; null otherwise.",
+        "automationDefinitionId": "The automation receiving the grant when subjectType is automation; null otherwise.",
+        "direction": "Whether the grant lets data flow into Bakery from the provider or lets Bakery act out on the provider.",
+        "capability": "Exact provider action or event identifier granted; wildcard and prefix meanings are forbidden.",
+        "actionVersion": "Exact action version the grant is pinned to, or null when it covers the action's current version.",
+        "resourceId": "The one integration resource the grant is limited to, or null when it is not limited to a resource.",
+        "applicationId": "The Bakery application the grant is limited to, or null when it is not limited to one.",
+        "repositoryId": "The Bakery repository the grant is limited to, or null when it is not limited to one.",
+        "expiresAt": "UTC instant the grant stops applying, or null for no time-based expiry; live authority is still rechecked at use.",
+        "revokedAt": "UTC instant an Admin revoked the grant, or null while it is in force; revoked grants are kept for audit and effect provenance.",
+        "policyRevision": "Positive revision of the policy interpretation under which the grant was issued.",
+        "createdAt": "UTC timestamp when the grant was created.",
+        "updatedAt": "UTC timestamp when the grant's lifecycle state last changed.",
+        "version": "Optimistic-concurrency version used when revoking the grant."
       }
     },
     "McpServer": {

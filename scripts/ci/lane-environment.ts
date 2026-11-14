@@ -26,6 +26,14 @@
  * the credentials above that are out of scope. `BAKERY_TEST_CODEX_AUTH_DIR`,
  * the dedicated and explicit opt-in of #207, stays the operator's decision.
  *
+ * The lane's variables do not follow the production worker's unit: a
+ * `systemd-run` service starts inside `env -i`, so it gets only what the test
+ * hands it, and without the mise directories mise looks for the operator's by
+ * itself, through the account's real home, and refuses the operator's
+ * configuration as not trusted. `CARRIED_LANE_VARIABLES` names what the unit is
+ * given again, from the lane's own environment, and `carriedLaneVariables`
+ * reads it. Nothing is carried that the lane does not already have.
+ *
  * The functions here are pure: the lane runner makes the directories.
  */
 import { join } from "node:path";
@@ -36,6 +44,43 @@ export const ISOLATED_HOME_LANES: readonly string[] = [
   "integration",
   "e2e",
 ];
+
+/**
+ * Where the fixtures that bring a compose stack up write its project name, one
+ * per line, before they bring it up (#246): the runner removes by name what is
+ * still there when the lane ends, even when the test process did not survive to
+ * tear it down.
+ */
+export const LANE_STACK_REGISTRY_VARIABLE = "BAKERY_LANE_STACK_REGISTRY";
+
+/** What a process started inside `env -i` (the worker's unit) is given again from the lane's environment. */
+export const CARRIED_LANE_VARIABLES: readonly string[] = [
+  "DENO_DIR",
+  "PLAYWRIGHT_BROWSERS_PATH",
+  "MISE_DATA_DIR",
+  "MISE_CONFIG_DIR",
+  "MISE_CACHE_DIR",
+  "MISE_STATE_DIR",
+  "XDG_CONFIG_HOME",
+  "XDG_DATA_HOME",
+  "XDG_STATE_HOME",
+  "XDG_CACHE_HOME",
+  "GIT_CONFIG_GLOBAL",
+  "GIT_CONFIG_NOSYSTEM",
+  LANE_STACK_REGISTRY_VARIABLE,
+];
+
+/** The carried variables that are set (and not empty) in `environment`. */
+export function carriedLaneVariables(
+  environment: Readonly<Record<string, string>>,
+): Record<string, string> {
+  const carried: Record<string, string> = {};
+  for (const name of CARRIED_LANE_VARIABLES) {
+    const value = environment[name];
+    if (value !== undefined && value.length > 0) carried[name] = value;
+  }
+  return carried;
+}
 
 /** Variables that point at the operator's Codex login; the lane never sees them. */
 const REMOVED = ["CODEX_HOME", "BAKERY_CODEX_AUTH_SOURCE_DIR"] as const;
@@ -65,6 +110,8 @@ export function laneEnvPaths(root: string) {
     state: join(base, "xdg-state"),
     cache: join(base, "xdg-cache"),
     gitconfig: join(base, "gitconfig"),
+    /** The compose project names the lane's fixtures registered. */
+    stacks: join(base, "stacks"),
     directories: [
       join(base, "home"),
       join(base, "xdg-config"),
@@ -144,6 +191,7 @@ export function isolatedLaneEnvironment(options: {
     XDG_CACHE_HOME: paths.cache,
     GIT_CONFIG_GLOBAL: paths.gitconfig,
     GIT_CONFIG_NOSYSTEM: "1",
+    [LANE_STACK_REGISTRY_VARIABLE]: paths.stacks,
   });
   return env;
 }

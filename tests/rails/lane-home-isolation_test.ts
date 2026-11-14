@@ -274,10 +274,102 @@ Deno.test("the root tool refuses to prepare or sweep anything that is not a lane
     assertEquals((await tool("skeleton", base, root)).code, 0);
     assert((await readdir(join(root, "env"))).includes("gitconfig"));
     await writeFile(join(root, "env", "home", "dropped"), "x");
+    // What the pinned mise writes into any home is not a dependency on a real one.
+    await mkdir(join(root, "env", "home", ".rustup"));
+    await writeFile(join(root, "env", "home", ".rustup", "settings.toml"), "");
     const swept = await tool("sweep", base, root);
     assertEquals(
       JSON.parse(new TextDecoder().decode(swept.stdout)),
-      { leaked: 0, prefixes: {}, homeEntries: 1 },
+      {
+        leaked: 0,
+        prefixes: {},
+        homeEntries: 1,
+        homeNames: ["dropped"],
+        homeNamesTruncated: false,
+      },
+    );
+    // Only that one file in that one directory: the same file in another is reported.
+    const third = new TextDecoder().decode(
+      (await tool("create", base)).stdout,
+    ).trim();
+    assertEquals((await tool("skeleton", base, third)).code, 0);
+    await mkdir(join(third, "env", "home", "other"), { recursive: true });
+    await writeFile(join(third, "env", "home", "other", "settings.toml"), "");
+    assertEquals(
+      JSON.parse(
+        new TextDecoder().decode((await tool("sweep", base, third)).stdout),
+      ),
+      {
+        leaked: 0,
+        prefixes: {},
+        homeEntries: 1,
+        homeNames: ["other/settings.toml"],
+        homeNamesTruncated: false,
+      },
+    );
+    // What is reported is capped: twenty names, each at most eighty characters.
+    const fourth = new TextDecoder().decode(
+      (await tool("create", base)).stdout,
+    ).trim();
+    assertEquals((await tool("skeleton", base, fourth)).code, 0);
+    for (let index = 0; index < 24; index += 1) {
+      await writeFile(
+        join(fourth, "env", "home", `file-${String(index).padStart(2, "0")}`),
+        "",
+      );
+    }
+    await writeFile(join(fourth, "env", "home", "x".repeat(120)), "");
+    const capped = JSON.parse(
+      new TextDecoder().decode((await tool("sweep", base, fourth)).stdout),
+    );
+    assertEquals(capped.homeEntries, 25);
+    assertEquals(capped.homeNames.length, 20);
+    assert(capped.homeNames.every((name: string) => name.length <= 80));
+    assertEquals(capped.homeNamesTruncated, true);
+    // A directory is named one level in, so its writer can be found.
+    const fifth = new TextDecoder().decode(
+      (await tool("create", base)).stdout,
+    ).trim();
+    assertEquals((await tool("skeleton", base, fifth)).code, 0);
+    await mkdir(join(fifth, "env", "home", ".cache", "deno"), {
+      recursive: true,
+    });
+    await mkdir(join(fifth, "env", "home", ".cache", "node"));
+    assertEquals(
+      JSON.parse(
+        new TextDecoder().decode((await tool("sweep", base, fifth)).stdout),
+      ),
+      {
+        leaked: 0,
+        prefixes: {},
+        homeEntries: 1,
+        homeNames: [".cache/deno", ".cache/node"],
+        homeNamesTruncated: false,
+      },
+    );
+    // A .rustup that holds more than that settings file is reported.
+    const second = new TextDecoder().decode(
+      (await tool("create", base)).stdout,
+    ).trim();
+    assertEquals((await tool("skeleton", base, second)).code, 0);
+    await mkdir(join(second, "env", "home", ".rustup", "toolchains"), {
+      recursive: true,
+    });
+    await writeFile(
+      join(second, "env", "home", ".rustup", "settings.toml"),
+      "",
+    );
+    assertEquals(
+      JSON.parse(
+        new TextDecoder().decode((await tool("sweep", base, second)).stdout),
+      ),
+      {
+        leaked: 0,
+        prefixes: {},
+        homeEntries: 1,
+        homeNames: [".rustup/settings.toml", ".rustup/toolchains"],
+        homeNamesTruncated: false,
+      },
     );
     assertEquals(await laneRoots(base), []);
   } finally {
@@ -296,5 +388,120 @@ Deno.test("the runner sweeps the root of a skeleton it could not make before it 
   assert(
     branch.indexOf('rootTool("sweep"') > 0 &&
       branch.indexOf('rootTool("sweep"') < branch.indexOf("Deno.exit(3)"),
+  );
+});
+
+Deno.test("the runner removes the stacks its fixtures registered, by name, before it sweeps the root, and names what a lane wrote into its home", async () => {
+  const source = await Deno.readTextFile("scripts/run-tests.ts");
+  const stacks = source.indexOf("await removeLaneStacks(");
+  const sweep = source.indexOf(
+    'rootTool("sweep", temporaryDirectory, isolatedRoot)',
+    stacks,
+  );
+  assert(
+    stacks > 0 && sweep > stacks,
+    "the stacks go before the root that holds their registry",
+  );
+  // The registry is read from the lane's own env directory, and only parsed names are swept.
+  assert(source.includes("laneEnvPaths(isolatedRoot).stacks"));
+  assert(source.includes("parseLaneStacks("));
+  assert(source.includes("sweepLaneStacks(names, dockerRun)"));
+  // The entries written to the isolated home are named, not only counted.
+  assert(source.includes("homeNames"));
+  assert(source.includes("entries were written to the isolated home"));
+});
+
+/** The test files that could bring a compose stack up in a lane the runner sweeps: everything under tests/ but the lanes that run no real stack. */
+async function* laneFixtureFiles(directory = "tests"): AsyncGenerator<string> {
+  const skipped = new Set([
+    "tests/unit",
+    "tests/rails",
+    "tests/recovery",
+    "tests/native",
+    "tests/provider",
+  ]);
+  for await (const entry of Deno.readDir(directory)) {
+    const path = `${directory}/${entry.name}`;
+    if (entry.isDirectory) {
+      if (!skipped.has(path) && entry.name !== "node_modules") {
+        yield* laneFixtureFiles(path);
+      }
+    } else if (entry.isFile && entry.name.endsWith(".ts")) yield path;
+  }
+}
+
+Deno.test("every file that brings a compose stack up registers its project name first, or says in a comment why it does not", async () => {
+  const bringsUp = /"up"|\bcompose up\b/;
+  const usesCompose = /"compose"|\bcompose up\b/;
+  const exemption = /^\/\/ lane-stacks: exempt - \S.*$/m;
+  let found = 0;
+  for await (const path of laneFixtureFiles()) {
+    const source = await Deno.readTextFile(path);
+    if (!usesCompose.test(source) || !bringsUp.test(source)) continue;
+    found += 1;
+    if (exemption.test(source)) continue;
+    const registered = source.indexOf("registerLaneStack(");
+    assert(
+      registered >= 0,
+      `${path} brings a compose stack up and does not register its project name (registerLaneStack from tests/helpers/lane-stack-registry.ts, or a line "// lane-stacks: exempt - <reason>")`,
+    );
+    // Before the first command that brings anything up.
+    const first = source.search(bringsUp);
+    assert(
+      registered < first,
+      `${path} registers its project after it brings a stack up`,
+    );
+  }
+  // The scan finds the fixtures it is meant to (a path or pattern that stopped matching would pass silently).
+  assert(found >= 9, `the scan found ${found} files that bring compose up`);
+  // A project name the registry would refuse is no use: the S3 fixture's carries the repository prefix.
+  const s3 = await Deno.readTextFile("tests/helpers/skill-s3-fixture.ts");
+  assert(s3.includes("`bakery-e05-r2-"));
+  // The worker's unit starts inside `env -i`: it is given the lane's variables again.
+  const unit = await Deno.readTextFile(
+    "tests/helpers/durable-core/preset-stack.ts",
+  );
+  assert(unit.includes("...carriedLaneVariables(Deno.env.toObject())"));
+});
+
+Deno.test("the worker's start script gives its Deno the lane's module cache when one is set, and sets none when it is not", async () => {
+  const workerPackage = JSON.parse(
+    await Deno.readTextFile("apps/worker/package.json"),
+  );
+  const start: string = workerPackage.scripts.start;
+  const launch = "bash scripts/run-worker.sh";
+  assert(start.endsWith(launch));
+  // The same command, ending in printenv instead of the launcher, run in a shell like pnpm's, with no tool manager on the path.
+  const probe = `${start.slice(0, -launch.length)}printenv`;
+  const run = async (environment: Record<string, string>) => {
+    const output = await new Deno.Command("sh", {
+      args: ["-c", probe],
+      clearEnv: true,
+      env: { PATH: "/usr/bin:/bin", ...environment },
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    assert(output.success, new TextDecoder().decode(output.stderr));
+    return new TextDecoder().decode(output.stdout).split("\n");
+  };
+  // Set: forwarded as it is, spaces and all.
+  const cache = "/some dir/with spaces/deno cache";
+  assert(
+    (await run({ DENO_DIR: cache, HOME: "/h" })).includes(`DENO_DIR=${cache}`),
+  );
+  // Not set, or set to nothing: not in the worker's environment at all (an empty DENO_DIR must not become a path).
+  assert(
+    !(await run({ HOME: "/h" })).some((line) => line.startsWith("DENO_DIR")),
+  );
+  assert(
+    !(await run({ DENO_DIR: "", HOME: "/h" })).some((line) =>
+      line.startsWith("DENO_DIR")
+    ),
+  );
+  // Nothing else of the environment follows it in.
+  assert(
+    !(await run({ DENO_DIR: cache, SECRET_TOKEN: "x" })).some((line) =>
+      line.startsWith("SECRET_TOKEN")
+    ),
   );
 });

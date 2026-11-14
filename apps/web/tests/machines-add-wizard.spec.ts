@@ -193,7 +193,7 @@ test.describe("add a machine wizard", () => {
     ).toBeVisible();
     await expect(
       page.getByText(
-        "One coding agent per machine. You choose how it pays for models after the machine connects.",
+        "One coding agent per machine. You sign it in after the machine connects.",
       ),
     ).toBeVisible();
     await expect(page.getByText("on this machine.", { exact: false }))
@@ -295,17 +295,22 @@ test.describe("add a machine wizard", () => {
     expect(axeInstall.violations.map((v) => v.id)).toEqual([]);
 
     // The enrollment can read consumed a moment before it names the machine:
-    // the page says it is connected, and Done waits for the machine.
+    // the page says it is connected and what is left to do, and the button
+    // waits for the machine.
     setup.state = "consumed";
-    await expect(page.getByText("build-box-01 is connected.")).toBeVisible({
+    await expect(
+      page.getByText(
+        "build-box-01 is connected. One thing left: sign in to Codex.",
+      ),
+    ).toBeVisible({
       timeout: 30_000,
     });
-    const done = page.getByRole("button", { name: "Done" });
+    const done = page.getByRole("button", { name: "Sign in to Codex" });
     await expect(done).toBeDisabled();
     // A disabled button says why, and the reason is tied to it.
     await expect(
       page.getByText(
-        "Getting the machine's page ready. Done will be available in a moment.",
+        "Getting the machine's page ready. Signing in will be available in a moment.",
       ),
     ).toBeVisible();
     await expect(done).toHaveAttribute(
@@ -315,13 +320,17 @@ test.describe("add a machine wizard", () => {
     await shot(page, "machines-wizard-connected");
     setup.workerHostId = MACHINE_ID;
     await expect(done).toBeEnabled({ timeout: 30_000 });
+    await shot(page, "machines-wizard-connected-ready");
     await expect(
       page.getByText(
-        "Getting the machine's page ready. Done will be available in a moment.",
+        "Getting the machine's page ready. Signing in will be available in a moment.",
       ),
     ).toHaveCount(0);
-    await page.getByRole("button", { name: "Done" }).click();
-    await expect(page).toHaveURL(new RegExp(`/machines/${MACHINE_ID}$`));
+    await done.click();
+    // The machine page opens at that agent with its sign-in ready.
+    await expect(page).toHaveURL(
+      new RegExp(`/machines/${MACHINE_ID}\\?signIn=codex$`),
+    );
     expect(setup.creates).toHaveLength(1);
   });
 

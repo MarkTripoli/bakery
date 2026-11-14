@@ -7,6 +7,7 @@ import { useBakeryApi } from "../api/context.tsx";
 import { organizationRepositoryRulesQueryOptions } from "../api/query.ts";
 import { failureStatus, isForbiddenFailure } from "../app/async-state.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { SETTINGS_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { useRulesDraft } from "./repository-rules/draft.ts";
 import { focusAfterPaint } from "./repository-rules/focus.ts";
@@ -281,7 +282,10 @@ export function OrganizationRepositoryRuleEditorPage() {
         <UI.Breadcrumbs
           aria-label={translate("shell.navigation.breadcrumb")}
           items={[
-            { label: translate("shell.states.settingsTitle") },
+            {
+              href: SETTINGS_HOME,
+              label: translate("shell.states.settingsTitle"),
+            },
             {
               href: LIST_PAGE,
               label: translate("shell.navigation.repositoryRules"),

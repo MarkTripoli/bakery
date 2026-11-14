@@ -22,11 +22,18 @@ export type PageHeaderProps = {
   subtitle?: ReactNode;
   /** `split` only: right-aligned summary, such as a status and counts. */
   summary?: ReactNode;
+  /**
+   * `list` only: no inline inset, so the title, its line and anything under
+   * them start at the same left edge as the section headings and field labels
+   * of the page below (a main-rail page in the shell's own gutter), instead of
+   * the p-18-0 head's 24px inset that lines up with a row's text.
+   */
+  flush?: boolean;
 };
 
 /** Title, count and tabs block that opens every product page (Paper 5J-0). */
 export function PageHeader(
-  { actions, meta, subtitle, summary, tabs, title, variant = "titled" }:
+  { actions, flush, meta, subtitle, summary, tabs, title, variant = "titled" }:
     PageHeaderProps,
 ) {
   if (variant === "split" || variant === "list") {
@@ -34,6 +41,7 @@ export function PageHeader(
       <div
         className={`bakery-page-header bakery-page-header--${variant}`}
         data-state="default"
+        data-flush={variant === "list" && flush ? "true" : undefined}
         data-ui-component="pageHeader"
         data-variant={variant}
       >

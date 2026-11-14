@@ -79,7 +79,14 @@ function fakeApi(
     access: {} as BakeryApiClient["access"],
     profile: { get: rejecting, update: rejecting },
     userPreferences: { get: rejecting, update: rejecting },
-    tickets: { list: rejecting, sources: rejecting, sync: rejecting },
+    tickets: {
+      get: rejecting,
+      check: rejecting,
+      request: rejecting,
+      list: rejecting,
+      sources: rejecting,
+      sync: rejecting,
+    },
     workers: {
       list: rejecting,
       get: rejecting,
@@ -96,8 +103,12 @@ function fakeApi(
       replace: rejecting,
     },
     workerComponents: { list: rejecting },
-    workerProviderBindings: { list: rejecting },
-    workerProviderAuth: { create: rejecting, get: rejecting },
+    workerProviderBindings: { list: rejecting, create: rejecting },
+    workerProviderAuth: {
+      create: rejecting,
+      get: rejecting,
+      cancel: rejecting,
+    },
     organizations: {
       get: rejecting,
       effectiveAccess: rejecting,

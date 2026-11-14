@@ -52,6 +52,12 @@ export const Contract: StoryObj = {
           title="Appearance"
         />
       </SettingsContent>
+      <SettingsContent variant="wide">
+        <AuthHeading
+          description="The computers that run your agents."
+          title="Machines"
+        />
+      </SettingsContent>
       <SettingsContent variant="access">
         <AuthHeading
           description="What you can do in Platform team."

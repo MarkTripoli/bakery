@@ -1514,6 +1514,11 @@ a.bakery-application-rail__link:hover {
   max-inline-size: 760px; /* auth.css:10 .settings-content max-width:840px less its 40px padding */
   min-inline-size: 0;
 }
+/* A main-rail page that is a list or a detail (Machines): the same column
+   rhythm and targets, and the frame's whole width. */
+.ui-settings-content[data-variant="wide"] {
+  max-inline-size: none;
+}
 /* Paper keeps 44px controls on these pages regardless of pointer type
    (auth.css:8 .btn/.text-link min-height:44px). Buttons take their width
    from the flex column they sit in (`.btn.full` in a column, `.two-actions>*`
@@ -1613,14 +1618,18 @@ a.bakery-application-rail__link:hover {
     justify-content: flex-end; /* auth.css:8 .row in the right-aligned item action */
     row-gap: var(--space-0);
   }
+  .ui-settings-content .ui-description-item[data-action-placement="below"] .ui-description-item__action:has(.ui-inline) {
+    max-inline-size: none; /* the action has its own line under the text */
+  }
+  .ui-settings-content .ui-description-item[data-action-placement="below"] .ui-description-item__action .ui-inline {
+    justify-content: flex-start;
+  }
 }
 
 /* Paper O-0 personal settings pages (Profile, Appearance, Your access): a 24px
    title over a 14px muted subtitle, the form column capped at 720px, and
-   content-sized buttons. The page padding is the shell's. */
-.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) {
-  max-inline-size: none;
-}
+   content-sized buttons. The page padding is the shell's. The column itself is
+   the one settings width (760px) like every other settings page. */
 /* One page-title style on every settings page: the 24/32 page heading over a
    14px muted description, whatever the page's variant. The authentication
    screens keep the larger 28/36 heading. */
@@ -1765,7 +1774,6 @@ a.bakery-application-rail__link:hover {
 .ui-settings-content[data-variant="preferences"] {
   gap: var(--space-0);
   margin-inline-start: -1px;
-  max-inline-size: var(--layout-content);
 }
 .ui-settings-content[data-variant="preferences"] > .ui-auth-heading {
   padding-block-end: var(--space-6);
@@ -2041,6 +2049,19 @@ a.bakery-application-rail__link:hover {
   min-block-size: var(--space-0);
   text-decoration: none;
 }
+/* The current page's name is cut with an ellipsis when it is long. */
+.bakery-top-bar .ui-breadcrumbs li:last-child > span {
+  max-inline-size: var(--layout-inspector);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A crumb that leads somewhere reads as a link on hover and keyboard focus. */
+.bakery-top-bar .ui-breadcrumbs a:not(.ui-link):is(:hover, :focus-visible) {
+  color: var(--color-fg);
+  text-decoration: underline;
+  text-underline-offset: var(--underline-offset);
+}
 .bakery-top-bar .ui-breadcrumbs li {
   align-items: center;
   display: flex;
@@ -2178,6 +2199,10 @@ a.bakery-application-rail__link:hover {
   margin-block-end: var(--space-0);
   padding: var(--space-6) var(--space-6) var(--space-4);
 }
+/* `flush`: the head starts at the page's own left edge (see PageHeader). */
+.bakery-page-header--list[data-flush="true"] {
+  padding-inline: var(--space-0);
+}
 .bakery-page-header--list .bakery-page-header__lead {
   display: flex;
   flex-direction: column;
@@ -2198,6 +2223,9 @@ a.bakery-application-rail__link:hover {
   .bakery-page-header--list {
     border-block-end: var(--border-default) solid var(--color-border);
     padding: var(--space-3) var(--space-4) var(--space-4);
+  }
+  .bakery-page-header--list[data-flush="true"] {
+    padding-inline: var(--space-0);
   }
   .bakery-page-header--list .bakery-page-header__subtitle {
     font: var(--type-hint);

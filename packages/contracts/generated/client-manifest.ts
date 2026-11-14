@@ -5517,6 +5517,81 @@ export const clientManifest = {
     {
       "group": "Integrations",
       "method": "GET",
+      "path": "/v1/integration-connections/{id}/grants",
+      "action": "integrationGrants.list",
+      "access": "Developer",
+      "permission": "integrationGrant:read",
+      "input": "IntegrationGrantQuery",
+      "output": "Page<IntegrationGrant>",
+      "event": "",
+      "mcp": "bakery_integrationGrants_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Integrations",
+      "method": "POST",
+      "path": "/v1/integration-connections/{id}/grants",
+      "action": "integrationGrants.create",
+      "access": "Admin",
+      "permission": "integrationGrant:manage",
+      "input": "IntegrationGrantCreate",
+      "output": "IntegrationGrant",
+      "event": "integration.grants_changed",
+      "mcp": "",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Integrations",
+      "method": "DELETE",
+      "path": "/v1/integration-connections/{id}/grants/{grantId}",
+      "action": "integrationGrants.delete",
+      "access": "Admin",
+      "permission": "integrationGrant:manage",
+      "input": "Empty",
+      "output": "NoContent",
+      "event": "integration.grants_changed",
+      "mcp": "",
+      "idempotency": "Idempotency-Key + If-Match required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Integrations",
+      "method": "GET",
       "path": "/v1/integration-connections/{id}/effects",
       "action": "integrationEffects.list",
       "access": "Developer+resource read",
@@ -14651,6 +14726,93 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Triggers a bounded rediscovery scan of this connection's provider resources; only a complete, successful scan may mark previously seen resources unavailable, so a partial or throttled scan leaves the existing inventory untouched."
     },
+    "IntegrationGrantCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "subjectType": {
+          "type": "string",
+          "enum": [
+            "principal",
+            "organization_role",
+            "automation"
+          ],
+          "description": "Selects who receives the grant: a specific principal (subjectPrincipalId), every member holding an organization role (subjectRole) while a member, or a trusted automation (automationDefinitionId) rather than a human role."
+        },
+        "subjectPrincipalId": {
+          "description": "The specific principal receiving this grant; required only when subjectType is principal.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "subjectRole": {
+          "description": "Organization role receiving this grant, admin, developer, viewer or guest, so every current and future member holding that role while a member gets the fixed selection; required only when subjectType is organization_role.",
+          "type": "string",
+          "enum": [
+            "admin",
+            "developer",
+            "viewer",
+            "guest"
+          ]
+        },
+        "automationDefinitionId": {
+          "description": "The trusted automation or workflow definition receiving this grant; required only when subjectType is automation, since automations need their own explicit grants separate from any human role.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "into_bakery",
+            "out_of_bakery"
+          ],
+          "description": "Which authority boundary this grant crosses: into_bakery for a scoped Bakery operation the connection may call (for example bakery:tasks:create), or out_of_bakery for an external provider action the connection may invoke (for example github.issue.comment.create@1)."
+        },
+        "capability": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "IntegrationGrantCreate.capability must contain at most 200 characters."
+        },
+        "actionVersion": {
+          "description": "IntegrationGrantCreate.actionVersion must be at least 1.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "resourceId": {
+          "description": "The selected integration resource, such as one repository, that the granted external action is scoped to; required alongside actionVersion for out-of-bakery grants.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "applicationId": {
+          "description": "For into_bakery grants, the Bakery application the external subject may act on; at most one of applicationId or repositoryId is set and it must belong to the granting organization. Null for out_of_bakery grants, whose target is the connection and resource.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "repositoryId": {
+          "description": "For into_bakery grants, the Bakery repository the external subject may act on; at most one of applicationId or repositoryId is set and it must belong to the granting organization. Null for out_of_bakery grants, whose target is the connection and resource.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "expiresAt": {
+          "description": "Optional expiry after which this grant stops being honored on every subsequent authorization check; omit for a grant that lasts until explicitly revoked.",
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+        }
+      },
+      "required": [
+        "subjectType",
+        "direction",
+        "capability"
+      ],
+      "additionalProperties": false,
+      "description": "Grants a specific integration capability, an inbound Bakery operation scope or an outbound external action, to exactly one subject (a principal, an organization role, or a trusted automation) on this connection; every target must belong to the current organization and connection, and there is no wildcard grant."
+    },
     "IntegrationEffectQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -15538,6 +15700,45 @@ export const clientManifest = {
       },
       "additionalProperties": false,
       "description": "Lists host-owned provider installations visible to installation administrators; results expose safe identity and lifecycle metadata plus aggregate impact on dependent connections, never credentials or another organization's resource lists."
+    },
+    "IntegrationGrantQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "resourceId": {
+          "description": "Restricts results to grants scoped to one integration resource.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "capability": {
+          "description": "IntegrationGrantQuery.capability must contain at most 200 characters.",
+          "type": "string",
+          "maxLength": 200
+        },
+        "direction": {
+          "description": "Restricts results to into_bakery or out_of_bakery grants.",
+          "type": "string",
+          "enum": [
+            "into_bakery",
+            "out_of_bakery"
+          ]
+        },
+        "cursor": {
+          "description": "IntegrationGrantQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "IntegrationGrantQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Lists the effective grants on this connection visible to the caller; results never reveal grants, subjects or counts from another organization."
     },
     "OAuthCallback": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -26602,6 +26803,291 @@ export const clientManifest = {
           "description": "JSON value node."
         }
       }
+    },
+    "Page<IntegrationGrant>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying this integration grant within its organization."
+              },
+              "connectionId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the integration connection this grant is scoped to; it never applies through another connection."
+              },
+              "subjectType": {
+                "type": "string",
+                "enum": [
+                  "principal",
+                  "organization_role",
+                  "automation"
+                ],
+                "description": "Who receives the grant: one principal, every member holding an organization role while a member, or one trusted automation."
+              },
+              "subjectPrincipalId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The principal receiving the grant when subjectType is principal; null otherwise."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationGrant.subjectPrincipalId may be null in this transport value."
+              },
+              "subjectRole": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "admin",
+                      "developer",
+                      "viewer",
+                      "guest"
+                    ],
+                    "description": "The organization role whose current members receive the grant when subjectType is organization_role; null otherwise."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationGrant.subjectRole may be null in this transport value."
+              },
+              "automationDefinitionId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The automation receiving the grant when subjectType is automation; null otherwise."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationGrant.automationDefinitionId may be null in this transport value."
+              },
+              "direction": {
+                "type": "string",
+                "enum": [
+                  "into_bakery",
+                  "out_of_bakery"
+                ],
+                "description": "Whether the grant lets data flow into Bakery from the provider or lets Bakery act out on the provider."
+              },
+              "capability": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Exact provider action or event identifier granted; wildcard and prefix meanings are forbidden."
+              },
+              "actionVersion": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Exact action version the grant is pinned to, or null when it covers the action's current version."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationGrant.actionVersion may be null in this transport value."
+              },
+              "resourceId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The one integration resource the grant is limited to, or null when it is not limited to a resource."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationGrant.resourceId may be null in this transport value."
+              },
+              "applicationId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The Bakery application the grant is limited to, or null when it is not limited to one."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationGrant.applicationId may be null in this transport value."
+              },
+              "repositoryId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "The Bakery repository the grant is limited to, or null when it is not limited to one."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationGrant.repositoryId may be null in this transport value."
+              },
+              "expiresAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC instant the grant stops applying, or null for no time-based expiry; live authority is still rechecked at use."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationGrant.expiresAt may be null in this transport value."
+              },
+              "revokedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC instant an Admin revoked the grant, or null while it is in force; revoked grants are kept for audit and effect provenance."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationGrant.revokedAt may be null in this transport value."
+              },
+              "policyRevision": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Positive revision of the policy interpretation under which the grant was issued."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the grant was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the grant's lifecycle state last changed."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version used when revoking the grant."
+              }
+            },
+            "required": [
+              "id",
+              "connectionId",
+              "subjectType",
+              "subjectPrincipalId",
+              "subjectRole",
+              "automationDefinitionId",
+              "direction",
+              "capability",
+              "actionVersion",
+              "resourceId",
+              "applicationId",
+              "repositoryId",
+              "expiresAt",
+              "revokedAt",
+              "policyRevision",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "One exact integration grant: which subject may use which provider capability, in which direction, through one connection and optionally only on one resource, application or repository. Returned by the integrationGrants operations; revoked grants stay readable."
+          },
+          "description": "Page<IntegrationGrant>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<IntegrationGrant>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Page<IntegrationGrant>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<IntegrationGrant>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<IntegrationGrant>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of IntegrationGrant."
     },
     "Page<PermissionGrant>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -40938,6 +41424,231 @@ export const clientManifest = {
           "description": "JSON value node."
         }
       }
+    },
+    "IntegrationGrant": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying this integration grant within its organization."
+        },
+        "connectionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the integration connection this grant is scoped to; it never applies through another connection."
+        },
+        "subjectType": {
+          "type": "string",
+          "enum": [
+            "principal",
+            "organization_role",
+            "automation"
+          ],
+          "description": "Who receives the grant: one principal, every member holding an organization role while a member, or one trusted automation."
+        },
+        "subjectPrincipalId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The principal receiving the grant when subjectType is principal; null otherwise."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationGrant.subjectPrincipalId may be null in this transport value."
+        },
+        "subjectRole": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "admin",
+                "developer",
+                "viewer",
+                "guest"
+              ],
+              "description": "The organization role whose current members receive the grant when subjectType is organization_role; null otherwise."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationGrant.subjectRole may be null in this transport value."
+        },
+        "automationDefinitionId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The automation receiving the grant when subjectType is automation; null otherwise."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationGrant.automationDefinitionId may be null in this transport value."
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "into_bakery",
+            "out_of_bakery"
+          ],
+          "description": "Whether the grant lets data flow into Bakery from the provider or lets Bakery act out on the provider."
+        },
+        "capability": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Exact provider action or event identifier granted; wildcard and prefix meanings are forbidden."
+        },
+        "actionVersion": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Exact action version the grant is pinned to, or null when it covers the action's current version."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationGrant.actionVersion may be null in this transport value."
+        },
+        "resourceId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The one integration resource the grant is limited to, or null when it is not limited to a resource."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationGrant.resourceId may be null in this transport value."
+        },
+        "applicationId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The Bakery application the grant is limited to, or null when it is not limited to one."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationGrant.applicationId may be null in this transport value."
+        },
+        "repositoryId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The Bakery repository the grant is limited to, or null when it is not limited to one."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationGrant.repositoryId may be null in this transport value."
+        },
+        "expiresAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC instant the grant stops applying, or null for no time-based expiry; live authority is still rechecked at use."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationGrant.expiresAt may be null in this transport value."
+        },
+        "revokedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC instant an Admin revoked the grant, or null while it is in force; revoked grants are kept for audit and effect provenance."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationGrant.revokedAt may be null in this transport value."
+        },
+        "policyRevision": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Positive revision of the policy interpretation under which the grant was issued."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the grant was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the grant's lifecycle state last changed."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Optimistic-concurrency version used when revoking the grant."
+        }
+      },
+      "required": [
+        "id",
+        "connectionId",
+        "subjectType",
+        "subjectPrincipalId",
+        "subjectRole",
+        "automationDefinitionId",
+        "direction",
+        "capability",
+        "actionVersion",
+        "resourceId",
+        "applicationId",
+        "repositoryId",
+        "expiresAt",
+        "revokedAt",
+        "policyRevision",
+        "createdAt",
+        "updatedAt",
+        "version"
+      ],
+      "additionalProperties": false,
+      "description": "One exact integration grant: which subject may use which provider capability, in which direction, through one connection and optionally only on one resource, application or repository. Returned by the integrationGrants operations; revoked grants stay readable."
     },
     "PermissionGrant": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
