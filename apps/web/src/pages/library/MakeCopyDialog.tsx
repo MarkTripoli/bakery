@@ -1,25 +1,15 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import type { WorkflowDefinitionResponse } from "../../api/client.ts";
-import { useBakeryApi } from "../../api/context.tsx";
-import { libraryWorkflowsQueryOptions } from "../../api/query.ts";
-import { asyncKindForError } from "../../app/async-state.ts";
-import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
-import {
-  copyName,
-  type CopySource,
-  NAME_LIMIT,
-  uniqueSlug,
-} from "./copy-workflow.ts";
+import { copyName, type CopySource, NAME_LIMIT } from "./copy-workflow.ts";
+import { useCreateDraft } from "./use-create-draft.ts";
 
 /**
  * "Make a copy" of a built-in workflow or of a version of the organization's
  * own (design-ux, #66): a name for the copy, a line saying it starts as a
  * draft that nothing uses until it is published, and then the new workflow's
- * page. The copy is two writes (the workflow, then its draft version); when
- * the second fails the workflow exists, so a retry only adds the steps.
+ * page.
  */
 export function MakeCopyDialog(
   { onClose, onMade, source }: {
@@ -29,91 +19,34 @@ export function MakeCopyDialog(
     readonly onMade: (workflow: WorkflowDefinitionResponse) => void;
   },
 ) {
-  const api = useBakeryApi();
-  const scope = useProtectedScope();
-  const queryClient = useQueryClient();
   const { translate } = useI18n();
-  const organizationId = scope.organizationId as string;
-  const workflows = useQuery(libraryWorkflowsQueryOptions(api, scope));
+  const draft = useCreateDraft();
   const [name, setName] = useState(
     copyName(source.name, translate("library.copy.suffix" as never)),
   );
   const [tried, setTried] = useState(false);
-  // The workflow made by a first attempt whose steps did not save.
-  const [made, setMade] = useState<WorkflowDefinitionResponse | null>(null);
-  const [failure, setFailure] = useState<
-    "failed" | "offline" | "stepsFailed" | null
-  >(null);
-
-  const copy = useMutation({
-    mutationKey: ["workflows.copy"],
-    mutationFn: async () => {
-      let workflow = made;
-      if (workflow === null) {
-        const taken = new Set(
-          (workflows.data?.items ?? []).map((row) => row.slug),
-        );
-        const created = await api.createWorkflow({
-          organizationId,
-          input: {
-            slug: uniqueSlug(name, taken),
-            name: name.trim(),
-            description: source.description,
-          },
-          idempotencyKey: crypto.randomUUID(),
-        });
-        if (!created.ok) throw created.error;
-        workflow = created.data;
-        setMade(workflow);
-      }
-      const version = await api.createWorkflowVersion({
-        organizationId,
-        workflowId: workflow.id,
-        input: {
-          definition: source.definition,
-          ...(source.sourceYaml === undefined
-            ? {}
-            : { sourceYaml: source.sourceYaml }),
-        },
-        idempotencyKey: crypto.randomUUID(),
-      });
-      if (!version.ok) {
-        const error = new Error("version");
-        (error as Error & { cause?: unknown }).cause = version.error;
-        throw error;
-      }
-      return workflow;
-    },
-    onSettled: () =>
-      void queryClient.invalidateQueries({ queryKey: ["protected"] }),
-  });
 
   const empty = name.trim() === "";
   const submit = async () => {
     setTried(true);
     if (empty) return;
-    setFailure(null);
-    try {
-      onMade(await copy.mutateAsync());
-    } catch (error) {
-      const cause = error instanceof Error && error.message === "version"
-        ? (error as Error & { cause?: unknown }).cause
-        : error;
-      setFailure(
-        asyncKindForError(cause) === "offline"
-          ? "offline"
-          : error instanceof Error && error.message === "version"
-          ? "stepsFailed"
-          : "failed",
-      );
-    }
+    const workflow = await draft.create({
+      name: name.trim(),
+      description: source.description,
+      definition: source.definition,
+      ...(source.sourceYaml === undefined
+        ? {}
+        : { sourceYaml: source.sourceYaml }),
+    });
+    if (workflow !== null) onMade(workflow);
   };
+  const { failure, made } = draft;
 
   return (
     <UI.Dialog
       open
-      onOpenChange={(next) => !next && !copy.isPending && onClose()}
-      state={copy.isPending ? "submitting" : "open"}
+      onOpenChange={(next) => !next && !draft.pending && onClose()}
+      state={draft.pending ? "submitting" : "open"}
       title={translate("library.copy.title" as never)}
       variant="form"
     >
@@ -165,7 +98,7 @@ export function MakeCopyDialog(
           <UI.Inline gap="compact">
             <UI.Button
               variant="secondary"
-              disabled={copy.isPending}
+              disabled={draft.pending}
               onClick={onClose}
             >
               {translate("core.actions.cancel")}
@@ -173,7 +106,7 @@ export function MakeCopyDialog(
             <UI.Button
               type="submit"
               variant="primary"
-              disabled={copy.isPending}
+              disabled={draft.pending}
             >
               {translate("library.copy.submit" as never)}
             </UI.Button>
