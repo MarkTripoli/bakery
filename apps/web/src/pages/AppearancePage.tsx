@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useUnsavedChanges } from "../app/unsaved-changes.tsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supportedLocales } from "@bakery/i18n";
 import type { MessageKey } from "@bakery/i18n";
@@ -83,6 +84,7 @@ export function AppearancePage() {
   const language = draftLanguage ?? savedLanguage;
   const timeZone = draftZone ?? savedZone;
   const dirty = language !== savedLanguage || timeZone !== savedZone;
+  useUnsavedChanges(dirty);
 
   const installed = current?.availableLocales ?? [...supportedLocales];
   const languageName = (tag: string) =>

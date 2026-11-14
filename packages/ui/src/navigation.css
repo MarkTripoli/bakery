@@ -232,22 +232,39 @@ a.bakery-application-rail__link:hover {
   text-align: start;
 }
 
+/* The name is one truncated line, so these may be narrower than it: a grid or
+   flex parent must not size them to the whole name (200% zoom, a narrow drawer). */
+.bakery-workspace-switcher,
+.bakery-user-menu,
+.bakery-workspace-switcher .ui-popover,
+.bakery-user-menu .ui-popover {
+  min-inline-size: 0;
+}
+
 .bakery-workspace-switcher__trigger,
 .bakery-user-menu__trigger {
   align-items: center;
   box-sizing: border-box;
   display: flex;
-  flex-wrap: wrap; /* the name drops below the avatar when zoom leaves no room */
-  gap: var(--space-3);
+  flex-wrap: nowrap; /* one row: avatar, the name (truncated), chevron */
+  gap: var(--space-2);
   inline-size: 100%;
   min-block-size: var(--target-min);
   padding: var(--space-2);
+}
+/* The icon and chevron keep their size; only the name gives way. */
+.bakery-workspace-switcher__trigger > .ui-icon,
+.bakery-user-menu__trigger > .ui-icon {
+  flex: none;
 }
 
 .bakery-workspace-switcher__name {
   flex: 1 1 auto;
   font: var(--type-control);
   min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 5J-0 footer avatar: neutral initials disc, not the selection tint. */
@@ -263,6 +280,9 @@ a.bakery-application-rail__link:hover {
   flex: 1 1 auto;
   font: var(--type-hint);
   min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .bakery-workspace-switcher--compact .bakery-workspace-switcher__trigger,
@@ -829,23 +849,36 @@ a.bakery-application-rail__link:hover {
   flex: none;
 }
 
+/* Hidden until it has focus, by being clipped to nothing where it sits, never by
+   moving it off screen: a moved link reappears wherever its container happens to
+   be (the sticky rail in a full-page capture put it in view with focus elsewhere).
+   Focused, it is a raised surface over the page's top left and moves nothing. */
 .bakery-app-shell__skip-link {
   align-items: center;
   background: var(--color-surface-raised);
+  block-size: 1px;
   border-radius: var(--radius-control);
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   color: var(--color-selection);
   display: inline-flex;
+  inline-size: 1px;
   inset-block-start: var(--space-2);
   inset-inline-start: var(--space-2);
-  min-block-size: var(--target-min);
-  padding: var(--space-2) var(--space-3);
+  overflow: hidden;
   position: absolute;
-  transform: translateY(-200%);
+  white-space: nowrap;
   z-index: var(--layer-popover);
 }
 
 .bakery-app-shell__skip-link:focus {
-  transform: none;
+  block-size: auto;
+  clip: auto;
+  clip-path: none;
+  inline-size: auto;
+  min-block-size: var(--target-min);
+  overflow: visible;
+  padding: var(--space-2) var(--space-3);
 }
 
 .bakery-app-shell__header {

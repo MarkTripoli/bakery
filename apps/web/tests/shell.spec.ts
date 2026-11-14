@@ -13,6 +13,7 @@ import {
 import { shot } from "./helpers/real-api.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { firstRender } from "./helpers/first-render.ts";
+import { shot } from "./helpers/real-api.ts";
 
 registerPageHealth(test);
 
@@ -783,9 +784,68 @@ test.describe("settings routes and navigation", () => {
     await page.setViewportSize({ width: 1280, height: 960 });
     await page.goto("/tasks");
     await revealShellNavigation(page);
-    await page.getByRole("button", { name: "Organization", exact: true })
-      .click();
+    // The rail names the organization the person is in.
+    const switcher = page.locator('[data-ui-component="workspaceSwitcher"]');
+    await expect(switcher).toContainText("Fixture Org");
+    await switcher.locator("button[aria-expanded]").click();
     await page.getByRole("button", { name: "Organization settings" }).click();
     await expect(page).toHaveURL("/organization/settings");
   });
+});
+
+test("the account and organization triggers stay one row when a name is long, and the full name is their title", async ({ page, isMobile }) => {
+  test.skip(isMobile, "the rail is a wide-screen layout");
+  const LONG_PERSON =
+    "Fixture Administrator With A Remarkably Long Display Name Indeed";
+  await mockAuthenticatedSession(page);
+  await page.route("**/v1/me", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        principalId: "00000000-0000-4000-8000-000000000001",
+        principalType: "human",
+        displayName: LONG_PERSON,
+        locale: "en",
+        timeZone: null,
+        direction: "ltr",
+        catalogVersion: "2",
+        twoFactorEnabled: false,
+        email: "fixture-admin@example.test",
+        backupCodesRemaining: null,
+      }),
+    }));
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/settings/sessions");
+  await expect(page.getByRole("heading", { name: "Active sessions" }).first())
+    .toBeVisible();
+  for (
+    const trigger of [
+      ".bakery-user-menu__trigger",
+      ".bakery-workspace-switcher__trigger",
+    ]
+  ) {
+    const row = page.locator(trigger).first();
+    await expect(row).toBeVisible();
+    // One row: nothing wraps below the avatar, and the chevron stays at the end.
+    const name = row.locator("[class$='__name']");
+    const rowBox = (await row.boundingBox())!;
+    const nameBox = (await name.boundingBox())!;
+    expect(nameBox.height).toBeLessThan(28);
+    expect(rowBox.height).toBeLessThan(60);
+    const chevron = row.locator("svg.ui-icon").last();
+    const chevronBox = (await chevron.boundingBox())!;
+    expect(chevronBox.x + chevronBox.width).toBeLessThanOrEqual(
+      rowBox.x + rowBox.width,
+    );
+    expect(chevronBox.x).toBeGreaterThanOrEqual(nameBox.x + nameBox.width - 1);
+  }
+  await shot(page, "account-trigger-long-name");
+  const person = page.locator(".bakery-user-menu__name");
+  await expect(person).toHaveAttribute("title", LONG_PERSON);
+  await expect(person).toHaveCSS("text-overflow", "ellipsis");
+  // The full name is still the trigger's accessible name.
+  await expect(
+    page.locator(".bakery-user-menu .ui-popover__trigger"),
+  ).toContainText(LONG_PERSON);
 });

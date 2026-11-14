@@ -14,6 +14,11 @@ export type CursorControlsProps = {
   hasNext?: boolean;
   hasPrevious?: boolean;
   labels?: CursorControlsLabels;
+  /**
+   * Names the list these controls page, so the page can find the Load more
+   * button and the retry button to move focus to them after a load.
+   */
+  name?: string;
   onNext?: () => void;
   onPrevious?: () => void;
   onRetry?: () => void;
@@ -36,6 +41,7 @@ export function CursorControls(
     hasNext = false,
     hasPrevious = false,
     labels = DEFAULT_LABELS,
+    name,
     onNext,
     onPrevious,
     onRetry,
@@ -65,7 +71,9 @@ export function CursorControls(
         data-variant={variant}
         role="alert"
       >
-        <button onClick={onRetry} type="button">{labels.retry}</button>
+        <button data-paged-retry={name} onClick={onRetry} type="button">
+          {labels.retry}
+        </button>
       </div>
     );
   }
@@ -87,6 +95,7 @@ export function CursorControls(
         </button>
       )}
       <button
+        data-paged-more={name}
         disabled={!hasNext || state === "loading"}
         onClick={onNext}
         type="button"
