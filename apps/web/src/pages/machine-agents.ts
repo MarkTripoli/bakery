@@ -263,27 +263,37 @@ const CODE_KEYS = ["userCode", "user_code", "code"];
 
 /**
  * The hosts a sign-in page may be on, per agent. An agent's own domains count
- * with their subdomains; a host of another service that also holds other
- * people's content (a code host, a general account page) counts only as the one
- * exact host its sign-in uses, never as a domain. The machine names the address
- * and the person is told to type a code on it, so the page only links to a site
- * the agent's own sign-in uses. Pi signs in to several providers, so it may use
- * any of theirs (an assumption: the worker's contract does not name them).
+ * with their subdomains and any path. A host of another service that also holds
+ * other people's content (a code host, a general account page) counts only as
+ * the one host and the one path its sign-in uses: `github.com` carries the
+ * device sign-in at `/login/device`, not a link to anyone's repository. The
+ * machine names the address and the person is told to type a code on it, so the
+ * page only links to a page the agent's own sign-in uses. Pi signs in to
+ * several providers, so it may use any of theirs (an assumption: the worker's
+ * contract does not name them).
  */
+type SignInPage = Readonly<{
+  host: string;
+  /** The page itself, or anything under it: `/login/device` and `/login/device/x`, never `/login/devices`. */
+  path: string;
+}>;
 type SignInHosts = Readonly<{
-  /** The domain itself and any subdomain of it. */
+  /** The domain itself and any subdomain of it, at any path. */
   domains: readonly string[];
-  /** Exactly this host, no other. */
-  exact: readonly string[];
+  /** Exactly this host, and only under this path. */
+  pages: readonly SignInPage[];
 }>;
 const CLAUDE_DOMAINS = ["claude.ai", "claude.com", "anthropic.com"] as const;
 const CODEX_DOMAINS = ["openai.com", "chatgpt.com"] as const;
 export const SIGN_IN_HOSTS: Readonly<Record<CodingAgent, SignInHosts>> = {
-  claude: { domains: CLAUDE_DOMAINS, exact: [] },
-  codex: { domains: CODEX_DOMAINS, exact: [] },
+  claude: { domains: CLAUDE_DOMAINS, pages: [] },
+  codex: { domains: CODEX_DOMAINS, pages: [] },
   pi: {
     domains: [...CLAUDE_DOMAINS, ...CODEX_DOMAINS],
-    exact: ["github.com", "accounts.google.com"],
+    pages: [
+      { host: "github.com", path: "/login/device" },
+      { host: "accounts.google.com", path: "/o/oauth2" },
+    ],
   },
 };
 
@@ -300,7 +310,13 @@ function signInAddress(value: unknown, agent: CodingAgent): string | null {
     ) return null;
     const host = url.hostname;
     const allowed = SIGN_IN_HOSTS[agent];
-    return allowed.exact.includes(host) ||
+    // The path is the parsed one: dot segments are already resolved, and an
+    // encoded slash stays encoded, so it cannot climb out of the prefix.
+    const path = url.pathname;
+    return allowed.pages.some((page) =>
+        host === page.host &&
+        (path === page.path || path.startsWith(`${page.path}/`))
+      ) ||
         allowed.domains.some((domain) =>
           host === domain || host.endsWith(`.${domain}`)
         )

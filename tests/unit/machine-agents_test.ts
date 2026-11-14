@@ -371,13 +371,20 @@ Deno.test("an address must be on one of the agent's own hosts or a subdomain of 
     "https://claude.ai/x",
   );
   assertEquals(addressOf("pi", "https://evil.example/x"), null);
-  // Pi's other providers are exact hosts, not domains: no subdomain, no sibling, no user content.
-  assertEquals(
-    addressOf("pi", "https://accounts.google.com/o/oauth2/device"),
-    "https://accounts.google.com/o/oauth2/device",
-  );
+  // Pi's other providers are one host and one path each, not domains: the sign-in page, nothing else on that host.
+  for (
+    const page of [
+      "https://github.com/login/device",
+      "https://github.com/login/device/",
+      "https://github.com/login/device/select_account?user_code=ABCD-1234",
+      "https://accounts.google.com/o/oauth2/device/code",
+      "https://accounts.google.com/o/oauth2/v2/auth?client_id=x&scope=y",
+      "https://accounts.google.com/o/oauth2",
+    ]
+  ) assertEquals(addressOf("pi", page), new URL(page).toString(), page);
   for (
     const notTheirSignIn of [
+      // Not on the host, or another host of the same service.
       "https://sites.google.com/view/anything",
       "https://docs.google.com/x",
       "https://google.com/x",
@@ -387,8 +394,29 @@ Deno.test("an address must be on one of the agent's own hosts or a subdomain of 
       "https://raw.github.com/x",
       "https://api.github.com/x",
       "https://github.com.evil.example/login/device",
-      "https://accounts.google.com.evil.example/x",
-      "https://xaccounts.google.com/x",
+      "https://accounts.google.com.evil.example/o/oauth2/x",
+      "https://xaccounts.google.com/o/oauth2/x",
+      // On the host but not the sign-in page: anyone's repository, profile or file.
+      "https://github.com/",
+      "https://github.com/someone",
+      "https://github.com/someone/repo",
+      "https://github.com/someone/repo/releases/download/v1/x",
+      "https://github.com/login",
+      "https://github.com/login/oauth/authorize?client_id=x",
+      "https://github.com/login/devices",
+      "https://github.com/login/device-evil/x",
+      "https://github.com/someone/login/device",
+      "https://github.com/login/device/../../someone/repo",
+      "https://github.com/login/device%2F..%2Fsomeone/repo",
+      "https://github.com/%6Cogin/device",
+      "https://github.com//login/device",
+      "https://github.com/LOGIN/DEVICE",
+      "https://accounts.google.com/",
+      "https://accounts.google.com/signin",
+      "https://accounts.google.com/o/oauth2evil",
+      "https://accounts.google.com/o/oauth",
+      "https://accounts.google.com/ServiceLogin?continue=https://evil.example",
+      "https://accounts.google.com/o/oauth2/../../signin",
     ]
   ) assertEquals(addressOf("pi", notTheirSignIn), null, notTheirSignIn);
   // And they are Pi's alone.
