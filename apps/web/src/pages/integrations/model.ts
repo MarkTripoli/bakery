@@ -1,5 +1,5 @@
 /**
- * What a GitHub connection means to a person: the one badge it carries, the
+ * What a provider connection means to a person: the one badge it carries, the
  * sentence that explains it, the one button that fixes it, which setup steps
  * are still open, and what it may do in plain words. Pure, so the rules are
  * tested without a screen.
@@ -139,13 +139,13 @@ export function connectionHealth(
 }
 
 export type StepId = "install" | "repositories" | "turnOn";
-export type StepStatus = "done" | "waiting" | "upcoming";
+export type StepStatus = "done" | "current" | "upcoming";
 
 export type SetupStep = { readonly id: StepId; readonly status: StepStatus };
 
 /**
  * Setup steps are shown only while a connection is waiting to be set up.
- * A connection exists only after GitHub's install and authorize steps are both
+ * A connection exists only after the provider's install and authorize steps are both
  * done, so the first step is always done here; choosing repositories is done
  * once one is selected; turning on is the last.
  */
@@ -157,8 +157,8 @@ export function setupSteps(
   const chosen = selectedCount !== null && selectedCount > 0;
   return [
     { id: "install", status: "done" },
-    { id: "repositories", status: chosen ? "done" : "waiting" },
-    { id: "turnOn", status: chosen ? "waiting" : "upcoming" },
+    { id: "repositories", status: chosen ? "done" : "current" },
+    { id: "turnOn", status: chosen ? "current" : "upcoming" },
   ];
 }
 
@@ -173,7 +173,7 @@ export const KNOWN_PERMISSIONS = [
 export type KnownPermission = (typeof KNOWN_PERMISSIONS)[number];
 
 export type Permission = {
-  /** GitHub's own name, such as `contents:write`. */
+  /** The provider's own name, such as `contents:write`. */
   readonly key: string;
   /** Set when the key is one the app asks for and has plain wording. */
   readonly known: KnownPermission | null;
@@ -182,7 +182,7 @@ export type Permission = {
 /**
  * The permissions a connection was granted, from the `{scope: level}` map the
  * read carries (typed `unknown` by the contract, so anything else reads as
- * none). Known ones come first in a fixed order; any other key keeps GitHub's
+ * none). Known ones come first in a fixed order; any other key keeps the provider's
  * name and has no plain wording.
  */
 export function permissionsOf(granted: unknown): readonly Permission[] {
@@ -215,28 +215,36 @@ export type SelectionChange = {
 };
 
 /**
- * What saving a selection must send: the differences between what is saved
- * and what is ticked, adding before removing, so swapping repositories never
- * passes through a moment with none selected (the server refuses that for a
- * connection that is on).
+ * What saving a selection must send. A person's edit is the set of repositories
+ * they TOGGLED, never a copy of the whole selection: a repository loaded after
+ * they began (the next page) keeps whatever it was saved as, and is only
+ * changed if they toggle it. Additions go before removals, so swapping
+ * repositories never passes through a moment with none selected (the server
+ * refuses that for a connection that is on).
  */
 export function selectionChanges(
   saved: readonly SelectableRepository[],
-  ticked: ReadonlySet<string>,
+  toggled: ReadonlySet<string>,
 ): readonly SelectionChange[] {
-  const adds = saved.filter((item) => !item.selected && ticked.has(item.id));
-  const removes = saved.filter((item) => item.selected && !ticked.has(item.id));
+  const flipped = saved.filter((item) => toggled.has(item.id));
   return [
-    ...adds.map((item) => ({ id: item.id, selected: true })),
-    ...removes.map((item) => ({ id: item.id, selected: false })),
+    ...flipped.filter((item) => !item.selected).map((item) => ({
+      id: item.id,
+      selected: true,
+    })),
+    ...flipped.filter((item) => item.selected).map((item) => ({
+      id: item.id,
+      selected: false,
+    })),
   ];
 }
 
-/** The ticked set a list starts from: what is saved. */
-export function savedSelection(
-  saved: readonly SelectableRepository[],
-): ReadonlySet<string> {
-  return new Set(saved.filter((item) => item.selected).map((item) => item.id));
+/** Whether a repository is ticked: what is saved, flipped if the person toggled it. */
+export function isTicked(
+  item: SelectableRepository,
+  toggled: ReadonlySet<string>,
+): boolean {
+  return item.selected !== toggled.has(item.id);
 }
 
 /** Repositories whose name contains the text, ignoring case and spacing. */

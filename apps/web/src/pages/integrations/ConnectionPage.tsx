@@ -29,7 +29,7 @@ import {
 } from "./model.ts";
 import type { ConnectionOutcome } from "./outcomes.ts";
 import { useConnectionActions } from "./use-connection.ts";
-import { useProviderConnect } from "./providers/index.ts";
+import { PROVIDER_IDENTITY, useProviderConnect } from "./providers/index.ts";
 
 const INTEGRATIONS_PATH = "/settings/organization/integrations";
 
@@ -161,7 +161,7 @@ function Frame(
   const { translate } = useI18n();
   return (
     <>
-      <Crumbs title={translate("settings.connections.github.heading")} />
+      <Crumbs title={translate(PROVIDER_IDENTITY.headingKey)} />
       <ConnectionView
         {...NOTHING}
         formatTime={String}

@@ -4,8 +4,8 @@ import {
   connectionHealth,
   type ConnectionStatus,
   filterRepositories,
+  isTicked,
   permissionsOf,
-  savedSelection,
   SEARCH_AFTER,
   selectionChanges,
   setupSteps,
@@ -94,16 +94,16 @@ Deno.test("setup steps show only while a connection waits to be set up", () => {
   const pending = facts("pending");
   assertEquals(setupSteps(pending, 0), [
     { id: "install", status: "done" },
-    { id: "repositories", status: "waiting" },
+    { id: "repositories", status: "current" },
     { id: "turnOn", status: "upcoming" },
   ]);
   assertEquals(setupSteps(pending, 2), [
     { id: "install", status: "done" },
     { id: "repositories", status: "done" },
-    { id: "turnOn", status: "waiting" },
+    { id: "turnOn", status: "current" },
   ]);
   // Before the repositories are read, nothing is claimed done.
-  assertEquals(setupSteps(pending, null)?.[1]?.status, "waiting");
+  assertEquals(setupSteps(pending, null)?.[1]?.status, "current");
 });
 
 Deno.test("granted permissions list the known ones first in a fixed order", () => {
@@ -137,22 +137,43 @@ Deno.test("granted permissions list the known ones first in a fixed order", () =
   ]);
 });
 
-Deno.test("saving a selection sends the differences, adding before removing", () => {
+Deno.test("saving a selection sends what was toggled, adding before removing", () => {
   const saved = [
     { id: "a", selected: true },
     { id: "b", selected: false },
     { id: "c", selected: true },
     { id: "d", selected: false },
   ];
-  assertEquals([...savedSelection(saved)], ["a", "c"]);
-  assertEquals(selectionChanges(saved, new Set(["a", "c"])), []);
-  assertEquals(selectionChanges(saved, new Set(["b", "c", "d"])), [
+  assertEquals(selectionChanges(saved, new Set()), []);
+  assertEquals(selectionChanges(saved, new Set(["b", "d"])), [
     { id: "b", selected: true },
     { id: "d", selected: true },
+  ]);
+  assertEquals(selectionChanges(saved, new Set(["a"])), [
     { id: "a", selected: false },
   ]);
-  // Ticking a repository that is not in the loaded list changes nothing.
-  assertEquals(selectionChanges(saved, new Set(["a", "c", "zz"])), []);
+  // A swap adds first, so a connection that is on is never left with none.
+  assertEquals(selectionChanges(saved, new Set(["a", "b", "c"])), [
+    { id: "b", selected: true },
+    { id: "a", selected: false },
+    { id: "c", selected: false },
+  ]);
+  // Toggling something that is not in the loaded list changes nothing.
+  assertEquals(selectionChanges(saved, new Set(["zz"])), []);
+});
+
+Deno.test("a repository loaded after the edit began keeps what was saved for it", () => {
+  const page1 = [{ id: "a", selected: false }, { id: "b", selected: false }];
+  const toggled = new Set(["b"]);
+  // The next page arrives with a repository that is already selected.
+  const both = [...page1, { id: "x", selected: true }];
+  assertEquals(selectionChanges(page1, toggled), [{ id: "b", selected: true }]);
+  assertEquals(selectionChanges(both, toggled), [{ id: "b", selected: true }]);
+  assertEquals(both.map((item) => isTicked(item, toggled)), [
+    false,
+    true,
+    true,
+  ]);
 });
 
 Deno.test("the repository filter ignores case and spacing and keeps order", () => {

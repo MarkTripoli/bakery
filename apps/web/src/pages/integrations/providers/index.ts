@@ -5,3 +5,4 @@
  */
 export { useGitHubConnect as useProviderConnect } from "./github/use-github-connect.ts";
 export type { ConnectOptions } from "./github/use-github-connect.ts";
+export { GITHUB_IDENTITY as PROVIDER_IDENTITY } from "./github/identity.ts";

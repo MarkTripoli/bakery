@@ -13,7 +13,7 @@ import { usePagedFocus } from "../../app/focus.ts";
 import type { ProtectedScope } from "../../app/query-scope.ts";
 import {
   type CheckedHealth,
-  savedSelection,
+  isTicked,
   type SelectionChange,
   selectionChanges,
 } from "./model.ts";
@@ -127,12 +127,13 @@ export function useConnectionActions(
     id: item.id,
     selected: item.selected,
   }));
-  // `null` is "what is saved"; a set is what a person has ticked since.
-  const [ticked, setTicked] = useState<ReadonlySet<string> | null>(null);
-  const effective = ticked ?? savedSelection(saved);
-  const changes: readonly SelectionChange[] = ticked === null
-    ? []
-    : selectionChanges(saved, ticked);
+  // What a person has toggled since the list was read, and nothing else: a
+  // repository loaded later keeps its saved state until they toggle it.
+  const [toggled, setToggled] = useState<ReadonlySet<string>>(new Set());
+  const effective: ReadonlySet<string> = new Set(
+    saved.filter((item) => isTicked(item, toggled)).map((item) => item.id),
+  );
+  const changes: readonly SelectionChange[] = selectionChanges(saved, toggled);
   const [selectionStatus, setSelectionStatus] = useState<SelectionStatus>(
     "idle",
   );
@@ -159,15 +160,15 @@ export function useConnectionActions(
   };
 
   const toggle = (id: string) => {
-    const next = new Set(effective);
+    const next = new Set(toggled);
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setSelectionStatus("idle");
-    setTicked(next);
+    setToggled(next);
   };
   const discard = () => {
     setSelectionStatus("idle");
-    setTicked(null);
+    setToggled(new Set());
   };
 
   const saving = useRef(false);
@@ -211,7 +212,7 @@ export function useConnectionActions(
       saving.current = false;
     }
     // Whatever happened, show what the server now holds.
-    setTicked(null);
+    setToggled(new Set());
     setSelectionStatus(status);
     await Promise.all([repositories.refetch(), refreshConnection()]);
   };
@@ -297,7 +298,7 @@ export function useConnectionActions(
     setCheckStatus("idle");
     setSwitchStatus("idle");
     setSelectionStatus("idle");
-    setTicked(null);
+    setToggled(new Set());
   }, [sessionGeneration]);
 
   return {

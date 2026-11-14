@@ -7,6 +7,7 @@ import { ShellSlot } from "../../shell/shell-slots.tsx";
 import type { Health } from "./model.ts";
 import { type ConnectionOutcome, OUTCOME_COPY } from "./outcomes.ts";
 import type { ConnectStatus } from "./connect.ts";
+import { PROVIDER_IDENTITY } from "./providers/index.ts";
 
 export type IntegrationsHomeState = "loading" | "error" | "forbidden" | "ready";
 
@@ -233,9 +234,13 @@ export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
                     : undefined}
                   identity={
                     <UI.Inline gap="compact">
-                      <UI.Avatar alt="GitHub" fallback="GH" size="small" />
+                      <UI.Avatar
+                        alt={PROVIDER_IDENTITY.avatarAlt}
+                        fallback={PROVIDER_IDENTITY.avatarFallback}
+                        size="small"
+                      />
                       <UI.Text variant="strong">
-                        {translate("settings.connections.github.heading")}
+                        {translate(PROVIDER_IDENTITY.headingKey)}
                       </UI.Text>
                     </UI.Inline>
                   }
@@ -286,7 +291,6 @@ function ConnectedRow(
 ) {
   const { translate } = useI18n();
   const { health } = row;
-  const unhealthy = health.banner;
   const label = translate(
     `settings.connections.action.${health.action}` as MessageKey,
   );
@@ -310,7 +314,7 @@ function ConnectedRow(
             disabled={busy && leaves}
             onClick={() => leaves ? onReconnect(row.id) : onOpen(row.id)}
             type="button"
-            variant={unhealthy ? "primary" : "secondary"}
+            variant="outline"
           >
             {label}
           </UI.Button>
@@ -318,15 +322,15 @@ function ConnectedRow(
         : undefined}
       identity={
         <UI.Inline gap="compact">
-          <UI.Avatar alt="GitHub" fallback="GH" size="small" />
+          <UI.Avatar
+            alt={PROVIDER_IDENTITY.avatarAlt}
+            fallback={PROVIDER_IDENTITY.avatarFallback}
+            size="small"
+          />
           <UI.Text variant="strong">{open}</UI.Text>
         </UI.Inline>
       }
-      metadata={row.lastCheckedAt === null
-        ? translate("settings.connections.row.notChecked")
-        : translate("settings.connections.row.checked", {
-          time: formatTime(row.lastCheckedAt),
-        })}
+      metadata={rowLine(row, translate, formatTime)}
       status={
         <UI.Badge tone={health.tone}>
           {translate(`settings.connections.badge.${health.kind}` as MessageKey)}
@@ -334,4 +338,32 @@ function ConnectedRow(
       }
     />
   );
+}
+
+/** The one line under a row: what is worth knowing for its state, or nothing. */
+function rowLine(
+  row: ConnectionRow,
+  translate: ReturnType<typeof useI18n>["translate"],
+  formatTime: (iso: string) => string,
+): string | undefined {
+  switch (row.health.kind) {
+    case "working":
+      return row.lastCheckedAt === null
+        ? undefined
+        : translate("settings.connections.row.checked", {
+          time: formatTime(row.lastCheckedAt),
+        });
+    case "finishSetup":
+      return translate("settings.connections.row.finishSetup");
+    case "turnedOff":
+      return translate("settings.connections.row.turnedOff");
+    case "needsAttention":
+    case "authRequired":
+    case "limited":
+      return translate("settings.connections.row.needsAttention");
+    case "removed":
+      return translate("settings.connections.row.removed");
+    case "notChecked":
+      return undefined;
+  }
 }

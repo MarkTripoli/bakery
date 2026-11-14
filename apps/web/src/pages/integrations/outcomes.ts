@@ -1,7 +1,7 @@
 import type { MessageKey } from "@bakery/i18n";
 
 /**
- * Coarse GitHub callback outcome the server carries in `?githubConnection=`
+ * Coarse provider callback outcome the server carries in `?githubConnection=`
  * (integrations/callbacks.ts `ConnectionOutcome`); never a provider detail.
  */
 export const CONNECTION_OUTCOMES = [
@@ -30,7 +30,7 @@ export type ConnectionOutcome = (typeof CONNECTION_OUTCOMES)[number];
 export type OutcomeCopy = {
   readonly tone: "success" | "information" | "warning" | "error";
   readonly body: MessageKey;
-  /** Offer Connect GitHub again beside the message. */
+  /** Offer to connect again beside the message. */
   readonly retry: boolean;
 };
 

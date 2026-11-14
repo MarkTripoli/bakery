@@ -20,6 +20,7 @@ import type {
   SwitchStatus,
 } from "./use-connection.ts";
 import type { ConnectStatus } from "./connect.ts";
+import { PROVIDER_IDENTITY } from "./providers/index.ts";
 
 export type ConnectionViewState =
   | "loading"
@@ -78,6 +79,13 @@ export type ConnectionViewProps = {
   readonly onDismissOutcome: () => void;
   readonly onReload: () => void;
 };
+
+/** The shared step mark for each setup status: the open step shows "in progress". */
+const STEP_MARK = {
+  done: "done",
+  current: "running",
+  upcoming: "upcoming",
+} as const;
 
 const BANNER_TONE: Readonly<
   Record<HealthKind, "information" | "warning" | "error" | null>
@@ -166,7 +174,7 @@ export function ConnectionView(props: ConnectionViewProps) {
           : undefined}
         title={state === "ready"
           ? title
-          : translate("settings.connections.github.heading")}
+          : translate(PROVIDER_IDENTITY.headingKey)}
         variant="list"
       />
       {state === "loading"
@@ -206,7 +214,7 @@ export function ConnectionView(props: ConnectionViewProps) {
               </UI.Button>
             }
             description={translate("settings.connections.loadError")}
-            title={translate("settings.connections.github.heading")}
+            title={translate(PROVIDER_IDENTITY.headingKey)}
           />
         )
         : <ReadyContent {...props} />}
@@ -221,6 +229,11 @@ function ReadyContent(props: ConnectionViewProps) {
   const connecting = props.connectStatus === "starting" ||
     props.connectStatus === "redirecting" || props.continuing;
   const bannerTone = BANNER_TONE[health.kind];
+  // While setup is unfinished the banner says what the open step is.
+  const bannerKey = health.kind === "finishSetup" &&
+      props.steps?.[1]?.status === "done"
+    ? "finishSetupTurnOn"
+    : health.kind;
   // The one button a problem banner carries; Finish setup is the steps below.
   const fixLabel = health.action === "reconnect" ||
       health.action === "turnOn" || health.action === "connectAgain"
@@ -294,7 +307,7 @@ function ReadyContent(props: ConnectionViewProps) {
             tone={bannerTone}
           >
             {translate(
-              `settings.connections.banner.${health.kind}` as MessageKey,
+              `settings.connections.banner.${bannerKey}` as MessageKey,
             )}
             {health.action === "reconnect"
               ? (
@@ -353,11 +366,13 @@ function Steps(props: ConnectionViewProps & { steps: readonly SetupStep[] }) {
   const { translate } = useI18n();
   const label = (status: SetupStep["status"]) =>
     translate(`settings.connections.step.status.${status}` as MessageKey);
+  // Step three always holds the button; it is off until a repository is chosen.
   const turnOnAction = (step: SetupStep): ReactNode =>
-    step.id === "turnOn" && step.status === "waiting" && props.canManage
+    step.id === "turnOn" && props.canManage
       ? (
         <UI.Button
-          disabled={props.switchStatus === "saving"}
+          disabled={step.status !== "current" ||
+            props.switchStatus === "saving"}
           loading={props.switchStatus === "saving"}
           onClick={props.onTurnOn}
           type="button"
@@ -373,13 +388,15 @@ function Steps(props: ConnectionViewProps & { steps: readonly SetupStep[] }) {
         <UI.StepItem
           action={turnOnAction(step)}
           key={step.id}
-          status={step.status}
+          status={STEP_MARK[step.status]}
           statusLabel={label(step.status)}
-          summary={translate(
-            `settings.connections.step.${step.id}.${
-              step.status === "done" ? "done" : "help"
-            }` as MessageKey,
-          )}
+          summary={step.id === "turnOn" && step.status === "upcoming"
+            ? translate("settings.connections.step.turnOn.blocked")
+            : translate(
+              `settings.connections.step.${step.id}.${
+                step.status === "done" ? "done" : "help"
+              }` as MessageKey,
+            )}
           title={translate(
             `settings.connections.step.${step.id}.title` as MessageKey,
           )}

@@ -208,8 +208,8 @@ test.describe("GitHub setup against the real API and the fake GitHub App", () =>
     await expect(page.getByText("Finish setup", { exact: true })).toBeVisible();
     const steps = page.getByRole("list", { name: "Setup steps" });
     await expect(steps).toBeVisible();
-    // Nothing is chosen yet, so there is nothing to turn on.
-    await expect(page.getByRole("button", { name: "Turn on" })).toHaveCount(0);
+    // Nothing is chosen yet, so Turn on is there but off.
+    await expect(page.getByRole("button", { name: "Turn on" })).toBeDisabled();
     for (const repository of ["bakery", "tools", "docs"]) {
       await expect(page.getByRole("checkbox", { name: repository }))
         .not.toBeChecked();

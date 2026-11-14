@@ -399,13 +399,23 @@ test("each connection reads as one badge, one line and one button", async ({ pag
   });
   await fixture(page, world);
   await page.goto(PAGE_PATH);
-  const expected: ReadonlyArray<[number, string, string, string]> = [
+  const expected: ReadonlyArray<[number, string, string, string | null]> = [
     [1, "Working", "Manage", "Last checked"],
-    [2, "Not checked yet", "Check now", "Not checked yet"],
-    [3, "Finish setup", "Finish setup", "Not checked yet"],
-    [4, "Turned off", "Turn on", "Not checked yet"],
-    [5, "Needs attention", "Reconnect", "Not checked yet"],
-    [6, "Removed", "Connect again", "Not checked yet"],
+    [2, "Not checked yet", "Check now", null],
+    [
+      3,
+      "Finish setup",
+      "Finish setup",
+      "Choose repositories, then turn it on.",
+    ],
+    [4, "Turned off", "Turn on", "No work runs against GitHub."],
+    [
+      5,
+      "Needs attention",
+      "Reconnect",
+      "GitHub is not accepting some of Bakery's access.",
+    ],
+    [6, "Removed", "Connect again", "Access to GitHub was removed."],
   ];
   for (const [n, badge, button, line] of expected) {
     const item = row(page, ID(n));
@@ -415,7 +425,8 @@ test("each connection reads as one badge, one line and one button", async ({ pag
       .toHaveCount(1);
     await expect(item.getByRole("button", { name: button, exact: true }))
       .toBeVisible();
-    await expect(item).toContainText(line);
+    if (line !== null) await expect(item).toContainText(line);
+    else await expect(item).not.toContainText("Last checked");
   }
   // GitHub is the one provider the server can connect, and it says so.
   await expect(page.getByTestId("available-list")).toContainText("GitHub");
@@ -491,14 +502,23 @@ test("a pending connection is set up in three steps: choose repositories, save, 
   await expect(steps).toContainText("Install the Bakery app on GitHub");
   await expect(steps).toContainText("Choose repositories");
   await expect(steps).toContainText("Turn on the connection");
-  // Nothing is chosen yet, so there is nothing to save and nothing to turn on.
+  // Nothing is chosen yet: nothing to save, and step three holds Turn on, off.
   await expect(page.getByRole("button", { name: "Save selection" }))
     .toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Turn on" })).toHaveCount(0);
+  const turnOn = page.getByRole("button", { name: "Turn on" });
+  await expect(turnOn).toBeDisabled();
+  await expect(page.getByText("Choose a repository first.")).toBeVisible();
+  await expect(
+    page.getByText(
+      "Setup is not finished. Choose at least one repository below.",
+    ),
+  ).toBeVisible();
   await page.getByLabel("acme-org/repo-1").check();
   await page.getByLabel("acme-org/repo-3").check();
   await page.getByRole("button", { name: "Save selection" }).click();
-  await expect(page.getByRole("button", { name: "Turn on" })).toBeVisible();
+  await expect(turnOn).toBeEnabled();
+  await expect(page.getByText("Turn on the connection to finish."))
+    .toBeVisible();
   // One change at a time, each under the connection's current version.
   const patches = world.seen.filter((call) =>
     call.method === "PATCH" && call.path.includes("/resources/")
@@ -586,6 +606,33 @@ test("swapping repositories adds before it removes, so a connection that is on n
     { selected: true },
     { selected: false },
   ]);
+});
+
+test("loading more repositories mid-edit leaves what was already selected there alone", async ({ page }) => {
+  const world = newWorld({
+    connections: [connection(1, "enabled")],
+    // Repository 12 is on the second page, and already selected.
+    resources: Array.from(
+      { length: 12 },
+      (_, index) => repository(index + 1, index === 11),
+    ),
+    pageSize: 11,
+  });
+  await fixture(page, world);
+  await page.goto(pageFor(ID(1)));
+  await page.getByLabel("acme-org/repo-2").check();
+  await page.getByRole("button", { name: "Show more repositories" }).click();
+  await expect(page.getByLabel("acme-org/repo-12")).toBeChecked();
+  await page.getByRole("button", { name: "Save selection" }).click();
+  await expect(page.getByRole("button", { name: "Save selection" }))
+    .toHaveCount(0);
+  const patches = world.seen.filter((call) =>
+    call.method === "PATCH" && call.path.includes("/resources/")
+  );
+  // Only what was ticked is sent: repository 12, never touched, is not removed.
+  expect(patches.map((call) => [call.path.split("/").at(-1), call.body]))
+    .toEqual([[repository(2).id, { selected: true }]]);
+  await expect(page.getByLabel("acme-org/repo-12")).toBeChecked();
 });
 
 test("turning a connection off asks first and says nothing is deleted", async ({ page }) => {
