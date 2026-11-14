@@ -11,7 +11,6 @@ import {
   SecurityAsyncBoundary,
   type SecurityAsyncKind,
 } from "./security-async.tsx";
-import { AccountSettingsBackLink } from "./settings-back.tsx";
 
 /** Exported so the container can focus the field a failure rejected. */
 export const PASSWORD_CURRENT_INPUT_ID = "change-password-current";
@@ -181,10 +180,7 @@ export function ChangePasswordScreen(
     );
 
   return (
-    <UI.SettingsContent
-      back={<AccountSettingsBackLink />}
-      data-testid="change-password"
-    >
+    <UI.SettingsContent data-testid="change-password">
       {content}
     </UI.SettingsContent>
   );

@@ -1,4 +1,4 @@
-import { type MouseEvent, type ReactNode, useRef } from "react";
+import { type MouseEvent, type ReactNode, useId, useRef } from "react";
 import "../navigation.css";
 
 export type SectionNavigationItem = {
@@ -9,8 +9,21 @@ export type SectionNavigationItem = {
   matches?: readonly string[];
 };
 
-export type SectionNavigationProps = {
+/** A labelled run of links; the heading names the group for every reader. */
+export type SectionNavigationGroup = {
+  id: string;
+  heading: ReactNode;
   items: readonly SectionNavigationItem[];
+};
+
+export type SectionNavigationProps = {
+  /** The links when the section has no groups. */
+  items?: readonly SectionNavigationItem[];
+  /**
+   * Links under non-interactive headings, in order. Each group is its own
+   * labelled list; a narrow menu keeps the same groups in one sheet.
+   */
+  groups?: readonly SectionNavigationGroup[];
   currentPath: string;
   label: string;
   heading?: ReactNode;
@@ -45,14 +58,53 @@ function isSelected(item: SectionNavigationItem, currentPath: string) {
 function SectionLinks(
   {
     currentPath,
-    items,
+    items = [],
+    groups,
     onClick,
-  }: Pick<SectionNavigationProps, "items" | "currentPath"> & {
+  }: Pick<SectionNavigationProps, "items" | "groups" | "currentPath"> & {
     onClick?: SectionLinkClick;
   },
 ) {
+  const headingPrefix = useId();
+  if (groups) {
+    return (
+      <>
+        {groups.map((group) => {
+          const headingId = `${headingPrefix}-${group.id}`;
+          return (
+            <div className="bakery-section-navigation__group" key={group.id}>
+              <div
+                className="bakery-section-navigation__heading"
+                id={headingId}
+              >
+                {group.heading}
+              </div>
+              <ul
+                aria-labelledby={headingId}
+                className="bakery-section-navigation__list"
+              >
+                {linkItems(group.items, currentPath, onClick)}
+              </ul>
+            </div>
+          );
+        })}
+      </>
+    );
+  }
   return (
     <ul className="bakery-section-navigation__list">
+      {linkItems(items, currentPath, onClick)}
+    </ul>
+  );
+}
+
+function linkItems(
+  items: readonly SectionNavigationItem[],
+  currentPath: string,
+  onClick?: SectionLinkClick,
+) {
+  return (
+    <>
       {items.map((item) => {
         const selected = isSelected(item, currentPath);
         return (
@@ -68,7 +120,7 @@ function SectionLinks(
           </li>
         );
       })}
-    </ul>
+    </>
   );
 }
 
@@ -77,6 +129,7 @@ export function SectionNavigation(
   {
     currentPath,
     items,
+    groups,
     label,
     heading,
     narrowMode,
@@ -119,6 +172,7 @@ export function SectionNavigation(
           : null}
         <SectionLinks
           currentPath={currentPath}
+          groups={groups}
           items={items}
           onClick={onNavigate}
         />
@@ -134,6 +188,7 @@ export function SectionNavigation(
           >
             <SectionLinks
               currentPath={currentPath}
+              groups={groups}
               items={items}
               onClick={onNavigate}
             />
@@ -157,6 +212,7 @@ export function SectionNavigation(
             <nav aria-label={label}>
               <SectionLinks
                 currentPath={currentPath}
+                groups={groups}
                 items={items}
                 onClick={handleMenuNavigate}
               />

@@ -146,6 +146,7 @@ export type WorkerProviderAuthAttemptResponse =
 export type WorkerProviderAuthAttemptCreatedResponse =
   ClientOutputMap["WorkerProviderAuthAttemptCreated"];
 export type WorkerEnrollmentCreate = ClientInputMap["WorkerEnrollmentCreate"];
+export type WorkerUpdate = ClientInputMap["WorkerUpdate"];
 
 /**
  * The strong `If-Match` value for a stored record version: the version
@@ -643,6 +644,23 @@ export type BakeryApiClient = {
       readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<WorkerEnrollmentResponse>>;
+    /** `PATCH /v1/workers/{id}`: the mode an administrator asks of a machine (`status`: online, offline, draining). */
+    readonly update: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly input: WorkerUpdate;
+      readonly version?: number;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<WorkerResponse>>;
+    /** `POST /v1/workers/{id}/revocations`: retire a machine; its sign-in to Bakery ends for good. */
+    readonly revoke: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly version?: number;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<WorkerResponse>>;
   };
   readonly machines: {
     readonly dispatchBlockers: (options: {
@@ -1733,6 +1751,35 @@ export function createBakeryApiClient({
           options.organizationId,
           (scoped) =>
             scoped.actions["workers.repairEnrollment"]({ id: options.id }, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+      update(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["workers.update"](
+              { id: options.id, ...options.input },
+              {
+                ifMatch: options.version === undefined
+                  ? undefined
+                  : versionEtag(options.version),
+                idempotencyKey: options.idempotencyKey,
+                signal: options.signal,
+              },
+            ),
+        );
+      },
+      revoke(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["workers.revoke"]({ id: options.id }, {
+              ifMatch: options.version === undefined
+                ? undefined
+                : versionEtag(options.version),
               idempotencyKey: options.idempotencyKey,
               signal: options.signal,
             }),

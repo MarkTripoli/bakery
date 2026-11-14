@@ -6,10 +6,13 @@ import {
   openAccountMenu,
   revealShellNavigation,
 } from "./helpers/shell-navigation.ts";
-import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
+import {
+  MOCK_ORGANIZATION_ID,
+  mockAuthenticatedSession,
+} from "./helpers/mock-session.ts";
+import { shot } from "./helpers/real-api.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { firstRender } from "./helpers/first-render.ts";
-import { shot } from "./helpers/real-api.ts";
 
 registerPageHealth(test);
 
@@ -229,11 +232,14 @@ async function expectSelectedParent(page: Page, path: string) {
     return;
   }
   if (path === "/machines" || path.startsWith("/machines/")) {
+    // Machines is a main rail destination, not a settings section: the settings
+    // navigation has no Machines link and marks nothing current here.
     await expect(
-      page.locator(
-        '.bakery-section-navigation a[aria-current="page"][href="/machines"]',
-      ),
-    ).toHaveCount(1);
+      page.locator('.bakery-section-navigation a[href="/machines"]'),
+    ).toHaveCount(0);
+    await expect(
+      page.locator('.bakery-section-navigation a[aria-current="page"]'),
+    ).toHaveCount(0);
     return;
   }
   // Paper `settingsShell` fixtures (`isSettingsPath` in `auth-paths.ts`):
@@ -519,26 +525,201 @@ test.describe("settings routes and navigation", () => {
     });
   }
 
-  test("lists the sections in order, with the connected-clients item", async ({ page }) => {
+  /** The person's role in the organization, which decides whether the Organization group shows. */
+  async function stubRole(page: Page, role: "admin" | "developer") {
+    await page.route(
+      `**/v1/organizations/${MOCK_ORGANIZATION_ID}/effective-access`,
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            organizationId: MOCK_ORGANIZATION_ID,
+            role,
+            capabilities: [],
+          }),
+        }),
+    );
+  }
+
+  test("a member without administrator rights does not see the Organization group", async ({ page }) => {
+    await mockAuthenticatedSession(page);
+    await stubRole(page, "developer");
+    await page.setViewportSize({ width: 1280, height: 960 });
+    await page.goto("/settings/sessions");
+    await expect(page.getByText("This device")).toBeVisible();
+    const navigation = page.getByRole("navigation", {
+      name: "Settings sections",
+    }).first();
+    await expect(navigation.getByRole("list", { name: "Your account" }))
+      .toBeVisible();
+    await expect(navigation.getByRole("list", { name: "Organization" }))
+      .toHaveCount(0);
+    await expect(navigation.getByRole("link", { name: "Members & access" }))
+      .toHaveCount(0);
+    await shot(page, "settings-navigation-member");
+  });
+
+  test("a sub-page keeps its section selected and names itself in the breadcrumb, with no back link", async ({ page }) => {
     await mockAuthenticatedSession(page);
     await page.setViewportSize({ width: 1280, height: 960 });
-    await page.goto("/settings/security");
-    await expect(page.locator(".bakery-section-navigation a")).toHaveText([
-      "Machines",
+    await page.goto("/settings/security/password");
+    await expect(page.locator("main h1")).toBeVisible();
+    const navigation = page.getByRole("navigation", {
+      name: "Settings sections",
+    }).first();
+    await expect(navigation.getByRole("link", { name: "Account & security" }))
+      .toHaveAttribute("aria-current", "page");
+    const trail = page.getByRole("navigation", { name: "Breadcrumb" });
+    await expect(trail).toContainText("Settings");
+    await expect(trail).toContainText("Account & security");
+    await expect(trail.locator("[aria-current=page]")).toHaveText(
+      "Change password",
+    );
+    // The breadcrumb does the back link's job.
+    await expect(
+      page.locator("main").getByRole("link", { name: "Account and security" }),
+    ).toHaveCount(0);
+    await shot(page, "settings-subpage-selected");
+  });
+
+  test("every settings page opens with one title style and one typeface", async ({ page }) => {
+    await mockAuthenticatedSession(page);
+    await stubRole(page, "admin");
+    // Your access reads the organization's name.
+    await page.route(
+      `**/v1/organizations/${MOCK_ORGANIZATION_ID}`,
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            id: MOCK_ORGANIZATION_ID,
+            name: "Fixture Org",
+            slug: "fixture-org",
+            logo: null,
+            defaultLocale: null,
+            metadata: {},
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+            version: 1,
+          }),
+        }),
+    );
+    await page.route("**/v1/me/profile", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          principalId: "00000000-0000-4000-8000-000000000001",
+          name: "Alex Morgan",
+          firstName: "Alex",
+          lastName: "Morgan",
+          title: null,
+          image: null,
+          email: "alex.morgan@example.com",
+          emailVerified: true,
+          version: 3,
+          updatedAt: "2026-01-02T00:00:00.000Z",
+        }),
+      }));
+    await page.setViewportSize({ width: 1280, height: 960 });
+    const styles: string[] = [];
+    for (
+      const path of [
+        "/settings/profile",
+        "/settings/sessions",
+        "/settings/clients",
+        "/settings/appearance",
+        "/settings/access",
+      ]
+    ) {
+      await page.goto(path);
+      const title = page.locator("main h1");
+      await expect(title).toBeVisible();
+      await shot(
+        page,
+        `settings-title${path.replace("/settings", "").replace("/", "-")}`,
+      );
+      styles.push(
+        await title.evaluate((node) => {
+          const style = getComputedStyle(node);
+          return `${style.fontFamily} ${style.fontSize}/${style.lineHeight} ${style.fontWeight}`;
+        }),
+      );
+    }
+    expect(new Set(styles).size, styles.join(" | ")).toBe(1);
+    // The app's typeface, not the platform font the personal pages used to set.
+    expect(styles[0]).toMatch(/^Geist\b/);
+  });
+
+  test("lists the sections under two labelled groups, with the connected-clients item and without Machines", async ({ page }) => {
+    await mockAuthenticatedSession(page);
+    await stubRole(page, "admin");
+    await page.setViewportSize({ width: 1280, height: 960 });
+    await page.goto("/settings/sessions");
+    await expect(page.getByText("This device")).toBeVisible();
+    const navigation = page.getByRole("navigation", {
+      name: "Settings sections",
+    }).first();
+    // Two groups, in order, each a list named by its heading.
+    await expect(navigation.locator(".bakery-section-navigation__heading"))
+      .toHaveText(["Your account", "Organization"]);
+    await expect(
+      navigation.getByRole("list", { name: "Your account" }).getByRole("link"),
+    ).toHaveText([
       "Profile",
       "Account & security",
       "Active sessions",
       "Connected clients",
       "Appearance",
       "Your access",
-      "Organization access",
+    ]);
+    await expect(
+      navigation.getByRole("list", { name: "Organization" }).getByRole("link"),
+    ).toHaveText([
+      "Members & access",
       "Custom roles",
       "Repository rules",
       "Integrations",
       "Audit log",
       "Single sign-on",
-      "SCIM",
+      "User provisioning",
     ]);
+    // Machines is in the main rail only.
+    await shot(page, "settings-navigation-grouped");
+    await expect(navigation.getByRole("link", { name: "Machines" }))
+      .toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: "Machines", exact: true }).first(),
+    ).toBeVisible();
+  });
+
+  test("on a phone the settings menu opens one sheet with both groups as headings", async ({ page }) => {
+    await mockAuthenticatedSession(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/settings/sessions");
+    await expect(page.getByText("This device")).toBeVisible();
+    await page.locator(".bakery-section-navigation__summary").click();
+    const sheet = page.locator(".bakery-section-navigation__mobile");
+    await expect(sheet.locator(".bakery-section-navigation__heading"))
+      .toHaveText(["Your account", "Organization"]);
+    await shot(page, "settings-navigation-sheet");
+    // Headings are not controls, and every link is reachable and not truncated.
+    await expect(
+      sheet.locator(
+        ".bakery-section-navigation__heading a, .bakery-section-navigation__heading button",
+      ),
+    )
+      .toHaveCount(0);
+    const links = sheet.getByRole("link");
+    await expect(links).toHaveCount(13);
+    for (let index = 0; index < 13; index += 1) {
+      const clipped = await links.nth(index).evaluate((node) =>
+        node.scrollWidth > node.clientWidth + 1
+      );
+      expect(clipped).toBe(false);
+    }
   });
 
   test("a phone gets the section index at /settings and each row opens its page", async ({ page }) => {
@@ -593,8 +774,8 @@ test.describe("settings routes and navigation", () => {
     // It is organization administration, not a personal section.
     await expect(page.locator(".bakery-section-navigation")).toHaveCount(0);
     const breadcrumb = page.getByRole("navigation", { name: "Breadcrumb" });
+    await expect(breadcrumb).toContainText("Settings");
     await expect(breadcrumb).toContainText("Organization settings");
-    await expect(breadcrumb).not.toContainText("Settings Organization");
   });
 
   test("organization settings is reached from the workspace switcher", async ({ page }) => {

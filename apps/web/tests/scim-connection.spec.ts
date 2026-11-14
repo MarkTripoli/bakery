@@ -108,7 +108,7 @@ for (
       });
       await page.goto("/settings/scim");
       await expect(
-        page.getByRole("heading", { name: "SCIM", exact: true })
+        page.getByRole("heading", { name: "User provisioning", exact: true })
           .first(),
       ).toBeVisible();
       await page.getByRole("button", { name: "Create connection" }).click();
@@ -179,15 +179,16 @@ for (
         .toHaveCount(0);
     });
 
-    test("sits under the Organization breadcrumb, as the Paper frames draw it", async ({ page }) => {
+    test("sits under the Settings breadcrumb", async ({ page }) => {
       test.skip(viewport.name === "phone", "a phone shows the section title");
       await scimFixture(page, { initial: "none" });
       await page.goto("/settings/scim");
       const trail = page.getByRole("navigation", { name: "Breadcrumb" });
-      await expect(trail.getByText("SCIM", { exact: true })).toBeVisible();
-      await expect(trail.getByText("Organization", { exact: true }))
+      await expect(trail.getByText("User provisioning", { exact: true }))
         .toBeVisible();
-      await expect(trail.getByText("Settings", { exact: true })).toHaveCount(0);
+      await expect(trail.getByText("Settings", { exact: true })).toBeVisible();
+      await expect(trail.getByText("Organization", { exact: true }))
+        .toHaveCount(0);
     });
 
     test("sits in the same column and uses the same buttons as the SSO page", async ({ page }) => {

@@ -281,7 +281,7 @@ export function OrganizationRepositoryRuleEditorPage() {
         <UI.Breadcrumbs
           aria-label={translate("shell.navigation.breadcrumb")}
           items={[
-            { label: translate("settings.orgAccess.organization") },
+            { label: translate("shell.states.settingsTitle") },
             {
               href: LIST_PAGE,
               label: translate("shell.navigation.repositoryRules"),

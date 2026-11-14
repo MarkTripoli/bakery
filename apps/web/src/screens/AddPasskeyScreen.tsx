@@ -10,7 +10,6 @@ import {
 } from "./security-async.tsx";
 import { ActionLink } from "./action-link.tsx";
 import { PasswordNotSetNotice } from "./password-not-set.tsx";
-import { AccountSettingsBackLink } from "./settings-back.tsx";
 
 export const PASSKEY_ADD_NAME_INPUT_ID = "passkey-add-name";
 export const PASSKEY_ADD_PASSWORD_INPUT_ID = "passkey-add-password";
@@ -62,11 +61,10 @@ export type AddPasskeyScreenProps = {
 export function AddPasskeyScreen(props: AddPasskeyScreenProps) {
   const { translate } = useI18n();
   const { async, step } = props;
-  const back = <AccountSettingsBackLink />;
 
   if (step === "success") {
     return (
-      <UI.SettingsContent back={back} data-testid="passkey-add-success">
+      <UI.SettingsContent data-testid="passkey-add-success">
         <UI.FormContent>
           <UI.AuthHeading
             description={translate("passkeys.add.successDescription", {
@@ -87,7 +85,7 @@ export function AddPasskeyScreen(props: AddPasskeyScreenProps) {
 
   if (step === "unsupported") {
     return (
-      <UI.SettingsContent back={back} data-testid="passkey-add-unsupported">
+      <UI.SettingsContent data-testid="passkey-add-unsupported">
         <UI.FormContent>
           <UI.AuthHeading
             description={translate("passkeys.add.unsupportedDescription")}
@@ -106,7 +104,7 @@ export function AddPasskeyScreen(props: AddPasskeyScreenProps) {
 
   if (step === "canceled" || step === "failed") {
     return (
-      <UI.SettingsContent back={back} data-testid={`passkey-add-${step}`}>
+      <UI.SettingsContent data-testid={`passkey-add-${step}`}>
         <UI.FormContent>
           <UI.AuthHeading
             description={translate(
@@ -133,7 +131,7 @@ export function AddPasskeyScreen(props: AddPasskeyScreenProps) {
 
   if (step === "prompt") {
     return (
-      <UI.SettingsContent back={back} data-testid="passkey-add-prompt">
+      <UI.SettingsContent data-testid="passkey-add-prompt">
         <UI.FormContent>
           <UI.AuthHeading
             description={translate("passkeys.add.promptDescription")}
@@ -158,7 +156,7 @@ export function AddPasskeyScreen(props: AddPasskeyScreenProps) {
   }
 
   return (
-    <UI.SettingsContent back={back} data-testid="passkey-add">
+    <UI.SettingsContent data-testid="passkey-add">
       <UI.AuthHeading
         description={translate("passkeys.add.description")}
         title={translate("passkeys.add.title")}

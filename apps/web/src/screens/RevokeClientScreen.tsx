@@ -1,6 +1,4 @@
 import * as UI from "@bakery/ui";
-import { SECURITY_SETTINGS_PATH } from "../app/auth-paths.ts";
-import { RouterLink } from "../app/router-link.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import {
   isDisconnected,
@@ -26,7 +24,7 @@ export type RevokeClientScreenProps = {
 };
 
 /**
- * Revoke-client confirmation presenter — V-0 `revoke-client`: back link, the
+ * Revoke-client confirmation presenter — V-0 `revoke-client`: the
  * heading naming the client and its organization, one notice (warning, or an
  * error after a failed attempt) and the Cancel / "Revoke access" pair.
  */
@@ -46,15 +44,7 @@ export function RevokeClientScreen(
 ) {
   const { translate } = useI18n();
   return (
-    <UI.SettingsContent
-      back={
-        <RouterLink to={SECURITY_SETTINGS_PATH}>
-          <UI.IconGlyph name="back" size="large" />
-          {translate("auth.settings.security.title")}
-        </RouterLink>
-      }
-      data-testid="revoke-client"
-    >
+    <UI.SettingsContent data-testid="revoke-client">
       <UI.FormContent>
         <UI.AuthHeading
           description={translate("auth.settings.clients.revoke.description", {
