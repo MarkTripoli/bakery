@@ -12,7 +12,7 @@ import {
   StandardError,
   unprocessable,
 } from "@bakery/contracts/http";
-import { appendAudit, appendDomainEvent } from "@bakery/persistence";
+import { appendAudit } from "@bakery/persistence";
 import type { PgTransactionClient } from "../../../platform/database.ts";
 import {
   type CursorBinding,
@@ -27,7 +27,10 @@ import { canonicalJson, sha256Hex } from "../../../platform/canonical-json.ts";
 import { validateBudgetLimitUsd } from "../../work/run-command.ts";
 import { workflowRequiresRepository } from "../../work/run-steps.ts";
 import { requireWorkTransaction } from "../../work/work-transaction.ts";
+import { appendFacts } from "./facts.ts";
+import { hasActiveRun } from "./overlap.ts";
 import { nextOccurrence, parseCron } from "./schedule.ts";
+import { startFiringIn } from "./start.ts";
 import {
   type AutomationTrigger,
   parseTrigger,
@@ -202,46 +205,6 @@ async function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
 }
 
 /** Audit and event facts carry ids and versions only, never definition text. */
-export async function appendFacts(
-  transaction: PgTransactionClient,
-  options: {
-    organizationId: string;
-    principalId: string;
-    operation: string;
-    resourceType: string;
-    resourceId: string;
-    eventType: string;
-    resourceVersion: number;
-    requestId: string;
-    traceId: string;
-    /** `succeeded` unless said otherwise. */
-    outcome?: "succeeded" | "failed";
-    details?: Record<string, unknown>;
-  },
-): Promise<void> {
-  await appendAudit(transaction, {
-    organizationId: options.organizationId,
-    principalId: options.principalId,
-    operation: options.operation,
-    resourceType: options.resourceType,
-    resourceId: options.resourceId,
-    requestId: options.requestId,
-    traceId: options.traceId,
-    ...(options.outcome === undefined ? {} : { outcome: options.outcome }),
-    ...(options.details === undefined ? {} : { details: options.details }),
-  });
-  await appendDomainEvent(transaction, {
-    organizationId: options.organizationId,
-    eventType: options.eventType,
-    aggregateId: options.resourceId,
-    aggregateVersion: options.resourceVersion,
-    payload: {
-      resourceId: options.resourceId,
-      resourceVersion: options.resourceVersion,
-    },
-    traceId: options.traceId,
-  });
-}
 
 /** The first scheduled occurrence strictly after `now` for a trigger, or null for an event trigger or a schedule that never fires. */
 export function firstFireAfter(
@@ -743,4 +706,70 @@ export function createAutomationFiringsListHandler(secret: string) {
         : null,
     };
   };
+}
+
+/**
+ * `automations.run`: a person starts the automation now. It runs the active
+ * version as that version's actor (the person who asked is in the audit
+ * record), with the version's inputs overridden key by key by the request's.
+ * It makes a firing of its own at the current instant, so that the overlap
+ * query sees the run, and starts it in this transaction: the run is returned,
+ * or the refusal is, and nothing stays behind. An automation whose earlier run
+ * is still active is not started a second time, whatever its overlap policy.
+ */
+export async function runAutomation(context: ActionContext, input: unknown) {
+  const { transaction, organizationId, principalId } = requireWorkTransaction(
+    context,
+  );
+  const automationId = requireAutomationId(context);
+  const value = input as { inputs?: JsonValue };
+  const definition = await transaction.query<
+    { active_version_id: string | null }
+  >(
+    `select active_version_id from bakery.automation_definitions
+      where organization_id = $1 and id = $2
+      for update`,
+    [organizationId, automationId],
+  );
+  const row = definition.rows[0];
+  if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  if (row.active_version_id === null) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "automation_no_active_version" },
+    });
+  }
+  if (await hasActiveRun(transaction, organizationId, automationId)) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "automation_run_active" },
+    });
+  }
+  const firing = await transaction.query<{ id: string }>(
+    `insert into bakery.automation_firings (
+       organization_id, automation_version_id, scheduled_at, status, pending,
+       skipped_count
+     ) values ($1, $2, clock_timestamp(), 'queued', true, 0)
+     returning id`,
+    [organizationId, row.active_version_id],
+  );
+  const firingId = firing.rows[0]!.id;
+  const outcome = await startFiringIn(transaction, firingId, {
+    inputs: value.inputs,
+    refusals: "throw",
+  });
+  if (outcome.kind !== "started") {
+    throw new Error("AUTOMATION_RUN_NOT_STARTED");
+  }
+  await appendAudit(transaction, {
+    organizationId,
+    principalId,
+    operation: "automations.run",
+    resourceType: "automation",
+    resourceId: automationId,
+    requestId: context.requestId,
+    traceId: context.traceId,
+    details: { firingId, runId: outcome.runId },
+  });
+  return outcome.run;
 }
