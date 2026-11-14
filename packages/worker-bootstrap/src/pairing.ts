@@ -22,7 +22,7 @@ export type EnrollmentPreview = Readonly<{
   enrollmentId: string;
   organizationName: string;
   name: string;
-  os: string;
+  os: "linux" | "macos";
   architecture: string;
   slots: number;
   capabilities: readonly string[];
@@ -38,6 +38,11 @@ export type PairingBinding = Readonly<{
   organizationName: string;
   enrollmentId: string;
   name: string;
+  /** What the enrollment allows, as the confirmation showed it: the service's settings come from these. */
+  os: "linux" | "macos";
+  architecture: string;
+  slots: number;
+  capabilities: readonly string[];
   boundAt: string;
 }>;
 
@@ -281,9 +286,11 @@ function parsePreview(value: unknown): EnrollmentPreview {
   const os = text("os", 20);
   const architecture = text("architecture", 100);
   const expiresAt = text("expiresAt", 40);
+  if (os !== "linux" && os !== "macos") {
+    throw new BootstrapError("PAIRING_INSPECTION_MALFORMED");
+  }
   if (
     !/^[0-9a-f-]{36}$/i.test(enrollmentId) ||
-    (os !== "linux" && os !== "macos") ||
     !/^[A-Za-z0-9_.-]+$/.test(architecture) || !TIMESTAMP.test(expiresAt) ||
     !Number.isFinite(Date.parse(expiresAt))
   ) throw new BootstrapError("PAIRING_INSPECTION_MALFORMED");
@@ -366,6 +373,13 @@ export async function inspectEnrollment(options: {
   return parsePreview(body);
 }
 
+/** The binding recorded in this root, or null when it is not paired. A damaged record is refused. */
+export async function readPairingBinding(
+  root: string,
+): Promise<PairingBinding | null> {
+  return await readBinding(root);
+}
+
 async function readBinding(root: string): Promise<PairingBinding | null> {
   let text: string;
   try {
@@ -386,7 +400,11 @@ async function readBinding(root: string): Promise<PairingBinding | null> {
       typeof value.serverOrigin !== "string" ||
       typeof value.organizationName !== "string" ||
       typeof value.enrollmentId !== "string" ||
-      typeof value.name !== "string" || typeof value.boundAt !== "string"
+      typeof value.name !== "string" || typeof value.boundAt !== "string" ||
+      (value.os !== "linux" && value.os !== "macos") ||
+      typeof value.architecture !== "string" ||
+      !Number.isInteger(value.slots) || !Array.isArray(value.capabilities) ||
+      !value.capabilities.every((entry) => typeof entry === "string")
     ) throw new Error("shape");
     return value as unknown as PairingBinding;
   } catch (error) {
@@ -487,6 +505,10 @@ export async function pairInstallation(
     organizationName: preview.organizationName,
     enrollmentId: preview.enrollmentId,
     name: preview.name,
+    os: preview.os,
+    architecture: preview.architecture,
+    slots: preview.slots,
+    capabilities: preview.capabilities,
     boundAt: options.now.toISOString(),
   };
   // The binding never holds the code.
