@@ -9235,6 +9235,37 @@ export const clientManifest = {
             "queue_one"
           ],
           "description": "Policy applied when an occurrence is due while a run from an earlier firing of this automation is still active: `skip` records a skipped firing with no run; `queue_one` admits at most one pending firing that starts when the active run ends, and further occurrences while it waits are recorded as skipped."
+        },
+        "applicationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Application every run of this automation version belongs to: each firing creates a task in it."
+        },
+        "repositoryId": {
+          "description": "AutomationVersionCreate.repositoryId may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Repository the runs execute against; omit for a cloud-only run. It must belong to the application."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "budgetLimitUsd": {
+          "description": "Per-run budget in USD for each run this automation version starts, as on a run; defaults to 0, which a workflow with a model step refuses at start.",
+          "type": "string",
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$"
+        },
+        "brief": {
+          "description": "AutomationVersionCreate.brief must contain at most 20000 characters.",
+          "type": "string",
+          "maxLength": 20000
         }
       },
       "required": [
@@ -9242,7 +9273,8 @@ export const clientManifest = {
         "workflowVersionId",
         "inputs",
         "misfirePolicy",
-        "overlapPolicy"
+        "overlapPolicy",
+        "applicationId"
       ],
       "additionalProperties": false,
       "description": "Publishes a new immutable automation version pinning its schedule/event trigger, target workflow version, default run inputs, and misfire/overlap handling; assign it via AutomationUpdate.activeVersionId to make it the version that actually fires.",
@@ -26840,6 +26872,55 @@ export const clientManifest = {
                 ],
                 "description": "Input values supplied when the automation starts a workflow."
               },
+              "applicationId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Application whose task each firing of this version creates; null on a version written before targets existed, which cannot start a run."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "AutomationVersion.applicationId may be null in the safe projection."
+              },
+              "repositoryId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Repository the runs execute against; null for a cloud-only run."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "AutomationVersion.repositoryId may be null in the safe projection."
+              },
+              "budgetLimitUsd": {
+                "type": "string",
+                "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+                "description": "Per-run budget in USD."
+              },
+              "brief": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Text that becomes the description of the task each firing creates."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "AutomationVersion.brief may be null in the safe projection."
+              },
               "misfirePolicy": {
                 "type": "string",
                 "enum": [
@@ -26888,6 +26969,10 @@ export const clientManifest = {
               "workflowVersionId",
               "actorId",
               "inputs",
+              "applicationId",
+              "repositoryId",
+              "budgetLimitUsd",
+              "brief",
               "misfirePolicy",
               "overlapPolicy",
               "digest",
@@ -27271,6 +27356,20 @@ export const clientManifest = {
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
                 "description": "How many occurrences this firing stands in for without queuing them: the missed occurrences a coalesced catch-up recorded instead of creating an unbounded backlog; 0 for an ordinary occurrence."
+              },
+              "failureCode": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Stable code saying why a firing could not start a run (for example `target_missing`, `actor_unavailable`, `input_invalid`); null unless the status is failed."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the projected value is unavailable."
+                  }
+                ],
+                "description": "AutomationFiring.failureCode may be null in the safe projection."
               }
             },
             "required": [
@@ -27284,7 +27383,8 @@ export const clientManifest = {
               "updatedAt",
               "version",
               "pending",
-              "skippedCount"
+              "skippedCount",
+              "failureCode"
             ],
             "additionalProperties": false,
             "description": "One deduplicated scheduled or event-triggered occurrence of an automation version: when it was due, the inbound event that triggered it when event-based, its outcome (queued, skipped, started, or failed), and the run it started, if any. A queued firing is pending until its run starts; a coalesced catch-up carries the count of missed occurrences it did not queue."
@@ -42117,6 +42217,55 @@ export const clientManifest = {
           ],
           "description": "Input values supplied when the automation starts a workflow."
         },
+        "applicationId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Application whose task each firing of this version creates; null on a version written before targets existed, which cannot start a run."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "AutomationVersion.applicationId may be null in the safe projection."
+        },
+        "repositoryId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Repository the runs execute against; null for a cloud-only run."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "AutomationVersion.repositoryId may be null in the safe projection."
+        },
+        "budgetLimitUsd": {
+          "type": "string",
+          "pattern": "^-?(?:0|[1-9][0-9]{0,7})(?:\\.[0-9]{1,6})?$",
+          "description": "Per-run budget in USD."
+        },
+        "brief": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Text that becomes the description of the task each firing creates."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the projected value is unavailable."
+            }
+          ],
+          "description": "AutomationVersion.brief may be null in the safe projection."
+        },
         "misfirePolicy": {
           "type": "string",
           "enum": [
@@ -42165,6 +42314,10 @@ export const clientManifest = {
         "workflowVersionId",
         "actorId",
         "inputs",
+        "applicationId",
+        "repositoryId",
+        "budgetLimitUsd",
+        "brief",
         "misfirePolicy",
         "overlapPolicy",
         "digest",
