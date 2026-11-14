@@ -3080,5 +3080,8 @@
   "machines.wizard.install.signInButton": "⟦Šïĝñ ïñ ŧô {agent} ŧëšŧ⟧",
   "machines.wizard.agent.help": "⟦Ôñë çôðïñĝ àĝëñŧ þëŕ ɱàçĥïñë. Ÿôû šïĝñ ïŧ ïñ àƒŧëŕ ŧĥë ɱàçĥïñë çôññëçŧš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "machines.signIn.dismiss": "⟦Çļôšë, ŵĥïçĥ çàñçëļš ŧĥë šïĝñ-ïñ ŧëšŧ çôþÿ⟧",
-  "machines.wizard.install.opening": "⟦Ĝëŧŧïñĝ ŧĥë ɱàçĥïñë'š þàĝë ŕëàðÿ. Šïĝñïñĝ ïñ ŵïļļ ƀë àṽàïļàƀļë ïñ à ɱôɱëñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧"
+  "machines.wizard.install.opening": "⟦Ĝëŧŧïñĝ ŧĥë ɱàçĥïñë'š þàĝë ŕëàðÿ. Šïĝñïñĝ ïñ ŵïļļ ƀë àṽàïļàƀļë ïñ à ɱôɱëñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "machines.software.entry": "⟦{name} {version} ŧëš⟧",
+  "machines.agents.lineSignedOut": "⟦Ŧĥë šïĝñ-ïñ ôñ ŧĥïš ɱàçĥïñë ñô ļôñĝëŕ ŵôŕķš. ŧëšŧ çôþÿ ŧëš⟧",
+  "machines.agents.lineNotChecked": "⟦Ɓàķëŕÿ ĥàš ñôŧ çĥëçķëð ŧĥë šïĝñ-ïñ ôñ ŧĥïš ɱàçĥïñë ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çô⟧"
 }

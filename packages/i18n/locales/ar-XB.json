@@ -3080,5 +3080,8 @@
   "machines.wizard.install.signInButton": "⟪Sign in to {agent}⟫",
   "machines.wizard.agent.help": "⟪One coding agent per machine. You sign it in after the machine connects.⟫",
   "machines.signIn.dismiss": "⟪Close, which cancels the sign-in⟫",
-  "machines.wizard.install.opening": "⟪Getting the machine's page ready. Signing in will be available in a moment.⟫"
+  "machines.wizard.install.opening": "⟪Getting the machine's page ready. Signing in will be available in a moment.⟫",
+  "machines.software.entry": "⟪{name} {version}⟫",
+  "machines.agents.lineSignedOut": "⟪The sign-in on this machine no longer works.⟫",
+  "machines.agents.lineNotChecked": "⟪Bakery has not checked the sign-in on this machine yet.⟫"
 }

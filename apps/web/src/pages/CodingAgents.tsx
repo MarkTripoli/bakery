@@ -553,6 +553,8 @@ function AgentLine(
     );
   }
   const kind = paymentKind(row.binding);
+  // The line follows the state: it never says an agent uses a sign-in that has ended or was never checked.
+  const subscription = kind !== "apiKey" && kind !== "localModel";
   return (
     <>
       {message(
@@ -561,6 +563,10 @@ function AgentLine(
           ? "machines.agents.usesKey"
           : kind === "localModel"
           ? "machines.agents.usesLocal"
+          : subscription && row.state === "signedOut"
+          ? "machines.agents.lineSignedOut"
+          : subscription && row.state === "notChecked"
+          ? "machines.agents.lineNotChecked"
           : "machines.agents.usesSubscription",
       )}
     </>
@@ -580,6 +586,7 @@ export function CodingAgentRow(
   return (
     <UI.DescriptionItem
       data-testid={`coding-agent-${row.agent}`}
+      actionPlacement="below"
       title={agentName(translate, row.agent)}
       description={
         <UI.Stack gap="compact">

@@ -1,4 +1,4 @@
-import type { CodingAgent } from "./machine-state.ts";
+import type { CodingAgent, MachineBadge } from "./machine-state.ts";
 
 /**
  * The machine page's Coding agents section (#70 C2b), as pure functions: which
@@ -120,6 +120,64 @@ export const PROVIDER_OF_AGENT: Readonly<Record<CodingAgent, string>> = {
 export function agentNeedingSignIn(rows: readonly AgentRow[]): AgentRow | null {
   return rows.find((row) => row.state === "signedOut") ??
     rows.find((row) => row.state === "notSignedIn") ?? null;
+}
+
+export type SoftwareEntry = Readonly<{
+  /** Stable key for a list. */
+  key: string;
+  /** The coding agent the component is, if it is one. */
+  agent: CodingAgent | null;
+  /** The machine's own name for it when it is not an agent. */
+  name: string;
+  version: string;
+}>;
+
+/**
+ * What the machine reports it has installed, one entry per distinct name and
+ * version, in the machine's order: a coding agent by its own name, anything
+ * else by the name the machine gave it. No kind and no install owner: they are
+ * the machine's words for itself, not the person's.
+ */
+export function softwareEntries(
+  components: readonly Readonly<{
+    componentKey: string;
+    actualVersion: string;
+  }>[],
+): SoftwareEntry[] {
+  const seen = new Set<string>();
+  const entries: SoftwareEntry[] = [];
+  for (const component of components) {
+    const agent = agentOfKey(component.componentKey);
+    const name = agent ?? component.componentKey;
+    const key = `${name}@${component.actualVersion}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    entries.push({
+      key,
+      agent,
+      name: component.componentKey,
+      version: component.actualVersion,
+    });
+  }
+  return entries;
+}
+
+/**
+ * The badge in the machine page's header. A machine that would read Ready (or
+ * Checking) reads Needs attention while an agent on it is signed out or not
+ * signed in; every more specific reading (Retired, Offline, Not responding,
+ * Paused, Finishing up, or the server's own Needs attention) is left as it is.
+ * `known` is false until the agents' own data has loaded, so a page still
+ * loading never claims an agent is missing its sign-in.
+ */
+export function pageBadge(
+  badge: MachineBadge,
+  rows: readonly AgentRow[],
+  known: boolean,
+): MachineBadge {
+  if (!known) return badge;
+  if (badge !== "ready" && badge !== "checking") return badge;
+  return agentNeedingSignIn(rows) === null ? badge : "needsAttention";
 }
 
 // --- the sign-in dialog -----------------------------------------------------

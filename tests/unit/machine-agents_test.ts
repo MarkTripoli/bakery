@@ -10,8 +10,10 @@ import {
   type BindingFacts,
   dialogView,
   minutesLeft,
+  pageBadge,
   parseChallenge,
   paymentKind,
+  softwareEntries,
 } from "../../apps/web/src/pages/machine-agents.ts";
 
 // #70 C2b: the Coding agents rows and the sign-in dialog, as functions of what the
@@ -463,4 +465,77 @@ Deno.test("polling stops at the four ends and only there", () => {
   for (
     const state of ["pending", "challenge_issued", "terminal", "", "unknown"]
   ) assertEquals(attemptEnded(state), false, state);
+});
+
+Deno.test("the header badge: Needs attention only for an otherwise Ready or Checking machine with an agent to sign in", () => {
+  const signedIn = agentRows(["claude"], [
+    binding({ lastCheckedAt: "2026-11-14T00:00:00.000Z" }),
+  ], []);
+  const none = agentRows(["claude"], [], []);
+  const out = agentRows(["claude"], [binding({ safeProblem: "AUTH" })], []);
+  const unchecked = agentRows(["claude"], [binding()], []);
+  // Every agent signed in: the machine's own reading stands.
+  assertEquals(pageBadge("ready", signedIn, true), "ready");
+  assertEquals(pageBadge("checking", signedIn, true), "checking");
+  // Not signed in, or signed out: a ready or checking machine needs attention.
+  assertEquals(pageBadge("ready", none, true), "needsAttention");
+  assertEquals(pageBadge("ready", out, true), "needsAttention");
+  assertEquals(pageBadge("checking", none, true), "needsAttention");
+  // Not checked is not a problem to fix by signing in.
+  assertEquals(pageBadge("ready", unchecked, true), "ready");
+  // Every more specific reading of the machine is left as it is.
+  for (
+    const badge of [
+      "retired",
+      "offline",
+      "notResponding",
+      "needsAttention",
+      "paused",
+      "finishing",
+    ] as const
+  ) {
+    assertEquals(pageBadge(badge, none, true), badge, badge);
+  }
+  // Until the agents' own data is known nothing is claimed about them.
+  assertEquals(pageBadge("ready", none, false), "ready");
+  assertEquals(pageBadge("ready", [], true), "ready");
+});
+
+Deno.test("the software list: an agent by its own name, anything else by the machine's name, once per name and version", () => {
+  assertEquals(
+    softwareEntries([
+      { componentKey: "harness.claude", actualVersion: "1.2.0" },
+      { componentKey: "harness.codex", actualVersion: "0.9.1" },
+      { componentKey: "harness.claude", actualVersion: "1.2.0" },
+      { componentKey: "worker-supervisor", actualVersion: "3.0.0" },
+      { componentKey: "harness.claude", actualVersion: "1.3.0" },
+    ]),
+    [
+      {
+        key: "claude@1.2.0",
+        agent: "claude",
+        name: "harness.claude",
+        version: "1.2.0",
+      },
+      {
+        key: "codex@0.9.1",
+        agent: "codex",
+        name: "harness.codex",
+        version: "0.9.1",
+      },
+      {
+        key: "worker-supervisor@3.0.0",
+        agent: null,
+        name: "worker-supervisor",
+        version: "3.0.0",
+      },
+      {
+        key: "claude@1.3.0",
+        agent: "claude",
+        name: "harness.claude",
+        version: "1.3.0",
+      },
+    ],
+  );
+  assertEquals(softwareEntries([]), []);
 });

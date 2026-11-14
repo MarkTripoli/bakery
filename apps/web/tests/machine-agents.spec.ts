@@ -273,6 +273,28 @@ const row = (page: Page, agent: string) =>
   page.getByTestId(`coding-agent-${agent}`);
 const banner = (page: Page) => page.getByTestId("agent-banner");
 const dialog = (page: Page) => page.getByTestId("agent-sign-in");
+const header = (page: Page) => page.locator(".bakery-page-header");
+
+/** One agent in each badge state: Claude Code ready, Codex signed out, Pi not checked. */
+const threeStates = () =>
+  world({
+    capabilities: ["git", "claude", "codex", "pi"],
+    components: ["harness.claude", "harness.codex", "harness.pi"],
+    bindings: [
+      binding({ lastCheckedAt: "2026-11-14T00:00:00.000Z" }),
+      binding({
+        id: "00000000-0000-4000-8000-0000000000b2",
+        componentKey: "harness.codex",
+        provider: "openai",
+        safeProblem: "AUTH",
+      }),
+      binding({
+        id: "00000000-0000-4000-8000-0000000000b3",
+        componentKey: "harness.pi",
+        provider: "pi",
+      }),
+    ],
+  });
 
 test.describe("the Coding agents rows", () => {
   test("an agent with no way to sign in yet: one row, one banner, one Sign in", async ({ page }) => {
@@ -333,24 +355,7 @@ test.describe("the Coding agents rows", () => {
   });
 
   test("ready, not checked and signed out each have their badge and the buttons beside it", async ({ page }) => {
-    const w = world({
-      capabilities: ["git", "claude", "codex", "pi"],
-      components: ["harness.claude", "harness.codex", "harness.pi"],
-      bindings: [
-        binding({ lastCheckedAt: "2026-11-14T00:00:00.000Z" }),
-        binding({
-          id: "00000000-0000-4000-8000-0000000000b2",
-          componentKey: "harness.codex",
-          provider: "openai",
-          safeProblem: "AUTH",
-        }),
-        binding({
-          id: "00000000-0000-4000-8000-0000000000b3",
-          componentKey: "harness.pi",
-          provider: "pi",
-        }),
-      ],
-    });
+    const w = threeStates();
     await open(page, w);
     await expect(row(page, "claude")).toContainText(
       "Uses the subscription signed in on this machine.",
@@ -384,6 +389,21 @@ test.describe("the Coding agents rows", () => {
     );
     await expect(banner(page).getByRole("button", { name: "Sign in again" }))
       .toBeVisible();
+    // The line under each agent follows its state.
+    await expect(row(page, "codex")).toContainText(
+      "The sign-in on this machine no longer works.",
+    );
+    await expect(row(page, "codex")).not.toContainText("Uses the subscription");
+    await expect(row(page, "pi")).toContainText(
+      "Bakery has not checked the sign-in on this machine yet.",
+    );
+    await expect(row(page, "pi")).not.toContainText("Uses the subscription");
+    // The machine's own badge says so when an agent needs signing in.
+    await expect(header(page).getByText("Needs attention", { exact: true }))
+      .toBeVisible();
+    await expect(header(page).getByText("Ready", { exact: true })).toHaveCount(
+      0,
+    );
     await shot(page, "machine-agents-rows");
     const axe = await new AxeBuilder({ page }).include(
       '[data-testid="machine-agents"]',
@@ -418,6 +438,70 @@ test.describe("the Coding agents rows", () => {
       "Uses an API key stored in Bakery.",
     );
   });
+
+  test("the machine's software is one entry by agent name and version, in no internal words", async ({ page }) => {
+    await open(page, threeStates());
+    const software = page.getByTestId("machine-software");
+    await expect(software).toHaveCount(1);
+    await expect(software).toContainText("Software");
+    await expect(software).toContainText("Claude Code 1.0.0");
+    await expect(software).toContainText("Codex 1.0.0");
+    await expect(software).toContainText("Pi 1.0.0");
+    const about = page.getByTestId("machine-about");
+    await expect(about).not.toContainText("harness");
+    await expect(about).not.toContainText("external");
+  });
+
+  test("the header reads Ready only when every agent is signed in, and the machine's own reading wins otherwise", async ({ page }) => {
+    await open(
+      page,
+      world({
+        bindings: [binding({ lastCheckedAt: "2026-11-14T00:00:00.000Z" })],
+      }),
+    );
+    await expect(header(page).getByText("Ready", { exact: true }))
+      .toBeVisible();
+    await expect(header(page).getByText("Needs attention")).toHaveCount(0);
+  });
+
+  test("for anyone but an administrator the header is the machine's own reading", async ({ page }) => {
+    await open(page, world({ role: "developer" }));
+    await expect(header(page).getByText("Ready", { exact: true }))
+      .toBeVisible();
+  });
+
+  test(
+    "on a phone the badge and buttons sit under the text and every label is on one line",
+    async ({ page }, testInfo) => {
+      test.skip(testInfo.project.name !== "mobile", "phone only");
+      await open(page, threeStates());
+      for (const agent of ["claude", "codex", "pi"]) {
+        const item = row(page, agent);
+        const title = await item.locator(".ui-description-item__title")
+          .boundingBox();
+        const text = await item.locator(".ui-description-item__description")
+          .boundingBox();
+        const action = await item.locator(".ui-description-item__action")
+          .boundingBox();
+        expect(title && text && action, agent).toBeTruthy();
+        // Under the text, from the same left edge.
+        expect(action!.y, agent).toBeGreaterThanOrEqual(
+          text!.y + text!.height - 1,
+        );
+        expect(Math.abs(action!.x - title!.x), agent).toBeLessThan(2);
+        // Each button keeps its label on one line: as tall as the shortest one.
+        const heights: number[] = [];
+        for (const button of await item.getByRole("button").all()) {
+          heights.push((await button.boundingBox())!.height);
+        }
+        expect(heights.length, agent).toBeGreaterThan(0);
+        expect(Math.max(...heights) - Math.min(...heights), agent)
+          .toBeLessThan(1);
+        expect(Math.max(...heights), agent).toBeLessThan(56);
+      }
+      // Beside the text on a wide screen is covered by the stills; here only the phone.
+    },
+  );
 });
 
 test.describe("the sign-in dialog", () => {

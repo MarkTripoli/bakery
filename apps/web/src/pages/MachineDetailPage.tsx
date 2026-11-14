@@ -29,7 +29,12 @@ import {
   CodingAgentRow,
   useAgentSignIn,
 } from "./CodingAgents.tsx";
-import { agentNeedingSignIn, agentRows } from "./machine-agents.ts";
+import {
+  agentNeedingSignIn,
+  agentRows,
+  pageBadge,
+  softwareEntries,
+} from "./machine-agents.ts";
 import {
   type BannerFix,
   bannerFix,
@@ -317,6 +322,13 @@ export function MachineDetailPage(
   const bannerAgent = agentAccess === "full"
     ? agentNeedingSignIn(agents)
     : null;
+  // Only an administrator reads the sign-ins, so only then (and once they and
+  // the machine's software have loaded) can an agent be called not signed in.
+  const agentsKnown = agentAccess === "full" && !providers.isLoading &&
+    !providers.isError && !components.isLoading && !components.isError;
+  const headerBadge = workerData
+    ? pageBadge(machineBadge(workerData), agents, agentsKnown)
+    : "checking";
   const changeMode = async (mode: MachineMode) => {
     if (!organizationId || !workerData) return;
     setModeBusy(true);
@@ -403,11 +415,8 @@ export function MachineDetailPage(
             : machineId}
           summary={workerData
             ? (
-              <UI.Badge tone={machineBadgeTone(machineBadge(workerData))}>
-                {message(
-                  translate,
-                  `machines.badge.${machineBadge(workerData)}`,
-                )}
+              <UI.Badge tone={machineBadgeTone(headerBadge)}>
+                {message(translate, `machines.badge.${headerBadge}`)}
               </UI.Badge>
             )
             : null}
@@ -820,13 +829,29 @@ export function MachineDetailPage(
                       />
                     )
                     : componentItems.length
-                    ? componentItems.map((component) => (
+                    ? (
                       <UI.DescriptionItem
-                        key={component.id}
-                        title={`${component.kind} · ${component.componentKey}`}
-                        description={`${component.actualVersion} · ${component.installOwner}`}
+                        data-testid="machine-software"
+                        title={message(translate, "machines.software.title")}
+                        description={
+                          <UI.Stack gap="compact">
+                            {softwareEntries(componentItems).map((entry) => (
+                              <span key={entry.key}>
+                                {message(translate, "machines.software.entry", {
+                                  name: entry.agent
+                                    ? message(
+                                      translate,
+                                      `machines.agent.${entry.agent}`,
+                                    )
+                                    : entry.name,
+                                  version: entry.version,
+                                })}
+                              </span>
+                            ))}
+                          </UI.Stack>
+                        }
                       />
-                    ))
+                    )
                     : (
                       <UI.DescriptionItem
                         title={message(translate, "machines.software.title")}
