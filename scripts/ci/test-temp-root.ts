@@ -14,11 +14,23 @@
  *
  * Run with `--allow-read --allow-write=<base>`; it touches nothing else.
  */
-import { basename, dirname, isAbsolute } from "node:path";
+import { basename, dirname, isAbsolute, join } from "node:path";
 import { laneEnvPaths, MINIMAL_GIT_CONFIG } from "./lane-environment.ts";
 import { entriesOf, removeTreeSync } from "./temp-tree.ts";
 
 export const LANE_ROOT_PREFIX = "bakery-lane-";
+
+/**
+ * What the pinned mise writes into any HOME it runs under (#246): the settings
+ * file of the Rust tool the operator's global configuration pins, as
+ * `.rustup/settings.toml` and nothing else. It is not a test that depended on a
+ * real home, so it is not reported; a `.rustup` that holds anything more is.
+ */
+export function isMiseHomeEntry(home: string, name: string): boolean {
+  if (name !== ".rustup") return false;
+  const inside = entriesOf(join(home, name));
+  return inside.length === 1 && inside[0] === "settings.toml";
+}
 
 /** Groups entry names by their name minus the random suffix. */
 export function prefixesOf(names: readonly string[]): Record<string, number> {
@@ -62,7 +74,11 @@ if (import.meta.main) {
     } else {
       const paths = laneEnvPaths(root);
       const isolated = entriesOf(root).includes("env");
-      const homeNames = isolated ? entriesOf(paths.home).sort() : undefined;
+      const homeNames = isolated
+        ? entriesOf(paths.home).filter((name) =>
+          !isMiseHomeEntry(paths.home, name)
+        ).sort()
+        : undefined;
       const homeEntries = homeNames?.length;
       const left = entriesOf(root).filter((name) =>
         !(isolated && name === "env")

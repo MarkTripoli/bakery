@@ -274,10 +274,31 @@ Deno.test("the root tool refuses to prepare or sweep anything that is not a lane
     assertEquals((await tool("skeleton", base, root)).code, 0);
     assert((await readdir(join(root, "env"))).includes("gitconfig"));
     await writeFile(join(root, "env", "home", "dropped"), "x");
+    // What the pinned mise writes into any home is not a dependency on a real one.
+    await mkdir(join(root, "env", "home", ".rustup"));
+    await writeFile(join(root, "env", "home", ".rustup", "settings.toml"), "");
     const swept = await tool("sweep", base, root);
     assertEquals(
       JSON.parse(new TextDecoder().decode(swept.stdout)),
       { leaked: 0, prefixes: {}, homeEntries: 1, homeNames: ["dropped"] },
+    );
+    // A .rustup that holds more than that settings file is reported.
+    const second = new TextDecoder().decode(
+      (await tool("create", base)).stdout,
+    ).trim();
+    assertEquals((await tool("skeleton", base, second)).code, 0);
+    await mkdir(join(second, "env", "home", ".rustup", "toolchains"), {
+      recursive: true,
+    });
+    await writeFile(
+      join(second, "env", "home", ".rustup", "settings.toml"),
+      "",
+    );
+    assertEquals(
+      JSON.parse(
+        new TextDecoder().decode((await tool("sweep", base, second)).stdout),
+      ),
+      { leaked: 0, prefixes: {}, homeEntries: 1, homeNames: [".rustup"] },
     );
     assertEquals(await laneRoots(base), []);
   } finally {
