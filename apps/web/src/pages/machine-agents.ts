@@ -262,18 +262,29 @@ const ADDRESS_KEYS = [
 const CODE_KEYS = ["userCode", "user_code", "code"];
 
 /**
- * The hosts a sign-in page may be on, per agent; a subdomain of one counts and
- * nothing else does. The machine names the address, and the person is told to
- * type a code on it, so the page only links to a site the agent's own sign-in
- * uses. Pi signs in to several providers, so it may use any of theirs (an
- * assumption: the worker's contract does not name them).
+ * The hosts a sign-in page may be on, per agent. An agent's own domains count
+ * with their subdomains; a host of another service that also holds other
+ * people's content (a code host, a general account page) counts only as the one
+ * exact host its sign-in uses, never as a domain. The machine names the address
+ * and the person is told to type a code on it, so the page only links to a site
+ * the agent's own sign-in uses. Pi signs in to several providers, so it may use
+ * any of theirs (an assumption: the worker's contract does not name them).
  */
-const CLAUDE_HOSTS = ["claude.ai", "claude.com", "anthropic.com"] as const;
-const CODEX_HOSTS = ["openai.com", "chatgpt.com"] as const;
-export const SIGN_IN_HOSTS: Readonly<Record<CodingAgent, readonly string[]>> = {
-  claude: CLAUDE_HOSTS,
-  codex: CODEX_HOSTS,
-  pi: [...CLAUDE_HOSTS, ...CODEX_HOSTS, "github.com", "google.com"],
+type SignInHosts = Readonly<{
+  /** The domain itself and any subdomain of it. */
+  domains: readonly string[];
+  /** Exactly this host, no other. */
+  exact: readonly string[];
+}>;
+const CLAUDE_DOMAINS = ["claude.ai", "claude.com", "anthropic.com"] as const;
+const CODEX_DOMAINS = ["openai.com", "chatgpt.com"] as const;
+export const SIGN_IN_HOSTS: Readonly<Record<CodingAgent, SignInHosts>> = {
+  claude: { domains: CLAUDE_DOMAINS, exact: [] },
+  codex: { domains: CODEX_DOMAINS, exact: [] },
+  pi: {
+    domains: [...CLAUDE_DOMAINS, ...CODEX_DOMAINS],
+    exact: ["github.com", "accounts.google.com"],
+  },
 };
 
 function signInAddress(value: unknown, agent: CodingAgent): string | null {
@@ -288,9 +299,11 @@ function signInAddress(value: unknown, agent: CodingAgent): string | null {
       url.port !== ""
     ) return null;
     const host = url.hostname;
-    return SIGN_IN_HOSTS[agent].some((domain) =>
-        host === domain || host.endsWith(`.${domain}`)
-      )
+    const allowed = SIGN_IN_HOSTS[agent];
+    return allowed.exact.includes(host) ||
+        allowed.domains.some((domain) =>
+          host === domain || host.endsWith(`.${domain}`)
+        )
       ? url.toString()
       : null;
   } catch {

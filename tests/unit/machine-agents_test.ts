@@ -371,6 +371,29 @@ Deno.test("an address must be on one of the agent's own hosts or a subdomain of 
     "https://claude.ai/x",
   );
   assertEquals(addressOf("pi", "https://evil.example/x"), null);
+  // Pi's other providers are exact hosts, not domains: no subdomain, no sibling, no user content.
+  assertEquals(
+    addressOf("pi", "https://accounts.google.com/o/oauth2/device"),
+    "https://accounts.google.com/o/oauth2/device",
+  );
+  for (
+    const notTheirSignIn of [
+      "https://sites.google.com/view/anything",
+      "https://docs.google.com/x",
+      "https://google.com/x",
+      "https://www.google.com/x",
+      "https://gist.github.com/someone/x",
+      "https://someone.github.io/x",
+      "https://raw.github.com/x",
+      "https://api.github.com/x",
+      "https://github.com.evil.example/login/device",
+      "https://accounts.google.com.evil.example/x",
+      "https://xaccounts.google.com/x",
+    ]
+  ) assertEquals(addressOf("pi", notTheirSignIn), null, notTheirSignIn);
+  // And they are Pi's alone.
+  assertEquals(addressOf("claude", "https://github.com/login/device"), null);
+  assertEquals(addressOf("codex", "https://accounts.google.com/x"), null);
 });
 
 Deno.test("the command to type on the machine is one plain line, never a second command", () => {
