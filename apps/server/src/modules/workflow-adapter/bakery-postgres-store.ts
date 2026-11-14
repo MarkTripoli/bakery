@@ -866,6 +866,17 @@ async function findNextPlanKey(
     );
     return undefined;
   }
+  if (answer.kind === "dispatch_many") {
+    // A parallel group (interpreter revision 2) is not run by the engine yet,
+    // and admission does not pin a run to that revision until it is.
+    await endPlanRunFailed(
+      transaction,
+      context,
+      activeOwner,
+      "plan_parallel_unsupported",
+    );
+    return undefined;
+  }
   if (answer.step.kind === "wait") {
     // An event wait has no producer yet; it is refused at admission and, for a
     // run that holds one anyway, ends the run here with a stable code.
