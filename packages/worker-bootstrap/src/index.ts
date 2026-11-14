@@ -60,3 +60,32 @@ export {
   workerPath,
 } from "./service.ts";
 export { boundedDownload, type DownloadOptions } from "./download.ts";
+export {
+  type Check,
+  type CheckStatus,
+  describeChecks,
+  describeStatus,
+  doctor,
+  doctorExitCode,
+  type InstallationState,
+  installationStatus,
+  type Operation,
+  type OperationIo,
+  type PairingState,
+  parseOperation,
+  planDrain,
+  type Probes,
+  runOperation,
+  type ServiceState,
+  type StatusReport,
+} from "./operations.ts";
+export {
+  type FileSystemStats,
+  linuxServiceState,
+  macServiceState,
+  type Spawn,
+  type Spawned,
+  spawnProgram,
+  spawnWithTimeout,
+  systemProbes,
+} from "./probes.ts";

@@ -123,7 +123,7 @@ async function exists(path: string) {
   });
 }
 
-async function sha256OfFile(path: string): Promise<string> {
+export async function sha256OfFile(path: string): Promise<string> {
   const hash = createHash("sha256");
   const handle = await open(path, "r");
   try {
@@ -153,7 +153,7 @@ function isRecord(value: unknown): value is Record_ {
 }
 
 /** The release `current` points at, read from that release's own record. */
-async function installed(
+export async function installed(
   root: string,
 ): Promise<{ name: string; record: Record_ } | null> {
   let target: string;
