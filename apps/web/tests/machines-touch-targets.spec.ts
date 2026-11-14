@@ -66,7 +66,7 @@ const ENROLLMENT = {
   architecture: "x86_64",
   capabilities: ["claude"],
   slots: 1,
-  expiresAt: "2026-01-01T01:00:00.000Z",
+  expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
   consumedAt: null,
   canceledAt: null,
   workerHostId: null,
@@ -129,7 +129,7 @@ async function adminMachinesFixture(
         enrollmentId: NEW_ENROLLMENT_ID,
         organizationId: MOCK_ORGANIZATION_ID,
         state: "pending",
-        expiresAt: "2026-01-01T01:00:00.000Z",
+        expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
         workerHostId: null,
         worker: null,
         version: 1,
@@ -146,7 +146,7 @@ async function adminMachinesFixture(
           body: JSON.stringify({
             enrollmentId: NEW_ENROLLMENT_ID,
             enrollmentToken: "touch-target-enrollment-token-0001",
-            expiresAt: "2026-01-01T01:00:00.000Z",
+            expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
           }),
         })
         : route.fulfill(json({ items: [ENROLLMENT], nextCursor: null })),
@@ -165,10 +165,18 @@ async function measureTargets(page: Page): Promise<Target[]> {
     elements.flatMap((element) => {
       const html = element as HTMLElement;
       if (html.closest("[inert],[aria-hidden=true]")) return [];
+      // The skip link is clipped to a pixel until it has keyboard focus; it is
+      // never a tap target, and skip-link.spec.ts holds its own contract.
+      if (html.matches(".bakery-app-shell__skip-link")) return [];
       if ((html as HTMLButtonElement).disabled) return [];
       const style = getComputedStyle(html);
       if (style.visibility === "hidden" || style.display === "none") return [];
-      const box = html.getBoundingClientRect();
+      // A radio or checkbox inside a label is tapped through the label: the
+      // card or row around it is the target, not the 16 px input.
+      const tapped = html.matches("input[type=radio],input[type=checkbox]")
+        ? html.closest("label") ?? html
+        : html;
+      const box = tapped.getBoundingClientRect();
       if (box.width === 0 || box.height === 0) return [];
       const name = html.getAttribute("aria-label") ??
         html.textContent?.trim().slice(0, 40) ?? "";
@@ -205,21 +213,33 @@ test.describe("machines touch targets on a coarse phone", () => {
   test("every /machines target is at least 44 by 44", async ({ page }) => {
     await page.goto("/machines");
     await expect(page.getByRole("list", { name: "Machines" })).toBeVisible();
-    await expect(page.getByRole("list", { name: "Worker enrollments" }))
-      .toBeVisible();
+    // A setup that was left, with its two buttons.
+    await expect(page.getByTestId("machines-finishing-setup")).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: "Get new settings for touch-target-pending",
+      }),
+    ).toBeVisible();
     const toggle = page.getByRole("button", { name: "Open navigation" });
     await expect(toggle).toBeVisible();
-    const os = page.locator("#machine-enrollment-os");
-    await expect(os).toBeVisible();
 
     const targets = await measureTargets(page);
     expect(targets.length).toBeGreaterThan(5);
     expect(undersized(targets)).toEqual([]);
+  });
 
-    const enrollment = page.getByTestId("machine-enrollment");
-    await enrollment.getByLabel("Machine name").fill("touch-target-new");
-    await enrollment.getByRole("button", { name: "Create enrollment" }).click();
-    await expect(page.getByTestId("machine-enrollment-token")).toBeVisible();
+  test("every add-a-machine wizard target is at least 44 by 44, on each step", async ({ page }) => {
+    await page.goto("/machines/new");
+    await expect(page.getByText("Step 1 of 3 · Name and system")).toBeVisible();
+    expect(undersized(await measureTargets(page))).toEqual([]);
+    await page.getByLabel("Name").fill("touch-target-new");
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByText("Step 2 of 3 · Coding agent")).toBeVisible();
+    expect(undersized(await measureTargets(page))).toEqual([]);
+    await page.getByRole("radio", { name: /Codex/ }).check({ force: true });
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByText("touch-target-enrollment-token-0001"))
+      .toBeVisible();
     expect(undersized(await measureTargets(page))).toEqual([]);
   });
 

@@ -31,6 +31,7 @@ import { TasksPage } from "./pages/TasksPage.tsx";
 import { IssuesPage } from "./pages/IssuesPage.tsx";
 import { MachinesPage } from "./pages/MachinesPage.tsx";
 import { MachineDetailPage } from "./pages/MachineDetailPage.tsx";
+import { MachineWizardPage } from "./pages/MachineWizardPage.tsx";
 import { TaskCoordinationPage } from "./pages/task-coordination/TaskCoordinationPage.tsx";
 import { AppearancePage } from "./pages/AppearancePage.tsx";
 import { HealthPage } from "./pages/HealthPage.tsx";
@@ -216,6 +217,19 @@ export const routeCoverage = [
       "forbidden",
       "offline",
       "long-copy",
+    ],
+  },
+  {
+    id: "machine-new",
+    path: "/machines/new",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "reconnecting",
+      "error",
+      "forbidden",
+      "offline",
     ],
   },
   {
@@ -921,6 +935,22 @@ const machinesRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: MachinesPage,
+  errorComponent: ProtectedRouteError,
+});
+
+const machineNewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/machines/new",
+  validateSearch: (search: Record<string, unknown>) => ({
+    finish: typeof search.finish === "string" && isUuid(search.finish)
+      ? search.finish
+      : undefined,
+  }),
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <MachineWizardPage finishId={machineNewRoute.useSearch().finish} />
+  ),
   errorComponent: ProtectedRouteError,
 });
 
@@ -1736,6 +1766,7 @@ const routeTree = rootRoute.addChildren([
   taskCoordinationRoute,
   issuesRoute,
   machinesRoute,
+  machineNewRoute,
   machineDetailRoute,
   statusRoute,
   settingsIndexRoute,

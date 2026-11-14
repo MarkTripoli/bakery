@@ -118,10 +118,15 @@ test.describe("real API machines authenticated projections", () => {
       password: nonAdminPassword,
     });
     await page.goto("/machines");
+    await expect(page.getByTestId("machines-page")).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Add machine", exact: true }),
     ).toHaveCount(0);
-    await expect(page.getByTestId("machine-enrollment")).toHaveCount(0);
+    await expect(page.getByTestId("machines-finishing-setup")).toHaveCount(0);
+    await page.goto("/machines/new");
+    await expect(page.getByText("Only administrators can add machines"))
+      .toBeVisible();
+    await expect(page.getByRole("button", { name: "Continue" })).toHaveCount(0);
   });
   test("Admin enrollment uses idempotency and reveals setup once", async ({ page }) => {
     test.skip(
@@ -129,28 +134,28 @@ test.describe("real API machines authenticated projections", () => {
       "set BAKERY_MACHINE_RUN_MUTATIONS=1 for isolated real enrollment evidence",
     );
     await signIn(page);
-    await page.goto("/machines");
+    await page.goto("/machines/new");
     const name = `browser-machine-${crypto.randomUUID().slice(0, 8)}`;
     const requestPromise = page.waitForRequest((request) =>
       request.url().endsWith("/v1/worker-enrollments") &&
       request.method() === "POST"
     );
-    await page.getByLabel("Machine name").fill(name);
-    await page.getByLabel("Architecture").fill("x86_64");
-    await page.getByLabel("Capabilities").fill("codex");
-    await page.getByRole("button", { name: "Create enrollment" }).click();
+    await page.getByLabel("Name").fill(name);
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("radio", { name: /Codex/ }).check({ force: true });
+    await page.getByRole("button", { name: "Continue" }).click();
     const request = await requestPromise;
     expect(request.headers()["idempotency-key"]).toBeTruthy();
-    await expect(page.getByTestId("machine-enrollment-token")).toBeVisible();
     await expect(page.locator('[data-ui-component="setupKey"]')).toBeVisible();
-    await page.getByRole("button", { name: "Dismiss setup key" }).click();
-    await expect(page.getByTestId("machine-enrollment-token")).toHaveCount(0);
-    const row = page.locator(`[data-enrollment-name="${name}"]`);
+    // Leaving the page loses the code; the setup waits in "Finishing setup".
+    await page.goto("/machines");
+    const row = page.locator("[data-enrollment-id]").filter({ hasText: name });
+    await expect(row).toBeVisible();
     const cancelResponsePromise = page.waitForResponse((response) =>
       response.url().includes("/v1/worker-enrollments/") &&
       response.request().method() === "PATCH"
     );
-    await row.getByRole("button", { name: "Cancel" }).click();
+    await row.getByRole("button", { name: `Cancel setup of ${name}` }).click();
     expect((await cancelResponsePromise).ok()).toBeTruthy();
   });
   test("a non-member organization reads as not found", async ({ page }) => {
