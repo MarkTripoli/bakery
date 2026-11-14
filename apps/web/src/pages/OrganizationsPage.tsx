@@ -19,6 +19,7 @@ import {
   TWO_FACTOR_PATH,
 } from "../app/auth-required.tsx";
 import { consumeReturnTo } from "../app/auth-return.ts";
+import { usePagedFocus } from "../app/focus.ts";
 import * as organizationSelection from "../app/organization-selection.ts";
 import {
   useProtectedScope,
@@ -93,6 +94,12 @@ export function OrganizationsPage(
     ? morePages[morePages.length - 1].nextCursor ?? null
     : organizations.data?.nextCursor ?? null;
 
+  const paging = usePagedFocus("organizations", {
+    pending: loadingMore || organizations.isFetching,
+    failed: moreError || organizations.isError,
+    rowCount: items.length,
+    hasMore: cursor !== null,
+  });
   const loadMore = useCallback(async () => {
     if (!cursor) return;
     setLoadingMore(true);
@@ -165,8 +172,14 @@ export function OrganizationsPage(
       loadMore={cursor === null ? null : {
         state: moreError ? "error" : loadingMore ? "loading" : "ready",
       }}
-      onLoadMore={() => void loadMore()}
-      onRefresh={() => void organizations.refetch()}
+      onLoadMore={() => {
+        paging.ask();
+        void loadMore();
+      }}
+      onRefresh={() => {
+        if (organizations.isError) paging.ask("first");
+        void organizations.refetch();
+      }}
       onSelect={(organizationId) => void select(organizationId)}
       organizations={items.map((organization) => {
         const roleKey = roleMessageKey(organization.role);
