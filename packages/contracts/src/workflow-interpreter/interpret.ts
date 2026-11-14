@@ -472,9 +472,11 @@ class Run {
    * at once, those already running first and then new ones in authored order.
    * The join is all-required: the group is done only when every lane is, and
    * lane exports exist only then. A failed lane (any step outside a repeat
-   * failed, was canceled or timed out) stops its dependants; lanes that already
-   * started run to the end, no lane starts after a failure, and once nothing is
-   * running the group halts with the failed lane's outcome.
+   * failed, was canceled or timed out) stops its dependants, directly or
+   * through other lanes (`failurePolicy: stop-dependent`), and nothing else:
+   * lanes that depend on no failed lane start as they would have, lanes that
+   * started run to the end, and when nothing can still run the group halts
+   * with the first failed lane's outcome and step key in authored order.
    */
   private walkParallel(node: WorkflowParallelNode, scope: Scope): Walk {
     const groupSegments: readonly Segment[] = [...scope.segments, {
@@ -554,11 +556,10 @@ class Run {
       laneStatus.get(lane.id) === "active"
     );
     const running = active.filter(started);
-    // After a failure nothing new starts; otherwise free slots go to the
-    // first lanes, in authored order, that are ready and have not started.
-    const room = failed.length > 0
-      ? 0
-      : Math.max(0, node.maxConcurrency - running.length);
+    // Free slots go to the first lanes, in authored order, that are ready and
+    // have not started. A lane with a failed prerequisite (or one waiting on
+    // such a lane) is never ready, so a failure costs only its dependants.
+    const room = Math.max(0, node.maxConcurrency - running.length);
     const fresh = active.filter((lane) => !started(lane)).slice(0, room);
     const chosen = new Set([...running, ...fresh].map((lane) => lane.id));
     const steps = active.filter((lane) => chosen.has(lane.id)).flatMap((lane) =>

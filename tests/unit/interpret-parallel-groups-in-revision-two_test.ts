@@ -24,7 +24,8 @@ import {
 // #30 E4b: interpreter revision 2 runs bounded parallel groups. It is the pure
 // part: the answer is the set of steps that may run now, a lane that started
 // keeps its place against maxConcurrency, the join is all-required, and a
-// failed lane stops its dependants and every new start. Revision 1 still
+// failed lane stops its dependants and nothing else (design 06, stop-dependent:
+// independent lanes still run). Revision 1 still
 // refuses a group by name and is what a run is pinned to until the engine runs
 // sets of steps (E4c).
 
@@ -312,7 +313,7 @@ Deno.test("a lane starts only when the lanes it needs are done, and reads their 
   assertEquals((done.dispatched[1] as ActionDispatch).input, { got: "a1" });
 });
 
-Deno.test("a failed lane stops its dependants and every new start; lanes already running finish, then the group halts", async () => {
+Deno.test("a failed lane stops only its dependants: independent lanes, started or not, still run, then the group halts", async () => {
   const document = await compiled([
     group([
       lane("lane_a", [noop("a1")]),
@@ -330,30 +331,31 @@ Deno.test("a failed lane stops its dependants and every new start; lanes already
     document,
     stateOf({ steps, inFlight: new Set(["fan.lane_c.c1"]) }),
   );
-  // C keeps going; B (needs A) and D (not started) do not start.
-  assertEquals(keysOf(during), ["fan.lane_c.c1"]);
+  // C keeps going and D, independent of A and not yet started, takes the free
+  // slot; B (needs A) never starts.
+  assertEquals(keysOf(during), ["fan.lane_c.c1", "fan.lane_d.d1"]);
   steps.set("fan.lane_c.c1", completed({}));
-  assertEquals(keysOf(nextStepWithGroups(document, stateOf({ steps }))), [
-    "fan.lane_c.c2",
-  ]);
+  assertEquals(
+    keysOf(
+      nextStepWithGroups(
+        document,
+        stateOf({ steps, inFlight: new Set(["fan.lane_d.d1"]) }),
+      ),
+    ),
+    ["fan.lane_c.c2", "fan.lane_d.d1"],
+  );
   steps.set("fan.lane_c.c2", completed({}));
+  steps.set("fan.lane_d.d1", completed({}));
   assertEquals(nextStepWithGroups(document, stateOf({ steps })), {
     kind: "halted",
     outcome: "failed",
     key: "fan.lane_a.a1",
   });
-  // The same through the driver, whichever step finishes first: nothing that
-  // had not started when the failure was recorded starts after it.
-  const laneOf = (key: string) => key.split(".").slice(0, 2).join(".");
+  // The same through the driver, whichever step finishes first.
   for (const pick of [0, 1]) {
-    let failedAt = -1;
-    const outcome = script({ "fan.lane_a.a1": { status: "failed" } });
     const run = driveMany(
       document,
-      (step, trace) => {
-        if (step.key === "fan.lane_a.a1") failedAt = trace.length;
-        return outcome(step);
-      },
+      script({ "fan.lane_a.a1": { status: "failed" } }),
       {},
       {
         interpreter: nextStepWithGroups,
@@ -365,19 +367,61 @@ Deno.test("a failed lane stops its dependants and every new start; lanes already
       outcome: "failed",
       key: "fan.lane_a.a1",
     });
-    assert(failedAt >= 0);
-    const startedBefore = new Set(run.trace.slice(0, failedAt).map(laneOf));
-    for (const key of run.trace.slice(failedAt)) {
-      assert(
-        startedBefore.has(laneOf(key)),
-        `${key} started after the failure`,
-      );
-    }
     assert(!run.trace.includes("fan.lane_b.b1"), "a dependant started");
     assert(!run.trace.includes("after"), "the join was passed");
-    // A lane that was running when the failure came ran to its end.
-    assert(run.trace.includes("fan.lane_c.c2"), "a running lane was cut off");
+    for (
+      const key of ["fan.lane_c.c1", "fan.lane_c.c2", "fan.lane_d.d1"]
+    ) assert(run.trace.includes(key), `${key} did not run`);
   }
+});
+
+Deno.test("with room for one lane, a failed lane does not keep an independent lane from running", async () => {
+  const document = await compiled([
+    group([lane("lane_a", [noop("a1")]), lane("lane_b", [noop("b1")])], {
+      maxConcurrency: 1,
+    }),
+  ]);
+  const run = driveMany(
+    document,
+    script({ "fan.lane_a.a1": { status: "failed" } }),
+    {},
+    asRevision2,
+  );
+  assertEquals(run.trace, ["fan.lane_a.a1", "fan.lane_b.b1"]);
+  assertEquals(run.next, {
+    kind: "halted",
+    outcome: "failed",
+    key: "fan.lane_a.a1",
+  });
+});
+
+Deno.test("a lane that needs only a healthy lane runs although an unrelated lane failed, and one that needs the failed lane through another does not", async () => {
+  const document = await compiled([
+    group([
+      lane("lane_a", [noop("a1")]),
+      lane("lane_b", [noop("b1")]),
+      lane("lane_d", [noop("d1")], ["lane_b"]),
+      lane("lane_e", [noop("e1")], ["lane_a"]),
+      lane("lane_f", [noop("f1")], ["lane_e"]),
+    ], { maxConcurrency: 1 }),
+  ]);
+  const run = driveMany(
+    document,
+    script({ "fan.lane_a.a1": { status: "failed" } }),
+    {},
+    asRevision2,
+  );
+  // A fails; B and D (needs B) still run; E (needs A) and F (needs E) never do.
+  assertEquals(run.trace, [
+    "fan.lane_a.a1",
+    "fan.lane_b.b1",
+    "fan.lane_d.d1",
+  ]);
+  assertEquals(run.next, {
+    kind: "halted",
+    outcome: "failed",
+    key: "fan.lane_a.a1",
+  });
 });
 
 Deno.test("a canceled or timed-out step in a lane halts the group with that outcome", async () => {
@@ -581,4 +625,25 @@ Deno.test("a lane that reads a failed lane's export is never evaluated: the grou
     key: "fan.lane_a.a1",
   });
   assertEquals(run.trace, ["fan.lane_a.a1"]);
+});
+
+Deno.test("a lane between two of its steps still holds its slot: new lanes do not take it", async () => {
+  // N and Y both became ready when P finished; G started earlier and has its
+  // next step not yet dispatched (nothing of G is running at this moment).
+  const document = await compiled([
+    group([
+      lane("lane_n", [noop("n1")], ["lane_p"]),
+      lane("lane_y", [noop("y1")], ["lane_p"]),
+      lane("lane_g", [noop("g1"), noop("g2")]),
+      lane("lane_p", [noop("p1")]),
+    ], { maxConcurrency: 2 }),
+  ]);
+  const steps = new Map<string, StepRecord>([
+    ["fan.lane_p.p1", completed({})],
+    ["fan.lane_g.g1", completed({})],
+  ]);
+  assertEquals(keysOf(nextStepWithGroups(document, stateOf({ steps }))), [
+    "fan.lane_n.n1",
+    "fan.lane_g.g2",
+  ]);
 });
