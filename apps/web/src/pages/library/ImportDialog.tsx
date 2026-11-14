@@ -302,6 +302,8 @@ export function ImportDialog(
                 required
                 error={tried && emptyName
                   ? translate("library.import.nameEmpty" as never)
+                  : failure === "nameTaken" || failure === "nameRejected"
+                  ? translate(`library.draft.${failure}` as never)
                   : undefined}
               >
                 <UI.TextInput
@@ -315,6 +317,10 @@ export function ImportDialog(
                   onChange={(value) => {
                     setNameTouched(true);
                     setName(clip(value, NAME_LIMIT));
+                    // A refused name is edited, not repeated.
+                    if (failure === "nameTaken" || failure === "nameRejected") {
+                      draft.clearFailure();
+                    }
                   }}
                 />
               </UI.Field>
@@ -323,18 +329,23 @@ export function ImportDialog(
           <UI.Text variant="muted">
             {translate("library.import.note" as never)}
           </UI.Text>
-          {failure === null ? null : (
-            <UI.InlineNotice tone="error">
-              {translate(
-                (failure === "stepsFailed"
-                  ? "library.import.stepsFailed"
-                  : failure === "offline"
-                  ? "library.copy.offline"
-                  : "library.import.failed") as never,
-                { name: made?.name ?? name.trim() },
-              )}
-            </UI.InlineNotice>
-          )}
+          {failure === null || failure === "nameTaken" ||
+              failure === "nameRejected"
+            ? null
+            : (
+              <UI.InlineNotice tone="error">
+                {translate(
+                  (failure === "stepsFailed"
+                    ? "library.import.stepsFailed"
+                    : failure === "offline"
+                    ? "library.copy.offline"
+                    : failure === "forbidden"
+                    ? "library.import.forbidden"
+                    : "library.import.failed") as never,
+                  { name: made?.name ?? name.trim() },
+                )}
+              </UI.InlineNotice>
+            )}
           <UI.Inline gap="compact">
             <UI.Button
               variant="secondary"

@@ -1,5 +1,6 @@
 import type { Translator } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
+import { useShellViewport } from "../../app/responsive.ts";
 
 /** One row of a Library list: a name, one line under it, a badge and a short note. */
 export type LibraryRow = {
@@ -34,6 +35,9 @@ export function LibraryRows(
     readonly translate: Translator;
   },
 ) {
+  // On a wide screen a row's button sits at the end of the name's line, at
+  // its label's width; on a phone it spans the row under the text.
+  const phone = useShellViewport() === "phone";
   const openButton = (row: LibraryRow) =>
     row.openLabel === undefined || onOpen === undefined ? null : (
       <UI.Button
@@ -71,24 +75,41 @@ export function LibraryRows(
   // section.)
   return (
     <UI.Stack gap="none" role="list" aria-label={label}>
-      {rows.map((row) => (
-        <div key={row.id} role="listitem" data-library-id={row.id}>
-          <UI.StackedRow
-            flush
-            title={title(row)}
-            status={row.badge === null
-              ? undefined
-              : <UI.Badge tone={row.tone}>{row.badge}</UI.Badge>}
-          >
-            <UI.Text variant="caption">{row.line}</UI.Text>
-            {row.note !== ""
-              ? <UI.Text variant="caption">{row.note}</UI.Text>
-              : null}
+      {rows.map((row) => {
+        const badge = row.badge === null
+          ? null
+          : <UI.Badge tone={row.tone}>{row.badge}</UI.Badge>;
+        const buttons = (
+          <>
             {openButton(row)}
             {copyButton(row)}
-          </UI.StackedRow>
-        </div>
-      ))}
+          </>
+        );
+        const hasButton = row.openLabel !== undefined ||
+          row.copyLabel !== undefined;
+        return (
+          <div key={row.id} role="listitem" data-library-id={row.id}>
+            <UI.StackedRow
+              flush
+              title={title(row)}
+              status={phone || !hasButton
+                ? badge ?? undefined
+                : (
+                  <UI.Inline gap="compact">
+                    {badge}
+                    {buttons}
+                  </UI.Inline>
+                )}
+            >
+              <UI.Text variant="caption">{row.line}</UI.Text>
+              {row.note !== ""
+                ? <UI.Text variant="caption">{row.note}</UI.Text>
+                : null}
+              {phone ? buttons : null}
+            </UI.StackedRow>
+          </div>
+        );
+      })}
     </UI.Stack>
   );
 }

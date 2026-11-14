@@ -72,6 +72,30 @@ for (
           name: /Make a copy/,
         }),
       ).toHaveCount(0);
+      // The button sits at the end of the name's line at its label's width on
+      // a wide screen, and spans the row under the text on a phone.
+      for (
+        const target of [
+          row.getByRole("button", { name: "Make a copy of Fixed coding" }),
+          page.getByTestId("library-organization").getByRole("button", {
+            name: "Open Release train",
+          }),
+        ]
+      ) {
+        const button = (await target.boundingBox())!;
+        const item =
+          (await target.locator("xpath=ancestor::*[@role='listitem']")
+            .boundingBox())!;
+        if (viewport.name === "desktop") {
+          expect(button.width).toBeLessThan(260);
+          expect(button.y).toBeLessThan(item.y + 60);
+          expect(button.x + button.width).toBeGreaterThan(
+            item.x + item.width - 8,
+          );
+        } else {
+          expect(button.width).toBeGreaterThan(item.width - 8);
+        }
+      }
       await page.mouse.move(700, 700);
       await shot(page, "library-built-in-rows");
     });
@@ -258,6 +282,82 @@ for (
       expect(seen.versionsCreated).toHaveLength(1);
     });
 
+    const startCopy = async (page: Page, options: Options) => {
+      const seen = await open(page, options, "/library/built-in/fixed-coding");
+      await page.getByRole("button", { name: "Make a copy" }).click();
+      await dialog(page).getByRole("button", { name: "Make a copy" }).click();
+      return seen;
+    };
+
+    test("a refused first write says why, in words that fit: not allowed", async ({ page }) => {
+      await startCopy(page, { ...WORLD, copy: "workflow-403" });
+      await expect(dialog(page)).toContainText(
+        "Only organization administrators can make a copy.",
+      );
+      await expect(dialog(page)).not.toContainText("Check your connection");
+    });
+
+    test("a refused first write says why: too many requests or a server fault is not the person's network", async ({ page }) => {
+      await startCopy(page, { ...WORLD, copy: "workflow-429" });
+      await expect(dialog(page)).toContainText(
+        "The copy could not be made. Try again in a moment.",
+      );
+      await expect(dialog(page)).not.toContainText("Check your connection");
+    });
+
+    test("a taken name is the Name field's problem, the field stays editable, and a new name goes through", async ({ page }) => {
+      const seen = await startCopy(page, {
+        ...WORLD,
+        copy: "workflow-409-once",
+      });
+      const name = dialog(page).getByLabel("Name");
+      await expect(dialog(page)).toContainText(
+        "A workflow with this name already exists. Choose another name.",
+      );
+      await expect(name).toBeEnabled();
+      await name.fill("Another name");
+      await expect(dialog(page)).not.toContainText("already exists");
+      await dialog(page).getByRole("button", { name: "Make a copy" }).click();
+      await expect(page).toHaveURL(/\/library\/workflows\/[0-9a-f-]{36}$/);
+      expect(seen.created.map((row) => row.name)).toEqual(["Another name"]);
+      // A refused write did not happen, so the new attempt is a new write.
+      expect(new Set(seen.workflowKeys).size).toBe(2);
+    });
+
+    test("a name the server does not accept is the Name field's problem", async ({ page }) => {
+      await startCopy(page, { ...WORLD, copy: "workflow-422-once" });
+      await expect(dialog(page)).toContainText(
+        "This name cannot be used. Change it and try again.",
+      );
+      await expect(dialog(page).getByLabel("Name")).toBeEnabled();
+    });
+
+    test("a write whose answer was lost is retried with the same key, so the server can tell it is the same write", async ({ page }) => {
+      const seen = await startCopy(page, {
+        ...WORLD,
+        copy: "workflow-drop-once",
+      });
+      await expect(dialog(page)).toContainText("The copy could not be made.");
+      await dialog(page).getByRole("button", { name: "Make a copy" }).click();
+      await expect(page).toHaveURL(/\/library\/workflows\/[0-9a-f-]{36}$/);
+      expect(seen.workflowKeys).toHaveLength(2);
+      expect(seen.workflowKeys[0]).toBeTruthy();
+      expect(seen.workflowKeys[1]).toBe(seen.workflowKeys[0]);
+      expect(seen.created).toHaveLength(1);
+    });
+
+    test("the steps write keeps its key across a retry", async ({ page }) => {
+      const seen = await startCopy(page, { ...WORLD, copy: "steps-fail-once" });
+      await expect(dialog(page)).toContainText("its steps could not be added");
+      await dialog(page).getByRole("button", { name: "Try again" }).click();
+      await expect(page).toHaveURL(/\/library\/workflows\/[0-9a-f-]{36}$/);
+      expect(seen.versionKeys).toHaveLength(2);
+      expect(seen.versionKeys[0]).toBeTruthy();
+      expect(seen.versionKeys[1]).toBe(seen.versionKeys[0]);
+      // The workflow was written once.
+      expect(seen.workflowKeys).toHaveLength(1);
+    });
+
     test("a copy whose steps never saved is in the Library with no versions, as the message says", async ({ page }) => {
       const seen = await open(
         page,
@@ -272,7 +372,7 @@ for (
       await dialog(page).getByRole("button", { name: "Cancel" }).click();
       expect(seen.created).toHaveLength(1);
       // The Library lists it among the organization's workflows, in use by nothing.
-      await page.getByRole("link", { name: "Library", exact: true }).click();
+      await page.goto("/library");
       const row = page.getByTestId("library-organization").locator(
         "[data-library-id]",
       ).filter({ hasText: "Fixed coding (copy)" });

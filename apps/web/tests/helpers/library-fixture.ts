@@ -61,7 +61,15 @@ export type Options = {
   /** What the checker says about a definition: fine (default), with problems, with only warnings, or it cannot answer. */
   validation?: "ok" | "errors" | "warnings" | "fail";
   /** A copy whose workflow cannot be made, or whose steps cannot be added (always, or on the first try). */
-  copy?: "workflow-fails" | "steps-fail" | "steps-fail-once";
+  copy?:
+    | "workflow-fails"
+    | "workflow-403"
+    | "workflow-429"
+    | "workflow-409-once"
+    | "workflow-422-once"
+    | "workflow-drop-once"
+    | "steps-fail"
+    | "steps-fail-once";
   /** A change that answers 409 (someone else got there first). */
   conflict?: "activate" | "update";
   /** A read that answers 500 INTERNAL_ERROR, or 403 AUTH_FORBIDDEN. */
@@ -168,6 +176,10 @@ export async function libraryFixture(page: Page, options: Options = {}) {
     }[],
     stepWrites: 0,
     validations: [] as { definition: unknown }[],
+    /** The Idempotency-Key of each workflow write and each version write, in order. */
+    workflowKeys: [] as (string | undefined)[],
+    versionKeys: [] as (string | undefined)[],
+    workflowWrites: 0,
     workflowReads: 0,
     agentReads: 0,
     presetReads: 0,
@@ -197,8 +209,26 @@ export async function libraryFixture(page: Page, options: Options = {}) {
     (url) => url.pathname === "/v1/workflows",
     async (route) => {
       if (route.request().method() === "POST") {
+        seen.workflowWrites += 1;
+        seen.workflowKeys.push(route.request().headers()["idempotency-key"]);
+        const first = seen.workflowWrites === 1;
         if (options.copy === "workflow-fails") {
           return route.fulfill(problem(500, "INTERNAL_ERROR"));
+        }
+        if (options.copy === "workflow-403") {
+          return route.fulfill(problem(403, "AUTH_FORBIDDEN"));
+        }
+        if (options.copy === "workflow-429") {
+          return route.fulfill(problem(429, "RATE_LIMITED"));
+        }
+        if (options.copy === "workflow-409-once" && first) {
+          return route.fulfill(problem(409, "STATE_CONFLICT"));
+        }
+        if (options.copy === "workflow-422-once" && first) {
+          return route.fulfill(problem(422, "UNPROCESSABLE"));
+        }
+        if (options.copy === "workflow-drop-once" && first) {
+          return route.abort("failed");
         }
         const input = route.request().postDataJSON() as {
           slug: string;
@@ -262,6 +292,7 @@ export async function libraryFixture(page: Page, options: Options = {}) {
       const id = new URL(route.request().url()).pathname.split("/")[3] ?? "";
       if (route.request().method() === "POST") {
         seen.stepWrites += 1;
+        seen.versionKeys.push(route.request().headers()["idempotency-key"]);
         if (
           options.copy === "steps-fail" ||
           (options.copy === "steps-fail-once" && seen.stepWrites === 1)

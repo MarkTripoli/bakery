@@ -73,6 +73,8 @@ export function MakeCopyDialog(
             required
             error={tried && empty
               ? translate("library.copy.empty" as never)
+              : failure === "nameTaken" || failure === "nameRejected"
+              ? translate(`library.draft.${failure}` as never)
               : undefined}
           >
             <UI.TextInput
@@ -83,7 +85,13 @@ export function MakeCopyDialog(
               value={name}
               disabled={made !== null}
               invalid={tried && empty || undefined}
-              onChange={(value) => setName(clip(value, NAME_LIMIT))}
+              onChange={(value) => {
+                setName(clip(value, NAME_LIMIT));
+                // A refused name is edited, not repeated.
+                if (failure === "nameTaken" || failure === "nameRejected") {
+                  draft.clearFailure();
+                }
+              }}
             />
           </UI.Field>
           <UI.Text variant="muted">
@@ -91,18 +99,23 @@ export function MakeCopyDialog(
               version: source.revision,
             })}
           </UI.Text>
-          {failure === null ? null : (
-            <UI.InlineNotice tone="error">
-              {translate(
-                (failure === "stepsFailed"
-                  ? "library.copy.stepsFailed"
-                  : failure === "offline"
-                  ? "library.copy.offline"
-                  : "library.copy.failed") as never,
-                { name: made?.name ?? name.trim() },
-              )}
-            </UI.InlineNotice>
-          )}
+          {failure === null || failure === "nameTaken" ||
+              failure === "nameRejected"
+            ? null
+            : (
+              <UI.InlineNotice tone="error">
+                {translate(
+                  (failure === "stepsFailed"
+                    ? "library.copy.stepsFailed"
+                    : failure === "offline"
+                    ? "library.copy.offline"
+                    : failure === "forbidden"
+                    ? "library.copy.forbidden"
+                    : "library.copy.failed") as never,
+                  { name: made?.name ?? name.trim() },
+                )}
+              </UI.InlineNotice>
+            )}
           <UI.Inline gap="compact">
             <UI.Button
               variant="secondary"
