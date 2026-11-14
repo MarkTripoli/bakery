@@ -56,11 +56,6 @@
   margin: var(--space-0);
   font: var(--type-heading-subsection);
 }
-/* Buttons stacked under a banner's text start one gap below it, the same gap
-   as between them, so the first does not touch the last line. */
-.ui-alert-banner__content > .ui-stack--compact {
-  margin-block-start: var(--space-2);
-}
 
 .ui-inline-notice__action,
 .ui-alert-banner__action,

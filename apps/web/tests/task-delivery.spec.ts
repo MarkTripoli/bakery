@@ -1126,6 +1126,27 @@ for (const width of [320, 390, 820, 1280]) {
       const above = reject.y - (text.y + text.height);
       expect(Math.abs(above - between), "gap above equals the gap between")
         .toBeLessThan(2);
+      // Grouping the answers must not move the heading or the text: the
+      // heading-to-text gap is the one the Approved card (no answers) has.
+      const headingToText = async (body: string) => {
+        const heading = (await page.locator("#delivery-now-title")
+          .boundingBox())!;
+        const line = (await now.getByText(body).boundingBox())!;
+        return line.y - (heading.y + heading.height);
+      };
+      const waitingGap = await headingToText(
+        "Approving lets Bakery merge these changes.",
+      );
+      await button(now, "Approve").click();
+      await button(page.getByRole("alertdialog"), "Approve").click();
+      await expect(now).toContainText("Approved");
+      const approvedGap = await headingToText(
+        "Bakery may now merge these changes. Nothing is waiting for you.",
+      );
+      expect(
+        Math.abs(waitingGap - approvedGap),
+        "heading-to-text gap is the same with and without answers",
+      ).toBeLessThan(1.5);
     } else {
       expect(approve.x).toBeLessThan(changes.x);
       expect(changes.x).toBeLessThan(reject.x);

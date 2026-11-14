@@ -542,6 +542,21 @@ function ReadyView(
     )
     : null;
   const confirmDisabled = deciding || offline || decisionPhase === "forbidden";
+  const nowContent = (
+    <>
+      <UI.Heading id={NOW_TITLE_ID} level="subsection" tabIndex={-1}>
+        {copy.title}
+      </UI.Heading>
+      <UI.Text>{copy.body}</UI.Text>
+      {offline && (
+        <UI.Text>
+          {t("tasks.delivery.offline")}
+          {lastUpdated !== null &&
+            ` ${t("tasks.delivery.lastUpdated", { time: lastUpdated })}`}
+        </UI.Text>
+      )}
+    </>
+  );
   return (
     <>
       <UI.AlertBanner
@@ -549,20 +564,16 @@ function ReadyView(
         data-testid="delivery-now"
         tone={nowTone(model.now)}
       >
-        <UI.Heading id={NOW_TITLE_ID} level="subsection" tabIndex={-1}>
-          {copy.title}
-        </UI.Heading>
-        <UI.Text>{copy.body}</UI.Text>
-        {offline && (
-          <UI.Text>
-            {t("tasks.delivery.offline")}
-            {lastUpdated !== null &&
-              ` ${t("tasks.delivery.lastUpdated", { time: lastUpdated })}`}
-          </UI.Text>
-        )}
-        {phoneActions !== null && (
-          <UI.Stack data-testid="delivery-now-actions" gap="compact">
-            {phoneActions}
+        {phoneActions === null ? nowContent : (
+          // On a phone the answers stack under the text. The heading and text
+          // keep their own gap-free group; one compact stack puts the gap
+          // above the answers that they have between them. No shared banner
+          // style changes.
+          <UI.Stack gap="compact">
+            <UI.Stack gap="none">{nowContent}</UI.Stack>
+            <UI.Stack data-testid="delivery-now-actions" gap="compact">
+              {phoneActions}
+            </UI.Stack>
           </UI.Stack>
         )}
       </UI.AlertBanner>
