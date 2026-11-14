@@ -14,6 +14,7 @@ import {
   reserveProcessLoopbackPort,
   retryOnPortCollision,
 } from "../../fixtures/loopback-port-allocation.ts";
+import { registerLaneStack } from "../../helpers/lane-stack-registry.ts";
 
 export type Stack = {
   /** `http://127.0.0.1:<published server port>`, also `BAKERY_PUBLIC_BASE_URL`. */
@@ -127,6 +128,7 @@ async function createOwnedComposeNetworks(
 
 export async function upPostgresStack(label: string): Promise<PostgresStack> {
   const project = `bakery-e2e-${label}-${crypto.randomUUID()}`;
+  registerLaneStack(project);
   const compose = [
     "compose",
     "--project-name",
@@ -302,6 +304,7 @@ async function run(
 
 export async function upStack(label: string): Promise<Stack> {
   const project = `bakery-e2e-${label}-${crypto.randomUUID()}`;
+  registerLaneStack(project);
   const compose = [
     "compose",
     "--project-name",

@@ -9,6 +9,7 @@ import {
   openPgDatabase,
   type PgDatabase,
 } from "../../../apps/server/src/platform/database.ts";
+import { registerLaneStack } from "../lane-stack-registry.ts";
 
 type DockerResult = {
   readonly success: boolean;
@@ -211,6 +212,7 @@ async function upOwnedStack(
     15,
   );
   const project = `bakery-e2e-${projectLabel}-${crypto.randomUUID()}`;
+  registerLaneStack(project);
   const dispatchContainer = `${project}-dispatch`;
   // Model actions admit through the funded budget policy, so the server needs it.
   const budgetOverridePath = await Deno.makeTempFile({

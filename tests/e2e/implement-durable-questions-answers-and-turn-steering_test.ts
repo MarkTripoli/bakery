@@ -22,6 +22,7 @@ import {
   sendMessage,
 } from "../helpers/coordinator-turns.ts";
 import { request, seedTask } from "../helpers/durable-questions.ts";
+import { registerLaneStack } from "../helpers/lane-stack-registry.ts";
 
 type Result = { success: boolean; output: string };
 
@@ -61,6 +62,7 @@ async function until<T>(
 Deno.test("real Inngest resumes a conversation exactly once after a question is answered", async () => {
   let scriptFile: string | undefined;
   const project = `bakery-e06-questions-${crypto.randomUUID().slice(0, 8)}`;
+  registerLaneStack(project);
   const dispatch = `${project}-dispatch`;
   const authSecret = `turns-auth-${crypto.randomUUID()}-secret`;
   const bakeryPassword = `turns-bakery-${crypto.randomUUID()}`;

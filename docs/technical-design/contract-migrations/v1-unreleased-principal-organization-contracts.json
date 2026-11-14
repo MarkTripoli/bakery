@@ -1,13 +1,40 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "1ef6c948cf3369b2af97b863aed35be953e26d95"
+    "752daef1429173ec613fac0d76d7e3e225671bb4"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:e97fc71fb0fdf9e1e49f56c8b3efc1ca4faa419017f68b8edc6675596c9e0eae",
-  "reason": "#20 contract re-bind by dev-server on 2026-11-14 under owner's standing breaking-change authorization (2026-10-09), main 1ef6c948cf3369b2af97b863aed35be953e26d95: integrationGrants.list/create answer the new IntegrationGrant (and its page) instead of PermissionGrant, which cannot carry an integration grant's subject, direction and scope.",
+  "targetCompatibilityDigest": "sha256:139ea14b6964c5354840656bfacffc5447fff97615cb711676b40fc299f972d9",
+  "reason": "#36 contract re-bind by dev-workflows on 2026-11-14 under owner's standing breaking-change authorization (2026-10-09), main 752daef1429173ec613fac0d76d7e3e225671bb4: AutomationFiring gains required pending and skippedCount (the design's safe projection of a scheduling outcome); the automation catalog entries declare their organization context and the errors that context implies, as the workflow ones do.",
   "priorApprovals": [
+    {
+      "allowBreaking": true,
+      "fromBaseRefs": [
+        "752daef1429173ec613fac0d76d7e3e225671bb4"
+      ],
+      "reason": "#36 contract re-bind by dev-workflows on 2026-11-14 under owner's standing breaking-change authorization (2026-10-09), main 752daef1429173ec613fac0d76d7e3e225671bb4: AutomationFiring gains required pending and skippedCount (the design's safe projection of a scheduling outcome); the automation catalog entries declare their organization context (required_authenticated_context), as the workflow ones do.",
+      "status": "approved",
+      "targetCompatibilityDigest": "sha256:623d6a7faf9f3c60e4e41572b883999bcf864ecabc499d9e2fbfcb49357a34cb"
+    },
+    {
+      "allowBreaking": true,
+      "fromBaseRefs": [
+        "cfbd67d7133f57a3809f1ac4f362cb334c313682"
+      ],
+      "reason": "#36 contract re-bind by dev-workflows on 2026-11-14 under owner's standing breaking-change authorization (2026-10-09), main cfbd67d7133f57a3809f1ac4f362cb334c313682: AutomationFiring gains required pending and skippedCount (the design's safe projection of a scheduling outcome).",
+      "status": "approved",
+      "targetCompatibilityDigest": "sha256:6658f8267455717fb9b29758d3923f1c686e6d02f81ce8ede67bc0db9d52c9a4"
+    },
+    {
+      "allowBreaking": true,
+      "fromBaseRefs": [
+        "1ef6c948cf3369b2af97b863aed35be953e26d95"
+      ],
+      "reason": "#20 contract re-bind by dev-server on 2026-11-14 under owner's standing breaking-change authorization (2026-10-09), main 1ef6c948cf3369b2af97b863aed35be953e26d95: integrationGrants.list/create answer the new IntegrationGrant (and its page) instead of PermissionGrant, which cannot carry an integration grant's subject, direction and scope.",
+      "status": "approved",
+      "targetCompatibilityDigest": "sha256:e97fc71fb0fdf9e1e49f56c8b3efc1ca4faa419017f68b8edc6675596c9e0eae"
+    },
     {
       "allowBreaking": true,
       "fromBaseRefs": [
