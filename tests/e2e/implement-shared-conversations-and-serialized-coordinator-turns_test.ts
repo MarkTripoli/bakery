@@ -19,6 +19,7 @@ import {
   seedOrganization,
   sendMessage,
 } from "../helpers/coordinator-turns.ts";
+import { registerLaneStack } from "../helpers/lane-stack-registry.ts";
 
 type Result = { success: boolean; output: string };
 
@@ -57,6 +58,7 @@ async function until<T>(
 
 Deno.test("real Inngest executes queued coordinator turns serially and honors the pinned cutoff", async () => {
   const project = `bakery-e06-turns-${crypto.randomUUID().slice(0, 8)}`;
+  registerLaneStack(project);
   const dispatch = `${project}-dispatch`;
   const authSecret = `turns-auth-${crypto.randomUUID()}-secret`;
   const bakeryPassword = `turns-bakery-${crypto.randomUUID()}`;

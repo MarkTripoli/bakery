@@ -1,6 +1,12 @@
 import {
+  type DockerRun,
+  parseLaneStacks,
+  sweepLaneStacks,
+} from "./ci/lane-stacks.ts";
+import {
   ISOLATED_HOME_LANES,
   isolatedLaneEnvironment,
+  laneEnvPaths,
   pinnedCaches,
 } from "./ci/lane-environment.ts";
 
@@ -156,6 +162,45 @@ const rootTool = async (...args: string[]) => {
     text: new TextDecoder().decode(output.stdout).trim(),
   };
 };
+const dockerRun: DockerRun = async (args) => {
+  try {
+    const output = await new Deno.Command("docker", {
+      args: [...args],
+      stdin: "null",
+      stdout: "piped",
+      stderr: "null",
+      signal: AbortSignal.timeout(180_000),
+    }).output();
+    return {
+      code: output.code,
+      text: new TextDecoder().decode(output.stdout),
+    };
+  } catch {
+    return { code: 127, text: "" };
+  }
+};
+async function removeLaneStacks(registry: string): Promise<void> {
+  let names: string[];
+  try {
+    names = parseLaneStacks(await Deno.readTextFile(registry));
+  } catch {
+    return; // No fixture registered a stack.
+  }
+  if (names.length === 0) return;
+  const swept = await sweepLaneStacks(names, dockerRun);
+  if (swept.removed.length > 0) {
+    console.error(
+      `lane stacks: ${swept.removed.length} compose project(s) were still up after the run and were removed: ${
+        swept.removed.join(", ")
+      }`,
+    );
+  }
+  if (swept.failed.length > 0) {
+    console.error(
+      `lane stacks: could not remove: ${swept.failed.join(", ")}`,
+    );
+  }
+}
 // A terminated run still sweeps its root (#246). The listeners go in before any
 // root exists, remember which signal came and pass it on to the test process
 // once there is one; a signal that comes before the test process starts means
@@ -284,13 +329,27 @@ if (received !== undefined) {
   code = (await testProcess.status).code;
 }
 if (isolatedRoot !== undefined) {
+  // The compose stacks the lane's fixtures registered and left up (#246): a test
+  // process that was killed cannot tear its own down, so the runner does, by name.
+  await removeLaneStacks(laneEnvPaths(isolatedRoot).stacks);
   const swept = await rootTool("sweep", temporaryDirectory, isolatedRoot);
   try {
-    const { homeEntries } = JSON.parse(swept.text) as { homeEntries?: number };
+    const { homeEntries, homeNames, homeNamesTruncated } = JSON.parse(
+      swept.text,
+    ) as {
+      homeEntries?: number;
+      homeNames?: string[];
+      homeNamesTruncated?: boolean;
+    };
     // What a lane writes into its isolated HOME is what depended on a real one.
     if (homeEntries !== undefined && homeEntries > 0) {
+      const names = (homeNames ?? []).join(", ");
       console.error(
-        `lane HOME: ${homeEntries} entries were written to the isolated home`,
+        `lane HOME: ${homeEntries} entries were written to the isolated home${
+          names.length > 0
+            ? `: ${names}${homeNamesTruncated ? ", ..." : ""}`
+            : ""
+        }`,
       );
     }
   } catch {

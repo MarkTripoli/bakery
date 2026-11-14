@@ -21,6 +21,7 @@ import {
   fundedModelPolicy,
   seedProviderPricingSnapshot,
 } from "../helpers/funded-model-job.ts";
+import { registerLaneStack } from "../helpers/lane-stack-registry.ts";
 
 export type SeededStep = {
   runStepId: string;
@@ -168,6 +169,7 @@ export function createRealInngestStack(
   options: RealInngestStackOptions = {},
 ): RealInngestStack {
   const project = `bakery-issue40-inngest-${crypto.randomUUID()}`;
+  registerLaneStack(project);
   const dispatchContainer = `${project}-dispatch`;
   const eventKey = `bakery-issue40-event-${crypto.randomUUID()}`;
   const signingKey =

@@ -20,6 +20,7 @@ import {
   sendMessage,
 } from "../helpers/coordinator-turns.ts";
 import { request, seedTask } from "../helpers/durable-questions.ts";
+import { registerLaneStack } from "../helpers/lane-stack-registry.ts";
 
 type Result = { success: boolean; output: string };
 
@@ -59,6 +60,7 @@ async function until<T>(
 Deno.test("real Inngest turns request-changes into revision 2 and approval binds the exact revision", async () => {
   let scriptFile: string | undefined;
   const project = `bakery-e06-approvals-${crypto.randomUUID().slice(0, 8)}`;
+  registerLaneStack(project);
   const dispatch = `${project}-dispatch`;
   const authSecret = `turns-auth-${crypto.randomUUID()}-secret`;
   const bakeryPassword = `turns-bakery-${crypto.randomUUID()}`;

@@ -3,6 +3,7 @@ import {
   reserveProcessLoopbackPort,
   retryOnPortCollision,
 } from "../fixtures/loopback-port-allocation.ts";
+import { registerLaneStack } from "../helpers/lane-stack-registry.ts";
 
 const testSecrets = {
   bakeryPassword: "bakery-b0102-test-bakery",
@@ -183,6 +184,7 @@ Deno.test("Compose starts healthy services and Redis state survives restart", as
   }
 
   const projectName = "bakery-b0102-test-" + crypto.randomUUID();
+  registerLaneStack(projectName);
   const compose = composeArgs(projectName);
   let env = composeEnv();
   await run([...compose, "down"], true, env);
