@@ -31,7 +31,10 @@ test("Machines: Workspace leads to Work, the last crumb is the current page", as
   await expect(trail(page).getByRole("link", { name: "Workspace" }))
     .toHaveAttribute("href", "/tasks");
   await page.mouse.move(900, 600);
-  await shot(page, "breadcrumbs-machines");
+  await shot(page, "breadcrumbs-machines", [], {
+    windowOnly: true,
+    only: "desktop",
+  });
 });
 
 test("a machine's page links to Workspace and Machines, and a click moves without a page load", async ({ page }) => {
@@ -64,7 +67,10 @@ test("a settings sub-page: Settings leads to the first settings page, the sectio
   ).toHaveAttribute("href", /\/settings\/security$/);
   await expect(trail(page).locator("[aria-current=page]")).toHaveCount(1);
   await page.mouse.move(900, 600);
-  await shot(page, "breadcrumbs-settings");
+  await shot(page, "breadcrumbs-settings", [], {
+    windowOnly: true,
+    only: "desktop",
+  });
 });
 
 test("a crumb takes keyboard focus with a visible ring and opens with Enter", async ({ page }) => {
@@ -79,7 +85,13 @@ test("a crumb takes keyboard focus with a visible ring and opens with Enter", as
   });
   expect(ring.outline).not.toBe("none");
   await page.mouse.move(900, 600);
-  await shot(page, "breadcrumbs-focus");
+  await shot(page, "breadcrumbs-focus", [], {
+    windowOnly: true,
+    only: "desktop",
+  });
+  // A capture resizes the window, which can drop focus: take it back.
+  await machines.focus();
+  await expect(machines).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/machines$/);
 });

@@ -2014,5 +2014,8 @@ test("the trail leads back to Work and names the task as the current page", asyn
   await expect(trail.getByRole("link")).toHaveAttribute("href", "/tasks");
   await expect(trail.locator("[aria-current=page]")).toHaveCount(1);
   await page.mouse.move(900, 600);
-  await shot(page, "breadcrumbs-task");
+  await shot(page, "breadcrumbs-task", [], {
+    windowOnly: true,
+    only: "desktop",
+  });
 });
