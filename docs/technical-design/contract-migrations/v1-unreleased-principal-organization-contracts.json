@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "a68ed4eda25a32e09b0e985b8a97b89a35a21c22"
+    "1ef6c948cf3369b2af97b863aed35be953e26d95"
   ],
   "status": "approved",
   "allowBreaking": true,
   "targetCompatibilityDigest": "sha256:e97fc71fb0fdf9e1e49f56c8b3efc1ca4faa419017f68b8edc6675596c9e0eae",
-  "reason": "#20 contract re-bind by dev-server on 2026-11-14 under owner's standing breaking-change authorization (2026-10-09), main a68ed4eda25a32e09b0e985b8a97b89a35a21c22: integrationGrants.list/create answer the new IntegrationGrant (and its page) instead of PermissionGrant, which cannot carry an integration grant's subject, direction and scope.",
+  "reason": "#20 contract re-bind by dev-server on 2026-11-14 under owner's standing breaking-change authorization (2026-10-09), main 1ef6c948cf3369b2af97b863aed35be953e26d95: integrationGrants.list/create answer the new IntegrationGrant (and its page) instead of PermissionGrant, which cannot carry an integration grant's subject, direction and scope.",
   "priorApprovals": [
     {
       "allowBreaking": true,
