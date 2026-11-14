@@ -4,12 +4,6 @@
   "entries": [
     {
       "rule": "ui/raw-element-in-app",
-      "file": "apps/web/src/pages/projects-onboarding/ApplicationSection.tsx",
-      "subject": "p",
-      "count": 1
-    },
-    {
-      "rule": "ui/raw-element-in-app",
       "file": "apps/web/src/pages/projects-onboarding/BindingSection.tsx",
       "subject": "p",
       "count": 6
@@ -42,7 +36,7 @@
       "rule": "ui/raw-element-in-app",
       "file": "apps/web/src/pages/projects-onboarding/RepositorySection.tsx",
       "subject": "p",
-      "count": 3
+      "count": 2
     },
     {
       "rule": "ui/raw-element-in-app",

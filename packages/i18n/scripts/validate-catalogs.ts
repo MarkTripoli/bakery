@@ -14,6 +14,7 @@ const namespacePrefixes = [
   "shell.startup.",
   "shell.leave.",
   "problems.",
+  "projects.list.",
   "projects.onboarding.",
   "projects.roles.",
   "tasks.",

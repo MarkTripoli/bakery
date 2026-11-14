@@ -1,9 +1,13 @@
 import { expect, type Page, test } from "@playwright/test";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
+import { shot } from "./helpers/real-api.ts";
 
 // Denial/reconnect fixture only: the real shared page, resolver and auth
 // routes run unchanged. This is not live repository/onboarding acceptance.
-const path = "/projects/onboarding?source=bookmark#repositories";
+// A repository's setup page: the page without a repository is the Projects list.
+const REPOSITORY = "00000000-0000-4000-8000-000000000102";
+const path =
+  `/projects/onboarding?repository=${REPOSITORY}&source=bookmark#repositories`;
 const returnKey = "bakery.auth.returnTo.v1";
 const preferenceKey = "bakery.organization.lastSelected.v1";
 const organizationId = "00000000-0000-4000-8000-000000000003";
@@ -75,9 +79,13 @@ test.describe("projects onboarding scope recovery", () => {
         });
       });
       await page.goto(path);
-      await expect(page.getByTestId("projects-scope-error")).toBeVisible();
+      await expect(page.getByTestId("startup-error")).toBeVisible();
+      if (failure === "500") {
+        await page.mouse.move(900, 600);
+        await shot(page, "startup-connection");
+      }
       if (failure === "network") {
-        await expect(page.getByTestId("projects-scope-error")).toContainText(
+        await expect(page.getByTestId("startup-error")).toContainText(
           "You are offline",
         );
       }
@@ -90,24 +98,25 @@ test.describe("projects onboarding scope recovery", () => {
       // Restore the stated sole-membership fixture, not a replacement page.
       await page.unroute("**/v1/organizations");
       await mockAuthenticatedSession(page);
-      await page.getByRole("button", {
-        name: "Try loading onboarding again.",
-        exact: true,
-      }).click();
-      // The dev root runs StrictMode: each list mounts, aborts, then remounts,
-      // so recovery reads each list endpoint exactly twice and nothing else,
-      // and no further read follows once the page has settled.
-      await expect.poll(() => observed.protectedReads.length).toBe(4);
+      await page.getByRole("button", { name: "Try again", exact: true })
+        .click();
+      // The dev root runs StrictMode: each read mounts, aborts, then remounts,
+      // so recovery reads each endpoint exactly twice (the two lists, and the
+      // repository the address names) and nothing else, and no further read
+      // follows once the page has settled.
+      await expect.poll(() => observed.protectedReads.length).toBe(6);
       await page.waitForTimeout(500);
       expect([...observed.protectedReads].sort()).toEqual([
         "/v1/applications",
         "/v1/applications",
         "/v1/repositories",
         "/v1/repositories",
+        `/v1/repositories/${REPOSITORY}`,
+        `/v1/repositories/${REPOSITORY}`,
       ]);
-      await expect(page.getByTestId("projects-scope-error")).toHaveCount(0);
+      await expect(page.getByTestId("startup-error")).toHaveCount(0);
       expect(new URL(page.url()).search + new URL(page.url()).hash).toBe(
-        "?source=bookmark#repositories",
+        `?repository=${REPOSITORY}&source=bookmark#repositories`,
       );
       expect(await savedDestination(page)).toBeNull();
       expect(observed.errors).toEqual([]);
@@ -122,13 +131,13 @@ test.describe("projects onboarding scope recovery", () => {
       [
         403,
         "AUTH_FACTOR_REQUIRED",
-        "Verify and sign in",
+        "Verify",
         "/sign-in/two-factor",
       ],
       [
         403,
         "AUTH_FORBIDDEN",
-        "Where are we working?",
+        "Choose another organization",
         "/organizations?reason=forbidden",
       ],
     ] as const
@@ -141,10 +150,25 @@ test.describe("projects onboarding scope recovery", () => {
       ]);
       await deny(page, status, code);
       await page.goto(path);
-      await expect(page.getByTestId("projects-scope-error")).toBeVisible();
+      await expect(page.getByTestId("startup-error")).toBeVisible();
+      // Named for what it is, not as a connection problem; focus is on the title.
+      const title = code === "AUTH_FORBIDDEN"
+        ? "You do not have access to this organization"
+        : code === "AUTH_FACTOR_REQUIRED"
+        ? "Confirm it is you"
+        : "You are signed out";
+      await expect(page.getByTestId("startup-error")).toContainText(title);
+      await expect(page.getByTestId("startup-error")).not.toContainText(
+        "Check your connection",
+      );
+      await expect(
+        page.getByTestId("startup-error").getByRole("heading", { name: title }),
+      ).toBeFocused();
+      await page.mouse.move(900, 600);
+      await shot(page, `startup-${code.toLowerCase().replace(/_/g, "-")}`);
       expect(observed.protectedReads).toEqual([]);
       expect(observed.errors).toEqual([]);
-      await page.getByTestId("projects-scope-error").getByRole("button", {
+      await page.getByTestId("startup-error").getByRole("button", {
         name: action,
         exact: true,
       }).click();
@@ -277,25 +301,26 @@ test.describe("projects onboarding scope recovery", () => {
     await page.goto(path);
     await expect.poll(() => requests).toBeGreaterThan(0);
     replaced = true;
-    const replacement = "/projects/onboarding?source=replacement#current";
+    const replacement =
+      `/projects/onboarding?repository=${REPOSITORY}&source=replacement#current`;
     await page.evaluate((destination) => {
       history.pushState({}, "", destination);
       dispatchEvent(new PopStateEvent("popstate"));
     }, replacement);
-    await expect(page.getByTestId("projects-scope-error")).toContainText(
-      "Sign in required",
+    await expect(page.getByTestId("startup-error")).toContainText(
+      "You are signed out",
     );
     release();
     await page.waitForTimeout(300);
-    await expect(page.getByTestId("projects-scope-error")).toContainText(
-      "Sign in required",
+    await expect(page.getByTestId("startup-error")).toContainText(
+      "You are signed out",
     );
     expect(await savedDestination(page)).toBeNull();
     expect(
       await page.evaluate((key) => localStorage.getItem(key), preferenceKey),
     ).toBeNull();
     expect(observed.protectedReads).toEqual([]);
-    await page.getByTestId("projects-scope-error").getByRole("button", {
+    await page.getByTestId("startup-error").getByRole("button", {
       name: "Sign in",
       exact: true,
     }).click();

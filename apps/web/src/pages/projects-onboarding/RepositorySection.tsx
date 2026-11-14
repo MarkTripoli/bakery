@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import * as UI from "@bakery/ui";
 import type {
-  ApplicationResponse,
-  RepositoryCreate,
   RepositoryProfileResponse,
   RepositoryResponse,
   RepositoryUpdate,
@@ -10,230 +8,16 @@ import type {
 import type { CursorCollection } from "./useCursorPages.ts";
 import type { ProjectsOnboardingLabels } from "./labels.ts";
 import {
-  EMPTY_REPOSITORY_FORM,
   type FieldErrors,
-  repositoryCreateInput,
   type RepositoryEditValues,
   type RepositoryFormValues,
   repositoryUpdateInput,
   validateRepositoryEdit,
-  validateRepositoryForm,
 } from "./validation.ts";
 import { readOnlyProfileHistoryRows } from "./identity.ts";
 
-type RepositorySectionProps = Readonly<{
-  labels: ProjectsOnboardingLabels;
-  applications: CursorCollection<ApplicationResponse>;
-  selectedApplicationId: string;
-  onApplicationChange: (applicationId: string) => void;
-  onCreate: (input: RepositoryCreate) => Promise<void>;
-  createPending: boolean;
-}>;
-
 type RepositoryField = keyof RepositoryFormValues;
 type RepositoryEditField = keyof RepositoryEditValues;
-
-export function RepositorySection({
-  applications,
-  createPending,
-  labels,
-  onApplicationChange,
-  onCreate,
-  selectedApplicationId,
-}: RepositorySectionProps) {
-  const [values, setValues] = useState<RepositoryFormValues>(
-    EMPTY_REPOSITORY_FORM,
-  );
-  const [errors, setErrors] = useState<FieldErrors<RepositoryField>>({});
-  const [submitError, setSubmitError] = useState(false);
-
-  const submit = async () => {
-    const submittedValues = { ...values, applicationId: selectedApplicationId };
-    const nextErrors = validateRepositoryForm(submittedValues);
-    setErrors(nextErrors);
-    setSubmitError(false);
-    if (Object.keys(nextErrors).length > 0) return;
-    try {
-      await onCreate(repositoryCreateInput(submittedValues));
-      setValues(EMPTY_REPOSITORY_FORM);
-      setErrors({});
-    } catch {
-      setSubmitError(true);
-    }
-  };
-
-  const error = (field: RepositoryField) => {
-    const code = errors[field];
-    return code === undefined ? undefined : labels.validation[code];
-  };
-
-  return (
-    <>
-      <UI.Stack data-testid="projects-onboarding-repositories" gap="spacious">
-        <p>{labels.repositories.description}</p>
-        <UI.SettingsSection
-          title={labels.repositories.createHeading}
-          variant="stack"
-        >
-          {submitError
-            ? (
-              <UI.InlineNotice tone="error">
-                {labels.errors.mutation}
-              </UI.InlineNotice>
-            )
-            : null}
-          <form
-            noValidate
-            onSubmit={(event) => {
-              event.preventDefault();
-              void submit();
-            }}
-          >
-            <UI.Stack gap="standard">
-              <UI.Combobox
-                label={labels.repositories.fields.application}
-                name="applicationId"
-                onChange={(event) => {
-                  const applicationId = event.target.value;
-                  onApplicationChange(applicationId);
-                  setValues((current) => ({ ...current, applicationId }));
-                }}
-                options={[
-                  {
-                    disabled: true,
-                    label: labels.repositories.fields.application,
-                    value: "",
-                  },
-                  ...applications.items.map((application) => ({
-                    label: `${application.name} (${application.slug})`,
-                    value: application.id,
-                  })),
-                ]}
-                value={selectedApplicationId}
-              />
-              {errors.applicationId
-                ? (
-                  <UI.InlineNotice tone="error">
-                    {labels.validation[errors.applicationId]}
-                  </UI.InlineNotice>
-                )
-                : null}
-              <RepositoryInput
-                autoComplete="off"
-                error={error("slug")}
-                id="projects-onboarding-repository-slug"
-                label={labels.repositories.fields.slug}
-                name="slug"
-                onChange={(slug) =>
-                  setValues((current) => ({ ...current, slug }))}
-                value={values.slug}
-              />
-              <RepositoryInput
-                autoComplete="off"
-                error={error("integrationConnectionId")}
-                id="projects-onboarding-repository-connection"
-                label={labels.repositories.fields.integrationConnectionId}
-                name="integrationConnectionId"
-                onChange={(integrationConnectionId) =>
-                  setValues((current) => ({
-                    ...current,
-                    integrationConnectionId,
-                  }))}
-                value={values.integrationConnectionId}
-              />
-              <RepositoryInput
-                autoComplete="off"
-                error={error("providerRepoId")}
-                id="projects-onboarding-repository-provider-id"
-                label={labels.repositories.fields.providerRepoId}
-                name="providerRepoId"
-                onChange={(providerRepoId) =>
-                  setValues((current) => ({ ...current, providerRepoId }))}
-                value={values.providerRepoId}
-              />
-              <RepositoryInput
-                autoComplete="off"
-                error={error("owner")}
-                id="projects-onboarding-repository-owner"
-                label={labels.repositories.fields.owner}
-                name="owner"
-                onChange={(owner) =>
-                  setValues((current) => ({ ...current, owner }))}
-                value={values.owner}
-              />
-              <RepositoryInput
-                autoComplete="off"
-                error={error("name")}
-                id="projects-onboarding-repository-name"
-                label={labels.repositories.fields.name}
-                name="name"
-                onChange={(name) =>
-                  setValues((current) => ({ ...current, name }))}
-                value={values.name}
-              />
-              <RepositoryInput
-                autoComplete="off"
-                error={error("defaultBranch")}
-                id="projects-onboarding-repository-default-branch"
-                label={labels.repositories.fields.defaultBranch}
-                name="defaultBranch"
-                onChange={(defaultBranch) =>
-                  setValues((current) => ({ ...current, defaultBranch }))}
-                value={values.defaultBranch}
-              />
-              <UI.Button
-                disabled={createPending ||
-                  !applications.items.some((application) =>
-                    application.id === selectedApplicationId &&
-                    application.archivedAt === null
-                  )}
-                loading={createPending}
-                type="submit"
-              >
-                {createPending
-                  ? labels.repositories.actions.creating
-                  : labels.repositories.actions.create}
-              </UI.Button>
-            </UI.Stack>
-          </form>
-        </UI.SettingsSection>
-      </UI.Stack>
-    </>
-  );
-}
-
-function RepositoryInput({
-  autoComplete,
-  error,
-  id,
-  label,
-  name,
-  onChange,
-  value,
-}: Readonly<{
-  autoComplete: string;
-  error: string | undefined;
-  id: string;
-  label: string;
-  name: string;
-  onChange: (value: string) => void;
-  value: string;
-}>) {
-  return (
-    <UI.Field error={error} htmlFor={id} label={label} required>
-      <UI.TextInput
-        autoComplete={autoComplete}
-        id={id}
-        invalid={error !== undefined}
-        name={name}
-        onChange={onChange}
-        required
-        type="text"
-        value={value}
-      />
-    </UI.Field>
-  );
-}
 
 export function RepositoryEditor({
   labels,

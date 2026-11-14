@@ -10,7 +10,7 @@ import type {
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { type ProjectsOnboardingLabels } from "./labels.ts";
 import { readOnlyProfileHistoryRows } from "./identity.ts";
-import { useProfileDate } from "./ProjectsLists.tsx";
+import { useProfileDate } from "./useProfileDate.ts";
 import type { CursorCollection } from "./useCursorPages.ts";
 
 type Props = Readonly<{

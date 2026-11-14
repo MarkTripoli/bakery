@@ -5,6 +5,11 @@ import {
 } from "./helpers/machines-fixture.ts";
 import { issuesFixture, OPEN, uuid } from "./helpers/issues-fixture.ts";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
+import {
+  application,
+  projectsFixture,
+  repository,
+} from "./helpers/projects-fixture.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { shot } from "./helpers/real-api.ts";
 
@@ -124,4 +129,20 @@ test("an issue's page leads back to Workspace and Issues, with the issue as the 
       (globalThis as unknown as { __kept: number }).__kept
     ),
   ).toBe(1);
+});
+
+test("the Projects list leads back to Workspace, and a repository's setup page to Workspace and Projects", async ({ page }) => {
+  await projectsFixture(page, {
+    applications: [application(1, "Payments")],
+    repositories: [repository(1, application(1, "Payments").id, "ledger")],
+    offered: [],
+  });
+  await page.goto("/projects");
+  await expect(trail(page).getByRole("link")).toHaveText(["Workspace"]);
+  await expect(trail(page).getByRole("link", { name: "Workspace" }))
+    .toHaveAttribute("href", "/tasks");
+  await expect(trail(page).getByText("Projects")).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
 });

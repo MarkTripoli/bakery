@@ -4,6 +4,8 @@ import type { ProjectValidationError } from "./validation.ts";
 
 export type ProjectsOnboardingLabels = Readonly<{
   title: string;
+  /** The name of the Projects list, for the crumb that leads back to it. */
+  projectsList: string;
   description: string;
   scopeRequired: string;
   errors: Readonly<{

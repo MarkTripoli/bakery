@@ -236,6 +236,13 @@
       ]
     },
     {
+      "routeId": "projects",
+      "path": "/projects",
+      "status": "no-mock",
+      "rationale": "The Projects list (applications, their repositories, Add repository) is designed by design-ux on #65 (projects page design and the server-facts addendum); Paper has no frame for it.",
+      "frames": []
+    },
+    {
       "routeId": "projects-onboarding",
       "path": "/projects/onboarding",
       "status": "baselined",

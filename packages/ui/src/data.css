@@ -1674,3 +1674,25 @@
   min-block-size: var(--target-coarse);
   padding: var(--space-0);
 }
+
+/* A combobox that is a form field looks like the text fields beside it: the
+   same height, border, type and width. */
+.ui-combobox--field select {
+  box-sizing: border-box;
+  color: var(--color-fg);
+  font: var(--type-field);
+  inline-size: 100%;
+  min-block-size: max(var(--size-control), var(--target-coarse));
+  padding: var(--space-2) var(--space-3);
+}
+/* Column headings kept for assistive technology and hidden visually, for a
+   table whose rows explain themselves. */
+.ui-data-table[data-headings="hidden"] thead {
+  block-size: 1px;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  inline-size: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+}

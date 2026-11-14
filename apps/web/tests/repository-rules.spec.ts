@@ -106,15 +106,15 @@ function effective(overrides: Partial<Effective> = {}): Effective {
 
 type Options = {
   rules?: Effective;
-  /** Answers the first `n` rules reads with a 500 before the real answer. */
-  failFirst?: number;
+  /** Answers every rules read with a 500 until `recover()` is called. */
+  failing?: boolean;
   rulesProblem?: ReturnType<typeof problem>;
   repositoryProblem?: ReturnType<typeof problem>;
 };
 
 async function rulesFixture(page: Page, options: Options = {}) {
   const requests: string[] = [];
-  let failures = options.failFirst ?? 0;
+  let failing = options.failing ?? false;
   await mockAuthenticatedSession(page);
   await page.route(
     `**/v1/repositories/${REPOSITORY_ID}`,
@@ -131,8 +131,7 @@ async function rulesFixture(page: Page, options: Options = {}) {
     `**/v1/repositories/${REPOSITORY_ID}/rules`,
     (route: Route) => {
       requests.push(route.request().url());
-      if (failures > 0) {
-        failures -= 1;
+      if (failing) {
         return route.fulfill(problem(500, "INTERNAL_ERROR", "Server error"));
       }
       if (options.rulesProblem) return route.fulfill(options.rulesProblem);
@@ -149,7 +148,12 @@ async function rulesFixture(page: Page, options: Options = {}) {
       });
     },
   );
-  return { requests };
+  return {
+    requests,
+    recover: () => {
+      failing = false;
+    },
+  };
 }
 
 const region = (page: Page) => page.getByTestId("repository-rules");
@@ -520,7 +524,7 @@ test.describe("repository rules: the effective rules of one repository", () => {
     await expect(region(page).getByRole("row")).toHaveCount(0);
     await shot(page, "repository-rules-refused");
     await banner.getByRole("link", { name: "Back to projects" }).click();
-    await expect(page).toHaveURL(/\/projects\/onboarding/);
+    await expect(page).toHaveURL(/\/projects$/);
   });
 
   test("an unknown repository says the same, so nothing can be probed", async ({ page }) => {
@@ -539,16 +543,20 @@ test.describe("repository rules: the effective rules of one repository", () => {
   });
 
   test("a failed read says what to do and offers Try again, which loads the rules", async ({ page }) => {
-    const { requests } = await rulesFixture(page, { failFirst: 1 });
+    const { recover, requests } = await rulesFixture(page, { failing: true });
     await page.goto(RULES_PATH);
     await expect(page.getByText("Rules could not be loaded.")).toBeVisible();
     await expect(page.getByText("Check your connection, then try again."))
       .toBeVisible();
     await shot(page, "repository-rules-error");
+    // The page reads twice while it mounts (the dev root runs StrictMode), so
+    // the count that matters is what Try again adds: exactly one read.
+    const before = requests.length;
+    recover();
     await page.getByRole("button", { name: "Try again" }).click();
     await expect(rule(page, "Semantic commits")).toBeVisible();
     await expect(page.getByText("Rules could not be loaded.")).toHaveCount(0);
-    expect(requests.length).toBe(2);
+    expect(requests.length).toBe(before + 1);
   });
 
   test("while the rules load there are placeholders, not a banner", async ({ page }) => {
