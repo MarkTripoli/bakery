@@ -36,6 +36,17 @@ test.describe("shared states", () => {
     await shot(page, "information-notice");
   });
 
+  test("the neutral notice draws the same information glyph", async ({ page }) => {
+    await mockAuthenticatedSession(page);
+    await page.goto("/settings/sessions");
+    // "There are no other active sessions." is a neutral-tone notice.
+    const notice = page.locator(".ui-inline-notice--neutral").first();
+    await expect(notice).toBeVisible();
+    await expect(notice.locator('[data-ui-component="iconGlyph"]'))
+      .toHaveAttribute("data-variant", "info");
+    await shot(page, "neutral-notice");
+  });
+
   test("a disabled primary button is dimmer than the text in the dark theme", async ({ page }) => {
     await page.emulateMedia({ colorScheme: "dark" });
     await mockAuthenticatedSession(page);

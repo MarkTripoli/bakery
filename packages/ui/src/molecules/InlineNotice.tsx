@@ -20,7 +20,7 @@ export type InlineNoticeProps =
   };
 
 const TONE_GLYPH = {
-  neutral: "document",
+  neutral: "info",
   information: "info",
   success: "check",
   warning: "alert",
