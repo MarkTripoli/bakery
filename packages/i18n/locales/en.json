@@ -2481,6 +2481,8 @@
   "projects.list.add.branchEmpty": "Enter a branch name.",
   "projects.list.add.branchInvalid": "That is not a valid branch name. Use letters, numbers, dashes, dots and slashes, for example main or release/2.0.",
   "projects.list.add.repositoryShortName": "Repository short name",
+  "projects.list.add.applicationName": "Application name",
+  "projects.list.add.applicationShortName": "Application short name",
   "projects.list.add.back": "Back",
   "projects.list.add.submit": "Add repository",
   "projects.list.add.already": "This repository is already added.",

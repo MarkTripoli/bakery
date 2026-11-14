@@ -266,7 +266,7 @@ export function AddRepositoryDialog(
                   <>
                     <UI.Field
                       label={translate(
-                        "projects.list.application.name" as never,
+                        "projects.list.add.applicationName" as never,
                       )}
                       htmlFor={`${id}-app-name`}
                       required
@@ -286,7 +286,9 @@ export function AddRepositoryDialog(
                       />
                     </UI.Field>
                     <UI.Field
-                      label={translate("projects.list.shortName" as never)}
+                      label={translate(
+                        "projects.list.add.applicationShortName" as never,
+                      )}
                       htmlFor={`${id}-app-slug`}
                       required
                       hint={translate("projects.list.shortNameHelp" as never)}
