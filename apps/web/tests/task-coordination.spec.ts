@@ -1,3 +1,4 @@
+import { shot } from "./helpers/real-api.ts";
 import {
   expect,
   type Locator,
@@ -932,6 +933,7 @@ test("a saved workflow whose newer version is in use says this run's version is 
     ),
   });
   await expect(panel).toBeVisible();
+  await shot(page, "task-origin-older");
 });
 
 test("when the versions cannot be read the version shows its short identifier", async ({ page }) => {
