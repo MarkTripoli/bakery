@@ -165,8 +165,8 @@
       "packages/ui/scripts/render-artifacts-references.mjs",
       "packages/ui/scripts/render-enterprise-references.mjs"
     ],
-    "revision": "paper:e03b1460; mock:a3b66f5b; rendered:2026-11-13",
-    "digest": "a3b66f5b0381a6cef231c4e24d741df45f930d41a9861a79a83a208ecf7f2b2a"
+    "revision": "paper:0f177b31; mock:dc6dc9cd; rendered:2026-11-14",
+    "digest": "dc6dc9cd5d1a67094ebb12fa21a1cbd0129d06db1faa247762cdd0100729de65"
   },
   "reference": {
     "hidden": [],
@@ -185,7 +185,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--default--light--desktop.png",
-      "imageSha256": "eb3ab6ef0d1af68158760daceea1d09cc4d9bba81d314cb8ff6525b832961f8a",
+      "imageSha256": "2a7d0c260211f4918743cbd818d8ea9c43f83cac716ef5f31b29845fb0143e3f",
       "viewport": {
         "width": 1440,
         "height": 1304
@@ -230,7 +230,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--default--light--phone.png",
-      "imageSha256": "7f1b1cdf9d7f3bc46bbf2f16ddf0c9fe05f22271130a5ac7240f379e850f510f",
+      "imageSha256": "4f0f209365b21204a43c30ed855464f0fc5605c7fdfe4dc8cc8dab9962c4acde",
       "viewport": {
         "width": 390,
         "height": 3214
@@ -275,7 +275,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--default--dark--desktop.png",
-      "imageSha256": "22212e50ee9b2c51abb8c1e8b82586f5a361f2f0e6d372cf54794561326c73c0",
+      "imageSha256": "deec43f7668f9f2c463cc44b12518bfeaeea24bdcbb9b5ad7e591bd2bee40a96",
       "viewport": {
         "width": 1440,
         "height": 1304
@@ -320,7 +320,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--default--dark--phone.png",
-      "imageSha256": "83f7231a151482d5a13f30133de0ec0e338252861c442201d635aa47bb9c6afb",
+      "imageSha256": "5bcc9139ab03909ace0a72bbf03275dc11730fe6ecb3d72621574a0d1415fe4d",
       "viewport": {
         "width": 390,
         "height": 3214
@@ -365,7 +365,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--truncated--light--desktop.png",
-      "imageSha256": "6b22d0167fa4668b750a22e3a987a929f81bae5ba66a1f4745868e9d8f16b15f",
+      "imageSha256": "e1059ba721640530dc31437164f06e313d5d03b352e94460e74052021440529b",
       "viewport": {
         "width": 1440,
         "height": 1490
@@ -410,7 +410,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--truncated--light--phone.png",
-      "imageSha256": "ce8fcfed1d6859be14e0da0cc26fca2a1eb182889e87440aa8c6d79b7ff3f077",
+      "imageSha256": "bb90129f74b3eedcbdc0e56b4ad9e9aecfa12cf502343dffbe82cc6f69e2a7a3",
       "viewport": {
         "width": 390,
         "height": 3594
@@ -455,7 +455,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--reconnecting--light--desktop.png",
-      "imageSha256": "4141bcf82603100fa46a82e855ab3095cfb44062f176c04f5114db5fd0c40af3",
+      "imageSha256": "2d7e68cca1eeeae944a4e25c96dfcbc796ac98b69d75686333a416fcc44df78b",
       "viewport": {
         "width": 1440,
         "height": 1490
@@ -500,7 +500,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--reconnecting--light--phone.png",
-      "imageSha256": "57a829d6b25ef3ac73d240dd40ad15da1993c2b478323f5940784237295c90c6",
+      "imageSha256": "cb2d8989837f4bab10e61c3029dde4450745d9b6136cef7a490ebfc31dd53dd4",
       "viewport": {
         "width": 390,
         "height": 3594
@@ -545,7 +545,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--reset--light--desktop.png",
-      "imageSha256": "059df80254efbe0f6f7a89beb244ba5d6a33fd2d2517a1a22eba51ed02dc9e26",
+      "imageSha256": "017776240af40d4b34535d43de7f521c3cd964c64c7c355f7638399020800822",
       "viewport": {
         "width": 1440,
         "height": 1490
@@ -590,7 +590,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--reset--light--phone.png",
-      "imageSha256": "e1f4bbdaaf6853cac72e09b0a9069d71a2e8debf7f1c26bd30099b39f430c230",
+      "imageSha256": "a9f16cd946d844c7f0038e252ea44e21a2a62d2f0df000bc078fc050de2d031f",
       "viewport": {
         "width": 390,
         "height": 3594
@@ -635,7 +635,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--exit--light--desktop.png",
-      "imageSha256": "a6b75c4c99da5249e7dc953086c622641b655910a421b238bdf579b1a96ce7c3",
+      "imageSha256": "dc569712ce62d762db27489cb4f2a04a94d2fb7b831d623ce610ad107450c7eb",
       "viewport": {
         "width": 1440,
         "height": 1490
@@ -680,18 +680,18 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--exit--light--phone.png",
-      "imageSha256": "12c1e2de312eedfbc8947a7422383cca8135bd97cc040c3e1b97357a561bddc3",
+      "imageSha256": "759b5d513ca066ccfd15bbb517226f8aa73d5b9e644af282680c7be3f6c4ea8d",
       "viewport": {
         "width": 390,
-        "height": 3594
+        "height": 3674
       },
       "artboard": {
         "width": 390,
-        "height": 3594
+        "height": 3674
       },
       "image": {
         "width": 390,
-        "height": 3594
+        "height": 3674
       },
       "dpr": 1,
       "theme": "light",
@@ -725,7 +725,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--interrupted--light--desktop.png",
-      "imageSha256": "cd44c5aa142fb62d34fb2b9788ab7bc3ce687f55b9050da7e49b2c6073f33c61",
+      "imageSha256": "fa208618868d625779d34658661dbe13be767e324bd114cba8f2193f0e125d8f",
       "viewport": {
         "width": 1440,
         "height": 1490
@@ -770,7 +770,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--interrupted--light--phone.png",
-      "imageSha256": "c55f95514afc6faab6c8e72e32bb1a9cfd7b223a2b3135043033995f0754633c",
+      "imageSha256": "411370423768411fefdcc5c98d67b336f2f30413e702b443861b1f75ff2082d1",
       "viewport": {
         "width": 390,
         "height": 3594
@@ -815,7 +815,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--quota--light--desktop.png",
-      "imageSha256": "128927813baa686e904f2b6bfcb2542b4434b2e6db557a7993dd5e76ac1dfaed",
+      "imageSha256": "da9672e20ddc6232bb788c86317e2b888ac17a3ba980483f5eda1d7e25a62d31",
       "viewport": {
         "width": 1440,
         "height": 1490
@@ -860,7 +860,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--quota--light--phone.png",
-      "imageSha256": "076c35d5ce58b273701541dd389792a4a931c79b07206fe260b0b82104dd79f2",
+      "imageSha256": "b1120918263eba80a924d34ac700f5410adbc0710a38ff5ef863ffc8a41003ca",
       "viewport": {
         "width": 390,
         "height": 3594
@@ -905,7 +905,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--usage-unknown--light--desktop.png",
-      "imageSha256": "c9ad94c10f049f125052dcbf23a7df5db168b174b25316ae03f45f4c28bd3da0",
+      "imageSha256": "ef7625668e8bca872c68afd105904397983da9c436e458daa3117a5a3db85816",
       "viewport": {
         "width": 1440,
         "height": 1490
@@ -950,7 +950,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--usage-unknown--light--phone.png",
-      "imageSha256": "800c046e23c8b6b3b081c19f859906c064b3620a37273311bfc631de755030c4",
+      "imageSha256": "bc93fefc97c3ee83940a4e9bc792f9ab1216827929f2e7c611af453a0533c2ca",
       "viewport": {
         "width": 390,
         "height": 3594
@@ -995,7 +995,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--timeout--light--desktop.png",
-      "imageSha256": "06295755fb407a8742ca757d422fdc87b9cf6e1889e1a00098d5d4ed0c297a8c",
+      "imageSha256": "d9a2e9a0c4bff7908974438d049221e67ba22b858587418391926b5d67982272",
       "viewport": {
         "width": 1440,
         "height": 1490
@@ -1040,18 +1040,18 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--timeout--light--phone.png",
-      "imageSha256": "db182f5ec66d73577b0ece5243912f930bcd1d55579fb01eaf2620b367f3eefb",
+      "imageSha256": "d00b001c1690fd156bbccee5c46e0e2f63e3e0e5f558e9b57a48260f7118dcf2",
       "viewport": {
         "width": 390,
-        "height": 3594
+        "height": 3674
       },
       "artboard": {
         "width": 390,
-        "height": 3594
+        "height": 3674
       },
       "image": {
         "width": 390,
-        "height": 3594
+        "height": 3674
       },
       "dpr": 1,
       "theme": "light",
@@ -1085,7 +1085,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--lost-lease--light--desktop.png",
-      "imageSha256": "252b3afcc08dc54e1ffb867dca79e47b1e7eba33ba87e0664d6197bf06e294f6",
+      "imageSha256": "b0c82491012bedff52a1785521135803be944e12cb44c43f94aadc2555780653",
       "viewport": {
         "width": 1440,
         "height": 1510
@@ -1130,18 +1130,18 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/artifacts/task-run--lost-lease--light--phone.png",
-      "imageSha256": "78b6851bde31c1f42ea3e42e6dd6e654bf32cec46517b5f8499074f7d56e8100",
+      "imageSha256": "a4e5abd2c74bc60eaffb69e4a9ed3d588632269827597bb03d07c453f887d1b3",
       "viewport": {
         "width": 390,
-        "height": 3634
+        "height": 3754
       },
       "artboard": {
         "width": 390,
-        "height": 3634
+        "height": 3754
       },
       "image": {
         "width": 390,
-        "height": 3634
+        "height": 3754
       },
       "dpr": 1,
       "theme": "light",

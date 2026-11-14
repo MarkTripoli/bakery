@@ -28,8 +28,8 @@
       "packages/ui/scripts/fontconfig/fonts.conf",
       "packages/ui/scripts/render-enterprise-references.mjs"
     ],
-    "revision": "paper:600b4b67; mock:bfa28845; rendered:2026-11-13",
-    "digest": "bfa288451f91a0f54bb65427022ccf6ff0b43ee7ebe0d74ac855b7f02b098b73"
+    "revision": "paper:3fd8f6c2; mock:c4d0c799; rendered:2026-11-14",
+    "digest": "c4d0c79924b76add4c736ea0823d26c8fdf0cc13a9e413de203733488d2056a9"
   },
   "reference": {
     "hidden": [],
@@ -145,7 +145,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/enterprise/task-conversation--default--light--desktop.png",
-      "imageSha256": "59172f0d395766fac60d05f2b16bb0c237adbe9db0f4caaac92d7804e417792c",
+      "imageSha256": "4c3c0620ce4da08fc43067bc22f4f3812b1615ed630204a52a9e2734a8e5863a",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -190,7 +190,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/enterprise/task-conversation--default--dark--desktop.png",
-      "imageSha256": "590bbe74ccfd1d409320dea302729974c0b0977c43504b20f8cf433ba77e5387",
+      "imageSha256": "c8b1a484d168dbb3ee3988b3e06f4c80633fa56716fe2c48977a4f53d434a4c4",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -287,7 +287,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/enterprise/task-conversation--plan-review--light--desktop.png",
-      "imageSha256": "ecf6ab17c7a859c0eb8da75e0c831dec22085fce6b3c0e967d92295445d22243",
+      "imageSha256": "7734ebd5faf644254f461da2543da5b2d00da02cc44ae393719294b9bee58eae",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -332,7 +332,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/enterprise/task-conversation--question--light--desktop.png",
-      "imageSha256": "fb4fa7c58c6a3e9141badcc245c315cf5430af68e6f51fb62cc9b2789133978d",
+      "imageSha256": "349a047574147cf938e5de837811d35d99ef3ef7f410c34359e86403972dc73e",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -377,7 +377,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/enterprise/task-conversation--empty--light--desktop.png",
-      "imageSha256": "9dba10021785d0b482c0d19ca7d0c0c557f611499dc5e5ab47b347968eb40875",
+      "imageSha256": "7f8bd19779607c5b2341d131dada1fb0d511c839bb71a3859c527a141a9578f2",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -422,7 +422,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/enterprise/task-conversation--conflict--light--desktop.png",
-      "imageSha256": "ff29330c6ab0ae591b6d255e502e4ed6b28b72d828938298182a12c23694ac8d",
+      "imageSha256": "b3bc0805a06fb3238128e84720ea899a5999879a1776be97c1480b0264f7f746",
       "viewport": {
         "width": 1440,
         "height": 900
