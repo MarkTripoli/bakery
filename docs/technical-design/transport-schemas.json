@@ -15469,7 +15469,9 @@
         "runId",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "pending",
+        "skippedCount"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -15480,13 +15482,15 @@
         "runId": "uuid|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "pending": "boolean",
+        "skippedCount": "integer"
       },
       "nullableFields": [
         "triggerEventId",
         "runId"
       ],
-      "description": "One deduplicated scheduled or event-triggered occurrence of an automation version: when it was due, the inbound event that triggered it when event-based, its outcome (queued, skipped, started, or failed), and the run it started, if any.",
+      "description": "One deduplicated scheduled or event-triggered occurrence of an automation version: when it was due, the inbound event that triggered it when event-based, its outcome (queued, skipped, started, or failed), and the run it started, if any. A queued firing is pending until its run starts; a coalesced catch-up carries the count of missed occurrences it did not queue.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the automation firing record.",
         "automationVersionId": "Stable UUID linking this record to the related automation version entity.",
@@ -15496,7 +15500,9 @@
         "runId": "Stable UUID linking this record to the related run entity.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "pending": "True while the firing is durably admitted but its run has not started yet: a queued firing waiting for the automation's active run to end, or one just admitted.",
+        "skippedCount": "How many occurrences this firing stands in for without queuing them: the missed occurrences a coalesced catch-up recorded instead of creating an unbounded backlog; 0 for an ordinary occurrence."
       }
     },
     "ArtifactComment": {

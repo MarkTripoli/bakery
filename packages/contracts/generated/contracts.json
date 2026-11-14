@@ -2012,10 +2012,11 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
-        "MALFORMED_REQUEST"
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Automation",
@@ -2032,10 +2033,12 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND"
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Automation",
@@ -2056,10 +2059,12 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Automation",
@@ -2080,10 +2085,12 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Automation",
@@ -2104,10 +2111,12 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Automation",
@@ -2126,10 +2135,11 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
-        "MALFORMED_REQUEST"
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Automation",
@@ -2172,10 +2182,11 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
-        "MALFORMED_REQUEST"
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Skills",
@@ -9054,6 +9065,13 @@
     "workflows.validate",
     "workflowActions.list",
     "workflowActions.get",
+    "automations.list",
+    "automations.get",
+    "automations.create",
+    "automations.update",
+    "automationVersions.list",
+    "automationVersions.create",
+    "automationFirings.list",
     "artifactComments.create",
     "artifactComments.update",
     "artifactComments.list",
@@ -14273,6 +14291,18 @@
                 "minimum": 1,
                 "maximum": 100
               }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
             }
           ],
           "responses": {
@@ -14302,7 +14332,20 @@
         },
         "post": {
           "operationId": "automations.create",
-          "parameters": [],
+          "parameters": [
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
           "responses": {
             "200": {
               "description": "Successful response",
@@ -14353,6 +14396,18 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
               }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
             }
           ],
           "responses": {
@@ -14392,6 +14447,18 @@
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
               }
             }
           ],
@@ -14444,6 +14511,18 @@
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
               }
             }
           ],
@@ -14516,6 +14595,18 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 100
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
               }
             }
           ],
@@ -14632,6 +14723,18 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 100
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
               }
             }
           ],
@@ -71487,6 +71590,16 @@
               "minimum": -9007199254740991,
               "maximum": 9007199254740991,
               "description": "Optimistic-concurrency version used when updating the record."
+            },
+            "pending": {
+              "type": "boolean",
+              "description": "True while the firing is durably admitted but its run has not started yet: a queued firing waiting for the automation's active run to end, or one just admitted."
+            },
+            "skippedCount": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "How many occurrences this firing stands in for without queuing them: the missed occurrences a coalesced catch-up recorded instead of creating an unbounded backlog; 0 for an ordinary occurrence."
             }
           },
           "required": [
@@ -71498,10 +71611,12 @@
             "runId",
             "createdAt",
             "updatedAt",
-            "version"
+            "version",
+            "pending",
+            "skippedCount"
           ],
           "additionalProperties": false,
-          "description": "One deduplicated scheduled or event-triggered occurrence of an automation version: when it was due, the inbound event that triggered it when event-based, its outcome (queued, skipped, started, or failed), and the run it started, if any."
+          "description": "One deduplicated scheduled or event-triggered occurrence of an automation version: when it was due, the inbound event that triggered it when event-based, its outcome (queued, skipped, started, or failed), and the run it started, if any. A queued firing is pending until its run starts; a coalesced catch-up carries the count of missed occurrences it did not queue."
         },
         "skill_sources": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -120615,6 +120730,16 @@
                     "minimum": -9007199254740991,
                     "maximum": 9007199254740991,
                     "description": "Optimistic-concurrency version used when updating the record."
+                  },
+                  "pending": {
+                    "type": "boolean",
+                    "description": "True while the firing is durably admitted but its run has not started yet: a queued firing waiting for the automation's active run to end, or one just admitted."
+                  },
+                  "skippedCount": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "How many occurrences this firing stands in for without queuing them: the missed occurrences a coalesced catch-up recorded instead of creating an unbounded backlog; 0 for an ordinary occurrence."
                   }
                 },
                 "required": [
@@ -120626,10 +120751,12 @@
                   "runId",
                   "createdAt",
                   "updatedAt",
-                  "version"
+                  "version",
+                  "pending",
+                  "skippedCount"
                 ],
                 "additionalProperties": false,
-                "description": "One deduplicated scheduled or event-triggered occurrence of an automation version: when it was due, the inbound event that triggered it when event-based, its outcome (queued, skipped, started, or failed), and the run it started, if any."
+                "description": "One deduplicated scheduled or event-triggered occurrence of an automation version: when it was due, the inbound event that triggered it when event-based, its outcome (queued, skipped, started, or failed), and the run it started, if any. A queued firing is pending until its run starts; a coalesced catch-up carries the count of missed occurrences it did not queue."
               },
               "description": "Page<AutomationFiring>.items must contain at most 100 items."
             },
@@ -197793,7 +197920,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:e97fc71fb0fdf9e1e49f56c8b3efc1ca4faa419017f68b8edc6675596c9e0eae",
+  "compatibilityDigest": "sha256:139ea14b6964c5354840656bfacffc5447fff97615cb711676b40fc299f972d9",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -238279,6 +238406,16 @@
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Optimistic-concurrency version used when updating the record."
+        },
+        "pending": {
+          "type": "boolean",
+          "description": "True while the firing is durably admitted but its run has not started yet: a queued firing waiting for the automation's active run to end, or one just admitted."
+        },
+        "skippedCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How many occurrences this firing stands in for without queuing them: the missed occurrences a coalesced catch-up recorded instead of creating an unbounded backlog; 0 for an ordinary occurrence."
         }
       },
       "required": [
@@ -238290,10 +238427,12 @@
         "runId",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "pending",
+        "skippedCount"
       ],
       "additionalProperties": false,
-      "description": "One deduplicated scheduled or event-triggered occurrence of an automation version: when it was due, the inbound event that triggered it when event-based, its outcome (queued, skipped, started, or failed), and the run it started, if any."
+      "description": "One deduplicated scheduled or event-triggered occurrence of an automation version: when it was due, the inbound event that triggered it when event-based, its outcome (queued, skipped, started, or failed), and the run it started, if any. A queued firing is pending until its run starts; a coalesced catch-up carries the count of missed occurrences it did not queue."
     },
     "skill_sources": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -287579,6 +287718,16 @@
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
                 "description": "Optimistic-concurrency version used when updating the record."
+              },
+              "pending": {
+                "type": "boolean",
+                "description": "True while the firing is durably admitted but its run has not started yet: a queued firing waiting for the automation's active run to end, or one just admitted."
+              },
+              "skippedCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "How many occurrences this firing stands in for without queuing them: the missed occurrences a coalesced catch-up recorded instead of creating an unbounded backlog; 0 for an ordinary occurrence."
               }
             },
             "required": [
@@ -287590,10 +287739,12 @@
               "runId",
               "createdAt",
               "updatedAt",
-              "version"
+              "version",
+              "pending",
+              "skippedCount"
             ],
             "additionalProperties": false,
-            "description": "One deduplicated scheduled or event-triggered occurrence of an automation version: when it was due, the inbound event that triggered it when event-based, its outcome (queued, skipped, started, or failed), and the run it started, if any."
+            "description": "One deduplicated scheduled or event-triggered occurrence of an automation version: when it was due, the inbound event that triggered it when event-based, its outcome (queued, skipped, started, or failed), and the run it started, if any. A queued firing is pending until its run starts; a coalesced catch-up carries the count of missed occurrences it did not queue."
           },
           "description": "Page<AutomationFiring>.items must contain at most 100 items."
         },

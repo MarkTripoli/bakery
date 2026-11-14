@@ -185,6 +185,20 @@ export function isValidTimeZone(zone: string): boolean {
   }
 }
 
+/**
+ * The runtime's own name for a zone (`Europe/Berlin` for `europe/berlin`,
+ * `UTC` for `utc`, `Asia/Calcutta` for the link `Asia/Kolkata`), so that the
+ * same zone written two ways is stored, and compared, as one. Throws a
+ * `CronError` for a name `isValidTimeZone` refuses.
+ */
+export function canonicalTimeZone(zone: string): string {
+  if (!isValidTimeZone(zone)) {
+    throw new CronError("CRON_TIMEZONE_INVALID", `unknown time zone ${zone}`);
+  }
+  return new Intl.DateTimeFormat("en-US", { timeZone: zone })
+    .resolvedOptions().timeZone;
+}
+
 const formatters = new Map<string, Intl.DateTimeFormat>();
 
 function formatterFor(zone: string): Intl.DateTimeFormat {
