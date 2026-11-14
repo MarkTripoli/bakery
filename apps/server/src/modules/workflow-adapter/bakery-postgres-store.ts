@@ -67,6 +67,12 @@ const eligibleStepStatuses: Record<string, true> = {
   waiting: true,
 };
 const MAX_WORKFLOW_STEPS = 32;
+/**
+ * Inngest operations (steps) one engine function run may use before it hands
+ * the run to a fresh one: the design's 1,000 less room for the longest pass
+ * (a full-width set reads and completes its waits, about 40) and the hand-off.
+ */
+const STEP_OPERATION_BUDGET = 900;
 const MAX_RECONCILIATION_WAITS = 8;
 const MAX_RETRY_ATTEMPTS = 8;
 const MAX_PERSISTED_ATTEMPTS = 2_147_483_647;
@@ -239,6 +245,8 @@ export type BakeryPostgresWorkflowRepository = Readonly<{
     runId: string,
     owner?: EngineOwner,
   ): Promise<LogicalInvocationKey | undefined>;
+  /** Whether the run is a compiled plan (its end is decided by its interpreter). */
+  isPlanRun(runId: string, owner?: EngineOwner): Promise<boolean>;
   /**
    * The steps that may run now: for a compiled-plan run under interpreter
    * revision 2 inside a parallel group, one next step for each running lane
@@ -1377,6 +1385,17 @@ export function createBakeryPostgresWorkflowRepository(options: {
         return await loadNext(transaction, runId);
       });
     },
+    async isPlanRun(runId, owner) {
+      return await withPgTransaction(options.database, async (transaction) => {
+        await requireEngineOwner(transaction, runId, owner);
+        const kind = await transaction.query<{ runtime: boolean }>(
+          `select snapshot ? 'runtime' as runtime
+             from bakery.workflow_runs where id = $1`,
+          [runId],
+        );
+        return kind.rows[0]?.runtime === true;
+      });
+    },
     async findNextSet(runId, owner) {
       return await withPgTransaction(options.database, async (transaction) => {
         await requireEngineOwner(transaction, runId, owner);
@@ -1974,7 +1993,11 @@ export function createBakeryFixedWorkflow(options: {
   jobCompletionTimeout: string;
   engineRetries: number;
   budgetPolicy?: BudgetPolicy;
+  /** Durable operations one function run may use; a test sets it small. */
+  stepOperationBudget?: number;
 }) {
+  const stepOperationBudget = options.stepOperationBudget ??
+    STEP_OPERATION_BUDGET;
   const repository = createBakeryPostgresWorkflowRepository({
     database: options.database,
     maxAttempts: options.maxAttempts,
@@ -2053,7 +2076,21 @@ export function createBakeryFixedWorkflow(options: {
       },
       triggers: [{ event: "bakery/run.requested.v1" }],
     },
-    async ({ event, step }) => {
+    async ({ event, step: durableStep }) => {
+      // Every durable operation is counted: a function run may use only so
+      // many (STEP_OPERATION_BUDGET) before it hands the run on.
+      let operations = 0;
+      const counted = <T extends (...args: never[]) => unknown>(call: T): T =>
+        ((...args: never[]) => {
+          operations += 1;
+          return call(...args);
+        }) as T;
+      const step = {
+        run: counted(durableStep.run.bind(durableStep)),
+        sleep: counted(durableStep.sleep.bind(durableStep)),
+        waitForEvent: counted(durableStep.waitForEvent.bind(durableStep)),
+        sendEvent: counted(durableStep.sendEvent.bind(durableStep)),
+      } as typeof durableStep;
       const payload = eventPayload(event.data);
       const runId = payload.runId;
       const ownerToken = typeof event.id === "string" ? event.id : undefined;
@@ -2100,6 +2137,13 @@ export function createBakeryFixedWorkflow(options: {
         );
         if (!acquiredOwner) return { status: "superseded" };
         owner = acquiredOwner;
+        // A plan run's end is decided by its interpreter from the rows, so a
+        // failed step does not end the function run: the next answer projects
+        // the halt (and the other lanes go on). A flat run ends at the failure.
+        const planRun = await step.run(
+          "read-run-kind",
+          () => repository.isPlanRun(runId, owner),
+        );
         let checkpoint = 0;
         /**
          * Drives one step of the answer to its end. A returned value ends the
@@ -2218,6 +2262,7 @@ export function createBakeryFixedWorkflow(options: {
             }
             if (outcome.decision.kind === "waiting") continue;
             if (outcome.decision.kind === "failed") {
+              if (planRun) return undefined;
               await releaseOwner();
               return {
                 result: {
@@ -2239,7 +2284,130 @@ export function createBakeryFixedWorkflow(options: {
           ) return { result: await handoff() };
           return undefined;
         };
-        while (checkpoint < MAX_WORKFLOW_STEPS) {
+        /**
+         * One pass over a set of several steps (lanes of a parallel group):
+         * look at every step once, without waiting for any one of them, and
+         * if none of them moved, wait once for the first of them to: a job of
+         * the set completing, a retry coming due or a duration wait ending.
+         * The lanes therefore advance independently: the next answer is asked
+         * for as soon as anything moved.
+         */
+        const driveSet = async (
+          keys: readonly LogicalInvocationKey[],
+        ): Promise<
+          { result: { status: string; reason?: string } } | undefined
+        > => {
+          let moved = false;
+          const jobIds: string[] = [];
+          let timerMs: number | undefined;
+          const soonest = (ms: number) => {
+            timerMs = timerMs === undefined ? ms : Math.min(timerMs, ms);
+          };
+          for (const key of keys) {
+            const durationWait = await step.run(
+              `read-wait-${checkpoint}-${key.stepKey}`,
+              () => repository.readWait(key, owner),
+            );
+            if (durationWait !== null) {
+              if (durationWait.remainingMs > 0) {
+                soonest(durationWait.remainingMs);
+                continue;
+              }
+              const elapsed = await step.run(
+                `complete-wait-${checkpoint}-${key.stepKey}-${key.iteration}`,
+                () => repository.completeWait(key, owner),
+              );
+              if (!elapsed) throw new EngineOwnerLostError();
+              moved = true;
+              continue;
+            }
+            const outcome = await runFixedWorkflow(
+              { logical: key },
+              {
+                store: {
+                  read: (logical) => repository.read(logical, owner),
+                  admit: (logical) => repository.admit(logical, owner),
+                },
+                checkpoint,
+                // The one wait of the pass is below, for the set as a whole.
+                wait: () => Promise.resolve(),
+              },
+            );
+            const decision = outcome.decision;
+            switch (decision.kind) {
+              case "terminal-result":
+              case "failed":
+                // The rows say so; the next answer projects it.
+                moved = true;
+                break;
+              case "retryable":
+                soonest(
+                  Math.max(
+                    1,
+                    Math.min(
+                      options.waitMs,
+                      decision.nextRetryAt.getTime() - Date.now(),
+                    ),
+                  ),
+                );
+                break;
+              case "waiting":
+                if (!decision.admission.jobId) {
+                  throw new Error("WORKFLOW_JOB_ID_MISSING");
+                }
+                jobIds.push(decision.admission.jobId);
+                break;
+              case "stalled": {
+                const reason = decision.reason;
+                await step.run(
+                  `mark-stalled-${checkpoint}-${key.stepKey}-${key.iteration}`,
+                  () => repository.markStalled(key, reason, owner),
+                );
+                await releaseOwner();
+                return { result: { status: "stalled" as const, reason } };
+              }
+              case "state-conflict":
+                throw new Error(`WORKFLOW_STATE_CONFLICT:${decision.reason}`);
+              default:
+                throw new Error("WORKFLOW_RECONCILIATION_UNEXPECTED");
+            }
+          }
+          if (moved || (jobIds.length === 0 && timerMs === undefined)) {
+            return undefined;
+          }
+          const waitMs = Math.min(timeoutMs, timerMs ?? timeoutMs);
+          const stretched = await step.run(
+            `extend-engine-owner-for-set-${checkpoint}`,
+            () =>
+              repository.renewEngineOwner({
+                ...requireOwnerValue(owner),
+                leaseMs: waitMs + ownerLeaseMs,
+              }),
+          );
+          if (!stretched) throw new EngineOwnerLostError();
+          if (jobIds.length > 0) {
+            await step.waitForEvent(`wait-for-job-${checkpoint}-set`, {
+              event: "bakery/job.completed.v1",
+              timeout: `${waitMs}ms`,
+              if: `async.data.payload.runId == '${runId}' && ` +
+                `(${
+                  jobIds.map((id) => `async.data.payload.jobId == '${id}'`)
+                    .join(" || ")
+                })`,
+            });
+          } else {
+            await step.sleep(`wait-for-timer-${checkpoint}`, `${waitMs}ms`);
+          }
+          const restored = await step.run(
+            `renew-engine-owner-after-set-${checkpoint}`,
+            () => repository.renewEngineOwner(requireOwnerValue(owner)),
+          );
+          if (!restored) throw new EngineOwnerLostError();
+          return undefined;
+        };
+        while (
+          checkpoint < MAX_WORKFLOW_STEPS && operations < stepOperationBudget
+        ) {
           // The answer is the steps that may run now: one, or (inside a
           // parallel group) one next step for each running lane. An older
           // function run may have memoized a single key.
@@ -2280,10 +2448,10 @@ export function createBakeryFixedWorkflow(options: {
               () => repository.admitSet(keys, owner),
             );
           }
-          for (const key of keys) {
-            const ended = await driveKey(key);
-            if (ended !== undefined) return ended.result;
-          }
+          const ended = keys.length === 1
+            ? await driveKey(keys[0]!)
+            : await driveSet(keys);
+          if (ended !== undefined) return ended.result;
           checkpoint += 1;
         }
         return await handoff();

@@ -268,7 +268,10 @@ type FakeStep = {
 };
 class Stop extends Error {}
 
-function engineFor(fixture: WorkerFixture): { handler: Handler } {
+function engineFor(
+  fixture: WorkerFixture,
+  extra: { stepOperationBudget?: number } = {},
+): { handler: Handler } {
   const captured: { handler?: Handler } = {};
   const client = {
     createFunction(_config: unknown, handler: Handler) {
@@ -283,6 +286,7 @@ function engineFor(fixture: WorkerFixture): { handler: Handler } {
     waitMs: 10,
     jobCompletionTimeout: "1m",
     engineRetries: 3,
+    ...extra,
   });
   assert(captured.handler !== undefined);
   return { handler: captured.handler };
@@ -355,4 +359,266 @@ Deno.test("a run that is not in a group is answered as before: one step, no set 
       ),
       ["second"],
     );
+  }));
+
+type Hooks = {
+  /** Called at each wait for a job or a timer, with its 1-based number. */
+  waited?: (number: number, id: string) => Promise<void>;
+  /** The options of each event wait, as the function gave them. */
+  waitOptions?: { timeout?: string; if?: string }[];
+  /** Called just before a durable `run` step does its work. */
+  beforeRun?: (id: string) => Promise<void>;
+};
+
+/** A fake step that counts and records every durable operation. */
+function recordingStep(record: string[], hooks: Hooks = {}): FakeStep {
+  let waits = 0;
+  const wait = async (id: string) => {
+    record.push(id);
+    waits += 1;
+    await hooks.waited?.(waits, id);
+  };
+  return {
+    run: async (id, work) => {
+      record.push(id);
+      await hooks.beforeRun?.(id);
+      return JSON.parse(JSON.stringify((await work()) ?? null));
+    },
+    sleep: (id) => wait(id),
+    waitForEvent: async (id, options) => {
+      hooks.waitOptions?.push(options as { timeout?: string; if?: string });
+      await wait(id);
+      return null;
+    },
+    sendEvent: (id) => {
+      record.push(id);
+      return Promise.resolve();
+    },
+  };
+}
+
+const eventFor = (runId: string) => ({
+  id: `e4c-${crypto.randomUUID()}`,
+  data: { payload: { runId } },
+});
+
+Deno.test("a lane whose step finished advances at once: its next job exists while the other lane's step still runs", () =>
+  withWorkerFixture(async (fixture) => {
+    const seeded = await seedRun(fixture, await plan());
+    await seeded.repository.releaseEngineOwner(seeded.owner);
+    const { handler } = engineFor(fixture);
+    const seen: { rows: string[][]; jobs: number }[] = [];
+    const step = recordingStep([], {
+      waited: async (number) => {
+        if (number === 1) {
+          // a1 ends; b1 is still running.
+          await setRow(fixture, seeded, "fan.lane_a.a1", "completed", {});
+          return;
+        }
+        seen.push({
+          rows: (await rows(fixture, seeded)).map((
+            row,
+          ) => [row.stepKey, row.status]),
+          jobs: await jobCount(fixture, seeded),
+        });
+        throw new Stop();
+      },
+    });
+    await assertRejects(
+      () => handler({ event: eventFor(seeded.job.runId), step }),
+      Stop,
+    );
+    // At the second wait: a2 has its row and its job though b1 has not ended.
+    assertEquals(seen[0]!.rows, [
+      ["fan.lane_a.a1", "completed"],
+      ["fan.lane_b.b1", "running"],
+      ["fan.lane_a.a2", "running"],
+    ]);
+    assertEquals(seen[0]!.jobs, 3);
+  }));
+
+Deno.test("a failed lane does not end the function run: the others are driven on and the function itself ends the run failed", () =>
+  withWorkerFixture(async (fixture) => {
+    const seeded = await seedRun(
+      fixture,
+      await compiled([
+        group([
+          lane("lane_a", [check("a1"), check("a2")]),
+          lane("lane_b", [check("b1"), check("b2")]),
+          lane("lane_c", [check("c1")], ["lane_a"]),
+        ]),
+        check("after", { needs: ["fan"] }),
+      ], inputs),
+    );
+    await seeded.repository.releaseEngineOwner(seeded.owner);
+    const { handler } = engineFor(fixture);
+    const statuses: string[] = [];
+    const step = recordingStep([], {
+      waited: async (number) => {
+        statuses.push((await state(fixture, seeded)).run.status);
+        if (number === 1) {
+          await setRow(fixture, seeded, "fan.lane_a.a1", "failed");
+        } else {
+          // The last lane running fails too, while the function waits for
+          // it alone: the function itself projects the end of the run.
+          await setRow(fixture, seeded, "fan.lane_b.b1", "failed");
+        }
+      },
+    });
+    // The one function run carried the run to its end (no second engine run).
+    await handler({ event: eventFor(seeded.job.runId), step });
+    assertEquals(statuses, ["running", "running"]);
+    assertEquals((await state(fixture, seeded)).run.status, "failed");
+    assertEquals((await state(fixture, seeded)).task.status, "failed");
+    assertEquals(
+      (await rows(fixture, seeded)).map((row) => [row.stepKey, row.status]),
+      [
+        ["fan.lane_a.a1", "failed"],
+        ["fan.lane_b.b1", "failed"],
+      ],
+    );
+  }));
+
+const wide = () =>
+  compiled([
+    group(
+      ["a", "b", "c", "d", "e", "f", "g", "h"].map((id) =>
+        lane(`lane_${id}`, [check(`${id}1`), check(`${id}2`), check(`${id}3`)])
+      ),
+      8,
+    ),
+  ], inputs);
+
+Deno.test("worst case: a full-width pass is a handful of operations, and a function run hands off before the operation budget", () =>
+  withWorkerFixture(async (fixture) => {
+    const seeded = await seedRun(fixture, await wide());
+    await seeded.repository.releaseEngineOwner(seeded.owner);
+    // A budget small enough to reach: nothing ever completes, so every pass
+    // waits and asks again, and the run must be handed on, not left to run
+    // past what one function run may do.
+    const { handler } = engineFor(fixture, { stepOperationBudget: 60 });
+    const record: string[] = [];
+    const result = await handler({
+      event: eventFor(seeded.job.runId),
+      step: recordingStep(record),
+    });
+    assertEquals(result, { status: "handoff" });
+    // The first pass over all eight lanes: acquire, run kind, answer, admit
+    // set, one read per lane, stretch, wait: 15 operations, not 34.
+    const firstWait = record.findIndex((id) => id.startsWith("wait-for-job-"));
+    assert(
+      firstWait + 1 <= 16,
+      `${firstWait + 1} operations in the first pass`,
+    );
+    // And it stopped at the budget plus the longest pass and the hand-off.
+    assert(record.length >= 60, String(record.length));
+    assert(record.length <= 60 + 20, String(record.length));
+    // The default budget leaves room for the longest pass under the design's
+    // 1,000 steps per function.
+    assert(900 + 40 + 20 <= 1000);
+  }));
+
+Deno.test("one wait serves the whole set: any of its jobs, or the soonest retry", () =>
+  withWorkerFixture(async (fixture) => {
+    const seeded = await seedRun(fixture, await plan());
+    await seeded.repository.releaseEngineOwner(seeded.owner);
+    const { handler } = engineFor(fixture);
+    // The first pass admits both jobs; then a1's job is made retryable (due
+    // again in half a minute) while b1's is still running.
+    const options: { timeout?: string; if?: string }[] = [];
+    const step = recordingStep([], {
+      waitOptions: options,
+      waited: (number) => {
+        if (number === 1) throw new Stop();
+        return Promise.resolve();
+      },
+    });
+    await assertRejects(
+      () => handler({ event: eventFor(seeded.job.runId), step }),
+      Stop,
+    );
+    const jobs = (await fixture.pgDatabase.query<{ id: string; key: string }>(
+      `select job.id, step.step_key as key
+         from bakery.jobs job
+         join bakery.run_steps step
+           on step.organization_id = job.organization_id
+          and step.id = job.run_step_id
+        where step.run_id = $1 order by step.position`,
+      [seeded.job.runId],
+    )).rows;
+    assertEquals(jobs.map((job) => job.key), [
+      "fan.lane_a.a1",
+      "fan.lane_b.b1",
+    ]);
+    // One wait for both jobs, as an or, bounded by the job timeout.
+    assertEquals(options.length, 1);
+    for (const job of jobs) assert(options[0]!.if!.includes(`'${job.id}'`));
+    assert(options[0]!.if!.includes(" || "));
+    assertEquals(options[0]!.timeout, "60000ms");
+
+    // Now a1 is a retry due soon: the same single wait is cut to that time.
+    await fixture.pgDatabase.query(
+      `update bakery.jobs set available_at = clock_timestamp() + interval '30 seconds'
+        where id = $1`,
+      [jobs[0]!.id],
+    );
+    const later: { timeout?: string; if?: string }[] = [];
+    const again = recordingStep([], {
+      waitOptions: later,
+      waited: () => {
+        throw new Stop();
+      },
+    });
+    await seeded.repository.releaseEngineOwner(
+      (await seeded.repository.acquireEngineOwner(
+        seeded.job.runId,
+        `again-${crypto.randomUUID()}`,
+        60_000,
+      ))!,
+    );
+    await assertRejects(
+      () => handler({ event: eventFor(seeded.job.runId), step: again }),
+      Stop,
+    );
+    // waitMs of the function is 10 ms: the retry delay is capped to it.
+    assertEquals(later.length, 1);
+    assertEquals(later[0]!.timeout, "10ms");
+    assert(later[0]!.if!.includes(`'${jobs[1]!.id}'`));
+    assert(!later[0]!.if!.includes(`'${jobs[0]!.id}'`));
+  }));
+
+Deno.test("a step that failed between the answer and the pass is not a surprise: the set pass moves on and the next answer projects it", () =>
+  withWorkerFixture(async (fixture) => {
+    const seeded = await seedRun(fixture, await plan());
+    await seeded.repository.releaseEngineOwner(seeded.owner);
+    const { handler } = engineFor(fixture);
+    const record: string[] = [];
+    let failedOnce = false;
+    const step = recordingStep(record, {
+      // After the answer and the admission, before the first read of the pass.
+      beforeRun: async (id) => {
+        if (id.startsWith("read-wait-0-") && !failedOnce) {
+          failedOnce = true;
+          await setRow(fixture, seeded, "fan.lane_a.a1", "failed");
+        }
+      },
+      waited: () => {
+        throw new Stop();
+      },
+    });
+    await assertRejects(
+      () => handler({ event: eventFor(seeded.job.runId), step }),
+      Stop,
+    );
+    // The pass that saw a1 failed did not wait; the next answer had no a1 and
+    // the function waited for the rest (b1) once.
+    assertEquals(
+      record.filter((id) => id.startsWith("load-next-workflow-step-")),
+      ["load-next-workflow-step-0", "load-next-workflow-step-1"],
+    );
+    assertEquals(
+      record.filter((id) => id.startsWith("wait-for-job-")).length,
+      1,
+    );
+    assert(record.indexOf("wait-for-job-1-fan.lane_b.b1-0") >= -1);
   }));
