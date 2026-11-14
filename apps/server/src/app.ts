@@ -17,6 +17,7 @@ import {
   type InstallationTokenBroker,
 } from "./modules/integrations/index.ts";
 import { createWorkflowsRoutes } from "./modules/workflows/index.ts";
+import { createAutomationsRoutes } from "./modules/workflows/automations/routes.ts";
 import {
   activateDeployedIntegrations,
   createCatalogRoutes,
@@ -630,6 +631,15 @@ export function createApp(options: {
   app.route(
     "/",
     createWorkflowsRoutes({
+      database: options.pgDatabase,
+      browserSession,
+      publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
+    }),
+  );
+  app.route(
+    "/",
+    createAutomationsRoutes({
       database: options.pgDatabase,
       browserSession,
       publicBaseUrl: options.config.publicBaseUrl,
