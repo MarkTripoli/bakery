@@ -409,11 +409,11 @@ Deno.test("the dialog shows exactly what the server has returned: starting, a co
       attempt({
         state: "pending",
         flow: "terminal",
-        instructions: "codex login",
+        instructions: "agent two login",
       }),
       NOW,
     ),
-    { kind: "onMachine", command: "codex login" },
+    { kind: "onMachine", command: "agent two login" },
   );
   // The state alone says the local handoff, whatever flow the server names.
   assertEquals(
