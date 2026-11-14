@@ -67,6 +67,7 @@ export {
   describeStatus,
   doctor,
   doctorExitCode,
+  type HashFile,
   type InstallationState,
   installationStatus,
   type Operation,
@@ -77,6 +78,7 @@ export {
   type Probes,
   runOperation,
   type ServiceState,
+  type StatusOptions,
   type StatusReport,
 } from "./operations.ts";
 export {
@@ -89,3 +91,8 @@ export {
   spawnWithTimeout,
   systemProbes,
 } from "./probes.ts";
+export {
+  MAX_RECORD_BYTES,
+  readRecord,
+  UnreadableRecord,
+} from "./bounded-read.ts";

@@ -1,6 +1,7 @@
-import { lstat, readFile } from "node:fs/promises";
+import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { BootstrapError } from "./errors.ts";
+import { readRecord } from "./bounded-read.ts";
 import { checkRoot, installed, sha256OfFile } from "./install.ts";
 import {
   hasUnsafeCharacter,
@@ -84,16 +85,72 @@ function shown(value: unknown, max = 200): value is string {
     hasVisibleCharacter(value) && !hasUnsafeCharacter(value);
 }
 
-async function readInstallation(root: string): Promise<InstallationState> {
+/**
+ * Whether the installed binary is exactly what was signed. The path is looked
+ * at before it is read: it must be a regular file (not a link, FIFO or device)
+ * of the recorded size, so a name swapped for something endless is "not intact"
+ * rather than something this command reads; only then is it hashed, with a
+ * deadline.
+ */
+async function binaryIsIntact(
+  root: string,
+  record: { size?: unknown; sha256: string },
+  hash: HashFile,
+  deadlineMs: number,
+): Promise<boolean> {
+  const path = workerPath(root);
+  try {
+    const info = await lstat(path);
+    if (
+      !info.isFile() || typeof record.size !== "number" ||
+      info.size !== record.size
+    ) return false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const stalled = new Promise<boolean>((resolve) => {
+      timer = setTimeout(() => resolve(false), deadlineMs);
+    });
+    try {
+      return await Promise.race([
+        hash(path).then(
+          (digest) => digest === record.sha256,
+          () => false,
+        ),
+        stalled,
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    return false;
+  }
+}
+
+/** Hashing a release-sized file takes seconds; a file that takes minutes is not what was signed. */
+const HASH_DEADLINE_MS = 60_000;
+
+/** How a file's SHA-256 is computed; replaced only to prove the file is looked at before it is read. */
+export type HashFile = (path: string) => Promise<string>;
+
+export type StatusOptions = Readonly<{
+  hash?: HashFile;
+  hashDeadlineMs?: number;
+}>;
+
+async function readInstallation(
+  root: string,
+  options: StatusOptions,
+): Promise<InstallationState> {
   try {
     const found = await installed(root);
     if (found === null) return { state: "not-installed" };
     if (!shown(found.record.release, 100) || !shown(found.record.target, 100)) {
       return { state: "unreadable" };
     }
-    const intact = await sha256OfFile(workerPath(root)).then(
-      (digest) => digest === found.record.sha256,
-      () => false,
+    const intact = await binaryIsIntact(
+      root,
+      found.record,
+      options.hash ?? sha256OfFile,
+      options.hashDeadlineMs ?? HASH_DEADLINE_MS,
     );
     return {
       state: "installed",
@@ -109,7 +166,7 @@ async function readInstallation(root: string): Promise<InstallationState> {
 async function readPairing(root: string): Promise<PairingState> {
   let text: string;
   try {
-    text = await readFile(join(root, PAIRING_FILE), "utf8");
+    text = await readRecord(join(root, PAIRING_FILE));
   } catch (error) {
     return (error as { code?: string }).code === "ENOENT"
       ? { state: "unpaired" }
@@ -138,9 +195,10 @@ async function readPairing(root: string): Promise<PairingState> {
 export async function installationStatus(
   root: string,
   probes: Probes,
+  options: StatusOptions = {},
 ): Promise<StatusReport> {
   return {
-    installation: await readInstallation(root),
+    installation: await readInstallation(root, options),
     pairing: await readPairing(root),
     service: await probes.serviceState().catch(() => "unknown" as const),
   };
@@ -211,6 +269,7 @@ const failed = (id: string, message: string): Check => ({
 export async function doctor(
   root: string,
   probes: Probes,
+  options: StatusOptions = {},
 ): Promise<readonly Check[]> {
   const checks: Check[] = [];
   checks.push(
@@ -234,7 +293,7 @@ export async function doctor(
       ),
     );
   }
-  const status = await installationStatus(root, probes);
+  const status = await installationStatus(root, probes, options);
   const { installation, pairing } = status;
   checks.push(
     installation.state === "installed" && installation.intact
