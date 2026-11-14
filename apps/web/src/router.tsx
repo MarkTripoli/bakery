@@ -29,6 +29,7 @@ import {
 } from "./shell/AppLayout.tsx";
 import { TasksPage } from "./pages/TasksPage.tsx";
 import { IssuePage } from "./pages/IssuePage.tsx";
+import { ProjectsPage } from "./pages/ProjectsPage.tsx";
 import { IssuesPage } from "./pages/IssuesPage.tsx";
 import { MachinesPage } from "./pages/MachinesPage.tsx";
 import { MachineDetailPage } from "./pages/MachineDetailPage.tsx";
@@ -336,6 +337,20 @@ export const routeCoverage = [
     path: "/setup",
     classification: "production",
     states: ["loading", "default", "ready", "unavailable"],
+  },
+  {
+    id: "projects",
+    path: "/projects",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
   },
   {
     id: "projects-onboarding",
@@ -874,6 +889,15 @@ function projectsOnboardingComponent() {
   return <ProjectsOnboardingPage labels={labels} />;
 }
 
+const projectsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/projects",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: ProjectsPage,
+  errorComponent: ProtectedRouteError,
+});
+
 const projectsOnboardingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/projects/onboarding",
@@ -890,8 +914,11 @@ const projectsOnboardingRoute = createRoute({
       ? search.profile
       : undefined,
   }),
-  beforeLoad: ({ context, location }) =>
-    requireSession(context.session, location),
+  beforeLoad: ({ context, location, search }) => {
+    requireSession(context.session, location);
+    // The list of projects is its own page; this one is a repository's setup.
+    if (search.repository === undefined) throw redirect({ to: "/projects" });
+  },
   component: projectsOnboardingComponent,
   errorComponent: ProtectedRouteError,
 });
@@ -937,6 +964,13 @@ const taskCoordinationRoute = createRoute({
 const issuesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/issues",
+  // `?choose=true` opens the Choose repositories sheet (an issue whose
+  // repository is off sends an administrator there).
+  validateSearch: (search: Record<string, unknown>) => ({
+    choose: search.choose === true || search.choose === "true"
+      ? true
+      : undefined,
+  }),
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: IssuesPage,
@@ -1844,6 +1878,7 @@ const routeTree = rootRoute.addChildren([
   organizationSsoRoute,
   settingsAuditRoute,
   settingsScimRoute,
+  projectsRoute,
   projectsOnboardingRoute,
   artifactRetrievalRoute,
   securityRoute,

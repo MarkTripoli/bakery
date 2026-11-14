@@ -16,6 +16,7 @@ import { sha256Hex } from "../../apps/server/src/platform/canonical-json.ts";
 import { authTestOrigin } from "../helpers/auth.ts";
 import { call, signIn } from "../helpers/installation-settings.ts";
 import {
+  fakeBotUserId,
   type FakeInstallation,
   fakeRepositories,
 } from "../helpers/fake-github-app.ts";
@@ -320,6 +321,13 @@ Deno.test("stored credentials are installation-scoped AES-GCM ciphertext only", 
        order by kind`,
     );
     assertEquals(secrets.rows.length, 3);
+    // #20: the App's bot user id is looked up and stored with it.
+    const bot = await f.pgDatabase.query<{ bot_user_id: string | null }>(
+      "select bot_user_id from bakery.integration_app_registrations",
+    );
+    assertEquals(bot.rows.map((row) => Number(row.bot_user_id)), [
+      fakeBotUserId(app.id),
+    ]);
     const key = await loadSecretKey(f.secretsKey);
     const expected: Record<string, string> = {
       clientSecret: app.clientSecret,

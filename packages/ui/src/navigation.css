@@ -546,6 +546,8 @@ a.bakery-application-rail__link:hover {
 .bakery-section-navigation__group > .bakery-section-navigation__heading {
   color: var(--color-fg-muted);
   font: var(--type-label);
+  /* At 200% zoom on a phone the group is narrower than a single word. */
+  overflow-wrap: anywhere;
   padding: var(--space-4) calc(var(--space-4) + var(--space-3))
     var(--space-1-5);
 }

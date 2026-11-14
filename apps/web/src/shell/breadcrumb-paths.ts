@@ -11,6 +11,7 @@ export const SETTINGS_HOME = "/settings/profile";
 export const INSTALLATION_HOME = "/installation/settings";
 export const MACHINES_HOME = "/machines";
 export const ISSUES_HOME = "/issues";
+export const PROJECTS_HOME = "/projects";
 
 /**
  * Makes every breadcrumb link in the shell move within the app, without a page
