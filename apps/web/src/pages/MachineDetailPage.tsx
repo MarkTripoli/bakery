@@ -32,6 +32,7 @@ import {
 } from "./CodingAgents.tsx";
 import {
   agentNeedingSignIn,
+  agentOfFailedChecks,
   agentRows,
   pageBadge,
   softwareEntries,
@@ -383,6 +384,11 @@ export function MachineDetailPage(
     await refreshMachine();
   };
   const reason = workerData ? machineReason(workerData) : null;
+  // One problem, one banner: failed checks that are only an agent's sign-in are that agent's banner.
+  const signInBanner = agentsKnown && reason?.kind === "checkFailed" &&
+      workerData && Array.isArray(workerData.failedCheckIds)
+    ? agentOfFailedChecks(workerData.failedCheckIds, agents)
+    : null;
   const wantedFix: BannerFix | null = reason ? bannerFix(reason) : null;
   // Taking work again and setting it up again change the machine: administrators only.
   const fix: BannerFix | null = wantedFix === "seeChecks" || isAdmin
@@ -486,7 +492,7 @@ export function MachineDetailPage(
           : workerData
           ? (
             <>
-              {reason
+              {reason && !signInBanner
                 ? (
                   <UI.AlertBanner
                     tone={reason.kind === "checkFailed" ||
@@ -551,10 +557,10 @@ export function MachineDetailPage(
                   </UI.AlertBanner>
                 )
                 : null}
-              {!reason && bannerAgent
+              {(!reason && bannerAgent) || signInBanner
                 ? (
                   <CodingAgentBanner
-                    row={bannerAgent}
+                    row={signInBanner ?? bannerAgent!}
                     translate={translate}
                     signIn={signIn}
                   />

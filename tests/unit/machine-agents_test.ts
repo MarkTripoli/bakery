@@ -3,6 +3,7 @@ import type { CodingAgent } from "../../apps/web/src/pages/machine-state.ts";
 import {
   agentNeedingSignIn,
   agentOfBinding,
+  agentOfFailedChecks,
   agentOfKey,
   agentRows,
   agentState,
@@ -700,4 +701,65 @@ Deno.test("the software list: an agent by its own name, anything else by the mac
     ],
   );
   assertEquals(softwareEntries([]), []);
+});
+
+Deno.test("failed checks that are only an agent's sign-in give that agent's banner; anything else leaves the generic one", () => {
+  const out = binding({ safeProblem: "AUTH" });
+  const ok = binding({
+    id: "00000000-0000-4000-8000-0000000000b2",
+    componentKey: "harness.codex",
+    provider: "openai",
+    lastCheckedAt: "2026-11-14T00:00:00.000Z",
+  });
+  const rows = agentRows(["claude", "codex"], [out, ok], []);
+  // The plain model check is the sign-in of whichever agent needs one.
+  assertEquals(
+    agentOfFailedChecks(["capability:model"], rows)?.agent,
+    "claude",
+  );
+  // A named one is that agent's, when that agent needs signing in.
+  assertEquals(
+    agentOfFailedChecks(["capability:model:claude"], rows)?.agent,
+    "claude",
+  );
+  // Never signed in counts the same.
+  assertEquals(
+    agentOfFailedChecks(
+      ["capability:model:pi"],
+      agentRows(["pi"], [], []),
+    )?.agent,
+    "pi",
+  );
+  // An agent that is signed in has a different problem: the generic banner.
+  assertEquals(agentOfFailedChecks(["capability:model:codex"], rows), null);
+  // A model check naming an agent this machine does not run is not an agent's banner.
+  assertEquals(agentOfFailedChecks(["capability:model:pi"], rows), null);
+  // Any other failed check wins, whatever else failed.
+  assertEquals(
+    agentOfFailedChecks(["capability:model", "disk_threshold"], rows),
+    null,
+  );
+  assertEquals(
+    agentOfFailedChecks(["capability:git", "capability:model"], rows),
+    null,
+  );
+  assertEquals(agentOfFailedChecks(["mystery_check"], rows), null);
+  assertEquals(
+    agentOfFailedChecks(["capability:model:claude:extra"], rows),
+    null,
+  );
+  // Nothing failed, or nobody needs signing in: no banner of this kind.
+  assertEquals(agentOfFailedChecks([], rows), null);
+  assertEquals(
+    agentOfFailedChecks(["capability:model"], agentRows(["codex"], [ok], [])),
+    null,
+  );
+  // The first named agent that needs it is the one shown.
+  assertEquals(
+    agentOfFailedChecks(
+      ["capability:model:pi", "capability:model:claude"],
+      agentRows(["claude", "pi"], [out], []),
+    )?.agent,
+    "pi",
+  );
 });

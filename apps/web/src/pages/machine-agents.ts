@@ -122,6 +122,44 @@ export function agentNeedingSignIn(rows: readonly AgentRow[]): AgentRow | null {
     rows.find((row) => row.state === "notSignedIn") ?? null;
 }
 
+/**
+ * One problem, one banner: when the only checks that failed are the model
+ * checks of an agent that is signed out or not signed in, that agent's own
+ * banner (with Sign in) says it, instead of the generic failed-checks banner;
+ * the checks still list in Checks. If any other check failed too, or the model
+ * check is of an agent that is signed in, this is null and the generic banner
+ * wins. A model check that names no agent is the sign-in of whichever agent
+ * needs one.
+ */
+export function agentOfFailedChecks(
+  failedCheckIds: readonly string[],
+  rows: readonly AgentRow[],
+): AgentRow | null {
+  if (failedCheckIds.length === 0) return null;
+  const needing = (row: AgentRow | undefined) =>
+    row !== undefined &&
+    (row.state === "signedOut" || row.state === "notSignedIn");
+  const named: AgentRow[] = [];
+  for (const id of failedCheckIds) {
+    const parts = id.split(":");
+    if (
+      parts.length === 2 && parts[0] === "capability" && parts[1] === "model"
+    ) {
+      continue;
+    }
+    if (
+      parts.length === 3 && parts[0] === "capability" && parts[1] === "model"
+    ) {
+      const row = rows.find((entry) => entry.agent === parts[2]);
+      if (!needing(row)) return null;
+      named.push(row!);
+      continue;
+    }
+    return null;
+  }
+  return named[0] ?? agentNeedingSignIn(rows);
+}
+
 export type SoftwareEntry = Readonly<{
   /** Stable key for a list. */
   key: string;

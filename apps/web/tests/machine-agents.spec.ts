@@ -54,6 +54,8 @@ type World = {
   /** When set, an attempt creation answers only once this settles. */
   hold: Promise<void> | null;
   status: "online" | "revoked";
+  /** Checks the server reports as failed: the machine then needs attention. */
+  failedChecks: { checkId: string; reason: string | null }[];
 };
 
 const inMinutes = (minutes: number) =>
@@ -89,6 +91,7 @@ function world(over: Partial<World> = {}): World {
     failAttempts: 0,
     hold: null,
     status: "online",
+    failedChecks: [],
     ...over,
   };
 }
@@ -132,9 +135,9 @@ function workerBody(w: World) {
     status: w.status,
     desiredMode: w.status === "revoked" ? "revoked" : "accepting",
     connectivity: "online",
-    readiness: "ready",
-    readinessReason: null,
-    failedCheckIds: [],
+    readiness: w.failedChecks.length > 0 ? "needs_attention" : "ready",
+    readinessReason: w.failedChecks.length > 0 ? "check_failed" : null,
+    failedCheckIds: w.failedChecks.map((check) => check.checkId),
     lastHeartbeatAt: new Date().toISOString(),
     credentialGeneration: 1,
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -161,11 +164,11 @@ async function open(page: Page, w: World, path = `/machines/${MACHINE_ID}`) {
     if (path.endsWith("/dispatch-blockers")) {
       return route.fulfill(json({
         workerHostId: MACHINE_ID,
-        reason: null,
+        reason: w.failedChecks.length > 0 ? "check_failed" : null,
         connectivity: "online",
         allBlocked: false,
-        blockedCapabilities: [],
-        failedChecks: [],
+        blockedCapabilities: w.failedChecks.length > 0 ? ["model"] : [],
+        failedChecks: w.failedChecks,
         credentialGeneration: 1,
         inventoryRevision: 1,
       }));
@@ -487,6 +490,80 @@ test.describe("the Coding agents rows", () => {
     const about = page.getByTestId("machine-about");
     await expect(about).not.toContainText("harness");
     await expect(about).not.toContainText("external");
+  });
+
+  test("failed checks that are only an agent's sign-in are that agent's banner, and the check still lists", async ({ page }) => {
+    await open(
+      page,
+      world({
+        bindings: [binding({ safeProblem: "AUTH" })],
+        failedChecks: [
+          { checkId: "capability:model", reason: "claude: not signed in" },
+        ],
+      }),
+    );
+    // One problem, one banner: the agent's own, not the generic failed-checks one.
+    await expect(banner(page)).toHaveCount(1);
+    await expect(banner(page)).toContainText(
+      "Claude Code is signed out on this machine.",
+    );
+    await expect(banner(page).getByRole("button", { name: "Sign in again" }))
+      .toBeVisible();
+    await expect(page.getByTestId("machine-problem-banner")).toHaveCount(0);
+    // The failed check is still in Checks.
+    const checks = page.getByTestId("machine-checks");
+    await expect(checks).toContainText("Model access");
+    await expect(checks).toContainText("claude: not signed in");
+    await expect(header(page).getByText("Needs attention", { exact: true }))
+      .toBeVisible();
+    await shot(page, "machine-agents-banner-model-check");
+  });
+
+  test("a model check of an agent never signed in is that agent's banner too", async ({ page }) => {
+    await open(
+      page,
+      world({
+        failedChecks: [
+          {
+            checkId: "capability:model:claude",
+            reason: "claude: not signed in",
+          },
+        ],
+      }),
+    );
+    await expect(banner(page)).toContainText(
+      "Claude Code is not signed in yet.",
+    );
+    await expect(page.getByTestId("machine-problem-banner")).toHaveCount(0);
+  });
+
+  test("when any other check failed too, the failed-checks banner wins and the agent's banner is not shown", async ({ page }) => {
+    await open(
+      page,
+      world({
+        bindings: [binding({ safeProblem: "AUTH" })],
+        failedChecks: [
+          { checkId: "capability:model", reason: "claude: not signed in" },
+          { checkId: "disk_threshold", reason: "free space 2% (limit 10%)" },
+        ],
+      }),
+    );
+    await expect(page.getByTestId("machine-problem-banner")).toBeVisible();
+    await expect(banner(page)).toHaveCount(0);
+  });
+
+  test("a failed model check of an agent that is signed in is not an agent's banner", async ({ page }) => {
+    await open(
+      page,
+      world({
+        bindings: [binding({ lastCheckedAt: "2026-11-14T00:00:00.000Z" })],
+        failedChecks: [
+          { checkId: "capability:model:claude", reason: "model unreachable" },
+        ],
+      }),
+    );
+    await expect(page.getByTestId("machine-problem-banner")).toBeVisible();
+    await expect(banner(page)).toHaveCount(0);
   });
 
   test("the header reads Ready only when every agent is signed in, and the machine's own reading wins otherwise", async ({ page }) => {
