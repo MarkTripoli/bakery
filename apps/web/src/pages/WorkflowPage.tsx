@@ -334,20 +334,22 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
                   </UI.Text>
                 )
                 : (
-                  <UI.Link
-                    href={`/library/workflows/${workflowId}?version=${version.id}`}
-                    aria-label={translate(
-                      "library.workflow.versions.viewNamed" as never,
-                      { version: version.revision },
-                    )}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      setViewing(version.id);
-                      if (sheet) close();
-                    }}
-                  >
-                    {translate("library.workflow.versions.view" as never)}
-                  </UI.Link>
+                  <UI.Inline gap="compact" data-view-link="">
+                    <UI.Link
+                      href={`/library/workflows/${workflowId}?version=${version.id}`}
+                      aria-label={translate(
+                        "library.workflow.versions.viewNamed" as never,
+                        { version: version.revision },
+                      )}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        setViewing(version.id);
+                        if (sheet) close();
+                      }}
+                    >
+                      {translate("library.workflow.versions.view" as never)}
+                    </UI.Link>
+                  </UI.Inline>
                 )
               : null}
             {sheet
@@ -524,7 +526,7 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
   ];
 
   const moreMenu = (
-    <UI.Inline gap="compact" data-trailing-popover="">
+    <UI.Inline gap="compact" data-trailing-popover={phone ? "start" : ""}>
       <UI.Popover
         label={translate("library.workflow.moreNamed" as never, {
           name: current.name,
@@ -563,8 +565,10 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
               open({ kind: "off" });
             } else if (id === "on") {
               void run(
-                () => update.mutateAsync({ current, input: { enabled: true } }),
-                () => undefined,
+                () =>
+                  update.mutateAsync({ current, input: { enabled: true } }),
+                () =>
+                  undefined,
               );
             }
             if (trigger !== null && id !== "on" && id !== "export") {

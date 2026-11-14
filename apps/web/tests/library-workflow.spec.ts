@@ -164,6 +164,18 @@ for (
       // Only a published version that is not in use can be made the one in use.
       await expect(versions.getByRole("button", { name: "Use this version" }))
         .toHaveCount(1);
+      // In a row that has both, View sits on the buttons' line (centred).
+      const use = (await versions.getByRole("button", {
+        name: "Use this version",
+      }).boundingBox())!;
+      const row = versions.locator("[data-version-state=published]").filter({
+        has: page.getByRole("button", { name: "Use this version" }),
+      });
+      const view = (await row.getByRole("link", { name: /^View version/ })
+        .boundingBox())!;
+      expect(
+        Math.abs((view.y + view.height / 2) - (use.y + use.height / 2)),
+      ).toBeLessThanOrEqual(1);
       await page.mouse.move(700, 700);
       await shot(page, "workflow-page");
     });
@@ -251,6 +263,14 @@ for (
       await more(page).click();
       await expect(page.getByRole("button", { name: "Turn off", exact: true }))
         .toBeVisible();
+      // The menu opens inside the window at every width: every item sits
+      // within the viewport (on a phone the trigger starts its row).
+      const viewport = page.viewportSize()!;
+      for (const item of await page.getByRole("menuitem").all()) {
+        const box = (await item.boundingBox())!;
+        expect(box.x).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+      }
       await page.mouse.move(700, 700);
       await shot(page, "workflow-menu", [], { windowOnly: true });
       await page.getByRole("button", { name: "Turn off", exact: true })
