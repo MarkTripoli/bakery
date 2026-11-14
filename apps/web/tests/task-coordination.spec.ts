@@ -853,22 +853,34 @@ test("an ad hoc plan shows its origin and revision, and the digest behind a fing
   await expect(page.locator('[data-ui-region="plan-ticket-claim"]'))
     .toHaveCount(0);
   // The row sits inside the page's column, lined up with the heading, and its
-  // Copy button does not touch the window's edge.
-  const row = (await fingerprint.boundingBox())!;
+  // Copy button does not touch the window's edge. The inset is the list's own
+  // padding, so measure where its content starts, not its box.
   const copy = (await fingerprint.getByRole("button", { name: "Copy" })
     .boundingBox())!;
   const heading = (await page.getByRole("heading", {
     name: "Coordination plan",
   }).boundingBox())!;
   const width = page.viewportSize()!.width;
-  expect(row.x, "row starts inside the column").toBeGreaterThan(8);
+  // The label is a bare text node beside the help button (and the help text
+  // repeats the word), so read where that one text node starts.
+  const labelX = await fingerprint.evaluate((row) => {
+    const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (node.textContent?.trim() === "Fingerprint") {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        return range.getBoundingClientRect().x;
+      }
+    }
+    return null;
+  });
+  expect(labelX, "the Fingerprint label is on the page").not.toBeNull();
+  expect(labelX!, "label starts inside the column").toBeGreaterThan(8);
   expect(copy.x + copy.width, "Copy keeps a margin").toBeLessThanOrEqual(
     width - 8,
   );
   if (width > 743) {
-    const label = (await fingerprint.getByText("Fingerprint", { exact: true })
-      .first().boundingBox())!;
-    expect(Math.abs(label.x - heading.x), "lines up with the heading")
+    expect(Math.abs(labelX! - heading.x), "lines up with the heading")
       .toBeLessThan(2);
   }
   await still(page, "plan-coordination");

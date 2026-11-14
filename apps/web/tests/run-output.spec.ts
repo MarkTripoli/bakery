@@ -1266,7 +1266,8 @@ test("current attempt selection returns from historical pages", async ({ page })
   await expect(page.getByText("atlas-01", { exact: true }).first())
     .toBeVisible();
   await page.locator("button:enabled").filter({ hasText: /^Next$/ }).click();
-  await expect(page.getByText("historical-worker", { exact: true }))
+  // The name shows in the attempt badge and as the machine link.
+  await expect(page.getByText("historical-worker", { exact: true }).first())
     .toBeVisible();
   await page.getByRole("combobox", { name: "Try", exact: true })
     .selectOption("");
