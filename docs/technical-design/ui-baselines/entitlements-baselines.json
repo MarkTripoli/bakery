@@ -109,8 +109,8 @@
       "packages/ui/scripts/render-entitlements-references.mjs",
       "packages/ui/scripts/render-enterprise-references.mjs"
     ],
-    "revision": "paper:3d8592d7; mock:aa2a9270; rendered:2026-11-13",
-    "digest": "aa2a9270438bad6df7a79df561b1dc1c9e20d2c5e786692f1bf3dd5199f0494d"
+    "revision": "paper:db93a186; mock:73eb7570; rendered:2026-11-14",
+    "digest": "73eb757052872d6101e346f932c42df7c6e7213c8385bd7f25435d0529f71336"
   },
   "reference": {
     "hidden": [],

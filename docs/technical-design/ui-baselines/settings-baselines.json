@@ -34,8 +34,8 @@
       "packages/ui/scripts/render-settings-references.mjs",
       "packages/ui/scripts/render-enterprise-references.mjs"
     ],
-    "revision": "paper:d1fa8461; mock:c5a1386f; rendered:2026-11-13",
-    "digest": "c5a1386f93b7baa27ddf0f233c397b9676b7bd9507f795fc9d676e4c37f4e318"
+    "revision": "paper:2052d2a5; mock:01d99ddf; rendered:2026-11-14",
+    "digest": "01d99ddf25bfd1161693301b720200d2c98346a313c9c36687f7b9b9ba5f0614"
   },
   "reference": {
     "hidden": [],
