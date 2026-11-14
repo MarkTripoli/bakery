@@ -308,23 +308,23 @@ async function cancelRunLifecycle(
   },
 ): Promise<void> {
   const { lifecycle } = input;
-  if (lifecycle.runStepId !== null) {
-    await transaction.query<{ version: number }>(
-      `update bakery.run_steps
-          set status = 'canceled',
-              output = null,
-              error = null,
-              started_at = coalesce(started_at, current_timestamp),
-              finished_at = current_timestamp,
-              updated_at = current_timestamp,
-              version = version + 1
-        where organization_id = $1
-          and id = $2
-          and status not in ('completed', 'failed', 'canceled', 'blocked')
-        returning version`,
-      [input.organizationId, lifecycle.runStepId],
-    );
-  }
+  // Every open step of the run ends with it, not only the one whose attempt
+  // was canceled: a plan run in a parallel group has a step per lane, and a
+  // wait or a step not yet admitted has no attempt at all.
+  await transaction.query(
+    `update bakery.run_steps
+        set status = 'canceled',
+            output = null,
+            error = null,
+            started_at = coalesce(started_at, current_timestamp),
+            finished_at = current_timestamp,
+            updated_at = current_timestamp,
+            version = version + 1
+      where organization_id = $1
+        and run_id = $2
+        and status not in ('completed', 'failed', 'canceled', 'blocked')`,
+    [input.organizationId, lifecycle.runId],
+  );
 
   const runUpdate = await transaction.query<{ version: number }>(
     `update bakery.workflow_runs
@@ -338,6 +338,10 @@ async function cancelRunLifecycle(
       returning version`,
     [input.organizationId, lifecycle.runId],
   );
+  // A run in a parallel group is canceled once however many of its attempts
+  // are: the first cancellation ends the run and task and announces it, the
+  // others only end their own job.
+  const runEnded = runUpdate.rows.length > 0;
   const runVersion = runUpdate.rows[0]?.version ?? lifecycle.runVersion;
 
   const taskUpdate = await transaction.query<{ version: number }>(
@@ -355,6 +359,7 @@ async function cancelRunLifecycle(
   const taskVersion = taskUpdate.rows[0]?.version ?? lifecycle.taskVersion;
 
   await input.emitJobEvents();
+  if (!runEnded) return;
   await appendDomainEvent(transaction, {
     organizationId: input.organizationId,
     applicationId: lifecycle.applicationId,
@@ -390,6 +395,83 @@ async function cancelRunLifecycle(
 }
 
 const LIVE_ATTEMPT_STATUSES_SQL = "('leased', 'running', 'canceling')";
+
+/**
+ * Cancels the jobs of a run that no worker holds (queued: never claimed, or
+ * waiting for a retry), after the worker commands cancelled the live ones.
+ * A run in a parallel group can have both: a lane running while another lane's
+ * job waits. The jobs go first (the row order of the claim and result paths),
+ * then each one's events are announced.
+ */
+export async function cancelQueuedJobsOfRun(
+  transaction: PgTransactionClient,
+  input: { organizationId: string; runId: string; traceId: string },
+): Promise<void> {
+  const queued = await transaction.query<{ id: string }>(
+    `select job.id
+       from bakery.jobs job
+       join bakery.run_steps step
+         on step.organization_id = job.organization_id
+        and step.id = job.run_step_id
+      where job.organization_id = $1 and step.run_id = $2
+        and job.status = 'queued'
+      order by step.position asc, step.iteration asc, job.id asc
+        for update of job`,
+    [input.organizationId, input.runId],
+  );
+  if (queued.rows.length === 0) return;
+  const scope = await transaction.query<CancellationLifecycleRow>(
+    `select run.id as "runId",
+            null::uuid as "runStepId",
+            run.task_id as "taskId",
+            run.version as "runVersion",
+            task.version as "taskVersion",
+            task.application_id as "applicationId",
+            task.repository_id as "repositoryId",
+            task.conversation_id as "conversationId"
+       from bakery.workflow_runs as run
+       join bakery.tasks as task
+         on task.organization_id = run.organization_id
+        and task.id = run.task_id
+      where run.organization_id = $1 and run.id = $2`,
+    [input.organizationId, input.runId],
+  );
+  const lifecycle = scope.rows[0];
+  if (!lifecycle) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  for (const { id } of queued.rows) {
+    const canceled = await transaction.query<{ version: number }>(
+      `update bakery.jobs
+          set status = 'canceled',
+              cancel_requested_at = coalesce(
+                cancel_requested_at, current_timestamp
+              ),
+              current_fence = current_fence + 1,
+              updated_at = current_timestamp,
+              version = version + 1
+        where organization_id = $1 and id = $2 and status = 'queued'
+        returning version`,
+      [input.organizationId, id],
+    );
+    const version = canceled.rows[0]?.version;
+    if (version === undefined) {
+      throw new StandardError({ code: "STATE_CONFLICT" });
+    }
+    const last = await transaction.query<{ id: string }>(
+      `select id from bakery.job_attempts
+        where organization_id = $1 and job_id = $2
+        order by attempt_no desc limit 1`,
+      [input.organizationId, id],
+    );
+    await emitCanceledJobEvents(transaction, {
+      organizationId: input.organizationId,
+      lifecycle,
+      jobId: id,
+      attemptId: last.rows[0]?.id ?? null,
+      jobVersion: version,
+      traceId: input.traceId,
+    });
+  }
+}
 
 /**
  * Cancels a run that has no live attempt: every unfinished job is `queued`

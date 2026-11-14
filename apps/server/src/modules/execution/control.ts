@@ -53,6 +53,7 @@ import {
 } from "./adapter-capabilities.ts";
 import {
   activeAttempt,
+  cancelQueuedJobsOfRun,
   cancelRunWithoutAttempt,
   enqueueWorkerControlCommand,
   resolveCanceledAttemptCleanup,
@@ -334,12 +335,13 @@ async function runControlAction(
         and attempt.status in ('leased', 'running', 'canceling')
         and job.current_fence = attempt.fence
       order by step.position asc, step.iteration asc,
-        attempt.attempt_no desc, attempt.id desc
-      limit 1`,
+        attempt.attempt_no desc, attempt.id desc`,
     [organizationId, runId],
   );
-  const attempt = attemptResult.rows[0];
-  if (!attempt) {
+  // A run may have several live attempts (the lanes of a parallel group): a
+  // control reaches every one of them, not only the first.
+  const attempts = attemptResult.rows;
+  if (attempts.length === 0) {
     if (["completed", "failed", "canceled", "blocked"].includes(run.status)) {
       throw new StandardError({ code: "ALREADY_TERMINAL" });
     }
@@ -353,32 +355,46 @@ async function runControlAction(
       traceId: context.traceId,
     });
   } else {
-    if (
-      !adapterSupportsControl(
-        input.action,
-        readAdapterCapabilities(attempt.adapterCapabilities),
-      )
-    ) {
-      // No command row, run revision or event: the worker never advertised it.
-      throw new StandardError({
-        code: "STATE_CONFLICT",
-        params: { reason: "unsupported", action: input.action },
-      });
+    // Every worker must be able to take the command before any is given it:
+    // no command row, run revision or event if one never advertised it.
+    for (const attempt of attempts) {
+      if (
+        !adapterSupportsControl(
+          input.action,
+          readAdapterCapabilities(attempt.adapterCapabilities),
+        )
+      ) {
+        throw new StandardError({
+          code: "STATE_CONFLICT",
+          params: { reason: "unsupported", action: input.action },
+        });
+      }
     }
     const metadata = requireCommandMetadata(context);
-    await enqueueWorkerControlCommand(transaction, {
-      organizationId,
-      attemptId: attempt.id,
+    const requestDigest = await sha256Hex(canonicalJson({
+      runId,
       action: input.action,
       ...(input.reason === undefined ? {} : { reason: input.reason }),
-      idempotencyKey: metadata.idempotencyKey,
-      requestDigest: await sha256Hex(canonicalJson({
-        runId,
+    }));
+    for (const attempt of attempts) {
+      await enqueueWorkerControlCommand(transaction, {
+        organizationId,
+        attemptId: attempt.id,
         action: input.action,
         ...(input.reason === undefined ? {} : { reason: input.reason }),
-      })),
-      traceId: context.traceId,
-    });
+        idempotencyKey: metadata.idempotencyKey,
+        requestDigest,
+        traceId: context.traceId,
+      });
+    }
+    if (input.action === "cancel") {
+      // Whatever no worker holds ends with the run: jobs still queued.
+      await cancelQueuedJobsOfRun(transaction, {
+        organizationId,
+        runId,
+        traceId: context.traceId,
+      });
+    }
   }
   // Each admitted request is its own run revision. A second request on the
   // same run (pause, then resume) would otherwise repeat the aggregate version
