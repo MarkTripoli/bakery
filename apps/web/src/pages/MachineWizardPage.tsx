@@ -509,7 +509,7 @@ export function MachineWizardPage(
       <UI.Breadcrumbs
         aria-label={translate("shell.navigation.breadcrumb")}
         items={[
-          { label: translate("shell.states.settingsTitle") },
+          { label: translate("shell.navigation.workspace") },
           { label: translate("shell.navigation.machines") },
           { label: translate("machines.wizard.title" as never) },
         ]}
@@ -523,6 +523,7 @@ export function MachineWizardPage(
       {breadcrumbs}
       <UI.SettingsContent data-testid="machine-wizard">
         <UI.PageHeader
+          flush
           variant="list"
           title={translate("machines.wizard.title" as never)}
         />
@@ -577,6 +578,7 @@ export function MachineWizardPage(
       {breadcrumbs}
       <UI.SettingsContent data-testid="machine-wizard">
         <UI.PageHeader
+          flush
           variant="list"
           title={translate("machines.wizard.title" as never)}
           subtitle={translate("machines.wizard.progress" as never, {
