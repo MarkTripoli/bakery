@@ -109,8 +109,11 @@ function describe(preview: EnrollmentPreview): string {
 /**
  * Runs a command. `setup` needs the worker installed first (installing from the
  * fixed release origin is a later step) and then pairs; `pair` pairs an
- * installation that exists. Returns a process exit code and prints only fixed
- * messages: never the setup code, never text the server supplied.
+ * installation that exists. Returns a process exit code. It prints fixed
+ * messages, and at the confirmation the server's preview of the organization,
+ * the machine and what it may run: that text is shown only after the pairing
+ * module has refused any control, line-break or direction-changing character in
+ * it, so it cannot forge or erase a line. It never prints the setup code.
  */
 export async function runCommand(
   command: Command,

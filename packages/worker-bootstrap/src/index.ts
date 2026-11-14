@@ -23,6 +23,7 @@ export {
 } from "./install.ts";
 export {
   type EnrollmentPreview,
+  hasUnsafeCharacter,
   inspectEnrollment,
   normalizeServerOrigin,
   PAIRING_FILE,
