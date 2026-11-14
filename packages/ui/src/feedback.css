@@ -644,5 +644,5 @@
 .ui-inline[data-trailing-popover] > .ui-popover .ui-popover__content {
   inline-size: max-content;
   inset-inline: auto var(--space-0);
-  max-inline-size: calc(100vw - var(--space-8));
+  max-inline-size: min(360px, calc(100vw - var(--space-8)));
 }

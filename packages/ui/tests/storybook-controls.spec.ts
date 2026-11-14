@@ -33,6 +33,22 @@ test.describe("Storybook coarse controls", () => {
           elements.flatMap((element) => {
             const style = getComputedStyle(element);
             const rectangle = element.getBoundingClientRect();
+            // A skip link is clipped to nothing until it has focus: it is not
+            // a target at rest, so it is measured as the target it becomes.
+            if (
+              element instanceof HTMLElement &&
+              element.classList.contains("bakery-app-shell__skip-link")
+            ) {
+              element.focus();
+              const focused = element.getBoundingClientRect();
+              element.blur();
+              return focused.width >= 44 && focused.height >= 44 ? [] : [{
+                role: "skip-link-focused",
+                text: element.textContent?.trim().slice(0, 80),
+                width: focused.width,
+                height: focused.height,
+              }];
+            }
             if (
               element instanceof HTMLInputElement &&
               ["checkbox", "radio"].includes(element.type) &&
