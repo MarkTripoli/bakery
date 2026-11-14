@@ -3199,5 +3199,6 @@
   "tasks.delivery.approval.status.rejected": "⟪Rejected⟫",
   "tasks.delivery.approval.status.closed": "⟪Closed⟫",
   "tasks.delivery.help.approval.label": "⟪About approval⟫",
-  "tasks.delivery.help.approval.text": "⟪Your workflow asks a person to approve at this point.⟫"
+  "tasks.delivery.help.approval.text": "⟪Your workflow asks a person to approve at this point.⟫",
+  "tasks.delivery.approval.changesDialog.intro": "⟪Say what is wrong with these changes. The agent fixes them and Bakery checks them again.⟫"
 }

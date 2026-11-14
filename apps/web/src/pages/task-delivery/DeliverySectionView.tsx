@@ -527,6 +527,9 @@ function ReadyView(
         variant="form"
       >
         <UI.Stack>
+          <UI.Text variant="muted">
+            {t("tasks.delivery.approval.changesDialog.intro")}
+          </UI.Text>
           <UI.Field
             hint={t("tasks.delivery.approval.changesDialog.hint")}
             htmlFor={`${fieldId}-changes`}

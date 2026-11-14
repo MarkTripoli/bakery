@@ -2821,6 +2821,7 @@
   "tasks.delivery.approval.approveDialog.body": "Bakery may then merge them. This applies to commit {head}. If the changes are updated, approval is asked again.",
   "tasks.delivery.approval.approveDialog.confirm": "Approve",
   "tasks.delivery.approval.changesDialog.title": "Request changes",
+  "tasks.delivery.approval.changesDialog.intro": "Say what is wrong with these changes. The agent fixes them and Bakery checks them again.",
   "tasks.delivery.approval.changesDialog.label": "What should change?",
   "tasks.delivery.approval.changesDialog.hint": "The agent gets this as its next instruction.",
   "tasks.delivery.approval.changesDialog.send": "Send",

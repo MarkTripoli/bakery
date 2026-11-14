@@ -750,6 +750,9 @@ test("changes need a note, which is sent as the decision's comment", async ({ pa
   await expect(dialog).toContainText(
     "The agent gets this as its next instruction.",
   );
+  await expect(dialog).toContainText(
+    "Say what is wrong with these changes. The agent fixes them and Bakery checks them again.",
+  );
   const send = dialog.getByRole("button", { name: "Send" });
   await expect(send).toBeDisabled();
   await dialog.getByLabel("What should change?").fill("   ");
@@ -1018,8 +1021,9 @@ for (const name of APPROVAL_STILLS) {
           name: "Approve",
           exact: true,
         });
+        // A dialog is pictured alone: the page behind it is not what changed.
         const dialogPicture = async () => {
-          await page.screenshot({
+          await page.locator("dialog[open]").screenshot({
             path: `${STILLS}/delivery-${name}-${label}-${scheme}.png`,
           });
         };

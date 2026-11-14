@@ -3199,5 +3199,6 @@
   "tasks.delivery.approval.status.rejected": "⟦Ŕëĵëçŧëð…⟧",
   "tasks.delivery.approval.status.closed": "⟦Çļôšëð…⟧",
   "tasks.delivery.help.approval.label": "⟦Àƀôûŧ àþþŕôṽàļ ŧë⟧",
-  "tasks.delivery.help.approval.text": "⟦Ÿôûŕ ŵôŕķƒļôŵ àšķš à þëŕšôñ ŧô àþþŕôṽë àŧ ŧĥïš þôïñŧ. ŧëšŧ çôþÿ ŧëšŧ ç⟧"
+  "tasks.delivery.help.approval.text": "⟦Ÿôûŕ ŵôŕķƒļôŵ àšķš à þëŕšôñ ŧô àþþŕôṽë àŧ ŧĥïš þôïñŧ. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "tasks.delivery.approval.changesDialog.intro": "⟦Šàÿ ŵĥàŧ ïš ŵŕôñĝ ŵïŧĥ ŧĥëšë çĥàñĝëš. Ŧĥë àĝëñŧ ƒïẋëš ŧĥëɱ àñð Ɓàķëŕÿ çĥëçķš ŧĥëɱ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
 }
