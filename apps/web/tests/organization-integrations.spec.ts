@@ -843,8 +843,6 @@ test("a Developer sees connections but no way to change them", async ({ page }) 
   await expect(
     page.getByText("Only organization administrators can change integrations."),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Add integration" }))
-    .toHaveCount(0);
   await expect(connectButton(page)).toHaveCount(0);
   // Opening a connection is reading; the fixes that leave for GitHub are not offered.
   await expect(row(page, ID(1)).getByRole("button", { name: "Manage" }))
@@ -855,18 +853,6 @@ test("a Developer sees connections but no way to change them", async ({ page }) 
   await expect(page.getByRole("button", { name: "Turn off" })).toHaveCount(0);
   await expect(page.getByRole("checkbox", { name: "acme-org/repo-1" }))
     .toBeDisabled();
-});
-
-test("Add integration takes a keyboard user to the list of what can be added", async ({ page }) => {
-  await fixture(page, newWorld({ connections: [connection(1, "enabled")] }));
-  await page.goto(PAGE_PATH);
-  await page.getByRole("button", { name: "Add integration" }).click();
-  await expect(
-    page.getByTestId("available-list").getByRole("button", {
-      name: "Connect",
-      exact: true,
-    }),
-  ).toBeFocused();
 });
 
 const pagedWorld = (overrides: Partial<World> = {}) =>

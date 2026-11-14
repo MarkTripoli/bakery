@@ -136,11 +136,6 @@ export function OrganizationIntegrationsPage(
       },
     );
   };
-  const add = () => {
-    const available = document.getElementById("integrations-available");
-    available?.scrollIntoView?.({ block: "center" });
-    available?.querySelector("button")?.focus();
-  };
 
   return (
     <>
@@ -151,7 +146,6 @@ export function OrganizationIntegrationsPage(
           connectStatus={connectFlow.connectStatus}
           continuing={connectFlow.continuing}
           formatTime={connectionTimeFormatter(locale, timeZone)}
-          onAdd={add}
           onConnect={() => void connectFlow.connect()}
           onDismissOutcome={() =>
             void navigate({

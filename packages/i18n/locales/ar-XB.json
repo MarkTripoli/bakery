@@ -2331,7 +2331,6 @@
   "settings.connections.check.timeout": "⟪GitHub is not answering right now. Try again in a few minutes.⟫",
   "settings.connections.check.failed": "⟪The check could not run. Try again.⟫",
   "settings.connections.check.faulted": "⟪The check could not reach GitHub; the earlier health is kept.⟫",
-  "settings.connections.add": "⟪Add integration⟫",
   "settings.connections.home.connected": "⟪Connected⟫",
   "settings.connections.home.available": "⟪Available⟫",
   "settings.connections.home.purpose": "⟪Let Bakery read and change code in the repositories you choose.⟫",

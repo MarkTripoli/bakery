@@ -350,7 +350,7 @@ Press states change tone without scaling the control. Selected rows use the sele
 - **CursorControls:** Load more or next/previous continuation using opaque cursors; never expose page numbers.
 
 ### Data and work
-- **ObjectRow:** fixed icon, title/description, status, metadata, and action lanes; compact/standard/comfortable density.
+- **ObjectRow:** fixed icon, title/description, status, metadata, and action lanes; compact/standard/comfortable density. `aligned` draws every lane in every row, with a fixed-width actions lane, so a list's rows line up.
 - **DataTable:** sortable labelled columns, empty/loading/error rows, keyboard-safe actions, and sheet list transformation.
 - **StatusBadge / StatusLabel:** healthy, queued, active, needs input, degraded, failed, disconnected, disabled; text always present.
 - **CodeBlock / LogViewer:** Geist Mono, copy affordance, bounded scrolling, syntax theme paired to app theme, source and timestamps preserved.

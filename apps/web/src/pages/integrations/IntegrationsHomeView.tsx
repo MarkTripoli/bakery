@@ -1,9 +1,7 @@
 import * as UI from "@bakery/ui";
 import type { MessageKey } from "@bakery/i18n";
-import { useShellViewport } from "../../app/responsive.ts";
 import { RouterLink } from "../../app/router-link.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
-import { ShellSlot } from "../../shell/shell-slots.tsx";
 import type { Health } from "./model.ts";
 import { type ConnectionOutcome, OUTCOME_COPY } from "./outcomes.ts";
 import type { ConnectStatus } from "./connect.ts";
@@ -30,7 +28,6 @@ export type IntegrationsHomeViewProps = {
   /** The page is on its way back to the provider for the attempt's next step. */
   readonly continuing: boolean;
   readonly connectStatus: ConnectStatus;
-  readonly onAdd: () => void;
   readonly onConnect: () => void;
   readonly onReconnect: (id: string) => void;
   /** Opens the connection's own page. */
@@ -49,7 +46,6 @@ const CONNECT_FAILURE: Readonly<Partial<Record<ConnectStatus, MessageKey>>> = {
 /** The home of the organization's integrations: what is connected, what can be added. */
 export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
   const { translate } = useI18n();
-  const phone = useShellViewport() === "phone";
   const { state, canManage, rows, outcome, connectStatus } = props;
   const busy = connectStatus === "starting" ||
     connectStatus === "redirecting" || props.continuing;
@@ -76,20 +72,9 @@ export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
     </UI.Button>
   );
 
-  // Where a list page's one primary action goes: the shell's action slot on
-  // desktop, under the title on a phone.
-  const add = canManage && state === "ready"
-    ? (
-      <UI.Button onClick={props.onAdd} type="button">
-        {translate("settings.connections.add")}
-      </UI.Button>
-    )
-    : null;
   return (
     <UI.SettingsContent data-testid="organization-integrations">
-      {add && !phone ? <ShellSlot name="actions">{add}</ShellSlot> : null}
       <UI.PageHeader
-        actions={phone ? add : undefined}
         flush
         subtitle={translate("settings.connections.description")}
         title={translate("settings.connections.title")}
@@ -227,8 +212,9 @@ export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
               <UI.Heading level="section">
                 {translate("settings.connections.home.available")}
               </UI.Heading>
-              <div data-testid="available-list" id="integrations-available">
+              <div data-testid="available-list">
                 <UI.ObjectRow
+                  aligned
                   actions={canManage
                     ? connectButton("secondary", "home.connect")
                     : undefined}
@@ -308,6 +294,7 @@ function ConnectedRow(
   );
   return (
     <UI.ObjectRow
+      aligned
       actions={canManage || !leaves
         ? (
           <UI.Button

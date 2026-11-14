@@ -38,6 +38,7 @@ const structuralLines = [
   /^inline-size: 120px$/,
   /^block-size: 160px$/,
   /^grid-template-columns: minmax\(10rem, 2fr\) minmax\(6rem, 1fr\) minmax\(8rem, 1fr\)\s+auto$/,
+  /^grid-template-columns: minmax\(10rem, 2fr\) minmax\(6rem, 1fr\) minmax\(8rem, 2fr\)\s+10rem$/,
   /^grid-template-columns: minmax\(0, 1fr\) minmax\(12rem, 20rem\)$/,
   /^grid-template-columns: minmax\(12rem, 20rem\)$/,
   /^grid-template-columns: minmax\(7rem, 0.35fr\) minmax\(0, 1fr\)$/,

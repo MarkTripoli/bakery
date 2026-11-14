@@ -485,7 +485,7 @@ function RepositoriesSection(
                 </UI.Text>
               )
               : (
-                <UI.Stack data-paged-list="repositories" gap="tight">
+                <UI.Stack data-paged-list="repositories" gap="compact">
                   {shown.map((item) => (
                     <UI.Checkbox
                       checked={item.ticked}
