@@ -1455,6 +1455,25 @@ firing is waiting are recorded as `skipped`, so no automation ever holds more
 than one waiting firing. Both policies keep the firing dedupe key on
 `scheduled_at`, so a repeated tick cannot turn a skipped occurrence into a run.
 
+An event trigger names a GitHub `kind` (`issues`, `pull_request`, `check_run` or
+`check_suite`), optionally an `action`, and an equality `filter` over the fields
+the verified receipt keeps (`number`, `headSha` and `repositoryId`); a version
+that names anything else is refused when it is created, because it could never
+fire. The version is bound to a Bakery repository (`repository_id` is required),
+and only an event delivered for that repository on the organization's own
+connection can start it. The receipt creates an `automation` route for such an
+event, beside the routes the integration processor owns; the automation consumer
+re-checks the installation, connection and repository, matches the stored
+projection exactly, and admits one firing per automation and event, under the
+automation's lock, in the transaction that settles the route. A redelivery or a
+replayed route cannot make a second firing. `scheduled_at` is the receipt's
+instant, kept one millisecond past the version's latest firing so two events in
+one instant are two firings. The overlap policy applies as for a schedule, an
+automation admits at most sixty event firings an hour and records the rest as
+`skipped`, and an event firing waits `pending` for the same start as a
+schedule's. The started run receives the version's inputs; it does not receive
+the event.
+
 The `automationFirings.list` safe projection exposes the scheduling outcome,
 not an inferred run state:
 

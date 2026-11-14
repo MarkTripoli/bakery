@@ -31,6 +31,7 @@ import { appendFacts } from "./facts.ts";
 import { hasActiveRun } from "./overlap.ts";
 import { nextOccurrence, parseCron } from "./schedule.ts";
 import { startFiringIn } from "./start.ts";
+import { assertSupportedEventTrigger } from "./event-match.ts";
 import {
   type AutomationTrigger,
   parseTrigger,
@@ -544,6 +545,9 @@ export async function createAutomationVersion(
   let trigger: AutomationTrigger;
   try {
     trigger = parseTrigger(value.trigger);
+    // An event trigger names only what the receipt carries: a version that could
+    // never fire is refused now.
+    if (trigger.type === "event") assertSupportedEventTrigger(trigger);
   } catch (error) {
     if (error instanceof TriggerError) {
       throw unprocessable(["trigger", ...error.path], error.reason, error);
@@ -578,6 +582,11 @@ export async function createAutomationVersion(
     );
   }
   const target = await validatedTarget(transaction, organizationId, value);
+  // An event trigger is bound to a repository: only an event routed for that
+  // repository's connection can start it.
+  if (trigger.type === "event" && target.repositoryId === null) {
+    throw unprocessable(["repositoryId"], "repository_required_for_event");
+  }
   // A workflow that works on a repository cannot start without one: refuse the
   // version now, not every firing later.
   if (

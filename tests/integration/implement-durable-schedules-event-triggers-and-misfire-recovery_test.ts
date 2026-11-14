@@ -248,6 +248,15 @@ Deno.test("automations: definitions, versions with a validated trigger, lifecycl
       insert into bakery.applications (id, organization_id, slug, name)
       values (${applicationA}, ${organizationAId}, ${`app-${applicationA}`}, 'Application A')`;
 
+    // The repository an event trigger is bound to.
+    const repositoryA = crypto.randomUUID();
+    await owner`
+      insert into bakery.repositories (
+        id, organization_id, application_id, integration_connection_id,
+        provider_repo_id, owner, name, default_branch
+      ) values (${repositoryA}, ${organizationAId}, ${applicationA},
+        ${crypto.randomUUID()}, ${repositoryA}, 'acme', 'web', 'main')`;
+
     const schedule = {
       type: "schedule",
       cron: "0 9 * * mon-fri",
@@ -383,8 +392,9 @@ Deno.test("automations: definitions, versions with a validated trigger, lifecycl
               provider: "github",
               kind: "issues",
               action: "opened",
-              filter: { repository: "acme/web", draft: false },
+              filter: { repositoryId: 4242, number: 7 },
             },
+            repositoryId: repositoryA,
             misfirePolicy: "skip",
             overlapPolicy: "queue_one",
           }),
@@ -399,8 +409,9 @@ Deno.test("automations: definitions, versions with a validated trigger, lifecycl
         provider: "github",
         kind: "issues",
         action: "opened",
-        filter: { draft: false, repository: "acme/web" },
+        filter: { number: 7, repositoryId: 4242 },
       });
+      assertEquals(eventBody.repositoryId, repositoryA);
       assert(eventBody.digest !== body.digest);
       // The same content is the same digest.
       const again = await send(
@@ -452,6 +463,60 @@ Deno.test("automations: definitions, versions with a validated trigger, lifecycl
         );
         await response.body?.cancel();
       }
+      // Well formed and bound to a repository, but naming what the receipt does
+      // not carry (a kind it does not route, a filter key it does not keep, a
+      // value of the wrong type): it could never fire, so only this check
+      // refuses it.
+      const unsupported: Record<string, unknown>[] = [
+        { type: "event", provider: "github", kind: "push" },
+        {
+          type: "event",
+          provider: "github",
+          kind: "issues",
+          filter: { repository: "acme/web" },
+        },
+        {
+          type: "event",
+          provider: "github",
+          kind: "issues",
+          filter: { number: "7" },
+        },
+      ];
+      for (const trigger of unsupported) {
+        const response = await expectNoFacts(
+          () =>
+            send(
+              "POST",
+              `/v1/automations/${automationId}/versions`,
+              command({
+                body: versionBody({ trigger, repositoryId: repositoryA }),
+              }),
+            ),
+          422,
+        );
+        await response.body?.cancel();
+      }
+      // A well-formed event version without a repository could never be told
+      // which connection's events are its own: refused, nothing written.
+      const unbound = await expectNoFacts(
+        () =>
+          send(
+            "POST",
+            `/v1/automations/${automationId}/versions`,
+            command({
+              body: versionBody({
+                trigger: { type: "event", provider: "github", kind: "issues" },
+              }),
+            }),
+          ),
+        422,
+      );
+      assertEquals(
+        JSON.stringify(await unbound.json()).includes(
+          "repository_required_for_event",
+        ),
+        true,
+      );
       for (const trigger of [null, 7, "0 9 * * *", [schedule]]) {
         const response = await expectNoFacts(
           () =>
@@ -1624,7 +1689,17 @@ Deno.test("automation.tick: due automations are admitted once, catch-ups are one
         "event_not_routed",
       );
       assertEquals(await count(versionBId), 0);
-      // An event nobody routed, and one that does not exist.
+      // An event routed to the organization for something else (the integration
+      // processor's fact refresh) was not routed for an automation.
+      await owner`
+        insert into bakery.inbound_event_routes (
+          id, inbound_event_id, organization_id, connection_id, installation_id,
+          purpose, status
+        ) values (
+          ${crypto.randomUUID()}, ${otherEventId}, ${organizationId}, ${connectionId},
+          ${installationId}, 'fact_refresh', 'pending'
+        )`;
+      // An event nobody routed for an automation, and one that does not exist.
       assertEquals(
         await firing(
           organizationId,

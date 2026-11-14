@@ -18,8 +18,10 @@ import {
   loadSecretKey,
   SecretCipherSchema,
 } from "../secrets/crypto.ts";
+import { automationListens } from "../workflows/automations/event-gate.ts";
 import { InstallationStatus, liveConnections } from "./installation-fan-out.ts";
 import {
+  AUTOMATION_ROUTE_PURPOSE,
   classifyEvent,
   type IntakeRoutePurpose,
   type ParsedDelivery,
@@ -215,7 +217,7 @@ type RoutePlan = {
   connectionId: string;
   installationId: string;
   resourceId: string | null;
-  purpose: IntakeRoutePurpose;
+  purpose: IntakeRoutePurpose | typeof AUTOMATION_ROUTE_PURPOSE;
 };
 
 /** Where a receipt goes: the routes to create, or the reason it creates none. */
@@ -345,6 +347,18 @@ async function planRoutes(
       reason = ReceiptReason.ConnectionNotEnabled;
       continue;
     }
+    // An automation bound to this repository that listens for this kind of
+    // event earns its own route, whether or not the event is tracked: the
+    // consumer matches the action and the filter.
+    if (await listensForAutomation(transaction, event.eventName, resource)) {
+      routes.push({
+        organizationId: resource.organizationId,
+        connectionId: resource.connectionId,
+        installationId: installation.id,
+        resourceId: resource.resourceId,
+        purpose: AUTOMATION_ROUTE_PURPOSE,
+      });
+    }
     if (
       event.eventName === "pull_request" || event.eventName === "check_run" ||
       event.eventName === "check_suite"
@@ -381,6 +395,34 @@ async function planRoutes(
     });
   }
   return routes.length === 0 ? ignore(reason) : { routes, reason: null };
+}
+
+const AUTOMATION_EVENT_KINDS: ReadonlySet<string> = new Set([
+  "issues",
+  "pull_request",
+  "check_run",
+  "check_suite",
+]);
+
+/** Whether an automation of the resource's organization listens for the event on its repository. */
+async function listensForAutomation(
+  transaction: PgTransactionClient,
+  eventName: string,
+  resource: SelectedRepository,
+): Promise<boolean> {
+  if (!AUTOMATION_EVENT_KINDS.has(eventName)) return false;
+  const repositoryId = await resolveRepositoryId(transaction, {
+    organizationId: resource.organizationId,
+    connectionId: resource.connectionId,
+    externalId: resource.externalId,
+    displayName: resource.displayName,
+  });
+  return repositoryId !== null &&
+    await automationListens(transaction, {
+      organizationId: resource.organizationId,
+      repositoryId,
+      eventKind: eventName,
+    });
 }
 
 const RECEIVED_AT =
