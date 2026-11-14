@@ -27,6 +27,46 @@ export type ServiceSpec = Readonly<{
 const PATH_CHARACTERS = /^[A-Za-z0-9_./-]+$/;
 const ACCOUNT = /^[a-z_][a-z0-9_-]{0,31}$/;
 const SETTING_NAME = /^BAKERY_[A-Z0-9_]{1,100}$/;
+/**
+ * Accounts that exist on a system already and are never the dedicated,
+ * unprivileged account a worker runs as: root, the standard system accounts
+ * and the service accounts of common daemons. The plan creates its account, so
+ * a name that is already one of these is a mistake or an attempt to run the
+ * worker with someone else's rights.
+ */
+const SYSTEM_ACCOUNTS = new Set([
+  "root",
+  "daemon",
+  "bin",
+  "sys",
+  "sync",
+  "games",
+  "man",
+  "lp",
+  "mail",
+  "news",
+  "uucp",
+  "proxy",
+  "www-data",
+  "backup",
+  "list",
+  "irc",
+  "gnats",
+  "nobody",
+  "nogroup",
+  "sshd",
+  "dbus",
+  "messagebus",
+  "polkitd",
+  "postgres",
+  "mysql",
+  "redis",
+  "git",
+  "docker",
+  "admin",
+  "wheel",
+  "sudo",
+]);
 /** The worker takes its code from a protected file or descriptor; these names would be the shortcut. */
 const TOKEN_SETTINGS = new Set([
   "BAKERY_WORKER_ENROLLMENT_TOKEN",
@@ -45,12 +85,22 @@ function hasControlCharacter(value: string): boolean {
   return false;
 }
 
-function checked(spec: ServiceSpec): void {
+function checked(spec: ServiceSpec, dedicated: boolean): void {
   if (
     !isAbsolute(spec.root) || !PATH_CHARACTERS.test(spec.root) ||
     spec.root.includes("..") || spec.root.length > 200 ||
     !ACCOUNT.test(spec.account)
   ) throw new BootstrapError("SERVICE_SPEC_INVALID");
+  if (
+    SYSTEM_ACCOUNTS.has(spec.account) || spec.account.startsWith("systemd-")
+  ) throw new BootstrapError("SERVICE_ACCOUNT_REFUSED");
+  // A list of known accounts can never be complete (`adm`, a cloud image's
+  // `ubuntu`, a person's own): the Linux service's account is named for the
+  // worker (`bakery-worker`, `bakery-ci`), so it cannot be an account that
+  // exists already. The character set is checked above.
+  if (dedicated && !spec.account.startsWith("bakery")) {
+    throw new BootstrapError("SERVICE_ACCOUNT_REFUSED");
+  }
   for (const [name, value] of Object.entries(spec.settings)) {
     if (!SETTING_NAME.test(name) || TOKEN_SETTINGS.has(name)) {
       throw new BootstrapError("SERVICE_SETTING_REFUSED");
@@ -81,7 +131,7 @@ function environmentValue(value: string): string {
 
 /** The settings as a systemd `EnvironmentFile`: sorted, one per line, values quoted when they need it. */
 export function environmentFileText(spec: ServiceSpec): string {
-  checked(spec);
+  checked(spec, false);
   return Object.keys(spec.settings).sort().map((name) =>
     `${name}=${environmentValue(spec.settings[name]!)}`
   ).join("\n") + "\n";
@@ -95,7 +145,7 @@ export function environmentFileText(spec: ServiceSpec): string {
  * installed native worker.
  */
 export function renderSystemdUnit(spec: ServiceSpec): string {
-  checked(spec);
+  checked(spec, true);
   return [
     "[Unit]",
     "Description=Bakery native worker",
@@ -135,7 +185,7 @@ function xml(text: string): string {
  * the non-secret settings are written in; the setup code never is.
  */
 export function renderLaunchAgent(spec: ServiceSpec): string {
-  checked(spec);
+  checked(spec, false);
   const environment = Object.keys(spec.settings).sort().map((name) =>
     `      <key>${xml(name)}</key>\n      <string>${
       xml(spec.settings[name]!)
@@ -200,7 +250,7 @@ export type SystemChange = Readonly<{
  * a command line here.
  */
 export function planLinuxService(spec: ServiceSpec): readonly SystemChange[] {
-  checked(spec);
+  checked(spec, true);
   return [
     {
       actor: "administrator",
@@ -280,7 +330,7 @@ export function planMacService(
   home: string,
   uid: number,
 ): readonly SystemChange[] {
-  checked(spec);
+  checked(spec, false);
   if (
     !isAbsolute(home) || !PATH_CHARACTERS.test(home) ||
     !Number.isInteger(uid) || uid < 0

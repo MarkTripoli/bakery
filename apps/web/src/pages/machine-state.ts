@@ -36,7 +36,7 @@ type MachineFacts = Pick<
  * `draining` or `revoked`, which is what an update writes, so it is the
  * fallback for a response that leaves `desiredMode` out.
  */
-function requestedMode(
+export function requestedMode(
   machine: MachineFacts,
 ): "accepting" | "paused" | "draining" | "revoked" {
   if (machine.desiredMode !== undefined) return machine.desiredMode;

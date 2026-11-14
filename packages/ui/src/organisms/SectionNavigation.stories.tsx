@@ -87,6 +87,28 @@ function ContractStory() {
           />
         </section>
         <section>
+          <strong>Sidebar · grouped</strong>
+          <SectionNavigation
+            currentPath="#repositories"
+            groups={[
+              {
+                id: "account",
+                heading: "Your account",
+                items: [repositories[0]],
+              },
+              {
+                id: "organization",
+                heading: "Organization",
+                items: [repositories[1]],
+              },
+            ]}
+            label="Grouped section navigation"
+            narrowMode="index"
+            state="selected"
+            variant="sidebar"
+          />
+        </section>
+        <section>
           <strong>Menu · default / selected</strong>
           <SectionNavigation
             currentPath="#repositories"

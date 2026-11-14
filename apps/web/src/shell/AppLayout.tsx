@@ -20,7 +20,10 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 import * as UI from "@bakery/ui";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { SettingsNavigation } from "../fixtures/SettingsFixture.tsx";
-import { ProductionSettingsNavigation } from "./ProductionSettingsNavigation.tsx";
+import {
+  ProductionSettingsNavigation,
+  settingsSectionKey,
+} from "./ProductionSettingsNavigation.tsx";
 import {
   INSTALLATION_INTEGRATIONS_PATH,
   InstallationSettingsNavigation,
@@ -197,6 +200,13 @@ function usePrimaryDestinations(
       label: translate("shell.navigation.work"),
       href: workHref,
       icon: <UI.IconGlyph name="work-list" />,
+    },
+    {
+      id: "issues",
+      label: translate("shell.navigation.issues"),
+      href: "/issues",
+      matchPath: "/issues",
+      icon: <UI.IconGlyph name="issue" />,
     },
     unshipped(
       "applications",
@@ -439,6 +449,7 @@ function usePageTitle(pathname: string): string | undefined {
   if (isMachinesPath(pathname)) {
     return translate("shell.navigation.machines");
   }
+  if (pathname === "/issues") return translate("shell.navigation.issues");
   if (pathname === INSTALLATION_INTEGRATIONS_PATH) {
     return translate("shell.navigation.installation");
   }
@@ -586,6 +597,11 @@ function ShellFrame() {
   const productionSettings = isSettingsPath(pathname) ||
     isMachinesPath(pathname);
   const settingsChrome = installationSettings || organizationSettings;
+  // A settings page's breadcrumb, until the page claims its own: Settings, then
+  // the section, so it never reads "Workspace / Settings".
+  const settingsSection = isSettingsPath(pathname)
+    ? settingsSectionKey(pathname)
+    : null;
   const shellNavigate: ShellNavigate = (event, item) => {
     setNavigationOpen(false);
     onNavigate(event, item);
@@ -721,10 +737,15 @@ function ShellFrame() {
             : (
               <UI.Breadcrumbs
                 aria-label={translate("shell.navigation.breadcrumb")}
-                items={[
-                  { label: translate("shell.navigation.workspace") },
-                  ...(pageTitle ? [{ label: pageTitle }] : []),
-                ]}
+                items={settingsSection
+                  ? [
+                    { label: translate("shell.states.settingsTitle") },
+                    { label: translate(settingsSection) },
+                  ]
+                  : [
+                    { label: translate("shell.navigation.workspace") },
+                    ...(pageTitle ? [{ label: pageTitle }] : []),
+                  ]}
               />
             )}
           leading={viewport === "phone"

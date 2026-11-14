@@ -412,6 +412,11 @@ Deno.test("a first pairing asks first, then records the organization and keeps t
       organizationName: "Acme",
       enrollmentId: ENROLLMENT,
       name: "build-linux-01",
+      // What the confirmation showed, kept so the service's settings come from it.
+      os: "linux",
+      architecture: "x64",
+      slots: 2,
+      capabilities: ["git", "shell", "claude"],
       boundAt: NOW.toISOString(),
     });
     assertFalse(JSON.stringify(binding).includes(SECRET));
@@ -549,6 +554,47 @@ Deno.test("a record that cannot be trusted is refused and never replaced, and a 
       "PAIRING_BINDING_CORRUPT",
     );
 
+    // A record that lacks what the service's settings come from, or holds the
+    // wrong kind of value there, is not one this installation wrote either.
+    const whole = {
+      version: 1,
+      serverOrigin: ORIGIN,
+      organizationName: "Acme",
+      enrollmentId: ENROLLMENT,
+      name: "build-linux-01",
+      os: "linux",
+      architecture: "x64",
+      slots: 2,
+      capabilities: ["git"],
+      boundAt: NOW.toISOString(),
+    };
+    for (
+      const broken of [
+        { os: undefined },
+        { os: "windows" },
+        { architecture: undefined },
+        { architecture: 64 },
+        { slots: undefined },
+        { slots: "2" },
+        { slots: 1.5 },
+        { capabilities: undefined },
+        { capabilities: "git" },
+        { capabilities: ["git", 7] },
+      ]
+    ) {
+      await writeFile(
+        join(root, PAIRING_FILE),
+        JSON.stringify({ ...whole, ...broken }),
+        { mode: 0o600 },
+      );
+      await chmod(join(root, PAIRING_FILE), 0o600);
+      assertEquals(
+        await codeOf(pairing(root, fake).run()),
+        "PAIRING_BINDING_CORRUPT",
+        JSON.stringify(broken),
+      );
+    }
+
     // A record others can read is not one this installation wrote.
     await chmod(join(root, PAIRING_FILE), 0o644);
     assertEquals(
@@ -593,8 +639,63 @@ Deno.test("setup and pair take a server, an optional root and a protected file o
       {},
       HOME_ROOT,
     ),
-    { name: "setup", server: ORIGIN, root: "/srv/w", tokenFile: "/run/code" },
+    {
+      name: "setup",
+      server: ORIGIN,
+      root: "/srv/w",
+      tokenFile: "/run/code",
+      release: null,
+      upgrade: false,
+    },
   );
+  // Setup alone may also name the exact release to install, and consent to
+  // replace a different one; pair takes neither, and a range is not a release.
+  assertEquals(
+    parseCommand(
+      ["setup", "--server", ORIGIN, "--release", "1.2.3", "--upgrade"],
+      {},
+      HOME_ROOT,
+    ),
+    {
+      name: "setup",
+      server: ORIGIN,
+      root: HOME_ROOT.root,
+      tokenFile: null,
+      release: "1.2.3",
+      upgrade: true,
+    },
+  );
+  assertEquals(
+    parseCommand(
+      ["setup", "--server", ORIGIN, "--release", "2.0.0-rc.1"],
+      {},
+      HOME_ROOT,
+    )
+      .release,
+    "2.0.0-rc.1",
+  );
+  const refused: [string[], string][] = [
+    [["pair", "--server", ORIGIN, "--release", "1.2.3"], "COMMAND_UNKNOWN"],
+    [["pair", "--server", ORIGIN, "--upgrade"], "COMMAND_UNKNOWN"],
+    [["setup", "--server", ORIGIN, "--upgrade"], "COMMAND_UNKNOWN"],
+    [["setup", "--server", ORIGIN, "--release", "latest"], "RELEASE_NOT_EXACT"],
+    [["setup", "--server", ORIGIN, "--release", "^1.2.3"], "RELEASE_NOT_EXACT"],
+    [["setup", "--server", ORIGIN, "--release", "1.2"], "RELEASE_NOT_EXACT"],
+    [
+      ["setup", "--server", ORIGIN, "--release", "../1.2.3"],
+      "RELEASE_NOT_EXACT",
+    ],
+    [["setup", "--server", ORIGIN, "--release"], "COMMAND_UNKNOWN"],
+  ];
+  for (const [argv, code] of refused) {
+    let got = "";
+    try {
+      parseCommand(argv, {}, HOME_ROOT);
+    } catch (error) {
+      got = (error as BootstrapError).code;
+    }
+    assertEquals(got, code, argv.join(" "));
+  }
   assertEquals(
     parseCommand(["pair", "--server", ORIGIN, "--token-fd", "3"], {}, HOME_ROOT)
       .tokenFile,

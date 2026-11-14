@@ -3,7 +3,6 @@ import { TWO_FACTOR_SETTINGS_PATH } from "../app/auth-paths.ts";
 import { RouterLink } from "../app/router-link.tsx";
 import type { TwoFactorFailure } from "../app/two-factor-failures.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
-import { AccountSettingsBackLink } from "./settings-back.tsx";
 
 /** Exported so the container can focus the field a failure rejected. */
 export const BACKUP_CODES_PASSWORD_INPUT_ID = "backup-codes-password";
@@ -76,10 +75,7 @@ export function BackupCodesScreen(
 
   if (view.kind === "regenerate") {
     return (
-      <UI.SettingsContent
-        back={<AccountSettingsBackLink />}
-        data-testid="backup-codes"
-      >
+      <UI.SettingsContent data-testid="backup-codes">
         <UI.FormContent>
           <UI.AuthHeading
             description={translate(
@@ -161,10 +157,7 @@ export function BackupCodesScreen(
   }
 
   return (
-    <UI.SettingsContent
-      back={<AccountSettingsBackLink />}
-      data-testid="backup-codes"
-    >
+    <UI.SettingsContent data-testid="backup-codes">
       <UI.FormContent>
         <UI.AuthHeading
           description={translate("auth.twoFactor.backupDescription")}

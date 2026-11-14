@@ -505,10 +505,10 @@ test.describe("security suite keyboard-only completion", () => {
     await open(page, "password", "default");
     const current = page.getByLabel("Current password");
     const next = page.getByLabel("New password");
-    // Focus order inside the page: back link, current field + reveal, new
-    // field + reveal, Save, Cancel.
+    // Focus order inside the page: current field + reveal, new field + reveal,
+    // Save, Cancel.
     const order: string[] = [];
-    for (let presses = 0; presses < 40 && order.length < 7; presses += 1) {
+    for (let presses = 0; presses < 40 && order.length < 6; presses += 1) {
       await page.keyboard.press("Tab");
       const label = await page.evaluate(() => {
         const element = document.activeElement as HTMLElement | null;
@@ -520,7 +520,6 @@ test.describe("security suite keyboard-only completion", () => {
       if (label !== null) order.push(label);
     }
     expect(order).toEqual([
-      "Account and security",
       "Current password",
       "Show password",
       "New password",

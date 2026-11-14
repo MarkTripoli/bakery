@@ -5,7 +5,6 @@ import {
 } from "../app/auth-paths.ts";
 import { RouterLink } from "../app/router-link.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
-import { AccountSettingsBackLink } from "./settings-back.tsx";
 
 export type TwoFactorSettingsScreenProps = {
   readonly enabled: boolean;
@@ -33,10 +32,7 @@ export function TwoFactorSettingsScreen(
   const { translate } = useI18n();
   const remaining = backupCodesRemaining ?? 0;
   return (
-    <UI.SettingsContent
-      back={<AccountSettingsBackLink />}
-      data-testid="two-factor-settings"
-    >
+    <UI.SettingsContent data-testid="two-factor-settings">
       <UI.AuthHeading
         description={translate("auth.settings.twoFactor.description")}
         title={translate("auth.twoFactor.sectionTitle")}
