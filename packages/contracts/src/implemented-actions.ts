@@ -360,6 +360,7 @@ export const AutomationImplementedAction = Object.freeze(
     AutomationVersionsList: "automationVersions.list",
     AutomationVersionsCreate: "automationVersions.create",
     AutomationFiringsList: "automationFirings.list",
+    AutomationsRun: "automations.run",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const automationImplementedActions = Object.freeze(

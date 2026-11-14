@@ -197,6 +197,16 @@ export type RepositoryProfileListResponse =
   ClientOutputMap["Page<RepositoryProfile>"];
 export type ApplicationResponse = ClientOutputMap["Application"];
 export type WorkflowDefinitionResponse = ClientOutputMap["Workflow"];
+export type WorkflowDefinitionListResponse = ClientOutputMap["Page<Workflow>"];
+export type WorkflowVersionResponse = ClientOutputMap["WorkflowVersion"];
+export type WorkflowVersionListResponse =
+  ClientOutputMap["Page<WorkflowVersion>"];
+export type DefinitionUpdate = ClientInputMap["DefinitionUpdate"];
+export type AgentVersionResponse = ClientOutputMap["AgentVersion"];
+export type AgentVersionListResponse = ClientOutputMap["Page<AgentVersion>"];
+export type AgentDefinitionResponse = ClientOutputMap["AgentDefinition"];
+export type AgentDefinitionListResponse =
+  ClientOutputMap["Page<AgentDefinition>"];
 export type RepositoryResponse = ClientOutputMap["Repository"];
 export type RepositoryProfileResponse = ClientOutputMap["RepositoryProfile"];
 /** The rules in force for one repository, each with where it came from, and what could check them. */
@@ -1130,6 +1140,54 @@ export type BakeryApiClient = {
     readonly id: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<WorkflowDefinitionResponse>>;
+  /** The organization's workflow definitions, one page of a cursor list. */
+  readonly listWorkflows: (options: {
+    readonly organizationId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<WorkflowDefinitionListResponse>>;
+  /** The versions of one workflow, one page of a cursor list. */
+  readonly listWorkflowVersions: (options: {
+    readonly organizationId: string;
+    readonly workflowId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<WorkflowVersionListResponse>>;
+  /** Makes a published version the one new tasks use; `version` is the workflow's, sent as If-Match. */
+  readonly activateWorkflowVersion: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly versionId: string;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<WorkflowDefinitionResponse>>;
+  /** Renames, describes, turns on or off a workflow; `version` is the workflow's, sent as If-Match. */
+  readonly updateWorkflow: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly input: DefinitionUpdate;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<WorkflowDefinitionResponse>>;
+  /** The versions of one agent, one page of a cursor list. */
+  readonly listAgentVersions: (options: {
+    readonly organizationId: string;
+    readonly agentId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<AgentVersionListResponse>>;
+  /** The organization's agent definitions, one page of a cursor list. */
+  readonly listAgents: (options: {
+    readonly organizationId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<AgentDefinitionListResponse>>;
   readonly createApplication: (options: {
     readonly organizationId: string;
     readonly input: ApplicationCreate;
@@ -3874,6 +3932,124 @@ export function createBakeryApiClient({
         if (data.id !== options.id) {
           throw new ApiTransportError("protocol", 200);
         }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listWorkflows(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["workflows.list"](
+          options.cursor === undefined && options.limit === undefined ? {} : {
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listWorkflowVersions(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["workflowVersions.list"](
+          {
+            id: options.workflowId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async activateWorkflowVersion(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["workflowActivations.create"](
+          { id: options.id, versionId: options.versionId },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async updateWorkflow(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["workflows.update"](
+          { id: options.id, ...options.input },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listAgentVersions(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["agentVersions.list"](
+          {
+            id: options.agentId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listAgents(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["agents.list"](
+          options.cursor === undefined && options.limit === undefined ? {} : {
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
         return { ok: true, data };
       } catch (error) {
         return failed(error);

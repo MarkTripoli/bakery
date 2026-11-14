@@ -232,7 +232,13 @@ function usePrimaryDestinations(
       matchPath: "/machines",
       icon: <UI.IconGlyph name="monitor" />,
     },
-    unshipped("library", translate("shell.navigation.library"), "book"),
+    {
+      id: "library",
+      label: translate("shell.navigation.library"),
+      href: "/library",
+      matchPath: "/library",
+      icon: <UI.IconGlyph name="book" />,
+    },
     unshipped(
       "automations",
       translate("shell.navigation.automations"),
@@ -458,6 +464,9 @@ function usePageTitle(pathname: string): string | undefined {
   }
   if (pathname === "/issues" || pathname.startsWith("/issues/")) {
     return translate("shell.navigation.issues");
+  }
+  if (pathname === "/library" || pathname.startsWith("/library/")) {
+    return translate("shell.navigation.library");
   }
   if (pathname === "/projects" || pathname.startsWith("/projects/")) {
     return translate("shell.navigation.projects");

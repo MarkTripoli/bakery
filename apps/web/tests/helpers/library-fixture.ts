@@ -1,0 +1,333 @@
+import type { Page } from "@playwright/test";
+import {
+  MOCK_ORGANIZATION_ID,
+  mockAuthenticatedSession,
+} from "./mock-session.ts";
+
+/** Stubs for the Library: the built-in presets, the organization's workflows and agents. */
+
+export const uuid = (n: number) =>
+  `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+const STAMP = "2026-01-01T00:00:00.000Z";
+
+export type Definition = {
+  id: string;
+  name: string;
+  description: string | null;
+  activeVersionId: string | null;
+  enabled: boolean;
+  /** The definition's own version, sent back as If-Match. */
+  version?: number;
+};
+
+/** One version of a workflow, with the steps its specification holds. */
+export type VersionRow = {
+  id: string;
+  workflowId: string;
+  revision: number;
+  status: "draft" | "published" | "retired";
+  steps: { id: string; uses: string; agentVersionId?: string }[];
+  /** The workflow's agent bindings by action. */
+  agents?: Record<string, string>;
+  createdAt?: string;
+};
+export type AgentVersionRow = { id: string; agentId: string; revision: number };
+
+export const definition = (
+  n: number,
+  name: string,
+  over: Partial<Definition> = {},
+): Definition => ({
+  id: uuid(n),
+  name,
+  description: `${name} does its work.`,
+  activeVersionId: uuid(n + 1000),
+  enabled: true,
+  ...over,
+});
+
+export type Options = {
+  role?: "admin" | "developer";
+  workflows?: Definition[];
+  agents?: Definition[];
+  versions?: VersionRow[];
+  agentVersions?: AgentVersionRow[];
+  /** The agents and their versions are read slowly (until `seen.releaseAgents()`) or fail. */
+  agentReads?: "hold" | "fail";
+  /** Every workflow versions page says there is another, two versions to a page. */
+  endlessVersions?: boolean;
+  /** A change that answers 409 (someone else got there first). */
+  conflict?: "activate" | "update";
+  /** A read that answers 500 INTERNAL_ERROR, or 403 AUTH_FORBIDDEN. */
+  failing?: "workflows" | "agents" | "presets";
+  forbidden?: boolean;
+  /** The workflows read waits until `seen.release()`: the page is loading meanwhile. */
+  hold?: boolean;
+  /** The workflows read cannot connect, as when the device is offline. */
+  offline?: boolean;
+  /** Every workflows page says there is another, so the list is cut short. */
+  endless?: boolean;
+};
+
+const json = (body: unknown, status = 200) => ({
+  status,
+  contentType: "application/json",
+  body: JSON.stringify(body),
+});
+const problem = (status: number, code: string) => ({
+  status,
+  contentType: "application/problem+json",
+  body: JSON.stringify({
+    type: "https://bakery.example/problems/test",
+    title: code,
+    detail: code,
+    status,
+    code,
+    retryable: status >= 500,
+    requestId: crypto.randomUUID(),
+    traceId: crypto.randomUUID(),
+  }),
+});
+const body = (item: Definition) => ({
+  id: item.id,
+  slug: item.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+  name: item.name,
+  description: item.description,
+  activeVersionId: item.activeVersionId,
+  enabled: item.enabled,
+  createdAt: STAMP,
+  updatedAt: STAMP,
+  version: item.version ?? 1,
+});
+const versionBody = (row: VersionRow) => ({
+  id: row.id,
+  workflowId: row.workflowId,
+  revision: row.revision,
+  sourceYaml:
+    `kind: fixed\n# version ${row.revision} of ${row.workflowId}\nsteps:\n${
+      row.steps.map((step) => `  - id: ${step.id}\n    uses: ${step.uses}\n`)
+        .join("")
+    }`,
+  normalizedSpec: {
+    kind: "fixed",
+    workflow: { kind: "fixed" },
+    steps: row.steps,
+    ...(row.agents ? { agents: row.agents } : {}),
+  },
+  digest: String(row.revision).padStart(2, "0").repeat(32),
+  status: row.status,
+  createdBy: uuid(1),
+  createdAt: row.createdAt ?? "2026-02-0" + Math.min(row.revision, 9) +
+      "T10:00:00.000Z",
+  updatedAt: STAMP,
+  version: 1,
+});
+
+/** Stubs the session, the role and the three Library reads; returns what it saw and a switch to stop failing. */
+export async function libraryFixture(page: Page, options: Options = {}) {
+  await mockAuthenticatedSession(page);
+  const workflows = (options.workflows ?? []).map((item) => ({ ...item }));
+  const versions = (options.versions ?? []).map((row) => ({ ...row }));
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let releaseAgents: () => void = () => {};
+  const agentsHeld = new Promise<void>((resolve) => {
+    releaseAgents = resolve;
+  });
+  let versionPages = 0;
+  const seen = {
+    release: () => release(),
+    releaseAgents: () => releaseAgents(),
+    activations: [] as {
+      id: string;
+      ifMatch: string | null;
+      body: Record<string, unknown>;
+    }[],
+    updates: [] as {
+      id: string;
+      ifMatch: string | null;
+      body: Record<string, unknown>;
+    }[],
+    workflowReads: 0,
+    agentReads: 0,
+    presetReads: 0,
+    failing: options.failing ?? null as Options["failing"] | null,
+  };
+  await page.route(
+    `**/v1/organizations/${MOCK_ORGANIZATION_ID}/effective-access`,
+    (route) =>
+      route.fulfill(json({
+        organizationId: MOCK_ORGANIZATION_ID,
+        role: options.role ?? "admin",
+        capabilities: [],
+      })),
+  );
+  const answer = (
+    kind: "workflows" | "agents" | "presets",
+    items: unknown[],
+  ) =>
+  (route: import("@playwright/test").Route) => {
+    if (options.forbidden) return route.fulfill(problem(403, "AUTH_FORBIDDEN"));
+    if (seen.failing === kind) {
+      return route.fulfill(problem(500, "INTERNAL_ERROR"));
+    }
+    return route.fulfill(json({ items, nextCursor: null }));
+  };
+  await page.route(
+    (url) => url.pathname === "/v1/workflows",
+    async (route) => {
+      seen.workflowReads += 1;
+      if (options.offline) return route.abort("failed");
+      if (options.endless) {
+        return route.fulfill(json({
+          items: [
+            body(
+              definition(
+                300 + seen.workflowReads,
+                `Page ${seen.workflowReads}`,
+              ),
+            ),
+          ],
+          nextCursor: `more-${seen.workflowReads}`,
+        }));
+      }
+      if (options.hold) await held;
+      return answer("workflows", workflows.map(body))(route);
+    },
+  );
+  const conflict = (route: import("@playwright/test").Route) =>
+    route.fulfill(problem(409, "STATE_CONFLICT"));
+  await page.route(
+    (url) => /^\/v1\/workflows\/[^/]+$/.test(url.pathname),
+    (route) => {
+      const id = new URL(route.request().url()).pathname.split("/")[3] ?? "";
+      const target = workflows.find((item) => item.id === id);
+      if (!target) return route.fulfill(problem(404, "RESOURCE_NOT_FOUND"));
+      if (route.request().method() === "PATCH") {
+        seen.updates.push({
+          id,
+          ifMatch: route.request().headers()["if-match"] ?? null,
+          body: route.request().postDataJSON() as Record<string, unknown>,
+        });
+        if (options.conflict === "update") return conflict(route);
+        const patch = route.request().postDataJSON() as Partial<Definition>;
+        if (typeof patch.name === "string") target.name = patch.name;
+        if (typeof patch.enabled === "boolean") target.enabled = patch.enabled;
+        target.version = (target.version ?? 1) + 1;
+      }
+      return route.fulfill(json(body(target)));
+    },
+  );
+  await page.route(
+    (url) => /^\/v1\/workflows\/[^/]+\/versions$/.test(url.pathname),
+    (route) => {
+      const id = new URL(route.request().url()).pathname.split("/")[3] ?? "";
+      if (options.endlessVersions) {
+        versionPages += 1;
+        const base = 100 * versionPages;
+        return route.fulfill(json({
+          items: [base + 1, base + 2].map((revision) =>
+            versionBody({
+              id: uuid(5000 + revision),
+              workflowId: id,
+              revision,
+              status: "published",
+              steps: [{ id: "brief", uses: "task.brief" }],
+            })
+          ),
+          nextCursor: `more-${versionPages}`,
+        }));
+      }
+      return route.fulfill(json({
+        items: versions.filter((row) => row.workflowId === id).map(versionBody),
+        nextCursor: null,
+      }));
+    },
+  );
+  await page.route(
+    (url) => /^\/v1\/workflows\/[^/]+\/activations$/.test(url.pathname),
+    (route) => {
+      const id = new URL(route.request().url()).pathname.split("/")[3] ?? "";
+      const request = route.request().postDataJSON() as { versionId: string };
+      seen.activations.push({
+        id,
+        ifMatch: route.request().headers()["if-match"] ?? null,
+        body: request,
+      });
+      if (options.conflict === "activate") return conflict(route);
+      const target = workflows.find((item) => item.id === id);
+      if (!target) return route.fulfill(problem(404, "RESOURCE_NOT_FOUND"));
+      target.activeVersionId = request.versionId;
+      target.version = (target.version ?? 1) + 1;
+      return route.fulfill(json(body(target)));
+    },
+  );
+  await page.route(
+    (url) => /^\/v1\/agents\/[^/]+\/versions$/.test(url.pathname),
+    (route) => {
+      const id = new URL(route.request().url()).pathname.split("/")[3] ?? "";
+      return route.fulfill(json({
+        items: (options.agentVersions ?? []).filter((row) => row.agentId === id)
+          .map((row) => ({
+            id: row.id,
+            agentId: row.agentId,
+            revision: row.revision,
+            config: {},
+            digest: "c".repeat(64),
+            createdBy: uuid(1),
+            createdAt: STAMP,
+            updatedAt: STAMP,
+            version: 1,
+          })),
+        nextCursor: null,
+      }));
+    },
+  );
+  await page.route(
+    (url) => url.pathname === "/v1/agents",
+    async (route) => {
+      seen.agentReads += 1;
+      if (options.agentReads === "fail") {
+        return route.fulfill(problem(500, "INTERNAL_ERROR"));
+      }
+      if (options.agentReads === "hold") await agentsHeld;
+      return answer("agents", (options.agents ?? []).map(body))(route);
+    },
+  );
+  await page.route(
+    (url) => url.pathname === "/v1/workflow-presets",
+    (route) => {
+      seen.presetReads += 1;
+      return answer("presets", [
+        {
+          id: "fixed-coding",
+          revision: 2,
+          digest: "a".repeat(64),
+          nameKey: "workflowPresets.fixedCoding.name",
+          steps: [{ id: "brief", uses: "task.brief" }, {
+            id: "implement",
+            uses: "agent.code",
+          }],
+          defaultBudgetLimitUsd: "5.00",
+          availability: null,
+        },
+        {
+          id: "fixed-coding-reviewed",
+          revision: 3,
+          digest: "b".repeat(64),
+          nameKey: "workflowPresets.fixedCodingReviewed.name",
+          steps: [
+            { id: "brief", uses: "task.brief" },
+            { id: "implement", uses: "agent.code" },
+            { id: "review", uses: "agent.review" },
+          ],
+          defaultBudgetLimitUsd: "8.00",
+          availability: null,
+        },
+      ])(route);
+    },
+  );
+  return seen;
+}

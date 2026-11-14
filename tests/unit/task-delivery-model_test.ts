@@ -1,5 +1,7 @@
 import { assertEquals } from "@std/assert";
 import {
+  approvalsForRun,
+  type DeliveryApproval,
   type DeliveryCheck,
   type DeliveryDecision,
   type DeliveryFinding,
@@ -7,6 +9,7 @@ import {
   deliveryModel,
   type DeliveryReview,
   findingTitle,
+  type ListedApproval,
 } from "../../apps/web/src/pages/task-delivery/model.ts";
 
 const OLD = "4be19c2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -64,6 +67,8 @@ const input = (over: Partial<DeliveryInput> = {}): DeliveryInput => ({
   reviews: [],
   findings: [],
   decisions: [],
+  approvals: [],
+  approvalsUnavailable: false,
   revisionHeadSha: null,
   baseSha: "a7254e7cccccccccccccccccccccccccccccccc",
   paused: false,
@@ -409,4 +414,203 @@ Deno.test("findingTitle takes the first non-empty line and trims long ones", () 
   assertEquals(findingTitle("\n  First line.  \nSecond."), "First line.");
   assertEquals(findingTitle("x".repeat(120)).length, 80);
   assertEquals(findingTitle(""), "");
+});
+
+const approval = (over: Partial<DeliveryApproval> = {}): DeliveryApproval => ({
+  id: "a0",
+  version: 1,
+  status: "open",
+  decision: null,
+  subjectId: "d0",
+  createdAt: "2026-11-13T10:05:00.000Z",
+  ...over,
+});
+
+/** A clean candidate: checks passed, review approved, the loop let it proceed. */
+const clean = (over: Partial<DeliveryInput> = {}): DeliveryInput =>
+  input({
+    checks: [check({ id: "c1", checkId: "tests" })],
+    reviews: [review()],
+    decisions: [decision({ ordinal: 0 })],
+    revisionHeadSha: NEW,
+    ...over,
+  });
+
+const listed = (over: Partial<ListedApproval> = {}): ListedApproval => ({
+  id: "a0",
+  version: 1,
+  status: "open",
+  decision: null,
+  subjectType: "run_stage",
+  subjectId: "d0",
+  scope: { stage: "review", runId: "run-1", headSha: NEW },
+  createdAt: "2026-11-13T10:05:00.000Z",
+  ...over,
+});
+
+Deno.test("only this run's run-stage approvals are read, by the run in their scope", () => {
+  const rows = [
+    listed({ id: "mine" }),
+    listed({ id: "other-run", scope: { runId: "run-2" } }),
+    listed({ id: "plan", subjectType: "plan_revision" }),
+    listed({ id: "no-scope", scope: null }),
+    listed({ id: "string-scope", scope: "run-1" }),
+    listed({ id: "answered", status: "answered", decision: "reject" }),
+    listed({ id: "odd", status: "answered", decision: "maybe" }),
+  ];
+  const read = approvalsForRun(rows, "run-1");
+  assertEquals(read.map((entry) => entry.id), ["mine", "answered", "odd"]);
+  assertEquals(read[1]?.decision, "reject");
+  assertEquals(
+    read[2]?.decision,
+    null,
+    "a decision the page does not know is not carried as one",
+  );
+  assertEquals(read[0]?.subjectId, "d0");
+  assertEquals(read[0]?.version, 1);
+});
+
+Deno.test("an open approval on a clean candidate asks for the person's decision", () => {
+  const model = deliveryModel(clean({ approvals: [approval()] }));
+  assertEquals(model.now, { kind: "approval" });
+  assertEquals(model.approval, { id: "a0", version: 1, state: "waiting" });
+});
+
+Deno.test("with no approval asked, a clean candidate is clean and has no approval step", () => {
+  const model = deliveryModel(clean());
+  assertEquals(model.now, { kind: "clean" });
+  assertEquals(model.approval, null);
+});
+
+Deno.test("an approval asked about an earlier decision is not current", () => {
+  const model = deliveryModel(clean({
+    decisions: [
+      decision({ ordinal: 0 }),
+      decision({ ordinal: 1, headSha: OLD }),
+    ],
+    approvals: [approval({ subjectId: "d0" })],
+  }));
+  assertEquals(model.approval, null);
+  assertEquals(model.now, { kind: "clean" });
+});
+
+Deno.test("the newest approval for the latest decision governs", () => {
+  const model = deliveryModel(clean({
+    approvals: [
+      approval({ id: "old", status: "expired" }),
+      approval({
+        id: "new",
+        version: 3,
+        createdAt: "2026-11-13T10:09:00.000Z",
+      }),
+    ],
+  }));
+  assertEquals(model.approval, { id: "new", version: 3, state: "waiting" });
+});
+
+Deno.test("results for an older commit cannot be approved: the card keeps saying checking", () => {
+  const model = deliveryModel(clean({
+    checks: [
+      check({ id: "c1", checkId: "tests" }),
+      check({ id: "c2", checkId: "lint", headSha: OLD }),
+    ],
+    approvals: [approval()],
+  }));
+  assertEquals(model.outOfDate, true);
+  assertEquals(model.now, { kind: "checking" });
+  assertEquals(model.approval?.state, "waiting");
+});
+
+Deno.test("each decision gives its own state and card", () => {
+  const cases: [
+    DeliveryApproval["decision"],
+    string,
+    DeliveryInput["approvals"][number]["status"],
+    string,
+  ][] = [
+    ["approve", "approved", "answered", "approved"],
+    ["approve", "approved", "consumed", "approved"],
+    ["request_changes", "changesRequested", "answered", "changesRequested"],
+    ["reject", "rejected", "answered", "rejected"],
+  ];
+  for (const [choice, state, status, card] of cases) {
+    const model = deliveryModel(clean({
+      approvals: [approval({ status, decision: choice })],
+    }));
+    assertEquals(model.approval?.state, state, `${choice} ${status}`);
+    assertEquals(model.now.kind, card, `${choice} ${status}`);
+  }
+});
+
+Deno.test("an approval that ended without a decision is closed and the card is clean", () => {
+  for (
+    const status of ["expired", "withdrawn", "revoked", "superseded"] as const
+  ) {
+    const model = deliveryModel(clean({ approvals: [approval({ status })] }));
+    assertEquals(model.approval?.state, "closed", status);
+    assertEquals(model.now, { kind: "clean" }, status);
+  }
+});
+
+Deno.test("failed checks come before an open approval, and a pause before both", () => {
+  const failing = clean({
+    checks: [check({ id: "c1", checkId: "tests", result: "failed" })],
+    approvals: [approval()],
+  });
+  assertEquals(deliveryModel(failing).now, { kind: "checksFailed", failed: 1 });
+  assertEquals(
+    deliveryModel(clean({ approvals: [approval()], paused: true })).now,
+    { kind: "paused" },
+  );
+});
+
+Deno.test("a repair after the approval was asked leaves no current approval", () => {
+  const model = deliveryModel(clean({
+    decisions: [
+      decision({ ordinal: 0 }),
+      decision({ ordinal: 1, decision: "repair", reason: "blocking_findings" }),
+    ],
+    approvals: [approval({ status: "answered", decision: "request_changes" })],
+  }));
+  assertEquals(model.approval, null);
+  assertEquals(model.now.kind, "fixing");
+});
+
+Deno.test("an approvals read that failed never reads as nothing waiting", () => {
+  const model = deliveryModel(clean({ approvalsUnavailable: true }));
+  assertEquals(model.now, { kind: "approvalUnknown" });
+  assertEquals(model.approval, null);
+});
+
+Deno.test("a known approval wins over a failed read, and failed checks over both", () => {
+  assertEquals(
+    deliveryModel(clean({
+      approvals: [approval()],
+      approvalsUnavailable: true,
+    })).now,
+    { kind: "approval" },
+    "an approval already read is still shown",
+  );
+  assertEquals(
+    deliveryModel(clean({
+      approvals: [approval({ status: "answered", decision: "approve" })],
+      approvalsUnavailable: true,
+    })).now,
+    { kind: "approved" },
+  );
+  assertEquals(
+    deliveryModel(clean({
+      checks: [check({ id: "c1", checkId: "tests", result: "failed" })],
+      approvalsUnavailable: true,
+    })).now,
+    { kind: "checksFailed", failed: 1 },
+  );
+});
+
+Deno.test("a failed approvals read says nothing while the run is still being checked", () => {
+  const model = deliveryModel(clean({
+    reviews: [review({ status: "running" })],
+    approvalsUnavailable: true,
+  }));
+  assertEquals(model.now, { kind: "checking" });
 });

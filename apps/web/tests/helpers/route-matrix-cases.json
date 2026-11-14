@@ -16,6 +16,14 @@
     "path": "/tasks/$taskId/coordination"
   },
   {
+    "id": "library",
+    "path": "/library"
+  },
+  {
+    "id": "library-workflow",
+    "path": "/library/workflows/$workflowId"
+  },
+  {
     "id": "issues",
     "path": "/issues"
   },

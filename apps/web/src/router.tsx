@@ -31,6 +31,8 @@ import { TasksPage } from "./pages/TasksPage.tsx";
 import { IssuePage } from "./pages/IssuePage.tsx";
 import { ProjectsPage } from "./pages/ProjectsPage.tsx";
 import { IssuesPage } from "./pages/IssuesPage.tsx";
+import { LibraryPage } from "./pages/LibraryPage.tsx";
+import { WorkflowPage } from "./pages/WorkflowPage.tsx";
 import { MachinesPage } from "./pages/MachinesPage.tsx";
 import { MachineDetailPage } from "./pages/MachineDetailPage.tsx";
 import { MachineWizardPage } from "./pages/MachineWizardPage.tsx";
@@ -189,6 +191,34 @@ export const routeCoverage = [
       "forbidden",
       "conflict",
       "stale",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "library",
+    path: "/library",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "library-workflow",
+    path: "/library/workflows/$workflowId",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
       "offline",
       "long-copy",
     ],
@@ -983,6 +1013,34 @@ const issueDetailRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => <IssuePage issueId={issueDetailRoute.useParams().issueId} />,
+  errorComponent: ProtectedRouteError,
+});
+
+const libraryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/library",
+  // `?tab=agents` opens the Agents list; Workflows is the page itself.
+  validateSearch: (search: Record<string, unknown>): { tab?: "agents" } =>
+    search.tab === "agents" ? { tab: "agents" } : {},
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: LibraryPage,
+  errorComponent: ProtectedRouteError,
+});
+
+const workflowRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/library/workflows/$workflowId",
+  // `?version=` is the version being viewed.
+  validateSearch: (search: Record<string, unknown>): { version?: string } =>
+    typeof search.version === "string" && isUuid(search.version)
+      ? { version: search.version }
+      : {},
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <WorkflowPage workflowId={workflowRoute.useParams().workflowId} />
+  ),
   errorComponent: ProtectedRouteError,
 });
 
@@ -1850,6 +1908,8 @@ const routeTree = rootRoute.addChildren([
   issuesRoute,
   issueDetailRoute,
   machinesRoute,
+  libraryRoute,
+  workflowRoute,
   machineNewRoute,
   machineDetailRoute,
   statusRoute,

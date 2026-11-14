@@ -11,6 +11,8 @@ export type StackedRowProps =
     status?: ReactNode;
     /** Row title: plain text or a single control such as the row's link. */
     title: ReactNode;
+    /** Drops the side inset, so the row starts where the page's own heading does. */
+    flush?: boolean;
   };
 
 /**
@@ -18,12 +20,13 @@ export type StackedRowProps =
  * and short detail lines below. It is the phone form of a table row.
  */
 export function StackedRow(
-  { children, status, title, ...props }: StackedRowProps,
+  { children, flush = false, status, title, ...props }: StackedRowProps,
 ) {
   return (
     <article
       className="ui-stacked-row"
       {...props}
+      data-inset={flush ? "none" : undefined}
       data-state="default"
       data-ui-component="stackedRow"
       data-variant="default"

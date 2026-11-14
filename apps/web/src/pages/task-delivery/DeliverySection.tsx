@@ -1,8 +1,10 @@
+import { useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { formatDate } from "@bakery/i18n";
 import { useBakeryApi } from "../../api/context.tsx";
 import type { ApiFailure } from "../../api/client.ts";
 import {
+  approvalsQueryOptions,
   artifactsListQueryOptions,
   artifactVersionsQueryOptions,
   reviewFindingsQueryOptions,
@@ -14,7 +16,8 @@ import {
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { protectedQueryKey } from "../../app/query-scope.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
-import { type DeliveryModel, deliveryModel } from "./model.ts";
+import { approvalsForRun, type DeliveryModel, deliveryModel } from "./model.ts";
+import { useApprovalDecision } from "./use-approval-decision.ts";
 import {
   DeliverySectionView,
   type DeliveryViewState,
@@ -90,7 +93,8 @@ const forbidden = (error: unknown): boolean => {
 
 /**
  * The delivery section of the task run view: what the run's checks, review and
- * fix attempts say, and whose turn it is. It reads; it never decides.
+ * fix attempts say, and whose turn it is. It reads, and it sends the person's
+ * decision on the candidate approval when the workflow asks for one.
  */
 export function DeliverySection(
   {
@@ -132,6 +136,13 @@ export function DeliverySection(
     enabled,
     refetchInterval: 5000,
   });
+  // The approvals read never blocks the section: a task whose workflow asks for
+  // no approval has none, and a refused read only means none is shown.
+  const approvals = useQuery({
+    ...approvalsQueryOptions(api, scope, taskId),
+    enabled,
+    refetchInterval: 5000,
+  });
   const latestReviewId = reviews.data?.items.reduce<
     { id: string; ordinal: number } | null
   >(
@@ -151,7 +162,7 @@ export function DeliverySection(
   const failed = [...reads, findings].find((read) => read.isError);
   const state: DeliveryViewState = failed !== undefined
     ? forbidden(failed.error) ? "forbidden" : "error"
-    : reads.some((read) => read.isPending) ||
+    : reads.some((read) => read.isPending) || approvals.isPending ||
         (latestReviewId !== null && findings.isPending)
     ? "loading"
     : "ready";
@@ -162,11 +173,22 @@ export function DeliverySection(
       reviews: reviews.data?.items ?? [],
       findings: latestReviewId === null ? [] : findings.data?.items ?? [],
       decisions: decisions.data?.items ?? [],
+      approvals: approvalsForRun(approvals.data?.items ?? [], runId),
+      // A refusal means this person cannot see approvals, so none is shown;
+      // any other failure means one may be waiting that could not be read.
+      approvalsUnavailable: approvals.isError && !forbidden(approvals.error),
       revisionHeadSha,
       baseSha,
       paused,
     })
     : null;
+  const refreshDecision = useCallback(async () => {
+    await Promise.all([approvals.refetch(), decisions.refetch()]);
+  }, [approvals.refetch, decisions.refetch]);
+  const decision = useApprovalDecision(
+    model?.approval ?? null,
+    refreshDecision,
+  );
   // No changes yet: the section is not drawn at all.
   if (state === "ready" && model !== null && !model.visible) return null;
 
@@ -183,11 +205,14 @@ export function DeliverySection(
           timeStyle: "short",
         })
         : null}
+      decisionPhase={decision.phase}
       model={model}
       offline={offline}
+      onDecide={decision.decide}
       onOpenRules={onOpenRules}
+      onRetryApprovals={() => void approvals.refetch()}
       onRetry={() => {
-        for (const read of [checks, reviews, decisions, findings]) {
+        for (const read of [checks, reviews, decisions, findings, approvals]) {
           if (read.isError) void read.refetch();
         }
       }}
