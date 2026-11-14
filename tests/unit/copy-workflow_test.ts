@@ -1,5 +1,6 @@
 import { assertEquals } from "@std/assert";
 import {
+  clip,
   copyName,
   NAME_LIMIT,
   presetSource,
@@ -78,4 +79,19 @@ Deno.test("a copy of a version carries its definition and its file when it has o
   });
   assertEquals("sourceYaml" in without, false);
   assertEquals(without.description, "");
+});
+
+Deno.test("a cut never leaves half of an emoji, and counts as the server does", () => {
+  assertEquals(clip("short", 200), "short");
+  const text = "a".repeat(199) + "\u{1F35E}" + "tail";
+  const cut = clip(text, 200);
+  assertEquals(cut, "a".repeat(199));
+  assertEquals(cut.length <= 200, true);
+  const bread = "\u{1F35E}".repeat(150);
+  assertEquals(clip(bread, 200).length, 200);
+  assertEquals([...clip(bread, 199)].every((ch) => ch === "\u{1F35E}"), true);
+  const copied = copyName("\u{1F35E}".repeat(150), "(copy)");
+  assertEquals(copied.length <= 200, true);
+  assertEquals(copied.endsWith(" (copy)"), true);
+  assertEquals(/[\ud800-\udbff](?![\udc00-\udfff])/.test(copied), false);
 });

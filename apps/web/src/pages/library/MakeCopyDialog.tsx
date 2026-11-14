@@ -8,6 +8,7 @@ import { asyncKindForError } from "../../app/async-state.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import {
+  clip,
   copyName,
   type CopySource,
   NAME_LIMIT,
@@ -145,7 +146,7 @@ export function MakeCopyDialog(
               value={name}
               disabled={made !== null}
               invalid={tried && empty || undefined}
-              onChange={(value) => setName(value.slice(0, NAME_LIMIT))}
+              onChange={(value) => setName(clip(value, NAME_LIMIT))}
             />
           </UI.Field>
           <UI.Text variant="muted">
