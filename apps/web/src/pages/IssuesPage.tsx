@@ -103,6 +103,7 @@ export function IssuesPage() {
   useEffect(() => setSourceId(""), [scope.organizationId]);
 
   const refresh = useMutation({
+    mutationKey: ["ticketSources.sync"],
     mutationFn: async () => {
       const enabled = sources.data?.items.filter((source) => source.enabled) ??
         [];
