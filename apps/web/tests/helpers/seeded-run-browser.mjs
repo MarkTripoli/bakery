@@ -372,7 +372,7 @@ async function run() {
       assert.equal(admitted.status(), 201);
       const admittedBody = await admitted.json();
       const receipt = page.getByRole("status", {
-        name: "Control request receipt",
+        name: "Request sent",
       });
       await receipt.waitFor({ state: "visible" });
       await expect(receipt).toContainText("Request admitted.");

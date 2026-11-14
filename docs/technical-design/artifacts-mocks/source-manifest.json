@@ -79,7 +79,7 @@
       "pageId": "E05-artifacts",
       "frameName": "task-run--default--light--desktop",
       "source": "task-run--default--light--desktop.jsx",
-      "sha256": "fe6b7209108017f50a5581dea2a171709f6b7ff02207218d7f5bbe6e21f30a66"
+      "sha256": "254f93efa6297c003c240c94c0929d11246de9159ddfa22a79a307ce7530b877"
     },
     {
       "id": "task-run",
@@ -93,7 +93,7 @@
       "pageId": "E05-artifacts",
       "frameName": "task-run--default--light--phone",
       "source": "task-run--default--light--phone.jsx",
-      "sha256": "17b1286258a2c9f7eaa48a983f2378de055082e106aea39d1f6162fb02be5ef8"
+      "sha256": "c28119f6480d6f11ac701571c95de8289c14f0731f237d449d3157fed0b78014"
     },
     {
       "id": "task-run",
@@ -107,7 +107,7 @@
       "pageId": "E05-artifacts",
       "frameName": "task-run--default--dark--desktop",
       "source": "task-run--default--dark--desktop.jsx",
-      "sha256": "9cbf819a3756fc033af7f533dd06d9c212a1864b024ced20547366595948ce45"
+      "sha256": "bdac60619ab5a0c146699ad4e3c6b880a946b8cafdc0a98b1e1a5e0918599dc1"
     },
     {
       "id": "task-run",
@@ -121,7 +121,7 @@
       "pageId": "E05-artifacts",
       "frameName": "task-run--default--dark--phone",
       "source": "task-run--default--dark--phone.jsx",
-      "sha256": "073410d103af5e2e3810d5606ed3b14aeef837144ce96ded1f9c081336265e1a"
+      "sha256": "16408152e871dea37592399fee3e16a2c888ca38aa7d750de4fd6fb09b6ece87"
     },
     {
       "id": "task-run",
@@ -135,7 +135,7 @@
       "pageId": "E05-artifacts",
       "frameName": "task-run--truncated--light--desktop",
       "source": "task-run--truncated--light--desktop.jsx",
-      "sha256": "265cedf2e16b776b4d8c0c533c9ae245b7caa92690e17ca0bb9920de43723c51"
+      "sha256": "5a86dee2465bad65af4ad90d3c55c069ebb6561fac25d46c19ececb78d805a0d"
     },
     {
       "id": "task-run",
@@ -149,7 +149,7 @@
       "pageId": "E05-artifacts",
       "frameName": "task-run--truncated--light--phone",
       "source": "task-run--truncated--light--phone.jsx",
-      "sha256": "024b5886e8165c125e6980bb6e7d45c8e1fc1bfe1598204404f6993c58f36a82"
+      "sha256": "da498d5f4b819b74563a8835e60a7c57a5d57d9bc623eb4541aef7715be1cc08"
     },
     {
       "id": "task-run",
@@ -163,7 +163,7 @@
       "pageId": "E05-artifacts",
       "frameName": "task-run--reconnecting--light--desktop",
       "source": "task-run--reconnecting--light--desktop.jsx",
-      "sha256": "822653e55c1bda7f052ceef33dfd950881cc9e43a30eb835f86fd48c5b373ee4"
+      "sha256": "e107a55355ad552ebcbea8537b12bf9f9d36d210027f2b0799a41f41747f5596"
     },
     {
       "id": "task-run",
@@ -177,7 +177,7 @@
       "pageId": "E05-artifacts",
       "frameName": "task-run--reconnecting--light--phone",
       "source": "task-run--reconnecting--light--phone.jsx",
-      "sha256": "ac15c42d3e41ba3f61771c1a1da3017119ce4834e4db3e9c633a77c9b39e8d15"
+      "sha256": "bb9c7abc8c0d33b3e177a3075f8d4e08e49b5aac0662be9ea3c0958cac5893cb"
     },
     {
       "id": "task-run",
@@ -191,7 +191,7 @@
       "pageId": "E05-artifacts",
       "frameName": "task-run--reset--light--desktop",
       "source": "task-run--reset--light--desktop.jsx",
-      "sha256": "8ae7b4c523db2c3ec2ecb6210931e593c8f19a4f54ef97434468e660fe9392e9"
+      "sha256": "2fcffdcd838d5cfea1fed99197b03f230b47f9f545d93064037421bac9bbc6f4"
     },
     {
       "id": "task-run",
@@ -205,7 +205,7 @@
       "pageId": "E05-artifacts",
       "frameName": "task-run--reset--light--phone",
       "source": "task-run--reset--light--phone.jsx",
-      "sha256": "9ece800bf58e13d5ec4d28cbbb016473e673593ed8d73d70b7926c9f70da8086"
+      "sha256": "488ff51e9445207caf5d03348b7c75c0d59cbeaa1a473eab6a1f12e11a923ed6"
     },
     {
       "id": "task-run",
@@ -219,7 +219,7 @@
       "pageId": "E05-artifacts",
       "frameName": "task-run--exit--light--desktop",
       "source": "task-run--exit--light--desktop.jsx",
-      "sha256": "5032d2f7b4da36cb29fa488f3bb7d21211c1fe6dee706be458a0bd0262d652a0"
+      "sha256": "9142934aebbd81e6705c11a3fd0fd37be7ed6c43b9c31275a9d421938cd9f236"
     },
     {
       "id": "task-run",
@@ -228,12 +228,12 @@
       "theme": "light",
       "device": "phone",
       "width": 390,
-      "height": 3594,
+      "height": 3674,
       "nodeId": "E05-task-run--exit--light--phone",
       "pageId": "E05-artifacts",
       "frameName": "task-run--exit--light--phone",
       "source": "task-run--exit--light--phone.jsx",
-      "sha256": "adc57e22111f2d571be48d3682749557e82f671a7b8fd77d7fbd9c713aadf15a"
+      "sha256": "e91994e32c59ce4b6b12f20900d211f1b95aa331c21400818768393ca99ff9ec"
     },
     {
       "id": "task-run",
@@ -247,7 +247,7 @@
       "pageId": "E05-artifacts",
       "frameName": "task-run--interrupted--light--desktop",
       "source": "task-run--interrupted--light--desktop.jsx",
-      "sha256": "45742372ef1ab2a3c13808c5ee39cb2ce29eea3fdaa7bce53608c7ab957de84b"
+      "sha256": "a1b3ea6d30698a28013c834e4f9db35bc6ab3c3619a55f60cfacfec0c4ed9840"
     },
     {
       "id": "task-run",
@@ -261,7 +261,7 @@
       "pageId": "E05-artifacts",
       "frameName": "task-run--interrupted--light--phone",
       "source": "task-run--interrupted--light--phone.jsx",
-      "sha256": "6a0789d5048f642d9b12485d438026e102b694de99324a4c35a02041d25e151e"
+      "sha256": "7c11ba29f407b0d0862cd34323e22b64c7ee7f83287a55051e87b211d1361dc9"
     },
     {
       "id": "task-run",
@@ -275,7 +275,7 @@
       "pageId": "E05-artifacts",
       "frameName": "task-run--quota--light--desktop",
       "source": "task-run--quota--light--desktop.jsx",
-      "sha256": "13c7170bae5999377f77956a38f4634ff91b23738673f85b396ab929ee2e282d"
+      "sha256": "9eb1a92dbfdf18762963799df6fcc2af08e7324669e65dc8810fc918f7db96a7"
     },
     {
       "id": "task-run",
@@ -289,7 +289,7 @@
       "pageId": "E05-artifacts",
       "frameName": "task-run--quota--light--phone",
       "source": "task-run--quota--light--phone.jsx",
-      "sha256": "9b69d7a607576aada95880531ce05d711e64ac847296df3af5276da97ed77f17"
+      "sha256": "8659f4c0d4bd7ae9c7bfc0b77c86e4ec00dd61e44605b7eb39e7905b39729908"
     },
     {
       "id": "task-run",
@@ -303,7 +303,7 @@
       "pageId": "E05-artifacts",
       "frameName": "task-run--usage-unknown--light--desktop",
       "source": "task-run--usage-unknown--light--desktop.jsx",
-      "sha256": "369366edfee6973defbb98d7e2a85b8d9b6c0b09c11ad93da88d1d958ea7fb3e"
+      "sha256": "05ddcce550a3b6e6c7c13407fe73bdbc5c8424fee4debd3020d15d51194ab321"
     },
     {
       "id": "task-run",
@@ -317,7 +317,7 @@
       "pageId": "E05-artifacts",
       "frameName": "task-run--usage-unknown--light--phone",
       "source": "task-run--usage-unknown--light--phone.jsx",
-      "sha256": "df08cba4cd822de5fb735a981cb4c79265e7a9fbcbecbae828efec3f7f1ea960"
+      "sha256": "374282496895d13d6b590c01973ebd65efaf677dda6ee36e4a528c4d33bca6fb"
     },
     {
       "id": "task-run",
@@ -331,7 +331,7 @@
       "pageId": "E05-artifacts",
       "frameName": "task-run--timeout--light--desktop",
       "source": "task-run--timeout--light--desktop.jsx",
-      "sha256": "dbff161b3bc3f63a8741db1aeb8bfe3492d263ad3a61d1a2655add5d857ea673"
+      "sha256": "c7cc13ba7e89f8ec25c7a52fd06b3513b64f01e54db76ab96023ffbef49a0503"
     },
     {
       "id": "task-run",
@@ -340,12 +340,12 @@
       "theme": "light",
       "device": "phone",
       "width": 390,
-      "height": 3594,
+      "height": 3674,
       "nodeId": "E05-task-run--timeout--light--phone",
       "pageId": "E05-artifacts",
       "frameName": "task-run--timeout--light--phone",
       "source": "task-run--timeout--light--phone.jsx",
-      "sha256": "328c8129a2a5d4e1e6a6081484050a90514f7d4c02d49a8949bc15e237ca0c86"
+      "sha256": "999a270260902ddd5700bc373cde4ac808a6c45b709486f1d07154344fbfb64c"
     },
     {
       "id": "task-run",
@@ -354,12 +354,12 @@
       "theme": "light",
       "device": "desktop",
       "width": 1440,
-      "height": 1490,
+      "height": 1510,
       "nodeId": "E05-task-run--lost-lease--light--desktop",
       "pageId": "E05-artifacts",
       "frameName": "task-run--lost-lease--light--desktop",
       "source": "task-run--lost-lease--light--desktop.jsx",
-      "sha256": "f05f157832b10f573958ebf3a215a70785fbc7d0dad802d4cb35349792ef63c5"
+      "sha256": "483e60cce2dbe1a9a0eb461d67e0d8a796de9c0fcf9cce430ff8d6df83f6ad04"
     },
     {
       "id": "task-run",
@@ -368,12 +368,12 @@
       "theme": "light",
       "device": "phone",
       "width": 390,
-      "height": 3594,
+      "height": 3754,
       "nodeId": "E05-task-run--lost-lease--light--phone",
       "pageId": "E05-artifacts",
       "frameName": "task-run--lost-lease--light--phone",
       "source": "task-run--lost-lease--light--phone.jsx",
-      "sha256": "f88e0e9f646069f5a39ddbbfe4d34ca4cd76a4fd0ac8ffd44a41ba665206e226"
+      "sha256": "31f1b49e5d5cf0daf735fddc6543b1118bae663e6ae8990599b34a490b4c2185"
     },
     {
       "id": "artifact",
@@ -947,7 +947,7 @@
       "pageId": "E05-artifacts",
       "frameName": "artifact--reconnecting--light--desktop",
       "source": "artifact--reconnecting--light--desktop.jsx",
-      "sha256": "491686df5df48ffbaa7f3ec966a85c9b97f3dd876bc2fdec37ac8a69340d216c"
+      "sha256": "b4fd69c990d72c4014160526e5361f952990e142c1735c8cb9788f2255e5c92e"
     },
     {
       "id": "artifact",
@@ -961,7 +961,7 @@
       "pageId": "E05-artifacts",
       "frameName": "artifact--reconnecting--light--phone",
       "source": "artifact--reconnecting--light--phone.jsx",
-      "sha256": "70fbc57c35c4c602e9fdc11fea481df238572e8c0163fd4fc8d3beca176772d2"
+      "sha256": "8e8dc63a42c9b50bd16f43ca192594cbb8d1aa8744ae1017c26d158e81ee91a6"
     },
     {
       "id": "artifact",

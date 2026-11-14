@@ -1225,7 +1225,7 @@ test("controls recover one uncertain intent and render completion over a replaye
   });
   await expect(cancel).toBeEnabled();
   await cancel.click();
-  const receipt = page.getByRole("status", { name: "Control request receipt" });
+  const receipt = page.getByRole("status", { name: "Request sent" });
   await expect(receipt).toContainText("Request outcome unknown.");
   const observedReceipts = timeline(page).locator('[data-scope="control"]');
   await expect(observedReceipts).toHaveCount(1);
@@ -1304,11 +1304,11 @@ test("controls reject duplicate pending clicks and keep same intent through retr
     page.getByRole("button", { name: "Request resume", exact: true }),
   ).toBeDisabled();
   release();
-  await expect(page.getByRole("status", { name: "Control request receipt" }))
+  await expect(page.getByRole("status", { name: "Request sent" }))
     .toContainText("Request outcome unknown.");
   await page.getByRole("button", { name: "Retry same request", exact: true })
     .click();
-  await expect(page.getByRole("status", { name: "Control request receipt" }))
+  await expect(page.getByRole("status", { name: "Request sent" }))
     .toContainText("Request admitted.");
   expect(keys).toHaveLength(2);
   expect(keys[1]).toBe(keys[0]);
@@ -1338,7 +1338,7 @@ for (const status of [403, 409, 422]) {
     await page.getByRole("button", { name: "Request interrupt", exact: true })
       .click();
     const receipt = page.getByRole("status", {
-      name: "Control request receipt",
+      name: "Request sent",
     });
     await expect(receipt).toContainText(
       status === 403
@@ -1402,7 +1402,7 @@ test("controls are capability gated, keyboard operable, and offline safe", async
   await expect(resume).toBeEnabled();
   await resume.focus();
   await resume.press("Enter");
-  await expect(page.getByRole("status", { name: "Control request receipt" }))
+  await expect(page.getByRole("status", { name: "Request sent" }))
     .toContainText("Request admitted.");
   expect(posts).toBe(1);
   const size = await resume.boundingBox();
@@ -1450,7 +1450,7 @@ test("a waiting run offers cancel only and cancels from the run view", async ({ 
       .toBeDisabled();
   }
   await cancel.click();
-  await expect(page.getByRole("status", { name: "Control request receipt" }))
+  await expect(page.getByRole("status", { name: "Request sent" }))
     .toContainText("Request admitted.");
   expect(posts).toEqual([{ action: "cancel" }]);
   await expect(page.getByRole("status", { name: "Run updates" })).toHaveText(
@@ -1484,7 +1484,7 @@ test("controls preserve uncertain receipt through a failed parent task refresh",
   await page.goto(`/tasks/${id}`);
   await page.getByRole("button", { name: "Request cancellation", exact: true })
     .click();
-  await expect(page.getByRole("status", { name: "Control request receipt" }))
+  await expect(page.getByRole("status", { name: "Request sent" }))
     .toContainText("Request outcome unknown.");
   await expect(
     page.getByRole("button", { name: "Retry same request", exact: true }),
@@ -1497,7 +1497,7 @@ test("controls preserve uncertain receipt through a failed parent task refresh",
   ).toBeEnabled();
   await page.getByRole("button", { name: "Retry same request", exact: true })
     .click();
-  await expect(page.getByRole("status", { name: "Control request receipt" }))
+  await expect(page.getByRole("status", { name: "Request sent" }))
     .toContainText("Request admitted.");
   expect(keys).toHaveLength(2);
   expect(keys[1]).toBe(keys[0]);
@@ -1646,7 +1646,7 @@ test("a failed implement step shows the honest no-harness copy", async ({ page }
   await page.goto(`/tasks/${id}`);
   const items = timeline(page).getByRole("listitem");
   await expect(items.nth(2)).toContainText(
-    "No coding harness is installed on this worker yet.",
+    "No coding agent is installed on this machine yet.",
   );
   await expect(items.last()).toContainText("Run failed");
   await expect(page.getByText("Run completed")).toHaveCount(0);
@@ -1665,7 +1665,7 @@ test("a failed step with another fault does not claim the harness is missing", a
   await expect(timeline(page).getByRole("listitem").nth(2)).toContainText(
     "Failed",
   );
-  await expect(page.getByText("No coding harness")).toHaveCount(0);
+  await expect(page.getByText("No coding agent")).toHaveCount(0);
 });
 
 test("a run failed by the budget cap names the reason", async ({ page }) => {
@@ -1689,7 +1689,7 @@ test("a run failed by the budget cap names the reason", async ({ page }) => {
   await expect(timeline(page).getByRole("listitem").last()).toContainText(
     "Run failed",
   );
-  await expect(page.getByText("No coding harness")).toHaveCount(0);
+  await expect(page.getByText("No coding agent")).toHaveCount(0);
 });
 
 test("a canceled run shows its canceled terminal row", async ({ page }) => {

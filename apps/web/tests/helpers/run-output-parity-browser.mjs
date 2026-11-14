@@ -129,7 +129,7 @@ try {
       const expectedHeading = {
         exit: "Process exited · code 0",
         timeout: "Run timed out",
-        "lost-lease": "Worker lease lost",
+        "lost-lease": "Task taken back",
         interrupted: "Output interrupted",
         truncated: "Output truncated",
       }[state];

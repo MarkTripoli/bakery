@@ -25,7 +25,7 @@ export const Contract: StoryObj = {
         participantsLabel="Participants"
         participants={
           <>
-            <Avatar alt="Mark Tripoli" />
+            <Avatar alt="Alex Morgan" />
             <Avatar alt="Sam Lin" />
           </>
         }

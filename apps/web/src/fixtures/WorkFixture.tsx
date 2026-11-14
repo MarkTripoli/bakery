@@ -111,7 +111,7 @@ const groups: readonly WorkQueueGroup[] = [
 ];
 
 const detail: WorkQueueInspectorDetail = {
-  participants: ["Mark Tripoli", "Sam Lin"],
+  participants: ["Alex Morgan", "Sam Lin"],
   question: {
     allowFreeText: false,
     defaultOptionId: "bakery",
@@ -132,7 +132,7 @@ const detail: WorkQueueInspectorDetail = {
     },
     {
       id: "plan",
-      title: "Plan revision 3 published",
+      title: "Plan, version 3 published",
       time: "10:29",
       description: "2 comments",
     },

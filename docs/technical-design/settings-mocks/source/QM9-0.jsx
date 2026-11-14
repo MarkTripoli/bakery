@@ -44,15 +44,15 @@
         <div style={{ alignItems: 'center', borderBottomColor: 'var(--color-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', gap: '12px', paddingBottom: '24px', paddingTop: '4px' }}>
           <div style={{ alignItems: 'center', backgroundColor: 'var(--color-accent)', borderRadius: '999px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '48px', justifyContent: 'center', width: '48px' }}>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-selection)', fontFamily: 'var(--font-sans)', fontSize: '16px', fontWeight: 500, lineHeight: '24px' }}>
-              MT
+              AM
             </div>
           </div>
           <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '16px', fontWeight: 600, lineHeight: '24px' }}>
-              Mark Tripoli
+              Alex Morgan
             </div>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
-              me@marktripoli.com
+              alex.morgan@example.com
             </div>
           </div>
         </div>

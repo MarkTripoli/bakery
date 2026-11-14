@@ -14,7 +14,7 @@
         <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '44px', justifyContent: 'center', width: '44px' }}>
           <div style={{ alignItems: 'center', backgroundColor: 'var(--color-background)', borderRadius: '999px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '28px', justifyContent: 'center', width: '28px' }}>
             <div style={{ boxSizing: 'border-box', color: '#000000', display: 'flex', fontFamily: 'system-ui, sans-serif', fontSize: '12px', lineHeight: '18px' }}>
-              MT
+              AM
             </div>
           </div>
         </div>
@@ -55,12 +55,12 @@
           <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
             <div style={{ alignItems: 'center', backgroundColor: 'var(--color-background)', borderRadius: '999px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '48px', justifyContent: 'center', width: '48px' }}>
               <div style={{ boxSizing: 'border-box', color: '#000000', display: 'flex', fontFamily: 'system-ui, sans-serif', fontSize: '16px', lineHeight: '24px' }}>
-                MT
+                AM
               </div>
             </div>
             <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <div style={{ boxSizing: 'border-box', color: '#000000', display: 'inline-block', fontFamily: 'system-ui, sans-serif', fontSize: '16px', fontWeight: 600, lineHeight: '24px' }}>
-                Mark Tripoli
+                Alex Morgan
               </div>
               <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', display: 'inline-block', fontFamily: 'system-ui, sans-serif', fontSize: '13px', lineHeight: '20px' }}>
                 Your account across organizations
@@ -73,7 +73,7 @@
             </div>
             <div style={{ alignItems: 'center', borderColor: 'var(--color-control-border)', borderRadius: '4px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', minHeight: '44px', paddingInline: '12px' }}>
               <div style={{ boxSizing: 'border-box', color: '#000000', display: 'flex', fontFamily: 'system-ui, sans-serif', fontSize: '16px', lineHeight: '24px' }}>
-                Mark Tripoli
+                Alex Morgan
               </div>
             </div>
           </div>
@@ -88,7 +88,7 @@
                 </div>
                 <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: '4px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', fontFamily: 'var(--font-sans)', minHeight: '44px', paddingBlock: '8px', paddingInline: '12px' }}>
                   <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', display: 'flex', fontFamily: 'var(--font-sans)', fontSize: '16px', lineHeight: '24px' }}>
-                    Mark
+                    Alex
                   </div>
                 </div>
               </div>
@@ -98,7 +98,7 @@
                 </div>
                 <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: '4px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', fontFamily: 'var(--font-sans)', minHeight: '44px', paddingBlock: '8px', paddingInline: '12px' }}>
                   <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', display: 'flex', fontFamily: 'var(--font-sans)', fontSize: '16px', lineHeight: '24px' }}>
-                    Tripoli
+                    Morgan
                   </div>
                 </div>
               </div>
@@ -133,7 +133,7 @@
             </div>
             <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '8px' }}>
               <div style={{ boxSizing: 'border-box', color: '#000000', display: 'inline-block', fontFamily: 'system-ui, sans-serif', fontSize: '14px', lineHeight: '20px' }}>
-                me@marktripoli.com
+                alex.morgan@example.com
               </div>
               <div style={{ boxSizing: 'border-box', color: 'var(--color-success)', display: 'inline-block', fontFamily: 'system-ui, sans-serif', fontSize: '12px', lineHeight: '18px' }}>
                 Verified

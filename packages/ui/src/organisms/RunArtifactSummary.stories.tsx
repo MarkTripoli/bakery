@@ -14,9 +14,9 @@ export const Contract: StoryObj = {
       <RunArtifactSummary
         title="Artifacts"
         name="delivery-notes.md"
-        revision="r3"
+        revision="Version 3"
         size="12.8 KiB"
-        detail="Immutable revision · sha256 83b1f920…4e8d09a1"
+        detail="A saved version never changes."
         actions={
           <>
             <Link variant="button" href="#artifact">Open artifact</Link>

@@ -83,7 +83,7 @@
       "pageId": "O-0",
       "frameName": "01 · Profile · Desktop",
       "source": "HJE-0.jsx",
-      "sha256": "2ef3a7936239fcdefe13b8c35fa7f4dd3f1023424475156e8dd55d83dc6c9903",
+      "sha256": "9e2786d8b2476c9e08bc4c8b5aacccba8bb1e68c4e7bcc31ab5b7ce912886962",
       "exportPath": "HJE-0.png",
       "exportSha256": "989da85c0f923c7dac47dc2f183c641a826f873420d941e6b029333bbb295dac",
       "exportOrigin": {
@@ -95,8 +95,8 @@
       "computedStylesPath": "HJE-0.computed-styles.json",
       "computedStylesSha256": "85fae719a996c29dbc9707bbd0a840fd36dacd63722f82fcd72dd65c953b156a",
       "referencePath": "docs/technical-design/ui-baselines/paper/settings/profile--default--light--desktop.png",
-      "referenceSha256": "5f5cfb447ff50aeb604a0d22917a0624ebf9ca7dd03b64f12205b47c6ac14b57",
-      "paperExportScore": 0.8949
+      "referenceSha256": "218d8317689c7dd326ca2f2265ea4f5bb3a17e8baad679d6f53375dc6b494459",
+      "paperExportScore": 0.865
     },
     {
       "id": "profile",
@@ -110,7 +110,7 @@
       "pageId": "O-0",
       "frameName": "01 · Profile · Phone",
       "source": "IG3-0.jsx",
-      "sha256": "fab78ef022d001286d13b4a10a28199a5d1db8e30d1d5003e65d49b5a95392a0",
+      "sha256": "63f3d0c25bec685b5930276af75f89b120bd4c59a7e867d66bc27d9e506d0692",
       "exportPath": "IG3-0.png",
       "exportSha256": "3f44c03568071867117e30200e3825083b0f012962f8d27a543c8ae32fdd0308",
       "exportOrigin": {
@@ -122,8 +122,8 @@
       "computedStylesPath": "IG3-0.computed-styles.json",
       "computedStylesSha256": "9aa23a893c5c8191fee6a22bd301cc99f4922cc438566b10631c0070f832a460",
       "referencePath": "docs/technical-design/ui-baselines/paper/settings/profile--default--light--phone.png",
-      "referenceSha256": "4e27acacd1f925b9aae734124fe5fb5050a657a0e24a996c643a2dcbfaf372e0",
-      "paperExportScore": 0.87
+      "referenceSha256": "64db2bafedd8941ef51c7fd5cd34f9e0b4cc98707589cd87bae3373a04874264",
+      "paperExportScore": 0.8315
     },
     {
       "id": "appearance",
@@ -137,7 +137,7 @@
       "pageId": "O-0",
       "frameName": "05 · Appearance · Desktop · Light",
       "source": "N1T-0.jsx",
-      "sha256": "84873fd89c0be1c397e83d697bfe929a44af5f5bf197c6068df84079b877eb6b",
+      "sha256": "9394654b305c276ade45d6ca1294ec418e309e27a591571a33b3f1267303b500",
       "exportPath": "N1T-0.png",
       "exportSha256": "a3a3a9afef4656943100f41179a893bfefa666a6240da48500cc9cec7beedf43",
       "exportOrigin": {
@@ -149,8 +149,8 @@
       "computedStylesPath": "N1T-0.computed-styles.json",
       "computedStylesSha256": "224e845ddd600394b2046a6ba89954f2ca44c10cb08aff3ec77de416099ee41b",
       "referencePath": "docs/technical-design/ui-baselines/paper/settings/appearance--default--light--desktop.png",
-      "referenceSha256": "bddbe8c0e85003dbebb55ed5dd729fc41e0a5ed1e2a1c37ca3d8a201e1bb56c5",
-      "paperExportScore": 0.9116
+      "referenceSha256": "54a6325ed5db94ce3a4101139e8d66463d9f287cc4ccdd393c1ab2ebfc06a1fb",
+      "paperExportScore": 0.9088
     },
     {
       "id": "appearance",
@@ -191,7 +191,7 @@
       "pageId": "O-0",
       "frameName": "05 · Appearance · Desktop · Dark",
       "source": "SGB-0.jsx",
-      "sha256": "1fa8df50f0c7e0c92d2de023c08f62891b401080b883b6456eb5c7b83bf9c242",
+      "sha256": "fa48e462603c3ec02b6046e3904e19bdb39558d20998ef0a44dc71e644147715",
       "exportPath": "SGB-0.png",
       "exportSha256": "f8902edbe5217f7c4cf6689ca99b64c4e2a6eb1082796189703014b4eed82d2c",
       "exportOrigin": {
@@ -203,8 +203,8 @@
       "computedStylesPath": "SGB-0.computed-styles.json",
       "computedStylesSha256": "7c4ede9797ad6c8b62bb2e16c3ed8cdf6a35b28f06c4a8053408c561b945403d",
       "referencePath": "docs/technical-design/ui-baselines/paper/settings/appearance--default--dark--desktop.png",
-      "referenceSha256": "76702a1e6520087a38b7659a7f72f7e2a9ea9c7a3ad252ec5e48391ef156af57",
-      "paperExportScore": 0.9179
+      "referenceSha256": "ea69cb4832ae2fa9035a4bcbd064e6415dad26a36d67b2f1d8b2134483e552e0",
+      "paperExportScore": 0.9153
     },
     {
       "id": "appearance",
@@ -245,7 +245,7 @@
       "pageId": "O-0",
       "frameName": "06 · Your access · Developer · Desktop",
       "source": "KHJ-0.jsx",
-      "sha256": "97f94cf056a9130cd7f001875ce7b8698fbb8e43887d55a4f89b987d44876d2c",
+      "sha256": "ad32fbfb27307e8febc07f474ca62a13feda7caa57d2d5bc9d2bf676c5aa898d",
       "exportPath": "KHJ-0.png",
       "exportSha256": "06c075d420e1ce7cb1055eaa582e0dcb5030def734c8b0509eb813d75fd2cab9",
       "exportOrigin": {
@@ -257,8 +257,8 @@
       "computedStylesPath": "KHJ-0.computed-styles.json",
       "computedStylesSha256": "5e67aee8f154264acb887f33fdd335b1488eaee9e837d5f12fa40cbbd3742421",
       "referencePath": "docs/technical-design/ui-baselines/paper/settings/your-access--developer--dark--desktop.png",
-      "referenceSha256": "d28cb2ffc74ff81366d304c5eab185b08d54e4e7e3258bbcaf1ba9a8daa6d66a",
-      "paperExportScore": 0.854
+      "referenceSha256": "f616a387d9bd9d768ee9f4ad82990114df00928353cc5cc19729527f57f01618",
+      "paperExportScore": 0.8493
     },
     {
       "id": "your-access",
@@ -299,7 +299,7 @@
       "pageId": "O-0",
       "frameName": "09 · Settings · Section index · Phone",
       "source": "QM9-0.jsx",
-      "sha256": "5c92c614efaae4054ccf1516f175d03658d0cd434d961eebec6dd1bc234a47bc",
+      "sha256": "5385453cb129fa6b903859e032cb32d224984b285b69522987322168a1ea457b",
       "exportPath": "QM9-0.png",
       "exportSha256": "33dca69069bd01e87d00be5f36809da6edab7ec456fd3c87ea65c481fd0f7bfc",
       "exportOrigin": {
@@ -311,8 +311,8 @@
       "computedStylesPath": "QM9-0.computed-styles.json",
       "computedStylesSha256": "c3aa995af3421aa041e270708d99469bd8a0b8370d6653f37ba11afc056c39f6",
       "referencePath": "docs/technical-design/ui-baselines/paper/settings/section-index--default--light--phone.png",
-      "referenceSha256": "89e0950cfe9ec0f98b0fa3115eabf3bb47388766c581d77120d7c72b290fa0f5",
-      "paperExportScore": 0.9081
+      "referenceSha256": "c1bfe4bd57529c064131f27796f0912543343fe3f3631ba5c64f5a8562305aaa",
+      "paperExportScore": 0.8798
     }
   ],
   "referenceModel": {

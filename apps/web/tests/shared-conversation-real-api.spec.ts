@@ -89,7 +89,7 @@ const send = (page: Page) =>
   page.getByRole("button", { name: "Send", exact: true });
 const log = (page: Page) => page.getByRole("log");
 const approve = (page: Page, n: number) =>
-  page.getByRole("button", { name: `Approve revision ${n}`, exact: true });
+  page.getByRole("button", { name: `Approve plan, version ${n}`, exact: true });
 const planningOnly = (page: Page) =>
   page.getByRole("switch", { name: "Planning only" });
 
@@ -341,8 +341,8 @@ test(
     // ---- the plan appears for both; the teammate decides explicitly --------
     const planA = a.locator('[data-ui-region="plan-revision"]');
     const planB = b.locator('[data-ui-region="plan-revision"]');
-    await expect(planA).toContainText("Revision 1", { timeout: 60_000 });
-    await expect(planB).toContainText("Revision 1", { timeout: 30_000 });
+    await expect(planA).toContainText("Plan, version 1", { timeout: 60_000 });
+    await expect(planB).toContainText("Plan, version 1", { timeout: 30_000 });
     await expect(approve(a, 1)).toBeEnabled();
     await expect(approve(b, 1)).toBeEnabled();
 
@@ -373,8 +373,8 @@ test(
     await planningOnly(b).check({ force: true });
     await expect(planningOnly(a)).toBeChecked({ timeout: 30_000 });
     await approve(b, 1).click();
-    await expect(b.getByText("You approved revision 1")).toBeVisible();
-    await expect(a.getByText(`${teammateName} approved revision 1`))
+    await expect(b.getByText("You approved plan, version 1")).toBeVisible();
+    await expect(a.getByText(`${teammateName} approved plan, version 1`))
       .toBeVisible({ timeout: 45_000 });
     await expect(approve(a, 1)).toHaveCount(0);
     await expect(planningOnly(a)).toBeChecked();
@@ -388,8 +388,8 @@ test(
       await expect(
         page.getByText(
           page === b
-            ? "You approved revision 1"
-            : `${teammateName} approved revision 1`,
+            ? "You approved plan, version 1"
+            : `${teammateName} approved plan, version 1`,
         ),
       ).toBeVisible({ timeout: 30_000 });
       await expect(approve(page, 1)).toHaveCount(0);

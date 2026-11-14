@@ -15,7 +15,7 @@
           <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '44px', justifyContent: 'center', width: '44px' }}>
             <div style={{ alignItems: 'center', backgroundColor: 'var(--color-background)', borderRadius: '999px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '28px', justifyContent: 'center', width: '28px' }}>
               <div style={{ boxSizing: 'border-box', color: '#000000', display: 'flex', fontFamily: 'system-ui, sans-serif', fontSize: '12px', lineHeight: '18px' }}>
-                MT
+                AM
               </div>
             </div>
           </div>
@@ -61,7 +61,7 @@
         <div style={{ alignItems: 'center', borderTopColor: 'var(--color-border)', borderTopStyle: 'solid', borderTopWidth: '1px', boxSizing: 'border-box', display: 'flex', gap: '12px', minHeight: '56px' }}>
           <div style={{ boxSizing: 'border-box', display: 'flex', flexBasis: '0px', flexDirection: 'column', flexGrow: '1' }}>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'system-ui, sans-serif', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>
-              Mark Tripoli
+              Alex Morgan
             </div>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'system-ui, sans-serif', fontSize: '13px', lineHeight: '20px' }}>
               mark@example.test

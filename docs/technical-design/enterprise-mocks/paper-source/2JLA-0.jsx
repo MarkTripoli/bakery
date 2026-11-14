@@ -116,7 +116,7 @@
                 ·
               </div>
               <div id="2JNR-0" style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
-                Plan revision 2
+                Plan, version 2
               </div>
             </div>
           </div>

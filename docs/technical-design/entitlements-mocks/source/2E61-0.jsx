@@ -114,11 +114,11 @@
         <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px', padding: '8px' }}>
           <div style={{ backgroundColor: 'var(--color-border)', borderRadius: '20px', boxSizing: 'border-box', fontFamily: 'var(--font-sans)', padding: '4px' }}>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '12px', lineHeight: '20px' }}>
-              MT
+              AM
             </div>
           </div>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', flexBasis: '0%', flexGrow: '1', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
-            Mark Tripoli
+            Alex Morgan
           </div>
           <svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: '0' }}>
             <path d="m6 9 6 6 6-6" fill="none" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -144,7 +144,7 @@
             You do not have access to this page
           </div>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'system-ui, sans-serif', fontSize: '14px', lineHeight: '20px', maxWidth: '520px' }}>
-            Only installation administrators can manage administrators. Ask Mark Tripoli or Ada Rivera to grant you access, or go back to your organization.
+            Only installation administrators can manage administrators. Ask Alex Morgan or Ada Rivera to grant you access, or go back to your organization.
           </div>
           <div style={{ borderColor: 'var(--color-control-border)', borderRadius: '4px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', paddingBlock: '8px', paddingInline: '14px' }}>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'system-ui, sans-serif', fontSize: '13px', fontWeight: 500, lineHeight: '16px' }}>

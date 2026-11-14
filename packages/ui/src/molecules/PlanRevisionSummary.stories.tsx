@@ -15,7 +15,7 @@ export const Contract: StoryObj = {
     <Stack>
       <PlanRevisionSummary
         title="Shared checkout onboarding"
-        revision="Revision 2"
+        revision="Plan, version 2"
         status={{ label: "Awaiting your decision", tone: "warning" }}
         stepsLabel="Plan steps"
         steps={[
@@ -30,8 +30,8 @@ export const Contract: StoryObj = {
       <PlanRevisionSummary
         state="muted"
         title="Shared checkout onboarding"
-        revision="Revision 1"
-        status={{ label: "Replaced by a newer revision", tone: "neutral" }}
+        revision="Plan, version 1"
+        status={{ label: "Replaced by a newer version", tone: "neutral" }}
         stepsLabel="Plan steps"
         steps={[{
           id: "s1",

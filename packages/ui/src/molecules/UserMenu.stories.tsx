@@ -15,11 +15,11 @@ const items = [
 export const Contract: StoryObj = {
   render: () => (
     <div className="gallery-stack-example gallery-user-menu-example">
-      <UserMenu items={items} label="Account" name="Mark Tripoli" />
+      <UserMenu items={items} label="Account" name="Alex Morgan" />
       <UserMenu
         items={items}
         label="Account, compact"
-        name="Mark Tripoli"
+        name="Alex Morgan"
         variant="compact"
       />
       <UserMenu

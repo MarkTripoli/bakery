@@ -15,7 +15,7 @@
           <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '44px', justifyContent: 'center', width: '44px' }}>
             <div style={{ alignItems: 'center', backgroundColor: 'var(--color-background)', borderRadius: '999px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '28px', justifyContent: 'center', width: '28px' }}>
               <div style={{ boxSizing: 'border-box', color: '#000000', display: 'flex', fontFamily: 'system-ui, sans-serif', fontSize: '12px', lineHeight: '18px' }}>
-                MT
+                AM
               </div>
             </div>
           </div>
@@ -49,7 +49,7 @@
           You do not have access to this page
         </div>
         <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'system-ui, sans-serif', fontSize: '14px', lineHeight: '20px' }}>
-          Only installation administrators can manage administrators. Ask Mark Tripoli or Ada Rivera to grant you access.
+          Only installation administrators can manage administrators. Ask Alex Morgan or Ada Rivera to grant you access.
         </div>
         <div style={{ alignItems: 'center', borderColor: 'var(--color-control-border)', borderRadius: '4px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', justifyContent: 'center', minHeight: '44px' }}>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', display: 'flex', fontFamily: 'system-ui, sans-serif', fontSize: '14px', fontWeight: 500, lineHeight: '18px' }}>

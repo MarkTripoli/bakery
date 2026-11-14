@@ -182,7 +182,7 @@ const ConversationStory: StoryObj = {
     <UI.TaskDetail
       layout="conversation"
       title="Shared checkout onboarding"
-      subtitle="Northwind storefront · northwind/web · Fixed coding preset"
+      subtitle="Northwind storefront · northwind/web · Fixed coding workflow"
       stages={
         <UI.WorkflowStageStrip
           label="Workflow stages"

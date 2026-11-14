@@ -7,6 +7,7 @@ import { artifactVersionsQueryOptions } from "../api/query.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { protectedQueryKey } from "../app/query-scope.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { FingerprintRow } from "./FingerprintRow.tsx";
 
 const MAX_DOWNLOAD_BYTES = 8 * 1024 * 1024;
 
@@ -100,10 +101,11 @@ export function TaskRunArtifactCard(
           })
           : t("tasks.run.unknown")}
         detail={version
-          ? t("tasks.run.artifact.detail", {
-            digest: `${version.sha256.slice(0, 8)}…${version.sha256.slice(-8)}`,
-          })
+          ? t("tasks.run.artifact.detail")
           : t("tasks.run.unknown")}
+        fingerprint={version
+          ? <FingerprintRow fingerprint={version.sha256} />
+          : undefined}
         actions={
           <>
             <UI.Link

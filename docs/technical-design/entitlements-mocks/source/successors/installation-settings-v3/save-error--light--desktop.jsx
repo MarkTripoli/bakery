@@ -65,8 +65,8 @@
       <div style={{"boxSizing":"border-box","flex":1}}>
       </div>
       <div style={{"boxSizing":"border-box","display":"flex","alignItems":"center","gap":"12px","minHeight":"44px","padding":"0 8px"}}>
-        <div style={{"boxSizing":"border-box","display":"flex","alignItems":"center","justifyContent":"center","width":"28px","height":"28px","borderRadius":"999px","backgroundColor":"var(--color-border)","color":"var(--color-foreground)","fontSize":"12px","lineHeight":"16px","fontWeight":500,"flexShrink":0}}>MT</div>
-        <div style={{"boxSizing":"border-box","flex":1,"fontSize":"13px","lineHeight":"20px"}}>Mark Tripoli</div>
+        <div style={{"boxSizing":"border-box","display":"flex","alignItems":"center","justifyContent":"center","width":"28px","height":"28px","borderRadius":"999px","backgroundColor":"var(--color-border)","color":"var(--color-foreground)","fontSize":"12px","lineHeight":"16px","fontWeight":500,"flexShrink":0}}>AM</div>
+        <div style={{"boxSizing":"border-box","flex":1,"fontSize":"13px","lineHeight":"20px"}}>Alex Morgan</div>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-foreground)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="m6 9 6 6 6-6" />
         </svg>
@@ -79,7 +79,7 @@
           <div style={{"boxSizing":"border-box","color":"var(--color-border)"}}>/</div>
           <div style={{"boxSizing":"border-box"}}>Settings</div>
         </div>
-        <div style={{"boxSizing":"border-box","display":"flex","alignItems":"center","justifyContent":"center","width":"28px","height":"28px","borderRadius":"999px","backgroundColor":"var(--color-border)","color":"var(--color-foreground)","fontSize":"12px","lineHeight":"16px","fontWeight":500,"flexShrink":0}}>MT</div>
+        <div style={{"boxSizing":"border-box","display":"flex","alignItems":"center","justifyContent":"center","width":"28px","height":"28px","borderRadius":"999px","backgroundColor":"var(--color-border)","color":"var(--color-foreground)","fontSize":"12px","lineHeight":"16px","fontWeight":500,"flexShrink":0}}>AM</div>
       </div>
       <div style={{"boxSizing":"border-box","display":"flex","flex":1}}>
         <div style={{"boxSizing":"border-box","width":"224px","flexShrink":0,"padding":"32px 16px","borderRight":"1px solid var(--color-border)"}}>

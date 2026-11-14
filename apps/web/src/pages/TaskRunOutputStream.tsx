@@ -7,11 +7,25 @@ import { useBakeryApi } from "../api/context.tsx";
 import { runAttemptsQueryOptions } from "../api/query.ts";
 import { useOutputStream } from "../api/use-output-stream.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
+import { RouterLink } from "../app/router-link.tsx";
 import { runOutcomeState } from "./run-outcome.ts";
+import { LINK_SLOT, withLink } from "./with-link.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 
 import { TaskRunArchive } from "./TaskRunArchive.tsx";
 import { TaskRunStreamView } from "./task-run-stream-view.tsx";
+
+/** The machine a try ran on, as a link to that machine's page. */
+function machineLink(attempt: JobAttemptRead) {
+  return (
+    <RouterLink
+      params={{ machineId: attempt.workerHostId }}
+      to="/machines/$machineId"
+    >
+      {attempt.workerName}
+    </RouterLink>
+  );
+}
 
 export function StreamOutput({ stream, onUsageChange, onReload }: {
   readonly stream: OutputStream;
@@ -203,6 +217,13 @@ export function StreamOutput({ stream, onUsageChange, onReload }: {
           : stream.reason === "lease-lost"
           ? t("tasks.run.identity.lostLease")
           : null,
+        leaseTone: attempt
+          ? attempt.leaseState === "expired" || attempt.leaseState === "lost"
+            ? "warning" as const
+            : undefined
+          : stream.reason === "lease-lost"
+          ? "warning" as const
+          : undefined,
         notice: outcome === "running" || outcome === "unknown"
           ? captureNotice
           : {
@@ -245,9 +266,19 @@ export function StreamOutput({ stream, onUsageChange, onReload }: {
           },
         unknownLabel: t("tasks.run.unknown"),
         detail: attempt && !attempt.isCurrent
-          ? t("tasks.run.identity.recorded", { actor: stream.logicalActor })
+          ? withLink(
+            t("tasks.run.identity.recorded", {
+              machine: LINK_SLOT,
+            }),
+            machineLink(attempt),
+          )
           : attempt
-          ? t("tasks.run.identity.trusted", { actor: stream.logicalActor })
+          ? withLink(
+            t("tasks.run.identity.actor", {
+              machine: LINK_SLOT,
+            }),
+            machineLink(attempt),
+          )
           : t("tasks.run.identity.unavailable"),
       }}
       output={{
