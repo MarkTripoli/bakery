@@ -410,3 +410,8 @@ export function troubleOf(
   if (healths.length > 0 && !healths.includes("healthy")) return "unknown";
   return null;
 }
+
+/** When the latest readiness check ran, or null when there is none. */
+export function issueCheckedAt(row: IssueRow): string | null {
+  return text(record(row.latestReadiness).evaluatedAt) || null;
+}

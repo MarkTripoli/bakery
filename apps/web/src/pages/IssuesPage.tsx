@@ -16,18 +16,24 @@ import { asyncKindForError, isForbiddenFailure } from "../app/async-state.ts";
 import { usePagedFocus } from "../app/focus.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useNavigate } from "@tanstack/react-router";
+import { useConnectivity } from "../app/connectivity.ts";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { IssuesList } from "./IssuesList.tsx";
 import { IssuesTroubleBanner } from "./IssuesTroubleBanner.tsx";
+import { type StartRefusal, StartWorkDialog } from "./StartWorkDialog.tsx";
+import { StartWorkNotices } from "./StartWorkNotices.tsx";
 import {
   ageOf,
   ISSUE_FILTERS,
   type IssueFilter,
   issueMatchesFilter,
+  issueNumber,
+  type IssueRow,
   issueSnapshot,
+  startOffer,
   troubleOf,
 } from "./issue-state.ts";
 
@@ -58,6 +64,10 @@ export function IssuesPage() {
   const [filter, setFilter] = useState<IssueFilter>("canStart");
   const [sourceId, setSourceId] = useState("");
   const [started, setStarted] = useState(false);
+  const [startFor, setStartFor] = useState<IssueRow | null>(null);
+  const [workStarted, setWorkStarted] = useState<number | null | false>(false);
+  const [refusal, setRefusal] = useState<StartRefusal | null>(null);
+  const offline = useConnectivity() === "offline";
 
   const state = filter === "closed" ? "closed" : "open";
   const issues = useInfiniteQuery(
@@ -153,8 +163,19 @@ export function IssuesPage() {
   );
   const canRefresh = isAdmin && sources.isSuccess &&
     sources.data.items.length > 0;
+  const sourceFor = (row: IssueRow) =>
+    sources.data?.items.find((source) => source.id === row.ticketSourceId);
+  // Start work is offered only where the answer is current: can start, GitHub
+  // readable for that repository, and online.
+  const startOffered = (row: IssueRow) => {
+    const trouble = troubleOf(
+      sourceFor(row) ? [sourceFor(row)!.syncHealth] : [],
+    );
+    return startOffer(row) === "start" && !offline &&
+      trouble !== "authRequired" && trouble !== "degraded";
+  };
   const forbidden = issues.isError && isForbiddenFailure(issues.error);
-  const offline = issues.isError &&
+  const loadOffline = issues.isError &&
     asyncKindForError(issues.error) === "offline";
   const noSources = sources.isSuccess && sources.data.items.length === 0;
 
@@ -178,6 +199,12 @@ export function IssuesPage() {
             </UI.InlineNotice>
           )
           : null}
+        <StartWorkNotices
+          number={workStarted === false ? null : workStarted}
+          started={workStarted !== false}
+          refusal={refusal}
+          onDismiss={() => setRefusal(null)}
+        />
         {refresh.isError
           ? (
             <UI.InlineNotice tone="error">
@@ -232,12 +259,12 @@ export function IssuesPage() {
           ? (
             <UI.ErrorState
               title={translate(
-                (offline
+                (loadOffline
                   ? "issues.offline.title"
                   : "issues.error.title") as never,
               )}
               description={translate(
-                (offline
+                (loadOffline
                   ? "issues.offline.description"
                   : "issues.error.description") as never,
               )}
@@ -335,6 +362,12 @@ export function IssuesPage() {
                 : (
                   <div data-paged-list="issues">
                     <IssuesList
+                      offered={startOffered}
+                      onStart={(row) => {
+                        setRefusal(null);
+                        setWorkStarted(false);
+                        setStartFor(row);
+                      }}
                       rows={visible}
                       loading={issues.isPending}
                       phone={phone}
@@ -374,6 +407,24 @@ export function IssuesPage() {
             </UI.Stack>
           )}
       </UI.Stack>
+      {startFor !== null
+        ? (
+          <StartWorkDialog
+            intent="start"
+            row={startFor}
+            policyRevision={sourceFor(startFor)?.policyRevision ?? null}
+            onClose={() => setStartFor(null)}
+            onDone={() => {
+              setWorkStarted(issueNumber(startFor));
+              setStartFor(null);
+            }}
+            onRefused={(why) => {
+              setRefusal(why);
+              setStartFor(null);
+            }}
+          />
+        )
+        : null}
     </>
   );
 }
