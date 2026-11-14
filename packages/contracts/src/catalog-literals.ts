@@ -134,6 +134,7 @@ export type CatalogActionName =
   | "integrationConnections.get"
   | "integrationConnections.invoke"
   | "integrationConnections.list"
+  | "integrationConnections.remove"
   | "integrationConnections.update"
   | "integrationDeliveries.get"
   | "integrationDeliveries.list"

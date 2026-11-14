@@ -4,6 +4,8 @@ import { useI18n } from "../../i18n/I18nProvider.tsx";
 import type { DraftIntent } from "./draft.ts";
 
 export const MESSAGE_MAX = 20_000;
+/** The message field's id, so the delivery section can focus it. */
+export const MESSAGE_FIELD_ID = "task-message-field";
 
 export type ComposerProps = Readonly<{
   body: string;
@@ -90,7 +92,7 @@ export function Composer(
       }
       field={
         <textarea
-          id={`${id}-body`}
+          id={MESSAGE_FIELD_ID}
           name="message"
           aria-label={t("tasks.conversation.composer.label")}
           rows={1}
