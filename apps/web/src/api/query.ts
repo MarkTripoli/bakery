@@ -2242,6 +2242,37 @@ export function projectRepositoriesQueryOptions(
   });
 }
 
+/** One integration connection, for its page. */
+export function integrationConnectionQueryOptions(
+  client: Pick<BakeryApiClient, "integrationConnections">,
+  scope: ApiScope,
+  connectionId: string,
+) {
+  return queryOptions<IntegrationConnection, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "integrationConnections.get", {
+      connectionId,
+    }),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      const connection = unwrap(
+        await client.integrationConnections.get({
+          organizationId: scope.organizationId,
+          id: connectionId,
+          signal,
+        }),
+      );
+      if (signal.aborted || connection.id !== connectionId) {
+        throw { kind: "invalid-response", status: 200 } satisfies ApiFailure;
+      }
+      return connection;
+    },
+    enabled: Boolean(scope.organizationId && connectionId),
+    retry: retryNetworkOnce,
+  });
+}
+
 /**
  * The repositories the organization's enabled GitHub connections have
  * selected and made available, with the connection each belongs to. Read when

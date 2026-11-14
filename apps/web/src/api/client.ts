@@ -932,6 +932,12 @@ export type BakeryApiClient = {
   };
   /** Organization GitHub connections; every call names its organization. */
   readonly integrationConnections: {
+    /** `GET /v1/integration-connections/:id`: one connection. */
+    readonly get: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<IntegrationConnection>>;
     /** `GET /v1/integration-connections`: one page, newest first. */
     readonly list: (options: {
       readonly organizationId: string;
@@ -983,6 +989,10 @@ export type BakeryApiClient = {
     readonly create: (options: {
       readonly organizationId: string;
       readonly idempotencyKey: string;
+      /** Refresh this connection's access instead of adding a new one. */
+      readonly reconnectConnectionId?: string;
+      /** Where the setup callback returns to; an in-app path starting with "/". */
+      readonly returnPath?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<IntegrationAuthAttemptCreated>>;
   };
@@ -2839,6 +2849,18 @@ export function createBakeryApiClient({
     },
 
     integrationConnections: {
+      async get(options) {
+        try {
+          return {
+            ok: true,
+            data: await scoped(options.organizationId).actions[
+              "integrationConnections.get"
+            ]({ id: options.id }, { signal: options.signal }),
+          };
+        } catch (error) {
+          return failed(error);
+        }
+      },
       async list(options) {
         try {
           return {
@@ -2930,7 +2952,15 @@ export function createBakeryApiClient({
             ok: true,
             data: await scoped(options.organizationId).actions[
               "integrationAuthAttempts.create"
-            ]({ provider: "github" }, {
+            ]({
+              provider: "github",
+              ...(options.reconnectConnectionId === undefined
+                ? {}
+                : { reconnectConnectionId: options.reconnectConnectionId }),
+              ...(options.returnPath === undefined
+                ? {}
+                : { returnPath: options.returnPath }),
+            }, {
               idempotencyKey: options.idempotencyKey,
               signal: options.signal,
             }),
