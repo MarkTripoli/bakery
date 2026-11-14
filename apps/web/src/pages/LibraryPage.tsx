@@ -115,12 +115,7 @@ export function LibraryPage() {
       description={description}
       variant={phone ? "list" : "table"}
     >
-      <LibraryRows
-        label={label}
-        phone={phone}
-        rows={rows}
-        translate={translate}
-      />
+      <LibraryRows label={label} rows={rows} />
     </UI.ListSection>
   );
   const empty = (title: string, description: string) => (
