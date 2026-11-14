@@ -1146,6 +1146,9 @@ export function MachineDetailPage(
                         <UI.Text>
                           {message(translate, "machines.retire.dialogWork")}
                         </UI.Text>
+                        <UI.Text>
+                          {message(translate, "machines.retire.dialogAgain")}
+                        </UI.Text>
                         {retireFailed
                           ? (
                             <UI.AlertBanner tone="error">

@@ -466,11 +466,14 @@ test.describe("machine page: mode and Retire", () => {
     const dialog = page.getByRole("alertdialog");
     await expect(dialog).toContainText("Retire fixture-host?");
     await expect(dialog).toContainText(
-      "It stops taking new work now and its sign-in to Bakery ends. The machine can be added again later.",
+      "It stops taking new work now and its sign-in to Bakery ends.",
+    );
+    await expect(dialog).toContainText(
+      "The machine can be set up again later.",
     );
     // The one thing a person fears: what happens to what is running on it.
     await expect(dialog).toContainText(
-      "Tasks running on it are not stopped or moved. Its sign-in ends, so it can no longer report on them.",
+      "Tasks running on it are not stopped or moved, and it can no longer report on them. To let them finish first, choose Finish and stop, and retire the machine when it has no work.",
     );
     await shot(page, "machine-page-retire");
     // Cancelling retires nothing.

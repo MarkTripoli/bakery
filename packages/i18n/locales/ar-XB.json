@@ -2926,7 +2926,6 @@
   "machines.retire.description": "⟪A retired machine takes no work and cannot be used again until it is added again.⟫",
   "machines.retire.button": "⟪Retire this machine⟫",
   "machines.retire.dialogTitle": "⟪Retire {name}?⟫",
-  "machines.retire.dialogBody": "⟪It stops taking new work now and its sign-in to Bakery ends. The machine can be added again later.⟫",
   "machines.retire.confirm": "⟪Retire⟫",
   "machines.retire.cancel": "⟪Cancel⟫",
   "machines.retire.failed": "⟪The machine could not be retired. Try again.⟫",
@@ -2942,8 +2941,10 @@
   "machines.about.processor": "⟪Processor⟫",
   "machines.about.slots": "⟪Tasks at once⟫",
   "machines.checks.failed": "⟪Failed⟫",
-  "machines.retire.dialogWork": "⟪Tasks running on it are not stopped or moved. Its sign-in ends, so it can no longer report on them.⟫",
   "machines.repair.title": "⟪Set up {name} again⟫",
   "machines.repair.leave": "⟪If you leave this page the setup code is lost. Select Set up again to get a new one.⟫",
-  "machines.repair.failed": "⟪Bakery could not start the setup. Try again.⟫"
+  "machines.repair.failed": "⟪Bakery could not start the setup. Try again.⟫",
+  "machines.retire.dialogBody": "⟪It stops taking new work now and its sign-in to Bakery ends.⟫",
+  "machines.retire.dialogWork": "⟪Tasks running on it are not stopped or moved, and it can no longer report on them. To let them finish first, choose Finish and stop, and retire the machine when it has no work.⟫",
+  "machines.retire.dialogAgain": "⟪The machine can be set up again later.⟫"
 }
