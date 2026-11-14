@@ -26,6 +26,7 @@ import {
   createAutomationVersion,
   createAutomationVersionsListHandler,
   getAutomation,
+  runAutomation,
   updateAutomation,
 } from "./postgres.ts";
 
@@ -58,6 +59,10 @@ export type AutomationsActionHandlers = {
     context: ActionContext,
     input: z.output<typeof contractSchemas.CursorQuery>,
   ) => Promise<z.output<typeof contractSchemas["Page<AutomationFiring>"]>>;
+  run: (
+    context: ActionContext,
+    input: z.output<typeof contractSchemas.ManualAutomationRun>,
+  ) => Promise<z.output<typeof contractSchemas.Run>>;
 };
 
 export function createAutomationsHandlers(
@@ -71,6 +76,7 @@ export function createAutomationsHandlers(
     listVersions: createAutomationVersionsListHandler(secret),
     createVersion: createAutomationVersion,
     listFirings: createAutomationFiringsListHandler(secret),
+    run: runAutomation as AutomationsActionHandlers["run"],
   };
 }
 
@@ -156,6 +162,16 @@ export function createAutomationsActionRegistry(
     output: contractSchemas["Page<AutomationFiring>"],
     policy: queryPolicy,
     handler: handlers.listFirings,
+  });
+
+  registry.register({
+    name: AutomationImplementedAction.AutomationsRun,
+    method: HttpMethod.Post,
+    path: "/v1/automations/:id/runs",
+    input: contractSchemas.ManualAutomationRun,
+    output: contractSchemas.Run,
+    policy: commandPolicy,
+    handler: handlers.run,
   });
 
   assertRegisteredActions(registry);
