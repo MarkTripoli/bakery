@@ -126,6 +126,15 @@ Deno.test("granted permissions list the known ones first in a fixed order", () =
     ],
   );
   assertEquals(permissionsOf({}), []);
+  // The contract types the map as unknown, so anything else reads as none.
+  for (
+    const odd of [null, undefined, "contents:write", 7, ["contents:write"]]
+  ) {
+    assertEquals(permissionsOf(odd), [], String(odd));
+  }
+  assertEquals(permissionsOf({ contents: "write", note: 3 }), [
+    { key: "contents:write", known: "contents:write" },
+  ]);
 });
 
 Deno.test("saving a selection sends the differences, adding before removing", () => {

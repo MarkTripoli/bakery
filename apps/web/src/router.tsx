@@ -70,6 +70,7 @@ import {
   OrganizationIntegrationsPage,
   parseConnectionOutcome,
 } from "./pages/OrganizationIntegrationsPage.tsx";
+import { ConnectionPage } from "./pages/integrations/ConnectionPage.tsx";
 import { SsoPage } from "./pages/SsoPage.tsx";
 import { InstallationSettingsPage } from "./pages/InstallationSettingsPage.tsx";
 import { AccessPage } from "./pages/AccessPage.tsx";
@@ -507,6 +508,12 @@ export const routeCoverage = [
     path: "/settings/organization/integrations",
     classification: "production",
     states: ["loading", "empty", "default", "busy", "error", "forbidden"],
+  },
+  {
+    id: "settings-organization-integration-connection",
+    path: "/settings/organization/integrations/$connectionId",
+    classification: "production",
+    states: ["loading", "default", "error", "forbidden"],
   },
   {
     id: "settings-audit",
@@ -1358,6 +1365,33 @@ const organizationIntegrationsRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const organizationIntegrationConnectionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/organization/integrations/$connectionId",
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { githubConnection?: ReturnType<typeof parseConnectionOutcome> } => ({
+    githubConnection: parseConnectionOutcome(
+      search[CONNECTION_OUTCOME_PARAMETER],
+    ),
+  }),
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => {
+    const { connectionId } = organizationIntegrationConnectionRoute
+      .useParams();
+    const { githubConnection } = organizationIntegrationConnectionRoute
+      .useSearch();
+    return (
+      <ConnectionPage
+        connectionId={connectionId}
+        outcome={githubConnection ?? null}
+      />
+    );
+  },
+  errorComponent: ProtectedRouteError,
+});
+
 const settingsAuditRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings/audit",
@@ -1899,6 +1933,7 @@ const routeTree = rootRoute.addChildren([
   installationIntegrationsRoute,
   organizationAccessRoute,
   organizationIntegrationsRoute,
+  organizationIntegrationConnectionRoute,
   organizationRolesRoute,
   organizationRepositoryRulesRoute,
   repositoryRulesRoute,

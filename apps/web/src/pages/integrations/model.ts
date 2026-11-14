@@ -181,15 +181,18 @@ export type Permission = {
 
 /**
  * The permissions a connection was granted, from the `{scope: level}` map the
- * read carries. Known ones come first in a fixed order; any other key keeps
- * GitHub's name and has no plain wording.
+ * read carries (typed `unknown` by the contract, so anything else reads as
+ * none). Known ones come first in a fixed order; any other key keeps GitHub's
+ * name and has no plain wording.
  */
-export function permissionsOf(
-  granted: Readonly<Record<string, string>>,
-): readonly Permission[] {
-  const keys = Object.entries(granted).map(([scope, level]) =>
-    `${scope}:${level}`
-  );
+export function permissionsOf(granted: unknown): readonly Permission[] {
+  const entries =
+    granted !== null && typeof granted === "object" && !Array.isArray(granted)
+      ? Object.entries(granted).filter((entry): entry is [string, string] =>
+        typeof entry[1] === "string"
+      )
+      : [];
+  const keys = entries.map(([scope, level]) => `${scope}:${level}`);
   const known = KNOWN_PERMISSIONS.filter((key) => keys.includes(key)).map((
     key,
   ): Permission => ({ key, known: key }));
