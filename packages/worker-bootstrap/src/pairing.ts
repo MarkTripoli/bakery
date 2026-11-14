@@ -45,7 +45,8 @@ export const PAIRING_FILE = "pairing.json";
 export const TOKEN_FILE = "enrollment-token";
 
 const MAX_TOKEN_BYTES = 512;
-const MAX_RESPONSE_BYTES = 16 * 1024;
+/** The capabilities alone may be 32000 bytes in the contract; the answer around them is small. */
+const MAX_RESPONSE_BYTES = 64 * 1024;
 const INSPECTION_PATH = "/v1/worker/enrollment-inspection";
 const INSPECTION_TIMEOUT_MS = 15_000;
 
@@ -172,16 +173,67 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** The inspection answer, strictly: the shape is checked before anything is shown or kept. */
+/**
+ * Whether a string could rewrite what a person sees on a terminal line, or how
+ * a reader orders it. The confirmation prompt prints text the server supplied;
+ * the person's answer is the only protection against pairing with the wrong
+ * organization, so nothing that can erase or forge a line may reach it: the
+ * C0 and C1 controls (escape sequences, carriage return, line feed, NUL, DEL),
+ * the Unicode line and paragraph separators, the zero-width, direction and
+ * isolate/override characters, the byte-order mark, and the tag characters.
+ */
+export function hasUnsafeCharacter(value: string): boolean {
+  for (const character of value) {
+    const code = character.codePointAt(0)!;
+    if (
+      code < 0x20 || (code >= 0x7f && code <= 0x9f) || code === 0x061c ||
+      code === 0x180e || (code >= 0x200b && code <= 0x200f) ||
+      (code >= 0x2028 && code <= 0x202e) ||
+      (code >= 0x2060 && code <= 0x206f) ||
+      code === 0xfeff || (code >= 0xfff9 && code <= 0xfffb) ||
+      (code >= 0xd800 && code <= 0xdfff) || (code >= 0xe0000 && code <= 0xe007f)
+    ) return true;
+  }
+  return false;
+}
+
+const PREVIEW_FIELDS = new Set([
+  "enrollmentId",
+  "organizationName",
+  "name",
+  "os",
+  "architecture",
+  "slots",
+  "capabilities",
+  "expiresAt",
+  "state",
+]);
+const TIMESTAMP =
+  /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?(Z|[+-][0-9]{2}:[0-9]{2})$/;
+
+/**
+ * The inspection answer, strictly: exactly the contract's fields, each of the
+ * contract's type and size, and no character that could change what is shown.
+ * The sizes are the contract's: an organization or machine name is at most 200
+ * characters (`OrganizationCreate` and `WorkerEnrollmentCreate`), an
+ * architecture 100, the capabilities 32000 bytes in all; the inspection answer
+ * declares no bounds of its own.
+ */
 function parsePreview(value: unknown): EnrollmentPreview {
   if (!isRecord(value)) {
     throw new BootstrapError("PAIRING_INSPECTION_MALFORMED");
   }
+  const keys = Object.keys(value);
+  if (
+    keys.length !== PREVIEW_FIELDS.size ||
+    !keys.every((key) => PREVIEW_FIELDS.has(key))
+  ) throw new BootstrapError("PAIRING_INSPECTION_MALFORMED");
   const text = (key: string, max: number): string => {
     const field = value[key];
-    if (typeof field !== "string" || field.length === 0 || field.length > max) {
-      throw new BootstrapError("PAIRING_INSPECTION_MALFORMED");
-    }
+    if (
+      typeof field !== "string" || field.trim().length === 0 ||
+      field.length > max || hasUnsafeCharacter(field)
+    ) throw new BootstrapError("PAIRING_INSPECTION_MALFORMED");
     return field;
   };
   const slots = value.slots;
@@ -189,25 +241,32 @@ function parsePreview(value: unknown): EnrollmentPreview {
   const state = value.state;
   if (
     typeof slots !== "number" || !Number.isInteger(slots) || slots < 1 ||
-    slots > 100 || !Array.isArray(capabilities) ||
-    capabilities.length > 100 ||
+    slots > 100 || !Array.isArray(capabilities) || capabilities.length > 200 ||
     !capabilities.every((item) =>
-      typeof item === "string" && item.length > 0 && item.length <= 100
-    ) || (state !== "pending" && state !== "canceled" && state !== "expired")
+      typeof item === "string" && item.trim().length > 0 &&
+      item.length <= 200 && !hasUnsafeCharacter(item)
+    ) || JSON.stringify(capabilities).length > 32_000 ||
+    (state !== "pending" && state !== "canceled" && state !== "expired")
   ) throw new BootstrapError("PAIRING_INSPECTION_MALFORMED");
   const enrollmentId = text("enrollmentId", 64);
-  if (!/^[0-9a-f-]{36}$/i.test(enrollmentId)) {
-    throw new BootstrapError("PAIRING_INSPECTION_MALFORMED");
-  }
+  const os = text("os", 20);
+  const architecture = text("architecture", 100);
+  const expiresAt = text("expiresAt", 40);
+  if (
+    !/^[0-9a-f-]{36}$/i.test(enrollmentId) ||
+    (os !== "linux" && os !== "macos") ||
+    !/^[A-Za-z0-9_.-]+$/.test(architecture) || !TIMESTAMP.test(expiresAt) ||
+    !Number.isFinite(Date.parse(expiresAt))
+  ) throw new BootstrapError("PAIRING_INSPECTION_MALFORMED");
   return {
     enrollmentId,
     organizationName: text("organizationName", 200),
     name: text("name", 200),
-    os: text("os", 20),
-    architecture: text("architecture", 100),
+    os,
+    architecture,
     slots,
     capabilities: capabilities as string[],
-    expiresAt: text("expiresAt", 40),
+    expiresAt,
     state,
   };
 }
