@@ -1243,6 +1243,38 @@
             "queue_one"
           ],
           "description": "Policy applied when an occurrence is due while a run from an earlier firing of this automation is still active: `skip` records a skipped firing with no run; `queue_one` admits at most one pending firing that starts when the active run ends, and further occurrences while it waits are recorded as skipped."
+        },
+        {
+          "name": "applicationId",
+          "type": "uuid",
+          "required": true,
+          "description": "Application every run of this automation version belongs to: each firing creates a task in it."
+        },
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": false,
+          "nullable": true,
+          "description": "Repository the runs execute against; omit for a cloud-only run. It must belong to the application."
+        },
+        {
+          "name": "budgetLimitUsd",
+          "type": "decimal",
+          "required": false,
+          "bounds": {
+            "min": 0,
+            "max": 200
+          },
+          "description": "Per-run budget in USD for each run this automation version starts, as on a run; defaults to 0, which a workflow with a model step refuses at start."
+        },
+        {
+          "name": "brief",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 20000
+          },
+          "description": "Text that becomes the description of the task each firing creates; the task title is the automation name and the scheduled instant."
         }
       ],
       "description": "Publishes a new immutable automation version pinning its schedule/event trigger, target workflow version, default run inputs, and misfire/overlap handling; assign it via AutomationUpdate.activeVersionId to make it the version that actually fires."
@@ -15471,7 +15503,8 @@
         "updatedAt",
         "version",
         "pending",
-        "skippedCount"
+        "skippedCount",
+        "failureCode"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -15484,11 +15517,13 @@
         "updatedAt": "timestamp",
         "version": "integer",
         "pending": "boolean",
-        "skippedCount": "integer"
+        "skippedCount": "integer",
+        "failureCode": "string"
       },
       "nullableFields": [
         "triggerEventId",
-        "runId"
+        "runId",
+        "failureCode"
       ],
       "description": "One deduplicated scheduled or event-triggered occurrence of an automation version: when it was due, the inbound event that triggered it when event-based, its outcome (queued, skipped, started, or failed), and the run it started, if any. A queued firing is pending until its run starts; a coalesced catch-up carries the count of missed occurrences it did not queue.",
       "fieldDescriptions": {
@@ -15502,7 +15537,8 @@
         "updatedAt": "UTC timestamp when the record was last updated.",
         "version": "Optimistic-concurrency version used when updating the record.",
         "pending": "True while the firing is durably admitted but its run has not started yet: a queued firing waiting for the automation's active run to end, or one just admitted.",
-        "skippedCount": "How many occurrences this firing stands in for without queuing them: the missed occurrences a coalesced catch-up recorded instead of creating an unbounded backlog; 0 for an ordinary occurrence."
+        "skippedCount": "How many occurrences this firing stands in for without queuing them: the missed occurrences a coalesced catch-up recorded instead of creating an unbounded backlog; 0 for an ordinary occurrence.",
+        "failureCode": "Stable code saying why a firing could not start a run (for example `target_missing`, `actor_unavailable`, `input_invalid`); null unless the status is failed."
       }
     },
     "ArtifactComment": {
@@ -17843,6 +17879,10 @@
         "workflowVersionId",
         "actorId",
         "inputs",
+        "applicationId",
+        "repositoryId",
+        "budgetLimitUsd",
+        "brief",
         "misfirePolicy",
         "overlapPolicy",
         "digest",
@@ -17858,6 +17898,10 @@
         "workflowVersionId": "uuid",
         "actorId": "uuid",
         "inputs": "json",
+        "applicationId": "uuid",
+        "repositoryId": "uuid",
+        "budgetLimitUsd": "decimal",
+        "brief": "string",
         "misfirePolicy": "enum(coalesce|skip)",
         "overlapPolicy": "enum(skip|queue_one)",
         "digest": "string",
@@ -17865,7 +17909,11 @@
         "updatedAt": "timestamp",
         "version": "integer"
       },
-      "nullableFields": [],
+      "nullableFields": [
+        "applicationId",
+        "repositoryId",
+        "brief"
+      ],
       "description": "One pinned, immutable automation configuration: its trigger (schedule or event predicate), the workflow version and inputs it starts, and its misfire policy (\"coalesce\" runs one queued catch-up firing per missed outage window, \"skip\" records the miss without running) plus overlap policy (\"skip\" or \"queue_one\") for a firing that starts while a previous one is still active.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the automation version record.",
@@ -17875,6 +17923,10 @@
         "workflowVersionId": "Stable UUID linking this record to the related workflow version entity.",
         "actorId": "Stable UUID linking this record to the related actor entity.",
         "inputs": "Input values supplied when the automation starts a workflow.",
+        "applicationId": "Application whose task each firing of this version creates; null on a version written before targets existed, which cannot start a run.",
+        "repositoryId": "Repository the runs execute against; null for a cloud-only run.",
+        "budgetLimitUsd": "Per-run budget in USD.",
+        "brief": "Text that becomes the description of the task each firing creates.",
         "misfirePolicy": "Policy for handling an automation schedule that fires late.",
         "overlapPolicy": "Policy for an occurrence due while a run from an earlier firing is still active: `skip` records a skipped firing with no run; `queue_one` admits at most one pending firing that starts when the active run ends, with further occurrences recorded as skipped while it waits.",
         "digest": "Content digest used to verify the record.",
@@ -25128,6 +25180,24 @@
       },
       "inngestTrigger": null,
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "automation.firing_started": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "A firing became a task and a run. Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "automation.firing_failed": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "A firing could not start a run and was marked failed with a stable code. Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
     "automations.created": {
       "schemaVersion": 1,
