@@ -21,3 +21,25 @@ export {
   type ProcessProbe,
   type StagedFile,
 } from "./install.ts";
+export {
+  type EnrollmentPreview,
+  hasUnsafeCharacter,
+  hasVisibleCharacter,
+  inspectEnrollment,
+  normalizeServerOrigin,
+  PAIRING_FILE,
+  type PairingBinding,
+  pairInstallation,
+  type PairOptions,
+  type PairResult,
+  readHiddenToken,
+  readProtectedToken,
+  TOKEN_FILE,
+} from "./pairing.ts";
+export {
+  type Command,
+  type CommandIo,
+  parseCommand,
+  runCommand,
+} from "./cli.ts";
+export type { HiddenInputStream } from "./pairing.ts";

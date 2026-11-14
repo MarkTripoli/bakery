@@ -439,7 +439,7 @@ async function sweepStaging(stagingRoot: string): Promise<void> {
  * write to: a release is verified once and run later, and another user able to
  * write here could swap it in between.
  */
-async function checkRoot(root: string): Promise<void> {
+export async function checkRoot(root: string): Promise<void> {
   const info = await lstat(root);
   const owner = typeof process.geteuid === "function"
     ? process.geteuid()
