@@ -71487,6 +71487,16 @@
               "minimum": -9007199254740991,
               "maximum": 9007199254740991,
               "description": "Optimistic-concurrency version used when updating the record."
+            },
+            "pending": {
+              "type": "boolean",
+              "description": "True while the firing is durably admitted but its run has not started yet: a queued firing waiting for the automation's active run to end, or one just admitted."
+            },
+            "skippedCount": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "How many occurrences this firing stands in for without queuing them: the missed occurrences a coalesced catch-up recorded instead of creating an unbounded backlog; 0 for an ordinary occurrence."
             }
           },
           "required": [
@@ -71498,10 +71508,12 @@
             "runId",
             "createdAt",
             "updatedAt",
-            "version"
+            "version",
+            "pending",
+            "skippedCount"
           ],
           "additionalProperties": false,
-          "description": "One deduplicated scheduled or event-triggered occurrence of an automation version: when it was due, the inbound event that triggered it when event-based, its outcome (queued, skipped, started, or failed), and the run it started, if any."
+          "description": "One deduplicated scheduled or event-triggered occurrence of an automation version: when it was due, the inbound event that triggered it when event-based, its outcome (queued, skipped, started, or failed), and the run it started, if any. A queued firing is pending until its run starts; a coalesced catch-up carries the count of missed occurrences it did not queue."
         },
         "skill_sources": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -120615,6 +120627,16 @@
                     "minimum": -9007199254740991,
                     "maximum": 9007199254740991,
                     "description": "Optimistic-concurrency version used when updating the record."
+                  },
+                  "pending": {
+                    "type": "boolean",
+                    "description": "True while the firing is durably admitted but its run has not started yet: a queued firing waiting for the automation's active run to end, or one just admitted."
+                  },
+                  "skippedCount": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "How many occurrences this firing stands in for without queuing them: the missed occurrences a coalesced catch-up recorded instead of creating an unbounded backlog; 0 for an ordinary occurrence."
                   }
                 },
                 "required": [
@@ -120626,10 +120648,12 @@
                   "runId",
                   "createdAt",
                   "updatedAt",
-                  "version"
+                  "version",
+                  "pending",
+                  "skippedCount"
                 ],
                 "additionalProperties": false,
-                "description": "One deduplicated scheduled or event-triggered occurrence of an automation version: when it was due, the inbound event that triggered it when event-based, its outcome (queued, skipped, started, or failed), and the run it started, if any."
+                "description": "One deduplicated scheduled or event-triggered occurrence of an automation version: when it was due, the inbound event that triggered it when event-based, its outcome (queued, skipped, started, or failed), and the run it started, if any. A queued firing is pending until its run starts; a coalesced catch-up carries the count of missed occurrences it did not queue."
               },
               "description": "Page<AutomationFiring>.items must contain at most 100 items."
             },
@@ -197793,7 +197817,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:e97fc71fb0fdf9e1e49f56c8b3efc1ca4faa419017f68b8edc6675596c9e0eae",
+  "compatibilityDigest": "sha256:6658f8267455717fb9b29758d3923f1c686e6d02f81ce8ede67bc0db9d52c9a4",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -238279,6 +238303,16 @@
           "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Optimistic-concurrency version used when updating the record."
+        },
+        "pending": {
+          "type": "boolean",
+          "description": "True while the firing is durably admitted but its run has not started yet: a queued firing waiting for the automation's active run to end, or one just admitted."
+        },
+        "skippedCount": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "How many occurrences this firing stands in for without queuing them: the missed occurrences a coalesced catch-up recorded instead of creating an unbounded backlog; 0 for an ordinary occurrence."
         }
       },
       "required": [
@@ -238290,10 +238324,12 @@
         "runId",
         "createdAt",
         "updatedAt",
-        "version"
+        "version",
+        "pending",
+        "skippedCount"
       ],
       "additionalProperties": false,
-      "description": "One deduplicated scheduled or event-triggered occurrence of an automation version: when it was due, the inbound event that triggered it when event-based, its outcome (queued, skipped, started, or failed), and the run it started, if any."
+      "description": "One deduplicated scheduled or event-triggered occurrence of an automation version: when it was due, the inbound event that triggered it when event-based, its outcome (queued, skipped, started, or failed), and the run it started, if any. A queued firing is pending until its run starts; a coalesced catch-up carries the count of missed occurrences it did not queue."
     },
     "skill_sources": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -287579,6 +287615,16 @@
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991,
                 "description": "Optimistic-concurrency version used when updating the record."
+              },
+              "pending": {
+                "type": "boolean",
+                "description": "True while the firing is durably admitted but its run has not started yet: a queued firing waiting for the automation's active run to end, or one just admitted."
+              },
+              "skippedCount": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "How many occurrences this firing stands in for without queuing them: the missed occurrences a coalesced catch-up recorded instead of creating an unbounded backlog; 0 for an ordinary occurrence."
               }
             },
             "required": [
@@ -287590,10 +287636,12 @@
               "runId",
               "createdAt",
               "updatedAt",
-              "version"
+              "version",
+              "pending",
+              "skippedCount"
             ],
             "additionalProperties": false,
-            "description": "One deduplicated scheduled or event-triggered occurrence of an automation version: when it was due, the inbound event that triggered it when event-based, its outcome (queued, skipped, started, or failed), and the run it started, if any."
+            "description": "One deduplicated scheduled or event-triggered occurrence of an automation version: when it was due, the inbound event that triggered it when event-based, its outcome (queued, skipped, started, or failed), and the run it started, if any. A queued firing is pending until its run starts; a coalesced catch-up carries the count of missed occurrences it did not queue."
           },
           "description": "Page<AutomationFiring>.items must contain at most 100 items."
         },

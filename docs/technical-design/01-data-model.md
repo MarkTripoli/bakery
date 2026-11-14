@@ -1278,7 +1278,7 @@ Pinned trigger and workflow inputs.
 | `workflow_version_id` | `uuid` | no | `workflow_versions` |
 | `actor_id` | `uuid` | no | `principals` |
 | `inputs` | `jsonb` | no | none |
-| `misfire_policy` | `enum(coalesce_one,skip)` | no | none |
+| `misfire_policy` | `enum(coalesce,skip)` | no | none |
 | `overlap_policy` | `enum(skip,queue_one)` | no | none |
 | `digest` | `text` | no | none |
 
@@ -1296,6 +1296,7 @@ Deduplicated schedule occurrence.
 | `trigger_event_id` | `uuid?` | yes | `inbound_events` |
 | `status` | `enum(queued,skipped,started,failed)` | no | none |
 | `run_id` | `uuid?` | yes | `workflow_runs` |
+| `pending` | `boolean` | no | none |
 | `skipped_count` | `integer` | no | none |
 
 **Integrity:** UNIQUE(automation_version_id,scheduled_at); event triggers additionally UNIQUE(automation_version_id,trigger_event_id); UTC instant handles repeated DST hour. UNIQUE(organization_id,id) supports composite foreign keys; tenant-owned parent references are constrained to the same organization unless this record documents a host-owned exception. skipped_count >= 0 records missed occurrences; API pending is derived as status = queued and is not separately mutable.
