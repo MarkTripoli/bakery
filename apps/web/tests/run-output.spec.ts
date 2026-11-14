@@ -623,7 +623,13 @@ test("revision preview verifies the exact immutable version bytes", async ({ pag
   await page.getByRole("button", { name: "View diff", exact: true }).click();
   // The version is a plain "Version 3"; its SHA-256 sits behind a fingerprint
   // row (first 12 characters and Copy), not in the main line.
-  await expect(page.getByText("Version 3", { exact: true })).toBeVisible();
+  // The revision card says "Version 3"; the artifact version picker also has
+  // an option with that text, so look inside the card.
+  await expect(
+    page.getByRole("region", { name: "Changes" }).getByText("Version 3", {
+      exact: true,
+    }),
+  ).toBeVisible();
   const fingerprint = page.getByTestId("fingerprint-row");
   await expect(fingerprint).toContainText("Fingerprint");
   await expect(fingerprint).toContainText(digest.slice(0, 12));

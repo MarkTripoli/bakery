@@ -1658,7 +1658,7 @@ test("a failed step with another fault does not claim the harness is missing", a
   await expect(timeline(page).getByRole("listitem").nth(2)).toContainText(
     "Failed",
   );
-  await expect(page.getByText("No coding harness")).toHaveCount(0);
+  await expect(page.getByText("No coding agent")).toHaveCount(0);
 });
 
 test("a run failed by the budget cap names the reason", async ({ page }) => {
@@ -1682,7 +1682,7 @@ test("a run failed by the budget cap names the reason", async ({ page }) => {
   await expect(timeline(page).getByRole("listitem").last()).toContainText(
     "Run failed",
   );
-  await expect(page.getByText("No coding harness")).toHaveCount(0);
+  await expect(page.getByText("No coding agent")).toHaveCount(0);
 });
 
 test("a canceled run shows its canceled terminal row", async ({ page }) => {

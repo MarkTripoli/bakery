@@ -373,8 +373,8 @@ test(
     await planningOnly(b).check({ force: true });
     await expect(planningOnly(a)).toBeChecked({ timeout: 30_000 });
     await approve(b, 1).click();
-    await expect(b.getByText("You approved revision 1")).toBeVisible();
-    await expect(a.getByText(`${teammateName} approved revision 1`))
+    await expect(b.getByText("You approved plan, version 1")).toBeVisible();
+    await expect(a.getByText(`${teammateName} approved plan, version 1`))
       .toBeVisible({ timeout: 45_000 });
     await expect(approve(a, 1)).toHaveCount(0);
     await expect(planningOnly(a)).toBeChecked();
@@ -388,8 +388,8 @@ test(
       await expect(
         page.getByText(
           page === b
-            ? "You approved revision 1"
-            : `${teammateName} approved revision 1`,
+            ? "You approved plan, version 1"
+            : `${teammateName} approved plan, version 1`,
         ),
       ).toBeVisible({ timeout: 30_000 });
       await expect(approve(page, 1)).toHaveCount(0);

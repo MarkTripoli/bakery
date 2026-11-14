@@ -959,7 +959,7 @@ test("a stale lane has its own label, hint and a plan notice", async ({ page }) 
   );
   const notice = page.locator('[data-ui-region="stale-lanes"]');
   await expect(notice).toContainText("Some lanes are stale");
-  await expect(notice).toContainText("new plan revision");
+  await expect(notice).toContainText("new version of the plan");
   await expect(root(page)).toContainText("In progress");
 });
 
