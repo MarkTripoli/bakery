@@ -30,6 +30,7 @@ import {
 import { TasksPage } from "./pages/TasksPage.tsx";
 import { IssuePage } from "./pages/IssuePage.tsx";
 import { IssuesPage } from "./pages/IssuesPage.tsx";
+import { LibraryPage } from "./pages/LibraryPage.tsx";
 import { MachinesPage } from "./pages/MachinesPage.tsx";
 import { MachineDetailPage } from "./pages/MachineDetailPage.tsx";
 import { MachineWizardPage } from "./pages/MachineWizardPage.tsx";
@@ -188,6 +189,20 @@ export const routeCoverage = [
       "forbidden",
       "conflict",
       "stale",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "library",
+    path: "/library",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
       "offline",
       "long-copy",
     ],
@@ -949,6 +964,18 @@ const issueDetailRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => <IssuePage issueId={issueDetailRoute.useParams().issueId} />,
+  errorComponent: ProtectedRouteError,
+});
+
+const libraryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/library",
+  // `?tab=agents` opens the Agents list; Workflows is the page itself.
+  validateSearch: (search: Record<string, unknown>): { tab?: "agents" } =>
+    search.tab === "agents" ? { tab: "agents" } : {},
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: LibraryPage,
   errorComponent: ProtectedRouteError,
 });
 
@@ -1816,6 +1843,7 @@ const routeTree = rootRoute.addChildren([
   issuesRoute,
   issueDetailRoute,
   machinesRoute,
+  libraryRoute,
   machineNewRoute,
   machineDetailRoute,
   statusRoute,

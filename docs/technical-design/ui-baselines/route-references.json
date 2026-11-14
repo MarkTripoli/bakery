@@ -5132,6 +5132,13 @@
       "status": "no-mock",
       "rationale": "Live machine detail includes server-derived readiness, bounded dispatch blockers and Admin-only provider auth state. The approved worker-readiness K-0 detail Paper reference remains available through /__fixtures__/machines/detail for deterministic template coverage; this production route intentionally stays real-API only and is not scored against synthetic records.",
       "frames": []
+    },
+    {
+      "routeId": "library",
+      "path": "/library",
+      "status": "no-mock",
+      "rationale": "The Library (workflows and agents, built in and the organization's own) is designed by design-ux on #66; Paper has no frame for it.",
+      "frames": []
     }
   ]
 }
