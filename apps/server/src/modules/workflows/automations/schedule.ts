@@ -139,7 +139,8 @@ function parseField(text: string, spec: FieldSpec): number[] {
 export function parseCron(expression: string): CronSchedule {
   if (typeof expression !== "string") invalid("expression must be a string");
   if (expression.length > MAX_EXPRESSION_LENGTH) invalid("expression too long");
-  const parts = expression.trim().split(/[ \t]+/);
+  // Only spaces and tabs separate or surround fields: no other whitespace is ignored at an edge and refused inside.
+  const parts = expression.replace(/^[ \t]+|[ \t]+$/g, "").split(/[ \t]+/);
   if (parts.length !== 5) {
     invalid("expression must have exactly five fields");
   }
@@ -152,36 +153,33 @@ export function parseCron(expression: string): CronSchedule {
   ];
   const weekdays = parseField(dayOfWeek, FIELDS[4]!).map((day) => day % 7);
   return Object.freeze({
-    minutes: parseField(minute, FIELDS[0]!),
-    hours: parseField(hour, FIELDS[1]!),
-    daysOfMonth: parseField(dayOfMonth, FIELDS[2]!),
-    months: parseField(month, FIELDS[3]!),
-    daysOfWeek: [...new Set(weekdays)].sort((a, b) => a - b),
+    minutes: Object.freeze(parseField(minute, FIELDS[0]!)),
+    hours: Object.freeze(parseField(hour, FIELDS[1]!)),
+    daysOfMonth: Object.freeze(parseField(dayOfMonth, FIELDS[2]!)),
+    months: Object.freeze(parseField(month, FIELDS[3]!)),
+    daysOfWeek: Object.freeze([...new Set(weekdays)].sort((a, b) => a - b)),
     dayOfMonthOpen: dayOfMonth.startsWith("*"),
     dayOfWeekOpen: dayOfWeek.startsWith("*"),
   });
 }
 
 /**
- * Whether `zone` is an IANA zone name the runtime knows, written the IANA way
- * (each path segment starts with a capital; `UTC` alone). Offsets such as
- * `+02:00` or `UTC+2`, other letter cases (`europe/berlin`) and anything with
- * spaces or dots are not zone names for a schedule: the author states the zone,
- * and what is stored is what they wrote. Link names (`US/Pacific`,
- * `Asia/Kolkata`) are IANA names and are accepted as written.
+ * Whether `zone` is an IANA zone name the runtime knows. Offsets such as
+ * `+02:00` or `UTC+2`, and anything with spaces, dots or other characters, are
+ * not zone names for a schedule. The letter case of a name is not checked: the
+ * runtime resolves `europe/berlin` and `Us/Pacific` as it does `Europe/Berlin`
+ * and `US/Pacific`, and the schedule behaves the same, so what is stored is
+ * what the author wrote. Link names (`US/Pacific`, `Asia/Kolkata`) are IANA
+ * names and are accepted.
  */
 export function isValidTimeZone(zone: string): boolean {
   if (
     typeof zone !== "string" ||
-    !/^(?:UTC|[A-Z][A-Za-z0-9_+-]*(?:\/[A-Z][A-Za-z0-9_+-]*)*)$/.test(zone)
+    !/^[A-Za-z][A-Za-z0-9_+-]*(?:\/[A-Za-z][A-Za-z0-9_+-]*)*$/.test(zone)
   ) return false;
   try {
-    const resolved = new Intl.DateTimeFormat("en-US", { timeZone: zone })
-      .resolvedOptions().timeZone;
-    // The runtime accepts any letter case and reports the name's own: a
-    // different case of the same name is not the name.
-    return !(resolved !== zone &&
-      resolved.toLowerCase() === zone.toLowerCase());
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+    return true;
   } catch {
     return false;
   }
@@ -297,6 +295,20 @@ function dayMatches(
     : inMonth || inWeek;
 }
 
+/** The instants a schedule is asked about: from 1970 to the end of year 9999, where every platform's dates and the zone data are sound. */
+const EARLIEST_MS = Date.UTC(1970, 0, 1);
+const LATEST_MS = Date.UTC(9999, 11, 31, 23, 59, 59, 999);
+/** The most occurrences one call may return; a caller that needs more asks again from the last. */
+export const MAX_OCCURRENCES = 100_000;
+
+function requireInstant(name: string, date: Date): number {
+  const ms = date instanceof Date ? date.getTime() : NaN;
+  if (!Number.isFinite(ms) || ms < EARLIEST_MS || ms > LATEST_MS) {
+    throw new RangeError(`${name} must be a date from 1970 to 9999`);
+  }
+  return ms;
+}
+
 /** How far ahead to look for an occurrence: covers a February 29 schedule across a century gap. */
 const HORIZON_DAYS = 366 * 9;
 
@@ -312,10 +324,7 @@ export function nextOccurrence(
   if (!isValidTimeZone(zone)) {
     throw new CronError("CRON_TIMEZONE_INVALID", `unknown time zone ${zone}`);
   }
-  const afterMs = after.getTime();
-  if (!Number.isFinite(afterMs)) {
-    throw new RangeError("after must be a valid date");
-  }
+  const afterMs = requireInstant("after", after);
   const start = wallOf(zone, afterMs);
   let year = start.year;
   let month = start.month;
@@ -336,7 +345,8 @@ export function nextOccurrence(
           }
         }
       }
-      if (best !== null) return new Date(best);
+      // An occurrence past year 9999 is outside what a schedule is asked about.
+      if (best !== null) return best > LATEST_MS ? null : new Date(best);
     }
     day += 1;
     if (day > daysInMonth(year, month)) {
@@ -362,11 +372,18 @@ export function occurrencesBetween(
   until: Date,
   limit: number,
 ): { occurrences: Date[]; truncated: boolean } {
+  if (!Number.isInteger(limit) || limit < 1 || limit > MAX_OCCURRENCES) {
+    throw new RangeError(
+      `limit must be a whole number from 1 to ${MAX_OCCURRENCES}`,
+    );
+  }
+  requireInstant("after", after);
+  const untilMs = requireInstant("until", until);
   const occurrences: Date[] = [];
   let cursor = after;
   while (true) {
     const next = nextOccurrence(schedule, zone, cursor);
-    if (next === null || next.getTime() > until.getTime()) {
+    if (next === null || next.getTime() > untilMs) {
       return { occurrences, truncated: false };
     }
     if (occurrences.length >= limit) return { occurrences, truncated: true };

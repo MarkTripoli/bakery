@@ -86,7 +86,7 @@ Deno.test("an expression is five fields; lists, ranges, steps and names are read
   assertEquals(parseCron(withinLimit).minutes.length, 31);
 });
 
-Deno.test("a timezone is an IANA name written the IANA way, not an offset or another letter case", () => {
+Deno.test("a timezone is an IANA name the runtime knows, not an offset; the letter case of a name is not checked", () => {
   for (
     const good of [
       "UTC",
@@ -100,16 +100,19 @@ Deno.test("a timezone is an IANA name written the IANA way, not an offset or ano
       "US/Pacific",
       "America/Argentina/Buenos_Aires",
       "Africa/Dar_es_Salaam",
+      // The runtime resolves a name in any letter case, links included; the schedule is the same.
+      "europe/berlin",
+      "EUROPE/BERLIN",
+      "Us/Pacific",
+      "US/PACIFIC",
+      "Asia/KOLKATA",
+      "asia/kolkata",
+      "utc",
     ]
   ) assertEquals(isValidTimeZone(good), true, good);
   for (
     const bad of [
       "",
-      "europe/berlin",
-      "EUROPE/BERLIN",
-      "asia/kolkata",
-      "us/pacific",
-      "utc",
       "+02:00",
       "UTC+2",
       "GMT+2",
@@ -125,8 +128,22 @@ Deno.test("a timezone is an IANA name written the IANA way, not an offset or ano
   ) assertEquals(isValidTimeZone(bad), false, JSON.stringify(bad));
   assertEquals(isValidTimeZone(5 as unknown as string), false);
   assertThrows(
-    () => nextOccurrence(parseCron("0 0 * * *"), "Mars/Olympus", new Date(0)),
+    () =>
+      nextOccurrence(
+        parseCron("0 0 * * *"),
+        "Mars/Olympus",
+        new Date("2026-01-01T00:00:00Z"),
+      ),
     CronError,
+  );
+  // Another case of a name is the same schedule.
+  assertEquals(
+    at("europe/berlin", "0 9 * * *", "2026-01-10T00:00:00Z"),
+    at("Europe/Berlin", "0 9 * * *", "2026-01-10T00:00:00Z"),
+  );
+  assertEquals(
+    at("Asia/KOLKATA", "0 9 * * *", "2026-01-10T00:00:00Z"),
+    "2026-01-10T03:30:00.000Z",
   );
 });
 
@@ -394,4 +411,95 @@ Deno.test("every occurrence is strictly increasing and a whole minute, across a 
       }
     }
   }
+});
+
+Deno.test("the asked-about instants and the limit are validated, not trusted", () => {
+  const schedule = parseCron("*/10 * * * *");
+  const window = (after: Date, until: Date, limit: number) =>
+    occurrencesBetween(schedule, "UTC", after, until, limit);
+  const ok = new Date("2026-11-14T00:00:00Z");
+  const later = new Date("2026-11-14T01:00:00Z");
+  // The limit is a whole number from 1 to 100000.
+  for (const limit of [0, -1, 1.5, NaN, Infinity, -Infinity, 100_001]) {
+    assertThrows(
+      () => window(ok, later, limit),
+      RangeError,
+      "limit",
+      String(limit),
+    );
+  }
+  assertThrows(
+    () => window(ok, later, "5" as unknown as number),
+    RangeError,
+    "limit",
+  );
+  assertEquals(window(ok, later, 1).occurrences.length, 1);
+  assertEquals(window(ok, later, 100_000).occurrences.length, 6);
+  // Both instants are valid dates from 1970 to 9999.
+  for (
+    const bad of [
+      new Date(NaN),
+      new Date(-8.64e15),
+      new Date(8.64e15),
+      new Date("1969-12-31T23:59:59Z"),
+      new Date("10000-01-01T00:00:00Z"),
+      new Date("0000-06-01T00:00:00Z"),
+      "2026-01-01" as unknown as Date,
+      null as unknown as Date,
+    ]
+  ) {
+    assertThrows(() => window(bad, later, 5), RangeError, "after", String(bad));
+    assertThrows(() => window(ok, bad, 5), RangeError, "until", String(bad));
+    assertThrows(
+      () => nextOccurrence(schedule, "UTC", bad),
+      RangeError,
+      "after",
+      String(bad),
+    );
+  }
+  // The edges of the range are inside it.
+  assertEquals(
+    nextOccurrence(schedule, "UTC", new Date("1970-01-01T00:00:00Z"))
+      ?.toISOString(),
+    "1970-01-01T00:10:00.000Z",
+  );
+  assertEquals(
+    nextOccurrence(schedule, "UTC", new Date("9999-12-31T23:59:59Z")),
+    null,
+  );
+  // An end before the start is an empty window.
+  assertEquals(window(later, ok, 5), { occurrences: [], truncated: false });
+});
+
+Deno.test("a parsed schedule cannot be changed by its caller, and only spaces and tabs surround or separate fields", () => {
+  const schedule = parseCron("*/20 9 * * 1");
+  for (
+    const field of [
+      schedule.minutes,
+      schedule.hours,
+      schedule.daysOfMonth,
+      schedule.months,
+      schedule.daysOfWeek,
+    ]
+  ) {
+    assert(Object.isFrozen(field));
+    assertThrows(() => (field as number[]).push(61), TypeError);
+  }
+  assertThrows(
+    () => (schedule as unknown as { minutes: number[] }).minutes = [61],
+    TypeError,
+  );
+  assertEquals(schedule.minutes, [0, 20, 40]);
+  // No other whitespace is ignored at an edge while refused between fields.
+  for (
+    const bad of [
+      "\u00a0* * * * *",
+      "* * * * *\u00a0",
+      "* *\u00a0* * *",
+      "\n* * * * *",
+      "* * * * *\n",
+      "\u2003* * * * *",
+    ]
+  ) assertThrows(() => parseCron(bad), CronError, "", JSON.stringify(bad));
+  assertEquals(parseCron(" \t* * * * *\t ").minutes.length, 60);
 });
