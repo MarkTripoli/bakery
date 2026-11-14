@@ -50,6 +50,7 @@ const WORKERS = [
 ];
 
 const PENDING_ID = "00000000-0000-4000-8000-0000000000e2";
+const EXPIRED_ID = "00000000-0000-4000-8000-0000000000e3";
 const PENDING_NAME = "mini2-codex-pending-enrollment-host";
 const EXPIRED_NAME = "mini3-expired-enrollment-host";
 
@@ -62,7 +63,10 @@ function enrollment(id: string, name: string, state: string) {
     architecture: "arm64",
     capabilities: ["claude"],
     slots: 1,
-    expiresAt: "2026-01-01T01:00:00.000Z",
+    // A waiting setup has time left; an expired one does not.
+    expiresAt: state === "pending"
+      ? new Date(Date.now() + 30 * 60_000).toISOString()
+      : "2026-01-01T01:00:00.000Z",
     consumedAt: null,
     canceledAt: null,
     workerHostId: null,
@@ -74,7 +78,7 @@ function enrollment(id: string, name: string, state: string) {
 
 const ENROLLMENTS = [
   enrollment(PENDING_ID, PENDING_NAME, "pending"),
-  enrollment("00000000-0000-4000-8000-0000000000e3", EXPIRED_NAME, "expired"),
+  enrollment(EXPIRED_ID, EXPIRED_NAME, "expired"),
 ];
 
 async function machinesFixture(page: Page) {
@@ -181,7 +185,8 @@ test.describe("machines list layout", () => {
     await page.goto("/machines");
     const table = page.getByRole("table", { name: "Machines" });
     await expect(table).toBeVisible();
-    await expect(page.locator('[data-ui-component="stackedRow"]'))
+    // The machines are a table; only the setups being finished are stacked rows.
+    await expect(table.locator('[data-ui-component="stackedRow"]'))
       .toHaveCount(0);
     await expect(table.getByRole("link", { name: `Open ${LONG_NAME}` }))
       .toBeVisible();
@@ -197,26 +202,33 @@ test.describe("machines list layout", () => {
   });
 
   test(
-    "phone width stacks enrollments with whole-word actions",
+    "phone width stacks the setups being finished with whole-word actions",
     async ({ page }, testInfo) => {
       test.skip(testInfo.project.name !== "mobile", "phone layout only");
       await machinesFixture(page);
       await page.goto("/machines");
-      const list = page.getByRole("list", { name: "Worker enrollments" });
+      const list = page.getByRole("list", { name: "Finishing setup" });
       await expect(list).toBeVisible();
       await expect(page.getByRole("table", { name: "Worker enrollments" }))
         .toHaveCount(0);
       await expect(list.locator('[data-ui-component="stackedRow"]'))
         .toHaveCount(ENROLLMENTS.length);
 
-      const pending = page.locator(`[data-enrollment-name="${PENDING_NAME}"]`);
-      const expired = page.locator(`[data-enrollment-name="${EXPIRED_NAME}"]`);
-      await expect(pending).toContainText("Pending");
-      await expect(pending).toContainText("Expires:");
+      const pending = page.locator(`[data-enrollment-id="${PENDING_ID}"]`);
+      const expired = page.locator(`[data-enrollment-id="${EXPIRED_ID}"]`);
+      await expect(pending).toContainText(PENDING_NAME);
+      await expect(pending).toContainText("Setting up");
+      await expect(pending).toContainText(
+        "Waiting for the machine to connect.",
+      );
+      await expect(expired).toContainText(EXPIRED_NAME);
       await expect(expired).toContainText("Expired");
-      await expect(expired.getByRole("button")).toHaveCount(0);
+      await expect(expired).toContainText("The settings expired.");
+      // Either can be given new settings or canceled.
+      await expect(expired.getByRole("button")).toHaveCount(2);
+      await expect(pending.getByRole("button")).toHaveCount(2);
 
-      for (const label of ["Cancel", "Replace"]) {
+      for (const label of ["Get new settings", "Cancel setup"]) {
         const button = pending.getByRole("button", { name: label });
         await expect(button).toBeVisible();
         const box = await button.boundingBox();
@@ -248,22 +260,38 @@ test.describe("machines list layout", () => {
           `/v1/worker-enrollments/${PENDING_ID}` &&
         request.method() === "PATCH"
       );
-      await pending.getByRole("button", { name: "Cancel" }).click();
+      await pending.getByRole("button", { name: "Cancel setup" }).click();
       expect((await cancel).headers()["idempotency-key"]).toBeTruthy();
     },
   );
 
-  test("desktop keeps the enrollments table", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== "desktop", "desktop layout only");
-    await machinesFixture(page);
-    await page.goto("/machines");
-    const table = page.getByRole("table", { name: "Worker enrollments" });
-    await expect(table).toBeVisible();
-    await expect(
-      table.locator(`[data-enrollment-name="${PENDING_NAME}"]`)
-        .getByRole("button", { name: "Cancel" }),
-    ).toBeVisible();
-  });
+  test(
+    "desktop shows the setups being finished above the machines",
+    async ({ page }, testInfo) => {
+      test.skip(testInfo.project.name !== "desktop", "desktop layout only");
+      await machinesFixture(page);
+      await page.goto("/machines");
+      const group = page.getByTestId("machines-finishing-setup");
+      await expect(group).toBeVisible();
+      await expect(group.getByRole("heading", { name: "Finishing setup" }))
+        .toBeVisible();
+      await expect(page.getByRole("table", { name: "Worker enrollments" }))
+        .toHaveCount(0);
+      await expect(
+        group.locator(`[data-enrollment-id="${PENDING_ID}"]`).getByRole(
+          "button",
+          {
+            name: `Cancel setup of ${PENDING_NAME}`,
+          },
+        ),
+      ).toBeVisible();
+      // The group comes first, the machines after it.
+      const groupBox = await group.boundingBox();
+      const tableBox = await page.getByRole("table", { name: "Machines" })
+        .boundingBox();
+      expect(groupBox!.y).toBeLessThan(tableBox!.y);
+    },
+  );
 
   test(
     "phone lists hold only list items when ready and loading",
@@ -282,11 +310,11 @@ test.describe("machines list layout", () => {
       await machinesFixture(page);
       await page.goto("/machines");
       await expect(page.getByRole("list", { name: "Machines" })).toBeVisible();
-      await expect(page.getByRole("list", { name: "Worker enrollments" }))
+      await expect(page.getByRole("list", { name: "Finishing setup" }))
         .toBeVisible();
       const ready = await childRoles();
       expect(ready.map((list) => list.name)).toEqual(
-        expect.arrayContaining(["Machines", "Worker enrollments"]),
+        expect.arrayContaining(["Machines", "Finishing setup"]),
       );
       for (const list of ready) {
         expect(list.roles.length).toBeGreaterThan(0);
