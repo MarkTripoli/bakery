@@ -520,7 +520,7 @@ test.describe("repository rules: the effective rules of one repository", () => {
     await expect(region(page).getByRole("row")).toHaveCount(0);
     await shot(page, "repository-rules-refused");
     await banner.getByRole("link", { name: "Back to projects" }).click();
-    await expect(page).toHaveURL(/\/projects\/onboarding/);
+    await expect(page).toHaveURL(/\/projects$/);
   });
 
   test("an unknown repository says the same, so nothing can be probed", async ({ page }) => {

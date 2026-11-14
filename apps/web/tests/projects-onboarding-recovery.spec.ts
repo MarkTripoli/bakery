@@ -3,7 +3,10 @@ import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
 
 // Denial/reconnect fixture only: the real shared page, resolver and auth
 // routes run unchanged. This is not live repository/onboarding acceptance.
-const path = "/projects/onboarding?source=bookmark#repositories";
+// A repository's setup page: the page without a repository is the Projects list.
+const REPOSITORY = "00000000-0000-4000-8000-000000000102";
+const path =
+  `/projects/onboarding?repository=${REPOSITORY}&source=bookmark#repositories`;
 const returnKey = "bakery.auth.returnTo.v1";
 const preferenceKey = "bakery.organization.lastSelected.v1";
 const organizationId = "00000000-0000-4000-8000-000000000003";
@@ -277,7 +280,8 @@ test.describe("projects onboarding scope recovery", () => {
     await page.goto(path);
     await expect.poll(() => requests).toBeGreaterThan(0);
     replaced = true;
-    const replacement = "/projects/onboarding?source=replacement#current";
+    const replacement =
+      `/projects/onboarding?repository=${REPOSITORY}&source=replacement#current`;
     await page.evaluate((destination) => {
       history.pushState({}, "", destination);
       dispatchEvent(new PopStateEvent("popstate"));

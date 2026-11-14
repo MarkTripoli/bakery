@@ -86,7 +86,6 @@ export function ProjectsOnboardingScreen(props: ProjectsOnboardingScreenProps) {
   const viewport = useShellViewport();
   const phone = viewport === "phone";
   const [dialog, setDialog] = useState<DialogName | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
   // The task scope stays for a repository once its profile was reviewed, so a
   // conflict that clears the profile pin keeps the preserved draft visible.
   const [reviewedRepository, setReviewedRepository] = useState<string | null>(
@@ -108,10 +107,7 @@ export function ProjectsOnboardingScreen(props: ProjectsOnboardingScreenProps) {
         onEdit={() => setDialog("repository")}
         onLoadMoreProfiles={props.onLoadMoreProfiles}
         onLoadMoreRoles={props.onLoadMoreRoles}
-        onProfileSelect={(id) => {
-          props.onProfileSelect(id);
-          setSheetOpen(false);
-        }}
+        onProfileSelect={props.onProfileSelect}
         onRetryMoreProfiles={props.onRetryMoreProfiles}
         onRetryMoreRoles={props.onRetryMoreRoles}
         onRetryProfiles={props.onRetryProfiles}
@@ -185,6 +181,13 @@ export function ProjectsOnboardingScreen(props: ProjectsOnboardingScreenProps) {
                       />
                     </UI.SettingsContent>
                   </UI.PaneSection>
+                )
+                : null}
+              {phone && inspector !== null && props.selectedRepository !== null
+                ? (
+                  <div data-testid="projects-onboarding-inspector">
+                    {inspector}
+                  </div>
                 )
                 : null}
             </>
@@ -263,17 +266,6 @@ export function ProjectsOnboardingScreen(props: ProjectsOnboardingScreenProps) {
                 )
                 : null}
             </UI.Dialog>
-            {phone && inspector !== null && props.selectedRepository !== null
-              ? (
-                <UI.Sheet
-                  onOpenChange={setSheetOpen}
-                  open={sheetOpen}
-                  title={`${props.selectedRepository.owner}/${props.selectedRepository.name}`}
-                >
-                  {inspector}
-                </UI.Sheet>
-              )
-              : null}
           </>
         )
         : null}
