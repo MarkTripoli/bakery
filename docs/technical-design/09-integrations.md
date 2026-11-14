@@ -407,7 +407,7 @@ Example IDs are placeholders; DTOs use UUIDs. Writes return `202 {"effectId":"�
 
 ## 7. Authoring an integration
 
-> The module layout and base abstractions here are superseded by §12 (modular integrations architecture, 2026-11): providers live in `integrations/providers/<slug>/`, behind SDK interfaces and one registry.
+> The module layout and base abstractions here are superseded by §12 (modular integrations architecture, 2026-11): each provider is a workspace package `integrations/<slug>/` (entries `/server`, `/web`, `/manifest`), behind SDK interfaces and one registry per app.
 
 **Mandatory semantic metadata:** Every Zod schema/type and every field requires a meaningful description, without exceptions. Preserve it through composition and generated contracts; reject missing descriptions. See [schema description rails](04-backend-and-errors.md).
 
@@ -888,44 +888,49 @@ Integrations grew around GitHub. The catalog gate already registers providers de
 
 Adding Linear, GitLab or Jira today would mean editing every one of those files. This section defines the structure that makes a provider an addition, not a rewrite.
 
-### 12.1 Module layout
+### 12.1 Package layout: one workspace package per integration
+
+Each integration is **one top-level workspace package**, `integrations/<slug>/` (for example `@bakery/integration-github`). It holds everything that is about that provider, on both server and web, and nothing else. The host apps keep only the generic core.
 
 ```text
-packages/integration-sdk/          contracts and helpers only (no Postgres, no token storage, no React)
-  src/manifest.ts action.ts request.ts context.ts activation.ts      (as today)
-  src/provider.ts                  ProviderDefinition (12.2)
-  src/strategy.ts                  InstallStrategy, AuthStrategy (12.2)
-  src/webhook.ts                   WebhookVerifier, WebhookNormalizer (12.2)
-  src/families/tickets.ts code.ts chat.ts   family ports (12.3)
-
-apps/server/src/modules/integrations/
-  core/                            provider-agnostic: no provider id, no provider SDK import
-    registry.ts                    the one provider registry (12.4)
-    lifecycle/                     install, connect, reconnect, health, uninstall (12.5)
-    connections.ts installations.ts auth-attempts.ts grants.ts
-    discovery/ reconcile/ intake/ (receipts, routes, workflow, retention)
-    broker/                        credential and token brokering, keyed by strategy
-    effects-port.ts                the snapshot port and invocation wiring (#20)
-  providers/
-    github/
-      index.ts                     the ProviderDefinition (manifest, strategies, families)
-      install.ts auth.ts           GitHub App install and OAuth user authorization strategies
+integrations/
+  github/                          package @bakery/integration-github
+    package.json                   exports: "./manifest", "./server", "./web"
+    manifest.ts                    entry /manifest: the DefinedIntegration manifest + metadata (slug, families, strategy kinds); no runtime deps
+    contracts/                     provider DTOs and Zod schemas (described), shared by server and web
+    server/
+      index.ts                     entry /server: the ProviderDefinition (12.2)
+      install.ts auth.ts           GitHub App install, OAuth user authorization strategies
       transport.ts app-client.ts   today's github-transport.ts and github-app.ts
       webhook.ts                   X-Hub-Signature-256 verifier and event normalizer
-      tickets.ts code.ts           family adapters (issues; repositories and pull requests)
-      migrations/ tests/           provider-owned tables and tests
-    slack/                         today's slack-*.ts, same shape
-  routes.ts actions.ts             generic routes; provider-specific paths come from definitions
+      tickets.ts code.ts           family adapters (issues; repositories, pull requests, checks)
+      migrations/                  provider-owned tables (one global sequence, 12.7)
+    web/
+      index.ts                     entry /web: the WebSlots (12.2): connect step, settings panel
+      connect.tsx                  the GitHub App handoff (today's ExistingGitHubAppForm, github-connect-handoff)
+    i18n/                          the provider's message catalog (en first)
+    tests/                         unit, integration and web tests for this provider
+  slack/                           @bakery/integration-slack, same shape (today's slack-*.ts)
 
-apps/web/src/integrations/
-  core/                            generic connection list, health, grants, activity UI
-  providers/<slug>/connect.tsx     the provider's connect step (GitHub App handoff today)
+packages/integration-sdk/          contracts and helpers only (no Postgres, token storage or React runtime)
+  src/manifest.ts action.ts request.ts context.ts activation.ts      (as today)
+  src/server/provider.ts strategy.ts webhook.ts families/*            base server interfaces (12.2, 12.3)
+  src/web/slots.ts                 the web-slot contract (12.2)
+
+apps/server/src/modules/integrations/core/     provider-agnostic: no provider id, no provider package import except via the registry
+  registry.ts                      loads every integration's /server entry (12.4)
+  lifecycle/ connections.ts installations.ts auth-attempts.ts grants.ts
+  discovery/ reconcile/ intake/ broker/ effects-port.ts
+
+apps/web/src/integrations/core/    generic connection list, health, grants, activity UI
+  registry.ts                      loads every integration's /web entry and renders its slots
 ```
 
-Rules:
-- **Dependencies point one way.** `core` imports the SDK and its own files; it never imports a `providers/*` module. Providers import `core` and the SDK. Generic product code (`work/ticket-*`, repositories, delivery) imports only family ports from the SDK and the registry from `core`, never a provider.
-- **A rail enforces the boundary,** the way module-boundary rails already do: an import from `providers/` into `core/` or into `work/` fails `test:rails`.
-- **Provider-owned tables live with the provider** (for example, GitHub App registrations). Generic tables stay in `core` and keep a `provider text` column, as they already do (migrations 0129, 0130, 0132).
+Import rules (a rail and the bundler enforce them):
+- **Server code never reaches the web bundle.** `apps/web` may import only `@bakery/integration-<slug>/web` and `/manifest`, never `/server`. A package's `web/` and `manifest.ts` may not import its `server/`. `contracts/` is shared, and holds types and Zod schemas only.
+- **`apps/server` imports only `/server` and `/manifest`,** and only from `core/registry.ts`. No other host file imports a provider package. Generic product code (`work/ticket-*`, repositories, delivery) imports family ports from the SDK and the registry from `core`, never a provider.
+- **Packages depend on the SDK and their own folders only:** never on another integration, and never on `apps/*`.
+- **Provider-owned tables** live in the package's `server/migrations/`, in the one global migration sequence. Generic tables stay in `core` with a `provider text` column (as in migrations 0129, 0130 and 0132).
 
 ### 12.2 Base abstractions (SDK)
 
@@ -963,6 +968,18 @@ export type WebhookNormalizer = Readonly<{
 }>;
 ```
 
+The web side gets a matching contract in `packages/integration-sdk/src/web/slots.ts`. A slot is a React component the host renders inside its own generic screens; it receives no credentials and calls only the host's typed API client:
+
+```ts
+/** What an integration contributes to the web app, from its /web entry. */
+export type WebSlots = Readonly<{
+  slug: string;
+  connect: ComponentType<ConnectSlotProps>;          // the provider's connect or install step
+  settings?: ComponentType<SettingsSlotProps>;       // provider-specific connection settings
+  resourceLabel?: (resource: IntegrationResource) => string;
+}>;
+```
+
 Credentials, secrets, receipts and scheduling stay in `core`. A strategy describes the provider-specific steps, and `core` runs them. That keeps §11's rule that the SDK owns no storage.
 
 ### 12.3 Family ports
@@ -979,7 +996,7 @@ The shapes are normalized reads, as §7 already prefers: shared fields with prov
 
 ### 12.4 One registry
 
-`core/registry.ts` holds the deployed `ProviderDefinition`s and is the only place providers are listed. It replaces both of today's lists, so the gate and the lifecycle read the same definitions:
+`core/registry.ts` imports each deployed integration's `/server` entry (and `apps/web`'s `core/registry.ts` imports each `/web` entry). These are the only places providers are listed. Each holds the deployed `ProviderDefinition`s. It replaces both of today's lists, so the gate and the lifecycle read the same definitions:
 - `catalog/integration-gate-registry.ts` (`deployedIntegrations`)
 - the `GITHUB_PROVIDER_ID` hard-coding in the lifecycle
 
@@ -988,7 +1005,7 @@ It validates at startup the way `activateDeployedIntegrations` does today, faili
 - `byFamily("tickets" | "code" | "chat")`
 - the activated gate registry (manifests and digests)
 
-Adding a provider means adding its folder and one line here.
+Adding a provider means adding its package and one line in each of the two registries.
 
 ### 12.5 One lifecycle flow
 
@@ -1002,19 +1019,19 @@ Install, connect, reconnect, health and uninstall each have one implementation i
   - **Verify and normalize (provider):** the provider's `verifier` and `normalizer`.
   - **Intake route:** today's `/intake/github` becomes `/intake/:slug`, and GitHub keeps its current path as an alias.
 
-### 12.6 Migration plan: GitHub into `providers/github`, no behaviour change
+### 12.6 Migration plan: GitHub into `integrations/github`, no behaviour change
 
 Each step is one small PR. Each keeps every existing test green unchanged, except for import paths, and keeps the HTTP API, events, tables and contracts identical. No step changes what a user or GitHub sees.
 
-1. **SDK types only:** add `provider.ts`, `strategy.ts`, `webhook.ts` and `families/*` to the SDK, with no callers. Add the boundary rail in report-only mode.
+1. **SDK types only:** add the server interfaces (`server/provider.ts`, `strategy.ts`, `webhook.ts`, `families/*`) and the web-slot contract (`web/slots.ts`), with no callers. Create the empty `integrations/github` workspace package with its three entry points. Add the import rails in report-only mode.
 2. **Registry:** add `core/registry.ts` with the GitHub `ProviderDefinition` built from today's pieces (`githubIntegration`, the App client, the signature verifier). `catalog/integration-gate-registry.ts` re-exports from it.
-3. **Move GitHub files:** move `github-app.ts`, `github-app-key.ts`, `github-transport.ts`, `callbacks.ts`, `pull-requests.ts`, `ticket-reads.ts`, `intake-signature.ts` and `intake-events.ts` into `providers/github/`, and `slack-*.ts` into `providers/slack/`. Use `git mv` plus import updates only; old paths re-export for one step.
+3. **Move GitHub files:** move `github-app.ts`, `github-app-key.ts`, `github-transport.ts`, `callbacks.ts`, `pull-requests.ts`, `ticket-reads.ts`, `intake-signature.ts` and `intake-events.ts` into `integrations/github/server/`, and GitHub's tables' migrations into its `server/migrations/`. Same for `slack-*.ts` into `integrations/slack/server/`. Use `git mv` plus import updates only; old paths re-export for one step.
 4. **De-GitHub the lifecycle:** replace `GITHUB_PROVIDER_ID`, `readAppCredentials` and GitHub client calls in `connections`, `installations`, `auth-attempts`, `checks`, `discoveries`, `reconcile`, `fact-*`, `intake-*`, `updates`, `token-broker` and `actions` with registry and strategy calls. One file group per PR, each proven by its existing tests.
 5. **Family ports:** `work` imports `TicketsProvider` and `CodeProvider` from the SDK and gets implementations from the registry. Remove the direct imports of `fact-reads`, `pull-requests`, `ticket-reads` and `intake-workflow` (`ticket-admission.ts`, `ticket-source-command.ts`, `ticket-workflows.ts`). GitHub URL building in `ticket-store.ts` moves behind `CodeProvider`.
 6. **Intake route:** `/intake/:slug`, with the GitHub path kept as an alias. Switch the boundary rail to enforcing.
-7. **Web:** move `ExistingGitHubAppForm.tsx` and `github-connect-handoff.ts` under `apps/web/src/integrations/providers/github/`. The integrations screens render the generic parts and a provider slot.
+7. **Web:** move `ExistingGitHubAppForm.tsx` and `github-connect-handoff.ts` into `integrations/github/web/` behind the `/web` entry's `connect` slot. The integrations screens render the generic parts plus each registered slot. GitHub's i18n strings move to `integrations/github/i18n/`. Switch the import rails to enforcing, so no `/server` import reaches `apps/web`.
 
-After step 7 the next provider (Linear first, per the product order GitHub, Linear, GitLab, with Jira unordered) is an addition: a `providers/linear/` folder with an `oauth2` strategy, a `TicketsProvider`, a webhook verifier and normalizer, and one registry line.
+After step 7 the next provider (Linear first, per the product order GitHub, Linear, GitLab, with Jira unordered) is an addition: an `integrations/linear/` package with an `oauth2` strategy, a `TicketsProvider`, a webhook verifier and normalizer, a `connect` slot, and one line in each registry.
 
 ### 12.7 Open questions for the owner
 
