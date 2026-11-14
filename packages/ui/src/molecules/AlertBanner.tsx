@@ -14,7 +14,7 @@ export type AlertBannerProps =
   };
 
 const TONE_GLYPH = {
-  information: "document",
+  information: "info",
   success: "check",
   warning: "alert",
   error: "alert",

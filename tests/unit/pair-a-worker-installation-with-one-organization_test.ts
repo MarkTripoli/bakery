@@ -16,6 +16,7 @@ import {
   type CommandIo,
   type EnrollmentPreview,
   hasUnsafeCharacter,
+  hasVisibleCharacter,
   inspectEnrollment,
   normalizeServerOrigin,
   PAIRING_FILE,
@@ -855,6 +856,41 @@ Deno.test("no text the server supplies can carry a control, line-break or direct
   }
 });
 
+Deno.test("a name must show something: fillers, marks with no base and spaces do not count", () => {
+  for (
+    const blank of [
+      "",
+      " ",
+      "\u3164",
+      "\u2800\u2800",
+      "\u115f\u1160",
+      "\uffa0",
+      "\u034f",
+      "\u00ad",
+      "\u0301",
+      " \u3164 ",
+    ]
+  ) {
+    assertFalse(hasVisibleCharacter(blank), JSON.stringify(blank));
+  }
+  for (
+    const shown of [
+      "A",
+      "a b",
+      "株",
+      "🍞",
+      ".",
+      "Acme\u3164",
+      "\u3164Acme",
+      "é",
+      "e\u0301",
+      "1",
+    ]
+  ) {
+    assert(hasVisibleCharacter(shown), JSON.stringify(shown));
+  }
+});
+
 Deno.test("the same unsafe characters are named by one check", () => {
   for (const [label, hostile] of HOSTILE) {
     assert(hasUnsafeCharacter(hostile), label);
@@ -887,6 +923,51 @@ Deno.test("an answer with an extra or missing field, a blank name or an odd type
       })(),
     ],
     ["blank organization name", { ...preview(), organizationName: "   " }],
+    ["organization name of Hangul filler", {
+      ...preview(),
+      organizationName: "\u3164\u3164",
+    }],
+    ["organization name of Braille blank", {
+      ...preview(),
+      organizationName: "\u2800",
+    }],
+    ["organization name of Hangul choseong filler", {
+      ...preview(),
+      organizationName: "\u115f",
+    }],
+    ["organization name of Hangul jungseong filler", {
+      ...preview(),
+      organizationName: "\u1160 ",
+    }],
+    ["organization name of halfwidth filler", {
+      ...preview(),
+      organizationName: "\uffa0",
+    }],
+    ["organization name of grapheme joiner", {
+      ...preview(),
+      organizationName: "\u034f",
+    }],
+    ["organization name of Khmer vowels", {
+      ...preview(),
+      organizationName: "\u17b4\u17b5",
+    }],
+    ["organization name of soft hyphens", {
+      ...preview(),
+      organizationName: "\u00ad\u00ad",
+    }],
+    ["organization name of a lone combining mark", {
+      ...preview(),
+      organizationName: "\u0301",
+    }],
+    ["organization name of mixed fillers and spaces", {
+      ...preview(),
+      organizationName: " \u3164 \u2800\u00a0",
+    }],
+    ["machine name of fillers", { ...preview(), name: "\u3164" }],
+    ["capability of fillers", {
+      ...preview(),
+      capabilities: ["git", "\u2800"],
+    }],
     ["blank machine name", { ...preview(), name: "" }],
     ["os not linux or macos", { ...preview(), os: "windows" }],
     ["architecture with a space", { ...preview(), architecture: "x86 64" }],
