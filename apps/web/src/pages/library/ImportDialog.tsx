@@ -331,7 +331,8 @@ export function ImportDialog(
                   autoComplete="off"
                   value={name}
                   disabled={made !== null}
-                  invalid={tried && emptyName || undefined}
+                  invalid={(tried && emptyName) || failure === "nameTaken" ||
+                    failure === "nameRejected" || undefined}
                   onChange={(value) => {
                     setNameTouched(true);
                     setName(clip(value, NAME_LIMIT));

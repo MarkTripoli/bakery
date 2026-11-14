@@ -213,6 +213,38 @@ for (
       expect(seen.stepWrites).toBe(2);
     });
 
+    test("a taken name is the Name field's problem, marked invalid and editable, and a new name imports", async ({ page }) => {
+      const seen = await open(page, { ...WORLD, copy: "workflow-409-once" });
+      await paste(page, GOOD);
+      await expect(state(page)).toContainText("Looks good: 2 steps.");
+      await dialog(page).getByRole("button", { name: "Import as draft" })
+        .click();
+      const name = dialog(page).getByLabel("Name");
+      await expect(dialog(page)).toContainText(
+        "A workflow with this name already exists. Choose another name.",
+      );
+      await expect(name).toHaveAttribute("aria-invalid", "true");
+      await expect(name).toBeEnabled();
+      await name.fill("Nightly build 2");
+      await expect(name).not.toHaveAttribute("aria-invalid", "true");
+      await dialog(page).getByRole("button", { name: "Import as draft" })
+        .click();
+      await expect(page).toHaveURL(/\/library\/workflows\/[0-9a-f-]{36}$/);
+      expect(seen.created.map((row) => row.name)).toEqual(["Nightly build 2"]);
+    });
+
+    test("a refused import says why when it is not allowed", async ({ page }) => {
+      await open(page, { ...WORLD, copy: "workflow-403" });
+      await paste(page, GOOD);
+      await expect(state(page)).toContainText("Looks good: 2 steps.");
+      await dialog(page).getByRole("button", { name: "Import as draft" })
+        .click();
+      await expect(dialog(page)).toContainText(
+        "Only organization administrators can import a workflow.",
+      );
+      await expect(dialog(page)).not.toContainText("Check your connection");
+    });
+
     test("an empty name is refused where it is typed and nothing is created", async ({ page }) => {
       const seen = await open(page);
       await paste(page, "steps:\n  - id: brief\n    uses: task.brief\n");

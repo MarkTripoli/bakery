@@ -919,7 +919,11 @@ test("a saved workflow whose newer version is in use says this run's version is 
   const origin = page.locator("[data-plan-origin]");
   await expect(origin).toContainText("Workflow: Checkout fan-out, version 3");
   await expect(origin).toContainText("Older version");
-  await origin.getByRole("button", { name: "Older version" }).click();
+  // On a phone the tip closes when the page scrolls, and this line is at the
+  // end of the page: bring the button into view first so opening it does not.
+  const tip = origin.getByRole("button", { name: "Older version" });
+  await tip.scrollIntoViewIfNeeded();
+  await tip.click();
   const panel = page.locator(
     '[data-ui-component="helpTip"] .ui-help-tip__panel',
   ).filter({
