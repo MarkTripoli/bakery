@@ -4,6 +4,7 @@ import {
   MOCK_ORGANIZATION_ID,
   mockAuthenticatedSession,
 } from "./helpers/mock-session.ts";
+import { still } from "./helpers/stills.ts";
 const id = "00000000-0000-4000-8000-000000000012";
 const runId = "00000000-0000-4000-8000-000000000020";
 const stepId = "00000000-0000-4000-8000-000000000021";
@@ -621,6 +622,25 @@ test("revision preview verifies the exact immutable version bytes", async ({ pag
   await page.routeWebSocket("**/v1/events?*", () => {});
   await page.goto(`/tasks/${id}`);
   await page.getByRole("button", { name: "View diff", exact: true }).click();
+  // The version is a plain "Version 3"; its SHA-256 sits behind a fingerprint
+  // row (first 12 characters and Copy), not in the main line.
+  // The revision card says "Version 3"; the artifact version picker also has
+  // an option with that text, so look inside the card.
+  await expect(
+    page.getByRole("region", { name: "Changes" }).getByText("Version 3", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  const fingerprint = page.getByTestId("fingerprint-row");
+  await expect(fingerprint).toContainText("Fingerprint");
+  await expect(fingerprint).toContainText(digest.slice(0, 12));
+  await expect(fingerprint).not.toContainText(digest.slice(0, 13));
+  await expect(fingerprint.getByRole("button", { name: "Copy" })).toBeVisible();
+  await still(
+    page,
+    "run-revision",
+    page.getByRole("region", { name: "Changes" }),
+  );
   await expect(page.getByText("Patch: 1 files · +1 −1", { exact: true }))
     .toBeVisible();
   await expect(page.getByText("1 files · +1 −1", { exact: true }))
@@ -663,7 +683,7 @@ test("revision preview verifies the exact immutable version bytes", async ({ pag
     });
   });
   await expect(
-    page.getByText("Revision evidence unavailable.", { exact: true }),
+    page.getByText("The changes could not be loaded.", { exact: true }),
   ).toBeVisible();
   await expect(page.locator('[data-ui-component="codeBlock"]')).toHaveCount(0);
   await expect(page.getByText("1 files · +1 −1", { exact: true })).toHaveCount(
@@ -678,6 +698,7 @@ for (
       outcome: { resultStatus: "completed", exitCode: 0, processExited: true },
       status: "completed",
       leaseState: "closed",
+      lease: "Machine is no longer working on it",
       title: "Process exited · code 0",
     },
     {
@@ -685,14 +706,18 @@ for (
       outcome: { resultStatus: "timed_out" },
       status: "failed",
       leaseState: "closed",
+      lease: "Machine is no longer working on it",
       title: "Run timed out",
+      says:
+        "The worker exceeded its execution deadline. The output saved so far is kept.",
     },
     {
       name: "lost lease",
       outcome: { reasonCode: "lease_lost" },
       status: "lost",
       leaseState: "lost",
-      title: "Worker lease lost",
+      lease: "Machine stopped responding. Bakery took the task back.",
+      title: "Task taken back",
     },
     {
       name: "cancel pending",
@@ -703,6 +728,7 @@ for (
       },
       status: "canceled",
       leaseState: "closed",
+      lease: "Machine is no longer working on it",
       title: "Cancellation pending",
     },
     {
@@ -715,13 +741,17 @@ for (
       },
       status: "canceled",
       leaseState: "closed",
+      lease: "Machine is no longer working on it",
       title: "Run canceled",
+      says:
+        "The worker confirmed process termination. The output saved so far is kept.",
     },
     {
       name: "quota reason",
       outcome: { resultStatus: "failed", reasonCode: "quota_exceeded" },
       status: "failed",
       leaseState: "closed",
+      lease: "Machine is no longer working on it",
       title: "Provider quota exceeded",
     },
   ] as const
@@ -762,8 +792,24 @@ for (
     await expect(
       page.getByRole("heading", { name: scenario.title, exact: true }),
     ).toBeVisible();
-    await expect(page.getByText("atlas-01", { exact: true })).toBeVisible();
-    await expect(page.getByText("Attempt 2", { exact: true })).toBeVisible();
+    await expect(page.getByText("atlas-01", { exact: true }).first())
+      .toBeVisible();
+    // The machine named in the identity line is a link to its page.
+    await expect(page.getByRole("link", { name: "atlas-01", exact: true }))
+      .toHaveAttribute("href", /^\/machines\/[0-9a-f-]{36}$/);
+    await expect(page.getByText("Try 2", { exact: true })).toBeVisible();
+    // What the machine is doing is said in words, never as a lease.
+    const badge = page.getByText(scenario.lease, { exact: true }).first();
+    await expect(badge).toBeVisible();
+    // A task that was taken back is a warning; a finished try is not.
+    if (scenario.leaseState === "lost") {
+      await expect(badge).toHaveAttribute("data-tone", "warning");
+    } else await expect(badge).not.toHaveAttribute("data-tone", /.+/);
+    await expect(page.getByText(/^Lease /)).toHaveCount(0);
+    if ("says" in scenario) {
+      await expect(page.getByText(scenario.says, { exact: true }))
+        .toBeVisible();
+    }
     await expect(page.getByText("Provider usage: unknown", { exact: true }))
       .toBeVisible();
     await expect(
@@ -773,6 +819,54 @@ for (
     ).toBeVisible();
   });
 }
+
+for (
+  const [leaseState, says] of [
+    ["active", "Machine is working on it"],
+    ["expired", "Machine has not responded for a while"],
+    ["unknown", "Machine status unknown"],
+  ] as const
+) {
+  test(`a ${leaseState} lease reads as plain words in the identity block`, async ({ page }) => {
+    await prepare(page);
+    await page.route(
+      `**/v1/jobs/${stream.jobId}/attempts?*`,
+      (route) =>
+        route.fulfill({
+          json: { items: [{ ...attempt, leaseState }], nextCursor: null },
+        }),
+    );
+    await page.routeWebSocket("**/v1/events?*", () => {});
+    await page.goto(`/tasks/${id}`);
+    const badge = page.getByText(says, { exact: true });
+    await expect(badge).toBeVisible();
+    // Only an expired lease is a warning here; active and unknown are not.
+    if (leaseState === "expired") {
+      await expect(badge).toHaveAttribute("data-tone", "warning");
+    } else await expect(badge).not.toHaveAttribute("data-tone", /.+/);
+    await expect(page.getByText(/^Lease /)).toHaveCount(0);
+  });
+}
+
+test("with no try to name, the identity block says Bakery cannot tell which machine ran it", async ({ page }) => {
+  await prepare(page);
+  await page.route(
+    `**/v1/jobs/${stream.jobId}/attempts?*`,
+    (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
+  );
+  await page.routeWebSocket("**/v1/events?*", () => {});
+  await page.goto(`/tasks/${id}`);
+  await expect(
+    page.getByText("Bakery cannot tell which machine ran this.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.getByText(/trusted/i)).toHaveCount(0);
+  // With no try there is nothing to badge: the sentence is the whole block.
+  const identity = page.getByRole("region", { name: "Where this ran" });
+  await expect(identity.getByText("Unknown")).toHaveCount(0);
+  await still(page, "run-identity-unknown", identity);
+});
 
 test("three timed-out attempts end on the timeout heading with the history kept", async ({ page }) => {
   await prepare(page);
@@ -802,20 +896,21 @@ test("three timed-out attempts end on the timeout heading with the history kept"
     page.getByRole("heading", { name: "Run timed out", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("region", { name: "Execution identity" }).getByText(
-      "Attempt 3",
+    page.getByRole("region", { name: "Where this ran" }).getByText(
+      "Try 3",
       { exact: true },
     ),
   ).toBeVisible();
-  await expect(page.getByText("atlas-01", { exact: true })).toBeVisible();
+  await expect(page.getByText("atlas-01", { exact: true }).first())
+    .toBeVisible();
   await expect(
-    page.getByRole("combobox", { name: "Execution attempt", exact: true })
+    page.getByRole("combobox", { name: "Try", exact: true })
       .locator("option"),
   ).toHaveText([
-    "Current attempt",
-    "Attempt 3",
-    "Attempt 2",
-    "Attempt 1",
+    "Current try",
+    "Try 3",
+    "Try 2",
+    "Try 1",
   ]);
 });
 
@@ -837,7 +932,8 @@ test("printed output cannot invent quota or replace trusted worker identity", as
       }),
   );
   await page.goto(`/tasks/${id}`);
-  await expect(page.getByText("atlas-01", { exact: true })).toBeVisible();
+  await expect(page.getByText("atlas-01", { exact: true }).first())
+    .toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Provider quota exceeded", exact: true }),
   ).toHaveCount(0);
@@ -933,12 +1029,21 @@ test("current artifact metadata advances without reloading the task", async ({ p
   await page.routeWebSocket("**/v1/events?*", () => {});
   await page.goto(`/tasks/${id}`);
   const card = page.locator('[data-ui-component="runArtifactSummary"]');
-  await expect(card.getByText("r3", { exact: true })).toBeVisible();
+  await expect(card.getByText("Version 3", { exact: true })).toBeVisible();
+  await expect(
+    card.getByText("A saved version never changes.", { exact: true }),
+  )
+    .toBeVisible();
+  // The digest is behind the Fingerprint row, not printed in the card.
+  await expect(card.getByTestId("fingerprint-row")).toContainText(
+    "Fingerprint",
+  );
+  await expect(card).not.toContainText("sha256");
   revision = 4;
-  await expect(card.getByText("r4", { exact: true })).toBeVisible({
+  await expect(card.getByText("Version 4", { exact: true })).toBeVisible({
     timeout: 10_000,
   });
-  await expect(card.getByText("r3", { exact: true })).toHaveCount(0);
+  await expect(card.getByText("Version 3", { exact: true })).toHaveCount(0);
   await expect(card.getByRole("button", { name: "Download", exact: true }))
     .toBeEnabled();
   await page.route(
@@ -1162,13 +1267,25 @@ test("current attempt selection returns from historical pages", async ({ page })
   });
   await page.routeWebSocket("**/v1/events?*", () => {});
   await page.goto(`/tasks/${id}`);
-  await expect(page.getByText("atlas-01", { exact: true })).toBeVisible();
-  await page.locator("button:enabled").filter({ hasText: /^Next$/ }).click();
-  await expect(page.getByText("historical-worker", { exact: true }))
+  await expect(page.getByText("atlas-01", { exact: true }).first())
     .toBeVisible();
-  await page.getByRole("combobox", { name: "Execution attempt", exact: true })
+  const identity = page.getByRole("region", { name: "Where this ran" });
+  await expect(identity).toContainText("Ran on atlas-01");
+  // The machine is named once, by the line with its link: no badge repeats it.
+  await expect(identity.getByText("atlas-01", { exact: true })).toHaveCount(1);
+  await still(page, "run-identity", identity);
+  await page.locator("button:enabled").filter({ hasText: /^Next$/ }).click();
+  // The name shows in the attempt badge and as the machine link.
+  await expect(page.getByText("historical-worker", { exact: true }).first())
+    .toBeVisible();
+  await expect(identity).toContainText(
+    "Recorded try · ran on historical-worker",
+  );
+  await still(page, "run-identity-recorded", identity);
+  await page.getByRole("combobox", { name: "Try", exact: true })
     .selectOption("");
-  await expect(page.getByText("atlas-01", { exact: true })).toBeVisible();
+  await expect(page.getByText("atlas-01", { exact: true }).first())
+    .toBeVisible();
   await expect(page.getByText("historical-worker", { exact: true }))
     .toHaveCount(0);
 });
@@ -1311,7 +1428,7 @@ test("a run without an admission pin shows the workspace base it started from", 
   await page.goto(`/tasks/${id}`);
   const revision = page.locator('[data-ui-component="revisionSummary"]').filter(
     {
-      hasText: "Repository revision",
+      hasText: "Changes",
     },
   );
   await expect(revision).toContainText("ddddddd");
@@ -1371,11 +1488,11 @@ test("a retried job's output names the attempt that wrote each line", async ({ p
   const position = (text: string) =>
     rows.findIndex((row) => row.includes(text));
   expect(rows).toHaveLength(5);
-  expect(rows[0]).toContain("Attempt 1");
-  expect(rows[0]).toContain("Output from this attempt starts here.");
+  expect(rows[0]).toContain("Try 1");
+  expect(rows[0]).toContain("Output from this try starts here.");
   expect(position("first attempt line one")).toBe(1);
   expect(position("first attempt line two")).toBe(2);
-  expect(rows[3]).toContain("Attempt 2");
+  expect(rows[3]).toContain("Try 2");
   expect(position("second attempt line")).toBe(4);
   // The downloaded text is the committed bytes: no marker enters it.
   const download = page.waitForEvent("download");
@@ -1387,7 +1504,7 @@ test("a retried job's output names the attempt that wrote each line", async ({ p
   const text = Buffer.concat(chunks).toString("utf8");
   expect(text).toContain("first attempt line one");
   expect(text).toContain("second attempt line");
-  expect(text).not.toContain("Output from this attempt starts here.");
+  expect(text).not.toContain("Output from this try starts here.");
 });
 
 test("a stream written by one attempt shows no attempt marker", async ({ page }) => {
@@ -1405,7 +1522,7 @@ test("a stream written by one attempt shows no attempt marker", async ({ page })
   await page.goto(`/tasks/${id}`);
   await expect(page.getByText("only line two", { exact: true })).toBeVisible();
   expect(await logRows(page)).toHaveLength(2);
-  await expect(page.getByText("Output from this attempt starts here."))
+  await expect(page.getByText("Output from this try starts here."))
     .toHaveCount(0);
 });
 
@@ -1458,9 +1575,9 @@ test("a retry that began after the list loaded reloads the list once and names i
   await expect(page.getByText("line from attempt three", { exact: true }))
     .toBeVisible();
   await expect.poll(async () => (await logRows(page)).join("|"))
-    .toContain("Attempt 3");
+    .toContain("Try 3");
   const rows = await logRows(page);
-  expect(rows.filter((row) => row.includes("Unlisted attempt")))
+  expect(rows.filter((row) => row.includes("Unlisted try")))
     .toHaveLength(0);
   expect(rows).toHaveLength(6);
   expect(listReads).toBe(2);

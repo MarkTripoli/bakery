@@ -8,6 +8,7 @@ import {
   parseCron,
 } from "../../apps/server/src/modules/workflows/automations/schedule.ts";
 import {
+  applyOverlap,
   CATCH_UP_DAYS,
   dueOccurrences,
   planFiring,
@@ -1142,4 +1143,43 @@ Deno.test("one firing stands in for the due occurrences: coalesce queues the lat
     planFiring("skip", { count: 144_001, latest }).skippedCount,
     144_001,
   );
+});
+
+// --- overlap: what an occurrence becomes when the automation is busy
+
+Deno.test("an occurrence that comes due while the automation is busy is skipped or queued behind it, never more than one waiting", () => {
+  const planned = {
+    scheduledAt: new Date("2026-11-14T10:05:00Z"),
+    status: "queued" as const,
+    pending: true,
+    skippedCount: 2,
+  };
+  const free = { running: false, waiting: false };
+  const running = { running: true, waiting: false };
+  const waiting = { running: false, waiting: true };
+  const both = { running: true, waiting: true };
+  const skippedOf = (count: number) => ({
+    scheduledAt: planned.scheduledAt,
+    status: "skipped" as const,
+    pending: false,
+    skippedCount: count,
+  });
+  // Nothing holds it: the plan stands, under either policy.
+  assertEquals(applyOverlap("skip", free, planned, 3), planned);
+  assertEquals(applyOverlap("queue_one", free, planned, 3), planned);
+  // skip: any hold skips the occurrence, counting every occurrence it stands for.
+  for (const hold of [running, waiting, both]) {
+    assertEquals(applyOverlap("skip", hold, planned, 3), skippedOf(3));
+  }
+  // queue_one: a running run is waited for; a waiting firing is the one waiter.
+  assertEquals(applyOverlap("queue_one", running, planned, 3), planned);
+  assertEquals(applyOverlap("queue_one", waiting, planned, 3), skippedOf(3));
+  assertEquals(applyOverlap("queue_one", both, planned, 3), skippedOf(3));
+  // A plan the misfire policy already skipped is left as it is.
+  const missed = { ...skippedOf(7) };
+  for (const policy of ["skip", "queue_one"] as const) {
+    for (const hold of [free, running, waiting, both]) {
+      assertEquals(applyOverlap(policy, hold, missed, 7), missed);
+    }
+  }
 });

@@ -11,7 +11,7 @@ const meta = {
 export default meta;
 
 const items = [
-  { id: "mark", label: "Mark’s workspace", selected: true },
+  { id: "alex", label: "Alex’s workspace", selected: true },
   { id: "example", label: "Example team" },
 ];
 
@@ -21,13 +21,13 @@ export const Contract: StoryObj = {
       <WorkspaceSwitcher
         items={items}
         label="Switch workspace"
-        workspace="Mark’s workspace"
+        workspace="Alex’s workspace"
       />
       <WorkspaceSwitcher
         items={items}
         label="Switch workspace, compact"
         variant="compact"
-        workspace="Mark’s workspace"
+        workspace="Alex’s workspace"
       />
       <WorkspaceSwitcher
         items={items}

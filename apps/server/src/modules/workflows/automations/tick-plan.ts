@@ -92,3 +92,40 @@ export function planFiring(
     skippedCount: due.count,
   };
 }
+
+export type OverlapPolicy = "skip" | "queue_one";
+
+/** What already holds an automation when a new occurrence comes due. */
+export type Occupancy = Readonly<{
+  /** A run from an earlier firing (or a manual run) has not ended. */
+  running: boolean;
+  /** A queued firing is admitted and waiting for its run to start. */
+  waiting: boolean;
+}>;
+
+/**
+ * The firing an occurrence becomes once it is known what is already running.
+ * An automation never holds more than one waiting firing:
+ *   - nothing running or waiting: the planned firing, as it is;
+ *   - `skip`: the occurrence is recorded as a skipped firing with no run
+ *     (every occurrence it stands for counted in `skippedCount`);
+ *   - `queue_one`: if a firing already waits, the same; otherwise the planned
+ *     firing is admitted, queued and pending, and starts when the run ends.
+ * A plan that is already skipped (the misfire policy) stays as it is.
+ */
+export function applyOverlap(
+  policy: OverlapPolicy,
+  occupancy: Occupancy,
+  plan: FiringPlan,
+  occurrences: number,
+): FiringPlan {
+  if (plan.status === "skipped") return plan;
+  if (!occupancy.running && !occupancy.waiting) return plan;
+  if (policy === "queue_one" && !occupancy.waiting) return plan;
+  return {
+    scheduledAt: plan.scheduledAt,
+    status: "skipped",
+    pending: false,
+    skippedCount: occurrences,
+  };
+}

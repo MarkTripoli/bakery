@@ -22,13 +22,13 @@ function ProfileHost(
     <ProfileScreen
       async={async}
       dirty
-      displayName={long ? LONG_NAME : "Mark Tripoli"}
+      displayName={long ? LONG_NAME : "Alex Morgan"}
       draft={{
-        name: long ? LONG_NAME : "Mark Tripoli",
-        firstName: long ? "Alexandria Montgomery-Featherstonehaugh" : "Mark",
+        name: long ? LONG_NAME : "Alex Morgan",
+        firstName: long ? "Alexandria Montgomery-Featherstonehaugh" : "Alex",
         lastName: long
           ? "of the Northstar Platform Engineering Group"
-          : "Tripoli",
+          : "Morgan",
         title: long
           ? "Principal staff platform reliability and developer experience engineer"
           : "",
@@ -36,7 +36,7 @@ function ProfileHost(
       }}
       email={long
         ? "alexandria.montgomery-featherstonehaugh@platform-engineering.northstar.example.com"
-        : "me@marktripoli.com"}
+        : "alex.morgan@example.com"}
       emailVerified
       image={photo ?? ""}
       errors={{}}

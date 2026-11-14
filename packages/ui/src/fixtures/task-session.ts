@@ -68,11 +68,15 @@ export function composerLabels(t: Translator): TaskComposerLabels {
     error: t("tasks.composer.error"),
     setupHeading: t("tasks.composer.setupHeading"),
     setupBadge: t("tasks.composer.setupBadge"),
-    setupUnknown: t("tasks.composer.setup.unknown"),
+    setupUnknown: t("tasks.composer.setup.unknown", {
+      projects: t("tasks.composer.setup.projectsPage"),
+    }),
     setupRequired: Object.fromEntries(
       setupReasons.map((reason) => [
         reason,
-        t(`tasks.composer.setup.${reason}`),
+        t(`tasks.composer.setup.${reason}`, {
+          projects: t("tasks.composer.setup.projectsPage"),
+        }),
       ]),
     ) as TaskComposerLabels["setupRequired"],
   };

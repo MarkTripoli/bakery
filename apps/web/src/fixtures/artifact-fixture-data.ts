@@ -27,7 +27,7 @@ const banners = {
   reconnecting: {
     title: "Reconnecting",
     body:
-      "Showing the last durable state. Live updates resume from the saved cursor.",
+      "Showing the last saved state. Live updates will continue when you are reconnected.",
     action: "Retry connection",
     tone: "warning",
   },

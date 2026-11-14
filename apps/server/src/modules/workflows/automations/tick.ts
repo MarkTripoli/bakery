@@ -21,7 +21,14 @@ import {
   withPgTransaction,
 } from "../../../platform/database.ts";
 import { nextOccurrence, parseCron } from "./schedule.ts";
-import { dueOccurrences, type MisfirePolicy, planFiring } from "./tick-plan.ts";
+import {
+  applyOverlap,
+  dueOccurrences,
+  type MisfirePolicy,
+  type OverlapPolicy,
+  planFiring,
+} from "./tick-plan.ts";
+import { occupancyOf } from "./overlap.ts";
 import { parseTrigger } from "./trigger.ts";
 import { insertFiring } from "./firing.ts";
 
@@ -71,6 +78,7 @@ type DueRow = {
   next_fire_at: Date | string;
   trigger: unknown;
   misfire_policy: string;
+  overlap_policy: string;
 };
 
 /** One due automation, claimed and admitted in its own transaction; null when nothing is due. */
@@ -84,7 +92,7 @@ async function admitOne(
   return await withPgTransaction(database, async (transaction) => {
     const claimed = await transaction.query<DueRow>(
       `select d.id, d.organization_id, d.active_version_id, d.next_fire_at,
-              v.trigger, v.misfire_policy
+              v.trigger, v.misfire_policy, v.overlap_policy
          from bakery.automation_definitions d
          join bakery.automation_versions v
            on v.organization_id = d.organization_id
@@ -137,7 +145,14 @@ async function admitClaimed(
   let admitted = false;
   let coalesced = false;
   if (due !== null) {
-    const plan = planFiring(row.misfire_policy as MisfirePolicy, due);
+    // An occurrence that comes due while the automation is still busy is
+    // skipped or queued behind it, by the version's overlap policy.
+    const plan = applyOverlap(
+      row.overlap_policy as OverlapPolicy,
+      await occupancyOf(transaction, row.organization_id, row.id),
+      planFiring(row.misfire_policy as MisfirePolicy, due),
+      due.count,
+    );
     admitted = await insertFiring(transaction, {
       organizationId: row.organization_id,
       automationVersionId: row.active_version_id,

@@ -4,12 +4,12 @@ import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { planOrigin, shortId } from "./model.ts";
 
 /**
- * Where the plan came from and which requirements and versions it fixed:
- * origin (ad hoc, saved workflow, or a ticket the requester reported) and the
- * short plan digest. Rendered as inline runs so the header keeps its height.
- * Nothing renders for a plan that carries neither (the server always sends
- * both). A ticket is a claim by the requester, so `PlanTicketClaim` says it is
- * not verified, and its link renders only for https.
+ * Where the plan came from: origin (ad hoc, saved workflow, or a ticket the
+ * requester reported). Rendered as inline runs so the header keeps its height.
+ * The plan digest is not here: it sits behind the page's fingerprint row.
+ * Nothing renders for a plan without an origin. A ticket is a claim by the
+ * requester, so `PlanTicketClaim` says it is not verified, and its link
+ * renders only for https.
  */
 export function PlanProvenance(
   { leadingSeparator = false, plan, workflowName }: {
@@ -22,12 +22,8 @@ export function PlanProvenance(
 ) {
   const { translate: t } = useI18n();
   const origin = planOrigin(plan);
-  const digest = typeof plan.digest === "string" ? plan.digest : "";
-  const hint = t("tasks.coordination.digestHint");
-  if (origin === null && digest === "") return null;
-  const label = origin === null
-    ? null
-    : origin.kind === "ad_hoc"
+  if (origin === null) return null;
+  const label = origin.kind === "ad_hoc"
     ? t("tasks.coordination.origin.adHoc")
     : origin.kind === "saved_workflow"
     ? t("tasks.coordination.origin.workflow", {
@@ -41,16 +37,7 @@ export function PlanProvenance(
   return (
     <span data-ui-region="plan-provenance">
       {leadingSeparator && <span aria-hidden="true">·&nbsp;</span>}
-      {label !== null && <span data-plan-origin={origin?.kind}>{label}</span>}
-      {label !== null && digest !== "" && (
-        <span aria-hidden="true">·&nbsp;</span>
-      )}
-      {digest !== "" && (
-        <span data-plan-digest={digest} title={hint}>
-          {t("tasks.coordination.digest", { digest: shortId(digest, 12) })}
-          <UI.VisuallyHidden>{`. ${hint}`}</UI.VisuallyHidden>
-        </span>
-      )}
+      <span data-plan-origin={origin.kind}>{label}</span>
     </span>
   );
 }

@@ -11,19 +11,28 @@ export const Contract: StoryObj = {
   render: () => (
     <Stack>
       <RunIdentity
-        title="Execution identity"
+        title="Where this ran"
         worker="atlas-01"
-        attempt="Attempt 2"
-        lease="Lease active"
-        detail="Codex · trusted worker record · run_42 / step_3"
+        attempt="Try 2"
+        lease="Machine is working on it"
+        detail="Ran on atlas-01"
         unknownLabel="Unknown"
       />
       <RunIdentity
-        title="Execution identity unavailable"
+        title="Where this ran"
+        worker="atlas-01"
+        attempt="Try 2"
+        lease="Machine stopped responding. Bakery took the task back."
+        leaseTone="warning"
+        detail="Ran on atlas-01"
+        unknownLabel="Unknown"
+      />
+      <RunIdentity
+        title="Where this ran"
         worker={null}
         attempt={null}
         lease={null}
-        detail="No trusted worker record is available."
+        detail="Bakery cannot tell which machine ran this."
         unknownLabel="Unknown"
       />
     </Stack>

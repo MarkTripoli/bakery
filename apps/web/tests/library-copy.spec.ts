@@ -183,7 +183,7 @@ for (
         slug: "our-release-flow",
         name: "Our release flow",
         description:
-          "Write the task brief and run the coding harness, then check and independently review the result, repairing it a bounded number of times.",
+          "Write the task brief and run the coding agent, then check and independently review the result, fixing it a limited number of times.",
       }]);
       expect(seen.versionsCreated).toHaveLength(1);
       expect(seen.versionsCreated[0]?.definition).toEqual({

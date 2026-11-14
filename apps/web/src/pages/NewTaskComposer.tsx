@@ -101,7 +101,7 @@ export function NewTaskComposer(
   const session = useSession();
   const cache = useQueryClient();
   const navigate = useNavigate();
-  const { translate: t } = useI18n();
+  const { translate: t, locale } = useI18n();
   const organizationId = scope.organizationId;
   const principalId = session.identity?.principalId ?? null;
   const intentKey = organizationId !== null && principalId !== null
@@ -163,7 +163,14 @@ export function NewTaskComposer(
     }));
   }, [preset, presets.data, values.presetId]);
 
-  const labels = composerLabels(t);
+  const minimumBudget = preset?.availability?.minimumBudgetLimitUsd ?? null;
+  const labels = composerLabels(
+    t,
+    minimumBudget !== null && Number.isFinite(Number(minimumBudget))
+      ? new Intl.NumberFormat(locale, { style: "currency", currency: "USD" })
+        .format(Number(minimumBudget))
+      : minimumBudget,
+  );
   const setupReasons = !planFirst && repository && preset?.availability
     ? composerSetupReasons(
       preset.availability.reasons,

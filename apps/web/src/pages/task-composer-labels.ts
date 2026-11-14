@@ -1,5 +1,15 @@
+import { createElement } from "react";
 import type { TaskComposerLabels, TaskComposerSetupReason } from "@bakery/ui";
 import type { Translator } from "@bakery/i18n";
+import { RouterLink } from "../app/router-link.tsx";
+import { LINK_SLOT, withLink } from "./with-link.tsx";
+
+/** The reasons whose fix is made in Projects, where the sentence links to it. */
+const PROJECTS_REASONS: ReadonlySet<TaskComposerSetupReason> = new Set([
+  "repository_archived",
+  "application_archived",
+  "no_active_profile",
+]);
 
 /** Every availability reason the contract defines, each with its own copy. */
 export const SETUP_REASONS: readonly TaskComposerSetupReason[] = [
@@ -37,7 +47,11 @@ export function presetCopy(t: Translator, id: string) {
   }
 }
 
-export function composerLabels(t: Translator): TaskComposerLabels {
+export function composerLabels(
+  t: Translator,
+  /** The smallest budget that works, already formatted, when the server says. */
+  minimumBudget: string | null = null,
+): TaskComposerLabels {
   return {
     heading: t("tasks.composer.heading"),
     repository: t("tasks.composer.repository"),
@@ -68,14 +82,46 @@ export function composerLabels(t: Translator): TaskComposerLabels {
     error: t("tasks.composer.error"),
     setupHeading: t("tasks.composer.setupHeading"),
     setupBadge: t("tasks.composer.setupBadge"),
-    setupUnknown: t("tasks.composer.setup.unknown"),
+    setupUnknown: withLink(
+      t("tasks.composer.setup.unknown", { projects: LINK_SLOT }),
+      projectsLink(t),
+    ),
     setupRequired: Object.fromEntries(
       SETUP_REASONS.map((reason) => [
         reason,
-        t(`tasks.composer.setup.${reason}`),
+        PROJECTS_REASONS.has(reason)
+          ? withLink(
+            t(`tasks.composer.setup.${reason}`, { projects: LINK_SLOT }),
+            projectsLink(t),
+          )
+          : reason === "required_check_missing"
+          ? withLink(
+            t("tasks.composer.setup.required_check_missing", {
+              rules: LINK_SLOT,
+            }),
+            createElement(
+              RouterLink,
+              { to: "/settings/organization/repository-rules" },
+              t("tasks.composer.setup.rulesPage"),
+            ),
+          )
+          : reason === "budget_below_reservation" && minimumBudget !== null
+          ? `${t(`tasks.composer.setup.${reason}`)} ${
+            t("tasks.composer.budgetMinimum", { amount: minimumBudget })
+          }`
+          : t(`tasks.composer.setup.${reason}`),
       ]),
     ) as TaskComposerLabels["setupRequired"],
   };
+}
+
+/** The link to the Projects page that the setup reasons put where they name it. */
+function projectsLink(t: Translator) {
+  return createElement(
+    RouterLink,
+    { to: "/projects" },
+    t("tasks.composer.setup.projectsPage"),
+  );
 }
 
 /** The budget cap and shape the contract accepts (`RunCreate.budgetLimitUsd`). */

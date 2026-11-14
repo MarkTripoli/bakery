@@ -35,6 +35,7 @@ import {
   createTicketPollWorkflow,
 } from "../work/ticket-workflows.ts";
 import { createAuditRetentionFunction } from "../auth/audit/mod.ts";
+import { createAutomationPromoteFunction } from "../workflows/automations/promote.ts";
 import { createAutomationTickFunction } from "../workflows/automations/tick.ts";
 
 import { createOutputArchiveWorkflow } from "./output-archive.ts";
@@ -198,6 +199,10 @@ export function createDefaultInngestFunctions(options: {
       database: options.database,
     }),
     createAutomationTickFunction({
+      client: options.client,
+      database: options.database,
+    }),
+    createAutomationPromoteFunction({
       client: options.client,
       database: options.database,
     }),
