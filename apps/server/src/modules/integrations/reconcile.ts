@@ -160,6 +160,38 @@ async function observe(
  *    any organization is released.
  * No transition still stamps `last_checked_at`.
  */
+/**
+ * Fills the App's bot user id (#20) when the registration was stored without
+ * it, as Apps registered before migration 0156 or whose lookup failed were.
+ * Best effort: a failed lookup leaves it null for the next reconcile, and it
+ * never fails the reconcile itself.
+ */
+async function backfillBotUser(
+  dependencies: ReconcileDependencies,
+  registrationId: string,
+  signal: AbortSignal,
+): Promise<void> {
+  const registration = await dependencies.database.query<{ slug: string }>(
+    `select slug from bakery.integration_app_registrations
+      where id = $1 and bot_user_id is null`,
+    [registrationId],
+  );
+  const slug = registration.rows[0]?.slug;
+  if (slug === undefined) return;
+  let botUserId: number | null;
+  try {
+    botUserId = await dependencies.github.getBotUser(slug, signal);
+  } catch {
+    return;
+  }
+  if (botUserId === null) return;
+  await dependencies.database.query(
+    `update bakery.integration_app_registrations set bot_user_id = $2
+      where id = $1 and bot_user_id is null`,
+    [registrationId, botUserId],
+  );
+}
+
 export async function reconcileInstallation(
   dependencies: ReconcileDependencies,
   installationId: string,
@@ -186,6 +218,7 @@ export async function reconcileInstallation(
     throw new StandardError({ code: "DEPENDENCY_UNAVAILABLE" });
   }
   const row = read.row;
+  await backfillBotUser(dependencies, row.registrationId, signal);
   if (!isInstallationStatus(row.status)) {
     throw new StandardError({ code: "INTERNAL" });
   }
