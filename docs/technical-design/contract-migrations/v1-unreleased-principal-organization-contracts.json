@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "484936723f13c3ecd5db8ea1f07fb8884e777b07"
+    "937d9281df0044c162749f01962f7b74cbbfb258"
   ],
   "status": "approved",
   "allowBreaking": true,
   "targetCompatibilityDigest": "sha256:dbe1889d84e59edf1f69da64749e7b604addfe93ea97413c1d34dc40bf167231",
-  "reason": "Pre-release breaking change approved against main 484936723f13c3ecd5db8ea1f07fb8884e777b07: AutomationVersionCreate requires applicationId and adds repositoryId, budgetLimitUsd and brief; AutomationVersion and AutomationFiring project the target and failureCode; firing started/failed events (issue #36, automations start a task and a run).",
+  "reason": "Pre-release breaking change approved against main 937d9281df0044c162749f01962f7b74cbbfb258: AutomationVersionCreate requires applicationId and adds repositoryId, budgetLimitUsd and brief; AutomationVersion and AutomationFiring project the target and failureCode; firing started/failed events (issue #36, automations start a task and a run).",
   "priorApprovals": [
     {
       "allowBreaking": true,

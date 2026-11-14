@@ -1,4 +1,4 @@
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import {
   readTestDatabaseConfig,
   readTestDatabaseResetOptions,
@@ -7,8 +7,15 @@ import {
   closeDatabase,
   openDatabase,
   openPgDatabase,
+  withPgTransaction,
 } from "../../apps/server/src/platform/database.ts";
+import { insertFiring } from "../../apps/server/src/modules/workflows/automations/firing.ts";
 import { resetTestDatabase } from "../../apps/server/src/platform/migrate.ts";
+import {
+  admitDueAutomations,
+  AUTOMATION_TICK_BATCH_CEILING,
+  createAutomationTickFunction,
+} from "../../apps/server/src/modules/workflows/automations/tick.ts";
 import {
   authTestOrigin,
   openAuthFixture,
@@ -999,6 +1006,654 @@ Deno.test("automations: definitions, versions with a validated trigger, lifecycl
         (await unchanged.json() as { version: number }).version,
         version,
       );
+    });
+  } finally {
+    await fixture.close();
+  }
+});
+
+Deno.test("automation.tick: due automations are admitted once, catch-ups are one firing, and nothing is claimed twice", async (test) => {
+  await resetDatabase();
+  const fixture = await openAuthFixture({ databaseConfig });
+  const owner = fixture.database;
+  const runtime = fixture.runtimePgDatabase;
+  const now = new Date("2026-10-04T12:00:00.000Z");
+  const organizationId = crypto.randomUUID();
+  const userId = crypto.randomUUID();
+  const principalId = crypto.randomUUID();
+  const workflowId = crypto.randomUUID();
+  const workflowVersionId = crypto.randomUUID();
+  try {
+    await owner`
+      insert into bakery.organizations (id, name, slug, metadata, created_at, updated_at, version)
+      values (${organizationId}, 'Tick org', ${`tick-${organizationId}`}, '{}'::jsonb, ${now}, ${now}, 1)`;
+    await owner`
+      insert into public."user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+      values (${userId}, 'tick', ${`tick-${userId}@example.test`}, true, ${now}, ${now})`;
+    await owner`
+      insert into bakery.principals (id, provider_user_id, display_name, principal_type)
+      values (${principalId}, ${userId}, 'tick', 'human')`;
+    await owner`
+      insert into bakery.workflow_definitions (id, organization_id, slug, name, description)
+      values (${workflowId}, ${organizationId}, 'wf', 'Workflow', '')`;
+    await owner`
+      insert into bakery.workflow_versions (
+        id, organization_id, workflow_id, revision, source_yaml, normalized_spec, digest, status, created_by
+      ) values (
+        ${workflowVersionId}, ${organizationId}, ${workflowId}, 1, 'kind: fixed',
+        ${owner.json({ kind: "fixed" })}, 'digest', 'published', ${principalId}
+      )`;
+
+    let counter = 0;
+    /** An automation whose active version has this trigger, policy and cursor. */
+    const seed = async (options: {
+      trigger: unknown;
+      misfire?: "coalesce" | "skip";
+      cursor: string | null;
+      enabled?: boolean;
+    }): Promise<{ automationId: string; versionId: string }> => {
+      counter += 1;
+      const automationId = crypto.randomUUID();
+      const versionId = crypto.randomUUID();
+      await owner`
+        insert into bakery.automation_definitions (id, organization_id, slug, name, description, enabled)
+        values (${automationId}, ${organizationId}, ${`auto-${counter}`}, 'Auto', '', ${
+        options.enabled ?? true
+      })`;
+      await owner`
+        insert into bakery.automation_versions (
+          id, organization_id, automation_id, revision, trigger, workflow_version_id,
+          actor_id, inputs, misfire_policy, overlap_policy, digest
+        ) values (
+          ${versionId}, ${organizationId}, ${automationId}, 1, ${
+        owner.json(options.trigger as never)
+      },
+          ${workflowVersionId}, ${principalId}, '{}'::jsonb, ${
+        options.misfire ?? "coalesce"
+      }, 'skip',
+          ${`digest-${versionId}`}
+        )`;
+      await owner`
+        update bakery.automation_definitions
+           set active_version_id = ${versionId}, next_fire_at = ${options.cursor}
+         where id = ${automationId}`;
+      return { automationId, versionId };
+    };
+    const schedule = (cron: string, timezone = "UTC") => ({
+      type: "schedule",
+      cron,
+      timezone,
+    });
+    const firingsOf = async (versionId: string) =>
+      await owner<
+        {
+          at: Date;
+          status: string;
+          pending: boolean;
+          skipped: number;
+        }[]
+      >`select scheduled_at as at, status, pending, skipped_count as skipped
+          from bakery.automation_firings where automation_version_id = ${versionId}
+         order by scheduled_at`;
+    // Ticks look at every organization, so the steps that count admissions start from none.
+    const clearAutomations = async () => {
+      await owner`delete from bakery.automation_definitions`;
+    };
+    const cursorOf = async (automationId: string) =>
+      (await owner<{ next: Date | null; version: number }[]>`
+        select next_fire_at as next, version from bakery.automation_definitions where id = ${automationId}`)[
+        0
+      ]!;
+
+    await test.step("an on-time automation gets one queued, pending firing and its cursor moves to the next occurrence; a second tick at the same moment changes nothing", async () => {
+      const { automationId, versionId } = await seed({
+        trigger: schedule("*/5 * * * *"),
+        cursor: "2026-11-14T10:05:00Z",
+      });
+      const tickAt = new Date("2026-11-14T10:05:40Z");
+      assertEquals(
+        await admitDueAutomations({ database: runtime, now: tickAt }),
+        { admitted: 1, coalesced: 0, cleared: 0, failed: [] },
+      );
+      const firings = await firingsOf(versionId);
+      assertEquals(firings.length, 1);
+      assertEquals(firings[0]!.at.toISOString(), "2026-11-14T10:05:00.000Z");
+      assertEquals(firings[0]!.status, "queued");
+      assertEquals(firings[0]!.pending, true);
+      assertEquals(firings[0]!.skipped, 0);
+      const moved = await cursorOf(automationId);
+      assertEquals(moved.next?.toISOString(), "2026-11-14T10:10:00.000Z");
+      // A duplicate wake: nothing is due, nothing changes.
+      assertEquals(
+        await admitDueAutomations({ database: runtime, now: tickAt }),
+        { admitted: 0, coalesced: 0, cleared: 0, failed: [] },
+      );
+      assertEquals((await firingsOf(versionId)).length, 1);
+      assertEquals((await cursorOf(automationId)).version, moved.version);
+    });
+
+    await test.step("a firing already admitted for that instant is not admitted again, and the cursor still moves; the record's version is not changed by the clock", async () => {
+      await clearAutomations();
+      const { automationId, versionId } = await seed({
+        trigger: schedule("*/5 * * * *"),
+        cursor: "2026-11-14T11:05:00Z",
+      });
+      await owner`
+        insert into bakery.automation_firings (
+          organization_id, automation_version_id, scheduled_at, status, pending, skipped_count
+        ) values (${organizationId}, ${versionId}, '2026-11-14T11:05:00Z', 'started', false, 0)`;
+      const before = await cursorOf(automationId);
+      assertEquals(
+        await admitDueAutomations({
+          database: runtime,
+          now: new Date("2026-11-14T11:05:20Z"),
+        }),
+        { admitted: 0, coalesced: 0, cleared: 0, failed: [] },
+      );
+      const firings = await firingsOf(versionId);
+      assertEquals(firings.length, 1);
+      assertEquals(firings[0]!.status, "started");
+      const after = await cursorOf(automationId);
+      assertEquals(after.next?.toISOString(), "2026-11-14T11:10:00.000Z");
+      assertEquals(after.version, before.version);
+    });
+
+    await test.step("after downtime coalesce admits one queued firing for the latest due occurrence and counts the rest exactly", async () => {
+      // Hourly, due since 2026-11-10T00:00Z; now is 2026-11-14T10:20Z: 4 days 10 hours = 107 occurrences from the cursor to 10:00Z.
+      const { automationId, versionId } = await seed({
+        trigger: schedule("0 * * * *"),
+        cursor: "2026-11-10T00:00:00Z",
+      });
+      const tickAt = new Date("2026-11-14T10:20:00Z");
+      const result = await admitDueAutomations({
+        database: runtime,
+        now: tickAt,
+      });
+      assertEquals(result.coalesced >= 1, true);
+      const firings = await firingsOf(versionId);
+      assertEquals(firings.length, 1);
+      assertEquals(firings[0]!.at.toISOString(), "2026-11-14T10:00:00.000Z");
+      assertEquals(firings[0]!.status, "queued");
+      assertEquals(firings[0]!.pending, true);
+      assertEquals(firings[0]!.skipped, 4 * 24 + 10);
+      assertEquals(
+        (await cursorOf(automationId)).next?.toISOString(),
+        "2026-11-14T11:00:00.000Z",
+      );
+    });
+
+    await test.step("skip records the miss without a run and still moves on", async () => {
+      const { automationId, versionId } = await seed({
+        trigger: schedule("0 * * * *"),
+        misfire: "skip",
+        cursor: "2026-11-14T06:00:00Z",
+      });
+      await admitDueAutomations({
+        database: runtime,
+        now: new Date("2026-11-14T10:20:00Z"),
+      });
+      const firings = await firingsOf(versionId);
+      assertEquals(firings.length, 1);
+      assertEquals(firings[0]!.at.toISOString(), "2026-11-14T10:00:00.000Z");
+      assertEquals(firings[0]!.status, "skipped");
+      assertEquals(firings[0]!.pending, false);
+      assertEquals(firings[0]!.skipped, 5);
+      assertEquals(
+        (await cursorOf(automationId)).next?.toISOString(),
+        "2026-11-14T11:00:00.000Z",
+      );
+    });
+
+    await test.step("a disabled automation is not admitted; enabling it applies the misfire policy to what it missed", async () => {
+      const { automationId, versionId } = await seed({
+        trigger: schedule("0 * * * *"),
+        cursor: "2026-11-14T06:00:00Z",
+        enabled: false,
+      });
+      const tickAt = new Date("2026-11-14T10:20:00Z");
+      await admitDueAutomations({ database: runtime, now: tickAt });
+      assertEquals((await firingsOf(versionId)).length, 0);
+      assertEquals(
+        (await cursorOf(automationId)).next?.toISOString(),
+        "2026-11-14T06:00:00.000Z",
+      );
+      await owner`update bakery.automation_definitions set enabled = true where id = ${automationId}`;
+      await admitDueAutomations({ database: runtime, now: tickAt });
+      const firings = await firingsOf(versionId);
+      assertEquals(firings.length, 1);
+      assertEquals(firings[0]!.skipped, 4);
+    });
+
+    await test.step("a clock-change day: a skipped local time fires at the change instant, once", async () => {
+      // Berlin 2026-03-29 02:30 does not exist: it fires at 01:00:00Z, and the next is the day after.
+      const { automationId, versionId } = await seed({
+        trigger: schedule("30 2 * * *", "Europe/Berlin"),
+        cursor: "2026-03-29T01:00:00Z",
+      });
+      await admitDueAutomations({
+        database: runtime,
+        now: new Date("2026-03-29T01:00:30Z"),
+      });
+      const firings = await firingsOf(versionId);
+      assertEquals(firings.map((row) => row.at.toISOString()), [
+        "2026-03-29T01:00:00.000Z",
+      ]);
+      assertEquals(
+        (await cursorOf(automationId)).next?.toISOString(),
+        "2026-03-30T00:30:00.000Z",
+      );
+    });
+
+    await test.step("a version without a schedule has its cursor cleared and fires nothing", async () => {
+      const event = await seed({
+        trigger: {
+          type: "event",
+          provider: "github",
+          kind: "issues",
+          filter: {},
+        },
+        cursor: "2026-11-14T06:00:00Z",
+      });
+      const broken = await seed({
+        trigger: { type: "schedule", cron: "not a cron", timezone: "UTC" },
+        cursor: "2026-11-14T06:00:00Z",
+      });
+      const result = await admitDueAutomations({
+        database: runtime,
+        now: new Date("2026-11-14T10:20:00Z"),
+      });
+      assertEquals(result.cleared, 2);
+      for (const { automationId, versionId } of [event, broken]) {
+        assertEquals((await firingsOf(versionId)).length, 0);
+        assertEquals((await cursorOf(automationId)).next, null);
+      }
+    });
+
+    await test.step("ticks that overlap claim each automation once: twenty due automations, three concurrent ticks, twenty firings", async () => {
+      await clearAutomations();
+      const seeded: string[] = [];
+      for (let index = 0; index < 20; index += 1) {
+        seeded.push(
+          (await seed({
+            trigger: schedule("*/10 * * * *"),
+            cursor: "2026-11-15T09:00:00Z",
+          })).versionId,
+        );
+      }
+      const tickAt = new Date("2026-11-15T09:05:00Z");
+      const results = await Promise.all([
+        admitDueAutomations({ database: runtime, now: tickAt }),
+        admitDueAutomations({ database: runtime, now: tickAt }),
+        admitDueAutomations({ database: runtime, now: tickAt }),
+      ]);
+      assertEquals(
+        results.reduce((sum, result) => sum + result.admitted, 0),
+        20,
+      );
+      for (const versionId of seeded) {
+        assertEquals((await firingsOf(versionId)).length, 1);
+      }
+    });
+
+    await test.step("one tick is bounded: a batch of 2 admits 2 of 5 and the next tick the rest; a batch outside 1 to the ceiling is refused", async () => {
+      await clearAutomations();
+      const seeded: string[] = [];
+      for (let index = 0; index < 5; index += 1) {
+        seeded.push(
+          (await seed({
+            trigger: schedule("*/10 * * * *"),
+            cursor: "2026-11-16T09:00:00Z",
+          })).versionId,
+        );
+      }
+      const tickAt = new Date("2026-11-16T09:05:00Z");
+      assertEquals(
+        (await admitDueAutomations({
+          database: runtime,
+          now: tickAt,
+          batch: 2,
+        })).admitted,
+        2,
+      );
+      assertEquals(
+        (await admitDueAutomations({
+          database: runtime,
+          now: tickAt,
+          batch: 10,
+        })).admitted,
+        3,
+      );
+      let total = 0;
+      for (const versionId of seeded) {
+        total += (await firingsOf(versionId)).length;
+      }
+      assertEquals(total, 5);
+      for (
+        const batch of [0, -1, 1.5, NaN, AUTOMATION_TICK_BATCH_CEILING + 1]
+      ) {
+        let refused = false;
+        try {
+          await admitDueAutomations({ database: runtime, now: tickAt, batch });
+        } catch (error) {
+          refused = error instanceof RangeError;
+        }
+        assert(refused, `batch ${batch}`);
+      }
+    });
+
+    await test.step("one failing automation is set aside and reported: the ones behind it are admitted, and it is tried again at the next tick", async () => {
+      await clearAutomations();
+      const bad = await seed({
+        trigger: schedule("*/5 * * * *"),
+        cursor: "2026-11-14T11:00:00Z",
+      });
+      const goodB = await seed({
+        trigger: schedule("*/5 * * * *"),
+        cursor: "2026-11-14T11:30:00Z",
+      });
+      const goodC = await seed({
+        trigger: schedule("*/5 * * * *"),
+        cursor: "2026-11-14T11:40:00Z",
+      });
+      // Any persistent failure stands in here: writing a firing of the first
+      // automation's version always raises.
+      await owner.unsafe(
+        `create function bakery.fail_one_firing() returns trigger language plpgsql as $$
+         begin
+           if new.automation_version_id = '${bad.versionId}' then
+             raise exception 'persistent failure for the test';
+           end if;
+           return new;
+         end $$`,
+      );
+      await owner.unsafe(
+        `create trigger fail_one_firing before insert on bakery.automation_firings
+         for each row execute function bakery.fail_one_firing()`,
+      );
+      try {
+        // The failing one is due first (oldest cursor) and is claimed first.
+        const first = await admitDueAutomations({
+          database: runtime,
+          now: new Date("2026-11-14T12:00:20Z"),
+        });
+        assertEquals(first.admitted, 2);
+        assertEquals(first.coalesced, 2);
+        assertEquals(first.cleared, 0);
+        assertEquals(first.failed.length, 1);
+        assertEquals(first.failed[0]!.automationId, bad.automationId);
+        assert(
+          first.failed[0]!.error.includes("persistent failure for the test"),
+          first.failed[0]!.error,
+        );
+        for (const good of [goodB, goodC]) {
+          const firings = await firingsOf(good.versionId);
+          assertEquals(firings.length, 1);
+          assertEquals(
+            firings[0]!.at.toISOString(),
+            "2026-11-14T12:00:00.000Z",
+          );
+          assertEquals(
+            (await cursorOf(good.automationId)).next?.toISOString(),
+            "2026-11-14T12:05:00.000Z",
+          );
+        }
+        // The failing one was rolled back whole: no firing, cursor where it was.
+        assertEquals((await firingsOf(bad.versionId)).length, 0);
+        assertEquals(
+          (await cursorOf(bad.automationId)).next?.toISOString(),
+          "2026-11-14T11:00:00.000Z",
+        );
+
+        // The next minute: nothing else is due, it is tried again and reported again.
+        const second = await admitDueAutomations({
+          database: runtime,
+          now: new Date("2026-11-14T12:01:20Z"),
+        });
+        assertEquals(second.admitted, 0);
+        assertEquals(second.failed.map((failure) => failure.automationId), [
+          bad.automationId,
+        ]);
+        // The healthy ones come due again and are still not held back by it.
+        const third = await admitDueAutomations({
+          database: runtime,
+          now: new Date("2026-11-14T12:05:20Z"),
+        });
+        assertEquals(third.admitted, 2);
+        assertEquals(third.failed.map((failure) => failure.automationId), [
+          bad.automationId,
+        ]);
+
+        // The clock function reports a failure as a failed step, after all that
+        // could be admitted was committed, so Inngest retries and shows it.
+        const captured: {
+          handler?: (context: {
+            step: {
+              run: (id: string, work: () => Promise<unknown>) => unknown;
+            };
+          }) => Promise<unknown>;
+        } = {};
+        createAutomationTickFunction({
+          database: runtime,
+          client: {
+            createFunction: (_config: unknown, handler: never) => {
+              captured.handler = handler;
+              return {};
+            },
+          } as never,
+        });
+        assert(captured.handler !== undefined);
+        await assertRejects(
+          () =>
+            captured.handler!({
+              step: { run: (_id, work) => work() },
+            }),
+          Error,
+          `AUTOMATION_TICK_FAILURES:1:${bad.automationId} `,
+        );
+      } finally {
+        await owner.unsafe(
+          `drop trigger if exists fail_one_firing on bakery.automation_firings`,
+        );
+        await owner.unsafe(`drop function if exists bakery.fail_one_firing()`);
+      }
+      // Repaired: the next tick admits it, as one catch-up firing.
+      const repaired = await admitDueAutomations({
+        database: runtime,
+        now: new Date("2026-11-14T12:06:20Z"),
+      });
+      assertEquals(repaired, {
+        admitted: 1,
+        coalesced: 1,
+        cleared: 0,
+        failed: [],
+      });
+      assertEquals((await firingsOf(bad.versionId)).length, 1);
+    });
+
+    await test.step("a firing may only name an event that is routed to its own organization (the event table has no organization, so the route is the proof)", async () => {
+      // Organization B with a workflow and an automation of its own.
+      const organizationBId = crypto.randomUUID();
+      const workflowBId = crypto.randomUUID();
+      const workflowVersionBId = crypto.randomUUID();
+      const automationBId = crypto.randomUUID();
+      const versionBId = crypto.randomUUID();
+      await owner`
+        insert into bakery.organizations (id, name, slug, metadata, created_at, updated_at, version)
+        values (${organizationBId}, 'Other org', ${`other-${organizationBId}`}, '{}'::jsonb, ${now}, ${now}, 1)`;
+      await owner`
+        insert into bakery.workflow_definitions (id, organization_id, slug, name, description)
+        values (${workflowBId}, ${organizationBId}, 'wf', 'Workflow', '')`;
+      await owner`
+        insert into bakery.workflow_versions (
+          id, organization_id, workflow_id, revision, source_yaml, normalized_spec, digest, status, created_by
+        ) values (
+          ${workflowVersionBId}, ${organizationBId}, ${workflowBId}, 1, 'kind: fixed',
+          ${
+        owner.json({ kind: "fixed" })
+      }, 'digest', 'published', ${principalId}
+        )`;
+      await owner`
+        insert into bakery.automation_definitions (id, organization_id, slug, name, description, enabled)
+        values (${automationBId}, ${organizationBId}, 'auto-b', 'Auto B', '', true)`;
+      await owner`
+        insert into bakery.automation_versions (
+          id, organization_id, automation_id, revision, trigger, workflow_version_id,
+          actor_id, inputs, misfire_policy, overlap_policy, digest
+        ) values (
+          ${versionBId}, ${organizationBId}, ${automationBId}, 1,
+          ${
+        owner.json({ type: "schedule", cron: "0 * * * *", timezone: "UTC" })
+      },
+          ${workflowVersionBId}, ${principalId}, '{}'::jsonb, 'coalesce', 'skip', ${`digest-${versionBId}`}
+        )`;
+      const { versionId: versionAId } = await seed({
+        trigger: schedule("0 * * * *"),
+        cursor: null,
+      });
+
+      // One provider event routed to organization A only, through the intake
+      // tables' own chain (registration, installation, connection, route).
+      const eventId = crypto.randomUUID();
+      const otherEventId = crypto.randomUUID();
+      const registrationId = crypto.randomUUID();
+      const installationId = crypto.randomUUID();
+      const connectionId = crypto.randomUUID();
+      const [clientSecretId, privateKeyId] = [
+        crypto.randomUUID(),
+        crypto.randomUUID(),
+      ];
+      await owner`
+        insert into bakery.secrets (id, name)
+        values (${clientSecretId}, 'route-client-secret'), (${privateKeyId}, 'route-private-key')`;
+      await owner`
+        insert into bakery.integration_app_registrations (
+          id, provider, external_app_id, slug, name, client_id, owner_login,
+          owner_id, owner_type, html_url, permissions, events,
+          client_secret_id, private_key_secret_id, status, registered_by
+        ) values (
+          ${registrationId}, 'github', 1, 'route-app', 'Route app', 'Iv1.route', 'route-org',
+          1, 'Organization', 'https://github.com/apps/route-app', '{}'::jsonb,
+          '[]'::jsonb, ${clientSecretId}, ${privateKeyId}, 'registered', ${principalId}
+        )`;
+      await owner`
+        insert into bakery.integration_installations (
+          id, provider, registration_id, external_authorization_id,
+          external_account_id, account_login, account_type,
+          repository_selection, granted_permissions, status
+        ) values (
+          ${installationId}, 'github', ${registrationId}, '9000000001', '9000000002',
+          'route-org', 'Organization', 'selected', '{"issues":"write"}'::jsonb, 'enabled'
+        )`;
+      await owner`
+        insert into bakery.integration_connections (
+          id, organization_id, provider, installation_id,
+          external_authorization_id, external_account_id, label,
+          adapter_version, granted_permissions, status, health, created_by
+        ) values (
+          ${connectionId}, ${organizationId}, 'github', ${installationId},
+          '9000000001', '9000000002', 'route-org', 'github@route',
+          '{"issues":"write"}'::jsonb, 'enabled', 'healthy', ${principalId}
+        )`;
+      for (const id of [eventId, otherEventId]) {
+        await owner`
+          insert into bakery.inbound_events (
+            id, provider, registration_id, external_delivery_id, payload_digest,
+            event_kind, status, expires_at
+          ) values (
+            ${id}, 'github', ${registrationId}, ${`delivery-${id}`}, 'digest',
+            'issues', 'accepted', now() + interval '1 day'
+          )`;
+      }
+      await owner`
+        insert into bakery.inbound_event_routes (
+          id, inbound_event_id, organization_id, connection_id, installation_id,
+          purpose, status
+        ) values (
+          ${crypto.randomUUID()}, ${eventId}, ${organizationId}, ${connectionId},
+          ${installationId}, 'automation', 'pending'
+        )`;
+      const firing = (
+        organization: string,
+        version: string,
+        at: string,
+        triggerEventId?: string,
+      ) =>
+        withPgTransaction(runtime, (transaction) =>
+          insertFiring(transaction, {
+            organizationId: organization,
+            automationVersionId: version,
+            scheduledAt: new Date(at),
+            status: "queued",
+            pending: true,
+            skippedCount: 0,
+            triggerEventId,
+          }));
+      const count = async (versionId: string) =>
+        (await firingsOf(versionId)).length;
+
+      // The routed organization may name it.
+      assertEquals(
+        await firing(
+          organizationId,
+          versionAId,
+          "2026-11-14T13:00:00Z",
+          eventId,
+        ),
+        "inserted",
+      );
+      assertEquals(await count(versionAId), 1);
+      // The same event again for that version is a duplicate, not a second firing.
+      assertEquals(
+        await firing(
+          organizationId,
+          versionAId,
+          "2026-11-14T13:00:05Z",
+          eventId,
+        ),
+        "duplicate",
+      );
+      assertEquals(await count(versionAId), 1);
+      // Another organization cannot make its automation fire on that event.
+      assertEquals(
+        await firing(
+          organizationBId,
+          versionBId,
+          "2026-11-14T13:00:00Z",
+          eventId,
+        ),
+        "event_not_routed",
+      );
+      assertEquals(await count(versionBId), 0);
+      // An event nobody routed, and one that does not exist.
+      assertEquals(
+        await firing(
+          organizationId,
+          versionAId,
+          "2026-11-14T13:01:00Z",
+          otherEventId,
+        ),
+        "event_not_routed",
+      );
+      assertEquals(
+        await firing(
+          organizationId,
+          versionAId,
+          "2026-11-14T13:01:00Z",
+          crypto.randomUUID(),
+        ),
+        "event_not_routed",
+      );
+      assertEquals(await count(versionAId), 1);
+      // A schedule firing names no event and is checked against none.
+      assertEquals(
+        await firing(organizationBId, versionBId, "2026-11-14T14:00:00Z"),
+        "inserted",
+      );
+      assertEquals(
+        await firing(organizationBId, versionBId, "2026-11-14T14:00:00Z"),
+        "duplicate",
+      );
+      assertEquals(await count(versionBId), 1);
     });
   } finally {
     await fixture.close();

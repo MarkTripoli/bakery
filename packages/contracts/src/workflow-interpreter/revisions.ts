@@ -1,7 +1,12 @@
 import { workflowSemanticDigest } from "../workflow-compiler/digest.ts";
 import type { WorkflowSemanticDocument } from "../workflow-compiler/schema.ts";
 import { WorkflowInterpreterError } from "./errors.ts";
-import { type NextStep, nextStep, type RunState } from "./interpret.ts";
+import {
+  type NextStep,
+  nextStep,
+  nextStepWithGroups,
+  type RunState,
+} from "./interpret.ts";
 
 /** One released way of deciding what a compiled workflow does next. */
 export type InterpreterRevision = (
@@ -14,13 +19,18 @@ export type InterpreterRevision = (
  * revision it was admitted under and resumes on that revision for its whole
  * life, so a revision is never edited once a run can be pinned to it and never
  * removed while a run pinned to it can still resume. A change in behavior is a
- * new entry. Revision 1's behavior is held in place by a conformance test.
+ * new entry. Revision 1's behavior is held in place by a conformance test;
+ * revision 2 is revision 1 plus parallel groups.
  */
 export const INTERPRETER_REVISIONS: Readonly<
   Record<string, InterpreterRevision>
-> = Object.freeze({ "1": nextStep });
+> = Object.freeze({ "1": nextStep, "2": nextStepWithGroups });
 
-/** The revision a run admitted now is pinned to. */
+/**
+ * The revision a run admitted now is pinned to. Revision 2 (parallel groups)
+ * is deployed so that it can be resumed, but nothing is pinned to it until the
+ * engine runs a set of steps and admission accepts a group (issue #30, E4c).
+ */
 export const CURRENT_INTERPRETER_REVISION = "1";
 
 /**

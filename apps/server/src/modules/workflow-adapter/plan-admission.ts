@@ -110,10 +110,11 @@ export function planActionAgentBindings(
 }
 
 /**
- * Whether the plan holds a node the engine cannot run yet: a wait or a
+ * Whether the plan holds a node the engine cannot run yet: an event wait or a
  * parallel group, wherever it is nested. Such a plan is refused at admission,
  * as the fixed executor refused it, rather than started and failed when the
- * interpreter reaches the node.
+ * interpreter reaches the node. A duration wait is run (issue #30, E4a): the
+ * engine sleeps it durably and records it elapsed.
  */
 export function planHoldsUnsupportedNodes(
   document: WorkflowSemanticDocument,
@@ -123,6 +124,7 @@ export function planHoldsUnsupportedNodes(
     nodes.some((node) => {
       switch (node.kind) {
         case "wait":
+          return node.wait.kind === "event";
         case "parallel":
           return true;
         case "sequence":

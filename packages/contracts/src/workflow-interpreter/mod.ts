@@ -15,6 +15,7 @@ export {
   type ActionDispatch,
   type NextStep,
   nextStep,
+  nextStepWithGroups,
   type RunState,
   type StepRecord,
   type WaitDispatch,
