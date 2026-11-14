@@ -682,13 +682,21 @@ test("P3 worker: Machines UI enrollment, token reveal, worker start, truthful re
 
   await startWorker();
   // The page polls the enrollment and says so when the machine registers.
-  await expect(page.getByText("m1-claude-worker is connected.")).toBeVisible({
+  await expect(
+    page.getByText(
+      "m1-claude-worker is connected. One thing left: sign in to Claude Code.",
+    ),
+  ).toBeVisible({
     timeout: 5 * MINUTE,
   });
-  await page.getByRole("button", { name: "Done" }).click();
-  await expect(page).toHaveURL(/\/machines\/[0-9a-f]{8}-[0-9a-f-]{27}$/, {
-    timeout: 2 * MINUTE,
-  });
+  await page.getByRole("button", { name: "Sign in to Claude Code" }).click();
+  await expect(page).toHaveURL(
+    /\/machines\/[0-9a-f]{8}-[0-9a-f-]{27}\?signIn=claude$/,
+    { timeout: 2 * MINUTE },
+  );
+  // The machine page opens the sign-in for the agent; the journey does not sign
+  // in here, so it closes the dialog (which cancels the attempt) and goes on.
+  await page.keyboard.press("Escape");
   j.hostId = new URL(page.url()).pathname.split("/").pop()!;
   const enrollmentRecord = await api.get<
     { state: string; workerHostId: string }

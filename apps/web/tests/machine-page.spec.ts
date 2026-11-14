@@ -317,11 +317,13 @@ test.describe("machine page: the one banner", () => {
     // The line under the name is where it is and when it was last seen, not its status.
     await expect(detail.getByText(/^Linux · x86_64 · Last seen /))
       .toBeVisible();
-    // Until the coding-agent rows exist the old section has no internal words.
+    // The coding agents are rows with no internal words: this machine reports
+    // Claude Code and nothing has signed it in yet.
     await expect(detail.getByRole("heading", { name: "Coding agents" }))
       .toBeVisible();
-    await expect(detail.getByText("No coding agent is set up yet."))
-      .toBeVisible();
+    await expect(detail.getByTestId("coding-agent-claude")).toContainText(
+      "Bakery has not heard from Claude Code on this machine yet.",
+    );
     await expect(detail.getByText(/Provider bindings|provider bindings/))
       .toHaveCount(0);
     await shot(page, "machine-page-ready");

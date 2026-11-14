@@ -1,18 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import type { MessageArguments, MessageKey, Translator } from "@bakery/i18n";
-import type {
-  BakeryApiClient,
-  WorkerProviderBindingListResponse,
-} from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
 import {
   dispatchBlockersQueryOptions,
   effectiveAccessQueryOptions,
   workerComponentsListQueryOptions,
   workerEnrollmentQueryOptions,
-  workerProviderAuthQueryOptions,
   workerProviderBindingsListQueryOptions,
   workerQueryOptions,
 } from "../api/query.ts";
@@ -30,6 +25,12 @@ import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { machineLine } from "./MachineList.tsx";
 import { SetupInstructions } from "./SetupInstructions.tsx";
 import {
+  CodingAgentBanner,
+  CodingAgentRow,
+  useAgentSignIn,
+} from "./CodingAgents.tsx";
+import { agentNeedingSignIn, agentRows } from "./machine-agents.ts";
+import {
   type BannerFix,
   bannerFix,
   checkInfo,
@@ -40,6 +41,7 @@ import {
   modeStatus,
 } from "./machine-page-state.ts";
 import {
+  type CodingAgent,
   codingAgents,
   machineBadge,
   machineBadgeTone,
@@ -107,103 +109,12 @@ function dateLabel(
   );
 }
 
-type ProviderBinding = WorkerProviderBindingListResponse["items"][number];
-type AuthAttempt = Readonly<{
-  workerId: string;
-  bindingId: string;
-  authAttemptId: string;
-  state: string;
-  instructions: string | null;
-}>;
-
-function providerAuthLabel(
-  binding: ProviderBinding,
-  translate: Translator,
-): string {
-  if (binding.safeProblem) {
-    return message(translate, "machines.provider.needsAttention");
-  }
-  if (binding.lastCheckedAt) {
-    return message(translate, "machines.provider.checked");
-  }
-  return message(translate, "machines.provider.notChecked");
-}
-
-function ProviderBindingRow({
-  binding,
-  workerId,
-  organizationId,
-  api,
-  translate,
-  onStarted,
-}: {
-  readonly binding: ProviderBinding;
-  readonly workerId: string;
-  readonly organizationId: string;
-  readonly api: BakeryApiClient;
-  readonly translate: Translator;
-  readonly onStarted: (attempt: AuthAttempt) => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const start = async () => {
-    setBusy(true);
-    setFailed(false);
-    const result = await api.workerProviderAuth.create({
-      organizationId,
-      workerId,
-      bindingId: binding.id,
-      idempotencyKey: crypto.randomUUID(),
-    });
-    setBusy(false);
-    if (!result.ok) {
-      setFailed(true);
-      return;
-    }
-    onStarted({
-      workerId,
-      bindingId: binding.id,
-      authAttemptId: result.data.authAttemptId,
-      state: result.data.state,
-      instructions: result.data.instructions,
-    });
-  };
-  return (
-    <UI.DescriptionItem
-      title={`${binding.provider} · ${binding.componentKey}`}
-      description={[
-        binding.enabled
-          ? message(translate, "machines.provider.enabled")
-          : message(translate, "machines.provider.disabled"),
-        binding.billingRoute,
-        binding.authMode,
-        binding.credentialLocation,
-        providerAuthLabel(binding, translate),
-      ].join(" · ")}
-      action={
-        <UI.Inline gap="compact">
-          <UI.Button
-            variant="outline"
-            loading={busy}
-            onClick={() => void start()}
-          >
-            {message(translate, "machines.provider.checkAuth")}
-          </UI.Button>
-          {failed
-            ? (
-              <UI.StatusBadge status="failed">
-                {message(translate, "machines.provider.authError")}
-              </UI.StatusBadge>
-            )
-            : null}
-        </UI.Inline>
-      }
-    />
-  );
-}
-
 export function MachineDetailPage(
-  { machineId }: { readonly machineId: string },
+  { machineId, signInAgent }: {
+    readonly machineId: string;
+    /** An agent whose sign-in dialog should open on arrival (the wizard's last button). */
+    readonly signInAgent?: CodingAgent;
+  },
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
@@ -239,7 +150,6 @@ export function MachineDetailPage(
       }),
     enabled: Boolean(scope.organizationId && componentCursor),
   });
-  const [providerCursor, setProviderCursor] = useState<string | null>(null);
   const providersOptions = workerProviderBindingsListQueryOptions(
     api,
     scope,
@@ -249,46 +159,9 @@ export function MachineDetailPage(
     ...providersOptions,
     enabled: isAdmin && providersOptions.enabled,
   });
-  const providerContinuation = useQuery({
-    ...providersOptions,
-    queryKey: [...providersOptions.queryKey, providerCursor] as const,
-    queryFn: ({ signal }) =>
-      api.workerProviderBindings.list({
-        organizationId: scope.organizationId ?? "",
-        id: machineId,
-        cursor: providerCursor ?? undefined,
-        limit: 100,
-        signal,
-      }).then((result) => {
-        if (result.ok) return result.data;
-        throw result.error;
-      }),
-    enabled: isAdmin && Boolean(scope.organizationId && providerCursor),
-  });
   useEffect(() => {
     setComponentCursor(null);
   }, [scope.organizationId, machineId]);
-  useEffect(() => {
-    setProviderCursor(null);
-  }, [scope.organizationId, machineId]);
-  const [authAttempt, setAuthAttempt] = useState<AuthAttempt | null>(null);
-  const authQuery = useQuery(
-    workerProviderAuthQueryOptions(
-      api,
-      scope,
-      authAttempt
-        ? {
-          workerId: authAttempt.workerId,
-          bindingId: authAttempt.bindingId,
-          authAttemptId: authAttempt.authAttemptId,
-        }
-        : {
-          workerId: "",
-          bindingId: "",
-          authAttemptId: "",
-        },
-    ),
-  );
   const [repairToken, setRepairToken] = useState<
     | Readonly<{
       enrollmentId: string;
@@ -338,25 +211,6 @@ export function MachineDetailPage(
     scope.organizationId,
     scope.sessionGeneration,
   ]);
-  useEffect(() => {
-    const state = authQuery.data?.state;
-    if (
-      !state || state === "pending" || state === "challenge_issued"
-    ) return;
-    void queryClient.invalidateQueries({
-      queryKey: [
-        "protected",
-        scope.sessionGeneration,
-        scope.organizationId ?? "none",
-        "workerProviderBindings.list",
-      ],
-    });
-  }, [
-    authQuery.data?.state,
-    queryClient,
-    scope.organizationId,
-    scope.sessionGeneration,
-  ]);
   const connectivity = useConnectivity({
     refetch: worker.refetch,
     refetching: worker.isFetching,
@@ -394,23 +248,13 @@ export function MachineDetailPage(
   ];
   const nextComponentCursor = componentContinuation.data?.nextCursor ??
     components.data?.nextCursor;
-  const providerItems = [
-    ...(providers.data?.items ?? []),
-    ...(providerContinuation.data?.items ?? []),
-  ];
-  const nextProviderCursor = providerContinuation.data?.nextCursor ??
-    providers.data?.nextCursor;
+  const providerItems = providers.data?.items ?? [];
   const forbidden = worker.isError && isForbiddenFailure(worker.error);
   const workerErrorKind = worker.isError
     ? asyncKindForError(worker.error)
     : null;
   const machineTitle = workerData?.name ??
     message(translate, "machines.detail.title");
-  const providerAttemptState = authQuery.isError
-    ? "failed"
-    : authAttempt === null
-    ? null
-    : authQuery.data?.state ?? authAttempt.state;
   const [modeNote, setModeNote] = useState<
     | { kind: "saved"; mode: MachineMode }
     | { kind: "conflict" }
@@ -426,6 +270,8 @@ export function MachineDetailPage(
         "workers.get",
         "workers.list",
         "machines.dispatchBlockers",
+        "workerProviderBindings.list",
+        "workerComponents.list",
       ]
     ) {
       await queryClient.invalidateQueries({
@@ -438,6 +284,39 @@ export function MachineDetailPage(
       });
     }
   };
+  const agents = agentRows(
+    workerData ? codingAgents(workerData.capabilities) : [],
+    providerItems,
+    componentItems,
+  );
+  const agentAccess = workerData?.status === "revoked"
+    ? "readOnly"
+    : isAdmin
+    ? "full"
+    : "adminOnly";
+  const signIn = useAgentSignIn({
+    api,
+    organizationId: organizationId ?? "",
+    machineId,
+    machineName: machineTitle,
+    translate,
+    onChanged: refreshMachine,
+  });
+  // The wizard's last button lands here with the agent whose sign-in to open.
+  const openedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!signInAgent || agentAccess !== "full" || providers.isLoading) return;
+    if (openedFor.current === `${machineId}:${signInAgent}`) return;
+    const row = agents.find((entry) => entry.agent === signInAgent);
+    if (!row) return;
+    openedFor.current = `${machineId}:${signInAgent}`;
+    if (row.state === "notSignedIn" || row.state === "signedOut") {
+      signIn.signIn(row);
+    }
+  });
+  const bannerAgent = agentAccess === "full"
+    ? agentNeedingSignIn(agents)
+    : null;
   const changeMode = async (mode: MachineMode) => {
     if (!organizationId || !workerData) return;
     setModeBusy(true);
@@ -646,6 +525,15 @@ export function MachineDetailPage(
                         : null}
                     </UI.Stack>
                   </UI.AlertBanner>
+                )
+                : null}
+              {!reason && bannerAgent
+                ? (
+                  <CodingAgentBanner
+                    row={bannerAgent}
+                    translate={translate}
+                    signIn={signIn}
+                  />
                 )
                 : null}
               {repairFailed
@@ -982,62 +870,46 @@ export function MachineDetailPage(
               <UI.SettingsSection
                 title={message(translate, "machines.detail.providers")}
                 variant="stack"
+                data-testid="machine-agents"
               >
-                {nextProviderCursor
-                  ? (
-                    <UI.AlertBanner tone="information">
-                      {message(
-                        translate,
-                        "machines.pagination.truncated.providers",
-                        {
-                          count: providerItems.length,
-                        },
-                      )}
-                    </UI.AlertBanner>
-                  )
-                  : null}
-                {!isAdmin
-                  ? (
-                    <UI.EmptyState
-                      title={message(translate, "machines.forbidden.title")}
-                      description={message(
-                        translate,
-                        "machines.provider.forbidden",
-                      )}
-                    />
-                  )
-                  : providers.isError && isForbiddenFailure(providers.error)
-                  ? (
-                    <UI.EmptyState
-                      title={message(translate, "machines.forbidden.title")}
-                      description={message(
-                        translate,
-                        "machines.provider.forbidden",
-                      )}
-                    />
-                  )
-                  : providers.isError
-                  ? (
-                    <UI.ErrorState
-                      title={message(translate, "machines.error.title")}
-                      description={message(
-                        translate,
-                        "machines.error.description",
-                      )}
-                    />
-                  )
-                  : providerItems.length
+                {providers.isError && isAdmin
+                  ? isForbiddenFailure(providers.error)
+                    ? (
+                      <UI.EmptyState
+                        title={message(translate, "machines.forbidden.title")}
+                        description={message(
+                          translate,
+                          "machines.agents.adminOnly",
+                        )}
+                      />
+                    )
+                    : (
+                      <UI.ErrorState
+                        title={message(translate, "machines.error.title")}
+                        description={message(
+                          translate,
+                          "machines.error.description",
+                        )}
+                        action={
+                          <UI.Button
+                            variant="secondary"
+                            onClick={() => void providers.refetch()}
+                          >
+                            {message(translate, "core.pagination.retry")}
+                          </UI.Button>
+                        }
+                      />
+                    )
+                  : agents.length
                   ? (
                     <UI.DescriptionList>
-                      {providerItems.map((binding) => (
-                        <ProviderBindingRow
-                          key={binding.id}
-                          binding={binding}
-                          workerId={machineId}
-                          organizationId={organizationId ?? ""}
-                          api={api}
+                      {agents.map((row) => (
+                        <CodingAgentRow
+                          key={row.agent}
+                          row={row}
                           translate={translate}
-                          onStarted={setAuthAttempt}
+                          access={agentAccess}
+                          signIn={signIn}
                         />
                       ))}
                     </UI.DescriptionList>
@@ -1047,65 +919,11 @@ export function MachineDetailPage(
                       {message(translate, "machines.provider.empty")}
                     </UI.Text>
                   )}
-                {providerContinuation.isError
+                {agents.length
                   ? (
-                    <UI.AlertBanner tone="error">
-                      {message(
-                        translate,
-                        "machines.pagination.error.providers",
-                      )}
-                    </UI.AlertBanner>
-                  )
-                  : null}
-                {nextProviderCursor
-                  ? (
-                    <UI.Button
-                      variant="secondary"
-                      disabled={providerContinuation.isFetching}
-                      onClick={() =>
-                        providerContinuation.isError
-                          ? void providerContinuation.refetch()
-                          : setProviderCursor(nextProviderCursor)}
-                    >
-                      {providerContinuation.isFetching
-                        ? message(
-                          translate,
-                          "machines.pagination.loadingMore",
-                        )
-                        : message(translate, "machines.pagination.loadMore")}
-                    </UI.Button>
-                  )
-                  : null}
-                {authAttempt?.instructions
-                  ? (
-                    <UI.CodeBlock
-                      code={authAttempt.instructions}
-                      language="text"
-                      variant="command"
-                      aria-label={message(
-                        translate,
-                        "machines.provider.instructions",
-                      )}
-                    />
-                  )
-                  : null}
-                {providerAttemptState
-                  ? (
-                    <UI.StatusBadge
-                      status={providerAttemptState === "completed"
-                        ? "healthy"
-                        : providerAttemptState === "failed"
-                        ? "failed"
-                        : providerAttemptState === "expired" ||
-                            providerAttemptState === "canceled"
-                        ? "disabled"
-                        : "active"}
-                    >
-                      {message(
-                        translate,
-                        `machines.provider.authState.${providerAttemptState}`,
-                      )}
-                    </UI.StatusBadge>
+                    <UI.Text variant="muted">
+                      {message(translate, "machines.agents.apiKeyLater")}
+                    </UI.Text>
                   )
                   : null}
               </UI.SettingsSection>
@@ -1178,6 +996,7 @@ export function MachineDetailPage(
             </>
           )
           : null}
+        {signIn.dialog}
       </UI.SettingsContent>
     </>
   );
