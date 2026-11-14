@@ -138,6 +138,8 @@ export type TicketSourceResponse = ClientOutputMap["TicketSource"];
 export type TicketSourceListResponse = ClientOutputMap["Page<TicketSource>"];
 export type TicketOperationReceiptResponse =
   ClientOutputMap["TicketOperationReceipt"];
+export type TicketRequestResponse = ClientOutputMap["TicketRequest"];
+export type TicketRequestIntent = "start" | "plan";
 export type WorkerResponse = ClientOutputMap["WorkerHost"];
 export type DispatchBlockersResponse = ClientOutputMap["DispatchBlockers"];
 export type WorkerEnrollmentListResponse =
@@ -637,6 +639,30 @@ export type BakeryApiClient = {
       readonly limit?: number;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<ExternalTicketListResponse>>;
+    /** `GET /v1/external-tickets/{id}`: one issue with its latest check and running request. */
+    readonly get: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<ExternalTicketResponse>>;
+    /** `POST /v1/external-tickets/{id}/readiness-checks`: asks Bakery to check the issue again. */
+    readonly check: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly expectedSourcePolicyRevision: number;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketOperationReceiptResponse>>;
+    /** `POST /v1/external-tickets/{id}/requests`: starts work on the issue (or plans it first). */
+    readonly request: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly intent: TicketRequestIntent;
+      readonly expectedSourcePolicyRevision: number;
+      readonly requirementsDigest: string;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketRequestResponse>>;
     /** `GET /v1/ticket-sources`: the repositories Bakery takes issues from. */
     readonly sources: (options: {
       readonly organizationId: string;
@@ -1742,6 +1768,45 @@ export function createBakeryApiClient({
               cursor: options.cursor,
               limit: options.limit,
             }, { signal: options.signal }),
+        );
+      },
+      get(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["externalTickets.get"]({ id: options.id }, {
+              signal: options.signal,
+            }),
+        );
+      },
+      check(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketReadiness.create"]({
+              id: options.id,
+              expectedSourcePolicyRevision:
+                options.expectedSourcePolicyRevision,
+            }, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+      request(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketRequests.create"]({
+              id: options.id,
+              intent: options.intent,
+              expectedSourcePolicyRevision:
+                options.expectedSourcePolicyRevision,
+              requirementsDigest: options.requirementsDigest,
+            }, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
         );
       },
       sources(options) {
