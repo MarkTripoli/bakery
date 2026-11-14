@@ -1,3 +1,5 @@
+import { createPostgresAuthorityPort } from "../../apps/server/src/modules/catalog/authority-snapshot-postgres.ts";
+import { effectRegistry } from "../helpers/external-effects.ts";
 import {
   assert,
   assertEquals,
@@ -3675,5 +3677,109 @@ Deno.test("an Admin grants, lists and revokes one exact capability on a connecti
     const [kept] = (await after.json()).items;
     assertEquals(kept.id, grant.id);
     assert(kept.revokedAt !== null);
+  });
+});
+
+Deno.test("the production authority snapshot binds a live connection exactly and answers null when it cannot (#20)", async () => {
+  await withFixture(async (f) => {
+    const { connectionId, resources } = await pendingConnection(f);
+    const [target] = resources;
+    const selected = await patchResource(f, connectionId, target.id, {
+      selected: true,
+    });
+    assertEquals(selected.status, 200, await selected.clone().text());
+    const enabled = await patchConnection(f, connectionId, { enabled: true });
+    assertEquals(enabled.status, 200, await enabled.clone().text());
+    const granted = await call(
+      f,
+      "POST",
+      `${connectionsPath}/${connectionId}/grants`,
+      f.adminCookie,
+      {
+        body: {
+          subjectType: "principal",
+          subjectPrincipalId: f.adminId,
+          direction: "out_of_bakery",
+          capability: "github.issue.comment.create",
+          actionVersion: 1,
+          resourceId: target.id,
+        },
+        headers: {
+          "Bakery-Organization-Id": f.organizationId,
+          "Idempotency-Key": crypto.randomUUID(),
+        },
+      },
+    );
+    assertEquals(granted.status, 201, await granted.clone().text());
+
+    const port = createPostgresAuthorityPort(f.pgDatabase, effectRegistry);
+    const key = {
+      organizationId: f.organizationId,
+      actorRef: f.adminId,
+      connectionId,
+      resourceId: target.id,
+    };
+    const snapshot = await port.load(key);
+    assert(snapshot !== null, "a live, bound connection has a snapshot");
+    const facts = (await f.pgDatabase.query<{
+      display_name: string;
+      external_id: string;
+      external_app_id: string;
+      external_authorization_id: string;
+    }>(
+      `select resource.display_name, resource.external_id,
+              registration.external_app_id::text,
+              installation.external_authorization_id
+         from bakery.integration_resources resource
+         join bakery.integration_installations installation
+           on installation.id = resource.installation_id
+         join bakery.integration_app_registrations registration
+           on registration.id = installation.registration_id
+        where resource.id = $1`,
+      [target.id],
+    )).rows[0];
+    const [owner, repo] = facts.display_name.split("/");
+    assertEquals(snapshot.resource.binding, {
+      owner,
+      repo,
+      repositoryId: Number(facts.external_id),
+      installationId: Number(facts.external_authorization_id),
+      botUserId: fakeBotUserId(Number(facts.external_app_id)),
+    });
+    assertEquals(snapshot.resource.kind, "github.repository");
+    assertEquals(snapshot.resource.selected, true);
+    assertEquals(snapshot.connection.state, "active");
+    assertEquals(snapshot.install.providerId, "bakery.github");
+    assertEquals(snapshot.actor.active, true);
+    assertEquals(
+      snapshot.grants.map((grant) => grant.capability),
+      ["github.issue.comment.create"],
+    );
+
+    // Another organization's key, an unknown resource, a missing bot user
+    // and an archived resource each answer no snapshot.
+    const otherOrganization = await secondOrganization(f);
+    assertEquals(
+      await port.load({ ...key, organizationId: otherOrganization }),
+      null,
+    );
+    assertEquals(
+      await port.load({ ...key, resourceId: crypto.randomUUID() }),
+      null,
+    );
+    await f.pgDatabase.query(
+      "update bakery.integration_app_registrations set bot_user_id = null",
+    );
+    assertEquals(await port.load(key), null);
+    await f.pgDatabase.query(
+      `update bakery.integration_app_registrations
+          set bot_user_id = $1`,
+      [fakeBotUserId(Number(facts.external_app_id))],
+    );
+    await f.pgDatabase.query(
+      "update bakery.integration_resources set archived_at = now() where id = $1",
+      [target.id],
+    );
+    assertEquals(await port.load(key), null);
   });
 });
