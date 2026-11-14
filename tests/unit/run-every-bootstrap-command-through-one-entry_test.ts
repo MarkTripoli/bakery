@@ -148,6 +148,7 @@ function harness(
     platform?: string;
     arch?: string;
     uid?: number | null;
+    home?: string | null;
   } = {},
 ) {
   const out: string[] = [];
@@ -200,7 +201,7 @@ function harness(
     operation: {
       write: (text) => void out.push(text),
       target: "linux",
-      home: "/home/alice",
+      home: options.home === null ? undefined : (options.home ?? "/home/alice"),
       probes: {
         serviceState: () => Promise.resolve(options.service ?? "absent"),
         runs: () => Promise.resolve(true),
@@ -440,6 +441,18 @@ Deno.test("every way the install can fail ends with exit 2, one fixed sentence, 
       "an unsupported target",
       {},
       { platform: "darwin", arch: "arm64" },
+      "no build for this operating system",
+    ],
+    [
+      "an unsupported system on a supported processor",
+      {},
+      { platform: "darwin", arch: "x64" },
+      "no build for this operating system",
+    ],
+    [
+      "an unsupported processor on a supported system",
+      {},
+      { platform: "linux", arch: "arm64" },
       "no build for this operating system",
     ],
     [
@@ -755,6 +768,24 @@ Deno.test("plan for a Mac names the LaunchAgent under the user's home and needs 
       await runBootstrap(["plan", "--system", "macos"], missing.io),
       2,
     );
+    assertStringIncludes(missing.text(), "Unknown command or option");
+    // Without a home directory there is nowhere to name the LaunchAgent, and
+    // without a user id no domain to load it into: refused, not guessed.
+    for (const options of [{ home: null }, { uid: null }]) {
+      const nowhere = harness(root, world(), options);
+      assertEquals(
+        await runBootstrap(
+          ["plan", "--system", "macos", "--account", "alice"],
+          nowhere.io,
+        ),
+        2,
+        JSON.stringify(options),
+      );
+      assertStringIncludes(
+        nowhere.text(),
+        "characters the service definition does not allow",
+      );
+    }
     const h = harness(root, world());
     assertEquals(
       await runBootstrap(

@@ -19,9 +19,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Buffer } from "node:buffer";
 import {
-  type BootstrapIo,
   type ReleaseConfig,
-  runBootstrap,
   spawnProgram,
   systemProbes,
 } from "../../packages/worker-bootstrap/src/index.ts";
@@ -33,7 +31,7 @@ import {
 // service stop/restart/sleep (AC3, G3) is owned by B15.06, not here.
 
 const SECRET = "bk_setup_8f3a1c5e9d7b2a4f";
-const NOW = new Date("2026-11-11T00:00:00.000Z");
+const DAY = 24 * 60 * 60 * 1000;
 const SCRIPT_1 = new TextEncoder().encode(
   "#!/bin/sh\necho bakery worker 1.2.3\n",
 );
@@ -66,8 +64,8 @@ function signed(
     JSON.stringify({
       schema: 1,
       release,
-      issuedAt: "2026-11-01T00:00:00.000Z",
-      expiresAt: "2026-12-01T00:00:00.000Z",
+      issuedAt: new Date(Date.now() - DAY).toISOString(),
+      expiresAt: new Date(Date.now() + 30 * DAY).toISOString(),
       protocol: { min: 3, max: 4 },
       stateFormat: 2,
       targets: {
@@ -183,40 +181,48 @@ async function treeOf(root: string): Promise<string[]> {
   return out.sort();
 }
 
-function bootstrapIo(root: string, releases: string, answer = "y") {
-  const out: string[] = [];
+const ENTRY =
+  new URL("../fixtures/worker-bootstrap-test-entry.ts", import.meta.url)
+    .pathname;
+
+/**
+ * The real command line as its own process, with this test's release origin and
+ * local test keys. (An install activates with a symlink, which this lane's
+ * scoped permissions do not allow in-process; a real process is also what an
+ * operator runs.) The confirmation is answered on stdin.
+ */
+async function cli(
+  root: string,
+  releases: string,
+  args: string[],
+  options: { answer?: string; env?: Record<string, string> } = {},
+) {
   const config: ReleaseConfig = {
     origin: releases,
     trustRoot: [KEY.trust],
     protocol: 3,
     stateFormat: 2,
   };
-  const noop = () => undefined;
-  const io: BootstrapIo = {
-    defaultRoot: root,
-    environment: {},
-    command: {
-      stdin: {
-        resume: noop,
-        pause: noop,
-        setEncoding: noop,
-        on: noop,
-        off: noop,
-      },
-      ask: () => Promise.resolve(answer),
-      write: (text) => void out.push(text),
-      fetch,
-      now: () => NOW,
-      release: { config, platform: "linux", arch: "x64" },
+  const child = new Deno.Command(Deno.execPath(), {
+    args: ["run", "--allow-all", ENTRY, ...args, "--root", root],
+    env: {
+      HOME: join(root, ".."),
+      BAKERY_TEST_RELEASE_CONFIG: JSON.stringify(config),
+      ...options.env,
     },
-    operation: {
-      write: (text) => void out.push(text),
-      target: "linux",
-      home: "/home/alice",
-      probes: systemProbes("linux"),
-    },
+    stdin: "piped",
+    stdout: "piped",
+    stderr: "piped",
+  }).spawn();
+  const writer = child.stdin.getWriter();
+  await writer.write(new TextEncoder().encode(`${options.answer ?? "y"}\n`));
+  await writer.close();
+  const output = await child.output();
+  return {
+    code: output.code,
+    text: new TextDecoder().decode(output.stdout) +
+      new TextDecoder().decode(output.stderr),
   };
-  return { io, text: () => out.join("") };
 }
 
 const setup = (
@@ -241,12 +247,11 @@ Deno.test("a fresh host installs the signed release over HTTP, runs it, and pair
   const server = bakery();
   try {
     const file = await codeFile(root);
-    const h = bootstrapIo(root, releases.origin);
-    assertEquals(
-      await runBootstrap(setup(server.origin, file), h.io),
-      0,
-      h.text(),
-    );
+    const result = await cli(root, releases.origin, setup(server.origin, file));
+    assertEquals(result.code, 0, result.text);
+    assertStringIncludes(result.text, "Installed release 1.2.3 for linux-x64.");
+    assertStringIncludes(result.text, "Organization: Acme");
+    assertStringIncludes(result.text, "Paired.");
     assertEquals(releases.requests, [
       "GET /releases/1.2.3/manifest.json",
       "GET /releases/1.2.3/bakery-worker-1.2.3-linux-x64",
@@ -266,7 +271,7 @@ Deno.test("a fresh host installs the signed release over HTTP, runs it, and pair
       await readFile(join(root, "enrollment-token"), "utf8"),
       `${SECRET}\n`,
     );
-    assertFalse(h.text().includes(SECRET));
+    assertFalse(result.text.includes(SECRET));
   } finally {
     await releases.close();
     await server.close();
@@ -289,10 +294,7 @@ Deno.test(
     try {
       const file = await codeFile(root);
       assertEquals(
-        await runBootstrap(
-          setup(server.origin, file),
-          bootstrapIo(root, good.origin).io,
-        ),
+        (await cli(root, good.origin, setup(server.origin, file))).code,
         0,
       );
       const before = await treeOf(root);
@@ -336,16 +338,13 @@ Deno.test(
       for (const [label, over, fragment] of broken) {
         const origin = releaseOrigin(over);
         try {
-          const h = bootstrapIo(root, origin.origin);
-          assertEquals(
-            await runBootstrap(
-              setup(server.origin, file, "2.0.0", ["--upgrade"]),
-              h.io,
-            ),
-            2,
-            label,
+          const result = await cli(
+            root,
+            origin.origin,
+            setup(server.origin, file, "2.0.0", ["--upgrade"]),
           );
-          assertStringIncludes(h.text(), fragment, label);
+          assertEquals(result.code, 2, `${label}: ${result.text}`);
+          assertStringIncludes(result.text, fragment, label);
         } finally {
           await origin.close();
         }
@@ -366,14 +365,12 @@ Deno.test(
 
       // A refused permission: the root became writable by others.
       await chmod(root, 0o777);
-      const h = bootstrapIo(root, good.origin);
-      assertEquals(
-        await runBootstrap(
-          setup(server.origin, file, "2.0.0", ["--upgrade"]),
-          h.io,
-        ),
-        2,
+      const refused = await cli(
+        root,
+        good.origin,
+        setup(server.origin, file, "2.0.0", ["--upgrade"]),
       );
+      assertEquals(refused.code, 2, refused.text);
       await chmod(root, 0o700);
       assertEquals(await treeOf(root), before);
     } finally {
@@ -401,29 +398,21 @@ Deno.test("AC2: a rerun, a second setup or a second organization in the same roo
   try {
     const file = await codeFile(root);
     assertEquals(
-      await runBootstrap(
-        setup(server.origin, file),
-        bootstrapIo(root, releases.origin).io,
-      ),
+      (await cli(root, releases.origin, setup(server.origin, file))).code,
       0,
     );
     const before = await treeOf(root);
-    const again = bootstrapIo(root, releases.origin);
-    assertEquals(await runBootstrap(setup(server.origin, file), again.io), 0);
-    assertStringIncludes(again.text(), "already installed");
-    assertStringIncludes(again.text(), "already paired with this setup");
+    const again = await cli(root, releases.origin, setup(server.origin, file));
+    assertEquals(again.code, 0, again.text);
+    assertStringIncludes(again.text, "already installed");
+    assertStringIncludes(again.text, "already paired with this setup");
     assertEquals(
-      await runBootstrap(
-        setup(otherOrganization.origin, file),
-        bootstrapIo(root, releases.origin).io,
-      ),
+      (await cli(root, releases.origin, setup(otherOrganization.origin, file)))
+        .code,
       2,
     );
     assertEquals(
-      await runBootstrap(
-        setup(otherSetup.origin, file),
-        bootstrapIo(root, releases.origin).io,
-      ),
+      (await cli(root, releases.origin, setup(otherSetup.origin, file))).code,
       2,
     );
     assertEquals(await treeOf(root), before);
@@ -447,19 +436,13 @@ const BIN =
   new URL("../../packages/worker-bootstrap/src/bin.ts", import.meta.url)
     .pathname;
 
-async function bin(
-  root: string,
-  args: string[],
-  env: Record<string, string> = {},
-) {
-  const command = new Deno.Command(Deno.execPath(), {
+async function bin(root: string, args: string[]) {
+  const result = await new Deno.Command(Deno.execPath(), {
     args: ["run", "--allow-all", BIN, ...args],
-    env: { ...env, HOME: root },
+    env: { HOME: join(root, "..") },
     stdout: "piped",
     stderr: "piped",
-    clearEnv: false,
-  });
-  const result = await command.output();
+  }).output();
   return {
     code: result.code,
     out: new TextDecoder().decode(result.stdout),
@@ -467,17 +450,14 @@ async function bin(
   };
 }
 
-Deno.test("the real command-line entry runs status, doctor, drain and plan with the real probes, and setup says this build has no release origin", async () => {
+Deno.test("the shipped command line runs status, doctor, drain and plan with the real probes, and setup says this build has no release origin", async () => {
   const root = await tempRoot();
   const releases = releaseOrigin();
   const server = bakery();
   try {
     const file = await codeFile(root);
     assertEquals(
-      await runBootstrap(
-        setup(server.origin, file),
-        bootstrapIo(root, releases.origin).io,
-      ),
+      (await cli(root, releases.origin, setup(server.origin, file))).code,
       0,
     );
     const before = await treeOf(root);
@@ -525,6 +505,10 @@ Deno.test("the real command-line entry runs status, doctor, drain and plan with 
     const plan = await bin(root, ["plan", "--root", root]);
     assertEquals(plan.code, 0, plan.err);
     assertStringIncludes(plan.out, "BAKERY_WORKER_NAME=build-linux-01");
+    assertStringIncludes(
+      plan.out,
+      "BAKERY_WORKER_CAPABILITIES=git,shell,claude",
+    );
     assertFalse(plan.out.includes(SECRET));
 
     const noOrigin = await bin(root, [

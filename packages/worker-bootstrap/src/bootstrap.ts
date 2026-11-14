@@ -53,13 +53,11 @@ export type InstallFromOriginOptions = Readonly<{
 
 async function readAll(
   stream: AsyncIterable<Uint8Array>,
-  limit: number,
 ): Promise<Uint8Array> {
   const chunks: Uint8Array[] = [];
   let total = 0;
   for await (const chunk of stream) {
     total += chunk.byteLength;
-    if (total > limit) throw new BootstrapError("MANIFEST_MALFORMED");
     chunks.push(chunk);
   }
   const whole = new Uint8Array(total);
@@ -89,7 +87,6 @@ export async function installFromOrigin(
       atMost: true,
       fetch: options.fetch,
     })(),
-    MAX_MANIFEST_BYTES,
   );
   let text: string;
   try {

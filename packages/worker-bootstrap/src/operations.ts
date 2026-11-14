@@ -596,10 +596,9 @@ async function planText(
     where = LINUX_UNIT_PATH;
   } else {
     const uid = io.probes.uid();
-    if (io.home === undefined || uid === null) {
-      throw new BootstrapError("SERVICE_SPEC_INVALID");
-    }
-    changes = planMacService(spec, io.home, uid);
+    if (io.home === undefined) throw new BootstrapError("SERVICE_SPEC_INVALID");
+    // No user id is refused by the plan itself: -1 is not one.
+    changes = planMacService(spec, io.home, uid ?? -1);
     definition = renderLaunchAgent(spec);
     where = `${io.home}/Library/LaunchAgents/${MACOS_LABEL}.plist`;
   }

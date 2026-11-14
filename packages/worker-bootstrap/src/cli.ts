@@ -69,7 +69,7 @@ export function parseCommand(
     if (word === "--token" || word.startsWith("--token=")) {
       throw new BootstrapError("COMMAND_TOKEN_SHORTCUT");
     }
-    if (word === "--upgrade" && name === "setup") {
+    if (word === "--upgrade") {
       upgrade = true;
       continue;
     }

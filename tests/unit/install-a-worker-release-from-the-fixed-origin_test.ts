@@ -261,6 +261,58 @@ Deno.test("only an exact release is asked for, and nothing is requested for anyt
   }
 });
 
+Deno.test("a manifest the server declares a length for (as real servers do) is read whole, however short of the ceiling", async () => {
+  const root = await tempRoot();
+  try {
+    const text = envelope(manifestFor("1.2.3", BINARY));
+    const fake = origin({
+      "/releases/1.2.3/manifest.json": new Response(text, {
+        headers: {
+          "content-length": String(new TextEncoder().encode(text).byteLength),
+        },
+      }),
+      "/releases/1.2.3/bakery-worker-1.2.3-linux-x64": new Response(BINARY),
+    });
+    assertEquals((await run(root, fake)).status, "installed");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+Deno.test("what the build says about the protocol and the state format is what the manifest is checked against", async () => {
+  for (
+    const [label, config, expected] of [
+      [
+        "a protocol the manifest does not cover",
+        { ...CONFIG, protocol: 9 },
+        "MANIFEST_PROTOCOL_INCOMPATIBLE",
+      ],
+      [
+        "a protocol below the manifest's range",
+        { ...CONFIG, protocol: 1 },
+        "MANIFEST_PROTOCOL_INCOMPATIBLE",
+      ],
+      [
+        "another state format",
+        { ...CONFIG, stateFormat: 7 },
+        "MANIFEST_STATE_FORMAT_INCOMPATIBLE",
+      ],
+    ] as [string, ReleaseConfig, string][]
+  ) {
+    const root = await tempRoot();
+    try {
+      assertEquals(
+        await codeOf(run(root, origin(release("1.2.3", BINARY)), { config })),
+        expected,
+        label,
+      );
+      assertEquals(await readdir(root), [], label);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+});
+
 Deno.test("a manifest that is badly signed, signed by a stranger, expired, for another protocol or another release installs nothing", async () => {
   const cases: [string, Record<string, Answer>, string][] = [
     [
