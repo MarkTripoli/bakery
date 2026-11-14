@@ -1118,6 +1118,14 @@ for (const width of [320, 390, 820, 1280]) {
       expect(Math.abs(reject.width - approve.width)).toBeLessThan(2);
       expect(Math.abs(changes.width - approve.width)).toBeLessThan(2);
       expect(approve.width).toBeGreaterThan(width * 0.6);
+      // The first answer starts one gap below the text, the gap between answers.
+      const text = (await now.getByText(
+        "Approving lets Bakery merge these changes.",
+      ).boundingBox())!;
+      const between = changes.y - (reject.y + reject.height);
+      const above = reject.y - (text.y + text.height);
+      expect(Math.abs(above - between), "gap above equals the gap between")
+        .toBeLessThan(2);
     } else {
       expect(approve.x).toBeLessThan(changes.x);
       expect(changes.x).toBeLessThan(reject.x);
