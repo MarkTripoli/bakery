@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { constants } from "node:fs";
 import { lstat, open as openFile } from "node:fs/promises";
 
 /**
@@ -35,11 +36,23 @@ export async function readRecord(
     if (!before.isFile() || before.size > maxBytes) {
       throw new UnreadableRecord("not a plain small file");
     }
-    const handle = await open(path, "r");
+    // Never through a link, and never waiting on a FIFO: a name swapped for one
+    // between the look above and this open fails here, and the handle's own
+    // stat below is the second look.
+    const handle = await open(
+      path,
+      constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
+    );
     try {
       const info = await handle.stat();
       if (!info.isFile() || info.size > maxBytes) {
         throw new UnreadableRecord("not a plain small file");
+      }
+      // The file read must be the very one the first look approved. Flags alone
+      // do not promise that on every runtime (one that resolves a link before it
+      // opens follows a swapped-in link), so the identity is compared too.
+      if (info.dev !== before.dev || info.ino !== before.ino) {
+        throw new UnreadableRecord("the file changed under the read");
       }
       const buffer = Buffer.alloc(maxBytes + 1);
       const { bytesRead } = await handle.read(buffer, 0, maxBytes + 1, 0);

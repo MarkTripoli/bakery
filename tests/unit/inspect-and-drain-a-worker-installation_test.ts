@@ -10,6 +10,7 @@ import {
   lstat,
   mkdir,
   mkdtemp,
+  open as openFile,
   readdir,
   readFile,
   rm,
@@ -18,6 +19,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { Buffer } from "node:buffer";
+import { constants } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -482,16 +484,25 @@ Deno.test("the binary is looked at before it is read: only a regular file of the
   }
 });
 
-/** A stand-in for an open file: what it says it is, and what it reads. */
+/** A stand-in for an open file: what it says it is, and what it reads. Its identity is the real file's unless told otherwise. */
 function fakeHandle(
-  over: { isFile?: boolean; size?: number; available?: number },
+  over: {
+    isFile?: boolean;
+    size?: number;
+    available?: number;
+    dev?: number;
+    ino?: number;
+  },
 ) {
-  return () =>
-    Promise.resolve({
+  return async (opened: unknown) => {
+    const real = await lstat(opened as string);
+    return {
       stat: () =>
         Promise.resolve({
           isFile: () => over.isFile ?? true,
           size: over.size ?? 5,
+          dev: over.dev ?? real.dev,
+          ino: over.ino ?? real.ino,
         }),
       read: (buffer: Uint8Array, _offset: number, length: number) => {
         const count = Math.min(length, over.available ?? 5);
@@ -499,8 +510,67 @@ function fakeHandle(
         return Promise.resolve({ bytesRead: count });
       },
       close: () => Promise.resolve(),
-    }) as never;
+    } as never;
+  };
 }
+
+Deno.test("a name swapped for a link between the look and the open is not followed, and the open asks not to follow or wait", async () => {
+  const root = await tempRoot();
+  try {
+    const path = join(root, "record");
+    const secret = join(root, "secret");
+    await writeFile(path, "{}");
+    await writeFile(secret, "SECRET-OUTSIDE-THE-RECORD");
+    let flagsSeen = -1;
+    await assertRejects(
+      () =>
+        readRecord(path, 100, 1_000, async (opened, flags, mode) => {
+          flagsSeen = flags as number;
+          // The path looked like a small regular file a moment ago; now it is a link.
+          await rm(opened as string);
+          await symlink(secret, opened as string);
+          return await openFile(opened, flags, mode);
+        }),
+    );
+    assertEquals(
+      (flagsSeen & constants.O_NOFOLLOW) === constants.O_NOFOLLOW,
+      true,
+      "opened without following a link",
+    );
+    assertEquals(
+      (flagsSeen & constants.O_NONBLOCK) === constants.O_NONBLOCK,
+      true,
+      "opened without waiting on a FIFO",
+    );
+    assertEquals(
+      flagsSeen & (constants.O_WRONLY | constants.O_RDWR | constants.O_CREAT),
+      0,
+      "read only, and nothing is created",
+    );
+    // The same swap with a link to a file that would be readable is still refused,
+    // never read: nothing of the secret is returned.
+    await rm(path);
+    await writeFile(path, "{}");
+    let leaked = "";
+    try {
+      leaked = await readRecord(
+        path,
+        100,
+        1_000,
+        async (opened, flags, mode) => {
+          await rm(opened as string);
+          await symlink(secret, opened as string);
+          return await openFile(opened, flags, mode);
+        },
+      );
+    } catch {
+      // refused, as it should be
+    }
+    assertEquals(leaked, "");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 
 Deno.test("a record is checked again on the open handle: not a file, too big, or more bytes than allowed are refused, and the limit is exact", async () => {
   const root = await tempRoot();
@@ -517,6 +587,18 @@ Deno.test("a record is checked again on the open handle: not a file, too big, or
       () => readRecord(path, 100, 1_000, fakeHandle({ size: 101 })),
       UnreadableRecord,
       "not a plain small file",
+    );
+    // The open handle is another file than the one the path showed a moment ago
+    // (a different inode, or a different device): refused, whatever it holds.
+    await assertRejects(
+      () => readRecord(path, 100, 1_000, fakeHandle({ ino: 1 })),
+      UnreadableRecord,
+      "changed under the read",
+    );
+    await assertRejects(
+      () => readRecord(path, 100, 1_000, fakeHandle({ dev: 1 })),
+      UnreadableRecord,
+      "changed under the read",
     );
     // A file that grew after both looks: more bytes arrive than the limit.
     await assertRejects(

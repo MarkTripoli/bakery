@@ -1,7 +1,11 @@
-import { assert, assertEquals } from "@std/assert";
-import { mkdtemp, rm } from "node:fs/promises";
+import { assert, assertEquals, assertRejects } from "@std/assert";
+import { mkdtemp, open as openFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import {
+  readRecord,
+  UnreadableRecord,
+} from "../../packages/worker-bootstrap/src/index.ts";
 
 // #18 (security): the install root is a directory anyone with write access to
 // it could have changed. `status` and `doctor` read three things from it (the
@@ -82,3 +86,31 @@ for (const hostile of ["fifo", "devzero", "sparse", "directory"]) {
     assert(result.rss < MAX_RSS, `rss ${result.rss}`);
   });
 }
+
+Deno.test("a name swapped for a FIFO between the look and the open does not block the read: it is refused at once, not at the deadline", async () => {
+  const root = await mkdtemp(join(tmpdir(), "bakery-swap-"));
+  try {
+    const path = join(root, "record");
+    await writeFile(path, "{}");
+    const started = Date.now();
+    await assertRejects(
+      () =>
+        readRecord(path, 100, 10_000, async (opened, flags, mode) => {
+          await rm(opened as string);
+          const made = await new Deno.Command("mkfifo", {
+            args: [opened as string],
+          }).output();
+          assert(made.success);
+          return await openFile(opened, flags, mode);
+        }),
+      UnreadableRecord,
+      "not a plain small file",
+    );
+    assert(
+      Date.now() - started < 2_000,
+      "refused long before the 10 s deadline",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
