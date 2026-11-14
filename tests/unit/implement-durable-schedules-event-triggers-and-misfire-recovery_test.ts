@@ -637,3 +637,109 @@ Deno.test("a window is at most nine years, and an unknown zone is refused before
     ],
   );
 });
+
+Deno.test("where a skipped hour ends at local midnight the change instant is one occurrence, not two (Greenland)", () => {
+  // Godthab, 2025-03-30: the clocks jump at 01:00Z from 22:59 to 00:00, so 23:00 to 23:59 does not exist and is advanced to 01:00Z, which is also the next day's 00:00.
+  const hourly = occurrencesBetween(
+    parseCron("0 * * * *"),
+    "America/Godthab",
+    new Date("2025-03-29T20:00:00Z"),
+    new Date("2025-03-30T04:00:00Z"),
+    100,
+  );
+  assertEquals(hourly.occurrences.map(iso), [
+    "2025-03-29T21:00:00.000Z",
+    "2025-03-29T22:00:00.000Z",
+    "2025-03-29T23:00:00.000Z",
+    "2025-03-30T00:00:00.000Z",
+    "2025-03-30T01:00:00.000Z",
+    "2025-03-30T02:00:00.000Z",
+    "2025-03-30T03:00:00.000Z",
+    "2025-03-30T04:00:00.000Z",
+  ]);
+  // The same on the 2026 change, for a schedule that names both the skipped hour and midnight.
+  const both = occurrencesBetween(
+    parseCron("0 0,23 * * *"),
+    "America/Godthab",
+    new Date("2026-03-28T00:00:00Z"),
+    new Date("2026-03-30T12:00:00Z"),
+    100,
+  );
+  assertEquals(
+    both.occurrences.filter((date) => iso(date) === "2026-03-29T01:00:00.000Z")
+      .length,
+    1,
+  );
+  // And asking one at a time gives the same.
+  let cursor = new Date("2025-03-29T22:30:00Z");
+  const chained: string[] = [];
+  for (let index = 0; index < 4; index += 1) {
+    const next = nextOccurrence(
+      parseCron("0 * * * *"),
+      "America/Godthab",
+      cursor,
+    )!;
+    chained.push(iso(next)!);
+    cursor = next;
+  }
+  assertEquals(chained, [
+    "2025-03-29T23:00:00.000Z",
+    "2025-03-30T00:00:00.000Z",
+    "2025-03-30T01:00:00.000Z",
+    "2025-03-30T02:00:00.000Z",
+  ]);
+});
+
+Deno.test("occurrences are strictly increasing and equal to asking one at a time, over every clock change of two years in zones of every kind", () => {
+  const zones = [
+    "America/Godthab", // skipped hour ends at local midnight
+    "America/Nuuk",
+    "America/Scoresbysund",
+    "Europe/Berlin",
+    "America/New_York",
+    "Australia/Lord_Howe", // 30-minute change
+    "America/Santiago", // changes at midnight
+    "Africa/Cairo",
+    "Asia/Beirut",
+    "Pacific/Chatham", // 45-minute offset
+    "America/St_Johns", // 30-minute offset
+    "Antarctica/Troll", // 2-hour change
+  ];
+  const expressions = [
+    "0 * * * *",
+    "*/30 * * * *",
+    "0 0,23 * * *",
+    "59 23 * * *",
+    "0 0 * * *",
+    "15 2 * * *",
+    "*/20 22-23 * * *",
+  ];
+  for (const zone of zones) {
+    for (const expression of expressions) {
+      const schedule = parseCron(expression);
+      const { occurrences } = occurrencesBetween(
+        schedule,
+        zone,
+        new Date("2024-12-31T00:00:00Z"),
+        new Date("2026-12-31T00:00:00Z"),
+        100_000,
+      );
+      assert(occurrences.length > 300, `${zone} ${expression}`);
+      for (let index = 1; index < occurrences.length; index += 1) {
+        assert(
+          occurrences[index]!.getTime() > occurrences[index - 1]!.getTime(),
+          `${zone} ${expression} not increasing at ${iso(occurrences[index])}`,
+        );
+      }
+      // Asking one at a time, from just before each clock change of the two years, agrees.
+      for (let index = 0; index < occurrences.length - 1; index += 400) {
+        const chained = nextOccurrence(schedule, zone, occurrences[index]!);
+        assertEquals(
+          iso(chained),
+          iso(occurrences[index + 1]),
+          `${zone} ${expression}`,
+        );
+      }
+    }
+  }
+});

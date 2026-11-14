@@ -362,10 +362,17 @@ function* occurrencesFrom(
   let year = start.year;
   let month = start.month;
   let day = start.day;
+  // The last instant given: a skipped hour that ends at local midnight is advanced
+  // to the instant of the change, which is also the next day's first wall time
+  // (Greenland), so one day's last instant can be the next day's first.
+  let last = afterMs;
   for (let index = 0; index < days; index += 1) {
     if (dayMatches(schedule, year, month, day)) {
       for (const instant of instantsOfDay(schedule, zone, year, month, day)) {
-        if (instant > afterMs) yield instant;
+        if (instant > last) {
+          last = instant;
+          yield instant;
+        }
       }
     }
     [year, month, day] = nextDay(year, month, day);
