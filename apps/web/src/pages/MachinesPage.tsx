@@ -3,10 +3,7 @@ import type { Translator } from "@bakery/i18n";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
-import type {
-  WorkerEnrollmentListResponse,
-  WorkerResponse,
-} from "../api/client.ts";
+import type { WorkerResponse } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
 import {
   effectiveAccessQueryOptions,
@@ -31,19 +28,7 @@ import { type MachineFilter, machineMatchesFilter } from "./machine-state.ts";
 // Above this many machines the list offers a filter; below it, it is just a list.
 const FILTER_MIN_MACHINES = 10;
 
-export type EnrollmentToken = Readonly<{
-  enrollmentId: string;
-  enrollmentToken: string;
-  expiresAt: string;
-}>;
-
 type MachineRow = WorkerResponse;
-type EnrollmentRow = WorkerEnrollmentListResponse["items"][number];
-
-type Readiness = NonNullable<WorkerResponse["readiness"]>;
-type Connectivity = NonNullable<WorkerResponse["connectivity"]>;
-type WorkerStatus = WorkerResponse["status"];
-type EnrollmentState = EnrollmentRow["state"];
 
 export function formatMachineDate(
   value: string | null | undefined,
@@ -63,38 +48,6 @@ export function boundedReason(reason: string | null | undefined): string {
   const text = reason?.trim() || "";
   if (text.length <= 240) return text;
   return `${text.slice(0, 237)}…`;
-}
-
-export function statusForWorker(status: WorkerStatus): UI.Status {
-  if (status === "revoked") return "disabled";
-  if (status === "offline") return "disconnected";
-  if (status === "draining") return "degraded";
-  return "active";
-}
-
-export function statusForReadiness(
-  readiness: Readiness | null | undefined,
-): UI.Status {
-  if (readiness === "ready") return "healthy";
-  if (readiness === "checking") return "active";
-  if (readiness === "needs_attention") return "degraded";
-  return "disabled";
-}
-
-export function toneForConnectivity(
-  connectivity: Connectivity | null | undefined,
-): UI.StatusDotTone {
-  if (connectivity === "online") return "success";
-  if (connectivity === "stale") return "warning";
-  if (connectivity === "offline") return "destructive";
-  return "neutral";
-}
-
-function labelForEnrollmentState(
-  state: EnrollmentState,
-  translate: Translator,
-): string {
-  return translate(`machines.enrollment.state.${state}` as never);
 }
 
 function StateError({
@@ -127,94 +80,6 @@ function StateError({
         </UI.Button>
       }
     />
-  );
-}
-
-export function EnrollmentTokenPanel({
-  enrollment,
-  onDismiss,
-  translate,
-  formatDate,
-  state,
-  workerHostId,
-}: {
-  readonly enrollment: EnrollmentToken;
-  readonly onDismiss: () => void;
-  readonly translate: Translator;
-  readonly formatDate: (value: string) => string;
-  readonly state?: EnrollmentState;
-  readonly workerHostId?: string | null;
-}) {
-  const serverUrl = globalThis.location?.origin ?? "";
-  const instructions = [
-    `BAKERY_SERVER_URL=${serverUrl}`,
-    "BAKERY_WORKER_ENROLLMENT_TOKEN_FILE=/var/lib/bakery/worker/enrollment-token",
-    "BAKERY_CLAUDE_HARNESS=1",
-    "BAKERY_CLAUDE_HARNESS_REPOSITORY=/workspace/repository",
-    "BAKERY_CLAUDE_HARNESS_TIME_LIMIT_MS=120000",
-    "BAKERY_CLAUDE_HARNESS_EXECUTABLE=claude",
-  ].join("\n");
-  const enrollmentState = state ?? "pending";
-  return (
-    <UI.SettingsSection
-      title={translate("machines.enrollment.token.title" as never)}
-      variant="stack"
-      data-testid="machine-enrollment-token"
-    >
-      <UI.Stack gap="standard">
-        <UI.Heading level="subsection" rank={2}>
-          {translate("machines.enrollment.steps.prepare" as never)}
-        </UI.Heading>
-        <UI.CodeBlock
-          code={instructions}
-          language="dotenv"
-          variant="command"
-        />
-        <UI.Text variant="muted">
-          {translate("machines.enrollment.steps.prepareHint" as never)}
-        </UI.Text>
-
-        <UI.Heading level="subsection" rank={2}>
-          {translate("machines.enrollment.steps.open" as never)}
-        </UI.Heading>
-        <UI.Text variant="muted">
-          {translate("machines.enrollment.steps.openHint" as never)}
-        </UI.Text>
-
-        <UI.Heading level="subsection" rank={2}>
-          {translate("machines.enrollment.steps.token" as never)}
-        </UI.Heading>
-        <UI.AlertBanner tone="warning">
-          {translate("machines.enrollment.token.warning" as never)}
-        </UI.AlertBanner>
-        <UI.Text>
-          {translate("machines.enrollment.token.expires" as never, {
-            date: formatDate(enrollment.expiresAt),
-          })}
-        </UI.Text>
-        <UI.SetupKey>{enrollment.enrollmentToken}</UI.SetupKey>
-
-        <UI.Heading level="subsection" rank={2}>
-          {translate("machines.enrollment.steps.listen" as never)}
-        </UI.Heading>
-        <UI.Text variant="muted">
-          {translate("machines.enrollment.steps.listenHint" as never)}
-        </UI.Text>
-        <UI.Text variant="muted" role="status" aria-live="polite">
-          {translate("machines.enrollment.steps.status" as never, {
-            state: labelForEnrollmentState(enrollmentState, translate),
-            worker: workerHostId ??
-              translate("machines.enrollment.workerPending" as never),
-          })}
-        </UI.Text>
-        <UI.Text variant="caption">
-          {translate("machines.enrollment.token.instructions" as never)}
-        </UI.Text>
-        <UI.Button variant="secondary" onClick={onDismiss}>
-          {translate("machines.enrollment.token.dismiss" as never)}
-        </UI.Button>
-      </UI.Stack>
-    </UI.SettingsSection>
   );
 }
 

@@ -27,7 +27,7 @@ Deno.test("a problem banner offers the one fix that exists for it", () => {
   assertEquals(bannerFix({ kind: "paused" }), "takeWork");
   assertEquals(bannerFix({ kind: "finishing" }), "takeWork");
   assertEquals(bannerFix({ kind: "checkFailed", count: 2 }), "seeChecks");
-  assertEquals(bannerFix({ kind: "retired" }), "addMachine");
+  assertEquals(bannerFix({ kind: "retired" }), "setUpAgain");
   // These mend themselves, or have nothing to point at.
   assertEquals(bannerFix({ kind: "offline" }), null);
   assertEquals(bannerFix({ kind: "stale" }), null);

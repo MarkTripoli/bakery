@@ -11,6 +11,8 @@ import {
 // failed checks with a sentence for each.
 
 const MACHINE_ID = "00000000-0000-4000-8000-0000000000a1";
+const REPAIR_ID = "00000000-0000-4000-8000-0000000000e7";
+const REPAIR_CODE = "fixture-repair-code-0001";
 
 const json = (body: unknown, status = 200) => ({
   status,
@@ -35,6 +37,9 @@ type Fixture = {
   failedChecks: { checkId: string; reason: string | null }[];
   patches: Request[];
   revokes: Request[];
+  repairs: Request[];
+  /** What a read of the re-pair setup says. */
+  repairState: "pending" | "consumed" | "expired";
   /** The next update is refused with this status. */
   refuseWith: number | null;
 };
@@ -59,6 +64,8 @@ function fixture(
     failedChecks: [],
     patches: [],
     revokes: [],
+    repairs: [],
+    repairState: "pending",
     refuseWith: null,
     ...more,
   };
@@ -105,6 +112,31 @@ async function open(
     }
     return route.fulfill(json({ items: [], nextCursor: null }));
   });
+  await page.route(
+    (url) => url.pathname === `/v1/workers/${MACHINE_ID}/enrollments`,
+    (route) => {
+      f.repairs.push(route.request());
+      return route.fulfill(json({
+        enrollmentId: REPAIR_ID,
+        enrollmentToken: REPAIR_CODE,
+        expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+      }, 201));
+    },
+  );
+  await page.route(
+    (url) => url.pathname === `/v1/worker-enrollments/${REPAIR_ID}`,
+    (route) =>
+      route.fulfill(json({
+        enrollmentId: REPAIR_ID,
+        organizationId: MOCK_ORGANIZATION_ID,
+        state: f.repairState,
+        expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+        workerHostId: f.repairState === "consumed" ? MACHINE_ID : null,
+        worker: null,
+        version: 1,
+        snapshotCursor: null,
+      })),
+  );
   await page.route(
     (url) => url.pathname === `/v1/workers/${MACHINE_ID}/revocations`,
     (route) => {
@@ -192,8 +224,9 @@ test.describe("machine page: the one banner", () => {
     name: string;
     facts: Partial<Facts>;
     title: string;
-    body: string;
+    body: string | null;
     fix: string | null;
+    tone: "information" | "warning" | "error";
   }[] = [
     {
       name: "offline",
@@ -201,6 +234,7 @@ test.describe("machine page: the one banner", () => {
       title: "Offline. Bakery cannot reach it.",
       body: "Check that the machine is on and the Bakery worker is running.",
       fix: null,
+      tone: "warning",
     },
     {
       name: "not responding",
@@ -208,27 +242,32 @@ test.describe("machine page: the one banner", () => {
       title: "Not responding. It has stopped answering Bakery.",
       body: "Work is not sent to it until it answers again.",
       fix: null,
+      tone: "warning",
     },
     {
+      // Someone chose it: nothing is wrong, so it is information, not amber.
       name: "paused",
       facts: { status: "offline", desiredMode: "paused" },
       title: "Paused. It takes no new work until someone resumes it.",
-      body: "It keeps the work it has and takes nothing new.",
+      body: "It keeps the work it has.",
       fix: "Take work again",
+      tone: "information",
     },
     {
       name: "finishing up",
       facts: { status: "draining", desiredMode: "draining" },
       title: "Finishing its current work. It takes no new work.",
-      body: "It finishes its current work, then takes nothing new.",
+      body: null,
       fix: "Take work again",
+      tone: "information",
     },
     {
       name: "retired",
       facts: { status: "revoked", desiredMode: "revoked" },
       title: "Retired. It no longer takes work.",
-      body: "Retired machines take no work. Add it again to use it.",
-      fix: "Add machine",
+      body: "Set it up again to use it.",
+      fix: "Set up again",
+      tone: "information",
     },
   ];
   for (const item of cases) {
@@ -237,7 +276,11 @@ test.describe("machine page: the one banner", () => {
       const detail = page.getByTestId("machine-detail-page");
       await expect(detail).toBeVisible();
       await expect(banner(page)).toContainText(item.title);
-      await expect(banner(page)).toContainText(item.body);
+      if (item.body) await expect(banner(page)).toContainText(item.body);
+      await expect(banner(page)).toHaveAttribute("data-variant", item.tone);
+      // The status is the badge and the banner: not a third time in the line under the name.
+      await expect(detail.getByText(/· (Online|Offline|Not responding) ·/))
+        .toHaveCount(0);
       if (item.fix) {
         await expect(banner(page).getByRole("button")).toHaveText(item.fix);
       } else {
@@ -257,9 +300,30 @@ test.describe("machine page: the one banner", () => {
     const detail = page.getByTestId("machine-detail-page");
     await expect(detail.getByText("No failed checks reported.")).toBeVisible();
     await expect(banner(page)).toHaveCount(0);
-    await expect(detail.getByText("2 tasks at once")).toBeVisible();
-    await expect(detail.getByText("Linux x86_64 · Online · last seen"))
+    // One section about the machine, one line each: no section per fact.
+    const about = page.getByTestId("machine-about");
+    await expect(about.getByRole("heading", { name: "About this machine" }))
       .toBeVisible();
+    await expect(about).toContainText("System");
+    await expect(about).toContainText("Linux");
+    await expect(about).toContainText("Processor");
+    await expect(about).toContainText("x86_64");
+    await expect(about).toContainText("Tasks at once");
+    await expect(about).toContainText("Software");
+    await expect(about).toContainText("No software has been reported.");
+    await expect(detail.getByRole("heading", { name: "Capacity" })).toHaveCount(
+      0,
+    );
+    // The line under the name is where it is and when it was last seen, not its status.
+    await expect(detail.getByText(/^Linux · x86_64 · Last seen /))
+      .toBeVisible();
+    // Until the coding-agent rows exist the old section has no internal words.
+    await expect(detail.getByRole("heading", { name: "Coding agents" }))
+      .toBeVisible();
+    await expect(detail.getByText("No coding agent is set up yet."))
+      .toBeVisible();
+    await expect(detail.getByText(/Provider bindings|provider bindings/))
+      .toHaveCount(0);
     await shot(page, "machine-page-ready");
     const axe = await new AxeBuilder({ page }).analyze();
     expect(axe.violations.map((v) => v.id)).toEqual([]);
@@ -294,7 +358,11 @@ test.describe("machine page: the one banner", () => {
       "This machine cannot take any work until this is fixed.",
     );
     await expect(banner(page).getByRole("button")).toHaveText("See the checks");
+    // The button says it: the banner does not also say "see the checks".
+    await expect(banner(page)).not.toContainText("See the checks below.");
     const checks = page.getByTestId("machine-checks");
+    // Each failed check is marked on its own row.
+    await expect(checks.getByText("Failed", { exact: true })).toHaveCount(3);
     await expect(checks.getByRole("heading", { name: "This machine" }))
       .toBeVisible();
     await expect(checks.getByRole("heading", { name: "What it can do" }))
@@ -400,6 +468,10 @@ test.describe("machine page: mode and Retire", () => {
     await expect(dialog).toContainText(
       "It stops taking new work now and its sign-in to Bakery ends. The machine can be added again later.",
     );
+    // The one thing a person fears: what happens to what is running on it.
+    await expect(dialog).toContainText(
+      "Tasks running on it are not stopped or moved. Its sign-in ends, so it can no longer report on them.",
+    );
     await shot(page, "machine-page-retire");
     // Cancelling retires nothing.
     await dialog.getByRole("button", { name: "Cancel" }).click();
@@ -417,10 +489,42 @@ test.describe("machine page: mode and Retire", () => {
     await expect(page.getByTestId("machine-retire")).toHaveCount(0);
   });
 
-  test("the fix for a retired machine is Add machine", async ({ page }) => {
-    await open(page, fixture({ status: "revoked", desiredMode: "revoked" }));
-    await banner(page).getByRole("button", { name: "Add machine" }).click();
-    await expect(page).toHaveURL(/\/machines\/new$/);
+  test("a retired machine has one action, Set up again, which re-pairs the same machine in the wizard's words", async ({ page }) => {
+    const f = fixture({ status: "revoked", desiredMode: "revoked" });
+    await open(page, f);
+    // One action: the banner's. No second button in the header, no word "enrollment".
+    await expect(page.getByRole("button", { name: /Repair|enrollment/i }))
+      .toHaveCount(0);
+    await banner(page).getByRole("button", { name: "Set up again" }).click();
+    expect(f.repairs).toHaveLength(1);
+    expect(f.repairs[0]!.headers()["idempotency-key"]).toBeTruthy();
+    const setup = page.getByTestId("machine-repair");
+    await expect(
+      setup.getByRole("heading", { name: "Set up fixture-host again" }),
+    )
+      .toBeVisible();
+    await expect(setup.getByText(REPAIR_CODE)).toBeVisible();
+    await expect(
+      setup.getByText(
+        "The Bakery worker is the program that runs agents on this machine.",
+      ),
+    ).toBeVisible();
+    await expect(setup).toContainText("BAKERY_WORKER_NAME=fixture-host");
+    await expect(setup).toContainText("BAKERY_CLAUDE_HARNESS=1");
+    await expect(
+      setup.getByRole("status").filter({
+        hasText: "Waiting for the machine to connect…",
+      }),
+    ).toBeVisible();
+    // The old panel's words are gone.
+    await expect(page.getByText(/setup key|worker host|Run the worker/i))
+      .toHaveCount(0);
+    await shot(page, "machine-page-set-up-again");
+    // It connects: the page says so.
+    f.repairState = "consumed";
+    await expect(page.getByText("fixture-host is connected.")).toBeVisible({
+      timeout: 30_000,
+    });
   });
 
   test("anyone but an administrator sees the page without the controls", async ({ page }) => {
@@ -430,6 +534,8 @@ test.describe("machine page: mode and Retire", () => {
       "developer",
     );
     await expect(banner(page)).toContainText("Paused.");
+    // The fix changes the machine, so it is for administrators.
+    await expect(banner(page).getByRole("button")).toHaveCount(0);
     await expect(page.getByTestId("machine-mode")).toHaveCount(0);
     await expect(page.getByTestId("machine-retire")).toHaveCount(0);
   });

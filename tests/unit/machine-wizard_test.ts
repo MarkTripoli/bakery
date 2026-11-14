@@ -203,6 +203,29 @@ Deno.test("only Linux has steps to run the worker, and the repository setting is
   );
 });
 
+Deno.test("a machine with no known coding agent gets the settings without any agent's", () => {
+  const input = {
+    name: "old-box",
+    os: "linux" as const,
+    architecture: "x86_64",
+    capabilities: ["git", "shell"],
+    slots: 1,
+  };
+  const lines = workerEnvironment({
+    serverUrl: "https://b.example",
+    input,
+    agent: null,
+  }).split("\n");
+  assertEquals(lines, [
+    "BAKERY_SERVER_URL=https://b.example",
+    "BAKERY_WORKER_STATE_DIR=/var/lib/bakery/worker",
+    "BAKERY_WORKER_ENROLLMENT_TOKEN_FILE=/var/lib/bakery/worker/enrollment-token",
+    "BAKERY_WORKER_NAME=old-box",
+    "BAKERY_WORKER_SLOTS=1",
+    "BAKERY_WORKER_CAPABILITIES=git,shell",
+  ]);
+});
+
 Deno.test("an existing enrollment's agent is read back from its capabilities", () => {
   assertEquals(
     agentOfCapabilities(["git", "shell", "web", "model", "codex"]),

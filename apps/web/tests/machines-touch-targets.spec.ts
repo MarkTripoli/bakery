@@ -257,7 +257,8 @@ test.describe("machines touch targets on a coarse phone", () => {
     await adminMachinesFixture(page, { status: "revoked", blockersFail: true });
     await page.goto(`/machines/${MACHINE_ID}`);
     const detail = page.getByTestId("machine-detail-page");
-    await expect(detail.getByRole("button", { name: "Repair enrollment" }))
+    // A retired machine has one action, in its banner.
+    await expect(detail.getByRole("button", { name: "Set up again" }))
       .toBeVisible();
     await expect(detail.getByRole("button", { name: "Retry" }).first())
       .toBeVisible();

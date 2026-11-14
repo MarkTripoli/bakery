@@ -653,7 +653,7 @@ export type BakeryApiClient = {
       readonly idempotencyKey?: string;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<WorkerResponse>>;
-    /** `POST /v1/workers/{id}/revoke`: retire a machine; its sign-in to Bakery ends for good. */
+    /** `POST /v1/workers/{id}/revocations`: retire a machine; its sign-in to Bakery ends for good. */
     readonly revoke: (options: {
       readonly organizationId: string;
       readonly id: string;

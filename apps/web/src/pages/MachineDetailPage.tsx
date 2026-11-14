@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import type { MessageArguments, MessageKey, Translator } from "@bakery/i18n";
@@ -26,14 +25,10 @@ import { useConnectivity } from "../app/connectivity.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
-import {
-  boundedReason,
-  type EnrollmentToken,
-  EnrollmentTokenPanel,
-  formatMachineDate,
-} from "./MachinesPage.tsx";
+import { boundedReason, formatMachineDate } from "./MachinesPage.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { machineLine } from "./MachineList.tsx";
+import { SetupInstructions } from "./SetupInstructions.tsx";
 import {
   type BannerFix,
   bannerFix,
@@ -45,11 +40,18 @@ import {
   modeStatus,
 } from "./machine-page-state.ts";
 import {
+  codingAgents,
   machineBadge,
   machineBadgeTone,
   machineReason,
   requestedMode,
 } from "./machine-state.ts";
+import {
+  type EnrollmentInput,
+  hasInstaller,
+  installState,
+  type MachineSystem,
+} from "./machine-wizard.ts";
 
 function message(
   translate: Translator,
@@ -57,6 +59,38 @@ function message(
   arguments_?: MessageArguments,
 ): string {
   return translate(key as MessageKey, arguments_);
+}
+
+/** The banner kinds whose body says something the title does not. */
+const BANNER_BODY: ReadonlySet<string> = new Set([
+  "offline",
+  "stale",
+  "paused",
+  "retired",
+  "needsAttention",
+]);
+
+/** What a machine's own record says it is, for the settings a re-pair needs. */
+function repairInput(
+  worker: {
+    name: string;
+    os: string;
+    architecture: string;
+    slots: number;
+    capabilities?: unknown;
+  },
+): EnrollmentInput {
+  return {
+    name: worker.name,
+    os: worker.os as MachineSystem,
+    architecture: worker.architecture,
+    capabilities: Array.isArray(worker.capabilities)
+      ? worker.capabilities.filter((value): value is string =>
+        typeof value === "string"
+      )
+      : [],
+    slots: worker.slots,
+  };
 }
 
 function dateLabel(
@@ -255,7 +289,20 @@ export function MachineDetailPage(
         },
     ),
   );
-  const [repairToken, setRepairToken] = useState<EnrollmentToken | null>(null);
+  const [repairToken, setRepairToken] = useState<
+    | Readonly<{
+      enrollmentId: string;
+      enrollmentToken: string;
+      expiresAt: string;
+    }>
+    | null
+  >(null);
+  const [repairNow, setRepairNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (repairToken === null) return;
+    const timer = setInterval(() => setRepairNow(Date.now()), 15_000);
+    return () => clearInterval(timer);
+  }, [repairToken]);
   const [repairEnrollmentId, setRepairEnrollmentId] = useState<string | null>(
     null,
   );
@@ -268,6 +315,13 @@ export function MachineDetailPage(
     enabled: Boolean(repairEnrollmentId),
   });
   const [repairFailed, setRepairFailed] = useState(false);
+  const repairState = repairToken
+    ? installState(
+      repairEnrollment.data ??
+        { state: "pending", expiresAt: repairToken.expiresAt },
+      repairNow,
+    )
+    : null;
   useEffect(() => {
     if (repairEnrollment.data?.state !== "consumed") return;
     void queryClient.invalidateQueries({
@@ -357,8 +411,6 @@ export function MachineDetailPage(
     : authAttempt === null
     ? null
     : authQuery.data?.state ?? authAttempt.state;
-  const canRepair = isAdmin && workerData?.status === "revoked";
-  const navigate = useNavigate();
   const [modeNote, setModeNote] = useState<
     | { kind: "saved"; mode: MachineMode }
     | { kind: "conflict" }
@@ -426,12 +478,15 @@ export function MachineDetailPage(
     await refreshMachine();
   };
   const reason = workerData ? machineReason(workerData) : null;
-  const fix: BannerFix | null = reason ? bannerFix(reason) : null;
+  const wantedFix: BannerFix | null = reason ? bannerFix(reason) : null;
+  // Taking work again and setting it up again change the machine: administrators only.
+  const fix: BannerFix | null = wantedFix === "seeChecks" || isAdmin
+    ? wantedFix
+    : null;
   const runFix = (kind: BannerFix) => {
     if (kind === "takeWork") void changeMode("accepting");
-    else if (kind === "addMachine") {
-      void navigate({ to: "/machines/new", search: { finish: undefined } });
-    } else {
+    else if (kind === "setUpAgain") void repair();
+    else {
       document.querySelector('[data-testid="machine-checks"]')?.scrollIntoView({
         block: "start",
       });
@@ -463,26 +518,10 @@ export function MachineDetailPage(
               {
                 os: message(translate, `machines.os.${workerData.os}`),
                 architecture: workerData.architecture,
-                connectivity: message(
-                  translate,
-                  workerData.connectivity
-                    ? `machines.connectivity.${workerData.connectivity}`
-                    : "machines.unknown",
-                ),
                 time: formatDate(workerData.lastHeartbeatAt ?? ""),
               },
             )
             : machineId}
-          actions={canRepair
-            ? (
-              <UI.Button
-                variant="outline"
-                onClick={() => void repair()}
-              >
-                {message(translate, "machines.enrollment.repair")}
-              </UI.Button>
-            )
-            : null}
           summary={workerData
             ? (
               <UI.Badge tone={machineBadgeTone(machineBadge(workerData))}>
@@ -547,42 +586,75 @@ export function MachineDetailPage(
               {repairFailed
                 ? (
                   <UI.AlertBanner tone="error">
-                    {message(translate, "machines.enrollment.actionError")}
+                    {message(translate, "machines.repair.failed")}
                   </UI.AlertBanner>
                 )
                 : null}
               {repairToken
                 ? (
-                  <EnrollmentTokenPanel
-                    enrollment={repairToken}
-                    onDismiss={() => setRepairToken(null)}
-                    translate={translate}
-                    formatDate={formatDate}
-                    state={repairEnrollment.data?.state}
-                    workerHostId={repairEnrollment.data?.workerHostId}
-                  />
-                )
-                : null}
-              {repairEnrollmentId
-                ? (
-                  <UI.DescriptionList data-testid="machine-repair-status">
-                    <UI.DescriptionItem
-                      title={message(
-                        translate,
-                        "machines.enrollment.status",
+                  <UI.SettingsSection
+                    title={message(translate, "machines.repair.title", {
+                      name: workerData.name,
+                    })}
+                    variant="stack"
+                    data-testid="machine-repair"
+                  >
+                    {repairState === "connected"
+                      ? (
+                        <UI.AlertBanner tone="success" role="status">
+                          {message(
+                            translate,
+                            "machines.wizard.install.connected",
+                            { name: workerData.name },
+                          )}
+                        </UI.AlertBanner>
+                      )
+                      : repairState === "expired" || repairState === "canceled"
+                      ? (
+                        <UI.Stack gap="standard">
+                          <UI.AlertBanner tone="warning" role="status">
+                            {message(
+                              translate,
+                              "machines.wizard.install.expired",
+                            )}
+                          </UI.AlertBanner>
+                          <UI.Inline gap="compact">
+                            <UI.Button
+                              variant="primary"
+                              onClick={() => void repair()}
+                            >
+                              {message(
+                                translate,
+                                "machines.wizard.install.newSettings",
+                              )}
+                            </UI.Button>
+                          </UI.Inline>
+                        </UI.Stack>
+                      )
+                      : !hasInstaller(workerData.os as MachineSystem)
+                      ? (
+                        <UI.AlertBanner tone="information" role="status">
+                          {message(translate, "machines.wizard.macos")}
+                        </UI.AlertBanner>
+                      )
+                      : (
+                        <UI.Stack gap="standard">
+                          <SetupInstructions
+                            input={repairInput(workerData)}
+                            agent={codingAgents(workerData.capabilities)[0] ??
+                              null}
+                            code={repairToken.enrollmentToken}
+                            expiresAt={repairToken.expiresAt}
+                            now={repairNow}
+                            serverUrl={globalThis.location?.origin ?? ""}
+                            translate={translate}
+                          />
+                          <UI.Text variant="muted">
+                            {message(translate, "machines.repair.leave")}
+                          </UI.Text>
+                        </UI.Stack>
                       )}
-                      description={repairEnrollment.isPending
-                        ? message(translate, "machines.loading")
-                        : repairEnrollment.isError
-                        ? message(translate, "machines.error.title")
-                        : repairEnrollment.data
-                        ? message(
-                          translate,
-                          `machines.enrollment.state.${repairEnrollment.data.state}`,
-                        )
-                        : message(translate, "machines.unknown")}
-                    />
-                  </UI.DescriptionList>
+                  </UI.SettingsSection>
                 )
                 : null}
               {reason
@@ -591,9 +663,9 @@ export function MachineDetailPage(
                     tone={reason.kind === "checkFailed" ||
                         reason.kind === "needsAttention"
                       ? "error"
-                      : reason.kind === "retired"
-                      ? "information"
-                      : "warning"}
+                      : reason.kind === "offline" || reason.kind === "stale"
+                      ? "warning"
+                      : "information"}
                     data-testid="machine-problem-banner"
                     action={fix
                       ? (
@@ -602,12 +674,7 @@ export function MachineDetailPage(
                           loading={modeBusy}
                           onClick={() => runFix(fix)}
                         >
-                          {message(
-                            translate,
-                            fix === "addMachine"
-                              ? "machines.add"
-                              : `machines.banner.fix.${fix}`,
-                          )}
+                          {message(translate, `machines.banner.fix.${fix}`)}
                         </UI.Button>
                       )
                       : undefined}
@@ -616,15 +683,21 @@ export function MachineDetailPage(
                       <UI.Text variant="strong">
                         {machineLine(workerData, translate)}
                       </UI.Text>
-                      <UI.Text>
-                        {message(
-                          translate,
-                          `machines.banner.body.${reason.kind}`,
-                          {
-                            time: formatDate(workerData.lastHeartbeatAt ?? ""),
-                          },
-                        )}
-                      </UI.Text>
+                      {BANNER_BODY.has(reason.kind)
+                        ? (
+                          <UI.Text>
+                            {message(
+                              translate,
+                              `machines.banner.body.${reason.kind}`,
+                              {
+                                time: formatDate(
+                                  workerData.lastHeartbeatAt ?? "",
+                                ),
+                              },
+                            )}
+                          </UI.Text>
+                        )
+                        : null}
                       {reason.kind === "checkFailed" && blockers.data
                         ? (
                           <UI.Text>
@@ -762,6 +835,14 @@ export function MachineDetailPage(
                               return (
                                 <UI.DescriptionItem
                                   key={id}
+                                  action={
+                                    <UI.Badge tone="danger">
+                                      {message(
+                                        translate,
+                                        "machines.checks.failed",
+                                      )}
+                                    </UI.Badge>
+                                  }
                                   title={info.nameKey
                                     ? message(
                                       translate,
@@ -807,18 +888,9 @@ export function MachineDetailPage(
                   )}
               </UI.SettingsSection>
               <UI.SettingsSection
-                title={message(translate, "machines.capacity.title")}
+                title={message(translate, "machines.about.title")}
                 variant="stack"
-              >
-                <UI.Text>
-                  {message(translate, "machines.capacity.slots", {
-                    count: workerData.slots,
-                  })}
-                </UI.Text>
-              </UI.SettingsSection>
-              <UI.SettingsSection
-                title={message(translate, "machines.software.title")}
-                variant="stack"
+                data-testid="machine-about"
               >
                 {nextComponentCursor
                   ? (
@@ -829,33 +901,50 @@ export function MachineDetailPage(
                     </UI.AlertBanner>
                   )
                   : null}
-                {components.isError
-                  ? (
-                    <UI.ErrorState
-                      title={message(translate, "machines.error.title")}
-                      description={message(
-                        translate,
-                        "machines.error.description",
-                      )}
-                    />
-                  )
-                  : componentItems.length
-                  ? (
-                    <UI.DescriptionList>
-                      {componentItems.map((component) => (
-                        <UI.DescriptionItem
-                          key={component.id}
-                          title={`${component.kind} · ${component.componentKey}`}
-                          description={`${component.actualVersion} · ${component.installOwner}`}
-                        />
-                      ))}
-                    </UI.DescriptionList>
-                  )
-                  : (
-                    <UI.Text>
-                      {message(translate, "machines.software.empty")}
-                    </UI.Text>
-                  )}
+                <UI.DescriptionList>
+                  <UI.DescriptionItem
+                    title={message(translate, "machines.about.system")}
+                    description={message(
+                      translate,
+                      `machines.os.${workerData.os}`,
+                    )}
+                  />
+                  <UI.DescriptionItem
+                    title={message(translate, "machines.about.processor")}
+                    description={workerData.architecture}
+                  />
+                  <UI.DescriptionItem
+                    title={message(translate, "machines.about.slots")}
+                    description={String(workerData.slots)}
+                  />
+                  {components.isError
+                    ? (
+                      <UI.DescriptionItem
+                        title={message(translate, "machines.software.title")}
+                        description={message(
+                          translate,
+                          "machines.error.description",
+                        )}
+                      />
+                    )
+                    : componentItems.length
+                    ? componentItems.map((component) => (
+                      <UI.DescriptionItem
+                        key={component.id}
+                        title={`${component.kind} · ${component.componentKey}`}
+                        description={`${component.actualVersion} · ${component.installOwner}`}
+                      />
+                    ))
+                    : (
+                      <UI.DescriptionItem
+                        title={message(translate, "machines.software.title")}
+                        description={message(
+                          translate,
+                          "machines.software.empty",
+                        )}
+                      />
+                    )}
+                </UI.DescriptionList>
                 {componentContinuation.isError
                   ? (
                     <UI.AlertBanner tone="error">
@@ -1053,6 +1142,9 @@ export function MachineDetailPage(
                       <UI.Stack gap="compact">
                         <UI.Text>
                           {message(translate, "machines.retire.dialogBody")}
+                        </UI.Text>
+                        <UI.Text>
+                          {message(translate, "machines.retire.dialogWork")}
                         </UI.Text>
                         {retireFailed
                           ? (

@@ -36,7 +36,7 @@ export function controlMode(
 }
 
 /** The one fix a problem banner offers, or none. */
-export type BannerFix = "takeWork" | "seeChecks" | "addMachine";
+export type BannerFix = "takeWork" | "seeChecks" | "setUpAgain";
 
 export function bannerFix(reason: MachineReason): BannerFix | null {
   switch (reason.kind) {
@@ -46,7 +46,7 @@ export function bannerFix(reason: MachineReason): BannerFix | null {
     case "checkFailed":
       return "seeChecks";
     case "retired":
-      return "addMachine";
+      return "setUpAgain";
     // Offline and not responding mend themselves; "needs attention" with no
     // check named has nothing to scroll to.
     default:
