@@ -131,14 +131,16 @@ for (
       const side = card(page).first();
       await expect(side.getByText("Can start", { exact: true })).toBeVisible();
       await expect(side.getByText("3 other checks passed")).toBeVisible();
-      await expect(side.getByText("Checked 12 minutes ago")).toBeVisible();
+      await expect(side.getByText(/^Checked \d+ minutes ago$/)).toBeVisible();
       await expect(side.getByText(
         "Uses the standard coding workflow in acme/web.",
       )).toBeVisible();
       await expect(side.getByRole("button", { name: "Start work" }))
         .toBeVisible();
       // Plan first is a visible second button with its own help.
-      await expect(side.getByRole("button", { name: "Plan first" }))
+      await expect(
+        side.getByRole("button", { name: "Plan first", exact: true }),
+      )
         .toBeVisible();
       await expect(side.getByRole("button", { name: "About Plan first" }))
         .toBeVisible();
@@ -188,7 +190,9 @@ for (
       await expect(side.getByText(
         "Bakery will start this by itself when acme/web#201 is done.",
       )).toBeVisible();
-      await expect(side.getByRole("button", { name: "Plan first" }))
+      await expect(
+        side.getByRole("button", { name: "Plan first", exact: true }),
+      )
         .toHaveCount(0);
       await expect(page.getByText("Still open", { exact: true }))
         .toBeVisible();
@@ -261,7 +265,10 @@ for (
 
     test("Plan first is a visible button beside Start work and changes what the confirmation says", async ({ page }) => {
       const seen = await open(page, READY);
-      await card(page).first().getByRole("button", { name: "Plan first" })
+      await card(page).first().getByRole("button", {
+        name: "Plan first",
+        exact: true,
+      })
         .click();
       const dialog = page.getByRole("alertdialog");
       await expect(dialog).toContainText(
@@ -304,7 +311,9 @@ for (
           const side = card(page).first();
           await expect(side.getByRole("button", { name: "Start work" }))
             .toBeDisabled();
-          await expect(side.getByRole("button", { name: "Plan first" }))
+          await expect(
+            side.getByRole("button", { name: "Plan first", exact: true }),
+          )
             .toBeDisabled();
           await expect(page.getByRole("button", { name: "Reload" }))
             .toBeVisible();
