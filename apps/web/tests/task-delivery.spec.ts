@@ -707,6 +707,13 @@ test("an open approval asks for a decision: Approve is the one button, the other
   // button is brought into view first.
   const help = step.getByRole("button", { name: "About approval" });
   await help.scrollIntoViewIfNeeded();
+  // The scroll's own event arrives a frame later; focusing before it would open
+  // the tip just in time to be closed by it.
+  await page.evaluate(() =>
+    new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    )
+  );
   await help.focus();
   await expect(
     page.getByRole("tooltip").filter({
