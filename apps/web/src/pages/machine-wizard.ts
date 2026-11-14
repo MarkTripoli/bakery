@@ -148,10 +148,18 @@ export function environmentValue(value: string): string {
 export function workerEnvironment(options: {
   serverUrl: string;
   input: EnrollmentInput;
-  agent: CodingAgent;
+  /** The coding agent, or null for a machine with none known: no agent settings then. */
+  agent: CodingAgent | null;
 }): string {
-  const { input } = options;
-  const { prefix, program } = HARNESS[options.agent];
+  const { input, agent } = options;
+  const harness = agent === null ? [] : [
+    `BAKERY_${HARNESS[agent].prefix}_HARNESS=1`,
+    `${harnessRepositorySetting(agent)}=${HARNESS_REPOSITORY}`,
+    `BAKERY_${HARNESS[agent].prefix}_HARNESS_TIME_LIMIT_MS=120000`,
+    `BAKERY_${HARNESS[agent].prefix}_HARNESS_EXECUTABLE=${
+      HARNESS[agent].program
+    }`,
+  ];
   return [
     `BAKERY_SERVER_URL=${options.serverUrl}`,
     `BAKERY_WORKER_STATE_DIR=${WORKER_STATE_DIR}`,
@@ -159,10 +167,7 @@ export function workerEnvironment(options: {
     `BAKERY_WORKER_NAME=${environmentValue(input.name)}`,
     `BAKERY_WORKER_SLOTS=${input.slots}`,
     `BAKERY_WORKER_CAPABILITIES=${input.capabilities.join(",")}`,
-    `BAKERY_${prefix}_HARNESS=1`,
-    `${harnessRepositorySetting(options.agent)}=${HARNESS_REPOSITORY}`,
-    `BAKERY_${prefix}_HARNESS_TIME_LIMIT_MS=120000`,
-    `BAKERY_${prefix}_HARNESS_EXECUTABLE=${program}`,
+    ...harness,
   ].join("\n");
 }
 

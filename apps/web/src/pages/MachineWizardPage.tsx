@@ -14,27 +14,23 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
+import { SetupInstructions } from "./SetupInstructions.tsx";
 import type { CodingAgent } from "./machine-state.ts";
 import {
   agentOfCapabilities,
   type EnrollmentInput,
   enrollmentInput,
-  harnessRepositorySetting,
   hasInstaller,
   initialAnswers,
   installState,
   type MachineSystem,
-  minutesLeft,
   NAME_MAX,
   PROCESSORS,
-  saveSetupCodeCommand,
-  startWorkerCommand,
   suggestedProcessor,
   systemProblems,
   WIZARD_STEPS,
   type WizardAnswers,
   type WizardStep,
-  workerEnvironment,
 } from "./machine-wizard.ts";
 
 type EnrollmentRow = WorkerEnrollmentListResponse["items"][number];
@@ -48,63 +44,6 @@ type IssuedCode = Readonly<{
 
 const AGENTS: readonly CodingAgent[] = ["claude", "codex", "pi"];
 const SYSTEMS: readonly MachineSystem[] = ["linux", "macos"];
-
-function Numbered(
-  { n, text }: { n: number; text: string },
-) {
-  return (
-    <UI.Heading level="subsection" rank={2}>
-      {`${n}. ${text}`}
-    </UI.Heading>
-  );
-}
-
-/** A value or block of values to copy, with its one Copy button under it. */
-function Copyable(
-  { code, label, translate, secret = false }: {
-    code: string;
-    label: string;
-    translate: Translator;
-    /** A one-time secret: shown as the setup-code plate, not as code. */
-    secret?: boolean;
-  },
-) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <UI.Stack gap="compact">
-      {secret ? <UI.SetupKey>{code}</UI.SetupKey> : (
-        <UI.CodeBlock
-          code={code}
-          language="dotenv"
-          variant="command"
-          aria-label={label}
-        />
-      )}
-      <UI.Inline gap="compact">
-        <UI.Button
-          variant="secondary"
-          onClick={() => {
-            void (async () => {
-              try {
-                await navigator.clipboard.writeText(code);
-                setCopied(true);
-              } catch {
-                // The clipboard is not available here: the text stays selectable.
-                setCopied(false);
-              }
-            })();
-          }}
-        >
-          {translate(
-            (copied
-              ? "machines.wizard.copied"
-              : "machines.wizard.copy") as never,
-          )}
-        </UI.Button>
-      </UI.Inline>
-    </UI.Stack>
-  );
-}
 
 function SystemStep(
   { answers, onChange, showProblems, translate }: {
@@ -322,7 +261,6 @@ function InstallStep(
     }
   }, [connected, queryClient, scope.organizationId, scope.sessionGeneration]);
   const serverUrl = globalThis.location?.origin ?? "";
-  const agentName = translate(`machines.agent.${agent}` as never);
   const state = status.data
     ? installState(status.data, now)
     : issued
@@ -405,70 +343,17 @@ function InstallStep(
       </UI.Stack>
     );
   }
-  const startCommand = startWorkerCommand(input.os);
-  const settings = workerEnvironment({ serverUrl, input, agent });
-  let n = 0;
   return (
     <UI.Stack gap="standard">
-      <UI.Text>{translate("machines.wizard.install.intro" as never)}</UI.Text>
-      <UI.Text variant="muted">
-        {translate("machines.wizard.install.expires" as never, {
-          minutes: minutesLeft(issued.expiresAt, now),
-        })}
-      </UI.Text>
-      <Numbered
-        n={++n}
-        text={translate("machines.wizard.install.copyCode" as never)}
-      />
-      <Copyable
-        secret
+      <SetupInstructions
+        input={input}
+        agent={agent}
         code={issued.code}
-        label={translate("machines.wizard.install.copyCode" as never)}
+        expiresAt={issued.expiresAt}
+        now={now}
+        serverUrl={serverUrl}
         translate={translate}
       />
-      <Numbered
-        n={++n}
-        text={translate("machines.wizard.install.saveCode" as never)}
-      />
-      <Copyable
-        code={saveSetupCodeCommand()}
-        label={translate("machines.wizard.install.saveCode" as never)}
-        translate={translate}
-      />
-      <UI.Text variant="muted">
-        {translate("machines.wizard.install.saveCodeHint" as never)}
-      </UI.Text>
-      <Numbered
-        n={++n}
-        text={translate("machines.wizard.install.settings.linux" as never)}
-      />
-      <Copyable
-        code={settings}
-        label={translate("machines.wizard.install.settings.linux" as never)}
-        translate={translate}
-      />
-      <UI.Text variant="muted">
-        {translate("machines.wizard.install.change" as never, {
-          setting: harnessRepositorySetting(agent),
-          agent: agentName,
-        })}
-      </UI.Text>
-      <Numbered
-        n={++n}
-        text={translate("machines.wizard.install.start.linux" as never)}
-      />
-      {startCommand
-        ? (
-          <Copyable
-            code={startCommand}
-            label={translate("machines.wizard.install.start.linux" as never)}
-            translate={translate}
-          />
-        )
-        : null}
-      <UI.AlertBanner tone="information" role="status" aria-live="polite">
-        {translate("machines.wizard.install.waiting" as never)}
-      </UI.AlertBanner>
       <UI.Text variant="muted">
         {translate("machines.wizard.install.leave" as never)}
       </UI.Text>
