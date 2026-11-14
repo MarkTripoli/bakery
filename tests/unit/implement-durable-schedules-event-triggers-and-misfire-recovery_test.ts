@@ -8,6 +8,11 @@ import {
   parseCron,
 } from "../../apps/server/src/modules/workflows/automations/schedule.ts";
 import {
+  CATCH_UP_DAYS,
+  dueOccurrences,
+  planFiring,
+} from "../../apps/server/src/modules/workflows/automations/tick-plan.ts";
+import {
   parseTrigger,
   TriggerError,
 } from "../../apps/server/src/modules/workflows/automations/trigger.ts";
@@ -1034,4 +1039,107 @@ Deno.test("a trigger is exactly a schedule or an event: data, with nothing else 
   const snapshot = JSON.stringify(original);
   parseTrigger(original);
   assertEquals(JSON.stringify(original), snapshot);
+});
+
+Deno.test("the due occurrences from the cursor to now are counted once each, however many, and only within the catch-up window", () => {
+  const due = (expression: string, zone: string, cursor: string, now: string) =>
+    dueOccurrences(
+      parseCron(expression),
+      zone,
+      new Date(cursor),
+      new Date(now),
+    );
+  // On time: the cursor itself is the one due occurrence.
+  const onTime = due(
+    "*/5 * * * *",
+    "UTC",
+    "2026-11-14T10:05:00Z",
+    "2026-11-14T10:05:30Z",
+  )!;
+  assertEquals(onTime.count, 1);
+  assertEquals(iso(onTime.latest), "2026-11-14T10:05:00.000Z");
+  // Late by several occurrences: the cursor and every one up to now, inclusive of now.
+  const late = due(
+    "*/5 * * * *",
+    "UTC",
+    "2026-11-14T10:05:00Z",
+    "2026-11-14T10:30:00Z",
+  )!;
+  assertEquals(late.count, 6);
+  assertEquals(iso(late.latest), "2026-11-14T10:30:00.000Z");
+  // Nothing due before the cursor.
+  assertEquals(
+    due("*/5 * * * *", "UTC", "2026-11-14T10:05:00Z", "2026-11-14T10:04:59Z"),
+    null,
+  );
+  // Counted in chunks of a hundred thousand: 100 days of a per-minute schedule is 144000.
+  const many = due(
+    "* * * * *",
+    "UTC",
+    "2026-08-01T00:00:00Z",
+    "2026-11-09T00:00:00Z",
+  )!;
+  assertEquals(many.count, 100 * 1440 + 1);
+  assertEquals(iso(many.latest), "2026-11-09T00:00:00.000Z");
+  // Older than the window is not counted: the window is the last CATCH_UP_DAYS days.
+  const ancient = due(
+    "0 0 * * *",
+    "UTC",
+    "2015-01-01T00:00:00Z",
+    "2026-11-14T12:00:00Z",
+  )!;
+  assertEquals(CATCH_UP_DAYS, 366);
+  assertEquals(ancient.count, 366);
+  assertEquals(iso(ancient.latest), "2026-11-14T00:00:00.000Z");
+  // A clock-change day is counted by its real occurrences: Berlin's hourly schedule has 23 in the spring day, and the window's closing midnight is the 24th.
+  const spring = due(
+    "0 * * * *",
+    "Europe/Berlin",
+    "2026-03-28T23:00:00Z",
+    "2026-03-29T22:00:00Z",
+  )!;
+  assertEquals(spring.count, 24);
+  // Greenland: the skipped hour and midnight are one occurrence.
+  const greenland = due(
+    "0 * * * *",
+    "America/Godthab",
+    "2025-03-29T21:00:00Z",
+    "2025-03-30T04:00:00Z",
+  )!;
+  assertEquals(greenland.count, 8);
+});
+
+Deno.test("one firing stands in for the due occurrences: coalesce queues the latest and counts the rest, skip records them all and runs none", () => {
+  const latest = new Date("2026-11-14T10:30:00Z");
+  // On time: an ordinary queued firing under either policy.
+  for (const policy of ["coalesce", "skip"] as const) {
+    assertEquals(planFiring(policy, { count: 1, latest }), {
+      scheduledAt: latest,
+      status: "queued",
+      pending: true,
+      skippedCount: 0,
+    });
+  }
+  assertEquals(planFiring("coalesce", { count: 6, latest }), {
+    scheduledAt: latest,
+    status: "queued",
+    pending: true,
+    skippedCount: 5,
+  });
+  assertEquals(planFiring("skip", { count: 6, latest }), {
+    scheduledAt: latest,
+    status: "skipped",
+    pending: false,
+    skippedCount: 6,
+  });
+  assertEquals(
+    planFiring("coalesce", { count: 144_001, latest }).skippedCount,
+    144_000,
+  );
+  // Never a negative count, whatever is asked of it.
+  assertEquals(planFiring("coalesce", { count: 0, latest }).skippedCount, 0);
+  assertEquals(
+    planFiring("skip", { count: 144_001, latest }).skippedCount,
+    144_001,
+  );
 });

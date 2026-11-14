@@ -42,7 +42,7 @@ const skillFileStore = {
   read: () => Promise.resolve(new Uint8Array()),
 } satisfies SkillFileStoreOperations;
 
-Deno.test("default Inngest registration keeps workflow and budget recovery handlers and adds two import handlers", () => {
+Deno.test("default Inngest registration keeps workflow and budget recovery handlers and adds the import handlers and the automation clock", () => {
   const captured: CapturedFunction[] = [];
   const config = readInngestRuntimeConfig({
     BAKERY_ENV: "test",
@@ -58,7 +58,7 @@ Deno.test("default Inngest registration keeps workflow and budget recovery handl
     skillImport: { sourceAdapter, skillFileStore },
   });
 
-  assertEquals(functions.length, 9);
+  assertEquals(functions.length, 10);
   assertEquals(captured.map(({ config }) => config.id), [
     "bakery-fixed-workflow",
     "bakery-workflow-recovery",
@@ -69,8 +69,10 @@ Deno.test("default Inngest registration keeps workflow and budget recovery handl
     "bakery-conversation-turn",
     "bakery-conversation-turn-recovery",
     "bakery-audit-retention",
+    "bakery-automation-tick",
   ]);
   assertEquals(captured[5].config.triggers, [{ cron: "* * * * *" }]);
+  assertEquals(captured[9].config.triggers, [{ cron: "* * * * *" }]);
   assertEquals(captured[0].config.triggers, [
     { event: "bakery/run.requested.v1" },
   ]);
