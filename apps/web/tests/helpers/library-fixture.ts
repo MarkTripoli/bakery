@@ -33,7 +33,14 @@ export type VersionRow = {
   agents?: Record<string, string>;
   createdAt?: string;
 };
-export type AgentVersionRow = { id: string; agentId: string; revision: number };
+export type AgentVersionRow = {
+  id: string;
+  agentId: string;
+  revision: number;
+  /** What the version is configured to do (harness, billing, capabilities, bindings). */
+  config?: Record<string, unknown>;
+  createdAt?: string;
+};
 
 export const definition = (
   n: number,
@@ -141,6 +148,7 @@ const versionBody = (row: VersionRow) => ({
 export async function libraryFixture(page: Page, options: Options = {}) {
   await mockAuthenticatedSession(page);
   const workflows = (options.workflows ?? []).map((item) => ({ ...item }));
+  const agents = (options.agents ?? []).map((item) => ({ ...item }));
   const versions = (options.versions ?? []).map((row) => ({ ...row }));
   let release: () => void = () => {};
   const held = new Promise<void>((resolve) => {
@@ -154,6 +162,16 @@ export async function libraryFixture(page: Page, options: Options = {}) {
   const seen = {
     release: () => release(),
     releaseAgents: () => releaseAgents(),
+    agentActivations: [] as {
+      id: string;
+      ifMatch: string | null;
+      body: Record<string, unknown>;
+    }[],
+    agentUpdates: [] as {
+      id: string;
+      ifMatch: string | null;
+      body: Record<string, unknown>;
+    }[],
     activations: [] as {
       id: string;
       ifMatch: string | null;
@@ -355,6 +373,48 @@ export async function libraryFixture(page: Page, options: Options = {}) {
     },
   );
   await page.route(
+    (url) => /^\/v1\/agents\/[^/]+$/.test(url.pathname),
+    (route) => {
+      const id = new URL(route.request().url()).pathname.split("/")[3] ?? "";
+      if (options.forbidden) {
+        return route.fulfill(problem(403, "AUTH_FORBIDDEN"));
+      }
+      const target = agents.find((item) => item.id === id);
+      if (!target) return route.fulfill(problem(404, "RESOURCE_NOT_FOUND"));
+      if (route.request().method() === "PATCH") {
+        seen.agentUpdates.push({
+          id,
+          ifMatch: route.request().headers()["if-match"] ?? null,
+          body: route.request().postDataJSON() as Record<string, unknown>,
+        });
+        if (options.conflict === "update") return conflict(route);
+        const patch = route.request().postDataJSON() as Partial<Definition>;
+        if (typeof patch.name === "string") target.name = patch.name;
+        if (typeof patch.enabled === "boolean") target.enabled = patch.enabled;
+        target.version = (target.version ?? 1) + 1;
+      }
+      return route.fulfill(json(body(target)));
+    },
+  );
+  await page.route(
+    (url) => /^\/v1\/agents\/[^/]+\/activations$/.test(url.pathname),
+    (route) => {
+      const id = new URL(route.request().url()).pathname.split("/")[3] ?? "";
+      const request = route.request().postDataJSON() as { versionId: string };
+      seen.agentActivations.push({
+        id,
+        ifMatch: route.request().headers()["if-match"] ?? null,
+        body: request,
+      });
+      if (options.conflict === "activate") return conflict(route);
+      const target = agents.find((item) => item.id === id);
+      if (!target) return route.fulfill(problem(404, "RESOURCE_NOT_FOUND"));
+      target.activeVersionId = request.versionId;
+      target.version = (target.version ?? 1) + 1;
+      return route.fulfill(json(body(target)));
+    },
+  );
+  await page.route(
     (url) => /^\/v1\/agents\/[^/]+\/versions$/.test(url.pathname),
     (route) => {
       const id = new URL(route.request().url()).pathname.split("/")[3] ?? "";
@@ -364,10 +424,11 @@ export async function libraryFixture(page: Page, options: Options = {}) {
             id: row.id,
             agentId: row.agentId,
             revision: row.revision,
-            config: {},
-            digest: "c".repeat(64),
+            config: row.config ?? {},
+            digest: String(row.revision).padStart(2, "0").repeat(32),
             createdBy: uuid(1),
-            createdAt: STAMP,
+            createdAt: row.createdAt ?? "2026-03-0" +
+                Math.min(row.revision, 9) + "T10:00:00.000Z",
             updatedAt: STAMP,
             version: 1,
           })),
@@ -383,7 +444,7 @@ export async function libraryFixture(page: Page, options: Options = {}) {
         return route.fulfill(problem(500, "INTERNAL_ERROR"));
       }
       if (options.agentReads === "hold") await agentsHeld;
-      return answer("agents", (options.agents ?? []).map(body))(route);
+      return answer("agents", agents.map(body))(route);
     },
   );
   await page.route(

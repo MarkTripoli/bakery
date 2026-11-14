@@ -155,10 +155,15 @@ export function LibraryPage() {
           )}
         onNavigate={(href) => void navigate({ to: href })}
         onOpen={(row) =>
-          void navigate({
-            to: "/library/workflows/$workflowId",
-            params: { workflowId: row.id },
-          })}
+          void (tab === "agents"
+            ? navigate({
+              to: "/library/agents/$agentId",
+              params: { agentId: row.id },
+            })
+            : navigate({
+              to: "/library/workflows/$workflowId",
+              params: { workflowId: row.id },
+            }))}
         rows={rows}
         translate={translate}
       />
@@ -176,7 +181,7 @@ export function LibraryPage() {
     badgeRow(row, true)
   );
   const agentRows = byName(agents.data?.items ?? []).map((row) =>
-    badgeRow(row)
+    badgeRow(row, true)
   );
   const truncated = tab === "workflows"
     ? workflows.data?.truncated

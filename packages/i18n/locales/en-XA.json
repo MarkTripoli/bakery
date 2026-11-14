@@ -3469,5 +3469,21 @@
   "library.import.submit": "⟦Ïɱþôŕŧ àš ðŕàƒŧ ŧëš⟧",
   "library.import.stepsFailed": "⟦Ŧĥë ŵôŕķƒļôŵ {name} ŵàš ɱàðë, ƀûŧ ïŧš šŧëþš çôûļð ñôŧ ƀë àððëð. Ïŧ ïš ïñ Ļïƀŕàŕÿ ŵïŧĥ ñô šŧëþš ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "library.import.failed": "⟦Ŧĥë ŵôŕķƒļôŵ çôûļð ñôŧ ƀë ïɱþôŕŧëð. Ŧŕÿ àĝàïñ ïñ à ɱôɱëñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
-  "library.import.forbidden": "⟦Ôñļÿ ôŕĝàñïžàŧïôñ àðɱïñïšŧŕàŧôŕš çàñ ïɱþôŕŧ à ŵôŕķƒļôŵ. ŧëšŧ çôþÿ ŧëšŧ çô⟧"
+  "library.import.forbidden": "⟦Ôñļÿ ôŕĝàñïžàŧïôñ àðɱïñïšŧŕàŧôŕš çàñ ïɱþôŕŧ à ŵôŕķƒļôŵ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "library.agent.breadcrumb": "⟦Àĝëñŧ⟧",
+  "library.agent.loading": "⟦Ļôàðïñĝ ŧĥë àĝëñŧ. ŧëšŧ⟧",
+  "library.agent.notFound.title": "⟦Ŧĥïš àĝëñŧ ŵàš ñôŧ ƒôûñð ŧëšŧ ç⟧",
+  "library.agent.details.title": "⟦Ṽëŕšïôñ {version} ŧëš⟧",
+  "library.agent.runsOn": "⟦Ŕûñš ôñ…⟧",
+  "library.agent.model": "⟦Ṁôðëļ⟧",
+  "library.agent.tools": "⟦Ŧôôļš ïŧ ɱàÿ ûšë ŧëš⟧",
+  "library.agent.prompts": "⟦Þŕôɱþŧš…⟧",
+  "library.agent.skills": "⟦Šķïļļš…⟧",
+  "library.agent.none": "⟦Ñôñë⟧",
+  "library.agent.notSet": "⟦Ñôŧ šëŧ…⟧",
+  "library.agent.noneInUse": "⟦Ñô ṽëŕšïôñ ïš ïñ ûšë, šô ŧĥïš àĝëñŧ çàññôŧ ƀë çĥôšëñ ƒôŕ ñëŵ ŧàšķš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "library.agent.versions.none": "⟦Ŧĥïš àĝëñŧ ĥàš ñô ṽëŕšïôñš ÿëŧ. ŧëšŧ çôþ⟧",
+  "library.agent.versions.note": "⟦À ṽëŕšïôñ ñëṽëŕ çĥàñĝëš àƒŧëŕ ïŧ ïš ɱàðë. Ŵôŕķƒļôŵš ķëëþ ŧĥë àĝëñŧ ṽëŕšïôñ ŧĥëÿ ŵëŕë þûƀļïšĥëð ŵïŧĥ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "library.agent.use.body": "⟦Ñëŵ ŧàšķš ŵïļļ ûšë ṽëŕšïôñ {version}. Ŧàšķš àļŕëàðÿ ŕûññïñĝ ķëëþ ŧĥë ṽëŕšïôñ ŧĥëÿ šŧàŕŧëð ŵïŧĥ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "library.agent.renameDialog.title": "⟦Ŕëñàɱë àĝëñŧ ŧë⟧"
 }
