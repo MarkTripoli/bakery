@@ -21,6 +21,14 @@ export type DescriptionItemProps =
     /** Trailing link, button, or badge. */
     action?: ReactNode;
     /**
+     * Where `action` sits on a phone: `end` (default) keeps it beside the
+     * text; `below` gives it its own line under the text, left-aligned, for
+     * a row whose action is a badge and one or two labelled buttons that would
+     * otherwise squeeze the text and wrap their labels. Wider screens are
+     * unchanged.
+     */
+    actionPlacement?: "end" | "below";
+    /**
      * Makes the whole row the control (Paper's `.item.selectable`): the row
      * becomes a `<button>` and `action` is reserved for the affordance that
      * shows where it leads, e.g. `<UI.IconGlyph name="arrow" size="large" />`.
@@ -38,8 +46,16 @@ export type DescriptionItemProps =
  * no column alignment across siblings.
  */
 export function DescriptionItem(
-  { action, description, icon, initial, onSelect, title, ...props }:
-    DescriptionItemProps,
+  {
+    action,
+    actionPlacement = "end",
+    description,
+    icon,
+    initial,
+    onSelect,
+    title,
+    ...props
+  }: DescriptionItemProps,
 ) {
   const content = (
     <>
@@ -73,6 +89,7 @@ export function DescriptionItem(
         className="ui-description-item ui-description-item--selectable"
         {...props}
         onClick={onSelect}
+        data-action-placement={actionPlacement}
         data-state="default"
         data-ui-component="descriptionItem"
         data-variant="selectable"
@@ -86,6 +103,7 @@ export function DescriptionItem(
     <div
       className="ui-description-item"
       {...props}
+      data-action-placement={actionPlacement}
       data-state="default"
       data-ui-component="descriptionItem"
       data-variant="default"

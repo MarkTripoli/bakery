@@ -162,7 +162,7 @@ async function observe(
  */
 /**
  * Fills the App's bot user id (#20) when the registration was stored without
- * it, as Apps registered before migration 0156 or whose lookup failed were.
+ * it, as Apps registered before migration 0157 or whose lookup failed were.
  * Best effort: a failed lookup leaves it null for the next reconcile, and it
  * never fails the reconcile itself.
  */

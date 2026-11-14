@@ -28,6 +28,7 @@ import {
   RoutePending,
 } from "./shell/AppLayout.tsx";
 import { TasksPage } from "./pages/TasksPage.tsx";
+import { IssuePage } from "./pages/IssuePage.tsx";
 import { IssuesPage } from "./pages/IssuesPage.tsx";
 import { MachinesPage } from "./pages/MachinesPage.tsx";
 import { MachineDetailPage } from "./pages/MachineDetailPage.tsx";
@@ -202,6 +203,19 @@ export const routeCoverage = [
       "error",
       "forbidden",
       "offline",
+    ],
+  },
+  {
+    id: "issue-detail",
+    path: "/issues/$issueId",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
     ],
   },
   {
@@ -929,6 +943,15 @@ const issuesRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const issueDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/issues/$issueId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <IssuePage issueId={issueDetailRoute.useParams().issueId} />,
+  errorComponent: ProtectedRouteError,
+});
+
 const machinesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/machines",
@@ -957,10 +980,21 @@ const machineNewRoute = createRoute({
 const machineDetailRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/machines/$machineId",
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { signIn?: "claude" | "codex" | "pi" } => {
+    const agent = search.signIn;
+    return agent === "claude" || agent === "codex" || agent === "pi"
+      ? { signIn: agent }
+      : {};
+  },
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => (
-    <MachineDetailPage machineId={machineDetailRoute.useParams().machineId} />
+    <MachineDetailPage
+      machineId={machineDetailRoute.useParams().machineId}
+      signInAgent={machineDetailRoute.useSearch().signIn}
+    />
   ),
   errorComponent: ProtectedRouteError,
 });
@@ -1780,6 +1814,7 @@ const routeTree = rootRoute.addChildren([
   taskDetailRoute,
   taskCoordinationRoute,
   issuesRoute,
+  issueDetailRoute,
   machinesRoute,
   machineNewRoute,
   machineDetailRoute,

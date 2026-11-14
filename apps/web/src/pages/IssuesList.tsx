@@ -1,4 +1,5 @@
 import type { Translator } from "@bakery/i18n";
+import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import {
   decidingCheck,
@@ -75,27 +76,73 @@ function issueTitle(row: IssueRow): string {
   return number === null ? title : `#${number} ${title}`;
 }
 
-/**
- * The row's control: a quiet link to the issue on GitHub, in a new tab (marked
- * as external, and named so). The issue's own page and "Start work" come with
- * the next part of this feature.
- */
-function RowAction(
+/** The row's accessible name: the issue, its status and its reason. */
+function rowName(row: IssueRow, translate: Translator): string {
+  const { status } = issueStatus(row);
+  return `${issueTitle(row)}, ${
+    translate(`issues.status.${status}` as never)
+  }, ${issueLine(row, translate)}`;
+}
+
+/** The issue's title as a link to its page, named with its status and reason. */
+function IssueTitle(
   { row, translate }: { row: IssueRow; translate: Translator },
 ) {
+  const navigate = useNavigate();
   return (
     <UI.Link
-      href={row.safeUrl}
+      href={`/issues/${row.id}`}
       variant="quiet"
-      target="_blank"
-      rel="noreferrer"
-      aria-label={translate("issues.row.openNamed" as never, {
+      data-row-title="true"
+      aria-label={rowName(row, translate)}
+      onClick={(event) => {
+        event.preventDefault();
+        void navigate({ to: "/issues/$issueId", params: { issueId: row.id } });
+      }}
+    >
+      {issueTitle(row)}
+    </UI.Link>
+  );
+}
+
+/**
+ * The row's one control: Start work (primary) on an issue that can start, which
+ * opens the same confirmation as the issue page; Open, the issue's page, on
+ * every other.
+ */
+function RowAction(
+  { offered, onStart, row, translate }: {
+    offered: boolean;
+    onStart: (row: IssueRow) => void;
+    row: IssueRow;
+    translate: Translator;
+  },
+) {
+  const navigate = useNavigate();
+  if (offered) {
+    return (
+      <UI.Button
+        variant="primary"
+        aria-label={translate("issues.row.startNamed" as never, {
+          title: issueTitle(row),
+        })}
+        onClick={() => onStart(row)}
+      >
+        {translate("issues.start.button" as never)}
+      </UI.Button>
+    );
+  }
+  return (
+    <UI.Button
+      variant="secondary"
+      aria-label={translate("issues.row.openPageNamed" as never, {
         title: issueTitle(row),
       })}
+      onClick={() =>
+        void navigate({ to: "/issues/$issueId", params: { issueId: row.id } })}
     >
-      {translate("issues.row.open" as never)}
-      <span aria-hidden="true">↗</span>
-    </UI.Link>
+      {translate("issues.row.openPage" as never)}
+    </UI.Button>
   );
 }
 
@@ -104,7 +151,10 @@ function RowAction(
  * control. A table on a wide screen, stacked rows on a phone.
  */
 export function IssuesList(
-  { rows, loading, phone, translate }: {
+  { offered, onStart, rows, loading, phone, translate }: {
+    /** Whether Start work is offered on this row (can start, GitHub readable, online). */
+    offered: (row: IssueRow) => boolean;
+    onStart: (row: IssueRow) => void;
     rows: readonly IssueRow[];
     loading: boolean;
     phone: boolean;
@@ -142,11 +192,16 @@ export function IssuesList(
         {rows.map((row) => (
           <div key={row.id} role="listitem" data-issue-id={row.id}>
             <UI.StackedRow
-              title={issueTitle(row)}
+              title={<IssueTitle row={row} translate={translate} />}
               status={<IssueBadge row={row} translate={translate} />}
             >
               <UI.Text variant="caption">{issueLine(row, translate)}</UI.Text>
-              <RowAction row={row} translate={translate} />
+              <RowAction
+                offered={offered(row)}
+                onStart={onStart}
+                row={row}
+                translate={translate}
+              />
             </UI.StackedRow>
           </div>
         ))}
@@ -171,10 +226,10 @@ export function IssuesList(
           width: "56%",
           header: translate("issues.column.issue" as never),
           cell: (row) => (
-            <UI.CellStack
-              title={issueTitle(row)}
-              detail={issueLine(row, translate)}
-            />
+            <UI.Stack gap="none">
+              <IssueTitle row={row} translate={translate} />
+              <UI.Text variant="caption">{issueLine(row, translate)}</UI.Text>
+            </UI.Stack>
           ),
         },
         {
@@ -187,7 +242,14 @@ export function IssuesList(
           id: "action",
           align: "end",
           header: translate("issues.column.action" as never),
-          cell: (row) => <RowAction row={row} translate={translate} />,
+          cell: (row) => (
+            <RowAction
+              offered={offered(row)}
+              onStart={onStart}
+              row={row}
+              translate={translate}
+            />
+          ),
         },
       ]}
     />

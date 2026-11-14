@@ -618,8 +618,9 @@ test.describe("settings routes and navigation", () => {
           updatedAt: "2026-01-02T00:00:00.000Z",
         }),
       }));
-    await page.setViewportSize({ width: 1280, height: 960 });
+    await page.setViewportSize({ width: 1440, height: 960 });
     const styles: string[] = [];
+    const columns: string[] = [];
     for (
       const path of [
         "/settings/profile",
@@ -642,7 +643,14 @@ test.describe("settings routes and navigation", () => {
           return `${style.fontFamily} ${style.fontSize}/${style.lineHeight} ${style.fontWeight}`;
         }),
       );
+      // One content width on every settings page (the personal pages used to
+      // fill the main and Appearance was narrower).
+      const width = await page.locator("main .ui-settings-content").first()
+        .evaluate((node) => Math.round(node.getBoundingClientRect().width));
+      columns.push(`${width}`);
     }
+    expect(new Set(columns).size, columns.join(" | ")).toBe(1);
+    expect(columns[0]).toBe("760");
     expect(new Set(styles).size, styles.join(" | ")).toBe(1);
     // The app's typeface, not the platform font the personal pages used to set.
     expect(styles[0]).toMatch(/^Geist\b/);

@@ -45,8 +45,11 @@ const plan = (
     unboundSecondStep?: boolean;
     /** The steps as a bare list, which the fixed executor runs. */
     flat?: boolean;
-    /** A wait between the two steps, which the engine cannot run yet. */
-    wait?: boolean;
+    /**
+     * A wait between the two steps: `true` is a duration wait, which the
+     * engine runs; "event" is an event wait, which it cannot run yet.
+     */
+    wait?: boolean | "event";
   } = {},
 ) => {
   const artifact = `$step.${
@@ -69,12 +72,16 @@ const plan = (
       uses: "task.brief",
       with: { brief: "$input.brief", repositoryId: "$input.repositoryId" },
     },
-    ...(over.wait !== true
-      ? []
-      : [{ id: "pause", needs: ["brief"], wait: { duration: "1m" } }]),
+    ...(over.wait === undefined || over.wait === false ? [] : [{
+      id: "pause",
+      needs: ["brief"],
+      wait: over.wait === "event"
+        ? { event: "question.answered", timeout: "1h" }
+        : { duration: "1m" },
+    }]),
     implement(
       "implement",
-      over.wait === true ? "pause" : "brief",
+      over.wait ? "pause" : "brief",
       over.stepAgent === undefined ? {} : { agentVersionId: over.stepAgent },
     ),
     ...(over.unboundSecondStep !== true
@@ -622,14 +629,86 @@ Deno.test("a compiler-grammar workflow that is a bare list of steps stays on the
     );
   }));
 
-Deno.test("a plan with a wait, which the engine cannot run yet, is refused as the fixed executor refused it", () =>
+Deno.test("a plan with a duration wait is admitted, and the engine puts the wait between its steps as a row without a job", () =>
+  withWorkerFixture(async (fixture) => {
+    const { repository } = await repositoryWithAgent(fixture, "duration");
+    const { versionId } = await publishWorkflow(
+      fixture,
+      fixture,
+      "plan-duration",
+      plan({ wait: true }),
+    );
+    const { response } = await start(fixture, repository, versionId);
+    const run = await expectJson<RunBody>(response, 201);
+    const engine = createBakeryPostgresWorkflowRepository({
+      database: fixture.pgDatabase,
+      maxAttempts: 3,
+      budgetPolicy: presetBudgetPolicy,
+    });
+    const owner = await engine.acquireEngineOwner(
+      run.id,
+      `e4a-${crypto.randomUUID()}`,
+      60_000,
+    );
+    assert(owner !== undefined);
+    const first = await engine.findNext(run.id, owner);
+    assertEquals(first?.stepKey, "flow.brief");
+    await fixture.pgDatabase.query(
+      `update bakery.run_steps
+          set status = 'completed', finished_at = now(), output = $2::jsonb
+        where run_id = $1 and step_key = 'flow.brief'`,
+      [
+        run.id,
+        JSON.stringify({ artifact: { versionId: crypto.randomUUID() } }),
+      ],
+    );
+    const pause = await engine.findNext(run.id, owner);
+    assertEquals(pause?.stepKey, "flow.pause");
+    let rows = await stepRows(fixture, run.id);
+    assertEquals(rows.map((row) => [row.stepKey, row.status]), [
+      ["flow.brief", "completed"],
+      ["flow.pause", "waiting"],
+    ]);
+    const boundary = await engine.readWait(pause!, owner);
+    assertEquals(boundary?.durationMs, 60_000);
+    assertEquals(
+      (await fixture.pgDatabase.query<{ count: string }>(
+        `select count(*)::text as count
+           from bakery.jobs job join bakery.run_steps step
+             on step.organization_id = job.organization_id
+            and step.id = job.run_step_id
+          where step.run_id = $1 and step.step_key = 'flow.pause'`,
+        [run.id],
+      )).rows[0].count,
+      "0",
+    );
+    // Its time passes; the step after it is dispatched as itself.
+    await fixture.pgDatabase.query(
+      `update bakery.run_steps
+          set started_at = started_at - interval '2 minutes'
+        where run_id = $1 and step_key = 'flow.pause'`,
+      [run.id],
+    );
+    assertEquals(await engine.completeWait(pause!, owner), true);
+    const after = await engine.findNext(run.id, owner);
+    assertEquals(after?.stepKey, "flow.implement");
+    rows = await stepRows(fixture, run.id);
+    assertEquals(rows.map((row) => row.stepKey), [
+      "flow.brief",
+      "flow.pause",
+      "flow.implement",
+    ]);
+    assertEquals(rows[2].dispatch?.action, "harness.implement");
+  }));
+
+Deno.test("a plan with an event wait, which the engine cannot run yet, is refused as the fixed executor refused it", () =>
   withWorkerFixture(async (fixture) => {
     const { repository } = await repositoryWithAgent(fixture, "wait");
     const { versionId } = await publishWorkflow(
       fixture,
       fixture,
       "plan-wait",
-      plan({ wait: true }),
+      plan({ wait: "event" }),
     );
     assertEquals(
       (await refused(fixture, repository, versionId, 409)).reason,

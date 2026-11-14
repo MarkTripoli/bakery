@@ -1052,7 +1052,7 @@ Deno.test("a reconcile backfills the App's bot user id when the registration has
   await withFixture(async (f) => {
     const { first } = await sharedInstallation(f);
     const installation = await installationOf(f, first.connectionId);
-    // An App registered before migration 0156, or whose lookup failed.
+    // An App registered before migration 0157, or whose lookup failed.
     await f.pgDatabase.query(
       "update bakery.integration_app_registrations set bot_user_id = null",
     );

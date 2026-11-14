@@ -13,6 +13,7 @@ import {
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { MACHINES_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { SetupInstructions } from "./SetupInstructions.tsx";
 import type { CodingAgent } from "./machine-state.ts";
@@ -220,7 +221,7 @@ function InstallStep(
     enrollmentId: string | null;
     translate: Translator;
     onNewSettings: (version: number) => void;
-    onDone: (workerHostId: string) => void;
+    onDone: (workerHostId: string, agent: CodingAgent) => void;
     onToList: () => void;
   },
 ) {
@@ -280,8 +281,9 @@ function InstallStep(
     return (
       <UI.Stack gap="standard">
         <UI.AlertBanner tone="success" role="status">
-          {translate("machines.wizard.install.connected" as never, {
+          {translate("machines.wizard.install.connectedSignIn" as never, {
             name: input.name,
+            agent: translate(`machines.agent.${agent}` as never),
           })}
         </UI.AlertBanner>
         <UI.Inline gap="compact">
@@ -292,10 +294,12 @@ function InstallStep(
               ? "machine-wizard-opening"
               : undefined}
             onClick={() => {
-              if (hostId !== null) onDone(hostId);
+              if (hostId !== null) onDone(hostId, agent);
             }}
           >
-            {translate("machines.wizard.done" as never)}
+            {translate("machines.wizard.install.signInButton" as never, {
+              agent: translate(`machines.agent.${agent}` as never),
+            })}
           </UI.Button>
         </UI.Inline>
         {/* A disabled button says why: the machine is not named yet. */}
@@ -509,8 +513,14 @@ export function MachineWizardPage(
       <UI.Breadcrumbs
         aria-label={translate("shell.navigation.breadcrumb")}
         items={[
-          { label: translate("shell.navigation.workspace") },
-          { label: translate("shell.navigation.machines") },
+          {
+            href: WORK_HOME,
+            label: translate("shell.navigation.workspace"),
+          },
+          {
+            href: MACHINES_HOME,
+            label: translate("shell.navigation.machines"),
+          },
           { label: translate("machines.wizard.title" as never) },
         ]}
       />
@@ -616,10 +626,11 @@ export function MachineWizardPage(
               enrollmentId={enrollmentId}
               translate={translate}
               onNewSettings={(version) => void newSettings(version)}
-              onDone={(workerHostId) =>
+              onDone={(workerHostId, signInAgent) =>
                 void navigate({
                   to: "/machines/$machineId",
                   params: { machineId: workerHostId },
+                  search: { signIn: signInAgent },
                 })}
               onToList={toList}
             />

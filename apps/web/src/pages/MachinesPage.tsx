@@ -20,6 +20,7 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { usePagedFocus } from "../app/focus.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { FinishingSetup } from "./FinishingSetup.tsx";
 import { MachineList } from "./MachineList.tsx";
@@ -168,7 +169,10 @@ export function MachinesPage() {
         <UI.Breadcrumbs
           aria-label={translate("shell.navigation.breadcrumb")}
           items={[
-            { label: translate("shell.navigation.workspace") },
+            {
+              href: WORK_HOME,
+              label: translate("shell.navigation.workspace"),
+            },
             { label: translate("shell.navigation.machines") },
           ]}
         />

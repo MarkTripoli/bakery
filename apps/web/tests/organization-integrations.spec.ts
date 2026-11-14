@@ -87,6 +87,7 @@ function connectionBody(connection: Connection) {
     config: {},
     secretId: null,
     grantedScopes: { metadata: "read", contents: "write" },
+    createdBy: "00000000-0000-4000-8000-000000000001",
     status: connection.status,
     lastCheckedAt: connection.lastCheckedAt,
     createdAt: STAMP,
