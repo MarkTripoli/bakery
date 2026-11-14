@@ -3283,5 +3283,6 @@
   "issues.choose.labelsSame": "⟪Each label must be different.⟫",
   "issues.choose.changed": "⟪Someone else changed this just now. The latest is shown; make your change again.⟫",
   "issues.choose.failed": "⟪This did not save. Try again.⟫",
-  "issues.choose.save": "⟪Save⟫"
+  "issues.choose.save": "⟪Save⟫",
+  "issues.choose.turnOff": "⟪Bakery stops taking issues from this repository. Issues it already took cannot be started. Work already started continues.⟫"
 }

@@ -128,11 +128,13 @@ export function ChooseRepositoriesSheet({ onClose }: { onClose: () => void }) {
       if ([...results.values()].every((outcome) => outcome === "saved")) {
         onClose();
       } else {
-        // What went through is saved; keep what did not, to try again.
+        // What went through is saved. A row someone else changed shows what is
+        // there now (the refetched state, as its message says); only a row that
+        // failed keeps the person's change, to try again.
         setDrafts((current) => {
           const next = new Map(current);
           for (const [key, outcome] of results) {
-            if (outcome === "saved") next.delete(key);
+            if (outcome !== "failed") next.delete(key);
           }
           return next;
         });
@@ -175,12 +177,15 @@ export function ChooseRepositoriesSheet({ onClose }: { onClose: () => void }) {
           ? (
             <UI.Stack gap="compact">
               <UI.Text>{translate("issues.choose.none" as never)}</UI.Text>
-              <UI.Button
-                variant="secondary"
-                onClick={() => void navigate({ to: "/projects" })}
+              <UI.Link
+                href="/projects"
+                onClick={(event) => {
+                  event.preventDefault();
+                  void navigate({ to: "/projects" });
+                }}
               >
                 {translate("issues.choose.openProjects" as never)}
-              </UI.Button>
+              </UI.Link>
             </UI.Stack>
           )
           : (
@@ -192,25 +197,32 @@ export function ChooseRepositoriesSheet({ onClose }: { onClose: () => void }) {
                 const outcome = outcomes.get(row.repository.id);
                 const fieldId = `${id}-${row.repository.id}`;
                 return (
-                  <UI.Stack gap="compact" key={row.repository.id}>
-                    <UI.Heading level="section">{name}</UI.Heading>
+                  <UI.Stack
+                    aria-label={name}
+                    gap="compact"
+                    key={row.repository.id}
+                    role="group"
+                  >
+                    <UI.Text variant="strong">{name}</UI.Text>
                     {row.resource === null
                       ? (
                         <UI.Stack gap="compact">
                           <UI.Text variant="muted">
                             {translate("issues.choose.notOffered" as never)}
                           </UI.Text>
-                          <UI.Button
-                            variant="quiet"
-                            onClick={() =>
+                          <UI.Link
+                            href="/settings/organization/integrations"
+                            onClick={(event) => {
+                              event.preventDefault();
                               void navigate({
                                 to: "/settings/organization/integrations",
-                              })}
+                              });
+                            }}
                           >
                             {translate(
                               "issues.choose.openIntegrations" as never,
                             )}
-                          </UI.Button>
+                          </UI.Link>
                         </UI.Stack>
                       )
                       : (
@@ -223,6 +235,13 @@ export function ChooseRepositoriesSheet({ onClose }: { onClose: () => void }) {
                           {translate("issues.choose.switch" as never)}
                         </UI.Switch>
                       )}
+                    {row.source?.enabled === true && !draft.enabled
+                      ? (
+                        <UI.Text variant="muted">
+                          {translate("issues.choose.turnOff" as never)}
+                        </UI.Text>
+                      )
+                      : null}
                     {draft.enabled && row.resource !== null
                       ? (
                         <UI.Stack gap="compact">
@@ -281,7 +300,9 @@ export function ChooseRepositoriesSheet({ onClose }: { onClose: () => void }) {
                       : null}
                     {outcome === "changed" || outcome === "failed"
                       ? (
-                        <UI.InlineNotice tone="error">
+                        <UI.InlineNotice
+                          tone={outcome === "changed" ? "warning" : "error"}
+                        >
                           {translate(
                             (outcome === "changed"
                               ? "issues.choose.changed"

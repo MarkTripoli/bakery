@@ -3165,6 +3165,7 @@
   "issues.choose.holdHelp": "Never started while it has this.",
   "issues.choose.labelEmpty": "Enter a label.",
   "issues.choose.labelsSame": "Each label must be different.",
+  "issues.choose.turnOff": "Bakery stops taking issues from this repository. Issues it already took cannot be started. Work already started continues.",
   "issues.choose.changed": "Someone else changed this just now. The latest is shown; make your change again.",
   "issues.choose.failed": "This did not save. Try again.",
   "issues.choose.save": "Save",

@@ -81,6 +81,8 @@ type Setup = {
   role?: "admin" | "developer";
   sources?: Source[];
   save?: "ok" | "conflict";
+  /** Refuse the create for one repository (by its owner/name) with a status. */
+  refuse?: { name: string; status: 409 | 500 };
   projects?: ProjectsOptions;
 };
 
@@ -93,6 +95,8 @@ async function fixture(page: Page, setup: Setup = {}) {
   await issuesFixture(page, { open: [], closed: [], sources: "none" });
   await projectsFixture(page, projects);
   const seen = {
+    /** Changed by a test to let a refused repository through on a retry. */
+    refuse: setup.refuse ?? null as Setup["refuse"] | null,
     created: [] as Record<string, unknown>[],
     updates: [] as {
       id: string;
@@ -107,16 +111,19 @@ async function fixture(page: Page, setup: Setup = {}) {
       if (request.method() === "POST") {
         const body = request.postDataJSON() as Record<string, unknown>;
         seen.created.push(body);
-        if (setup.save === "conflict") {
+        const refused = seen.refuse !== null &&
+          body.externalContainerId === seen.refuse.name;
+        if (setup.save === "conflict" || refused) {
+          const status = refused ? seen.refuse!.status : 409;
           return route.fulfill({
-            status: 409,
+            status,
             contentType: "application/problem+json",
             body: JSON.stringify({
               type: "https://bakery.example/problems/test",
-              title: "Conflict",
-              detail: "Conflict.",
-              status: 409,
-              code: "STATE_CONFLICT",
+              title: status === 409 ? "Conflict" : "Internal error",
+              detail: status === 409 ? "Conflict." : "Internal error.",
+              status,
+              code: status === 409 ? "STATE_CONFLICT" : "INTERNAL_ERROR",
               retryable: false,
               requestId: crypto.randomUUID(),
               traceId: crypto.randomUUID(),
@@ -197,10 +204,10 @@ for (
         "Bakery takes issues from the repositories you turn on.",
       )).toBeVisible();
       for (const name of ["acme/billing", "acme/ledger", "acme/unlisted"]) {
-        await expect(sheet.getByRole("heading", { name })).toBeVisible();
+        await expect(sheet.getByRole("group", { name })).toBeVisible();
       }
       // Archived repositories are not listed.
-      await expect(sheet.getByRole("heading", { name: "acme/old" }))
+      await expect(sheet.getByRole("group", { name: "acme/old" }))
         .toHaveCount(0);
       await expect(sheet.getByRole("switch", {
         name: "Take issues from this repository",
@@ -208,6 +215,30 @@ for (
       await expect(sheet.getByText(
         "Your GitHub connection does not offer this repository.",
       )).toBeVisible();
+      // The way on is a link, directly under its sentence, at the start.
+      const unlisted = sheet.getByRole("group", { name: "acme/unlisted" });
+      const integrations = unlisted.getByRole("link", {
+        name: "Open Integrations",
+      });
+      await expect(integrations).toHaveAttribute(
+        "href",
+        "/settings/organization/integrations",
+      );
+      const sentence = (await unlisted.getByText(
+        "Your GitHub connection does not offer this repository.",
+      ).boundingBox())!;
+      const link = (await integrations.boundingBox())!;
+      expect(link.y).toBeGreaterThanOrEqual(sentence.y + sentence.height - 1);
+      expect(Math.abs(link.x - sentence.x)).toBeLessThanOrEqual(2);
+      // Row titles are smaller than the sheet's own title.
+      const title = await sheet.getByRole("heading", {
+        name: "Choose repositories",
+      }).evaluate((element) => parseFloat(getComputedStyle(element).fontSize));
+      const rowTitle = await sheet.getByRole("group", { name: "acme/billing" })
+        .getByText("acme/billing", { exact: true }).evaluate((element) =>
+          parseFloat(getComputedStyle(element).fontSize)
+        );
+      expect(rowTitle).toBeLessThan(title);
       await page.mouse.move(700, 700);
       await shot(page, "choose-repositories", [], { windowOnly: true });
     });
@@ -287,11 +318,16 @@ for (
           },
         },
       });
-      // Off.
+      // Off, with what that does said before Save.
       const again = await openSheet(page);
+      await expect(again.getByText("Work already started continues."))
+        .toHaveCount(0);
       await again.getByRole("switch", {
         name: "Take issues from this repository",
       }).nth(1).uncheck();
+      await expect(again.getByText(
+        "Bakery stops taking issues from this repository. Issues it already took cannot be started. Work already started continues.",
+      )).toBeVisible();
       await again.getByRole("button", { name: "Save" }).click();
       await expect.poll(() => seen.updates.length).toBe(2);
       expect(seen.updates[1]).toMatchObject({
@@ -301,7 +337,7 @@ for (
       });
     });
 
-    test("a refused save says so, keeps the sheet and keeps the change", async ({ page }) => {
+    test("a refused save says so in warning tone, keeps the sheet and shows what is there now", async ({ page }) => {
       await fixture(page, { save: "conflict" });
       const sheet = await openSheet(page);
       await sheet.getByRole("switch", {
@@ -311,13 +347,94 @@ for (
       await expect(sheet.getByText(
         "Someone else changed this just now. The latest is shown; make your change again.",
       )).toBeVisible();
+      // The latest is shown, as the sentence says: not the refused change.
       await expect(
         sheet.getByRole("switch", {
           name: "Take issues from this repository",
         }).first(),
-      ).toBeChecked();
+      ).not.toBeChecked();
+      await expect(sheet.getByRole("button", { name: "Save" })).toBeDisabled();
+      // A change by someone else is a warning, not a failure of the person.
+      await expect(
+        sheet.locator(
+          '[data-ui-component="inlineNotice"][data-variant="warning"]',
+        )
+          .filter({ hasText: "Someone else changed this just now." }),
+      ).toBeVisible();
       await page.mouse.move(700, 700);
       await shot(page, "choose-repositories-refused", [], { windowOnly: true });
+    });
+
+    test("a save where one repository is refused keeps what went through and says which did not", async ({ page }) => {
+      const seen = await fixture(page, {
+        refuse: { name: "acme/ledger", status: 409 },
+      });
+      const sheet = await openSheet(page);
+      const switches = sheet.getByRole("switch", {
+        name: "Take issues from this repository",
+      });
+      await switches.nth(0).check();
+      await switches.nth(1).check();
+      await sheet.getByRole("button", { name: "Save" }).click();
+      await expect.poll(() => seen.created.length).toBe(2);
+      expect(seen.created.map((body) => body.externalContainerId)).toEqual([
+        "acme/billing",
+        "acme/ledger",
+      ]);
+      const billing = sheet.getByRole("group", { name: "acme/billing" });
+      const ledger = sheet.getByRole("group", { name: "acme/ledger" });
+      // The first went through: it is on, from the server, and no longer a change.
+      await expect(billing.getByRole("switch")).toBeChecked();
+      await expect(billing.getByText("Someone else changed this just now."))
+        .toHaveCount(0);
+      // The second says so and shows what is there now (off); nothing is pending.
+      await expect(ledger.getByText("Someone else changed this just now."))
+        .toBeVisible();
+      await expect(ledger.getByRole("switch")).not.toBeChecked();
+      await expect(sheet.getByRole("button", { name: "Save" })).toBeDisabled();
+    });
+
+    test("a save that fails keeps the person's change for that repository only, and retrying sends only it", async ({ page }) => {
+      const seen = await fixture(page, {
+        refuse: { name: "acme/ledger", status: 500 },
+      });
+      const sheet = await openSheet(page);
+      const switches = sheet.getByRole("switch", {
+        name: "Take issues from this repository",
+      });
+      await switches.nth(0).check();
+      await switches.nth(1).check();
+      await sheet.getByRole("button", { name: "Save" }).click();
+      await expect.poll(() => seen.created.length).toBe(2);
+      const ledger = sheet.getByRole("group", { name: "acme/ledger" });
+      await expect(ledger.getByText("This did not save. Try again."))
+        .toBeVisible();
+      // Its change is kept, the first one is saved.
+      await expect(ledger.getByRole("switch")).toBeChecked();
+      await expect(
+        sheet.getByRole("group", { name: "acme/billing" })
+          .getByRole("switch"),
+      ).toBeChecked();
+      await expect(sheet.getByRole("button", { name: "Save" })).toBeEnabled();
+      seen.refuse = null;
+      await sheet.getByRole("button", { name: "Save" }).click();
+      await expect.poll(() => seen.created.length).toBe(3);
+      expect(seen.created[2]?.externalContainerId).toBe("acme/ledger");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+    });
+
+    test("the sheet opens from the end of the window, over the page and not the navigation, and is the full width on a phone", async ({ page }) => {
+      await fixture(page);
+      const sheet = await openSheet(page);
+      const box = (await sheet.boundingBox())!;
+      const width = viewport.width;
+      expect(Math.abs(box.x + box.width - width)).toBeLessThanOrEqual(1);
+      if (viewport.name === "phone") {
+        expect(box.width).toBeGreaterThanOrEqual(width - 1);
+      } else {
+        // Not over the main rail (208 wide) at the start of the window.
+        expect(box.x).toBeGreaterThan(208);
+      }
     });
 
     test("Escape closes the sheet and returns focus to the button that opened it", async ({ page }) => {
@@ -331,6 +448,31 @@ for (
       await page.keyboard.press("Escape");
       await expect(page.getByRole("dialog")).toHaveCount(0);
       await expect(more).toBeFocused();
+    });
+
+    test("Cancel returns focus to the button that opened the sheet", async ({ page }) => {
+      await fixture(page);
+      await page.goto("/issues");
+      const more = page.getByRole("button", { name: "Choose repositories" })
+        .first();
+      await more.click();
+      const sheet = page.getByRole("dialog", { name: "Choose repositories" });
+      await sheet.getByRole("button", { name: "Cancel" }).click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(more).toBeFocused();
+    });
+
+    test("opened from the address (the issue page's action), closing returns focus to the button beside Refresh", async ({ page }) => {
+      await fixture(page, { sources: [LEDGER_SOURCE] });
+      await page.goto("/issues?choose=true");
+      const sheet = page.getByRole("dialog", { name: "Choose repositories" });
+      await expect(sheet).toBeVisible();
+      await sheet.getByRole("button", { name: "Cancel" }).click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(page).not.toHaveURL(/choose=/);
+      await expect(
+        page.getByRole("button", { name: "Choose repositories" }).first(),
+      ).toBeFocused();
     });
 
     test("a member does not see the button", async ({ page }) => {

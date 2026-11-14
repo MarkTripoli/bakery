@@ -184,6 +184,7 @@ export function IssuesPage() {
   const moreMenu = isAdmin && sources.isSuccess
     ? (
       <UI.Button
+        data-choose-open=""
         variant="secondary"
         disabled={offline}
         onClick={() => setChoosing(true)}
@@ -504,8 +505,14 @@ export function IssuesPage() {
           <ChooseRepositoriesSheet
             onClose={() => {
               setChoosing(false);
-              // Back to the control that opened the sheet.
-              focusAfterPaint(() => chooser.current);
+              // Back to the control that opened the sheet; when it was opened
+              // from the address (the issue page's action) or its opener has
+              // gone (the first-use card), the button beside Refresh.
+              focusAfterPaint(() =>
+                chooser.current?.isConnected
+                  ? chooser.current
+                  : document.querySelector<HTMLElement>("[data-choose-open]")
+              );
               if (search.choose) {
                 void navigate({
                   to: "/issues",
