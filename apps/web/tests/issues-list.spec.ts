@@ -69,6 +69,14 @@ for (
             "#202 Show the export button, Waiting, acme/web · Depends on #201, which is still open.",
         }),
       ).toHaveAttribute("href", `/issues/${uuid(202)}`);
+      // The title keeps the strong text colour it had before it became a link.
+      const ink = (locator: ReturnType<typeof page.locator>) =>
+        locator.evaluate((node) => getComputedStyle(node).color);
+      expect(
+        await ink(row(page, 201).getByRole("link")),
+      ).toBe(
+        await ink(page.getByRole("heading", { name: "Issues", level: 1 })),
+      );
       // One control per row: Start work on what can start, Open on the rest.
       await expect(
         row(page, 201).getByRole("button", {

@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import type { StartRefusal } from "./StartWorkDialog.tsx";
@@ -19,9 +20,20 @@ export function StartWorkNotices(
 ) {
   const { translate } = useI18n();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   if (started) {
     return (
-      <UI.AlertBanner tone="success">
+      <UI.AlertBanner
+        tone="success"
+        action={
+          <UI.Button
+            variant="secondary"
+            onClick={() => void navigate({ to: "/tasks" })}
+          >
+            {translate("issues.start.openWork" as never)}
+          </UI.Button>
+        }
+      >
         {translate("issues.start.started" as never, { number: number ?? "" })}
       </UI.AlertBanner>
     );

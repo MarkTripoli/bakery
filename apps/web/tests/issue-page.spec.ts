@@ -122,7 +122,8 @@ for (
       await expect(page.getByText("Customers want to download")).toBeVisible();
       await expect(page.getByText("acme/web · Open")).toBeVisible();
       await expect(page.getByText("Part of acme/web#100")).toBeVisible();
-      await expect(page.getByText("No sub-issues")).toBeVisible();
+      // Nothing to say about sub-issues, so nothing is said.
+      await expect(page.getByText("No sub-issues")).toHaveCount(0);
       // The dependency that finished, by the check's evidence.
       await expect(page.getByRole("link", { name: "acme/web#150" }))
         .toHaveAttribute("href", "https://github.com/acme/web/issues/150");
@@ -136,6 +137,37 @@ for (
       )).toBeVisible();
       await expect(side.getByRole("button", { name: "Start work" }))
         .toBeVisible();
+      // Plan first is a visible second button with its own help.
+      await expect(side.getByRole("button", { name: "Plan first" }))
+        .toBeVisible();
+      await expect(side.getByRole("button", { name: "About Plan first" }))
+        .toBeVisible();
+      // The buttons sit right under the verdict, and the badge is a badge, not a bar.
+      const [badge, start, panel, heading] = await Promise.all([
+        side.getByText("Can start", { exact: true }).boundingBox(),
+        side.getByRole("button", { name: "Start work" }).boundingBox(),
+        side.boundingBox(),
+        page.getByRole("heading", { name: /#201 Add invoice export/, level: 1 })
+          .boundingBox(),
+      ]);
+      expect(start!.y - badge!.y).toBeLessThan(160);
+      expect(badge!.width).toBeLessThan(160);
+      // On a phone the page says which issue it is before the verdict.
+      if (viewport.name === "phone") {
+        expect(heading!.y).toBeLessThan(panel!.y);
+      }
+      // The trail names the issue, and every crumb but the last is a link.
+      const trail = page.getByRole("navigation", { name: "Breadcrumb" });
+      if (viewport.name === "desktop") {
+        await expect(trail.getByRole("link", { name: "Workspace" }))
+          .toBeVisible();
+        await expect(trail.getByRole("link", { name: "Issues" }))
+          .toHaveAttribute("href", "/issues");
+        await expect(trail.getByText("#201")).toHaveAttribute(
+          "aria-current",
+          "page",
+        );
+      }
       await page.mouse.move(700, 700);
       await shot(page, "issue-can-start");
     });
@@ -148,6 +180,14 @@ for (
         .toBeVisible();
       await expect(side.getByRole("button", { name: "Start when ready" }))
         .toBeVisible();
+      // Nothing is promised before the press.
+      await expect(
+        side.getByText("Only what this issue depends on is in the way."),
+      )
+        .toBeVisible();
+      await expect(side.getByText(
+        "Bakery will start this by itself when acme/web#201 is done.",
+      )).toBeVisible();
       await expect(side.getByRole("button", { name: "Plan first" }))
         .toHaveCount(0);
       await expect(page.getByText("Still open", { exact: true }))
@@ -179,6 +219,11 @@ for (
         .toBeVisible();
       await expect(side.getByRole("button", { name: "Start work" }))
         .toHaveCount(0);
+      // An issue with no relations shows no relations section at all.
+      await expect(page.getByRole("heading", { name: "Depends on" }))
+        .toHaveCount(0);
+      await expect(page.getByText("This issue does not depend on"))
+        .toHaveCount(0);
       await page.mouse.move(700, 700);
       await shot(page, "issue-cannot-start");
     });
@@ -207,17 +252,17 @@ for (
       await shot(page, "issue-start-dialog", [], { windowOnly: true });
       await dialog.getByRole("button", { name: "Start work" }).click();
       await expect(page.getByText("Work on #201 is starting.")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Open Work" }))
+        .toBeVisible();
       expect(seen.starts).toEqual([
         { intent: "start", revision: 1, digest: "0".repeat(64) },
       ]);
     });
 
-    test("Plan first is a menu beside Start work and changes what the confirmation says", async ({ page }) => {
+    test("Plan first is a visible button beside Start work and changes what the confirmation says", async ({ page }) => {
       const seen = await open(page, READY);
-      const side = card(page).first();
-      await side.getByRole("button", { name: "More ways to start" }).click();
-      await page.getByRole("link", { name: "Plan first" })
-        .or(page.getByRole("button", { name: "Plan first" })).first().click();
+      await card(page).first().getByRole("button", { name: "Plan first" })
+        .click();
       const dialog = page.getByRole("alertdialog");
       await expect(dialog).toContainText(
         "Bakery writes a plan and waits for your approval before changing code.",
@@ -229,12 +274,18 @@ for (
 
     for (
       const [answer, sentence] of [
-        ["notReady", "This issue cannot start yet. See why in the card."],
+        [
+          "notReady",
+          "This issue cannot start yet. Nothing was started. See why in the card.",
+        ],
         [
           "changed",
-          "This issue changed on GitHub since you opened it. Review it again.",
+          "This issue changed on GitHub since you opened it. Nothing was started. Review it again.",
         ],
-        ["unavailable", "GitHub is not answering. Try again in a moment."],
+        [
+          "unavailable",
+          "GitHub is not answering, so nothing was started. Try again in a moment.",
+        ],
       ] as const
     ) {
       test(`a refused start (${answer}) says so, closes the dialog and starts nothing`, async ({ page }) => {
@@ -249,10 +300,19 @@ for (
         await expect(page.getByText("Work on #201 is starting."))
           .toHaveCount(0);
         if (answer === "changed") {
+          // Nothing was started, and neither button works until Reload.
+          const side = card(page).first();
+          await expect(side.getByRole("button", { name: "Start work" }))
+            .toBeDisabled();
+          await expect(side.getByRole("button", { name: "Plan first" }))
+            .toBeDisabled();
           await expect(page.getByRole("button", { name: "Reload" }))
             .toBeVisible();
           await page.mouse.move(700, 700);
           await shot(page, "issue-start-refused");
+          await page.getByRole("button", { name: "Reload" }).click();
+          await expect(side.getByRole("button", { name: "Start work" }))
+            .toBeEnabled();
         }
       });
     }

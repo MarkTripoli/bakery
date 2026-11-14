@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
 import type { TicketRequestIntent } from "../api/client.ts";
@@ -149,7 +149,6 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
   const [refusal, setRefusal] = useState<StartRefusal | null>(null);
   const [started, setStarted] = useState(false);
   const [showAll, setShowAll] = useState(false);
-  const [moreWays, setMoreWays] = useState(false);
 
   const row = ticket.data;
   const source = sources.data?.items.find((item) =>
@@ -283,6 +282,19 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
   const checkedAge = guarded ? null : ageOf(checkedAt, Date.now());
   const canAsk = !offline && !check.isPending && policyRevision !== null &&
     !closed;
+  // A refused start because the issue changed leaves nothing started and the
+  // buttons off until the person reloads and reviews it.
+  const startLocked = refusal === "changed";
+  const waitingOn = (() => {
+    const open = links.dependencies.filter((dependency) =>
+      dependency.state === "open" || dependency.state === "unknown"
+    );
+    return (open.length > 0 ? open : links.dependencies)
+      .map((dependency) => `${dependency.repository}#${dependency.number}`)
+      .join(", ");
+  })();
+  const hasRelations = links.dependencies.length > 0 || links.parent !== null ||
+    links.subIssues > 0;
 
   const card = (
     <UI.InspectorPanel
@@ -298,76 +310,25 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
           </UI.HelpTip>
         </UI.Inline>
       }
-      footer={offer !== "none"
-        ? (
-          <UI.Stack gap="compact">
-            <UI.Inline gap="compact">
-              <UI.Button variant="primary" onClick={() => setDialog("start")}>
-                {translate(
-                  (offer === "start"
-                    ? "issues.start.button"
-                    : "issues.start.whenReady") as never,
-                )}
-              </UI.Button>
-              {offer === "start"
-                ? (
-                  <UI.Popover
-                    label={translate("issues.start.moreWays" as never)}
-                    open={moreWays}
-                    onOpenChange={setMoreWays}
-                    variant="interactive"
-                    triggerAppearance="toolbar"
-                    trigger={
-                      <>
-                        <UI.IconGlyph name="chevron-down" />
-                        <UI.VisuallyHidden>
-                          {translate("issues.start.moreWays" as never)}
-                        </UI.VisuallyHidden>
-                      </>
-                    }
-                  >
-                    <UI.Stack gap="compact">
-                      <UI.Menu
-                        aria-label={translate("issues.start.moreWays" as never)}
-                        items={[{
-                          id: "plan",
-                          label: translate("issues.start.planFirst" as never),
-                        }]}
-                        onSelect={() => {
-                          setMoreWays(false);
-                          setDialog("plan");
-                        }}
-                      />
-                      <UI.Text variant="caption">
-                        {translate("issues.start.planDescription" as never)}
-                      </UI.Text>
-                    </UI.Stack>
-                  </UI.Popover>
-                )
-                : null}
-            </UI.Inline>
-            <UI.Text variant="caption">
-              {translate("issues.card.workflow" as never, {
-                repository: snapshot.repository,
-              })}
-            </UI.Text>
-          </UI.Stack>
-        )
-        : offline
-        ? (
-          <UI.Text variant="caption">
-            {translate("issues.card.offline" as never)}
-          </UI.Text>
-        )
-        : undefined}
     >
       <UI.Stack gap="standard">
         <UI.Stack gap="compact" aria-live="polite">
-          <UI.Badge tone={BADGE_TONE[status]}>
-            {translate(`issues.status.${status}` as never)}
-          </UI.Badge>
+          <UI.Inline gap="compact">
+            <UI.Badge tone={BADGE_TONE[status]}>
+              {translate(`issues.status.${status}` as never)}
+            </UI.Badge>
+          </UI.Inline>
           {status === "inProgress"
             ? <UI.Text>{translate("issues.line.inProgress" as never)}</UI.Text>
+            : null}
+          {status === "waitingToStart" && waitingOn !== ""
+            ? (
+              <UI.Text>
+                {translate("issues.card.startsWhen" as never, {
+                  dependency: waitingOn,
+                })}
+              </UI.Text>
+            )
             : null}
           {offer === "startWhenReady"
             ? (
@@ -389,10 +350,63 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
             </UI.Stack>
           ))}
           {failing.length === 0 && status !== "canStart" &&
-              status !== "closed" && reason !== null
+              status !== "closed" && status !== "waitingToStart" &&
+              reason !== null
             ? <UI.Text>{reasonSentence(row, reason, translate)}</UI.Text>
             : null}
         </UI.Stack>
+        {offer !== "none"
+          ? (
+            <UI.Stack gap="compact">
+              <UI.Inline gap="compact">
+                <UI.Button
+                  variant="primary"
+                  disabled={startLocked}
+                  onClick={() => setDialog("start")}
+                >
+                  {translate(
+                    (offer === "start"
+                      ? "issues.start.button"
+                      : "issues.start.whenReady") as never,
+                  )}
+                </UI.Button>
+                {offer === "start"
+                  ? (
+                    <>
+                      <UI.Button
+                        variant="secondary"
+                        disabled={startLocked}
+                        onClick={() => setDialog("plan")}
+                      >
+                        {translate("issues.start.planFirst" as never)}
+                      </UI.Button>
+                      <UI.HelpTip
+                        label={translate("issues.start.planHelpLabel" as never)}
+                      >
+                        {translate("issues.start.planHelp" as never)}
+                      </UI.HelpTip>
+                    </>
+                  )
+                  : null}
+              </UI.Inline>
+              <UI.Text variant="caption">
+                {offer === "startWhenReady"
+                  ? translate("issues.card.startWhenReadyCaption" as never, {
+                    dependency: waitingOn,
+                  })
+                  : translate("issues.card.workflow" as never, {
+                    repository: snapshot.repository,
+                  })}
+              </UI.Text>
+            </UI.Stack>
+          )
+          : offline
+          ? (
+            <UI.Text variant="caption">
+              {translate("issues.card.offline" as never)}
+            </UI.Text>
+          )
+          : null}
         {passing > 0
           ? (
             <UI.Stack gap="compact">
@@ -462,6 +476,28 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
 
   return (
     <>
+      <ShellSlot name="breadcrumbs">
+        <UI.Breadcrumbs
+          aria-label={translate("shell.navigation.breadcrumb")}
+          items={[
+            {
+              label: (
+                <RouterLink to="/">
+                  {translate("shell.navigation.workspace")}
+                </RouterLink>
+              ),
+            },
+            {
+              label: (
+                <RouterLink to="/issues">
+                  {translate("shell.navigation.issues")}
+                </RouterLink>
+              ),
+            },
+            { label: number === null ? snapshot.title : `#${number}` },
+          ]}
+        />
+      </ShellSlot>
       {phone ? null : <ShellSlot name="inspector">{card}</ShellSlot>}
       <UI.Stack gap="spacious" data-testid="issue-page">
         {back}
@@ -483,7 +519,6 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
           refusal={status === "inProgress" ? null : refusal}
           onDismiss={() => setRefusal(null)}
         />
-        {phone ? card : null}
         <UI.Stack gap="compact">
           <UI.Heading level="page">
             {number === null ? snapshot.title : `#${number} ${snapshot.title}`}
@@ -508,6 +543,7 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
             </UI.Link>
           </UI.Text>
         </UI.Stack>
+        {phone ? card : null}
         {description.body !== ""
           ? (
             <UI.Stack gap="compact">
@@ -533,76 +569,92 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
             </UI.Stack>
           )
           : null}
-        <UI.Stack gap="compact">
-          <UI.Heading level="section">
-            {translate("issues.page.dependsOn" as never)}
-          </UI.Heading>
-          {links.dependencies.length === 0
-            ? (
-              <UI.Text variant="muted">
-                {translate("issues.page.noDependencies" as never)}
-              </UI.Text>
-            )
-            : (
-              <UI.DescriptionList>
-                {links.dependencies.map((dependency) => (
-                  <UI.DescriptionItem
-                    key={`${dependency.repository}#${dependency.number}`}
-                    title={
-                      <UI.Link
-                        href={`https://github.com/${dependency.repository}/issues/${dependency.number}`}
-                        variant="quiet"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {dependency.repository}#{dependency.number}
-                      </UI.Link>
-                    }
+        {hasRelations || links.incomplete
+          ? (
+            <UI.Stack gap="compact">
+              {links.dependencies.length > 0
+                ? (
+                  <>
+                    <UI.Heading level="section">
+                      {translate("issues.page.dependsOn" as never)}
+                    </UI.Heading>
+                    <UI.DescriptionList>
+                      {links.dependencies.map((dependency) => {
+                        const reference =
+                          `${dependency.repository}#${dependency.number}`;
+                        return (
+                          <UI.DescriptionItem
+                            key={reference}
+                            title={
+                              <UI.Link
+                                href={`https://github.com/${dependency.repository}/issues/${dependency.number}`}
+                                variant="quiet"
+                                target="_blank"
+                                rel="noreferrer"
+                                aria-label={translate(
+                                  "issues.dependency.openNamed" as never,
+                                  { reference },
+                                )}
+                              >
+                                {reference}
+                                <span aria-hidden="true">↗</span>
+                              </UI.Link>
+                            }
+                            action={
+                              <UI.Badge
+                                tone={DEPENDENCY_TONE[dependency.state]}
+                              >
+                                {translate(
+                                  `issues.dependency.${dependency.state}` as never,
+                                )}
+                              </UI.Badge>
+                            }
+                          />
+                        );
+                      })}
+                    </UI.DescriptionList>
+                  </>
+                )
+                : null}
+              {links.parent !== null || links.subIssues > 0
+                ? (
+                  <UI.Text variant="muted">
+                    {[
+                      links.parent
+                        ? translate("issues.page.parent" as never, {
+                          reference:
+                            `${links.parent.repository}#${links.parent.number}`,
+                        })
+                        : null,
+                      links.subIssues > 0
+                        ? translate("issues.page.subIssues" as never, {
+                          count: links.subIssues,
+                        })
+                        : null,
+                    ].filter(Boolean).join(" · ")}
+                  </UI.Text>
+                )
+                : null}
+              {links.incomplete
+                ? (
+                  <UI.InlineNotice
+                    tone="warning"
                     action={
-                      <UI.Badge tone={DEPENDENCY_TONE[dependency.state]}>
-                        {translate(
-                          `issues.dependency.${dependency.state}` as never,
-                        )}
-                      </UI.Badge>
+                      <UI.Button
+                        variant="secondary"
+                        onClick={() => check.mutate()}
+                      >
+                        {translate("issues.card.checkAgain" as never)}
+                      </UI.Button>
                     }
-                  />
-                ))}
-              </UI.DescriptionList>
-            )}
-          <UI.Text variant="muted">
-            {[
-              links.parent
-                ? translate("issues.page.parent" as never, {
-                  reference:
-                    `${links.parent.repository}#${links.parent.number}`,
-                })
-                : null,
-              translate(
-                (links.subIssues > 0
-                  ? "issues.page.subIssues"
-                  : "issues.page.noSubIssues") as never,
-                { count: links.subIssues },
-              ),
-            ].filter(Boolean).join(" · ")}
-          </UI.Text>
-          {links.incomplete
-            ? (
-              <UI.InlineNotice
-                tone="warning"
-                action={
-                  <UI.Button
-                    variant="secondary"
-                    onClick={() => check.mutate()}
                   >
-                    {translate("issues.card.checkAgain" as never)}
-                  </UI.Button>
-                }
-              >
-                {translate("issues.page.linksIncomplete" as never)}
-              </UI.InlineNotice>
-            )
-            : null}
-        </UI.Stack>
+                    {translate("issues.page.linksIncomplete" as never)}
+                  </UI.InlineNotice>
+                )
+                : null}
+            </UI.Stack>
+          )
+          : null}
       </UI.Stack>
       {dialog !== null
         ? (

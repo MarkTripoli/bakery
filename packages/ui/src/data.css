@@ -156,6 +156,16 @@
 /* A primary Button in a cell keeps its fill: the cell rule above restyles every
    button in a table as a plain outlined one, which hid "Start work" among the
    quiet "Open" buttons. */
+/* A row's title that is also a link keeps the title's ink and type; it
+   underlines on hover and focus so it still reads as a link. */
+.ui-link--quiet[data-row-title] {
+  color: var(--color-fg);
+  font: var(--type-control);
+  text-decoration: none;
+}
+.ui-link--quiet[data-row-title]:is(:hover, :focus-visible) {
+  text-decoration: underline;
+}
 .ui-data-table button.ui-button--primary {
   background: var(--color-primary);
   border-color: transparent;

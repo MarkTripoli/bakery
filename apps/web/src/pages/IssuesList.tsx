@@ -93,6 +93,7 @@ function IssueTitle(
     <UI.Link
       href={`/issues/${row.id}`}
       variant="quiet"
+      data-row-title="true"
       aria-label={rowName(row, translate)}
       onClick={(event) => {
         event.preventDefault();
