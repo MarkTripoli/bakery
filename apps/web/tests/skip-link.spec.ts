@@ -64,8 +64,13 @@ for (
       expect(
         await page.getByText("Bakery", { exact: true }).first().boundingBox(),
       ).toEqual(logoBefore);
-      // Evidence: a window-only capture at each size, focusing the link after the
-      // resize (a resize can rebuild the shell and drop focus).
+      // Evidence: a window-only capture at each size, with the link focused after
+      // the resize has settled (a resize or a theme change can rebuild the shell
+      // and drop focus), and the focused box checked before the capture.
+      const scheme = process.env.BAKERY_EVIDENCE_SCHEME;
+      if (scheme === "light" || scheme === "dark") {
+        await page.emulateMedia({ colorScheme: scheme });
+      }
       for (
         const [only, size] of [
           ["desktop", { width: 1440, height: 900 }],
@@ -73,7 +78,10 @@ for (
         ] as const
       ) {
         await page.setViewportSize(size);
+        await page.waitForTimeout(500);
         await skip.focus();
+        await expect(skip).toBeFocused();
+        expect((await skip.boundingBox())?.width).toBeGreaterThan(40);
         await shot(page, "skip-link-focused", [], { windowOnly: true, only });
       }
       // Leaving it hides it again.
