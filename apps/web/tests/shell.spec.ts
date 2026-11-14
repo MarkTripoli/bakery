@@ -623,8 +623,9 @@ test.describe("settings routes and navigation", () => {
           updatedAt: "2026-01-02T00:00:00.000Z",
         }),
       }));
-    await page.setViewportSize({ width: 1280, height: 960 });
+    await page.setViewportSize({ width: 1440, height: 960 });
     const styles: string[] = [];
+    const columns: string[] = [];
     for (
       const path of [
         "/settings/profile",
@@ -647,10 +648,43 @@ test.describe("settings routes and navigation", () => {
           return `${style.fontFamily} ${style.fontSize}/${style.lineHeight} ${style.fontWeight}`;
         }),
       );
+      // One content width on every settings page, and the title starts where
+      // its column does (it used to sit 24 px to the right on some pages).
+      const column = await page.locator("main .ui-settings-content").first()
+        .evaluate((node) => {
+          const box = node.getBoundingClientRect();
+          return {
+            width: Math.round(box.width),
+            titleOffset: Math.round(
+              (node.querySelector("h1") as HTMLElement).getBoundingClientRect()
+                .x - box.x,
+            ),
+          };
+        });
+      expect(Math.abs(column.titleOffset), path).toBeLessThanOrEqual(1);
+      columns.push(`${column.width}`);
     }
+    expect(new Set(columns).size, columns.join(" | ")).toBe(1);
+    expect(columns[0]).toBe("760");
     expect(new Set(styles).size, styles.join(" | ")).toBe(1);
     // The app's typeface, not the platform font the personal pages used to set.
     expect(styles[0]).toMatch(/^Geist\b/);
+  });
+
+  test("the Machines title starts where its content starts, in the same column as the other settings pages", async ({ page }) => {
+    await mockAuthenticatedSession(page);
+    await stubRole(page, "admin");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/machines");
+    const title = page.locator("main h1");
+    await expect(title).toBeVisible();
+    const column = page.locator("main .ui-settings-content").first();
+    const [titleBox, columnBox] = await Promise.all([
+      title.boundingBox(),
+      column.boundingBox(),
+    ]);
+    expect(Math.round(titleBox!.x)).toBe(Math.round(columnBox!.x));
+    expect(Math.round(columnBox!.width)).toBe(760);
   });
 
   test("lists the sections under two labelled groups, with the connected-clients item and without Machines", async ({ page }) => {

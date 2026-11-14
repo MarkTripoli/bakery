@@ -1617,10 +1617,8 @@ a.bakery-application-rail__link:hover {
 
 /* Paper O-0 personal settings pages (Profile, Appearance, Your access): a 24px
    title over a 14px muted subtitle, the form column capped at 720px, and
-   content-sized buttons. The page padding is the shell's. */
-.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) {
-  max-inline-size: none;
-}
+   content-sized buttons. The page padding is the shell's. The column itself is
+   the one settings width (760px) like every other settings page. */
 /* One page-title style on every settings page: the 24/32 page heading over a
    14px muted description, whatever the page's variant. The authentication
    screens keep the larger 28/36 heading. */
@@ -1765,7 +1763,6 @@ a.bakery-application-rail__link:hover {
 .ui-settings-content[data-variant="preferences"] {
   gap: var(--space-0);
   margin-inline-start: -1px;
-  max-inline-size: var(--layout-content);
 }
 .ui-settings-content[data-variant="preferences"] > .ui-auth-heading {
   padding-block-end: var(--space-6);
@@ -2169,7 +2166,9 @@ a.bakery-application-rail__link:hover {
   min-block-size: auto;
 }
 
-/* List page head (p-18-0 onboarding): 24/24/16 inset, 4px between lines. */
+/* List page head (p-18-0 onboarding): 24/24/16 inset, 4px between lines. In the
+   default padded main the shell already gives the inline gutter, so the title
+   starts where the content below it does (it sat 24px to the right). */
 .bakery-page-header--list {
   border-block-end: var(--border-none);
   display: flex;
@@ -2177,6 +2176,9 @@ a.bakery-application-rail__link:hover {
   gap: var(--space-1);
   margin-block-end: var(--space-0);
   padding: var(--space-6) var(--space-6) var(--space-4);
+}
+.bakery-app-shell:not(:is([data-main-inset="flush"], [data-main-inset="page"], [data-main-inset="pageWide"])) .bakery-page-header--list {
+  padding-inline: var(--space-0);
 }
 .bakery-page-header--list .bakery-page-header__lead {
   display: flex;

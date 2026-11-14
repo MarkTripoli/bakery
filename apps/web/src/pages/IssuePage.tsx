@@ -316,7 +316,14 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
                     onOpenChange={setMoreWays}
                     variant="interactive"
                     triggerAppearance="toolbar"
-                    trigger={<UI.IconGlyph name="chevron-down" />}
+                    trigger={
+                      <>
+                        <UI.IconGlyph name="chevron-down" />
+                        <UI.VisuallyHidden>
+                          {translate("issues.start.moreWays" as never)}
+                        </UI.VisuallyHidden>
+                      </>
+                    }
                   >
                     <UI.Stack gap="compact">
                       <UI.Menu
