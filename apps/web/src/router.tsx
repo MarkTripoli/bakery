@@ -32,6 +32,7 @@ import { IssuePage } from "./pages/IssuePage.tsx";
 import { ProjectsPage } from "./pages/ProjectsPage.tsx";
 import { IssuesPage } from "./pages/IssuesPage.tsx";
 import { LibraryPage } from "./pages/LibraryPage.tsx";
+import { BuiltInWorkflowPage } from "./pages/BuiltInWorkflowPage.tsx";
 import { WorkflowPage } from "./pages/WorkflowPage.tsx";
 import { MachinesPage } from "./pages/MachinesPage.tsx";
 import { MachineDetailPage } from "./pages/MachineDetailPage.tsx";
@@ -212,6 +213,20 @@ export const routeCoverage = [
   {
     id: "library-workflow",
     path: "/library/workflows/$workflowId",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "library-builtin",
+    path: "/library/built-in/$presetId",
     classification: "production",
     states: [
       "loading",
@@ -1040,6 +1055,19 @@ const workflowRoute = createRoute({
     requireSession(context.session, location),
   component: () => (
     <WorkflowPage workflowId={workflowRoute.useParams().workflowId} />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
+const builtInWorkflowRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/library/built-in/$presetId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <BuiltInWorkflowPage
+      presetId={builtInWorkflowRoute.useParams().presetId}
+    />
   ),
   errorComponent: ProtectedRouteError,
 });
@@ -1910,6 +1938,7 @@ const routeTree = rootRoute.addChildren([
   machinesRoute,
   libraryRoute,
   workflowRoute,
+  builtInWorkflowRoute,
   machineNewRoute,
   machineDetailRoute,
   statusRoute,

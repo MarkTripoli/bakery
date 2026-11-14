@@ -14,6 +14,10 @@ export type LibraryRow = {
   readonly note: string;
   /** Present when the row has a page to open (the organization's workflows). */
   readonly openLabel?: string;
+  /** Present when the name links to the row's page (a built-in workflow). */
+  readonly href?: string;
+  /** Present when the row can be copied (a built-in workflow, for an administrator). */
+  readonly copyLabel?: string;
 };
 
 /**
@@ -21,8 +25,10 @@ export type LibraryRow = {
  * Open button.
  */
 export function LibraryRows(
-  { label, onOpen, rows, translate }: {
+  { label, onCopy, onNavigate, onOpen, rows, translate }: {
     readonly label: string;
+    readonly onCopy?: (row: LibraryRow) => void;
+    readonly onNavigate?: (href: string) => void;
     readonly onOpen?: (row: LibraryRow) => void;
     readonly rows: readonly LibraryRow[];
     readonly translate: Translator;
@@ -38,6 +44,28 @@ export function LibraryRows(
         {translate("library.workflow.open" as never)}
       </UI.Button>
     );
+  const copyButton = (row: LibraryRow) =>
+    row.copyLabel === undefined || onCopy === undefined ? null : (
+      <UI.Button
+        variant="secondary"
+        aria-label={row.copyLabel}
+        onClick={() => onCopy(row)}
+      >
+        {translate("library.workflow.makeCopy" as never)}
+      </UI.Button>
+    );
+  const title = (row: LibraryRow) =>
+    row.href === undefined || onNavigate === undefined ? row.name : (
+      <UI.Link
+        href={row.href}
+        onClick={(event) => {
+          event.preventDefault();
+          onNavigate(row.href as string);
+        }}
+      >
+        {row.name}
+      </UI.Link>
+    );
   // One list at every width: a name and its badge, the line under it, the
   // note and the button. (A table with its headings repeats them under each
   // section.)
@@ -47,7 +75,7 @@ export function LibraryRows(
         <div key={row.id} role="listitem" data-library-id={row.id}>
           <UI.StackedRow
             flush
-            title={row.name}
+            title={title(row)}
             status={row.badge === null
               ? undefined
               : <UI.Badge tone={row.tone}>{row.badge}</UI.Badge>}
@@ -57,6 +85,7 @@ export function LibraryRows(
               ? <UI.Text variant="caption">{row.note}</UI.Text>
               : null}
             {openButton(row)}
+            {copyButton(row)}
           </UI.StackedRow>
         </div>
       ))}

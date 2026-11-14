@@ -61,6 +61,10 @@ export type WorkflowPresetResponse =
   WorkflowPresetListResponse["items"][number];
 export type WorkflowPresetsListQuery =
   ClientInputMap["WorkflowPresetsListQuery"];
+export type NamedDefinitionCreate = ClientInputMap["NamedDefinitionCreate"];
+export type WorkflowVersionCreate = ClientInputMap["WorkflowVersionCreate"];
+export type WorkflowValidationInput = ClientInputMap["WorkflowValidation"];
+export type ValidationReportResponse = ClientOutputMap["ValidationReport"];
 export type TaskResponse = ClientOutputMap["Task"];
 export type RunListResponse = ClientOutputMap["Page<Run>"];
 export type RunResponse = ClientOutputMap["Run"];
@@ -1173,6 +1177,28 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<WorkflowDefinitionResponse>>;
+  /** Creates a workflow of the organization (a name; its versions come next). */
+  readonly createWorkflow: (options: {
+    readonly organizationId: string;
+    readonly input: NamedDefinitionCreate;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<WorkflowDefinitionResponse>>;
+  /** Adds a draft version to a workflow from a definition. */
+  readonly createWorkflowVersion: (options: {
+    readonly organizationId: string;
+    readonly workflowId: string;
+    readonly input: WorkflowVersionCreate;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<WorkflowVersionResponse>>;
+  /** Checks a definition without saving it; the report lists errors and warnings. */
+  readonly validateWorkflow: (options: {
+    readonly organizationId: string;
+    readonly input: WorkflowValidationInput;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<ValidationReportResponse>>;
   /** The versions of one agent, one page of a cursor list. */
   readonly listAgentVersions: (options: {
     readonly organizationId: string;
@@ -4013,6 +4039,54 @@ export function createBakeryApiClient({
         if (data.id !== options.id) {
           throw new ApiTransportError("protocol", 200);
         }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async createWorkflow(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["workflows.create"](options.input, {
+          idempotencyKey: options.idempotencyKey,
+          signal: options.signal,
+        });
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async createWorkflowVersion(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["workflowVersions.create"](
+          { id: options.workflowId, ...options.input },
+          {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async validateWorkflow(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["workflows.validate"](options.input, {
+          idempotencyKey: options.idempotencyKey,
+          signal: options.signal,
+        });
         return { ok: true, data };
       } catch (error) {
         return failed(error);

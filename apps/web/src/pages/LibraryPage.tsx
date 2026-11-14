@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
@@ -8,11 +9,13 @@ import type {
 } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
 import {
+  effectiveAccessQueryOptions,
   libraryAgentsQueryOptions,
   libraryWorkflowsQueryOptions,
   workflowPresetsQueryOptions,
 } from "../api/query.ts";
 import { asyncKindForError, isForbiddenFailure } from "../app/async-state.ts";
+import { useConnectivity } from "../app/connectivity.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useShellViewport } from "../app/responsive.ts";
@@ -25,13 +28,15 @@ import {
   libraryTab,
   presetSteps,
 } from "./library/library-state.ts";
+import { presetSource } from "./library/copy-workflow.ts";
 import { type LibraryRow, LibraryRows } from "./library/LibraryRows.tsx";
+import { MakeCopyDialog } from "./library/MakeCopyDialog.tsx";
 import { presetCopy } from "./task-composer-labels.ts";
 
 /**
  * The workflows and agents Bakery uses to do work (design-ux, #66): what is
  * built in and what the organization has made, each with one badge. This
- * first slice only reads; opening, copying and importing follow.
+ * built-in workflows open read-only and can be copied; importing follows.
  */
 export function LibraryPage() {
   const api = useBakeryApi();
@@ -55,6 +60,10 @@ export function LibraryPage() {
     ...libraryAgentsQueryOptions(api, scope),
     enabled: ready && tab === "agents",
   });
+  const access = useQuery(effectiveAccessQueryOptions(api, scope));
+  const canManage = access.data?.role === "admin";
+  const offlineNow = useConnectivity() === "offline";
+  const [copying, setCopying] = useState<WorkflowPresetResponse | null>(null);
   const active = tab === "workflows" ? [workflows, presets] : [agents];
   const failure = active.find((query) => query.isError)?.error;
   const forbidden = failure !== undefined && isForbiddenFailure(failure);
@@ -100,6 +109,14 @@ export function LibraryPage() {
       // The section heading already says Built in.
       badge: null,
       tone: "neutral",
+      href: `/library/built-in/${preset.id}`,
+      ...(canManage && !offlineNow
+        ? {
+          copyLabel: translate("library.copy.action" as never, {
+            name: copy.title,
+          }),
+        }
+        : {}),
       note: [
         translate("library.builtIn.version" as never, {
           version: preset.revision,
@@ -127,6 +144,12 @@ export function LibraryPage() {
     >
       <LibraryRows
         label={label}
+        onCopy={(row) =>
+          setCopying(
+            (presets.data?.items ?? []).find((item) => item.id === row.id) ??
+              null,
+          )}
+        onNavigate={(href) => void navigate({ to: href })}
         onOpen={(row) =>
           void navigate({
             to: "/library/workflows/$workflowId",
@@ -306,6 +329,23 @@ export function LibraryPage() {
           ]}
         />
       </UI.SettingsContent>
+      {copying === null ? null : (
+        <MakeCopyDialog
+          source={presetSource(copying, {
+            title: presetCopy(translate, copying.id).title,
+            description: presetCopy(translate, copying.id).description ??
+              null,
+          })}
+          onClose={() => setCopying(null)}
+          onMade={(workflow) => {
+            setCopying(null);
+            void navigate({
+              to: "/library/workflows/$workflowId",
+              params: { workflowId: workflow.id },
+            });
+          }}
+        />
+      )}
     </>
   );
 }

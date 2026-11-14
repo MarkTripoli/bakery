@@ -33,7 +33,10 @@ import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
+import { MakeCopyDialog } from "./library/MakeCopyDialog.tsx";
+import { versionSource } from "./library/copy-workflow.ts";
 import {
+  ACTION_TITLES,
   agentBindings,
   canUse,
   defaultVersion,
@@ -43,13 +46,6 @@ import {
   versionState,
 } from "./library/workflow-state.ts";
 
-/** The sentences for the actions a definition's steps run most. */
-const ACTION_TITLES: Readonly<Record<string, string>> = {
-  "task.brief": "library.workflow.action.taskBrief",
-  "harness.implement": "library.workflow.action.harnessImplement",
-  "agent.review": "library.workflow.action.agentReview",
-};
-
 /** How many versions the Versions card lists before "Show all". */
 const CARD_VERSIONS = 5;
 
@@ -57,6 +53,7 @@ type Dialog =
   | { readonly kind: "use"; readonly version: WorkflowVersionResponse }
   | { readonly kind: "off" }
   | { readonly kind: "rename" }
+  | { readonly kind: "copy" }
   | { readonly kind: "all" }
   | null;
 
@@ -507,6 +504,13 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
         disabled: offline || pending,
       }]
       : []),
+    ...(canManage
+      ? [{
+        id: "copy",
+        label: translate("library.workflow.makeCopy" as never),
+        disabled: offline || pending || shown === null,
+      }]
+      : []),
     {
       id: "export",
       label: translate("library.workflow.export" as never),
@@ -561,6 +565,8 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
             } else if (id === "rename") {
               setName(current.name);
               open({ kind: "rename" });
+            } else if (id === "copy") {
+              open({ kind: "copy" });
             } else if (id === "off") {
               open({ kind: "off" });
             } else if (id === "on") {
@@ -893,6 +899,21 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
               </UI.Stack>
             </form>
           </UI.Dialog>
+        )
+        : null}
+      {dialog?.kind === "copy" && shown !== null
+        ? (
+          <MakeCopyDialog
+            source={versionSource(current, shown)}
+            onClose={close}
+            onMade={(made) => {
+              setDialog(null);
+              void navigate({
+                to: "/library/workflows/$workflowId",
+                params: { workflowId: made.id },
+              });
+            }}
+          />
         )
         : null}
       {dialog?.kind === "all"

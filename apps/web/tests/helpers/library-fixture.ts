@@ -18,6 +18,8 @@ export type Definition = {
   enabled: boolean;
   /** The definition's own version, sent back as If-Match. */
   version?: number;
+  /** The address the server holds; the name's words when not given. */
+  slug?: string;
 };
 
 /** One version of a workflow, with the steps its specification holds. */
@@ -56,6 +58,8 @@ export type Options = {
   agentReads?: "hold" | "fail";
   /** Every workflow versions page says there is another, two versions to a page. */
   endlessVersions?: boolean;
+  /** A copy whose workflow cannot be made, or whose steps cannot be added (always, or on the first try). */
+  copy?: "workflow-fails" | "steps-fail" | "steps-fail-once";
   /** A change that answers 409 (someone else got there first). */
   conflict?: "activate" | "update";
   /** A read that answers 500 INTERNAL_ERROR, or 403 AUTH_FORBIDDEN. */
@@ -90,7 +94,7 @@ const problem = (status: number, code: string) => ({
 });
 const body = (item: Definition) => ({
   id: item.id,
-  slug: item.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+  slug: item.slug ?? item.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
   name: item.name,
   description: item.description,
   activeVersionId: item.activeVersionId,
@@ -150,6 +154,17 @@ export async function libraryFixture(page: Page, options: Options = {}) {
       ifMatch: string | null;
       body: Record<string, unknown>;
     }[],
+    created: [] as {
+      slug: string;
+      name: string;
+      description: string;
+    }[],
+    versionsCreated: [] as {
+      workflowId: string;
+      definition: { steps?: { id: string; uses: string }[] };
+      sourceYaml?: string;
+    }[],
+    stepWrites: 0,
     workflowReads: 0,
     agentReads: 0,
     presetReads: 0,
@@ -178,6 +193,24 @@ export async function libraryFixture(page: Page, options: Options = {}) {
   await page.route(
     (url) => url.pathname === "/v1/workflows",
     async (route) => {
+      if (route.request().method() === "POST") {
+        if (options.copy === "workflow-fails") {
+          return route.fulfill(problem(500, "INTERNAL_ERROR"));
+        }
+        const input = route.request().postDataJSON() as {
+          slug: string;
+          name: string;
+          description: string;
+        };
+        seen.created.push(input);
+        const made = definition(900 + seen.created.length, input.name, {
+          description: input.description,
+          activeVersionId: null,
+          slug: input.slug,
+        });
+        workflows.push(made);
+        return route.fulfill({ ...json(body(made)), status: 201 });
+      }
       seen.workflowReads += 1;
       if (options.offline) return route.abort("failed");
       if (options.endless) {
@@ -224,6 +257,29 @@ export async function libraryFixture(page: Page, options: Options = {}) {
     (url) => /^\/v1\/workflows\/[^/]+\/versions$/.test(url.pathname),
     (route) => {
       const id = new URL(route.request().url()).pathname.split("/")[3] ?? "";
+      if (route.request().method() === "POST") {
+        seen.stepWrites += 1;
+        if (
+          options.copy === "steps-fail" ||
+          (options.copy === "steps-fail-once" && seen.stepWrites === 1)
+        ) {
+          return route.fulfill(problem(500, "INTERNAL_ERROR"));
+        }
+        const input = route.request().postDataJSON() as {
+          definition: { steps?: { id: string; uses: string }[] };
+          sourceYaml?: string;
+        };
+        seen.versionsCreated.push({ workflowId: id, ...input });
+        const row: VersionRow = {
+          id: uuid(8000 + seen.versionsCreated.length),
+          workflowId: id,
+          revision: 1,
+          status: "draft",
+          steps: input.definition.steps ?? [],
+        };
+        versions.push(row);
+        return route.fulfill({ ...json(versionBody(row)), status: 201 });
+      }
       if (options.endlessVersions) {
         versionPages += 1;
         const base = 100 * versionPages;
@@ -308,7 +364,7 @@ export async function libraryFixture(page: Page, options: Options = {}) {
           nameKey: "workflowPresets.fixedCoding.name",
           steps: [{ id: "brief", uses: "task.brief" }, {
             id: "implement",
-            uses: "agent.code",
+            uses: "harness.implement",
           }],
           defaultBudgetLimitUsd: "5.00",
           availability: null,
@@ -320,7 +376,7 @@ export async function libraryFixture(page: Page, options: Options = {}) {
           nameKey: "workflowPresets.fixedCodingReviewed.name",
           steps: [
             { id: "brief", uses: "task.brief" },
-            { id: "implement", uses: "agent.code" },
+            { id: "implement", uses: "harness.implement" },
             { id: "review", uses: "agent.review" },
           ],
           defaultBudgetLimitUsd: "8.00",

@@ -3422,5 +3422,19 @@
   "library.workflow.offline": "⟪You are offline.⟫",
   "library.workflow.moreAbout": "⟪ actions for {name}⟫",
   "library.column.details": "⟪Details⟫",
-  "library.column.action": "⟪Action⟫"
+  "library.column.action": "⟪Action⟫",
+  "library.copy.title": "⟪Make a copy⟫",
+  "library.copy.suffix": "⟪(copy)⟫",
+  "library.copy.name": "⟪Name⟫",
+  "library.copy.empty": "⟪Enter a name for the copy.⟫",
+  "library.copy.note": "⟪The copy starts as a draft from version {version}. It is not used until you publish it.⟫",
+  "library.copy.submit": "⟪Make a copy⟫",
+  "library.copy.action": "⟪Make a copy of {name}⟫",
+  "library.copy.failed": "⟪The copy could not be made. Check your connection, then try again.⟫",
+  "library.copy.offline": "⟪You are offline. Try again when you are back online.⟫",
+  "library.copy.stepsFailed": "⟪The copy {name} was made, but its steps could not be added. Try again.⟫",
+  "library.workflow.makeCopy": "⟪Make a copy⟫",
+  "library.builtIn.page.badge": "⟪Built in⟫",
+  "library.builtIn.page.notice": "⟪Built-in workflows cannot be changed. Make a copy to edit it.⟫",
+  "library.builtIn.page.notFoundTitle": "⟪This built-in workflow was not found⟫"
 }
