@@ -34,6 +34,13 @@ const shortPlan = () =>
     { id: "pause", needs: ["first"], wait: { duration: "1s" } },
   ]);
 
+/** A wait too long for host load to outlast: for the tests that count what is left of it. */
+const longPlan = () =>
+  compiled([
+    noop("first"),
+    { id: "pause", needs: ["first"], wait: { duration: "30s" } },
+  ]);
+
 /** The plan with its first step done, so the wait is the next dispatch. */
 async function atTheWait(
   fixture: WorkerFixture,
@@ -318,7 +325,7 @@ Deno.test("the engine sleeps a wait with the lease stretched over it, records it
 
 Deno.test("after a crash mid-sleep the next engine run sleeps only what is left, from the same start", () =>
   withWorkerFixture(async (fixture) => {
-    const { seeded } = await atTheWait(fixture, shortPlan);
+    const { seeded } = await atTheWait(fixture, longPlan);
     await seeded.repository.releaseEngineOwner(seeded.owner);
     const { handler } = engineFor(fixture);
 
@@ -356,32 +363,39 @@ Deno.test("after a crash mid-sleep the next engine run sleeps only what is left,
       [seeded.job.runId],
     );
 
-    // Second engine run: sleeps the remainder, not the whole second.
+    // Second engine run: sleeps the remainder, not the whole 30 seconds.
     const startBeforeSecondRun = (await waitRow(fixture, seeded)).startedAt;
     const secondSleeps: number[] = [];
     assertEquals(
       await handler({
         event: eventFor(seeded.job.runId),
         step: recordingStep([], {
+          // Time passes by the database clock, not by waiting for it.
           sleep: async (_id, ms) => {
             secondSleeps.push(ms);
-            await new Promise((resolve) => setTimeout(resolve, ms));
+            await backdate(fixture, seeded, ms + 50);
           },
         }),
       }),
       { status: "completed" },
     );
     assertEquals(secondSleeps.length, 1);
+    // Never more than what was left (the 30 s less the 600 ms that passed),
+    // however long the host took between the two runs.
     assert(
-      secondSleeps[0] > 0 && secondSleeps[0] <= 400,
-      `slept ${secondSleeps[0]} after 600 of 1000 had passed`,
+      secondSleeps[0] > 0 && secondSleeps[0] <= 29_400,
+      `slept ${secondSleeps[0]} after 600 of 30000 had passed`,
     );
     assertEquals((await waitRow(fixture, seeded)).status, "completed");
-    // The engine never moved the start.
-    assertEquals(
-      (await waitRow(fixture, seeded)).startedAt,
-      startBeforeSecondRun,
+    // The engine never moved the start: the only change is the time the
+    // sleep hook above let pass.
+    const unmoved = await fixture.pgDatabase.query<{ ok: boolean }>(
+      `select started_at = $2::timestamptz -
+                ($3::integer * interval '1 millisecond') as ok
+         from bakery.run_steps where run_id = $1 and step_key = 'pause'`,
+      [seeded.job.runId, startBeforeSecondRun, secondSleeps[0] + 50],
     );
+    assertEquals(unmoved.rows[0].ok, true);
   }));
 
 Deno.test("a wait already past its time is completed without sleeping", () =>

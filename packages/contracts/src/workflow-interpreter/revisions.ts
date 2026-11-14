@@ -27,11 +27,11 @@ export const INTERPRETER_REVISIONS: Readonly<
 > = Object.freeze({ "1": nextStep, "2": nextStepWithGroups });
 
 /**
- * The revision a run admitted now is pinned to. Revision 2 (parallel groups)
- * is deployed so that it can be resumed, but nothing is pinned to it until the
- * engine runs a set of steps and admission accepts a group (issue #30, E4c).
+ * The revision a run admitted now is pinned to: revision 2 (parallel groups),
+ * which gives revision 1's answers for a plan without a group. Runs already
+ * pinned to revision 1 resume on it.
  */
-export const CURRENT_INTERPRETER_REVISION = "1";
+export const CURRENT_INTERPRETER_REVISION = "2";
 
 /**
  * What a run freezes at admission so a later deploy cannot change how it runs:

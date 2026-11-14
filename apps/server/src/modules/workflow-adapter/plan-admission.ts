@@ -110,23 +110,28 @@ export function planActionAgentBindings(
 }
 
 /**
- * Whether the plan holds a node the engine cannot run yet: an event wait or a
- * parallel group, wherever it is nested. Such a plan is refused at admission,
- * as the fixed executor refused it, rather than started and failed when the
- * interpreter reaches the node. A duration wait is run (issue #30, E4a): the
- * engine sleeps it durably and records it elapsed.
+ * Whether the plan holds a node the engine cannot run: an event wait, or a
+ * parallel group whose lanes name more than one repository alias, wherever it
+ * is nested. Such a plan is refused at admission, as the fixed executor
+ * refused it, rather than started and failed when the interpreter reaches the
+ * node. A duration wait is run (issue #30, E4a). A parallel group is run by
+ * interpreter revision 2 (E4c), but a run executes against one repository and
+ * a lane's alias has no other binding, so every lane of every group must name
+ * the same alias: the run's repository.
  */
 export function planHoldsUnsupportedNodes(
   document: WorkflowSemanticDocument,
 ): boolean {
   type Node = WorkflowSemanticDocument["steps"][number];
+  const aliases = new Set<string>();
   const unsupported = (nodes: readonly Node[]): boolean =>
     nodes.some((node) => {
       switch (node.kind) {
         case "wait":
           return node.wait.kind === "event";
         case "parallel":
-          return true;
+          for (const lane of node.lanes) aliases.add(lane.repository);
+          return node.lanes.some((lane) => unsupported(lane.steps));
         case "sequence":
           return unsupported(node.steps);
         case "branch":
@@ -138,7 +143,7 @@ export function planHoldsUnsupportedNodes(
           return false;
       }
     });
-  return unsupported(document.steps);
+  return unsupported(document.steps) || aliases.size > 1;
 }
 
 /** Every agent version a plan's steps can run as, sorted and once each. */

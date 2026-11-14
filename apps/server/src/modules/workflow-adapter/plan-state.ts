@@ -188,6 +188,24 @@ export function recordsFromRows(
   return records;
 }
 
+/**
+ * The keys of rows that are dispatched and have no result yet (pending,
+ * running, waiting). Interpreter revision 2 reads them to know which lanes of
+ * a parallel group are running; revision 1 ignores them.
+ */
+export function inFlightKeys(
+  rows: readonly PlanStepRow[],
+): ReadonlySet<string> {
+  return new Set(
+    rows
+      .filter((row) =>
+        row.status === "pending" || row.status === "running" ||
+        row.status === "waiting"
+      )
+      .map((row) => row.stepKey),
+  );
+}
+
 /** What the engine knows about a run apart from its step rows. */
 export type PlanStateInput = Readonly<{
   inputs: Readonly<Record<string, JsonValue>>;
@@ -209,6 +227,7 @@ export function nextPlanStep(
     task: input.task,
     ...(input.delivery === undefined ? {} : { delivery: input.delivery }),
     steps: recordsFromRows(input.rows),
+    inFlight: inFlightKeys(input.rows),
     ...(input.cancelRequested === true ? { cancelRequested: true } : {}),
   });
 }
