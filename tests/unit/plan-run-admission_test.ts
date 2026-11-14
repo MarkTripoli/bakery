@@ -453,8 +453,12 @@ Deno.test("a run cannot freeze more than 100 agents, and the bound is judged bef
   );
 });
 
-Deno.test("a wait or a parallel group is found wherever it is nested, and nothing else is", async () => {
-  const wait = { id: "pause", wait: { duration: "5m" } };
+Deno.test("an event wait or a parallel group is found wherever it is nested, and nothing else is, a duration wait included", async () => {
+  const wait = {
+    id: "pause",
+    wait: { event: "question.answered", timeout: "5m" },
+  };
+  const sleep = { id: "nap", wait: { duration: "5m" } };
   const parallel = {
     id: "fan",
     parallel: {
@@ -501,7 +505,10 @@ Deno.test("a wait or a parallel group is found wherever it is nested, and nothin
     ]],
     ["wait in a repeat seed", [
       repeat({}, {
-        steps: [noop("prepare"), { id: "hold", wait: { duration: "1m" } }],
+        steps: [
+          noop("prepare"),
+          { id: "hold", wait: { event: "question.answered", timeout: "1m" } },
+        ],
         outputs: { currentCandidate: { n: 0 } },
       }),
     ]],
@@ -519,6 +526,24 @@ Deno.test("a wait or a parallel group is found wherever it is nested, and nothin
   }
   const plain: [string, object[]][] = [
     ["actions", [noop("alpha"), noop("beta", { needs: ["alpha"] })]],
+    ["top-level duration wait", [sleep]],
+    ["duration wait in a sequence", [{
+      id: "seq",
+      steps: [noop("alpha"), sleep],
+    }]],
+    ["duration wait in an arm", [branch([sleep], [noop("left_x")])]],
+    ["duration wait in a repeat body", [
+      repeat({
+        steps: [
+          noop("bump", { with: { n: "$repeat.currentCandidate.n" } }),
+          sleep,
+        ],
+      }, mapping),
+    ]],
+    ["duration wait in a nested sequence", [{
+      id: "outer",
+      steps: [{ id: "inner", steps: [sleep] }],
+    }]],
     ["sequence", [{ id: "seq", steps: [noop("alpha"), noop("beta")] }]],
     ["branch", [branch([noop("left_x")], [noop("right_y")])]],
     ["repeat with a mapping seed", [repeat({}, mapping)]],

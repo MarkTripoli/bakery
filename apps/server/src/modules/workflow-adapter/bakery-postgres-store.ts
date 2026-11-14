@@ -208,6 +208,12 @@ class EngineOwnerLostError extends Error {
   }
 }
 
+/** What the engine needs to sleep a duration wait: its length and what remains. */
+export type WaitBoundary = Readonly<{
+  durationMs: number;
+  remainingMs: number;
+}>;
+
 export type EngineOwnerCandidate = Readonly<{
   runId: string;
   generation: string;
@@ -229,6 +235,26 @@ export type BakeryPostgresWorkflowRepository = Readonly<{
     runId: string,
     owner?: EngineOwner,
   ): Promise<LogicalInvocationKey | undefined>;
+  /**
+   * What is left of a plan run's duration wait, by the database clock, or
+   * null when the step is not a duration wait (an action step). The engine
+   * sleeps this long, so a restart or a second engine run sleeps only the
+   * remainder, never the full duration again.
+   */
+  readWait(
+    key: LogicalInvocationKey,
+    owner?: EngineOwner,
+  ): Promise<WaitBoundary | null>;
+  /**
+   * Records a duration wait as elapsed, once its time has passed by the
+   * database clock. True when the step is now completed (also when it already
+   * was); false when the run no longer waits on it (canceled or ended).
+   * Throws `WORKFLOW_WAIT_NOT_DUE`, which the engine retries, when called early.
+   */
+  completeWait(
+    key: LogicalInvocationKey,
+    owner?: EngineOwner,
+  ): Promise<boolean>;
   readRunStatus(
     runId: string,
     owner?: EngineOwner,
@@ -841,13 +867,44 @@ async function findNextPlanKey(
     return undefined;
   }
   if (answer.step.kind === "wait") {
-    await endPlanRunFailed(
-      transaction,
-      context,
-      activeOwner,
-      "plan_wait_unsupported",
+    // An event wait has no producer yet; it is refused at admission and, for a
+    // run that holds one anyway, ends the run here with a stable code.
+    if (answer.step.wait.kind !== "duration") {
+      await endPlanRunFailed(
+        transaction,
+        context,
+        activeOwner,
+        "plan_wait_unsupported",
+      );
+      return undefined;
+    }
+    // A duration wait is a row without a job. Its start is the database clock
+    // at the first insert and never moves: a replay, a restart or a second
+    // engine run finds the same row (the insert is a no-op) and sleeps only
+    // what is left.
+    await transaction.query(
+      `insert into bakery.run_steps (
+         organization_id, run_id, step_key, position, iteration, status, input,
+         dispatch, started_at
+       )
+       select $1, $2, $3, coalesce(max(position), 0) + 1, 0, 'waiting',
+              '{}'::jsonb, $4::jsonb, clock_timestamp()
+         from bakery.run_steps
+        where organization_id = $1 and run_id = $2
+       on conflict (run_id, step_key, iteration) do nothing`,
+      [
+        context.organizationId,
+        context.runId,
+        answer.step.key,
+        JSON.stringify(answer.step),
+      ],
     );
-    return undefined;
+    return {
+      runId: context.runId,
+      stepKey: answer.step.key,
+      iteration: 0,
+      actionVersion: context.workflowVersionId,
+    };
   }
   // The agent a step runs as is its own, else the one its action falls back
   // to, frozen at admission beside the plan; the dispatch records the answer so
@@ -1272,6 +1329,75 @@ export function createBakeryPostgresWorkflowRepository(options: {
         const planKey = await findNextPlanKey(transaction, runId, owner);
         if (planKey !== null) return planKey;
         return await loadNext(transaction, runId);
+      });
+    },
+    async readWait(key, owner) {
+      assertLogicalKey(key);
+      return await withPgTransaction(options.database, async (transaction) => {
+        await requireEngineOwner(transaction, key.runId, owner);
+        const result = await transaction.query<WaitBoundary>(
+          `select (step.dispatch #>> '{wait,durationMs}')::integer
+                    as "durationMs",
+                  greatest(0, ceil(extract(epoch from (
+                    step.started_at +
+                      (step.dispatch #>> '{wait,durationMs}')::bigint *
+                        interval '1 millisecond' -
+                      clock_timestamp()
+                  )) * 1000))::integer as "remainingMs"
+             from bakery.run_steps step
+             join bakery.workflow_runs run
+               on run.organization_id = step.organization_id
+              and run.id = step.run_id
+            where run.id = $1 and step.step_key = $2 and step.iteration = $3
+              and step.dispatch ->> 'kind' = 'wait'
+              and step.started_at is not null`,
+          [key.runId, key.stepKey, key.iteration],
+        );
+        return result.rows[0] ?? null;
+      });
+    },
+    async completeWait(key, owner) {
+      assertLogicalKey(key);
+      return await withPgTransaction(options.database, async (transaction) => {
+        await requireEngineOwner(transaction, key.runId, owner);
+        const done = await transaction.query(
+          `update bakery.run_steps step
+              set status = 'completed',
+                  output = '{"outcome": "elapsed"}'::jsonb,
+                  finished_at = clock_timestamp(),
+                  updated_at = clock_timestamp(), version = step.version + 1
+             from bakery.workflow_runs run
+            where run.id = $1 and run.organization_id = step.organization_id
+              and run.id = step.run_id and run.status in ('queued', 'running')
+              and step.step_key = $2 and step.iteration = $3
+              and step.status = 'waiting'
+              and step.dispatch ->> 'kind' = 'wait'
+              and step.started_at +
+                    (step.dispatch #>> '{wait,durationMs}')::bigint *
+                      interval '1 millisecond' <= clock_timestamp()
+           returning step.id`,
+          [key.runId, key.stepKey, key.iteration],
+        );
+        if (done.rows.length > 0) return true;
+        const current = await transaction.query<{ status: string }>(
+          `select step.status
+             from bakery.run_steps step
+            where step.run_id = $1 and step.step_key = $2
+              and step.iteration = $3 and step.dispatch ->> 'kind' = 'wait'`,
+          [key.runId, key.stepKey, key.iteration],
+        );
+        const status = current.rows[0]?.status;
+        if (status === "completed") return true;
+        if (status === "waiting") {
+          const run = await transaction.query<{ status: string }>(
+            `select status from bakery.workflow_runs where id = $1`,
+            [key.runId],
+          );
+          if (["queued", "running"].includes(run.rows[0]?.status ?? "")) {
+            throw new Error("WORKFLOW_WAIT_NOT_DUE");
+          }
+        }
+        return false;
       });
     },
     async readRunStatus(runId, owner) {
@@ -1921,6 +2047,44 @@ export function createBakeryFixedWorkflow(options: {
             }
             await releaseOwner();
             return { status: status ?? "completed" };
+          }
+
+          // A duration wait has no job to wait for: sleep what is left of it by
+          // the database clock, with the owner lease stretched over the sleep,
+          // then record it elapsed. A restart or a second engine run reads the
+          // same start and sleeps only the remainder.
+          const durationWait = await step.run(
+            `read-wait-${checkpoint}`,
+            () => repository.readWait(key, owner),
+          );
+          if (durationWait !== null) {
+            if (durationWait.remainingMs > 0) {
+              const stretched = await step.run(
+                `extend-engine-owner-for-wait-${checkpoint}`,
+                () =>
+                  repository.renewEngineOwner({
+                    ...requireOwnerValue(owner),
+                    leaseMs: durationWait.remainingMs + ownerLeaseMs,
+                  }),
+              );
+              if (!stretched) throw new EngineOwnerLostError();
+              await step.sleep(
+                `wait-for-duration-${checkpoint}-${key.stepKey}-${key.iteration}`,
+                `${durationWait.remainingMs}ms`,
+              );
+              const restored = await step.run(
+                `renew-engine-owner-after-wait-${checkpoint}`,
+                () => repository.renewEngineOwner(requireOwnerValue(owner)),
+              );
+              if (!restored) throw new EngineOwnerLostError();
+            }
+            const elapsed = await step.run(
+              `complete-wait-${checkpoint}-${key.stepKey}-${key.iteration}`,
+              () => repository.completeWait(key, owner),
+            );
+            if (!elapsed) throw new EngineOwnerLostError();
+            checkpoint += 1;
+            continue;
           }
 
           let waitAttempt = 0;
