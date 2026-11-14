@@ -277,7 +277,7 @@ Deno.test("the root tool refuses to prepare or sweep anything that is not a lane
     const swept = await tool("sweep", base, root);
     assertEquals(
       JSON.parse(new TextDecoder().decode(swept.stdout)),
-      { leaked: 0, prefixes: {}, homeEntries: 1 },
+      { leaked: 0, prefixes: {}, homeEntries: 1, homeNames: ["dropped"] },
     );
     assertEquals(await laneRoots(base), []);
   } finally {
@@ -297,4 +297,60 @@ Deno.test("the runner sweeps the root of a skeleton it could not make before it 
     branch.indexOf('rootTool("sweep"') > 0 &&
       branch.indexOf('rootTool("sweep"') < branch.indexOf("Deno.exit(3)"),
   );
+});
+
+Deno.test("the runner removes the stacks its fixtures registered, by name, before it sweeps the root, and names what a lane wrote into its home", async () => {
+  const source = await Deno.readTextFile("scripts/run-tests.ts");
+  const stacks = source.indexOf("await removeLaneStacks(");
+  const sweep = source.indexOf(
+    'rootTool("sweep", temporaryDirectory, isolatedRoot)',
+    stacks,
+  );
+  assert(
+    stacks > 0 && sweep > stacks,
+    "the stacks go before the root that holds their registry",
+  );
+  // The registry is read from the lane's own env directory, and only parsed names are swept.
+  assert(source.includes("laneEnvPaths(isolatedRoot).stacks"));
+  assert(source.includes("parseLaneStacks("));
+  assert(source.includes("sweepLaneStacks(names, dockerRun)"));
+  // The entries written to the isolated home are named, not only counted.
+  assert(source.includes("homeNames"));
+  assert(source.includes("entries were written to the isolated home"));
+});
+
+Deno.test("every fixture that brings up a compose stack of its own registers its project name first, and the worker's unit carries the lane's environment", async () => {
+  const registering = [
+    "tests/helpers/durable-core/stack.ts",
+    "tests/fixtures/real-inngest-stack.ts",
+    "tests/e2e/helpers/stack.ts",
+    "tests/e2e/implement-shared-conversations-and-serialized-coordinator-turns_test.ts",
+    "tests/e2e/persist-scoped-workflow-approvals_test.ts",
+    "tests/e2e/implement-durable-questions-answers-and-turn-steering_test.ts",
+    "tests/integration/run-the-persistent-local-stack-with-compose-and-dev-containers_test.ts",
+  ];
+  for (const path of registering) {
+    const source = await Deno.readTextFile(path);
+    // The name is registered before the first compose command that uses it.
+    const named = source.search(
+      /const (project|projectName) = (`bakery-|"bakery-)/,
+    );
+    const registered = source.search(
+      /registerLaneStack\((project|projectName)\)/,
+    );
+    assert(
+      named >= 0 && registered > named,
+      `${path} registers its compose project`,
+    );
+    const first = source.indexOf('"compose"', named);
+    assert(
+      first < 0 || registered < first,
+      `${path} registers before it uses compose`,
+    );
+  }
+  // The worker's unit starts inside `env -i`: it is given the lane's variables again.
+  const unit = await Deno.readTextFile(
+    "tests/helpers/durable-core/preset-stack.ts",
+  );
+  assert(unit.includes("...carriedLaneVariables(Deno.env.toObject())"));
 });

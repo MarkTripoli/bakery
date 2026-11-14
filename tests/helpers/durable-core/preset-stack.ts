@@ -1,3 +1,4 @@
+import { carriedLaneVariables } from "../../../scripts/ci/lane-environment.ts";
 import { assert, assertEquals } from "@std/assert";
 import { workerShutdownReceiptPath } from "../../../apps/worker/src/shutdown-receipt.ts";
 import { provisionDelegatedCgroupV2 } from "../../../scripts/lib/cgroup-v2.ts";
@@ -487,6 +488,9 @@ export async function launchPresetWorker(
         cwd: Deno.cwd(),
       }),
     environment: {
+      // The lane's mise, cache, XDG and git settings: the unit starts inside
+      // `env -i`, and without them mise looks for the operator's own.
+      ...carriedLaneVariables(Deno.env.toObject()),
       ...options.environment,
       PATH: Deno.env.get("PATH") ?? "/usr/bin:/bin",
       HOME: Deno.env.get("HOME") ?? "/tmp",

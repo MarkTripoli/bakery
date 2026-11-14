@@ -9,7 +9,8 @@
  *                          config of #246 under `<root>/env`
  *   sweep <base> <root>    prints {"leaked":n,"prefixes":{...}} and removes <root>;
  *                          `<root>/env` is the lane's own home, not a leak, and
- *                          its entry count is reported as `homeEntries`
+ *                          its entry count is reported as `homeEntries` and its
+ *                          first names as `homeNames`
  *
  * Run with `--allow-read --allow-write=<base>`; it touches nothing else.
  */
@@ -61,7 +62,8 @@ if (import.meta.main) {
     } else {
       const paths = laneEnvPaths(root);
       const isolated = entriesOf(root).includes("env");
-      const homeEntries = isolated ? entriesOf(paths.home).length : undefined;
+      const homeNames = isolated ? entriesOf(paths.home).sort() : undefined;
+      const homeEntries = homeNames?.length;
       const left = entriesOf(root).filter((name) =>
         !(isolated && name === "env")
       );
@@ -70,7 +72,11 @@ if (import.meta.main) {
         JSON.stringify({
           leaked: left.length,
           prefixes: prefixesOf(left),
-          ...(homeEntries === undefined ? {} : { homeEntries }),
+          ...(homeEntries === undefined ? {} : {
+            homeEntries,
+            // The names, so what depended on a real home can be found (capped).
+            homeNames: homeNames!.slice(0, 20).map((name) => name.slice(0, 80)),
+          }),
         }),
       );
     }

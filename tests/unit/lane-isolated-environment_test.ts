@@ -4,8 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
 import {
+  CARRIED_LANE_VARIABLES,
+  carriedLaneVariables,
   ISOLATED_HOME_LANES,
   isolatedLaneEnvironment,
+  LANE_STACK_REGISTRY_VARIABLE,
   laneEnvPaths,
   MINIMAL_GIT_CONFIG,
   pinnedCaches,
@@ -412,4 +415,87 @@ Deno.test("only the Codex login is removed: every other operator variable reache
   }
   assertEquals(Object.hasOwn(env, "CODEX_HOME"), false);
   assertEquals(Object.hasOwn(env, "BAKERY_CODEX_AUTH_SOURCE_DIR"), false);
+});
+
+Deno.test("the worker's unit, which starts inside env -i, is given the lane's variables again, and only the ones the lane has", () => {
+  const lane = isolatedLaneEnvironment({
+    lane: "e2e",
+    environment: operator,
+    root,
+    pinned: {
+      DENO_DIR: "/home/operator/.cache/deno",
+      MISE_CONFIG_DIR: "/home/operator/.config/mise",
+      MISE_STATE_DIR: "/home/operator/.local/state/mise",
+      MISE_DATA_DIR: "/home/operator/.local/share/mise",
+      MISE_CACHE_DIR: "/home/operator/.cache/mise",
+    },
+  })!;
+  const carried = carriedLaneVariables(lane);
+  // The mise directories that keep mise out of the operator's untrusted config.
+  for (
+    const name of [
+      "MISE_CONFIG_DIR",
+      "MISE_STATE_DIR",
+      "MISE_DATA_DIR",
+      "MISE_CACHE_DIR",
+      "DENO_DIR",
+    ]
+  ) assertEquals(carried[name], lane[name], name);
+  // The lane's own home-relative settings, not the operator's.
+  assertEquals(carried.XDG_CONFIG_HOME, lane.XDG_CONFIG_HOME);
+  assertEquals(carried.GIT_CONFIG_GLOBAL, lane.GIT_CONFIG_GLOBAL);
+  assertEquals(carried.GIT_CONFIG_NOSYSTEM, "1");
+  assertEquals(
+    carried[LANE_STACK_REGISTRY_VARIABLE],
+    laneEnvPaths(root).stacks,
+  );
+  // Nothing else of the environment, and never a Codex variable or the HOME and PATH, which the unit is given on their own.
+  for (const name of Object.keys(carried)) {
+    assert(CARRIED_LANE_VARIABLES.includes(name), name);
+  }
+  for (
+    const name of [
+      "CODEX_HOME",
+      "BAKERY_CODEX_AUTH_SOURCE_DIR",
+      "HOME",
+      "PATH",
+      "DATABASE_URL",
+      "TMPDIR",
+    ]
+  ) {
+    assertEquals(carried[name], undefined, name);
+  }
+  assert(!CARRIED_LANE_VARIABLES.includes("HOME"));
+  // Unset and empty values are not carried.
+  assertEquals(
+    carriedLaneVariables({ MISE_CONFIG_DIR: "", XDG_DATA_HOME: "/x" }),
+    {
+      XDG_DATA_HOME: "/x",
+    },
+  );
+  assertEquals(carriedLaneVariables({}), {});
+});
+
+Deno.test("the isolated lane names its stack registry inside its own env directory, not in its home and not beside it", () => {
+  const paths = laneEnvPaths(root);
+  assertEquals(paths.stacks, `${root}/env/stacks`);
+  assert(!paths.stacks.startsWith(`${paths.home}/`));
+  assert(!paths.directories.includes(paths.stacks));
+  const lane = isolatedLaneEnvironment({
+    lane: "integration",
+    environment: operator,
+    root,
+    pinned,
+  })!;
+  assertEquals(lane[LANE_STACK_REGISTRY_VARIABLE], paths.stacks);
+  // A lane that is not isolated has no registry.
+  assertEquals(
+    isolatedLaneEnvironment({
+      lane: "unit",
+      environment: operator,
+      root,
+      pinned,
+    }),
+    null,
+  );
 });
