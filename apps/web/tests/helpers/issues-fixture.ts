@@ -73,7 +73,8 @@ export const ticket = (seed: Seed) => {
         dependencyDigest: "0".repeat(64),
         basisDigest: "0".repeat(64),
         sourcePolicyRevision: 1,
-        evaluatedAt: seed.checkedAt ?? "2026-01-01T00:00:00.000Z",
+        evaluatedAt: seed.checkedAt ??
+          new Date(Date.now() - 12 * 60_000).toISOString(),
       }
       : null,
     activeRequest: seed.request

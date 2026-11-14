@@ -153,6 +153,14 @@
   cursor: pointer;
   padding: var(--space-2) var(--space-3);
 }
+/* A primary Button in a cell keeps its fill: the cell rule above restyles every
+   button in a table as a plain outlined one, which hid "Start work" among the
+   quiet "Open" buttons. */
+.ui-data-table button.ui-button--primary {
+  background: var(--color-primary);
+  border-color: transparent;
+  color: var(--color-primary-foreground);
+}
 .ui-object-row {
   align-items: center;
   border-block-end: var(--border-default) solid var(--color-border);

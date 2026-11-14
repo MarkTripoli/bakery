@@ -75,6 +75,13 @@ for (
           name: "Start work on #201 Add invoice export",
         }),
       ).toBeVisible();
+      // The one primary action must look primary beside the quiet Open buttons.
+      const fill = (name: string, number: number) =>
+        row(page, number).getByRole("button", { name }).evaluate((node) =>
+          getComputedStyle(node).backgroundColor
+        );
+      expect(await fill("Start work on #201 Add invoice export", 201))
+        .not.toBe(await fill("Open #202 Show the export button", 202));
       for (const number of [202, 203, 204, 205]) {
         await expect(row(page, number).getByRole("button")).toHaveCount(1);
         await expect(row(page, number).getByRole("button")).toHaveText("Open");

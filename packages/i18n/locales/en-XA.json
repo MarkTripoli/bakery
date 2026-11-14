@@ -2978,7 +2978,6 @@
   "issues.age.day": "⟦{count, plural, one {# day} other {# days}} ŧëšŧ çôþÿ ŧëš⟧",
   "issues.column.issue": "⟦Ïššûë⟧",
   "issues.column.status": "⟦Šŧàŧûš…⟧",
-  "issues.column.action": "⟦Ôñ ĜïŧĤûƀ ŧ⟧",
   "issues.row.open": "⟦Ôþëñ ôñ ĜïŧĤûƀ ŧë⟧",
   "issues.row.openNamed": "⟦Ôþëñ {title} ôñ ĜïŧĤûƀ (ôþëñš ïñ à ñëŵ ŧàƀ) ŧëšŧ çôþÿ ŧëš⟧",
   "issues.filter.label": "⟦Šĥôŵ⟧",
@@ -3062,7 +3061,6 @@
   "issues.card.checkAgain": "⟦Çĥëçķ àĝàïñ ŧ⟧",
   "issues.card.checkFailed": "⟦Ɓàķëŕÿ çôûļð ñôŧ çĥëçķ ŧĥïš ïššûë ĵûšŧ ñôŵ. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "issues.card.passed": "⟦{count, plural, one {# other check passed} other {# other checks passed}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
-  "issues.card.startWhenReadyNote": "⟦Ôñļÿ ŧĥë ïššûëš àƀôṽë àŕë ïñ ŧĥë ŵàÿ. Ɓàķëŕÿ šŧàŕŧš ŵĥëñ ŧĥëÿ àŕë ðôñë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "issues.card.title": "⟦Çàñ Ɓàķëŕÿ šŧàŕŧ ŧĥïš? ŧëšŧŧ⟧",
   "issues.card.workflow": "⟦Ûšëš ŧĥë šŧàñðàŕð çôðïñĝ ŵôŕķƒļôŵ ïñ {repository}. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "issues.check.acceptance_present": "⟦Ïŧ ĥàš àççëþŧàñçë çŕïŧëŕïà ŧëšŧ çô⟧",
@@ -3131,5 +3129,7 @@
   "issues.updatedHelp": "⟦Ɓàķëŕÿ ķëëþš à çôþÿ ôƒ ÿôûŕ ïššûëš àñð ŕëƒŕëšĥëš ïŧ ŕëĝûļàŕļÿ. Ŕëƒŕëšĥ ŕëàðš ĜïŧĤûƀ ñôŵ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "issues.row.startNamed": "⟦Šŧàŕŧ ŵôŕķ ôñ {title} ŧëšŧŧ⟧",
   "issues.row.openPage": "⟦Ôþëñ⟧",
-  "issues.row.openPageNamed": "⟦Ôþëñ {title} ŧë⟧"
+  "issues.row.openPageNamed": "⟦Ôþëñ {title} ŧë⟧",
+  "issues.column.action": "⟦Àçŧïôñ…⟧",
+  "issues.card.startWhenReadyNote": "⟦Ôñļÿ ŵĥàŧ ŧĥïš ïššûë ðëþëñðš ôñ ïš ïñ ŧĥë ŵàÿ. Ɓàķëŕÿ šŧàŕŧš ŵĥëñ ïŧ ïš ðôñë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧"
 }
