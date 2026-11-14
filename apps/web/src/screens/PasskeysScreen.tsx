@@ -11,7 +11,6 @@ import {
 } from "./security-async.tsx";
 import { ActionLink } from "./action-link.tsx";
 import { PasswordNotSetNotice } from "./password-not-set.tsx";
-import { AccountSettingsBackLink } from "./settings-back.tsx";
 
 export const PASSKEY_RENAME_INPUT_ID = "passkey-rename-name";
 export const PASSKEY_REMOVE_PASSWORD_INPUT_ID = "passkey-remove-password";
@@ -122,10 +121,7 @@ export function PasskeysScreen(props: PasskeysScreenProps) {
   if (view.kind === "rename") {
     const name = target?.name ?? "";
     return (
-      <UI.SettingsContent
-        back={<AccountSettingsBackLink />}
-        data-testid="passkeys-rename"
-      >
+      <UI.SettingsContent data-testid="passkeys-rename">
         <UI.AuthHeading
           description={translate("passkeys.rename.description")}
           title={translate("passkeys.rename.title")}
@@ -189,10 +185,7 @@ export function PasskeysScreen(props: PasskeysScreenProps) {
     const signInRequired = failureKind === "passwordNotSet";
     const codeInvalid = failureKind === "invalidCode";
     return (
-      <UI.SettingsContent
-        back={<AccountSettingsBackLink />}
-        data-testid="passkeys-remove"
-      >
+      <UI.SettingsContent data-testid="passkeys-remove">
         <UI.AuthHeading
           description={translate("passkeys.remove.description", { name })}
           title={translate("passkeys.remove.title")}
@@ -363,10 +356,7 @@ export function PasskeysScreen(props: PasskeysScreenProps) {
   }
 
   return (
-    <UI.SettingsContent
-      back={<AccountSettingsBackLink />}
-      data-testid="passkeys-list"
-    >
+    <UI.SettingsContent data-testid="passkeys-list">
       <UI.AuthHeading
         description={translate("passkeys.description")}
         title={translate("passkeys.title")}
