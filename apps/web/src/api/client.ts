@@ -1177,6 +1177,30 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<WorkflowDefinitionResponse>>;
+  /** One agent definition of the organization. */
+  readonly getAgent: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<AgentDefinitionResponse>>;
+  /** Makes a version the one new tasks use; `version` is the agent's, sent as If-Match. */
+  readonly activateAgentVersion: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly versionId: string;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<AgentDefinitionResponse>>;
+  /** Renames, describes, turns on or off an agent; `version` is the agent's, sent as If-Match. */
+  readonly updateAgent: (options: {
+    readonly organizationId: string;
+    readonly id: string;
+    readonly input: DefinitionUpdate;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<AgentDefinitionResponse>>;
   /** Creates a workflow of the organization (a name; its versions come next). */
   readonly createWorkflow: (options: {
     readonly organizationId: string;
@@ -4029,6 +4053,68 @@ export function createBakeryApiClient({
       organizationId = options.organizationId;
       try {
         const data = await client.actions["workflows.update"](
+          { id: options.id, ...options.input },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async getAgent(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["agents.get"](
+          { id: options.id },
+          { signal: options.signal },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async activateAgentVersion(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["agents.activateVersion"](
+          { id: options.id, versionId: options.versionId },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.id !== options.id) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async updateAgent(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["agents.update"](
           { id: options.id, ...options.input },
           {
             ifMatch: versionEtag(options.version),

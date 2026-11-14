@@ -5160,6 +5160,13 @@
       "status": "no-mock",
       "rationale": "One built-in workflow (read-only, with Make a copy) is designed by design-ux on #66; Paper has no frame for it.",
       "frames": []
+    },
+    {
+      "routeId": "library-agent",
+      "path": "/library/agents/$agentId",
+      "status": "no-mock",
+      "rationale": "One agent of the organization (its version in use, its versions) is designed by design-ux on #66; Paper has no frame for it.",
+      "frames": []
     }
   ]
 }

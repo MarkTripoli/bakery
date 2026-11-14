@@ -1,3 +1,4 @@
+import { shot } from "./helpers/real-api.ts";
 import {
   expect,
   type Locator,
@@ -221,6 +222,10 @@ type World = {
   onlyUnpublishedChild?: number;
   /** Answer for the saved workflow definition; 404 when unreadable. */
   workflowStatus?: number;
+  /** The version the saved workflow has in use now (the plan's own by default). */
+  workflowActiveVersionId?: string;
+  /** Answer for the saved workflow's versions; 404 when unreadable. */
+  versionsStatus?: number;
 };
 const world = (overrides: Partial<World> = {}): World => ({
   plans: [running()],
@@ -326,7 +331,7 @@ async function mockWorld(page: Page, state: World) {
             slug: "checkout-fan-out",
             name: "Checkout fan-out",
             description: null,
-            activeVersionId: workflowVersionId,
+            activeVersionId: state.workflowActiveVersionId ?? workflowVersionId,
             enabled: true,
             createdAt: stamp,
             updatedAt: stamp,
@@ -337,6 +342,34 @@ async function mockWorld(page: Page, state: World) {
           status: state.workflowStatus,
           contentType: "application/problem+json",
           json: problem(state.workflowStatus ?? 404, "RESOURCE_NOT_FOUND"),
+        }),
+  );
+  await page.route(
+    `**/v1/workflows/${workflowId}/versions**`,
+    (route) =>
+      (state.versionsStatus ?? 200) === 200
+        ? route.fulfill({
+          json: {
+            items: [{
+              id: workflowVersionId,
+              workflowId,
+              revision: 3,
+              sourceYaml: "steps: []\n",
+              normalizedSpec: { steps: [] },
+              digest: "c".repeat(64),
+              status: "published",
+              createdBy: "00000000-0000-4000-8000-000000000001",
+              createdAt: stamp,
+              updatedAt: stamp,
+              version: 1,
+            }],
+            nextCursor: null,
+          },
+        })
+        : route.fulfill({
+          status: state.versionsStatus,
+          contentType: "application/problem+json",
+          json: problem(state.versionsStatus ?? 404, "RESOURCE_NOT_FOUND"),
         }),
   );
   await page.route("**/v1/sync*", (route) =>
@@ -898,16 +931,53 @@ test("a saved workflow origin names the workflow and version", async ({ page }) 
       })],
     }),
   );
-  await expect(page.locator("[data-plan-origin]")).toContainText(
-    "Saved workflow Checkout fan-out, version id aaaaaaaa",
+  const origin = page.locator("[data-plan-origin]");
+  await expect(origin).toContainText("Workflow: Checkout fan-out, version 3");
+  // The line leads to that version's page, and says nothing is older.
+  await expect(origin.getByRole("link")).toHaveAttribute(
+    "href",
+    `/library/workflows/${workflowId}?version=${workflowVersionId}`,
   );
+  await expect(origin).not.toContainText("Older version");
 });
 
-test("an unreadable saved workflow falls back to its identifier", async ({ page }) => {
+test("a saved workflow whose newer version is in use says this run's version is older", async ({ page }) => {
   await open(
     page,
     world({
-      workflowStatus: 404,
+      workflowActiveVersionId: "bbbbbbbb-0000-4000-8000-0000000000c3",
+      plans: [withOrigin({
+        kind: "saved_workflow",
+        workflowId,
+        workflowVersionId,
+        nodeId: "fan-out",
+      })],
+    }),
+  );
+  const origin = page.locator("[data-plan-origin]");
+  await expect(origin).toContainText("Workflow: Checkout fan-out, version 3");
+  await expect(origin).toContainText("Older version");
+  // On a phone the tip closes when the page scrolls, and this line is at the
+  // end of the page: bring the button into view first so opening it does not.
+  const tip = origin.getByRole("button", { name: "Older version" });
+  await tip.scrollIntoViewIfNeeded();
+  await tip.click();
+  const panel = page.locator(
+    '[data-ui-component="helpTip"] .ui-help-tip__panel',
+  ).filter({
+    has: page.getByText(
+      "A newer version is in use for new tasks. This task keeps the one it started with.",
+    ),
+  });
+  await expect(panel).toBeVisible();
+  await shot(page, "task-origin-older");
+});
+
+test("when the versions cannot be read the version shows its short identifier", async ({ page }) => {
+  await open(
+    page,
+    world({
+      versionsStatus: 404,
       plans: [withOrigin({
         kind: "saved_workflow",
         workflowId,
@@ -917,7 +987,26 @@ test("an unreadable saved workflow falls back to its identifier", async ({ page 
     }),
   );
   await expect(page.locator("[data-plan-origin]")).toContainText(
-    "Saved workflow 00000000, version id aaaaaaaa",
+    "Workflow: Checkout fan-out, version aaaaaaaa",
+  );
+});
+
+test("an unreadable saved workflow falls back to its identifier", async ({ page }) => {
+  await open(
+    page,
+    world({
+      workflowStatus: 404,
+      versionsStatus: 404,
+      plans: [withOrigin({
+        kind: "saved_workflow",
+        workflowId,
+        workflowVersionId,
+        nodeId: "fan-out",
+      })],
+    }),
+  );
+  await expect(page.locator("[data-plan-origin]")).toContainText(
+    "Workflow: 00000000, version aaaaaaaa",
   );
   await expect(laneRow(page, "api")).toBeVisible();
 });

@@ -33,7 +33,14 @@ export type VersionRow = {
   agents?: Record<string, string>;
   createdAt?: string;
 };
-export type AgentVersionRow = { id: string; agentId: string; revision: number };
+export type AgentVersionRow = {
+  id: string;
+  agentId: string;
+  revision: number;
+  /** What the version is configured to do (harness, billing, capabilities, bindings). */
+  config?: Record<string, unknown>;
+  createdAt?: string;
+};
 
 export const definition = (
   n: number,
@@ -58,6 +65,8 @@ export type Options = {
   agentReads?: "hold" | "fail";
   /** Every workflow versions page says there is another, two versions to a page. */
   endlessVersions?: boolean;
+  /** What the checker says about a definition: fine (default), with problems, with only warnings, or it cannot answer. */
+  validation?: "ok" | "errors" | "warnings" | "fail";
   /** A copy whose workflow cannot be made, or whose steps cannot be added (always, or on the first try). */
   copy?:
     | "workflow-fails"
@@ -139,6 +148,7 @@ const versionBody = (row: VersionRow) => ({
 export async function libraryFixture(page: Page, options: Options = {}) {
   await mockAuthenticatedSession(page);
   const workflows = (options.workflows ?? []).map((item) => ({ ...item }));
+  const agents = (options.agents ?? []).map((item) => ({ ...item }));
   const versions = (options.versions ?? []).map((row) => ({ ...row }));
   let release: () => void = () => {};
   const held = new Promise<void>((resolve) => {
@@ -152,6 +162,16 @@ export async function libraryFixture(page: Page, options: Options = {}) {
   const seen = {
     release: () => release(),
     releaseAgents: () => releaseAgents(),
+    agentActivations: [] as {
+      id: string;
+      ifMatch: string | null;
+      body: Record<string, unknown>;
+    }[],
+    agentUpdates: [] as {
+      id: string;
+      ifMatch: string | null;
+      body: Record<string, unknown>;
+    }[],
     activations: [] as {
       id: string;
       ifMatch: string | null;
@@ -173,6 +193,7 @@ export async function libraryFixture(page: Page, options: Options = {}) {
       sourceYaml?: string;
     }[],
     stepWrites: 0,
+    validations: [] as { definition: unknown }[],
     /** The Idempotency-Key of each workflow write and each version write, in order. */
     workflowKeys: [] as (string | undefined)[],
     versionKeys: [] as (string | undefined)[],
@@ -352,6 +373,48 @@ export async function libraryFixture(page: Page, options: Options = {}) {
     },
   );
   await page.route(
+    (url) => /^\/v1\/agents\/[^/]+$/.test(url.pathname),
+    (route) => {
+      const id = new URL(route.request().url()).pathname.split("/")[3] ?? "";
+      if (options.forbidden) {
+        return route.fulfill(problem(403, "AUTH_FORBIDDEN"));
+      }
+      const target = agents.find((item) => item.id === id);
+      if (!target) return route.fulfill(problem(404, "RESOURCE_NOT_FOUND"));
+      if (route.request().method() === "PATCH") {
+        seen.agentUpdates.push({
+          id,
+          ifMatch: route.request().headers()["if-match"] ?? null,
+          body: route.request().postDataJSON() as Record<string, unknown>,
+        });
+        if (options.conflict === "update") return conflict(route);
+        const patch = route.request().postDataJSON() as Partial<Definition>;
+        if (typeof patch.name === "string") target.name = patch.name;
+        if (typeof patch.enabled === "boolean") target.enabled = patch.enabled;
+        target.version = (target.version ?? 1) + 1;
+      }
+      return route.fulfill(json(body(target)));
+    },
+  );
+  await page.route(
+    (url) => /^\/v1\/agents\/[^/]+\/activations$/.test(url.pathname),
+    (route) => {
+      const id = new URL(route.request().url()).pathname.split("/")[3] ?? "";
+      const request = route.request().postDataJSON() as { versionId: string };
+      seen.agentActivations.push({
+        id,
+        ifMatch: route.request().headers()["if-match"] ?? null,
+        body: request,
+      });
+      if (options.conflict === "activate") return conflict(route);
+      const target = agents.find((item) => item.id === id);
+      if (!target) return route.fulfill(problem(404, "RESOURCE_NOT_FOUND"));
+      target.activeVersionId = request.versionId;
+      target.version = (target.version ?? 1) + 1;
+      return route.fulfill(json(body(target)));
+    },
+  );
+  await page.route(
     (url) => /^\/v1\/agents\/[^/]+\/versions$/.test(url.pathname),
     (route) => {
       const id = new URL(route.request().url()).pathname.split("/")[3] ?? "";
@@ -361,10 +424,11 @@ export async function libraryFixture(page: Page, options: Options = {}) {
             id: row.id,
             agentId: row.agentId,
             revision: row.revision,
-            config: {},
-            digest: "c".repeat(64),
+            config: row.config ?? {},
+            digest: String(row.revision).padStart(2, "0").repeat(32),
             createdBy: uuid(1),
-            createdAt: STAMP,
+            createdAt: row.createdAt ?? "2026-03-0" +
+                Math.min(row.revision, 9) + "T10:00:00.000Z",
             updatedAt: STAMP,
             version: 1,
           })),
@@ -380,7 +444,46 @@ export async function libraryFixture(page: Page, options: Options = {}) {
         return route.fulfill(problem(500, "INTERNAL_ERROR"));
       }
       if (options.agentReads === "hold") await agentsHeld;
-      return answer("agents", (options.agents ?? []).map(body))(route);
+      return answer("agents", agents.map(body))(route);
+    },
+  );
+  await page.route(
+    (url) => url.pathname === "/v1/workflow-validations",
+    (route) => {
+      const input = route.request().postDataJSON() as { definition: unknown };
+      seen.validations.push(input);
+      if (options.validation === "fail") {
+        return route.fulfill(problem(500, "INTERNAL_ERROR"));
+      }
+      const errors = options.validation === "errors"
+        ? [
+          {
+            path: "/steps/1/uses",
+            code: "action_unknown",
+            message: "The action is not registered.",
+          },
+          {
+            path: "",
+            code: "field_missing",
+            message: "A required field is missing.",
+          },
+        ]
+        : [];
+      const warnings = options.validation === "warnings"
+        ? [{
+          path: "/steps/0/uses",
+          code: "model_agent_unbound",
+          message: "The step runs a model but no agent is bound.",
+        }]
+        : [];
+      return route.fulfill(
+        json({
+          valid: errors.length === 0,
+          errors,
+          warnings,
+          normalizedDigest: errors.length === 0 ? "a".repeat(64) : null,
+        }),
+      );
     },
   );
   await page.route(
