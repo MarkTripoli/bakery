@@ -211,9 +211,10 @@ export async function createGrant(
   await appendDomainEvent(transaction, {
     organizationId: actor.organizationId,
     eventType: GRANTS_CHANGED,
-    aggregateId: connectionId,
+    aggregateId: id,
     aggregateVersion: 1,
-    payload: { resourceId: connectionId, grantId: id },
+    // The registered payload: the changed grant and its version.
+    payload: { resourceId: id, resourceVersion: 1 },
     traceId: value.traceId,
   });
   const created = await readGrant(
@@ -278,9 +279,9 @@ export async function revokeGrant(context: ActionContext): Promise<null> {
   await appendDomainEvent(transaction, {
     organizationId: actor.organizationId,
     eventType: GRANTS_CHANGED,
-    aggregateId: connectionId,
+    aggregateId: grantId,
     aggregateVersion: row.version + 1,
-    payload: { resourceId: connectionId, grantId },
+    payload: { resourceId: grantId, resourceVersion: row.version + 1 },
     traceId: value.traceId,
   });
   return null;
