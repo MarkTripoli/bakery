@@ -129,18 +129,25 @@ Deno.test("AC3: a deployed revision change leaves a run pinned to the old revisi
     counter("$repeat.currentCandidate.n >= 2"),
     noop("report", { with: { n: "$step.loop.currentCandidate.n" } }),
   ]);
-  const pin = await pinWorkflowRuntime(document);
-  assertEquals(pin.interpreterRevision, "1");
+  // A run admitted before revision 2 was deployed is pinned to revision 1.
+  const pin = {
+    ...(await pinWorkflowRuntime(document)),
+    interpreterRevision: "1",
+  };
+  assertEquals(
+    (await pinWorkflowRuntime(document)).interpreterRevision,
+    CURRENT_INTERPRETER_REVISION,
+  );
 
-  // Before the deploy: revision 1 is the only one.
+  // Before the deploy: revision 1 is the one it runs on.
   const before = await resolveWorkflowRuntime(pin, document);
   const baseline = drive(document, (step) => grow(step), {}, before);
 
-  // After the deploy: a revision 2 exists that behaves differently from 1
+  // After a later deploy: a revision 3 exists that behaves differently from 1
   // (here it just says the run is done at once). The old run is still pinned
   // to 1, so it resolves to 1 and runs exactly as before.
   const stopsImmediately = (): NextStep => ({ kind: "finished" });
-  const deployed = { ...INTERPRETER_REVISIONS, "2": stopsImmediately };
+  const deployed = { ...INTERPRETER_REVISIONS, "3": stopsImmediately };
   const after = await resolveWorkflowRuntime(pin, document, deployed);
   const resumed = drive(document, (step) => grow(step), {}, after);
   assertEquals(resumed.trace, baseline.trace);
@@ -148,9 +155,9 @@ Deno.test("AC3: a deployed revision change leaves a run pinned to the old revisi
   assertEquals(resumed.next, baseline.next);
   assertNotEquals(baseline.trace.length, 0);
 
-  // A run admitted after the deploy and pinned to 2 gets 2's behavior.
+  // A run admitted after the deploy and pinned to 3 gets 3's behavior.
   const newer = await resolveWorkflowRuntime(
-    { ...pin, interpreterRevision: "2" },
+    { ...pin, interpreterRevision: "3" },
     document,
     deployed,
   );
@@ -176,7 +183,7 @@ Deno.test("AC3: a mid-run resume asks the pinned revision and gets the same next
 Deno.test("a pin to a revision that is no longer deployed is refused, never run on the current one", async () => {
   const document = await sample();
   const pin = await pinWorkflowRuntime(document);
-  const retired = { "2": () => ({ kind: "finished" }) as NextStep };
+  const retired = { "3": () => ({ kind: "finished" }) as NextStep };
   const error = await assertRejects(() =>
     resolveWorkflowRuntime(pin, document, retired)
   );

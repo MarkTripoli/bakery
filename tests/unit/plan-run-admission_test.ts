@@ -453,7 +453,7 @@ Deno.test("a run cannot freeze more than 100 agents, and the bound is judged bef
   );
 });
 
-Deno.test("an event wait or a parallel group is found wherever it is nested, and nothing else is, a duration wait included", async () => {
+Deno.test("an event wait or a group with lanes of several repository aliases is found wherever it is nested, and nothing else is, a duration wait and a one-alias group included", async () => {
   const wait = {
     id: "pause",
     wait: { event: "question.answered", timeout: "5m" },
@@ -468,6 +468,18 @@ Deno.test("an event wait or a parallel group is found wherever it is nested, and
       branches: [
         { id: "lane_a", repository: "repo_a", steps: [noop("work_a")] },
         { id: "lane_b", repository: "repo_b", steps: [noop("work_b")] },
+      ],
+    },
+  };
+  const sameAlias = {
+    id: "fan",
+    parallel: {
+      maxConcurrency: 2,
+      join: "all-required",
+      failurePolicy: "stop-dependent",
+      branches: [
+        { id: "lane_a", repository: "repo_a", steps: [noop("work_a")] },
+        { id: "lane_b", repository: "repo_a", steps: [noop("work_b")] },
       ],
     },
   };
@@ -491,6 +503,34 @@ Deno.test("an event wait or a parallel group is found wherever it is nested, and
   const found: [string, object[]][] = [
     ["top-level wait", [wait]],
     ["top-level parallel", [parallel]],
+    ["two groups naming different aliases", [
+      sameAlias,
+      {
+        ...sameAlias,
+        id: "fan_two",
+        parallel: {
+          ...sameAlias.parallel,
+          branches: [
+            { id: "lane_c", repository: "repo_b", steps: [noop("work_c")] },
+            { id: "lane_d", repository: "repo_b", steps: [noop("work_d")] },
+          ],
+        },
+      },
+    ]],
+    ["an event wait inside a lane", [{
+      id: "fan",
+      parallel: {
+        ...sameAlias.parallel,
+        branches: [
+          {
+            id: "lane_a",
+            repository: "repo_a",
+            steps: [wait],
+          },
+          { id: "lane_b", repository: "repo_a", steps: [noop("work_b")] },
+        ],
+      },
+    }]],
     ["wait in a sequence", [{ id: "seq", steps: [noop("alpha"), wait] }]],
     ["wait in a then arm", [branch([wait], [noop("left_x")])]],
     ["wait in an else arm", [branch([noop("left_x")], [wait])]],
@@ -526,6 +566,8 @@ Deno.test("an event wait or a parallel group is found wherever it is nested, and
   }
   const plain: [string, object[]][] = [
     ["actions", [noop("alpha"), noop("beta", { needs: ["alpha"] })]],
+    ["a parallel group whose lanes share one repository alias", [sameAlias]],
+    ["a group inside a sequence", [{ id: "outer", steps: [sameAlias] }]],
     ["top-level duration wait", [sleep]],
     ["duration wait in a sequence", [{
       id: "seq",

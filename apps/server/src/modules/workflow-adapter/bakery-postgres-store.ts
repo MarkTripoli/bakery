@@ -23,7 +23,11 @@ import {
   workflowActionCapabilities,
 } from "@bakery/persistence";
 import { type Inngest, NonRetriableError } from "inngest";
-import { WorkflowInterpreterError } from "@bakery/contracts/workflow-interpreter";
+import {
+  type ActionDispatch,
+  type WaitDispatch,
+  WorkflowInterpreterError,
+} from "@bakery/contracts/workflow-interpreter";
 import { canonicalJson } from "../../platform/canonical-json.ts";
 import { reconcileCoordinationForTerminalTask } from "../work/coordination-projection.ts";
 import {
@@ -36,7 +40,7 @@ import {
   assertLogicalKey,
   type LogicalInvocationKey,
 } from "./invocation-contract.ts";
-import type { AuthoritativeState } from "./resume-decision.ts";
+import { type AuthoritativeState, decideResume } from "./resume-decision.ts";
 import { runFixedWorkflow } from "./fixed-workflow.ts";
 import {
   nextPlanStep,
@@ -235,6 +239,25 @@ export type BakeryPostgresWorkflowRepository = Readonly<{
     runId: string,
     owner?: EngineOwner,
   ): Promise<LogicalInvocationKey | undefined>;
+  /**
+   * The steps that may run now: for a compiled-plan run under interpreter
+   * revision 2 inside a parallel group, one next step for each running lane
+   * (their rows are appended on demand, idempotently); otherwise the single
+   * step `findNext` answers, or none when the run is over.
+   */
+  findNextSet(
+    runId: string,
+    owner?: EngineOwner,
+  ): Promise<readonly LogicalInvocationKey[]>;
+  /**
+   * Admits the jobs of every action step of a set (waits have no job), each
+   * idempotently, so that all of them are queued for workers before any is
+   * waited for.
+   */
+  admitSet(
+    keys: readonly LogicalInvocationKey[],
+    owner?: EngineOwner,
+  ): Promise<void>;
   /**
    * What is left of a plan run's duration wait, by the database clock, or
    * null when the step is not a duration wait (an action step). The engine
@@ -816,14 +839,16 @@ async function askPlan(
  * which keeps the row-order loop. The run's own interpreter revision answers
  * from the frozen document and the stored rows: a dispatch gets its step row
  * appended on demand (idempotent, so a replay finds the same row) and the key
- * goes to the engine; finished or halted ends the run; anything else the plan
- * asks for, or a plan that cannot be read, ends it failed with a stable code.
+ * goes to the engine; inside a parallel group the answer is a set of steps,
+ * each appended the same way; finished or halted ends the run; anything else
+ * the plan asks for, or a plan that cannot be read, ends it failed with a
+ * stable code. `undefined` means there is nothing more to run.
  */
-async function findNextPlanKey(
+async function findNextPlanKeys(
   transaction: PgTransactionClient,
   runId: string,
   owner: EngineOwner | undefined,
-): Promise<LogicalInvocationKey | undefined | null> {
+): Promise<readonly LogicalInvocationKey[] | undefined | null> {
   // A flat run is served by the row-order loop and must not queue behind a lock
   // on its run or task row, which only deciding a plan run needs. A run's
   // snapshot never changes after admission, so a plain read says which kind it
@@ -866,21 +891,41 @@ async function findNextPlanKey(
     );
     return undefined;
   }
-  if (answer.kind === "dispatch_many") {
-    // A parallel group (interpreter revision 2) is not run by the engine yet,
-    // and admission does not pin a run to that revision until it is.
-    await endPlanRunFailed(
+  const steps = answer.kind === "dispatch" ? [answer.step] : answer.steps;
+  const keys: LogicalInvocationKey[] = [];
+  for (const planned of steps) {
+    const key = await appendPlanStep(
       transaction,
       context,
       activeOwner,
-      "plan_parallel_unsupported",
+      planned,
     );
-    return undefined;
+    if (key === undefined) return undefined;
+    keys.push(key);
   }
-  if (answer.step.kind === "wait") {
+  return keys;
+}
+
+/**
+ * Appends the row of one step the plan asked for, idempotently, and returns
+ * its key; or ends the run failed with a stable code and returns undefined.
+ */
+async function appendPlanStep(
+  transaction: PgTransactionClient,
+  context: RunEndRow,
+  activeOwner: EngineOwner,
+  planned: ActionDispatch | WaitDispatch,
+): Promise<LogicalInvocationKey | undefined> {
+  const keyOf = (stepKey: string): LogicalInvocationKey => ({
+    runId: context.runId,
+    stepKey,
+    iteration: 0,
+    actionVersion: context.workflowVersionId,
+  });
+  if (planned.kind === "wait") {
     // An event wait has no producer yet; it is refused at admission and, for a
     // run that holds one anyway, ends the run here with a stable code.
-    if (answer.step.wait.kind !== "duration") {
+    if (planned.wait.kind !== "duration") {
       await endPlanRunFailed(
         transaction,
         context,
@@ -906,21 +951,16 @@ async function findNextPlanKey(
       [
         context.organizationId,
         context.runId,
-        answer.step.key,
-        JSON.stringify(answer.step),
+        planned.key,
+        JSON.stringify(planned),
       ],
     );
-    return {
-      runId: context.runId,
-      stepKey: answer.step.key,
-      iteration: 0,
-      actionVersion: context.workflowVersionId,
-    };
+    return keyOf(planned.key);
   }
   // The agent a step runs as is its own, else the one its action falls back
   // to, frozen at admission beside the plan; the dispatch records the answer so
   // the job is built from exactly what was decided here.
-  let dispatch = answer.step;
+  let dispatch = planned;
   try {
     const fallbacks = planActionAgentsFromSnapshot(context.runSnapshot);
     const fallback = fallbacks[dispatch.action];
@@ -947,17 +987,12 @@ async function findNextPlanKey(
     [
       context.organizationId,
       context.runId,
-      answer.step.key,
+      planned.key,
       JSON.stringify(dispatch.input),
       JSON.stringify(dispatch),
     ],
   );
-  return {
-    runId: context.runId,
-    stepKey: answer.step.key,
-    iteration: 0,
-    actionVersion: context.workflowVersionId,
-  };
+  return keyOf(planned.key);
 }
 
 async function projectFailure(
@@ -1337,10 +1372,37 @@ export function createBakeryPostgresWorkflowRepository(options: {
     async findNext(runId, owner) {
       return await withPgTransaction(options.database, async (transaction) => {
         await requireEngineOwner(transaction, runId, owner);
-        const planKey = await findNextPlanKey(transaction, runId, owner);
-        if (planKey !== null) return planKey;
+        const planKeys = await findNextPlanKeys(transaction, runId, owner);
+        if (planKeys !== null) return planKeys?.[0];
         return await loadNext(transaction, runId);
       });
+    },
+    async findNextSet(runId, owner) {
+      return await withPgTransaction(options.database, async (transaction) => {
+        await requireEngineOwner(transaction, runId, owner);
+        const planKeys = await findNextPlanKeys(transaction, runId, owner);
+        if (planKeys !== null) return planKeys ?? [];
+        const key = await loadNext(transaction, runId);
+        return key === undefined ? [] : [key];
+      });
+    },
+    async admitSet(keys, owner) {
+      for (const key of keys) {
+        assertLogicalKey(key);
+        // A wait has no job. Anything else is admitted only if no job exists
+        // for it yet: a step that is queued, running or done is left as it is,
+        // exactly as the per-step path decides.
+        const wait = await this.readWait(key, owner);
+        if (wait !== null) continue;
+        const decision = decideResume(
+          key,
+          await this.read(key, owner),
+          new Date(),
+        );
+        if (decision.kind === "newly-admit") {
+          await this.admit(decision.key, owner);
+        }
+      }
     },
     async readWait(key, owner) {
       assertLogicalKey(key);
@@ -2039,27 +2101,15 @@ export function createBakeryFixedWorkflow(options: {
         if (!acquiredOwner) return { status: "superseded" };
         owner = acquiredOwner;
         let checkpoint = 0;
-        while (checkpoint < MAX_WORKFLOW_STEPS) {
-          const key = await step.run(
-            `load-next-workflow-step-${checkpoint}`,
-            () => repository.findNext(runId, owner),
-          );
-          if (!key) {
-            const status = await step.run(
-              `read-run-status-${checkpoint}`,
-              () => repository.readRunStatus(runId, owner),
-            );
-            if (
-              status === "paused" || status === "waiting_input" ||
-              status === "waiting_capacity"
-            ) {
-              await releaseOwner();
-              return { status: "waiting" as const };
-            }
-            await releaseOwner();
-            return { status: status ?? "completed" };
-          }
-
+        /**
+         * Drives one step of the answer to its end. A returned value ends the
+         * function run with it; `undefined` goes on to the next step.
+         */
+        const driveKey = async (
+          key: LogicalInvocationKey,
+        ): Promise<
+          { result: { status: string; reason?: string } } | undefined
+        > => {
           // A duration wait has no job to wait for: sleep what is left of it by
           // the database clock, with the owner lease stretched over the sleep,
           // then record it elapsed. A restart or a second engine run reads the
@@ -2094,8 +2144,7 @@ export function createBakeryFixedWorkflow(options: {
               () => repository.completeWait(key, owner),
             );
             if (!elapsed) throw new EngineOwnerLostError();
-            checkpoint += 1;
-            continue;
+            return undefined;
           }
 
           let waitAttempt = 0;
@@ -2142,7 +2191,7 @@ export function createBakeryFixedWorkflow(options: {
             if (outcome.decision.kind === "terminal-result") break;
             if (outcome.decision.kind === "retryable") {
               if (retryAttempt >= MAX_RETRY_ATTEMPTS - 1) {
-                return await handoff();
+                return { result: await handoff() };
               }
               const delayMs = Math.max(
                 1,
@@ -2165,14 +2214,16 @@ export function createBakeryFixedWorkflow(options: {
                 () => repository.markStalled(key, reason, owner),
               );
               await releaseOwner();
-              return { status: "stalled" as const, reason };
+              return { result: { status: "stalled" as const, reason } };
             }
             if (outcome.decision.kind === "waiting") continue;
             if (outcome.decision.kind === "failed") {
               await releaseOwner();
               return {
-                status: "failed" as const,
-                reason: outcome.decision.reason,
+                result: {
+                  status: "failed" as const,
+                  reason: outcome.decision.reason,
+                },
               };
             }
             if (outcome.decision.kind === "state-conflict") {
@@ -2185,7 +2236,54 @@ export function createBakeryFixedWorkflow(options: {
           if (
             waitAttempt >= MAX_RECONCILIATION_WAITS ||
             retryAttempt >= MAX_RETRY_ATTEMPTS
-          ) return await handoff();
+          ) return { result: await handoff() };
+          return undefined;
+        };
+        while (checkpoint < MAX_WORKFLOW_STEPS) {
+          // The answer is the steps that may run now: one, or (inside a
+          // parallel group) one next step for each running lane. An older
+          // function run may have memoized a single key.
+          const loaded = await step.run(
+            `load-next-workflow-step-${checkpoint}`,
+            () => repository.findNextSet(runId, owner),
+          ) as
+            | LogicalInvocationKey
+            | readonly LogicalInvocationKey[]
+            | null
+            | undefined;
+          const keys: readonly LogicalInvocationKey[] = Array.isArray(loaded)
+            ? loaded
+            : loaded
+            ? [loaded as LogicalInvocationKey]
+            : [];
+          if (keys.length === 0) {
+            const status = await step.run(
+              `read-run-status-${checkpoint}`,
+              () => repository.readRunStatus(runId, owner),
+            );
+            if (
+              status === "paused" || status === "waiting_input" ||
+              status === "waiting_capacity"
+            ) {
+              await releaseOwner();
+              return { status: "waiting" as const };
+            }
+            await releaseOwner();
+            return { status: status ?? "completed" };
+          }
+          // Every job of the set is admitted before the first is waited for,
+          // so the lanes run at the same time; the waits below then find the
+          // finished ones already done (the database decides, not the event).
+          if (keys.length > 1) {
+            await step.run(
+              `admit-workflow-steps-${checkpoint}`,
+              () => repository.admitSet(keys, owner),
+            );
+          }
+          for (const key of keys) {
+            const ended = await driveKey(key);
+            if (ended !== undefined) return ended.result;
+          }
           checkpoint += 1;
         }
         return await handoff();

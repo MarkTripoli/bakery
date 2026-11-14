@@ -57,10 +57,11 @@ export async function seedPlanRun(
     task: {},
     rows: [],
   });
-  assert(first.kind === "dispatch");
+  assert(first.kind === "dispatch" || first.kind === "dispatch_many");
+  const firstStep = first.kind === "dispatch" ? first.step : first.steps[0]!;
   await fixture.pgDatabase.query(
     `update bakery.run_steps set step_key = $2 where run_id = $1`,
-    [job.runId, first.step.key],
+    [job.runId, firstStep.key],
   );
   const repository = createBakeryPostgresWorkflowRepository({
     database: fixture.pgDatabase,
@@ -76,7 +77,7 @@ export async function seedPlanRun(
     `select workflow_version_id as id from bakery.workflow_runs where id = $1`,
     [job.runId],
   )).rows[0].id;
-  return { job, repository, owner, firstKey: first.step.key, versionId };
+  return { job, repository, owner, firstKey: firstStep.key, versionId };
 }
 
 export type Seeded = Awaited<ReturnType<typeof seedPlanRun>>;

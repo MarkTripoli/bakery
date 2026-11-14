@@ -67,8 +67,8 @@ const keysOf = (next: NextStep): string[] =>
 
 const asRevision2 = { interpreter: nextStepWithGroups };
 
-Deno.test("revision 1 still refuses a group by name; revision 2 is deployed but nothing is pinned to it yet", async () => {
-  assertEquals(CURRENT_INTERPRETER_REVISION, "1");
+Deno.test("revision 1 still refuses a group by name; new runs are pinned to revision 2", async () => {
+  assertEquals(CURRENT_INTERPRETER_REVISION, "2");
   assertEquals(Object.keys(INTERPRETER_REVISIONS), ["1", "2"]);
   assert(INTERPRETER_REVISIONS["1"] === nextStep);
   assert(INTERPRETER_REVISIONS["2"] === nextStepWithGroups);
