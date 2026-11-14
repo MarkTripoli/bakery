@@ -168,7 +168,7 @@ export function MachinesPage() {
         <UI.Breadcrumbs
           aria-label={translate("shell.navigation.breadcrumb")}
           items={[
-            { label: translate("shell.states.settingsTitle") },
+            { label: translate("shell.navigation.workspace") },
             { label: translate("shell.navigation.machines") },
           ]}
         />
@@ -176,10 +176,11 @@ export function MachinesPage() {
       {canAdd && !phone
         ? <ShellSlot name="actions">{addMachine}</ShellSlot>
         : null}
-      <UI.SettingsContent data-testid="machines-page">
+      <UI.SettingsContent data-testid="machines-page" variant="wide">
         {/* The wrapper is what the first-read retry looks for; the focus goes to its heading. */}
         <div data-paged-heading="machines">
           <UI.PageHeader
+            flush
             variant="list"
             title={translate("machines.title")}
             subtitle={translate("machines.description")}

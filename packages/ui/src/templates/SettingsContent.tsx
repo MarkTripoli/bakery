@@ -19,8 +19,11 @@ export type SettingsContentProps =
      * subtitle, 720px measure, content-sized buttons. `preferences` is the
      * same column for forms with 44px buttons (Appearance). `access` is the
      * read-only Your access column: personal measure, platform UI font.
+     * `wide` is the same column for a list or detail page of a main-rail
+     * destination (Machines): the same gaps and 44px targets, no measure, so the
+     * page takes the frame's full width.
      */
-    variant?: "default" | "personal" | "preferences" | "access";
+    variant?: "default" | "personal" | "preferences" | "access" | "wide";
   };
 
 /**

@@ -594,8 +594,9 @@ function ShellFrame() {
     pathname === INSTALLATION_INTEGRATIONS_PATH ||
     pathname === "/__fixtures__/installation/settings";
   const organizationSettings = ORGANIZATION_FIXTURE_PATHS.includes(pathname);
-  const productionSettings = isSettingsPath(pathname) ||
-    isMachinesPath(pathname);
+  // Machines is a main-rail destination: it uses the frame Work uses (no
+  // settings list beside the page), not the settings frame.
+  const productionSettings = isSettingsPath(pathname);
   const settingsChrome = installationSettings || organizationSettings;
   // A settings page's breadcrumb, until the page claims its own: Settings, then
   // the section, so it never reads "Workspace / Settings".

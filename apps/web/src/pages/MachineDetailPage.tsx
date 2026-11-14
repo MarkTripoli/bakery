@@ -390,14 +390,15 @@ export function MachineDetailPage(
         <UI.Breadcrumbs
           aria-label={message(translate, "shell.navigation.breadcrumb")}
           items={[
-            { label: message(translate, "shell.states.settingsTitle") },
+            { label: message(translate, "shell.navigation.workspace") },
             { label: message(translate, "shell.navigation.machines") },
             { label: machineTitle },
           ]}
         />
       </ShellSlot>
-      <UI.SettingsContent data-testid="machine-detail-page">
+      <UI.SettingsContent data-testid="machine-detail-page" variant="wide">
         <UI.PageHeader
+          flush
           variant="list"
           title={machineTitle}
           subtitle={workerData
