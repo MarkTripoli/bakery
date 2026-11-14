@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, type Route, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
@@ -212,6 +212,100 @@ type Scenario = {
 };
 const page_ = <T>(items: T[]) => ({ items, nextCursor: null });
 
+const problemBody = (status: number, code: string) => ({
+  type: "about:blank",
+  title: code,
+  status,
+  code,
+  detail: code,
+  requestId: uuid(110),
+  traceId: uuid(111),
+  retryable: false,
+});
+
+/** The run-stage approval the server asks when a clean candidate needs a person. */
+const approvalRow = (over: Record<string, unknown> = {}) => ({
+  id: uuid(700),
+  kind: "approval",
+  taskId: id,
+  conversationId: uuid(30),
+  turnId: null,
+  runId: null,
+  prompt: "Approve the reviewed change 91d0aa3bbbbb before it may merge",
+  status: "open",
+  subjectType: "run_stage",
+  // The delivery decision the approval was asked about: ordinal 0.
+  subjectId: uuid(500),
+  subjectDigest: sha("d"),
+  scope: { stage: "review", runId, headSha: NEW, repositoryId: uuid(40) },
+  policyDigest: sha("c"),
+  decision: null,
+  decisionComment: null,
+  decidedBy: null,
+  decidedAt: null,
+  consumedAt: null,
+  consumedByRunId: null,
+  revokedAt: null,
+  revokedBy: null,
+  expiresAt: null,
+  createdAt: at(6),
+  updatedAt: at(6),
+  version: 4,
+  ...over,
+});
+type ApprovalRow = ReturnType<typeof approvalRow>;
+
+type Posted = {
+  id: string;
+  key: string | undefined;
+  body: Record<string, unknown>;
+};
+type ApprovalsMock = {
+  approvals: ApprovalRow[];
+  posted: Posted[];
+  /** Answers a decision instead of the default (accepting it). */
+  reply?: (route: Route, mock: ApprovalsMock) => Promise<void>;
+};
+
+/** Serves the task's approvals and records every decision sent. */
+async function mockApprovals(
+  page: Page,
+  approvals: ApprovalRow[],
+  reply?: ApprovalsMock["reply"],
+): Promise<ApprovalsMock> {
+  const mock: ApprovalsMock = { approvals, posted: [], reply };
+  await page.route(
+    "**/v1/approvals?*",
+    (route) => route.fulfill({ json: page_(mock.approvals) }),
+  );
+  await page.route("**/v1/approvals/*/decision", async (route) => {
+    const request = route.request();
+    const approvalId = request.url().split("/approvals/")[1].split("/")[0];
+    const body = request.postDataJSON() as Record<string, unknown>;
+    mock.posted.push({
+      id: approvalId,
+      key: request.headers()["idempotency-key"],
+      body,
+    });
+    if (mock.reply) return await mock.reply(route, mock);
+    const found = mock.approvals.find((entry) => entry.id === approvalId)!;
+    const decided = {
+      ...found,
+      status: "answered",
+      decision: body.decision as string,
+      decisionComment: (body.comment as string | undefined) ?? null,
+      decidedBy: uuid(1),
+      decidedAt: at(8),
+      version: found.version + 1,
+    };
+    mock.approvals = mock.approvals.map((entry) =>
+      entry.id === approvalId ? decided : entry
+    );
+    return route.fulfill({ json: decided });
+  });
+  return mock;
+}
+
 async function mockRun(page: Page) {
   await mockAuthenticatedSession(page);
   await page.route(
@@ -271,6 +365,12 @@ async function mockDelivery(page: Page, scenario: Scenario) {
   await page.route(
     `**/v1/runs/${runId}/delivery-decisions*`,
     (route) => route.fulfill({ json: page_(scenario.decisions ?? []) }),
+  );
+  // No approval unless a test serves one with `mockApprovals` (registered
+  // later, so it wins).
+  await page.route(
+    "**/v1/approvals?*",
+    (route) => route.fulfill({ json: page_([]) }),
   );
 }
 
@@ -563,6 +663,270 @@ test("the section has no accessibility violations and fits a 390px screen", asyn
   ).toBe(true);
 });
 
+const nowCard = (page: Page) =>
+  page.getByTestId("delivery-section").getByTestId("delivery-now");
+const moreMenu = (page: Page) =>
+  page.getByRole("navigation", { name: "Other ways to answer" });
+
+async function openApproval(page: Page, approvals = [approvalRow()]) {
+  await mockRun(page);
+  await mockDelivery(page, CLEAN);
+  const mock = await mockApprovals(page, approvals);
+  await page.goto(`/tasks/${id}`);
+  await expect(nowCard(page)).toContainText("Waiting for your approval");
+  return mock;
+}
+
+test("an open approval asks for a decision: Approve is the one button, the other answers are under More", async ({ page }) => {
+  await openApproval(page);
+  const now = nowCard(page);
+  await expect(now).toContainText(
+    "Checks passed and the reviewer found nothing blocking. Approving lets Bakery merge these changes.",
+  );
+  await expect(now).toHaveAttribute("data-variant", "warning");
+  await expect(now.getByRole("button", { name: "Approve", exact: true }))
+    .toBeVisible();
+  await expect(now.getByRole("button", { name: "Request changes" }))
+    .toHaveCount(0);
+  await expect(now.getByRole("button", { name: "Reject" })).toHaveCount(0);
+  await now.getByRole("button", { name: "More", exact: true }).click();
+  await expect(moreMenu(page).getByRole("button")).toHaveText([
+    "Request changes",
+    "Reject",
+  ]);
+  const steps = page.getByRole("list", { name: "Delivery steps" });
+  await expect(steps.getByRole("listitem")).toHaveCount(4);
+  const step = steps.getByRole("listitem").filter({ hasText: "Approval" });
+  await expect(step).toContainText("Waiting for you");
+  await expect(step).toContainText("Waiting for your approval.");
+  await step.getByRole("button", { name: "About approval" }).click();
+  await expect(
+    page.getByText("Your workflow asks a person to approve at this point."),
+  )
+    .toBeVisible();
+});
+
+test("approving asks first, sends the version it saw once, and the card announces the result", async ({ page }) => {
+  const mock = await openApproval(page);
+  const now = nowCard(page);
+  await now.getByRole("button", { name: "Approve", exact: true }).click();
+  const dialog = page.getByRole("alertdialog", {
+    name: "Approve these changes?",
+  });
+  await expect(dialog).toContainText(
+    "Bakery may then merge them. This applies to commit 91d0aa3. If the changes are updated, approval is asked again.",
+  );
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(dialog).toBeHidden();
+  expect(mock.posted).toHaveLength(0);
+  await now.getByRole("button", { name: "Approve", exact: true }).click();
+  await dialog.getByRole("button", { name: "Approve", exact: true }).click();
+  await expect(now).toContainText(
+    "Checks passed and the review found nothing blocking",
+  );
+  expect(mock.posted).toHaveLength(1);
+  expect(mock.posted[0]?.id).toBe(uuid(700));
+  expect(mock.posted[0]?.body).toEqual({
+    decision: "approve",
+    expectedVersion: 4,
+  });
+  expect(mock.posted[0]?.key).toMatch(/^[0-9a-f-]{36}$/);
+  await expect(page.locator("#delivery-now-title")).toBeFocused();
+  const step = page.getByRole("list", { name: "Delivery steps" })
+    .getByRole("listitem").filter({ hasText: "Approval" });
+  await expect(step).toContainText("Approved");
+  await expect(now.getByRole("button")).toHaveCount(0);
+});
+
+test("changes need a note, which is sent as the decision's comment", async ({ page }) => {
+  const mock = await openApproval(page);
+  const now = nowCard(page);
+  await now.getByRole("button", { name: "More", exact: true }).click();
+  await moreMenu(page).getByRole("button", { name: "Request changes" }).click();
+  const dialog = page.getByRole("dialog", { name: "Request changes" });
+  await expect(dialog).toContainText(
+    "The agent gets this as its next instruction.",
+  );
+  const send = dialog.getByRole("button", { name: "Send" });
+  await expect(send).toBeDisabled();
+  await dialog.getByLabel("What should change?").fill("   ");
+  await expect(send).toBeDisabled();
+  await dialog.getByLabel("What should change?").fill(
+    "Validate the refund amount against the original charge.",
+  );
+  await send.click();
+  await expect(now).toContainText("Changes were requested");
+  await expect(now).toContainText(
+    "Bakery sent the note to the agent. It will fix the changes and check again.",
+  );
+  expect(mock.posted).toHaveLength(1);
+  expect(mock.posted[0]?.body).toEqual({
+    decision: "request_changes",
+    comment: "Validate the refund amount against the original charge.",
+    expectedVersion: 4,
+  });
+  const step = page.getByRole("list", { name: "Delivery steps" })
+    .getByRole("listitem").filter({ hasText: "Approval" });
+  await expect(step).toContainText("Changes requested");
+});
+
+test("rejecting asks first and says what it does", async ({ page }) => {
+  const mock = await openApproval(page);
+  const now = nowCard(page);
+  await now.getByRole("button", { name: "More", exact: true }).click();
+  await moreMenu(page).getByRole("button", { name: "Reject" }).click();
+  const dialog = page.getByRole("alertdialog", {
+    name: "Reject these changes?",
+  });
+  await expect(dialog).toContainText(
+    "Bakery will not merge them. The changes are kept. This cannot be undone.",
+  );
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  expect(mock.posted).toHaveLength(0);
+  await now.getByRole("button", { name: "More", exact: true }).click();
+  await moreMenu(page).getByRole("button", { name: "Reject" }).click();
+  await dialog.getByRole("button", { name: "Reject", exact: true }).click();
+  await expect(now).toContainText("These changes were rejected");
+  expect(mock.posted[0]?.body).toEqual({
+    decision: "reject",
+    expectedVersion: 4,
+  });
+  const step = page.getByRole("list", { name: "Delivery steps" })
+    .getByRole("listitem").filter({ hasText: "Approval" });
+  await expect(step).toContainText("Rejected");
+});
+
+test("a decision that lost to another says so, moves focus to the notice and shows the latest state", async ({ page }) => {
+  await mockRun(page);
+  await mockDelivery(page, CLEAN);
+  const mock = await mockApprovals(page, [approvalRow()], async (route, m) => {
+    // Someone else approved first.
+    m.approvals = m.approvals.map((entry) => ({
+      ...entry,
+      status: "answered",
+      decision: "approve",
+      version: entry.version + 1,
+    }));
+    await route.fulfill({
+      status: 409,
+      contentType: "application/problem+json",
+      json: problemBody(409, "STATE_CONFLICT"),
+    });
+  });
+  await page.goto(`/tasks/${id}`);
+  const now = nowCard(page);
+  await now.getByRole("button", { name: "Approve", exact: true }).click();
+  await page.getByRole("alertdialog", { name: "Approve these changes?" })
+    .getByRole("button", { name: "Approve", exact: true }).click();
+  const notice = now.getByTestId("delivery-approval-notice");
+  await expect(notice).toContainText(
+    "This was already decided, or the changes were updated. The latest state is shown.",
+  );
+  await expect(notice).toBeFocused();
+  expect(mock.posted).toHaveLength(1);
+  await expect(now).toContainText(
+    "Checks passed and the review found nothing blocking",
+  );
+  await expect(now.getByRole("button", { name: "Approve", exact: true }))
+    .toHaveCount(0);
+});
+
+test("a person who may not decide is told so and nothing changes", async ({ page }) => {
+  await mockRun(page);
+  await mockDelivery(page, CLEAN);
+  await mockApprovals(page, [approvalRow()], (route) =>
+    route.fulfill({
+      status: 403,
+      contentType: "application/problem+json",
+      json: problemBody(403, "AUTH_FORBIDDEN"),
+    }));
+  await page.goto(`/tasks/${id}`);
+  const now = nowCard(page);
+  await now.getByRole("button", { name: "Approve", exact: true }).click();
+  await page.getByRole("alertdialog", { name: "Approve these changes?" })
+    .getByRole("button", { name: "Approve", exact: true }).click();
+  await expect(now.getByTestId("delivery-approval-notice")).toContainText(
+    "You cannot decide this approval.",
+  );
+  await expect(now).toContainText("Waiting for your approval");
+  await expect(now.getByRole("button", { name: "Approve", exact: true }))
+    .toBeEnabled();
+});
+
+test("a lost answer keeps the key, so asking again is the same decision", async ({ page }) => {
+  await mockRun(page);
+  await mockDelivery(page, CLEAN);
+  let lost = true;
+  const mock = await mockApprovals(page, [approvalRow()], async (route, m) => {
+    if (lost) {
+      lost = false;
+      return await route.abort("failed");
+    }
+    m.approvals = m.approvals.map((entry) => ({
+      ...entry,
+      status: "answered",
+      decision: "approve",
+      version: entry.version + 1,
+    }));
+    return await route.fulfill({ json: m.approvals[0] });
+  });
+  await page.goto(`/tasks/${id}`);
+  const now = nowCard(page);
+  const approve = async () => {
+    await now.getByRole("button", { name: "Approve", exact: true }).click();
+    await page.getByRole("alertdialog", { name: "Approve these changes?" })
+      .getByRole("button", { name: "Approve", exact: true }).click();
+  };
+  await approve();
+  await expect(now.getByTestId("delivery-approval-notice")).toContainText(
+    "Bakery could not confirm that the decision was saved.",
+  );
+  await approve();
+  await expect(now).toContainText(
+    "Checks passed and the review found nothing blocking",
+  );
+  expect(mock.posted).toHaveLength(2);
+  expect(mock.posted[1]?.key).toBe(mock.posted[0]?.key);
+});
+
+test("an approval asked about an earlier candidate is not shown", async ({ page }) => {
+  await mockRun(page);
+  await mockDelivery(page, CLEAN);
+  await mockApprovals(page, [approvalRow({ subjectId: uuid(999) })]);
+  await page.goto(`/tasks/${id}`);
+  const now = nowCard(page);
+  await expect(now).toContainText(
+    "Checks passed and the review found nothing blocking",
+  );
+  await expect(page.getByTestId("delivery-section")).not.toContainText(
+    "Approval",
+  );
+});
+
+test("the approval card and its dialogs have no accessibility violations and fit a 390px screen", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openApproval(page);
+  const section = page.getByTestId("delivery-section");
+  const scan = async (selector: string) => {
+    const results = await new AxeBuilder({ page }).include(selector).analyze();
+    expect(results.violations).toEqual([]);
+  };
+  await scan('[data-testid="delivery-section"]');
+  expect(
+    await section.evaluate((element) =>
+      element.scrollWidth <= element.clientWidth
+    ),
+  ).toBe(true);
+  const now = nowCard(page);
+  await now.getByRole("button", { name: "Approve", exact: true }).click();
+  await scan("dialog[open]");
+  await page.getByRole("alertdialog").getByRole("button", { name: "Cancel" })
+    .click();
+  await now.getByRole("button", { name: "More", exact: true }).click();
+  await moreMenu(page).getByRole("button", { name: "Request changes" }).click();
+  await scan("dialog[open]");
+});
+
 // Evidence stills for the PR description (desktop and phone, light and dark), only
 // when BAKERY_STILLS_DIR is set.
 const STILLS = process.env.BAKERY_STILLS_DIR;
@@ -590,6 +954,99 @@ for (
         const section = page.getByTestId("delivery-section");
         await expect(section.getByRole("list", { name: "Delivery steps" }))
           .toBeVisible();
+        await section.scrollIntoViewIfNeeded();
+        await section.screenshot({
+          path: `${STILLS}/delivery-${name}-${label}-${scheme}.png`,
+        });
+      });
+    }
+  }
+}
+
+// Stills of the approval step: the card waiting, each dialog, the outcomes.
+const APPROVAL_STILLS = [
+  "approval",
+  "approval-approve",
+  "approval-changes",
+  "approval-reject",
+  "approval-approved",
+  "approval-conflict",
+] as const;
+for (const name of APPROVAL_STILLS) {
+  for (
+    const [width, height, label] of [[1280, 1800, "desktop"], [
+      390,
+      2200,
+      "phone",
+    ]] as const
+  ) {
+    for (const scheme of ["light", "dark"] as const) {
+      test(`still: ${name} ${label} ${scheme}`, async ({ page }) => {
+        test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+        await page.setViewportSize({ width, height });
+        await page.emulateMedia({ colorScheme: scheme });
+        await mockRun(page);
+        await mockDelivery(page, CLEAN);
+        const conflict = name === "approval-conflict";
+        await mockApprovals(
+          page,
+          [approvalRow()],
+          conflict
+            ? async (route, m) => {
+              m.approvals = m.approvals.map((entry) => ({
+                ...entry,
+                status: "answered",
+                decision: "approve",
+                version: entry.version + 1,
+              }));
+              await route.fulfill({
+                status: 409,
+                contentType: "application/problem+json",
+                json: problemBody(409, "STATE_CONFLICT"),
+              });
+            }
+            : undefined,
+        );
+        await page.goto(`/tasks/${id}`);
+        const section = page.getByTestId("delivery-section");
+        const now = section.getByTestId("delivery-now");
+        await expect(now).toContainText("Waiting for your approval");
+        const approve = now.getByRole("button", {
+          name: "Approve",
+          exact: true,
+        });
+        const dialogPicture = async () => {
+          await page.screenshot({
+            path: `${STILLS}/delivery-${name}-${label}-${scheme}.png`,
+          });
+        };
+        if (name === "approval-approve") {
+          await approve.click();
+          await expect(page.getByRole("alertdialog")).toBeVisible();
+          return await dialogPicture();
+        }
+        if (name === "approval-changes" || name === "approval-reject") {
+          await now.getByRole("button", { name: "More", exact: true }).click();
+          await page.getByRole("navigation", { name: "Other ways to answer" })
+            .getByRole("button", {
+              name: name === "approval-changes" ? "Request changes" : "Reject",
+            }).click();
+          if (name === "approval-changes") {
+            await page.getByLabel("What should change?").fill(
+              "Validate the refund amount against the original charge.",
+            );
+          }
+          await expect(page.locator("dialog[open]")).toBeVisible();
+          return await dialogPicture();
+        }
+        if (name === "approval-approved" || conflict) {
+          await approve.click();
+          await page.getByRole("alertdialog")
+            .getByRole("button", { name: "Approve", exact: true }).click();
+          await expect(now).toContainText(
+            "Checks passed and the review found nothing blocking",
+          );
+        }
         await section.scrollIntoViewIfNeeded();
         await section.screenshot({
           path: `${STILLS}/delivery-${name}-${label}-${scheme}.png`,

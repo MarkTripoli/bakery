@@ -10,6 +10,8 @@
 //  - the latest delivery decision (highest ordinal) governs the Now card;
 //  - an attempt is a `repair` decision, and the maximum is the latest decision's
 //    `limits.maxRepairCycles`;
+//  - the person's approval is the run-stage approval asked about the latest
+//    delivery decision; an approval about an earlier decision is not shown;
 //  - nothing is shown that the server did not report.
 
 export type CheckResult =
@@ -79,12 +81,83 @@ export type DeliveryDecision = Readonly<{
   createdAt: string;
 }>;
 
+export type ApprovalStatus =
+  | "open"
+  | "answered"
+  | "expired"
+  | "withdrawn"
+  | "superseded"
+  | "revoked"
+  | "consumed";
+
+export type ApprovalChoice = "approve" | "request_changes" | "reject";
+
+/** A run-stage approval as the delivery section reads it. */
+export type DeliveryApproval = Readonly<{
+  id: string;
+  /** The version a decision is bound to (`expectedVersion`). */
+  version: number;
+  status: ApprovalStatus;
+  decision: ApprovalChoice | null;
+  /** The delivery decision the approval was asked about. */
+  subjectId: string;
+  createdAt: string;
+}>;
+
+/** An approval row as the API lists it, before it is narrowed to one run. */
+export type ListedApproval = Readonly<{
+  id: string;
+  version: number;
+  status: ApprovalStatus;
+  decision: string | null;
+  subjectType: string;
+  subjectId: string;
+  scope: unknown;
+  createdAt: string;
+}>;
+
+const APPROVAL_CHOICES: ReadonlySet<string> = new Set<ApprovalChoice>([
+  "approve",
+  "request_changes",
+  "reject",
+]);
+
+/**
+ * The run-stage approvals that belong to one run. The projection carries no run
+ * id of its own for these, so the run is read from the stage scope the server
+ * stored when it asked.
+ */
+export function approvalsForRun(
+  listed: readonly ListedApproval[],
+  runId: string,
+): DeliveryApproval[] {
+  return listed
+    .filter((entry) => {
+      if (entry.subjectType !== "run_stage") return false;
+      const scope = entry.scope;
+      return typeof scope === "object" && scope !== null &&
+        (scope as { runId?: unknown }).runId === runId;
+    })
+    .map((entry) => ({
+      id: entry.id,
+      version: entry.version,
+      status: entry.status,
+      decision: entry.decision !== null && APPROVAL_CHOICES.has(entry.decision)
+        ? entry.decision as ApprovalChoice
+        : null,
+      subjectId: entry.subjectId,
+      createdAt: entry.createdAt,
+    }));
+}
+
 export type DeliveryInput = Readonly<{
   checks: readonly DeliveryCheck[];
   reviews: readonly DeliveryReview[];
   /** The findings of the latest review cycle, as the server lists them. */
   findings: readonly DeliveryFinding[];
   decisions: readonly DeliveryDecision[];
+  /** The run's run-stage approvals, in any order (see `approvalsForRun`). */
+  approvals: readonly DeliveryApproval[];
   /** The revision artifact's head sha, the best source of the current commit. */
   revisionHeadSha: string | null;
   /** The run's base sha (`workspaceBaseSha`, else `baseSha`). */
@@ -116,6 +189,9 @@ export type NowCard =
   | Readonly<{ kind: "fixing"; attempt: number; max: number }>
   | Readonly<{ kind: "paused" }>
   | Readonly<{ kind: "clean" }>
+  | Readonly<{ kind: "approval" }>
+  | Readonly<{ kind: "changesRequested" }>
+  | Readonly<{ kind: "rejected" }>
   | Readonly<{ kind: "checksFailed"; failed: number }>
   | Readonly<
     {
@@ -127,6 +203,23 @@ export type NowCard =
       findingTitle: string | null;
     }
   >;
+
+/**
+ * Where the person's approval stands. `closed` is an approval that ended
+ * without a decision (it expired or was withdrawn or revoked).
+ */
+export type ApprovalState =
+  | "waiting"
+  | "approved"
+  | "changesRequested"
+  | "rejected"
+  | "closed";
+
+export type ApprovalView = Readonly<{
+  id: string;
+  version: number;
+  state: ApprovalState;
+}>;
 
 export type DeliveryModel = Readonly<{
   /** False until there are changes to show, so the section is not drawn. */
@@ -163,6 +256,8 @@ export type DeliveryModel = Readonly<{
       blocking: number;
     } | null
   >;
+  /** The approval asked about the latest decision, else null. */
+  approval: ApprovalView | null;
   now: NowCard;
 }>;
 
@@ -201,6 +296,20 @@ export function findingTitle(body: string): string {
   return line.length > 80 ? `${line.slice(0, 79)}…` : line;
 }
 
+function approvalState(approval: DeliveryApproval): ApprovalState {
+  if (approval.status === "open") return "waiting";
+  if (approval.status === "answered" || approval.status === "consumed") {
+    return approval.decision === "approve"
+      ? "approved"
+      : approval.decision === "request_changes"
+      ? "changesRequested"
+      : approval.decision === "reject"
+      ? "rejected"
+      : "closed";
+  }
+  return "closed";
+}
+
 export function deliveryModel(input: DeliveryInput): DeliveryModel {
   const newestCheck = [...input.checks].sort(byCreatedAt).at(-1);
   const newestReview = [...input.reviews].sort((a, b) => a.ordinal - b.ordinal)
@@ -213,6 +322,17 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
   const latestDecision = [...input.decisions].sort((a, b) =>
     a.ordinal - b.ordinal
   ).at(-1);
+  // Only the approval asked about the latest decision is current; one asked
+  // about an earlier decision belongs to a candidate that has been replaced.
+  const asked = latestDecision === undefined ? undefined : [...input.approvals]
+    .filter((entry) => entry.subjectId === latestDecision.id)
+    .sort(byCreatedAt)
+    .at(-1);
+  const approval: ApprovalView | null = asked === undefined ? null : {
+    id: asked.id,
+    version: asked.version,
+    state: approvalState(asked),
+  };
   const maxRepairs = latestDecision?.limits.maxRepairCycles ??
     DEFAULT_MAX_REPAIRS;
   const repairs = input.decisions.filter((entry) => entry.decision === "repair")
@@ -299,6 +419,7 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
     checks,
     review,
     fixing,
+    approval,
     now: nowCard({
       input,
       latestDecision,
@@ -307,23 +428,36 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
       checks,
       review,
       open,
+      approval,
+      outOfDate,
     }),
   };
 }
 
 function nowCard(
-  { input, latestDecision, repairs, maxRepairs, checks, review, open }:
-    Readonly<
-      {
-        input: DeliveryInput;
-        latestDecision: DeliveryDecision | undefined;
-        repairs: number;
-        maxRepairs: number;
-        checks: DeliveryModel["checks"];
-        review: DeliveryModel["review"];
-        open: readonly FindingRow[];
-      }
-    >,
+  {
+    input,
+    latestDecision,
+    repairs,
+    maxRepairs,
+    checks,
+    review,
+    open,
+    approval,
+    outOfDate,
+  }: Readonly<
+    {
+      input: DeliveryInput;
+      latestDecision: DeliveryDecision | undefined;
+      repairs: number;
+      maxRepairs: number;
+      checks: DeliveryModel["checks"];
+      review: DeliveryModel["review"];
+      open: readonly FindingRow[];
+      approval: ApprovalView | null;
+      outOfDate: boolean;
+    }
+  >,
 ): NowCard {
   if (input.paused) return { kind: "paused" };
   const blocking = open.filter((finding) => finding.blocking);
@@ -349,9 +483,19 @@ function nowCard(
     return { kind: "checking" };
   }
   if (review.status === "approved") {
-    return checks.failed > 0
-      ? { kind: "checksFailed", failed: checks.failed }
-      : { kind: "clean" };
+    if (checks.failed > 0) {
+      return { kind: "checksFailed", failed: checks.failed };
+    }
+    // Results for an older commit cannot be approved: the notice says so and
+    // the card keeps saying the results are being checked.
+    if (approval?.state === "waiting") {
+      return outOfDate ? { kind: "checking" } : { kind: "approval" };
+    }
+    if (approval?.state === "changesRequested") {
+      return { kind: "changesRequested" };
+    }
+    if (approval?.state === "rejected") return { kind: "rejected" };
+    return { kind: "clean" };
   }
   return { kind: "checking" };
 }
