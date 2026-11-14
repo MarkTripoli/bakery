@@ -704,6 +704,27 @@ Deno.test("a damaged record is unreadable rather than a crash: bad JSON, wrong v
   }
 });
 
+Deno.test("a releases link to somewhere else is not read through: the installation is unreadable", async () => {
+  const root = await tempRoot();
+  const elsewhere = await tempRoot();
+  try {
+    await installRelease(root);
+    // Move the real releases directory out and leave a link to it.
+    const { rename } = await import("node:fs/promises");
+    await rename(join(root, "releases"), join(elsewhere, "releases"));
+    await symlink(join(elsewhere, "releases"), join(root, "releases"));
+    const report = await installationStatus(root, fakeProbes().probes);
+    assertEquals(report.installation.state, "unreadable");
+    assertEquals(
+      statusOf(await doctor(root, fakeProbes().probes), "install"),
+      "failed",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(elsewhere, { recursive: true, force: true });
+  }
+});
+
 Deno.test("a service probe that fails is `unknown`, not an error", async () => {
   const root = await tempRoot();
   try {

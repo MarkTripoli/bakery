@@ -670,6 +670,36 @@ Deno.test(
           await rm(`${root}.code`, { force: true });
         }
       }
+      // 3b. `releases` and `staging` are links to a directory elsewhere: the
+      // release is never carried out of the root.
+      for (const name of ["releases", "staging"]) {
+        const root = await tempRoot();
+        const outside = await mkdtemp(join(tmpdir(), "bakery-sec-outside-"));
+        try {
+          await ln(outside, join(root, name));
+          const file = await codeFile(root);
+          const result = await cli(
+            root,
+            releases.origin,
+            setup(bakery.origin, file),
+          );
+          assertEquals(result.code, 2, `${name}: ${result.text}`);
+          assertStringIncludes(result.text, "not what setup expects");
+          assertEquals(
+            await readdir(outside),
+            [],
+            `${name}: nothing was written outside the root`,
+          );
+          assertFalse(
+            (await readdir(root)).includes("current"),
+            `${name}: nothing was activated`,
+          );
+        } finally {
+          await rm(root, { recursive: true, force: true });
+          await rm(outside, { recursive: true, force: true });
+          await rm(`${root}.code`, { force: true });
+        }
+      }
       // 4. A root others can write to is refused outright.
       {
         const root = await tempRoot();
@@ -711,7 +741,12 @@ Deno.test("the package never elevates, evals, shells out beyond its read-only pr
       /^\s*\/\/.*$/gm,
       "",
     );
-    assertFalse(/["'`]sudo\b/.test(source), `${name}: no sudo in code`);
+    // `sudo` as a command (a string that starts with it, or the head of an
+    // argument list); the account refusals name it as a group, which is not one.
+    assertFalse(
+      /["'`]sudo\s|\[\s*["'`]sudo["'`]\s*,/.test(source),
+      `${name}: no sudo in code`,
+    );
     assertFalse(/\beval\(|new Function\(/.test(source), `${name}: no eval`);
     assertFalse(
       /shell:\s*true|execSync|spawnSync/.test(source),
@@ -767,3 +802,51 @@ Deno.test("an unreadable code file or one others can read is refused and the cod
     await rm(`${root}.code`, { force: true });
   }
 });
+
+Deno.test(
+  "plan, through the real process, never prints a unit that runs as root and keeps what pairing fixed",
+  sanitize,
+  async () => {
+    const releases = release();
+    const bakery = serve(() => Response.json(PREVIEW));
+    const root = await tempRoot();
+    try {
+      const file = await codeFile(root);
+      assertEquals(
+        (await cli(root, releases.origin, setup(bakery.origin, file))).code,
+        0,
+      );
+      for (const account of ["root", "daemon", "nobody", "systemd-network"]) {
+        const result = await cli(root, releases.origin, [
+          "plan",
+          "--account",
+          account,
+        ]);
+        assertEquals(result.code, 2, account);
+        assertFalse(
+          result.text.includes("User="),
+          `${account}: no unit was printed`,
+        );
+      }
+      const override = await cli(root, releases.origin, [
+        "plan",
+        "--setting",
+        "BAKERY_WORKER_CAPABILITIES=git,docker,root",
+      ]);
+      assertEquals(override.code, 2);
+      assertFalse(override.text.includes("docker"));
+      const fine = await cli(root, releases.origin, [
+        "plan",
+        "--account",
+        "svc-worker",
+      ]);
+      assertEquals(fine.code, 0, fine.text);
+      assertStringIncludes(fine.text, "User=svc-worker");
+    } finally {
+      await releases.close();
+      await bakery.close();
+      await rm(root, { recursive: true, force: true });
+      await rm(`${root}.code`, { force: true });
+    }
+  },
+);

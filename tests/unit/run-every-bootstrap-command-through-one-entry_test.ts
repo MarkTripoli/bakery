@@ -744,6 +744,108 @@ Deno.test("plan refuses what it cannot plan safely: not paired, another system, 
   }
 });
 
+Deno.test("plan never runs the worker as root or as a system account, and what pairing fixed cannot be replaced", async () => {
+  const root = await tempRoot();
+  try {
+    const file = await codeFile(root);
+    assertEquals(
+      await runBootstrap(setupArgs(file), harness(root, world()).io),
+      0,
+    );
+    for (
+      const account of [
+        "root",
+        "daemon",
+        "bin",
+        "sys",
+        "mail",
+        "nobody",
+        "nogroup",
+        "sshd",
+        "www-data",
+        "postgres",
+        "systemd-network",
+        "systemd-resolve",
+        "wheel",
+        "sudo",
+        "admin",
+      ]
+    ) {
+      const h = harness(root, world());
+      assertEquals(
+        await runBootstrap(["plan", "--account", account], h.io),
+        2,
+        account,
+      );
+      assertStringIncludes(
+        h.text(),
+        "dedicated account, never root or a system account",
+        account,
+      );
+      assertFalse(
+        h.text().includes("User="),
+        `${account}: no unit was printed`,
+      );
+    }
+    // The default and an ordinary new account still plan, and run as themselves.
+    for (
+      const account of [
+        undefined,
+        "svc-worker",
+        "builder",
+        "bakery_worker1",
+        "worker",
+      ]
+    ) {
+      const h = harness(root, world());
+      const argv = account === undefined
+        ? ["plan"]
+        : ["plan", "--account", account];
+      assertEquals(await runBootstrap(argv, h.io), 0, String(account));
+      assertStringIncludes(h.text(), `User=${account ?? "bakery-worker"}`);
+      assertFalse(h.text().includes("User=root"));
+    }
+    // What the pairing fixed is where the settings come from: an extra setting adds, it never replaces.
+    for (
+      const name of [
+        "BAKERY_SERVER_URL",
+        "BAKERY_WORKER_NAME",
+        "BAKERY_WORKER_SLOTS",
+        "BAKERY_WORKER_CAPABILITIES",
+        "BAKERY_WORKER_ENROLLMENT_TOKEN_FILE",
+        "BAKERY_WORKER_STATE_DIR",
+      ]
+    ) {
+      const h = harness(root, world());
+      assertEquals(
+        await runBootstrap(["plan", "--setting", `${name}=elsewhere`], h.io),
+        2,
+        name,
+      );
+      assertStringIncludes(h.text(), "not allowed in a service definition");
+      assertFalse(
+        h.text().includes("elsewhere"),
+        `${name}: the override was not printed`,
+      );
+    }
+    const added = harness(root, world());
+    assertEquals(
+      await runBootstrap(
+        ["plan", "--setting", "BAKERY_CLAUDE_HARNESS=1"],
+        added.io,
+      ),
+      0,
+    );
+    assertStringIncludes(added.text(), "BAKERY_CLAUDE_HARNESS=1");
+    assertStringIncludes(
+      added.text(),
+      "BAKERY_WORKER_CAPABILITIES=git,shell,claude",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 Deno.test("plan for a Mac names the LaunchAgent under the user's home and needs an account; it never needs an administrator", async () => {
   const root = await tempRoot();
   try {

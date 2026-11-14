@@ -153,10 +153,29 @@ function isRecord(value: unknown): value is Record_ {
     typeof (value as Record_).sha256 === "string";
 }
 
+/**
+ * A directory inside the root that the installer or a command writes or reads
+ * through must be a real directory of this user that others cannot write to,
+ * never a link (a `releases` link to somewhere else would carry the release out
+ * of the root). A directory not made yet is fine: it is made next.
+ */
+export async function requireOwnDirectory(path: string): Promise<void> {
+  const info = await exists(path);
+  if (info === null) return;
+  const owner = typeof process.geteuid === "function"
+    ? process.geteuid()
+    : undefined;
+  if (
+    !info.isDirectory() || (info.mode & 0o022) !== 0 ||
+    (owner !== undefined && info.uid !== owner)
+  ) throw new BootstrapError("INSTALL_PATH_COLLISION");
+}
+
 /** The release `current` points at, read from that release's own record. */
 export async function installed(
   root: string,
 ): Promise<{ name: string; record: Record_ } | null> {
+  await requireOwnDirectory(join(root, "releases"));
   let target: string;
   try {
     target = await readlink(join(root, "current"));
@@ -513,6 +532,10 @@ export async function installRelease(
 
   let stagingDir: string | undefined;
   try {
+    // Everything below writes through `staging` and `releases`: each must be
+    // a real directory of this user, not a link to somewhere else (`installed`
+    // looks at `releases` first thing).
+    await requireOwnDirectory(stagingRoot);
     await sweepStaging(stagingRoot);
     const current = await installed(root);
     if (current !== null) {

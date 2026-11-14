@@ -14,6 +14,8 @@ import {
   readFile,
   readlink,
   rm,
+  symlink,
+  writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -571,6 +573,79 @@ Deno.test("a refused permission leaves nothing behind: a root others can write t
   } finally {
     await chmod(parent, 0o700).catch(() => undefined);
     await rm(parent, { recursive: true, force: true });
+  }
+});
+
+Deno.test("a releases or staging name in the root that is a link, a file or open to others carries nothing out of the root", async () => {
+  const hostile: [
+    string,
+    string,
+    (path: string, outside: string) => Promise<void>,
+  ][] = [
+    [
+      "releases as a link to another directory",
+      "releases",
+      (path, outside) => symlink(outside, path),
+    ],
+    [
+      "staging as a link to another directory",
+      "staging",
+      (path, outside) => symlink(outside, path),
+    ],
+    [
+      "releases as a link to a directory that is not there",
+      "releases",
+      (path, outside) => symlink(join(outside, "nowhere"), path),
+    ],
+    ["releases as a plain file", "releases", (path) => writeFile(path, "x")],
+    ["staging as a plain file", "staging", (path) => writeFile(path, "x")],
+    ["releases open to others", "releases", async (path) => {
+      await mkdir(path);
+      await chmod(path, 0o777);
+    }],
+    ["releases writable by the group", "releases", async (path) => {
+      await mkdir(path);
+      await chmod(path, 0o775);
+    }],
+  ];
+  for (const [label, name, make] of hostile) {
+    const root = await tempRoot();
+    const outside = await mkdtemp(join(tmpdir(), "bakery-outside-"));
+    try {
+      await make(join(root, name), outside);
+      const fake = origin(release("1.2.3", BINARY));
+      assertEquals(
+        await codeOf(run(root, fake)),
+        "INSTALL_PATH_COLLISION",
+        label,
+      );
+      assertEquals(
+        await readdir(outside),
+        [],
+        `${label}: nothing was written outside the root`,
+      );
+      let current = true;
+      try {
+        await lstat(join(root, "current"));
+      } catch {
+        current = false;
+      }
+      assertFalse(current, `${label}: nothing was activated`);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      await rm(outside, { recursive: true, force: true });
+    }
+  }
+  // A real, private releases directory is what a first install makes and what a rerun finds.
+  const root = await tempRoot();
+  try {
+    await mkdir(join(root, "releases"), { mode: 0o755 });
+    assertEquals(
+      (await run(root, origin(release("1.2.3", BINARY)))).status,
+      "installed",
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });
 

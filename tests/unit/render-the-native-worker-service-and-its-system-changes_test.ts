@@ -385,3 +385,34 @@ Deno.test("the service module renders text and plans changes only: no file syste
   );
   assertFalse(/sudo/.test(code.replace(/"sudo"/g, "")));
 });
+
+Deno.test("the service account is a dedicated one: root, system accounts and systemd's own are refused wherever the spec is used", () => {
+  for (
+    const account of [
+      "root",
+      "daemon",
+      "nobody",
+      "sshd",
+      "systemd-network",
+      "wheel",
+    ]
+  ) {
+    for (
+      const use of [
+        () => renderSystemdUnit(spec({ account })),
+        () => environmentFileText(spec({ account })),
+        () => planLinuxService(spec({ account })),
+        () => planMacService(spec({ account }), "/Users/alice", 501),
+        () => renderLaunchAgent(spec({ account })),
+      ]
+    ) {
+      assertEquals(refusal(use), "SERVICE_ACCOUNT_REFUSED", account);
+    }
+  }
+  for (const account of ["bakery-worker", "svc", "builder_01", "a"]) {
+    assert(
+      renderSystemdUnit(spec({ account })).includes(`User=${account}`),
+      account,
+    );
+  }
+});

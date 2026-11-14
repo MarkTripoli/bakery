@@ -27,6 +27,46 @@ export type ServiceSpec = Readonly<{
 const PATH_CHARACTERS = /^[A-Za-z0-9_./-]+$/;
 const ACCOUNT = /^[a-z_][a-z0-9_-]{0,31}$/;
 const SETTING_NAME = /^BAKERY_[A-Z0-9_]{1,100}$/;
+/**
+ * Accounts that exist on a system already and are never the dedicated,
+ * unprivileged account a worker runs as: root, the standard system accounts
+ * and the service accounts of common daemons. The plan creates its account, so
+ * a name that is already one of these is a mistake or an attempt to run the
+ * worker with someone else's rights.
+ */
+const SYSTEM_ACCOUNTS = new Set([
+  "root",
+  "daemon",
+  "bin",
+  "sys",
+  "sync",
+  "games",
+  "man",
+  "lp",
+  "mail",
+  "news",
+  "uucp",
+  "proxy",
+  "www-data",
+  "backup",
+  "list",
+  "irc",
+  "gnats",
+  "nobody",
+  "nogroup",
+  "sshd",
+  "dbus",
+  "messagebus",
+  "polkitd",
+  "postgres",
+  "mysql",
+  "redis",
+  "git",
+  "docker",
+  "admin",
+  "wheel",
+  "sudo",
+]);
 /** The worker takes its code from a protected file or descriptor; these names would be the shortcut. */
 const TOKEN_SETTINGS = new Set([
   "BAKERY_WORKER_ENROLLMENT_TOKEN",
@@ -51,6 +91,9 @@ function checked(spec: ServiceSpec): void {
     spec.root.includes("..") || spec.root.length > 200 ||
     !ACCOUNT.test(spec.account)
   ) throw new BootstrapError("SERVICE_SPEC_INVALID");
+  if (
+    SYSTEM_ACCOUNTS.has(spec.account) || spec.account.startsWith("systemd-")
+  ) throw new BootstrapError("SERVICE_ACCOUNT_REFUSED");
   for (const [name, value] of Object.entries(spec.settings)) {
     if (!SETTING_NAME.test(name) || TOKEN_SETTINGS.has(name)) {
       throw new BootstrapError("SERVICE_SETTING_REFUSED");
