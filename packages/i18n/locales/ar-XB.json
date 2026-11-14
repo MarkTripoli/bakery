@@ -3260,7 +3260,6 @@
   "shell.startup.verify.title": "⟪Confirm it is you⟫",
   "shell.startup.verify.body": "⟪Bakery needs you to verify your identity before it shows this organization.⟫",
   "shell.startup.verify.action": "⟪Verify⟫",
-  "issues.more": "⟪More⟫",
   "issues.noGithub.title": "⟪Connect GitHub to see issues⟫",
   "issues.noGithub.description": "⟪Bakery reads issues from the repositories you choose.⟫",
   "issues.noGithub.connect": "⟪Connect GitHub⟫",

@@ -3260,7 +3260,6 @@
   "shell.startup.verify.title": "⟦Çôñƒïŕɱ ïŧ ïš ÿôû ŧëš⟧",
   "shell.startup.verify.body": "⟦Ɓàķëŕÿ ñëëðš ÿôû ŧô ṽëŕïƒÿ ÿôûŕ ïðëñŧïŧÿ ƀëƒôŕë ïŧ šĥôŵš ŧĥïš ôŕĝàñïžàŧïôñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "shell.startup.verify.action": "⟦Ṽëŕïƒÿ…⟧",
-  "issues.more": "⟦Ṁôŕë⟧",
   "issues.noGithub.title": "⟦Çôññëçŧ ĜïŧĤûƀ ŧô šëë ïššûëš ŧëšŧ çô⟧",
   "issues.noGithub.description": "⟦Ɓàķëŕÿ ŕëàðš ïššûëš ƒŕôɱ ŧĥë ŕëþôšïŧôŕïëš ÿôû çĥôôšë. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "issues.noGithub.connect": "⟦Çôññëçŧ ĜïŧĤûƀ ŧë⟧",
