@@ -168,7 +168,7 @@ test.describe("Machines frame, evidence", () => {
         }),
       }));
     await page.goto("/settings/profile");
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByLabel("Display name")).toBeVisible();
     await shot(page, "machines-frame-profile");
   });
 });
