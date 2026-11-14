@@ -14,6 +14,8 @@ Deno.test("the registry's names are read once each, and a line that is not a com
       [
         "bakery-e2e-review-loop-3fd08dc0",
         "bakery-issue40-inngest-e23b2653",
+        "bakery-e05-r2-3fd08dc0",
+        "bakery-278-import-1a2b3c",
         "bakery-e2e-review-loop-3fd08dc0",
         "  bakery-e06-turns-ab12cd34  ",
         "",
@@ -31,6 +33,8 @@ Deno.test("the registry's names are read once each, and a line that is not a com
     [
       "bakery-e2e-review-loop-3fd08dc0",
       "bakery-issue40-inngest-e23b2653",
+      "bakery-e05-r2-3fd08dc0",
+      "bakery-278-import-1a2b3c",
       "bakery-e06-turns-ab12cd34",
     ],
   );

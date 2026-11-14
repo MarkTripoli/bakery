@@ -371,35 +371,52 @@ Deno.test("the runner removes the stacks its fixtures registered, by name, befor
   assert(source.includes("entries were written to the isolated home"));
 });
 
-Deno.test("every fixture that brings up a compose stack of its own registers its project name first, and the worker's unit carries the lane's environment", async () => {
-  const registering = [
-    "tests/helpers/durable-core/stack.ts",
-    "tests/fixtures/real-inngest-stack.ts",
-    "tests/e2e/helpers/stack.ts",
-    "tests/e2e/implement-shared-conversations-and-serialized-coordinator-turns_test.ts",
-    "tests/e2e/persist-scoped-workflow-approvals_test.ts",
-    "tests/e2e/implement-durable-questions-answers-and-turn-steering_test.ts",
-    "tests/integration/run-the-persistent-local-stack-with-compose-and-dev-containers_test.ts",
-  ];
-  for (const path of registering) {
+/** The test files that could bring a compose stack up in a lane the runner sweeps: everything under tests/ but the lanes that run no real stack. */
+async function* laneFixtureFiles(directory = "tests"): AsyncGenerator<string> {
+  const skipped = new Set([
+    "tests/unit",
+    "tests/rails",
+    "tests/recovery",
+    "tests/native",
+    "tests/provider",
+  ]);
+  for await (const entry of Deno.readDir(directory)) {
+    const path = `${directory}/${entry.name}`;
+    if (entry.isDirectory) {
+      if (!skipped.has(path) && entry.name !== "node_modules") {
+        yield* laneFixtureFiles(path);
+      }
+    } else if (entry.isFile && entry.name.endsWith(".ts")) yield path;
+  }
+}
+
+Deno.test("every file that brings a compose stack up registers its project name first, or says in a comment why it does not", async () => {
+  const bringsUp = /"up"|\bcompose up\b/;
+  const usesCompose = /"compose"|\bcompose up\b/;
+  const exemption = /^\/\/ lane-stacks: exempt - \S.*$/m;
+  let found = 0;
+  for await (const path of laneFixtureFiles()) {
     const source = await Deno.readTextFile(path);
-    // The name is registered before the first compose command that uses it.
-    const named = source.search(
-      /const (project|projectName) = (`bakery-|"bakery-)/,
-    );
-    const registered = source.search(
-      /registerLaneStack\((project|projectName)\)/,
-    );
+    if (!usesCompose.test(source) || !bringsUp.test(source)) continue;
+    found += 1;
+    if (exemption.test(source)) continue;
+    const registered = source.indexOf("registerLaneStack(");
     assert(
-      named >= 0 && registered > named,
-      `${path} registers its compose project`,
+      registered >= 0,
+      `${path} brings a compose stack up and does not register its project name (registerLaneStack from tests/helpers/lane-stack-registry.ts, or a line "// lane-stacks: exempt - <reason>")`,
     );
-    const first = source.indexOf('"compose"', named);
+    // Before the first command that brings anything up.
+    const first = source.search(bringsUp);
     assert(
-      first < 0 || registered < first,
-      `${path} registers before it uses compose`,
+      registered < first,
+      `${path} registers its project after it brings a stack up`,
     );
   }
+  // The scan finds the fixtures it is meant to (a path or pattern that stopped matching would pass silently).
+  assert(found >= 9, `the scan found ${found} files that bring compose up`);
+  // A project name the registry would refuse is no use: the S3 fixture's carries the repository prefix.
+  const s3 = await Deno.readTextFile("tests/helpers/skill-s3-fixture.ts");
+  assert(s3.includes("`bakery-e05-r2-"));
   // The worker's unit starts inside `env -i`: it is given the lane's variables again.
   const unit = await Deno.readTextFile(
     "tests/helpers/durable-core/preset-stack.ts",
