@@ -84,6 +84,7 @@ export function ArtifactRetrievalView(props: ArtifactRetrievalViewProps) {
         description={props.description}
         versions={
           <UI.VersionPicker
+            name="versions"
             label={props.versionLabel}
             labelHidden
             value={props.versionId}

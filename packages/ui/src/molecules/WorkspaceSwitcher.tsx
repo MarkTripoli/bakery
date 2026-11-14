@@ -47,7 +47,11 @@ export function WorkspaceSwitcher(
         trigger={
           <span className="bakery-workspace-switcher__trigger">
             {variant === "compact" ? <IconGlyph name="building" /> : null}
-            <span className="bakery-workspace-switcher__name">
+            <span
+              className="bakery-workspace-switcher__name"
+              data-rail="truncation-allowed"
+              title={typeof workspace === "string" ? workspace : undefined}
+            >
               {workspace}
             </span>
             {variant === "full"
