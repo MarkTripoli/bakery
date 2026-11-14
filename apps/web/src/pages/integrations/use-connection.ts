@@ -48,7 +48,7 @@ export type CheckStatus =
 /** What a "Check now" found, as far as the page shows it. */
 export type CheckOutcome = {
   readonly health: CheckedHealth | null;
-  /** The check could not reach GitHub; the earlier health stands. */
+  /** The check could not reach the provider; the earlier health stands. */
   readonly faulted: boolean;
 };
 

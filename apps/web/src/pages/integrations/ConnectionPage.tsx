@@ -29,11 +29,11 @@ import {
 } from "./model.ts";
 import type { ConnectionOutcome } from "./outcomes.ts";
 import { useConnectionActions } from "./use-connection.ts";
-import { useGitHubConnect } from "./providers/github/use-github-connect.ts";
+import { useProviderConnect } from "./providers/index.ts";
 
 const INTEGRATIONS_PATH = "/settings/organization/integrations";
 
-/** One GitHub connection's own page. */
+/** One connection's own page. */
 export function ConnectionPage(
   { connectionId, outcome }: {
     readonly connectionId: string;
@@ -184,7 +184,7 @@ function Loaded(
   const navigate = useNavigate();
   const { locale, timeZone, translate } = useI18n();
   const listKey = protectedQueryKey(scope, "integrationConnections.list", {});
-  const github = useGitHubConnect({ organizationId, outcome });
+  const connectFlow = useProviderConnect({ organizationId, outcome });
   const actions = useConnectionActions({
     connection,
     listKey,
@@ -196,7 +196,7 @@ function Loaded(
   const health = connectionHealth(connection, actions.checked?.health ?? null);
   const saved = actions.resources.filter((item) => item.selected).length;
   const reconnect = () =>
-    void github.connect(
+    void connectFlow.connect(
       status === "revoked" ? {} : {
         reconnectConnectionId: connection.id,
         returnPath: connectionPath(connection.id),
@@ -215,8 +215,8 @@ function Loaded(
         canManage={canManage}
         checkFaulted={actions.checked?.faulted ?? false}
         checkStatus={actions.checkStatus}
-        connectStatus={github.connectStatus}
-        continuing={github.continuing}
+        connectStatus={connectFlow.connectStatus}
+        continuing={connectFlow.continuing}
         createdAt={connection.createdAt}
         formatTime={connectionTimeFormatter(locale, timeZone)}
         health={health}

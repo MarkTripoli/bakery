@@ -2622,7 +2622,7 @@
   "settings.connections.add": "Add integration",
   "settings.connections.home.connected": "Connected",
   "settings.connections.home.available": "Available",
-  "settings.connections.home.githubPurpose": "Let Bakery read and change code in the repositories you choose.",
+  "settings.connections.home.purpose": "Let Bakery read and change code in the repositories you choose.",
   "settings.connections.home.connectNotice": "GitHub opens in this tab. Pick your organization there; you come back here when it is done.",
   "settings.connections.home.connect": "Connect",
   "settings.connections.connect.unregisteredLink": "Open installation settings",

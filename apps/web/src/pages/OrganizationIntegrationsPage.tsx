@@ -26,7 +26,7 @@ import {
   CONNECTION_OUTCOMES,
   type ConnectionOutcome,
 } from "./integrations/outcomes.ts";
-import { useGitHubConnect } from "./integrations/providers/github/use-github-connect.ts";
+import { useProviderConnect } from "./integrations/providers/index.ts";
 
 /** Query parameters the GitHub callbacks redirect with (server contract). */
 export const CONNECTION_OUTCOME_PARAMETER = "githubConnection";
@@ -89,7 +89,7 @@ export function OrganizationIntegrationsPage(
     enabled: organizationId !== null,
     retry: false,
   });
-  const github = useGitHubConnect({ organizationId, outcome });
+  const connectFlow = useProviderConnect({ organizationId, outcome });
 
   // A callback that names the connection it made or refreshed lands on that
   // connection's page, on its next unfinished step, with the outcome shown.
@@ -129,7 +129,7 @@ export function OrganizationIntegrationsPage(
   const reconnect = (id: string) => {
     const connection = items.find((item) => item.id === id);
     // A removed connection cannot be refreshed; it is connected again.
-    void github.connect(
+    void connectFlow.connect(
       connection?.status === "revoked" ? {} : {
         reconnectConnectionId: id,
         returnPath: connectionPath(id),
@@ -148,11 +148,11 @@ export function OrganizationIntegrationsPage(
       <InSettings section="settings.connections.section">
         <IntegrationsHomeView
           canManage={canManage}
-          connectStatus={github.connectStatus}
-          continuing={github.continuing}
+          connectStatus={connectFlow.connectStatus}
+          continuing={connectFlow.continuing}
           formatTime={connectionTimeFormatter(locale, timeZone)}
           onAdd={add}
-          onConnect={() => void github.connect()}
+          onConnect={() => void connectFlow.connect()}
           onDismissOutcome={() =>
             void navigate({
               to: ORGANIZATION_INTEGRATIONS_PATH,

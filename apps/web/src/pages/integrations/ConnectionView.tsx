@@ -66,7 +66,7 @@ export type ConnectionViewProps = {
   readonly continuing: boolean;
   readonly connectStatus: ConnectStatus;
   readonly checkStatus: CheckStatus;
-  /** The last check could not reach GitHub, so the earlier health stands. */
+  /** The last check could not reach the provider, so the earlier health stands. */
   readonly checkFaulted: boolean;
   readonly switchStatus: SwitchStatus;
   readonly repositories: RepositoriesProps;
@@ -120,7 +120,7 @@ const PERMISSION_COPY: Readonly<Record<string, MessageKey>> = {
   "checks:write": "settings.connections.permission.checksWrite",
 };
 
-/** One GitHub connection: its health and fix, setup, repositories, access, details. */
+/** One connection: its health and fix, setup, repositories, access, details. */
 export function ConnectionView(props: ConnectionViewProps) {
   const { translate } = useI18n();
   const phone = useShellViewport() === "phone";

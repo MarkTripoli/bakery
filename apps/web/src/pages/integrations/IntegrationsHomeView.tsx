@@ -26,7 +26,7 @@ export type IntegrationsHomeViewProps = {
   readonly canManage: boolean;
   readonly rows: readonly ConnectionRow[];
   readonly outcome: ConnectionOutcome | null;
-  /** The page is on its way back to GitHub for the attempt's next step. */
+  /** The page is on its way back to the provider for the attempt's next step. */
   readonly continuing: boolean;
   readonly connectStatus: ConnectStatus;
   readonly onAdd: () => void;
@@ -240,7 +240,7 @@ export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
                     </UI.Inline>
                   }
                   metadata={translate(
-                    "settings.connections.home.githubPurpose",
+                    "settings.connections.home.purpose",
                   )}
                 />
               </div>
@@ -290,7 +290,7 @@ function ConnectedRow(
   const label = translate(
     `settings.connections.action.${health.action}` as MessageKey,
   );
-  // Reconnecting and connecting again leave for GitHub; every other fix, and
+  // Reconnecting and connecting again leave for the provider; every other fix, and
   // Manage, opens the connection's own page.
   const leaves = health.action === "reconnect" ||
     health.action === "connectAgain";
