@@ -28,6 +28,7 @@ import {
   RoutePending,
 } from "./shell/AppLayout.tsx";
 import { TasksPage } from "./pages/TasksPage.tsx";
+import { IssuesPage } from "./pages/IssuesPage.tsx";
 import { MachinesPage } from "./pages/MachinesPage.tsx";
 import { MachineDetailPage } from "./pages/MachineDetailPage.tsx";
 import { TaskCoordinationPage } from "./pages/task-coordination/TaskCoordinationPage.tsx";
@@ -187,6 +188,19 @@ export const routeCoverage = [
       "stale",
       "offline",
       "long-copy",
+    ],
+  },
+  {
+    id: "issues",
+    path: "/issues",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
     ],
   },
   {
@@ -889,6 +903,15 @@ const taskCoordinationRoute = createRoute({
       taskId={taskCoordinationRoute.useParams().taskId}
     />
   ),
+  errorComponent: ProtectedRouteError,
+});
+
+const issuesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/issues",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: IssuesPage,
   errorComponent: ProtectedRouteError,
 });
 
@@ -1711,6 +1734,7 @@ const routeTree = rootRoute.addChildren([
   taskNewRoute,
   taskDetailRoute,
   taskCoordinationRoute,
+  issuesRoute,
   machinesRoute,
   machineDetailRoute,
   statusRoute,

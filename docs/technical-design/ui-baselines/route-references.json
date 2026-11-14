@@ -5099,6 +5099,13 @@
       "frames": []
     },
     {
+      "routeId": "issues",
+      "path": "/issues",
+      "status": "no-mock",
+      "rationale": "The Issues list is the organization's saved copy of GitHub issues with their readiness, organization-scoped API data. Paper has no mock for an issue list; design-ux's UX design on #56 is the reference.",
+      "frames": []
+    },
+    {
       "routeId": "machines",
       "path": "/machines",
       "status": "no-mock",

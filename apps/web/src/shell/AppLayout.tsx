@@ -193,6 +193,13 @@ function usePrimaryDestinations(
       href: workHref,
       icon: <UI.IconGlyph name="work-list" />,
     },
+    {
+      id: "issues",
+      label: translate("shell.navigation.issues"),
+      href: "/issues",
+      matchPath: "/issues",
+      icon: <UI.IconGlyph name="list-search" />,
+    },
     unshipped(
       "applications",
       translate("shell.navigation.applications"),
@@ -417,6 +424,7 @@ function usePageTitle(pathname: string): string | undefined {
   if (isMachinesPath(pathname)) {
     return translate("shell.navigation.machines");
   }
+  if (pathname === "/issues") return translate("shell.navigation.issues");
   if (pathname === INSTALLATION_INTEGRATIONS_PATH) {
     return translate("shell.navigation.installation");
   }

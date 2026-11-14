@@ -118,40 +118,38 @@ async function collectMachinePages<
   return { ...first, items, nextCursor } as T;
 }
 
-/** One page of the saved copy of the organization's GitHub issues. */
-export function externalTicketsListQueryOptions(
+/** The saved copy of the organization's GitHub issues, read a page at a time. */
+export function externalTicketsPagesQueryOptions(
   client: Pick<BakeryApiClient, "tickets">,
   scope: ApiScope,
-  input: Readonly<{
-    sourceId?: string;
-    state?: string;
-    cursor?: string;
-    limit?: number;
-  }> = {},
+  input: Readonly<{ sourceId?: string; state?: string; limit?: number }> = {},
 ) {
-  const normalizedInput = {
-    sourceId: input.sourceId ?? null,
-    state: input.state ?? null,
-    cursor: input.cursor ?? null,
-    limit: input.limit ?? null,
-  };
-  return queryOptions<ExternalTicketListResponse, ApiFailure>({
-    queryKey: protectedQueryKey(scope, "externalTickets.list", normalizedInput),
-    queryFn: async ({ signal }) => {
-      if (!scope.organizationId) {
-        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
-      }
-      return unwrap(
+  const limit = input.limit ?? 25;
+  return infiniteQueryOptions<
+    ExternalTicketListResponse,
+    ApiFailure,
+    { pages: ExternalTicketListResponse[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "externalTickets.list", {
+      sourceId: input.sourceId ?? null,
+      state: input.state ?? null,
+      limit,
+    }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
         await client.tickets.list({
-          organizationId: scope.organizationId,
+          organizationId: requireOrganization(scope),
           sourceId: input.sourceId,
           state: input.state,
-          cursor: input.cursor,
-          limit: input.limit,
+          cursor: pageParam ?? undefined,
+          limit,
           signal,
         }),
-      );
-    },
+      ),
     enabled: Boolean(scope.organizationId),
     retry: retryNetworkOnce,
   });
