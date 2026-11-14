@@ -2,6 +2,7 @@ import {
   assert,
   assertEquals,
   assertFalse,
+  assertRejects,
   assertStringIncludes,
 } from "@std/assert";
 import {
@@ -9,12 +10,16 @@ import {
   lstat,
   mkdir,
   mkdtemp,
+  open as openFile,
   readdir,
   readFile,
   rm,
   symlink,
+  truncate,
   writeFile,
 } from "node:fs/promises";
+import { Buffer } from "node:buffer";
+import { constants } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -27,16 +32,19 @@ import {
   installationStatus,
   linuxServiceState,
   macServiceState,
+  MAX_RECORD_BYTES,
   PAIRING_FILE,
   parseOperation,
   planDrain,
   type Probes,
+  readRecord,
   runOperation,
   type ServiceState,
   spawnProgram,
   spawnWithTimeout,
   systemProbes,
   TOKEN_FILE,
+  UnreadableRecord,
 } from "../../packages/worker-bootstrap/src/index.ts";
 
 // #18 slice 3: `status`, `doctor` and `drain`. They read an install root and ask
@@ -265,6 +273,416 @@ Deno.test("text read back from the root never reaches the screen unless it is sa
         await rm(root, { recursive: true, force: true });
       }
     }
+  }
+});
+
+/** Things a name in the root may be instead of a small regular file, each made without a program. */
+function hostileFiles(
+  dir: string,
+): [string, (path: string) => Promise<void>][] {
+  return [
+    ["a directory", (path) => mkdir(path)],
+    ["a link to /dev/zero", (path) => symlink("/dev/zero", path)],
+    ["a link to /dev/null", (path) => symlink("/dev/null", path)],
+    ["a link to another file", async (path) => {
+      await writeFile(`${path}.real`, "{}");
+      await symlink(`${path}.real`, path);
+    }],
+    ["a link that goes nowhere", (path) => symlink(join(dir, "nowhere"), path)],
+    ["a sparse file of 300 MB", async (path) => {
+      await writeFile(path, "");
+      await truncate(path, 300 * 1024 * 1024);
+    }],
+    [
+      "a file one byte over the limit",
+      (path) => writeFile(path, " ".repeat(MAX_RECORD_BYTES + 1)),
+    ],
+  ];
+}
+
+Deno.test("a name in the root that is not a small regular file is unreadable, quickly, whatever it is and whichever record it is", async () => {
+  for (const record of ["pairing.json", "release.json"] as const) {
+    const probe = await tempRoot();
+    const cases = hostileFiles(probe);
+    await rm(probe, { recursive: true, force: true });
+    for (const [label, make] of cases) {
+      const root = await tempRoot();
+      try {
+        await installRelease(root);
+        await pairRoot(root);
+        const target = record === "pairing.json"
+          ? join(root, "pairing.json")
+          : join(root, "releases", "1.2.3-linux-x64", "release.json");
+        await rm(target, { force: true });
+        await make(target);
+        const started = Date.now();
+        const report = await installationStatus(root, fakeProbes().probes);
+        const checks = await doctor(root, fakeProbes().probes);
+        assert(
+          Date.now() - started < 2_000,
+          `${record}: ${label} answered quickly`,
+        );
+        if (record === "pairing.json") {
+          assertEquals(
+            report.pairing.state,
+            "unreadable",
+            `${record}: ${label}`,
+          );
+          assertEquals(
+            statusOf(checks, "pairing"),
+            "failed",
+            `${record}: ${label}`,
+          );
+        } else {
+          assertEquals(
+            report.installation.state,
+            "unreadable",
+            `${record}: ${label}`,
+          );
+          assertEquals(
+            statusOf(checks, "install"),
+            "failed",
+            `${record}: ${label}`,
+          );
+        }
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    }
+  }
+});
+
+Deno.test("a binary that is not a regular file of the signed size is not intact and is never read", async () => {
+  const cases: [string, (path: string) => Promise<void>][] = [
+    ["a link to /dev/zero", (path) => symlink("/dev/zero", path)],
+    ["a directory", (path) => mkdir(path)],
+    ["a sparse file of 600 MB", async (path) => {
+      await writeFile(path, "");
+      await truncate(path, 600 * 1024 * 1024);
+    }],
+    [
+      "the right content, one byte longer",
+      (path) =>
+        writeFile(path, Buffer.concat([Buffer.from(BINARY), Buffer.from("x")])),
+    ],
+    ["empty", (path) => writeFile(path, "")],
+    [
+      "the same size, other bytes",
+      (path) => writeFile(path, Buffer.alloc(BINARY.length, 65)),
+    ],
+  ];
+  for (const [label, make] of cases) {
+    const root = await tempRoot();
+    try {
+      await installRelease(root);
+      const path = join(root, "releases", "1.2.3-linux-x64", "bakery-worker");
+      await rm(path, { force: true });
+      await make(path);
+      const started = Date.now();
+      const report = await installationStatus(root, fakeProbes().probes);
+      assert(Date.now() - started < 2_000, `${label} answered quickly`);
+      assertEquals(
+        (report.installation as { intact: boolean }).intact,
+        false,
+        label,
+      );
+      assertEquals(
+        statusOf(await doctor(root, fakeProbes().probes), "install"),
+        "failed",
+        label,
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+});
+
+Deno.test("the binary is looked at before it is read: only a regular file of the signed size is ever hashed, and a hash that never ends is not intact", async () => {
+  const never: string[] = [];
+  const refuseToHash = (path: string): Promise<string> => {
+    never.push(path);
+    return Promise.reject(new Error("must not be hashed"));
+  };
+  const cases: [string, (path: string, dir: string) => Promise<void>][] = [
+    ["a link to /dev/zero", (path) => symlink("/dev/zero", path)],
+    ["a directory", (path) => mkdir(path)],
+    ["a sparse file of 600 MB", async (path) => {
+      await writeFile(path, "");
+      await truncate(path, 600 * 1024 * 1024);
+    }],
+    [
+      "a file one byte over",
+      (path) => writeFile(path, Buffer.alloc(BINARY.length + 1, 65)),
+    ],
+    ["empty", (path) => writeFile(path, "")],
+    // A link's own size is the length of where it points: this one is exactly
+    // the signed size, and points at a file with the signed bytes, so only the
+    // check that it is a regular file stops it.
+    [
+      "a link as long as the signed size, to the signed bytes",
+      async (path, dir) => {
+        const size = BINARY.length;
+        assert(
+          size % 2 === 1,
+          "the construction below needs an odd signed size",
+        );
+        const target = `${"./".repeat((size - 1) / 2)}b`;
+        assertEquals(target.length, size);
+        await writeFile(join(dir, "b"), BINARY);
+        await symlink(target, path);
+      },
+    ],
+  ];
+  for (const [label, make] of cases) {
+    const root = await tempRoot();
+    try {
+      await installRelease(root);
+      const dir = join(root, "releases", "1.2.3-linux-x64");
+      const path = join(dir, "bakery-worker");
+      await rm(path, { force: true });
+      await make(path, dir);
+      const report = await installationStatus(root, fakeProbes().probes, {
+        hash: refuseToHash,
+      });
+      assertEquals(
+        (report.installation as { intact: boolean }).intact,
+        false,
+        label,
+      );
+      assertEquals(never, [], `${label}: not hashed`);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }
+  // The proper file is hashed exactly once, and its answer decides.
+  const root = await tempRoot();
+  try {
+    await installRelease(root);
+    const hashed: string[] = [];
+    const real = await installationStatus(root, fakeProbes().probes, {
+      hash: (path) => {
+        hashed.push(path);
+        return Promise.resolve(DIGEST);
+      },
+    });
+    assertEquals((real.installation as { intact: boolean }).intact, true);
+    assertEquals(hashed.length, 1);
+    const wrong = await installationStatus(root, fakeProbes().probes, {
+      hash: () => Promise.resolve("0".repeat(64)),
+    });
+    assertEquals((wrong.installation as { intact: boolean }).intact, false);
+    // A hash that never finishes gives up at the deadline.
+    const started = Date.now();
+    const stalled = await installationStatus(root, fakeProbes().probes, {
+      hash: () => new Promise(() => undefined),
+      hashDeadlineMs: 100,
+    });
+    assertEquals((stalled.installation as { intact: boolean }).intact, false);
+    assert(Date.now() - started < 3_000);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+/** A stand-in for an open file: what it says it is, and what it reads. Its identity is the real file's unless told otherwise. */
+function fakeHandle(
+  over: {
+    isFile?: boolean;
+    size?: number;
+    available?: number;
+    dev?: number;
+    ino?: number;
+  },
+) {
+  return async (opened: unknown) => {
+    const real = await lstat(opened as string);
+    return {
+      stat: () =>
+        Promise.resolve({
+          isFile: () => over.isFile ?? true,
+          size: over.size ?? 5,
+          dev: over.dev ?? real.dev,
+          ino: over.ino ?? real.ino,
+        }),
+      read: (buffer: Uint8Array, _offset: number, length: number) => {
+        const count = Math.min(length, over.available ?? 5);
+        buffer.fill(97, 0, count);
+        return Promise.resolve({ bytesRead: count });
+      },
+      close: () => Promise.resolve(),
+    } as never;
+  };
+}
+
+Deno.test("a name swapped for a link between the look and the open is not followed, and the open asks not to follow or wait", async () => {
+  const root = await tempRoot();
+  try {
+    const path = join(root, "record");
+    const secret = join(root, "secret");
+    await writeFile(path, "{}");
+    await writeFile(secret, "SECRET-OUTSIDE-THE-RECORD");
+    let flagsSeen = -1;
+    await assertRejects(
+      () =>
+        readRecord(path, 100, 1_000, async (opened, flags, mode) => {
+          flagsSeen = flags as number;
+          // The path looked like a small regular file a moment ago; now it is a link.
+          await rm(opened as string);
+          await symlink(secret, opened as string);
+          return await openFile(opened, flags, mode);
+        }),
+    );
+    assertEquals(
+      (flagsSeen & constants.O_NOFOLLOW) === constants.O_NOFOLLOW,
+      true,
+      "opened without following a link",
+    );
+    assertEquals(
+      (flagsSeen & constants.O_NONBLOCK) === constants.O_NONBLOCK,
+      true,
+      "opened without waiting on a FIFO",
+    );
+    assertEquals(
+      flagsSeen & (constants.O_WRONLY | constants.O_RDWR | constants.O_CREAT),
+      0,
+      "read only, and nothing is created",
+    );
+    // The same swap with a link to a file that would be readable is still refused,
+    // never read: nothing of the secret is returned.
+    await rm(path);
+    await writeFile(path, "{}");
+    let leaked = "";
+    try {
+      leaked = await readRecord(
+        path,
+        100,
+        1_000,
+        async (opened, flags, mode) => {
+          await rm(opened as string);
+          await symlink(secret, opened as string);
+          return await openFile(opened, flags, mode);
+        },
+      );
+    } catch {
+      // refused, as it should be
+    }
+    assertEquals(leaked, "");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+Deno.test("a record is checked again on the open handle: not a file, too big, or more bytes than allowed are refused, and the limit is exact", async () => {
+  const root = await tempRoot();
+  try {
+    const path = join(root, "record");
+    await writeFile(path, "hello");
+    // The path looks fine; the open handle says otherwise (the file was swapped in between).
+    await assertRejects(
+      () => readRecord(path, 100, 1_000, fakeHandle({ isFile: false })),
+      UnreadableRecord,
+      "not a plain small file",
+    );
+    await assertRejects(
+      () => readRecord(path, 100, 1_000, fakeHandle({ size: 101 })),
+      UnreadableRecord,
+      "not a plain small file",
+    );
+    // The open handle is another file than the one the path showed a moment ago
+    // (a different inode, or a different device): refused, whatever it holds.
+    await assertRejects(
+      () => readRecord(path, 100, 1_000, fakeHandle({ ino: 1 })),
+      UnreadableRecord,
+      "changed under the read",
+    );
+    await assertRejects(
+      () => readRecord(path, 100, 1_000, fakeHandle({ dev: 1 })),
+      UnreadableRecord,
+      "changed under the read",
+    );
+    // A file that grew after both looks: more bytes arrive than the limit.
+    await assertRejects(
+      () => readRecord(path, 10, 1_000, fakeHandle({ available: 50 })),
+      UnreadableRecord,
+      "not a plain small file",
+    );
+    await assertRejects(
+      () => readRecord(path, 10, 1_000, fakeHandle({ available: 11 })),
+      UnreadableRecord,
+      "not a plain small file",
+    );
+    assertEquals(
+      await readRecord(
+        path,
+        10,
+        1_000,
+        fakeHandle({ available: 10, size: 10 }),
+      ),
+      "a".repeat(10),
+    );
+    // Before it is ever opened, the path itself is judged, so a stalled open does not matter.
+    for (
+      const [label, make] of [
+        ["a directory", (p: string) => mkdir(p)],
+        ["a link", (p: string) => symlink(path, p)],
+        ["too big", (p: string) => writeFile(p, "x".repeat(200))],
+      ] as [string, (p: string) => Promise<void>][]
+    ) {
+      const hostile = join(root, `h-${label.replace(/ /g, "-")}`);
+      await make(hostile);
+      await assertRejects(
+        () =>
+          readRecord(hostile, 100, 5_000, () => new Promise(() => undefined)),
+        UnreadableRecord,
+        "not a plain small file",
+        label,
+      );
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+Deno.test("no read of a file in the install root goes around the bounded reader", async () => {
+  const count = async (name: string) =>
+    (await readFile(
+      new URL(`../../packages/worker-bootstrap/src/${name}`, import.meta.url),
+      "utf8",
+    )).split("readFile(").length - 1;
+  // operations.ts reads nothing but through readRecord; install.ts reads /proc once (a process's own
+  // state); pairing.ts reads the protected code file once, after it has checked that file.
+  assertEquals(await count("operations.ts"), 0);
+  assertEquals(await count("install.ts"), 1);
+  assertEquals(await count("pairing.ts"), 1);
+});
+
+Deno.test("a record is read only if it is a plain small file: the exact limit, one over, a link, a directory, a stalled open", async () => {
+  const root = await tempRoot();
+  try {
+    const path = join(root, "record");
+    await writeFile(path, "a".repeat(MAX_RECORD_BYTES));
+    assertEquals((await readRecord(path)).length, MAX_RECORD_BYTES);
+    await writeFile(path, "a".repeat(MAX_RECORD_BYTES + 1));
+    await assertRejects(() => readRecord(path), UnreadableRecord);
+    await writeFile(path, "hello");
+    assertEquals(await readRecord(path, 5), "hello");
+    await assertRejects(() => readRecord(path, 4), UnreadableRecord);
+    await symlink(path, join(root, "link"));
+    await assertRejects(() => readRecord(join(root, "link")), UnreadableRecord);
+    await mkdir(join(root, "dir"));
+    await assertRejects(() => readRecord(join(root, "dir")), UnreadableRecord);
+    await assertRejects(() => readRecord(join(root, "missing")));
+    // A file that is checked and then swapped for something that never opens
+    // (the instant between the two looks) gives up at the deadline.
+    const started = Date.now();
+    await assertRejects(
+      () => readRecord(path, 100, 100, () => new Promise(() => undefined)),
+      UnreadableRecord,
+      "no answer",
+    );
+    assert(Date.now() - started < 2_000);
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });
 
@@ -728,35 +1146,42 @@ Deno.test("system probes ask the service manager the exact question, without a s
   for (const call of asked) assertFalse(call.includes("sudo"));
 });
 
+// The unit lane runs only a short list of programs (scripts/run-tests.ts): `node`
+// is on it, so a real child process here is `node -e`, not /bin/true or /bin/sh.
+const node = (
+  script: string,
+  ...args: string[]
+) => ["node", "-e", script, ...args];
+
 Deno.test("the real spawn never throws or hangs: success, failure, a missing program and an empty command", async () => {
-  assertEquals((await spawnProgram(["/bin/true"])).code, 0);
-  assertEquals((await spawnProgram(["/bin/false"])).code, 1);
+  assertEquals((await spawnProgram(node(""))).code, 0);
+  assertEquals((await spawnProgram(node("process.exit(1)"))).code, 1);
+  assertEquals((await spawnProgram(node("process.exit(7)"))).code, 7);
   assertEquals((await spawnProgram(["/nonexistent/program"])).code, null);
   assertEquals((await spawnProgram([])).code, null);
   assertEquals(
-    (await spawnProgram(["/bin/echo", "hello"])).stdout.trim(),
+    (await spawnProgram(node("console.log('hello')"))).stdout.trim(),
     "hello",
   );
   // No shell: metacharacters are plain arguments.
   assertEquals(
-    (await spawnProgram(["/bin/echo", "a; rm -rf /"])).stdout.trim(),
+    (await spawnProgram(node("console.log(process.argv[1])", "a; rm -rf /")))
+      .stdout.trim(),
     "a; rm -rf /",
   );
 });
 
 Deno.test("a program that runs too long, or prints too much, is stopped and answers `unknown`", async () => {
   const started = Date.now();
-  const slow = await spawnWithTimeout(200)(["/bin/sleep", "20"]);
+  const slow = await spawnWithTimeout(300)(node("setTimeout(() => {}, 20000)"));
   assertEquals(slow.code, null);
   assert(Date.now() - started < 5_000, "the time limit stops the program");
-  const loud = await spawnWithTimeout(5_000)([
-    "/bin/sh",
-    "-c",
-    "head -c 20000 /dev/zero | tr '\\0' x",
-  ]);
+  const loud = await spawnWithTimeout(5_000)(
+    node("process.stdout.write('x'.repeat(20000))"),
+  );
   assertEquals(loud.code, null);
   assert(loud.stdout.length <= 4096 + 1024);
-  const quiet = await spawnWithTimeout(5_000)(["/bin/echo", "ok"]);
+  const quiet = await spawnWithTimeout(5_000)(node("console.log('ok')"));
   assertEquals(quiet, { code: 0, stdout: "ok\n" });
 });
 

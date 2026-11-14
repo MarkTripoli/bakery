@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { lstat, open, readFile, rename, rm } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { BootstrapError } from "./errors.ts";
+import { readRecord } from "./bounded-read.ts";
 import { checkRoot } from "./install.ts";
 
 /**
@@ -387,7 +388,7 @@ async function readBinding(root: string): Promise<PairingBinding | null> {
     if (!info.isFile() || (info.mode & 0o077) !== 0) {
       throw new BootstrapError("PAIRING_BINDING_CORRUPT");
     }
-    text = await readFile(join(root, PAIRING_FILE), "utf8");
+    text = await readRecord(join(root, PAIRING_FILE));
   } catch (error) {
     if (error instanceof BootstrapError) throw error;
     if ((error as { code?: string }).code === "ENOENT") return null;
