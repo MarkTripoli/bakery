@@ -164,6 +164,21 @@ test.describe("projects onboarding scope recovery", () => {
       await expect(
         page.getByTestId("startup-error").getByRole("heading", { name: title }),
       ).toBeFocused();
+      // The action takes the width its label needs (no label wraps inside a
+      // squeezed button), and on a phone a link after the button drops under
+      // it, on one line.
+      const gate = page.getByTestId("startup-error");
+      const button = gate.getByRole("button", { name: action, exact: true });
+      const buttonBox = (await button.boundingBox())!;
+      expect(buttonBox.height).toBeLessThan(56);
+      for (const link of await gate.getByRole("link").all()) {
+        const box = (await link.boundingBox())!;
+        // One line: a touch target is 44 tall; three lines would be 70 or more.
+        expect(box.height).toBeLessThan(48);
+        if ((page.viewportSize()?.width ?? 1280) < 744) {
+          expect(box.y).toBeGreaterThanOrEqual(buttonBox.y + buttonBox.height);
+        }
+      }
       await page.mouse.move(900, 600);
       await shot(page, `startup-${code.toLowerCase().replace(/_/g, "-")}`);
       expect(observed.protectedReads).toEqual([]);

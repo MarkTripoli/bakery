@@ -9,9 +9,6 @@ function line(repository: RepositoryResponse, translate: Translator): string {
   if (badge === "notSetUp") {
     return translate("projects.list.row.notSetUp" as never);
   }
-  if (badge === "archived") {
-    return translate("projects.list.row.archived" as never);
-  }
   return translate("projects.list.row.branch" as never, {
     branch: repository.defaultBranch,
   });
