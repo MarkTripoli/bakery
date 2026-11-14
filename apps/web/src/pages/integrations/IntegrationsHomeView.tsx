@@ -186,14 +186,20 @@ export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
                   <UI.Heading level="section">
                     {translate("settings.connections.home.connected")}
                   </UI.Heading>
-                  <ul
+                  <UI.Stack
+                    gap="none"
+                    role="list"
                     aria-label={translate(
                       "settings.connections.home.connected",
                     )}
                     data-testid="connected-list"
                   >
                     {rows.map((row) => (
-                      <li data-testid={`connection-${row.id}`} key={row.id}>
+                      <div
+                        role="listitem"
+                        data-testid={`connection-${row.id}`}
+                        key={row.id}
+                      >
                         <ConnectedRow
                           canManage={canManage}
                           formatTime={props.formatTime}
@@ -202,9 +208,9 @@ export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
                           row={row}
                           busy={busy}
                         />
-                      </li>
+                      </div>
                     ))}
-                  </ul>
+                  </UI.Stack>
                 </UI.Stack>
               )
               : (
