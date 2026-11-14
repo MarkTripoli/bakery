@@ -1,13 +1,22 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "51fe48c657dd15c45a5ddf3dfe01046bd0900108"
+    "1ef6c948cf3369b2af97b863aed35be953e26d95"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:c078bd6d5c6a6da2de8bd282e3509208b0aa436cc0e0f681d477e8047b72989d",
-  "reason": "#68 contract re-bind by dev-server on 2026-11-13 under owner's standing breaking-change authorization (2026-10-09), main 51fe48c657dd15c45a5ddf3dfe01046bd0900108: IntegrationConnection gains required createdBy (who connected).",
+  "targetCompatibilityDigest": "sha256:e97fc71fb0fdf9e1e49f56c8b3efc1ca4faa419017f68b8edc6675596c9e0eae",
+  "reason": "#20 contract re-bind by dev-server on 2026-11-14 under owner's standing breaking-change authorization (2026-10-09), main 1ef6c948cf3369b2af97b863aed35be953e26d95: integrationGrants.list/create answer the new IntegrationGrant (and its page) instead of PermissionGrant, which cannot carry an integration grant's subject, direction and scope.",
   "priorApprovals": [
+    {
+      "allowBreaking": true,
+      "fromBaseRefs": [
+        "51fe48c657dd15c45a5ddf3dfe01046bd0900108"
+      ],
+      "reason": "#68 contract re-bind by dev-server on 2026-11-13 under owner's standing breaking-change authorization (2026-10-09), main 51fe48c657dd15c45a5ddf3dfe01046bd0900108: IntegrationConnection gains required createdBy (who connected).",
+      "status": "approved",
+      "targetCompatibilityDigest": "sha256:c078bd6d5c6a6da2de8bd282e3509208b0aa436cc0e0f681d477e8047b72989d"
+    },
     {
       "allowBreaking": true,
       "fromBaseRefs": [
