@@ -29,6 +29,7 @@ import { useLiveEvents } from "../../api/use-live-events.ts";
 import { useConnectivity } from "../../app/connectivity.ts";
 import { useShellViewport } from "../../app/responsive.ts";
 import { RouterLink } from "../../app/router-link.tsx";
+import { WORK_HOME } from "../../shell/breadcrumb-paths.ts";
 import { ShellFlushMain, ShellSlot } from "../../shell/shell-slots.tsx";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useSession } from "../../app/session-context.tsx";
@@ -568,13 +569,14 @@ export function TaskConversation(
           <UI.Breadcrumbs
             items={[
               {
+                href: WORK_HOME,
                 label: (
-                  <RouterLink to="/tasks" activeOptions={{ exact: true }}>
+                  <>
                     {t("shell.navigation.work")}
                     <UI.VisuallyHidden>
                       {t("tasks.live.back")}
                     </UI.VisuallyHidden>
-                  </RouterLink>
+                  </>
                 ),
               },
               { label: <UI.DataText>{reference}</UI.DataText> },
