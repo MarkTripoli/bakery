@@ -104,6 +104,19 @@ for (
         "Review the changes",
       );
       await expect(steps).not.toContainText("harness.implement");
+      // Each step's mark holds its number; the title is in the normal colour.
+      const marks = await steps.locator(".ui-step-item__mark").allInnerTexts();
+      expect(marks.map((text) => text.replace(/[^0-9]/g, ""))).toEqual([
+        "1",
+        "2",
+        "3",
+      ]);
+      const titleColor = await steps.locator(".ui-step-item__title").first()
+        .evaluate((element) => getComputedStyle(element).color);
+      const bodyColor = await page.locator("body").evaluate((element) =>
+        getComputedStyle(element).color
+      );
+      expect(titleColor).toBe(bodyColor);
       await expect(steps).not.toContainText("task.brief");
       await expect(page.getByRole("list", { name: "Steps" }))
         .toBeVisible();
@@ -323,6 +336,20 @@ for (
       await expect(page.getByText(
         "No version is in use, so this workflow cannot be chosen for new tasks.",
       )).toBeVisible();
+      // The banner's normal layout: the message at the start, the action at
+      // the end of the banner, as on the machine page.
+      const banner = page.locator('[data-ui-component="alertBanner"]').filter({
+        hasText: "No version is in use",
+      });
+      const bannerBox = (await banner.boundingBox())!;
+      const action = (await banner.getByRole("button", {
+        name: "Use version 3",
+      }).boundingBox())!;
+      if (viewport.name === "desktop") {
+        expect(action.x + action.width).toBeGreaterThan(
+          bannerBox.x + bannerBox.width - 40,
+        );
+      }
       await page.mouse.move(700, 700);
       await shot(page, "workflow-none-in-use");
       await page.getByRole("button", { name: "Use version 3" }).first()

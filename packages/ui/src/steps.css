@@ -156,3 +156,14 @@
     margin-block-start: var(--space-0);
   }
 }
+
+/* A numbered step (opt-in, for a definition that nothing is running): the
+   mark holds the number and the title is in the normal colour. */
+.ui-step-item[data-numbered="true"] .ui-step-item__mark {
+  border: var(--border-default) solid var(--color-border-strong);
+  color: var(--color-fg);
+  font: var(--type-label);
+}
+.ui-step-item[data-numbered="true"] .ui-step-item__title {
+  color: var(--color-fg);
+}

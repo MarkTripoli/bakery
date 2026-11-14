@@ -50,3 +50,30 @@ export const Contract: StoryObj = {
     </StepList>
   ),
 };
+
+/** A definition's steps: nothing is running, so each mark holds the step's number (opt-in). */
+export const Numbered: StoryObj = {
+  render: () => (
+    <StepList label="Workflow steps">
+      <StepItem
+        number={1}
+        status="upcoming"
+        statusLabel="Step 1"
+        title="Write the task brief"
+      />
+      <StepItem
+        number={2}
+        status="upcoming"
+        statusLabel="Step 2"
+        summary="Agent: Code writer, version 2"
+        title="Run the coding agent"
+      />
+      <StepItem
+        number={3}
+        status="upcoming"
+        statusLabel="Step 3"
+        title="Review the changes"
+      />
+    </StepList>
+  ),
+};

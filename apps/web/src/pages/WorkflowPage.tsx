@@ -606,27 +606,26 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
           {dialog === null ? failureNotice : null}
           {noneInUse
             ? (
-              <UI.InlineNotice tone="warning">
-                {translate("library.workflow.noneInUse" as never)}
-                {canManage && newestPublished !== null
+              <UI.AlertBanner
+                tone="warning"
+                action={canManage && newestPublished !== null
                   ? (
-                    <>
-                      {" "}
-                      <UI.Button
-                        variant="secondary"
-                        disabled={offline || pending}
-                        onClick={() =>
-                          open({ kind: "use", version: newestPublished })}
-                      >
-                        {translate(
-                          "library.workflow.versions.useNamed" as never,
-                          { version: newestPublished.revision },
-                        )}
-                      </UI.Button>
-                    </>
+                    <UI.Button
+                      variant="secondary"
+                      disabled={offline || pending}
+                      onClick={() =>
+                        open({ kind: "use", version: newestPublished })}
+                    >
+                      {translate(
+                        "library.workflow.versions.useNamed" as never,
+                        { version: newestPublished.revision },
+                      )}
+                    </UI.Button>
                   )
-                  : null}
-              </UI.InlineNotice>
+                  : undefined}
+              >
+                {translate("library.workflow.noneInUse" as never)}
+              </UI.AlertBanner>
             )
             : null}
           {draftOnly
@@ -665,6 +664,7 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
                       <UI.StepItem
                         key={step.id}
                         data-step-id={step.id}
+                        number={index + 1}
                         status="upcoming"
                         statusLabel={translate(
                           "library.workflow.steps.number" as never,
