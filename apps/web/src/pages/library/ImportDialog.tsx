@@ -170,11 +170,20 @@ export function ImportDialog(
     <UI.Stack gap="compact" role="list" aria-label={label}>
       {problems.map((problem, index) => (
         <div key={index} role="listitem">
-          <UI.Text variant="caption">
-            <UI.DataText>{where(problem)}</UI.DataText>
-            {": "}
-            {problem.message}
-          </UI.Text>
+          {problem.where.kind === "path"
+            ? (
+              <UI.Inline gap="compact">
+                <UI.DataText>{where(problem)}</UI.DataText>
+                <UI.Text variant="caption">{problem.message}</UI.Text>
+              </UI.Inline>
+            )
+            : (
+              <UI.Text variant="caption">
+                {where(problem)}
+                {": "}
+                {problem.message}
+              </UI.Text>
+            )}
         </div>
       ))}
     </UI.Stack>
