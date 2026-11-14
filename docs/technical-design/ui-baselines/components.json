@@ -1,5 +1,5 @@
 {
-  "revision": "ed72694ae8acb59b4d839331127954a9b7b916a01b8f197dde34ecec6f6a7609",
+  "revision": "0b080002bfbdc48efce46cb1bde5070b35d9999791d6e050e43ca1fcadccaf13",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -3963,7 +3963,7 @@
     {
       "id": "ui.sectionNavigation",
       "name": "SectionNavigation",
-      "description": "Provides one ordered sibling-section model across wide and narrow layouts while preserving parent selection.",
+      "description": "Provides one ordered sibling-section model across wide and narrow layouts while preserving parent selection; links can sit under labelled group headings.",
       "level": "organism",
       "owner": "Mark Tripoli",
       "storyTitle": "Bakery/Organisms/SectionNavigation",
@@ -5352,7 +5352,7 @@
     {
       "id": "ui.badge",
       "name": "Badge",
-      "description": "Tags a row with a short caption on a plate, e.g. \"Current\" on the active session; the tone can be success, warning or danger.",
+      "description": "Tags a row with a short caption on a plate, e.g. \"Current\" on the active session; the tone can be success, warning, danger or information.",
       "level": "atom",
       "owner": "Mark Tripoli",
       "storyTitle": "Bakery/Atoms/Badge",
@@ -5394,6 +5394,8 @@
         "--color-destructive",
         "--color-destructive-surface",
         "--color-fg",
+        "--color-selection",
+        "--color-selection-surface",
         "--color-status-success",
         "--color-status-success-surface",
         "--color-status-warning",
@@ -5406,7 +5408,8 @@
         "neutral",
         "success",
         "warning",
-        "danger"
+        "danger",
+        "information"
       ],
       "states": [
         "default"
@@ -5439,7 +5442,8 @@
             "neutral",
             "success",
             "warning",
-            "danger"
+            "danger",
+            "information"
           ],
           "states": [
             "default"
@@ -10945,7 +10949,7 @@
         "accessibleName": "none",
         "keyboard": [],
         "targetSize": "min 44px (coarse pointer)",
-        "notes": "Column layout (760px measure); maintains 44px control targets and Paper's 28px/24px gaps"
+        "notes": "Column layout (760px measure); maintains 44px control targets and Paper's 28px/24px gaps; the wide variant drops the measure for a main-rail list or detail page"
       },
       "tokens": [
         "--space-1-5",
@@ -10962,7 +10966,8 @@
         "default",
         "personal",
         "preferences",
-        "access"
+        "access",
+        "wide"
       ],
       "states": [
         "default"
@@ -10995,7 +11000,8 @@
             "default",
             "personal",
             "preferences",
-            "access"
+            "access",
+            "wide"
           ],
           "states": [
             "default"

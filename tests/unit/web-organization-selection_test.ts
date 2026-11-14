@@ -79,11 +79,14 @@ function fakeApi(
     access: {} as BakeryApiClient["access"],
     profile: { get: rejecting, update: rejecting },
     userPreferences: { get: rejecting, update: rejecting },
+    tickets: { list: rejecting, sources: rejecting, sync: rejecting },
     workers: {
       list: rejecting,
       get: rejecting,
       enroll: rejecting,
       repairEnrollment: rejecting,
+      update: rejecting,
+      revoke: rejecting,
     },
     machines: { dispatchBlockers: rejecting },
     workerEnrollments: {

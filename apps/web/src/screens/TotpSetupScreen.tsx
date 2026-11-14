@@ -8,7 +8,6 @@ import { RouterLink } from "../app/router-link.tsx";
 import { totpQrModules, totpSetupKey } from "../app/totp-enrolment.ts";
 import type { TwoFactorFailure } from "../app/two-factor-failures.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
-import { AccountSettingsBackLink } from "./settings-back.tsx";
 
 /** Exported so the container can focus the field a failure rejected. */
 export const TOTP_SETUP_PASSWORD_INPUT_ID = "totp-setup-password";
@@ -81,10 +80,7 @@ export function TotpSetupScreen(
 
   if (step.kind === "expired") {
     return (
-      <UI.SettingsContent
-        back={<AccountSettingsBackLink />}
-        data-testid="totp-setup"
-      >
+      <UI.SettingsContent data-testid="totp-setup">
         <UI.FormContent>
           <UI.AuthHeading
             description={translate(
@@ -108,10 +104,7 @@ export function TotpSetupScreen(
 
   if (step.kind === "password") {
     return (
-      <UI.SettingsContent
-        back={<AccountSettingsBackLink />}
-        data-testid="totp-setup"
-      >
+      <UI.SettingsContent data-testid="totp-setup">
         <UI.FormContent>
           <UI.AuthHeading
             description={translate(
@@ -169,10 +162,7 @@ export function TotpSetupScreen(
 
   const invalid = failure?.kind === "invalidCode";
   return (
-    <UI.SettingsContent
-      back={<AccountSettingsBackLink />}
-      data-testid="totp-setup"
-    >
+    <UI.SettingsContent data-testid="totp-setup">
       <UI.FormContent>
         <UI.AuthHeading
           description={translate(

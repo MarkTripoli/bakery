@@ -1,8 +1,14 @@
 import type { ReactNode } from "react";
 import type { MessageKey } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
+import { SECURITY_SETTINGS_PATH } from "../app/auth-paths.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellSlot } from "./shell-slots.tsx";
+
+/** Where a section's own page lives, for the crumb above one of its sub-pages. */
+const SETTINGS_SECTION_PATHS: Partial<Record<MessageKey, string>> = {
+  "shell.navigation.security": SECURITY_SETTINGS_PATH,
+};
 
 /**
  * Claims the top bar's breadcrumb region for a settings page: `Settings`,
@@ -10,7 +16,11 @@ import { ShellSlot } from "./shell-slots.tsx";
  * nothing, so screens stay presentable in isolation.
  */
 export function SettingsBreadcrumbs(
-  { section }: { readonly section: MessageKey },
+  { page, section }: {
+    readonly section: MessageKey;
+    /** A page under the section (Passkeys under Account & security): a third crumb. */
+    readonly page?: MessageKey;
+  },
 ) {
   const { translate } = useI18n();
   return (
@@ -19,7 +29,14 @@ export function SettingsBreadcrumbs(
         aria-label={translate("shell.navigation.breadcrumb")}
         items={[
           { label: translate("shell.states.settingsTitle") },
-          { label: translate(section) },
+          ...(page
+            ? [{
+              href: SETTINGS_SECTION_PATHS[section],
+              label: translate(section),
+            }, {
+              label: translate(page),
+            }]
+            : [{ label: translate(section) }]),
         ]}
       />
     </ShellSlot>
@@ -28,14 +45,15 @@ export function SettingsBreadcrumbs(
 
 /** A settings page with its breadcrumbs claimed through the shell slot. */
 export function InSettings(
-  { children, section }: {
+  { children, page, section }: {
     readonly children: ReactNode;
     readonly section: MessageKey;
+    readonly page?: MessageKey;
   },
 ) {
   return (
     <>
-      <SettingsBreadcrumbs section={section} />
+      <SettingsBreadcrumbs page={page} section={section} />
       {children}
     </>
   );
@@ -53,7 +71,7 @@ export function OrganizationBreadcrumbs() {
       <UI.Breadcrumbs
         aria-label={translate("shell.navigation.breadcrumb")}
         items={[
-          { label: translate("shell.navigation.organization") },
+          { label: translate("shell.states.settingsTitle") },
           { label: translate("shell.navigation.organizationSettings") },
         ]}
       />
@@ -76,7 +94,7 @@ export function OrganizationSectionBreadcrumbs(
       <UI.Breadcrumbs
         aria-label={translate("shell.navigation.breadcrumb")}
         items={[
-          { label: translate("shell.navigation.organization") },
+          { label: translate("shell.states.settingsTitle") },
           { label: translate(section) },
         ]}
       />

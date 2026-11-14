@@ -1,6 +1,4 @@
 import * as UI from "@bakery/ui";
-import { SECURITY_SETTINGS_PATH } from "../app/auth-paths.ts";
-import { RouterLink } from "../app/router-link.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import {
   isDisconnected,
@@ -34,7 +32,7 @@ function lowerFirst(text: string, locale: string): string {
 }
 
 /**
- * `/settings/clients` presenter — V-0 `clients`: back link, heading, the
+ * `/settings/clients` presenter — V-0 `clients`: heading, the
  * optional "revoked" notice and one row per grant naming the client, its
  * organization and scopes, each with a Revoke access button that names both
  * for assistive technology. The `empty` async state is the "no clients"
@@ -46,15 +44,7 @@ export function ConnectedClientsScreen(
 ) {
   const { locale, translate } = useI18n();
   return (
-    <UI.SettingsContent
-      back={
-        <RouterLink to={SECURITY_SETTINGS_PATH}>
-          <UI.IconGlyph name="back" size="large" />
-          {translate("auth.settings.security.title")}
-        </RouterLink>
-      }
-      data-testid="connected-clients"
-    >
+    <UI.SettingsContent data-testid="connected-clients">
       <UI.AuthHeading
         description={translate("auth.settings.clients.description")}
         title={translate("auth.settings.clients.title")}

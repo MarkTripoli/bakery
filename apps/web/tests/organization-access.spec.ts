@@ -388,7 +388,7 @@ for (
       const world = fullWorld();
       await accessFixture(page, world);
       await page.goto("/settings/organization/access");
-      await expect(page.locator("main h1")).toHaveText("Access");
+      await expect(page.locator("main h1")).toHaveText("Members & access");
       await expect(page.getByTestId("org-access-members")).toContainText(
         "Ada Rivera",
       );
@@ -398,7 +398,9 @@ for (
         ).toBeVisible();
       } else {
         // A phone moves the counts into the page summary.
-        await expect(page.getByRole("heading", { name: "Members" }))
+        await expect(
+          page.getByRole("heading", { name: "Members", exact: true }),
+        )
           .toBeVisible();
         await expect(page.getByText("4 people · 1 pending invitation"))
           .toBeVisible();

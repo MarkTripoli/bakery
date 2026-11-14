@@ -11,6 +11,8 @@ const namespacePrefixes = [
   "shell.navigation.",
   "shell.health.",
   "shell.states.",
+  "shell.startup.",
+  "shell.leave.",
   "problems.",
   "projects.onboarding.",
   "projects.roles.",
@@ -27,6 +29,7 @@ const namespacePrefixes = [
   "organizationSettings.",
   "features.",
   "access.",
+  "issues.",
   "machines.",
   "repository.rules.",
 ] as const;
@@ -50,6 +53,7 @@ const pseudoExpansionPrefixes = [
   "features.",
   "access.",
   "shell.navigation.machines",
+  "issues.",
   "machines.",
   "repository.rules.",
 ] as const;

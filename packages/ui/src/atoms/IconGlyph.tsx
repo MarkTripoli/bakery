@@ -50,7 +50,8 @@ export type IconGlyphName =
   | "chat"
   | "chevron-left"
   | "lanes"
-  | "info";
+  | "info"
+  | "issue";
 
 // Additional shell glyphs: approved K-0 9VJ-0/9ZB-0 exports; listening bars:
 // AR1-0. Exact paths and viewports, theme-aware ink; never a font substitute.
@@ -395,6 +396,12 @@ const GLYPH_PATHS: Record<IconGlyphName, ReactNode> = {
       <circle cx="12" cy="12" r="9" />
       <path d="M12 11v5" />
       <circle cx="12" cy="8" fill="currentColor" r="1" stroke="none" />
+    </>
+  ),
+  issue: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" fill="currentColor" r="1.5" stroke="none" />
     </>
   ),
   clock: (
