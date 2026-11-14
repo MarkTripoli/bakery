@@ -21,6 +21,12 @@ export type DownloadOptions = Readonly<{
   path: string;
   /** The size the signed manifest declares: the download may never exceed it. */
   expectedBytes: number;
+  /**
+   * For a file whose size nothing signs yet (the manifest itself): the size is
+   * then a ceiling, a shorter file is fine, and a declared or received length
+   * above it is refused. The default is exactly the declared size.
+   */
+  atMost?: boolean;
   fetch: typeof fetch;
   /** Default 3. Every hop must stay on the origin. */
   maxRedirects?: number;
@@ -162,7 +168,9 @@ export function boundedDownload(
       if (
         declared !== null &&
         (!/^[0-9]{1,15}$/.test(declared) ||
-          Number(declared) !== options.expectedBytes)
+          (options.atMost === true
+            ? Number(declared) > options.expectedBytes
+            : Number(declared) !== options.expectedBytes))
       ) {
         await response.body.cancel().catch(() => undefined);
         throw new BootstrapError("ARTIFACT_SIZE_MISMATCH");
