@@ -649,6 +649,11 @@
   inset-inline: auto var(--space-0);
   max-inline-size: min(360px, calc(100vw - var(--space-8)));
 }
+/* Opt-in: where the trigger starts its row (a header's actions on a phone) the
+   content starts at it too, instead of running out of the window's start. */
+.ui-inline[data-trailing-popover="start"] > .ui-popover .ui-popover__content {
+  inset-inline: var(--space-0) auto;
+}
 
 /* An empty state's actions take the width their labels need; on a phone a link
    after the button drops under it, on one line. */
