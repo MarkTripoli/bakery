@@ -18,6 +18,17 @@ import { orgHeader } from "./account-settings.ts";
 import { authRequest, enrollTotp, sessionCookie } from "./auth.ts";
 import { connectClient, registerTestClient } from "./oauth-mcp.ts";
 import { createFakeGitHubApp } from "./fake-github-app.ts";
+import { seedRigIntegration } from "./external-effects.ts";
+
+/** An exact grant body for the audit matrix (#20). */
+function integrationGrantBody(principalId: string) {
+  return {
+    subjectType: "principal",
+    subjectPrincipalId: principalId,
+    direction: "out_of_bakery",
+    capability: "github.issue.comment.create",
+  };
+}
 
 /** SCIM bearer secrets the matrix was issued; the no-secret test hunts for them. */
 export const matrixScimSecrets: string[] = [];
@@ -742,6 +753,57 @@ export async function runAuditMatrix(
         ),
         organizationId: f.organizationId,
         resourceId: state.permissionGrant,
+      }),
+    },
+    {
+      // #20: a grant on a seeded integration connection.
+      operation: "integrationGrants.create",
+      failure: async () => {
+        state.grantConnection = crypto.randomUUID();
+        await seedRigIntegration(f.pgDatabase, {
+          organizationId: f.organizationId,
+          principalId: f.adminId!,
+          connectionId: state.grantConnection,
+          resourceId: crypto.randomUUID(),
+        });
+        return await developerCall(
+          "POST",
+          `/v1/integration-connections/${state.grantConnection}/grants`,
+          { body: integrationGrantBody(f.adminId!) },
+        );
+      },
+      success: async () => {
+        const response = await adminCall(
+          "POST",
+          `/v1/integration-connections/${state.grantConnection}/grants`,
+          { body: integrationGrantBody(f.adminId!) },
+        );
+        const created = await json(response.clone());
+        state.integrationGrant = String(created.id);
+        state.integrationGrantVersion = String(created.version);
+        return {
+          response,
+          organizationId: f.organizationId,
+          resourceId: state.integrationGrant,
+        };
+      },
+    },
+    {
+      operation: "integrationGrants.delete",
+      failure: () =>
+        developerCall(
+          "DELETE",
+          `/v1/integration-connections/${state.grantConnection}/grants/${state.integrationGrant}`,
+          { headers: { "If-Match": `"${state.integrationGrantVersion}"` } },
+        ),
+      success: async () => ({
+        response: await adminCall(
+          "DELETE",
+          `/v1/integration-connections/${state.grantConnection}/grants/${state.integrationGrant}`,
+          { headers: { "If-Match": `"${state.integrationGrantVersion}"` } },
+        ),
+        organizationId: f.organizationId,
+        resourceId: state.integrationGrant,
       }),
     },
     {

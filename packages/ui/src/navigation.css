@@ -1628,10 +1628,8 @@ a.bakery-application-rail__link:hover {
 
 /* Paper O-0 personal settings pages (Profile, Appearance, Your access): a 24px
    title over a 14px muted subtitle, the form column capped at 720px, and
-   content-sized buttons. The page padding is the shell's. */
-.ui-settings-content:is([data-variant="personal"], [data-variant="access"]) {
-  max-inline-size: none;
-}
+   content-sized buttons. The page padding is the shell's. The column itself is
+   the one settings width (760px) like every other settings page. */
 /* One page-title style on every settings page: the 24/32 page heading over a
    14px muted description, whatever the page's variant. The authentication
    screens keep the larger 28/36 heading. */
@@ -1776,7 +1774,6 @@ a.bakery-application-rail__link:hover {
 .ui-settings-content[data-variant="preferences"] {
   gap: var(--space-0);
   margin-inline-start: -1px;
-  max-inline-size: var(--layout-content);
 }
 .ui-settings-content[data-variant="preferences"] > .ui-auth-heading {
   padding-block-end: var(--space-6);
