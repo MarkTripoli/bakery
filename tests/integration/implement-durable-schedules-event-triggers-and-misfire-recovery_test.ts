@@ -1123,6 +1123,7 @@ Deno.test("automation.tick: due automations are admitted once, catch-ups are one
     });
 
     await test.step("a firing already admitted for that instant is not admitted again, and the cursor still moves; the record's version is not changed by the clock", async () => {
+      await clearAutomations();
       const { automationId, versionId } = await seed({
         trigger: schedule("*/5 * * * *"),
         cursor: "2026-11-14T11:05:00Z",
