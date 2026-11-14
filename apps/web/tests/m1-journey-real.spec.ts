@@ -708,8 +708,8 @@ test("P3 worker: Machines UI enrollment, token reveal, worker start, truthful re
   await expect(detail).toBeVisible();
   await expect(detail.getByText("Ready", { exact: true }).first())
     .toBeVisible({ timeout: 60_000 });
-  await expect(detail.getByText("Online", { exact: true }).first())
-    .toBeVisible();
+  // The line under the machine's name says how it is reached.
+  await expect(detail).toContainText("· Online ·");
   await axeClean(page, "/machines/<host>");
   await shootRoute(
     shots(),
