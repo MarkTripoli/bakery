@@ -233,7 +233,12 @@ for (
       await page.goto("/issues");
       await expect(page.getByRole("heading", { name: "Issues", level: 1 }))
         .toBeVisible();
+      await expect(page.getByText(
+        "Issues from your connected GitHub repositories, and whether Bakery can start on each.",
+      )).toBeVisible();
       await expect(row(page, 201)).toContainText("Can start");
+      // Every row's line starts with its repository.
+      await expect(row(page, 201)).toContainText("acme/web");
       await expect(row(page, 202)).toHaveCount(0);
       // The age of the saved copy.
       await expect(page.getByText("Updated from GitHub 5 minutes ago"))
@@ -243,15 +248,20 @@ for (
       });
       await expect(row(page, 202)).toContainText("Waiting");
       await expect(row(page, 202)).toContainText(
-        "Depends on #201, which is still open.",
+        "acme/web · Depends on #201, which is still open.",
       );
       await expect(row(page, 203)).toContainText("Cannot start");
       await expect(row(page, 203)).toContainText(
-        "The issue has no acceptance criteria.",
+        "acme/web · The issue has no acceptance criteria.",
       );
       await expect(row(page, 204)).toContainText("In progress");
-      await expect(row(page, 205)).toContainText("Unknown");
-      await expect(row(page, 205)).toContainText("Not checked yet.");
+      await expect(row(page, 204)).toContainText(
+        "acme/web · Bakery is working on this.",
+      );
+      await expect(row(page, 205)).toContainText("Not checked");
+      await expect(row(page, 205)).toContainText(
+        "acme/web · Bakery has not checked this issue yet.",
+      );
       // One control per row: the issue on GitHub, in a new tab.
       for (const number of [201, 202, 203, 204, 205]) {
         const link = row(page, number).getByRole("link");
@@ -262,6 +272,8 @@ for (
         );
         await expect(link).toHaveAttribute("target", "_blank");
       }
+      // The pointer rests away from the rail, so no item looks hovered.
+      await page.mouse.move(700, 700);
       await shot(page, "issues-list");
     });
 
@@ -298,6 +310,9 @@ for (
       await expect(page.getByRole("heading", {
         name: "Choose where Bakery takes issues from",
       })).toBeVisible();
+      // The way forward until the repository sheet exists: the settings page.
+      await expect(page.getByRole("button", { name: "Open Integrations" }))
+        .toBeVisible();
       await shot(page, "issues-no-sources");
     });
 
@@ -305,8 +320,11 @@ for (
       await issuesFixture(page, { sources: "degraded" });
       await page.goto("/issues");
       await expect(page.getByText(
-        "Bakery is having trouble reading GitHub. This list may be out of date (last updated 5 minutes ago).",
+        "Bakery is having trouble reading GitHub. This list may be out of date.",
       )).toBeVisible();
+      // The age is said once, under the filter.
+      await expect(page.getByText("Updated from GitHub 5 minutes ago"))
+        .toBeVisible();
       await shot(page, "issues-degraded");
     });
 

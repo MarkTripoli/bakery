@@ -21,6 +21,7 @@ export const Contract: StoryObj = {
       </Inline>
       <Inline>
         <Badge tone="danger">Blocked</Badge>
+        <Badge tone="information">In progress</Badge>
       </Inline>
     </Stack>
   ),

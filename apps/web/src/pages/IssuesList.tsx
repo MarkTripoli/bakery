@@ -12,21 +12,18 @@ import {
   referencedNumber,
 } from "./issue-state.ts";
 
-/** The most labels a row names before it says how many more there are. */
-const MAX_LABELS = 3;
-
 const BADGE_TONE = {
   canStart: "success",
   waiting: "warning",
   cannotStart: "neutral",
-  inProgress: "success",
+  inProgress: "information",
   waitingToStart: "warning",
   paused: "danger",
   closed: "neutral",
   unknown: "neutral",
 } as const satisfies Record<
   IssueStatus,
-  "neutral" | "success" | "warning" | "danger"
+  "neutral" | "success" | "warning" | "danger" | "information"
 >;
 
 /** The sentence a reason code reads as, with the number or label its check read. */
@@ -46,18 +43,19 @@ export function reasonSentence(
   });
 }
 
-/** The line under an issue's title: why it is not startable, or else where it lives and its labels. */
+/**
+ * The line under an issue's title, the same shape on every row: the repository
+ * first, then what to know about the issue when there is something (why it is
+ * not startable, or that Bakery is working on it).
+ */
 export function issueLine(row: IssueRow, translate: Translator): string {
-  const { reason } = issueStatus(row);
-  if (reason !== null) return reasonSentence(row, reason, translate);
-  const { repository, labels } = issueSnapshot(row);
-  const shown = labels.slice(0, MAX_LABELS);
-  const more = labels.length - shown.length;
-  return [
-    repository,
-    ...shown,
-    ...(more > 0 ? [`+${more}`] : []),
-  ].filter(Boolean).join(" · ");
+  const { status, reason } = issueStatus(row);
+  const note = status === "inProgress"
+    ? translate("issues.line.inProgress" as never)
+    : reason !== null
+    ? reasonSentence(row, reason, translate)
+    : null;
+  return [issueSnapshot(row).repository, note].filter(Boolean).join(" · ");
 }
 
 function IssueBadge(
@@ -78,8 +76,9 @@ function issueTitle(row: IssueRow): string {
 }
 
 /**
- * The row's one control: the issue on GitHub, in a new tab. The issue's own page
- * and "Start work" come with the next part of this feature.
+ * The row's control: a quiet link to the issue on GitHub, in a new tab (marked
+ * as external, and named so). The issue's own page and "Start work" come with
+ * the next part of this feature.
  */
 function RowAction(
   { row, translate }: { row: IssueRow; translate: Translator },
@@ -87,7 +86,7 @@ function RowAction(
   return (
     <UI.Link
       href={row.safeUrl}
-      variant="button"
+      variant="quiet"
       target="_blank"
       rel="noreferrer"
       aria-label={translate("issues.row.openNamed" as never, {
@@ -95,6 +94,7 @@ function RowAction(
       })}
     >
       {translate("issues.row.open" as never)}
+      <span aria-hidden="true">↗</span>
     </UI.Link>
   );
 }

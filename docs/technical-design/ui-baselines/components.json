@@ -1,5 +1,5 @@
 {
-  "revision": "ed72694ae8acb59b4d839331127954a9b7b916a01b8f197dde34ecec6f6a7609",
+  "revision": "362632fcf90b854113e13cae7a6afd0879fdaf9fc8265109199a2acf507e8d1a",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -5352,7 +5352,7 @@
     {
       "id": "ui.badge",
       "name": "Badge",
-      "description": "Tags a row with a short caption on a plate, e.g. \"Current\" on the active session; the tone can be success, warning or danger.",
+      "description": "Tags a row with a short caption on a plate, e.g. \"Current\" on the active session; the tone can be success, warning, danger or information.",
       "level": "atom",
       "owner": "Mark Tripoli",
       "storyTitle": "Bakery/Atoms/Badge",
@@ -5394,6 +5394,8 @@
         "--color-destructive",
         "--color-destructive-surface",
         "--color-fg",
+        "--color-selection",
+        "--color-selection-surface",
         "--color-status-success",
         "--color-status-success-surface",
         "--color-status-warning",
@@ -5406,7 +5408,8 @@
         "neutral",
         "success",
         "warning",
-        "danger"
+        "danger",
+        "information"
       ],
       "states": [
         "default"

@@ -198,7 +198,7 @@ function usePrimaryDestinations(
       label: translate("shell.navigation.issues"),
       href: "/issues",
       matchPath: "/issues",
-      icon: <UI.IconGlyph name="list-search" />,
+      icon: <UI.IconGlyph name="issue" />,
     },
     unshipped(
       "applications",

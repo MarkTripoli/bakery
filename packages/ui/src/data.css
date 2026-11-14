@@ -228,6 +228,10 @@
   background: var(--color-destructive-surface);
   color: var(--color-destructive);
 }
+.ui-badge--information {
+  background: var(--color-selection-surface);
+  color: var(--color-selection);
+}
 .ui-status-label::before {
   content: "●";
 }

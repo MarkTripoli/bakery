@@ -15,6 +15,7 @@ import {
 import { asyncKindForError, isForbiddenFailure } from "../app/async-state.ts";
 import { usePagedFocus } from "../app/focus.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
+import { useNavigate } from "@tanstack/react-router";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
@@ -56,6 +57,7 @@ export function IssuesPage() {
   const api = useBakeryApi();
   const scope = useProtectedScope();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { translate } = useI18n();
   useRestoreOrganizationScope();
   const phone = useShellViewport() === "phone";
@@ -182,13 +184,7 @@ export function IssuesPage() {
             <UI.AlertBanner
               tone={trouble === "authRequired" ? "error" : "warning"}
             >
-              {translate(`issues.trouble.${trouble}` as never, {
-                age: age === null || age === "now"
-                  ? translate("issues.age.unknown" as never)
-                  : translate(`issues.age.${age.unit}` as never, {
-                    count: age.count,
-                  }),
-              })}
+              {translate(`issues.trouble.${trouble}` as never)}
             </UI.AlertBanner>
           )
           : null}
@@ -209,6 +205,19 @@ export function IssuesPage() {
                   ? "issues.noSources.description"
                   : "issues.noSources.adminOnly") as never,
               )}
+              action={isAdmin
+                ? (
+                  <UI.Button
+                    variant="secondary"
+                    onClick={() =>
+                      void navigate({
+                        to: "/settings/organization/integrations",
+                      })}
+                  >
+                    {translate("issues.noSources.openIntegrations" as never)}
+                  </UI.Button>
+                )
+                : undefined}
               variant="firstUse"
             />
           )

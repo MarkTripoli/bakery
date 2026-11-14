@@ -9,9 +9,10 @@ export type BadgeProps =
     /**
      * `success` tints the plate with the success surface, e.g. "Current";
      * `warning` and `danger` do the same with the warning and destructive
-     * pairs, for what needs care or blocks something. The text still says so.
+     * pairs, for what needs care or blocks something; `information` tints it
+     * with the selection surface, for what is under way. The text still says so.
      */
-    tone?: "neutral" | "success" | "warning" | "danger";
+    tone?: "neutral" | "success" | "warning" | "danger" | "information";
   };
 
 /**
