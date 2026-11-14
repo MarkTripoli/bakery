@@ -62,6 +62,11 @@ const MAX_PAYLOAD_BYTES = 64 * 1024;
 const MAX_ARTIFACT_BYTES = 512 * 1024 * 1024;
 const CLOCK_SKEW_MS = 5 * 60 * 1000;
 const EXACT_RELEASE = /^\d{1,6}\.\d{1,6}\.\d{1,6}(?:-[0-9A-Za-z.-]{1,32})?$/;
+/** Whether this is an exact release version, which is all a setup command may name. */
+export function isExactRelease(value: string): boolean {
+  return EXACT_RELEASE.test(value);
+}
+
 const FILE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const KEY_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const SHA256 = /^[0-9a-f]{64}$/;

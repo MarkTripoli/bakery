@@ -1,6 +1,8 @@
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { BootstrapError } from "./errors.ts";
+import { installFromOrigin, type ReleaseConfig } from "./bootstrap.ts";
+import { isExactRelease } from "./manifest.ts";
 import {
   type EnrollmentPreview,
   type HiddenInputStream,
@@ -23,6 +25,10 @@ export type Command = Readonly<{
   root: string;
   /** A protected file that holds the code; absent means the hidden prompt. */
   tokenFile: string | null;
+  /** `setup` only: the exact release to install from the release origin, if it is not installed yet. */
+  release?: string | null;
+  /** `setup` only: consent to replace a different installed release. */
+  upgrade?: boolean;
 }>;
 
 const TOKEN_ENVIRONMENT = [
@@ -50,11 +56,22 @@ export function parseCommand(
   if (name !== "setup" && name !== "pair") {
     throw new BootstrapError("COMMAND_UNKNOWN");
   }
-  const known = new Set(["--server", "--root", "--token-file", "--token-fd"]);
+  const known = new Set([
+    "--server",
+    "--root",
+    "--token-file",
+    "--token-fd",
+    ...(name === "setup" ? ["--release"] : []),
+  ]);
+  let upgrade = false;
   for (let at = 0; at < rest.length; at += 1) {
     const word = rest[at]!;
     if (word === "--token" || word.startsWith("--token=")) {
       throw new BootstrapError("COMMAND_TOKEN_SHORTCUT");
+    }
+    if (word === "--upgrade") {
+      upgrade = true;
+      continue;
     }
     if (word.startsWith("--")) {
       if (!known.has(word)) throw new BootstrapError("COMMAND_UNKNOWN");
@@ -80,11 +97,17 @@ export function parseCommand(
     }
     tokenFile = `/proc/self/fd/${fd}`;
   }
+  const release = name === "setup" ? option(rest, "--release") : null;
+  if (release !== null && !isExactRelease(release)) {
+    throw new BootstrapError("RELEASE_NOT_EXACT");
+  }
+  if (upgrade && release === null) throw new BootstrapError("COMMAND_UNKNOWN");
   return {
     name,
     server,
     root: option(rest, "--root") ?? defaults.root,
     tokenFile,
+    ...(name === "setup" ? { release, upgrade } : {}),
   };
 }
 
@@ -95,6 +118,12 @@ export type CommandIo = Readonly<{
   write: (text: string) => void;
   fetch: typeof fetch;
   now: () => Date;
+  /**
+   * What `setup --release` installs from: the origin and trust root this build
+   * was made with, and the machine's own platform. A build without a release
+   * origin leaves it out, and `setup --release` then says so.
+   */
+  release?: Readonly<{ config: ReleaseConfig; platform: string; arch: string }>;
 }>;
 
 function describe(preview: EnrollmentPreview): string {
@@ -107,9 +136,10 @@ function describe(preview: EnrollmentPreview): string {
 }
 
 /**
- * Runs a command. `setup` needs the worker installed first (installing from the
- * fixed release origin is a later step) and then pairs; `pair` pairs an
- * installation that exists. Returns a process exit code. It prints fixed
+ * Runs a command. `setup --release V` installs that exact signed release from
+ * the fixed release origin if it is not installed, then pairs; `setup` without
+ * a release needs the worker installed already; `pair` pairs an installation
+ * that exists. Returns a process exit code. It prints fixed
  * messages, and at the confirmation the server's preview of the organization,
  * the machine and what it may run: that text is shown only after the pairing
  * module has refused any control, line-break or direction-changing character in
@@ -120,7 +150,27 @@ export async function runCommand(
   io: CommandIo,
 ): Promise<number> {
   try {
-    if (command.name === "setup") {
+    if (command.name === "setup" && (command.release ?? null) !== null) {
+      if (io.release === undefined) {
+        throw new BootstrapError("SETUP_RELEASE_NOT_CONFIGURED");
+      }
+      const installedRelease = await installFromOrigin({
+        root: command.root,
+        release: command.release!,
+        config: io.release.config,
+        fetch: io.fetch,
+        now: io.now(),
+        platform: io.release.platform,
+        arch: io.release.arch,
+        upgrade: command.upgrade === true,
+      });
+      // Both come from the verified manifest: an exact version and a known target.
+      io.write(
+        installedRelease.status === "installed"
+          ? `Installed release ${installedRelease.release} for ${installedRelease.target}.\n`
+          : `Release ${installedRelease.release} for ${installedRelease.target} is already installed.\n`,
+      );
+    } else if (command.name === "setup") {
       let installed = false;
       try {
         installed = (await lstat(join(command.root, "current")))

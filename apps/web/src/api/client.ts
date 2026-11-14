@@ -131,6 +131,13 @@ export type OrganizationRecord = ClientOutputMap["Organization"];
 export type EffectiveAccess = ClientOutputMap["EffectiveAccess"];
 export type OrganizationUpdate = ClientInputMap["OrganizationUpdate"];
 export type WorkerListResponse = ClientOutputMap["Page<WorkerHost>"];
+export type ExternalTicketResponse = ClientOutputMap["ExternalTicket"];
+export type ExternalTicketListResponse =
+  ClientOutputMap["Page<ExternalTicket>"];
+export type TicketSourceResponse = ClientOutputMap["TicketSource"];
+export type TicketSourceListResponse = ClientOutputMap["Page<TicketSource>"];
+export type TicketOperationReceiptResponse =
+  ClientOutputMap["TicketOperationReceipt"];
 export type WorkerResponse = ClientOutputMap["WorkerHost"];
 export type DispatchBlockersResponse = ClientOutputMap["DispatchBlockers"];
 export type WorkerEnrollmentListResponse =
@@ -619,6 +626,32 @@ export type BakeryApiClient = {
       readonly principalId: string;
       readonly idempotencyKey?: string;
     }) => Promise<ApiResult<void>>;
+  };
+  /** GitHub issues Bakery has read, and the repositories it takes them from. */
+  readonly tickets: {
+    /** `GET /v1/external-tickets`: the saved copy of the issues, newest first. */
+    readonly list: (options: {
+      readonly organizationId: string;
+      readonly sourceId?: string;
+      readonly state?: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<ExternalTicketListResponse>>;
+    /** `GET /v1/ticket-sources`: the repositories Bakery takes issues from. */
+    readonly sources: (options: {
+      readonly organizationId: string;
+      readonly cursor?: string;
+      readonly limit?: number;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketSourceListResponse>>;
+    /** `POST /v1/ticket-sources/{id}/syncs`: asks Bakery to read GitHub again. Admin only. */
+    readonly sync: (options: {
+      readonly organizationId: string;
+      readonly sourceId: string;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketOperationReceiptResponse>>;
   };
   readonly workers: {
     readonly list: (options: {
@@ -1716,6 +1749,40 @@ export function createBakeryApiClient({
   };
 
   return {
+    tickets: {
+      list(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["externalTickets.list"]({
+              sourceId: options.sourceId,
+              state: options.state,
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      sources(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketSources.list"]({
+              cursor: options.cursor,
+              limit: options.limit,
+            }, { signal: options.signal }),
+        );
+      },
+      sync(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketSources.sync"]({ id: options.sourceId }, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+    },
     workers: {
       list(options) {
         return workerResult(

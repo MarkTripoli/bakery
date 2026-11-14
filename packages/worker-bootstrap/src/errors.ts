@@ -81,14 +81,22 @@ export const BOOTSTRAP_ERRORS = {
     "The release origin sent the file compressed or re-encoded, which is refused. The existing installation was not changed.",
   SERVICE_SPEC_INVALID:
     "A path or name for the service has characters the service definition does not allow. Nothing was written.",
+  SERVICE_ACCOUNT_REFUSED:
+    "The Linux service must run as a dedicated account whose name starts with bakery (the default is bakery-worker), never root, a system account or an existing person's. Nothing was written.",
   SERVICE_SETTING_REFUSED:
     "A setting for the service is not allowed in a service definition: the setup code is never written there.",
   COMMAND_UNKNOWN:
-    "Unknown command or option. Use: setup --server URL, or pair --server URL, optionally with --root DIR and --token-file FILE or --token-fd N.",
+    "Unknown command or option. Use: setup --server URL --release VERSION, pair --server URL (each optionally with --root DIR and --token-file FILE or --token-fd N), status, doctor, drain, or plan (each optionally with --root DIR).",
   COMMAND_TOKEN_SHORTCUT:
     "The setup code is never taken from a flag or the environment. Enter it when asked, or use --token-file or --token-fd with a protected file or descriptor.",
+  SERVICE_SYSTEM_MISMATCH:
+    "This installation was set up for a different operating system than the one named. Nothing was written.",
+  SETUP_NOT_PAIRED:
+    "This installation is not paired with an organization yet. Run setup or pair first.",
+  SETUP_RELEASE_NOT_CONFIGURED:
+    "This build has no release origin to install from. Install the verified release first, then run setup again.",
   SETUP_NOT_INSTALLED:
-    "The Bakery worker is not installed in this root yet. Install the verified release first, then run setup again.",
+    "The Bakery worker is not installed in this root yet. Run setup with --release VERSION to install the verified release, then pair.",
   PAIRING_IO_FAILED:
     "Pairing could not be recorded. The existing pairing was not changed.",
 } as const;
