@@ -1038,3 +1038,20 @@ After step 7 the next provider (Linear first, per the product order GitHub, Line
 1. **Provider-owned migrations:** keep one global migration sequence (today) with files placed under the provider folder, or give providers their own sequence? Recommendation: one global sequence, so ordering and the migration-number rule stay as they are.
 2. **API-token providers:** encrypt per connection in the existing `secrets` table (as GitHub App credentials are)? Recommendation: yes, with the same key handling and no new storage.
 3. **Families beyond tickets, code and chat** (for example deploy, observability): out of scope until a provider needs one.
+
+### 12.8 Enforcement
+
+> Status: **pending the outside architecture review.** Its findings will be folded in here. Until then, these are the checks §12.1 to §12.6 already imply. No refactor lands before this section is final.
+
+- **Import boundaries:** rails fail `test:rails` when:
+  - `apps/web` imports an integration's `/server` entry
+  - a package's `web/` or `manifest.ts` imports its `server/`
+  - a host file other than the two registries imports an integration package
+  - generic product code (`work/*` and others) imports anything but SDK family ports and the `core` registry
+- **No provider names in core:** a rail rejects provider slugs, provider constants (for example `GITHUB_PROVIDER_ID`) and provider SDK imports anywhere under `core/`.
+- **Registry checks:**
+  - every package under `integrations/` is registered on both server and web, or explicitly excluded
+  - each `ProviderDefinition` validates at startup, failing closed as `activateDeployedIntegrations` does: the manifest digest, the declared families and the strategy kind all match
+- **Conformance tests:** one shared suite every provider runs against its definition: install/connect/reconnect/health/uninstall through `core`'s flow, verifier and normalizer behaviour on signed and forged deliveries, and each declared family port's contract.
+
+_Outside review findings: to be added._
