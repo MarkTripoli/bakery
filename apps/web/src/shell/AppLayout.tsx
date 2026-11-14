@@ -454,7 +454,9 @@ function usePageTitle(pathname: string): string | undefined {
   if (isMachinesPath(pathname)) {
     return translate("shell.navigation.machines");
   }
-  if (pathname === "/issues") return translate("shell.navigation.issues");
+  if (pathname === "/issues" || pathname.startsWith("/issues/")) {
+    return translate("shell.navigation.issues");
+  }
   if (pathname === INSTALLATION_INTEGRATIONS_PATH) {
     return translate("shell.navigation.installation");
   }
