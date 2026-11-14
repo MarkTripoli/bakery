@@ -236,7 +236,7 @@ export function planLinuxService(spec: ServiceSpec): readonly SystemChange[] {
     {
       actor: "service-account",
       description:
-        `Run the same setup command that started this, as ${spec.account} (never as root): it installs the signed worker release, checks its digest, and pairs it with your organization.`,
+        `Pair the worker installed in the root with your organization, as ${spec.account} (never as root). The setup command stops with a message if no worker is installed there yet.`,
       command: [
         "bakery-worker",
         "setup",

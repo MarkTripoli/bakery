@@ -355,7 +355,7 @@ Deno.test("the changes are shown as numbered text, with the actor and the exact 
       "     $ useradd --system --user-group --home-dir /var/lib/bakery-worker --shell /usr/sbin/nologin bakery-worker",
       "2. [administrator] Create the install root, owned by bakery-worker and private to it.",
       "     $ install --directory --owner bakery-worker --group bakery-worker --mode 0700 /var/lib/bakery-worker",
-      "3. [service-account] Run the same setup command that started this, as bakery-worker (never as root): it installs the signed worker release, checks its digest, and pairs it with your organization.",
+      "3. [service-account] Pair the worker installed in the root with your organization, as bakery-worker (never as root). The setup command stops with a message if no worker is installed there yet.",
       "     $ bakery-worker setup --server <your Bakery address> --root /var/lib/bakery-worker",
       "4. [service-account] Write the worker's non-secret settings, readable by its owner only.",
       "     file /var/lib/bakery-worker/worker.env (mode 0600, owner bakery-worker)",
