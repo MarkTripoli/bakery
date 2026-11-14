@@ -280,7 +280,13 @@ Deno.test("the root tool refuses to prepare or sweep anything that is not a lane
     const swept = await tool("sweep", base, root);
     assertEquals(
       JSON.parse(new TextDecoder().decode(swept.stdout)),
-      { leaked: 0, prefixes: {}, homeEntries: 1, homeNames: ["dropped"] },
+      {
+        leaked: 0,
+        prefixes: {},
+        homeEntries: 1,
+        homeNames: ["dropped"],
+        homeNamesTruncated: false,
+      },
     );
     // Only that one file in that one directory: the same file in another is reported.
     const third = new TextDecoder().decode(
@@ -293,7 +299,13 @@ Deno.test("the root tool refuses to prepare or sweep anything that is not a lane
       JSON.parse(
         new TextDecoder().decode((await tool("sweep", base, third)).stdout),
       ),
-      { leaked: 0, prefixes: {}, homeEntries: 1, homeNames: ["other"] },
+      {
+        leaked: 0,
+        prefixes: {},
+        homeEntries: 1,
+        homeNames: ["other/settings.toml"],
+        homeNamesTruncated: false,
+      },
     );
     // What is reported is capped: twenty names, each at most eighty characters.
     const fourth = new TextDecoder().decode(
@@ -313,6 +325,28 @@ Deno.test("the root tool refuses to prepare or sweep anything that is not a lane
     assertEquals(capped.homeEntries, 25);
     assertEquals(capped.homeNames.length, 20);
     assert(capped.homeNames.every((name: string) => name.length <= 80));
+    assertEquals(capped.homeNamesTruncated, true);
+    // A directory is named one level in, so its writer can be found.
+    const fifth = new TextDecoder().decode(
+      (await tool("create", base)).stdout,
+    ).trim();
+    assertEquals((await tool("skeleton", base, fifth)).code, 0);
+    await mkdir(join(fifth, "env", "home", ".cache", "deno"), {
+      recursive: true,
+    });
+    await mkdir(join(fifth, "env", "home", ".cache", "node"));
+    assertEquals(
+      JSON.parse(
+        new TextDecoder().decode((await tool("sweep", base, fifth)).stdout),
+      ),
+      {
+        leaked: 0,
+        prefixes: {},
+        homeEntries: 1,
+        homeNames: [".cache/deno", ".cache/node"],
+        homeNamesTruncated: false,
+      },
+    );
     // A .rustup that holds more than that settings file is reported.
     const second = new TextDecoder().decode(
       (await tool("create", base)).stdout,
@@ -329,7 +363,13 @@ Deno.test("the root tool refuses to prepare or sweep anything that is not a lane
       JSON.parse(
         new TextDecoder().decode((await tool("sweep", base, second)).stdout),
       ),
-      { leaked: 0, prefixes: {}, homeEntries: 1, homeNames: [".rustup"] },
+      {
+        leaked: 0,
+        prefixes: {},
+        homeEntries: 1,
+        homeNames: [".rustup/settings.toml", ".rustup/toolchains"],
+        homeNamesTruncated: false,
+      },
     );
     assertEquals(await laneRoots(base), []);
   } finally {
@@ -422,4 +462,46 @@ Deno.test("every file that brings a compose stack up registers its project name 
     "tests/helpers/durable-core/preset-stack.ts",
   );
   assert(unit.includes("...carriedLaneVariables(Deno.env.toObject())"));
+});
+
+Deno.test("the worker's start script gives its Deno the lane's module cache when one is set, and sets none when it is not", async () => {
+  const workerPackage = JSON.parse(
+    await Deno.readTextFile("apps/worker/package.json"),
+  );
+  const start: string = workerPackage.scripts.start;
+  const launch = "bash scripts/run-worker.sh";
+  assert(start.endsWith(launch));
+  // The same command, ending in printenv instead of the launcher, run in a shell like pnpm's, with no tool manager on the path.
+  const probe = `${start.slice(0, -launch.length)}printenv`;
+  const run = async (environment: Record<string, string>) => {
+    const output = await new Deno.Command("sh", {
+      args: ["-c", probe],
+      clearEnv: true,
+      env: { PATH: "/usr/bin:/bin", ...environment },
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    assert(output.success, new TextDecoder().decode(output.stderr));
+    return new TextDecoder().decode(output.stdout).split("\n");
+  };
+  // Set: forwarded as it is, spaces and all.
+  const cache = "/some dir/with spaces/deno cache";
+  assert(
+    (await run({ DENO_DIR: cache, HOME: "/h" })).includes(`DENO_DIR=${cache}`),
+  );
+  // Not set, or set to nothing: not in the worker's environment at all (an empty DENO_DIR must not become a path).
+  assert(
+    !(await run({ HOME: "/h" })).some((line) => line.startsWith("DENO_DIR")),
+  );
+  assert(
+    !(await run({ DENO_DIR: "", HOME: "/h" })).some((line) =>
+      line.startsWith("DENO_DIR")
+    ),
+  );
+  // Nothing else of the environment follows it in.
+  assert(
+    !(await run({ DENO_DIR: cache, SECRET_TOKEN: "x" })).some((line) =>
+      line.startsWith("SECRET_TOKEN")
+    ),
+  );
 });

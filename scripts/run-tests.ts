@@ -334,9 +334,12 @@ if (isolatedRoot !== undefined) {
   await removeLaneStacks(laneEnvPaths(isolatedRoot).stacks);
   const swept = await rootTool("sweep", temporaryDirectory, isolatedRoot);
   try {
-    const { homeEntries, homeNames } = JSON.parse(swept.text) as {
+    const { homeEntries, homeNames, homeNamesTruncated } = JSON.parse(
+      swept.text,
+    ) as {
       homeEntries?: number;
       homeNames?: string[];
+      homeNamesTruncated?: boolean;
     };
     // What a lane writes into its isolated HOME is what depended on a real one.
     if (homeEntries !== undefined && homeEntries > 0) {
@@ -344,9 +347,7 @@ if (isolatedRoot !== undefined) {
       console.error(
         `lane HOME: ${homeEntries} entries were written to the isolated home${
           names.length > 0
-            ? `: ${names}${
-              homeEntries > (homeNames ?? []).length ? ", ..." : ""
-            }`
+            ? `: ${names}${homeNamesTruncated ? ", ..." : ""}`
             : ""
         }`,
       );

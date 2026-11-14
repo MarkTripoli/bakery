@@ -13,6 +13,7 @@ import {
   MINIMAL_GIT_CONFIG,
   pinnedCaches,
 } from "../../scripts/ci/lane-environment.ts";
+import { homeNamesOf } from "../../scripts/ci/test-temp-root.ts";
 
 // #246, defense in depth for the owner-account rule (#207): the security,
 // integration and e2e lanes run with an empty HOME, no CODEX_HOME and no
@@ -510,4 +511,60 @@ Deno.test("the isolated lane names its stack registry inside its own env directo
     }),
     null,
   );
+});
+
+Deno.test("what a lane wrote into its home is named one level deep, so the writer can be found, capped at twenty names of eighty characters", async () => {
+  const home = await mkdtemp(join(tmpdir(), "bakery-home-names-"));
+  try {
+    await mkdir(join(home, ".cache", "deno"), { recursive: true });
+    await mkdir(join(home, ".cache", "node"), { recursive: true });
+    await mkdir(join(home, ".config"));
+    await mkdir(join(home, ".local", "share", "x"), { recursive: true });
+    await writeFile(join(home, "file"), "");
+    // A directory shows its children, an empty directory and a file show themselves, and only one level goes in.
+    assertEquals(
+      homeNamesOf(home, [".cache", ".config", ".local", "file"]),
+      {
+        names: [
+          ".cache/deno",
+          ".cache/node",
+          ".config",
+          ".local/share",
+          "file",
+        ],
+        truncated: false,
+      },
+    );
+    // A name that is not there, or is not a directory, is just its name.
+    assertEquals(homeNamesOf(home, ["gone"]), {
+      names: ["gone"],
+      truncated: false,
+    });
+    assertEquals(homeNamesOf(home, []), { names: [], truncated: false });
+    // Capped, with the flag.
+    await mkdir(join(home, "many"));
+    for (let index = 0; index < 30; index += 1) {
+      await writeFile(
+        join(home, "many", `entry-${String(index).padStart(2, "0")}`),
+        "",
+      );
+    }
+    const capped = homeNamesOf(home, ["many"]);
+    assertEquals(capped.names.length, 20);
+    assertEquals(capped.truncated, true);
+    assertEquals(capped.names[0], "many/entry-00");
+    // Exactly twenty is not truncated.
+    await rm(join(home, "many"), { recursive: true });
+    await mkdir(join(home, "twenty"));
+    for (let index = 0; index < 20; index += 1) {
+      await writeFile(join(home, "twenty", `e${index}`), "");
+    }
+    assertEquals(homeNamesOf(home, ["twenty"]).truncated, false);
+    // Long names are cut.
+    await mkdir(join(home, "long"));
+    await writeFile(join(home, "long", "x".repeat(120)), "");
+    assert(homeNamesOf(home, ["long"]).names[0]!.length <= 80);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
 });

@@ -10,7 +10,8 @@
  *   sweep <base> <root>    prints {"leaked":n,"prefixes":{...}} and removes <root>;
  *                          `<root>/env` is the lane's own home, not a leak, and
  *                          its entry count is reported as `homeEntries` and its
- *                          first names as `homeNames`
+ *                          names (one level into a directory, capped) as
+ *                          `homeNames`, with `homeNamesTruncated`
  *
  * Run with `--allow-read --allow-write=<base>`; it touches nothing else.
  */
@@ -30,6 +31,34 @@ export function isMiseHomeEntry(home: string, name: string): boolean {
   if (name !== ".rustup") return false;
   const inside = entriesOf(join(home, name));
   return inside.length === 1 && inside[0] === "settings.toml";
+}
+
+/** At most this many names are reported for what a lane wrote into its home. */
+const HOME_NAME_LIMIT = 20;
+const HOME_NAME_LENGTH = 80;
+
+/**
+ * The names to report for what a lane wrote into its home (#246): each top-level
+ * entry, and for a directory its immediate children (`.cache/deno`, not just
+ * `.cache`), so the writer can be found; at most twenty names, each at most
+ * eighty characters, with `truncated` saying there were more.
+ */
+export function homeNamesOf(
+  home: string,
+  entries: readonly string[],
+): { names: string[]; truncated: boolean } {
+  const all: string[] = [];
+  for (const entry of entries) {
+    const children = entriesOf(join(home, entry));
+    if (children.length === 0) all.push(entry);
+    else for (const child of children) all.push(`${entry}/${child}`);
+  }
+  return {
+    names: all.slice(0, HOME_NAME_LIMIT).map((name) =>
+      name.slice(0, HOME_NAME_LENGTH)
+    ),
+    truncated: all.length > HOME_NAME_LIMIT,
+  };
 }
 
 /** Groups entry names by their name minus the random suffix. */
@@ -74,12 +103,15 @@ if (import.meta.main) {
     } else {
       const paths = laneEnvPaths(root);
       const isolated = entriesOf(root).includes("env");
-      const homeNames = isolated
+      const homeTop = isolated
         ? entriesOf(paths.home).filter((name) =>
           !isMiseHomeEntry(paths.home, name)
         ).sort()
         : undefined;
-      const homeEntries = homeNames?.length;
+      const homeEntries = homeTop?.length;
+      const homeNames = homeTop === undefined
+        ? undefined
+        : homeNamesOf(paths.home, homeTop);
       const left = entriesOf(root).filter((name) =>
         !(isolated && name === "env")
       );
@@ -90,8 +122,9 @@ if (import.meta.main) {
           prefixes: prefixesOf(left),
           ...(homeEntries === undefined ? {} : {
             homeEntries,
-            // The names, so what depended on a real home can be found (capped).
-            homeNames: homeNames!.slice(0, 20).map((name) => name.slice(0, 80)),
+            // The names, one level into a directory, so the writer can be found (capped).
+            homeNames: homeNames!.names,
+            homeNamesTruncated: homeNames!.truncated,
           }),
         }),
       );
