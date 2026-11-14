@@ -105,12 +105,15 @@ for (
       );
       await expect(steps).not.toContainText("harness.implement");
       // Each step's mark holds its number; the title is in the normal colour.
-      const marks = await steps.locator(".ui-step-item__mark").allInnerTexts();
-      expect(marks.map((text) => text.replace(/[^0-9]/g, ""))).toEqual([
-        "1",
-        "2",
-        "3",
-      ]);
+      const marks = await steps.locator(
+        '.ui-step-item__mark [aria-hidden="true"]',
+      )
+        .allInnerTexts();
+      expect(marks.map((text) => text.trim())).toEqual(["1", "2", "3"]);
+      // Screen readers get "Step n" for the same mark.
+      await expect(steps.locator(".ui-step-item__mark").first()).toContainText(
+        "Step 1",
+      );
       const titleColor = await steps.locator(".ui-step-item__title").first()
         .evaluate((element) => getComputedStyle(element).color);
       const bodyColor = await page.locator("body").evaluate((element) =>
