@@ -430,6 +430,9 @@ for (
         "Choose Show archived, then Restore, to bring it back.",
       );
       expect(seen.updates).toEqual([]);
+      // The menu has closed behind the dialog.
+      await expect(page.getByRole("button", { name: "Rename", exact: true }))
+        .toHaveCount(0);
       await page.mouse.move(700, 700);
       await shot(page, "projects-archive-dialog", [], { windowOnly: true });
       await dialog.getByRole("button", { name: "Archive", exact: true })
@@ -451,6 +454,20 @@ for (
       await page.getByRole("button", { name: "Restore", exact: true }).click();
       await expect.poll(() => seen.updates.length).toBe(2);
       expect(seen.updates[1]?.body.archivedAt).toBeNull();
+    });
+
+    test("Cancel on a menu's dialog returns focus to that application's More button", async ({ page }) => {
+      await open(page);
+      const more = section(page, "Web storefront").getByRole("button", {
+        name: "More actions for Web storefront",
+      });
+      await more.click();
+      await page.getByRole("button", { name: "Archive", exact: true }).click();
+      const dialog = page.getByRole("alertdialog");
+      await expect(dialog).toBeVisible();
+      await dialog.getByRole("button", { name: "Cancel" }).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(more).toBeFocused();
     });
 
     test("the main navigation names Projects, and a phone's top bar says so", async ({ page }) => {

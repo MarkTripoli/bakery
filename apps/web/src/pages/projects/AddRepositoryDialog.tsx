@@ -335,7 +335,9 @@ export function AddRepositoryDialog(
                 />
               </UI.Field>
               <UI.Field
-                label={translate("projects.list.shortName" as never)}
+                label={translate(
+                  "projects.list.add.repositoryShortName" as never,
+                )}
                 htmlFor={`${id}-slug`}
                 required
                 hint={translate("projects.list.shortNameHelp" as never)}

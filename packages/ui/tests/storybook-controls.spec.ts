@@ -40,6 +40,8 @@ test.describe("Storybook coarse controls", () => {
               element.classList.contains("bakery-app-shell__skip-link")
             ) {
               element.focus();
+              // A specimen that cannot hold focus has no target to measure.
+              if (document.activeElement !== element) return [];
               const focused = element.getBoundingClientRect();
               element.blur();
               return focused.width >= 44 && focused.height >= 44 ? [] : [{

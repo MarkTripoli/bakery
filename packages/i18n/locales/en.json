@@ -2481,6 +2481,7 @@
   "projects.list.add.branchHelp": "Bakery works from this branch by default. Check that it matches the repository's default branch on GitHub.",
   "projects.list.add.branchEmpty": "Enter a branch name.",
   "projects.list.add.branchInvalid": "Use a branch name Git accepts: no spaces, no .. or ~ ^ : ? * [ \\, not starting with - or /, not ending with / or a dot.",
+  "projects.list.add.repositoryShortName": "Repository short name",
   "projects.list.add.back": "Back",
   "projects.list.add.submit": "Add repository",
   "projects.list.add.already": "This repository is already added.",

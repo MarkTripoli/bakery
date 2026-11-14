@@ -69,6 +69,8 @@ export function ProjectsPage() {
   const repositories = useQuery(projectRepositoriesQueryOptions(api, scope));
   const [dialog, setDialog] = useState<Dialog>(null);
   const [showArchived, setShowArchived] = useState(false);
+  // The application whose More menu is open, so choosing an item closes it.
+  const [menuFor, setMenuFor] = useState<string | null>(null);
   const [failure, setFailure] = useState<ProjectFailure | null>(null);
   const opener = useRef<HTMLElement | null>(null);
   const mutations = useProjectMutations();
@@ -413,6 +415,9 @@ export function ProjectsPage() {
                               { application: application.name },
                             )}
                             variant="interactive"
+                            open={menuFor === application.id}
+                            onOpenChange={(next) =>
+                              setMenuFor(next ? application.id : null)}
                             triggerAppearance="toolbar"
                             trigger={
                               <>
@@ -454,11 +459,22 @@ export function ProjectsPage() {
                                 },
                               ]}
                               onSelect={(id) => {
+                                // The menu closes, and focus comes back to
+                                // its More button when the dialog closes.
+                                const trigger = document.querySelector<
+                                  HTMLElement
+                                >(
+                                  `[data-application-id="${application.id}"] .ui-popover__trigger`,
+                                );
+                                setMenuFor(null);
                                 if (id === "rename") {
                                   open({ kind: "application", application });
                                 } else if (id === "archive") {
                                   open({ kind: "archive", application });
                                 } else void archive(application, true);
+                                if (trigger !== null && id !== "restore") {
+                                  opener.current = trigger;
+                                }
                               }}
                             />
                           </UI.Popover>
