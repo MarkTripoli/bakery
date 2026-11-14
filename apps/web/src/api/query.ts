@@ -34,6 +34,8 @@ import type {
   InstallationSettings,
   InstallationStatus,
   IntegrationAppRegistration,
+  IntegrationConnection,
+  IntegrationResource,
   MessageListResponse,
   OrganizationAccessPage,
   OrganizationInvitationPreview,
@@ -2097,6 +2099,140 @@ export function applicationRepositoryRolesQueryOptions(
           signal,
         }),
       ),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Pages of applications for the Projects list, 25 at a time. */
+export function projectApplicationsPagesQueryOptions(
+  client: Pick<BakeryApiClient, "listApplications">,
+  scope: ApiScope,
+  limit = 25,
+) {
+  return infiniteQueryOptions<
+    ApplicationListResponse,
+    ApiFailure,
+    { pages: ApplicationListResponse[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "projects.applications", { limit }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.listApplications({
+          organizationId: requireOrganization(scope),
+          cursor: pageParam ?? undefined,
+          limit,
+          signal,
+        }),
+      ),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Most pages of 100 the Projects list reads of repositories, connections and their repositories. */
+const PROJECTS_COLLECTION_PAGES = 10;
+
+/**
+ * Every repository, archived ones too, read 100 at a time up to a bound
+ * (1000): the list groups them under their application and the Add repository
+ * picker needs to know which ones exist. `truncated` says the bound was hit.
+ */
+export function projectRepositoriesQueryOptions(
+  client: Pick<BakeryApiClient, "listRepositories">,
+  scope: ApiScope,
+) {
+  return queryOptions<
+    { items: RepositoryResponse[]; truncated: boolean },
+    ApiFailure
+  >({
+    queryKey: protectedQueryKey(scope, "projects.repositories", {}),
+    queryFn: async ({ signal }) => {
+      const items: RepositoryResponse[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < PROJECTS_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listRepositories({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) return { items, truncated: false };
+        cursor = read.nextCursor;
+      }
+      return { items, truncated: true };
+    },
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * The repositories the organization's enabled GitHub connections have
+ * selected and made available, with the connection each belongs to. Read when
+ * the Add repository dialog opens.
+ */
+export function connectionRepositoriesQueryOptions(
+  client: Pick<
+    BakeryApiClient,
+    "integrationConnections" | "integrationResources"
+  >,
+  scope: ApiScope,
+  enabled: boolean,
+) {
+  return queryOptions<
+    { connections: IntegrationConnection[]; resources: IntegrationResource[] },
+    ApiFailure
+  >({
+    queryKey: protectedQueryKey(scope, "projects.connectionRepositories", {}),
+    queryFn: async ({ signal }) => {
+      const organizationId = requireOrganization(scope);
+      const connections: IntegrationConnection[] = [];
+      let cursor: string | undefined;
+      do {
+        const read = unwrap(
+          await client.integrationConnections.list({
+            organizationId,
+            cursor,
+            signal,
+          }),
+        );
+        connections.push(...read.items);
+        cursor = read.nextCursor ?? undefined;
+      } while (cursor);
+      const usable = connections.filter((connection) =>
+        connection.provider === "github" && connection.status === "enabled"
+      );
+      const resources: IntegrationResource[] = [];
+      for (const connection of usable) {
+        let next: string | undefined;
+        for (let page = 0; page < PROJECTS_COLLECTION_PAGES; page += 1) {
+          const read = unwrap(
+            await client.integrationResources.list({
+              organizationId,
+              connectionId: connection.id,
+              query: {
+                kind: "repository",
+                selected: true,
+                available: true,
+                limit: 100,
+                ...(next === undefined ? {} : { cursor: next }),
+              },
+              signal,
+            }),
+          );
+          resources.push(...read.items);
+          if (read.nextCursor === null) break;
+          next = read.nextCursor;
+        }
+      }
+      return { connections: usable, resources };
+    },
+    enabled: enabled && Boolean(scope.organizationId),
     retry: retryNetworkOnce,
   });
 }

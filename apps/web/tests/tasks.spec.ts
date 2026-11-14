@@ -673,7 +673,9 @@ test.describe("tasks organization restore", () => {
     expect(observed.pageErrors).toEqual([]);
   });
 
-  test("a failed lookup is reported and Retry recovers the queue", async ({ page }) => {
+  // The organization lookup is the startup gate's (#343): until it answers,
+  // no page content shows, and a failure is the gate's own state.
+  test("a failed lookup is reported by the startup gate and Try again recovers the queue", async ({ page }) => {
     const observed = await collectRejections(page);
     let failing = true;
     await page.route(
@@ -684,15 +686,15 @@ test.describe("tasks organization restore", () => {
           : route.fallback(),
     );
     await page.goto("/tasks");
-    const inbox = page.locator('[data-ui-component="taskInbox"]');
-    await expect(inbox).toHaveAttribute("data-state", "error");
-    await expect(page.getByText("Tasks could not be loaded. Retry this page."))
-      .toBeVisible();
+    const gate = page.getByTestId("startup-error");
+    await expect(gate).toContainText("Bakery could not load your organization");
+    await expect(page.locator('[data-ui-component="taskInbox"]'))
+      .toHaveCount(0);
     failing = false;
     const taskRequest = page.waitForRequest((request) =>
       new URL(request.url()).pathname === "/v1/tasks"
     );
-    await page.getByRole("button", { name: "Retry", exact: true }).click();
+    await gate.getByRole("button", { name: "Try again", exact: true }).click();
     await taskRequest;
     await expect(page.getByRole("link", { name: "Authoritative task" }))
       .toBeVisible();
@@ -700,30 +702,34 @@ test.describe("tasks organization restore", () => {
     expect(observed.pageErrors).toEqual([]);
   });
 
-  test("an unreachable lookup reads as offline with Retry", async ({ page }) => {
+  test("an unreachable lookup reads as offline with Try again", async ({ page }) => {
     await page.route("**/v1/organizations", (route) => route.abort("failed"));
     await page.goto("/tasks");
-    const inbox = page.locator('[data-ui-component="taskInbox"]');
-    await expect(inbox).toHaveAttribute("data-state", "offline");
-    await expect(page.getByRole("button", { name: "Retry", exact: true }))
+    const gate = page.getByTestId("startup-error");
+    await expect(gate).toContainText("You are offline");
+    await expect(gate.getByRole("button", { name: "Try again", exact: true }))
       .toBeVisible();
   });
 
-  test("a forbidden lookup says so and offers no Retry", async ({ page }) => {
+  test("a forbidden lookup says so, offers another organization and no Try again", async ({ page }) => {
     await page.route(
       "**/v1/organizations",
       (route) => route.fulfill(organizationsProblem(403, "AUTH_FORBIDDEN")),
     );
     await page.goto("/tasks");
-    const inbox = page.locator('[data-ui-component="taskInbox"]');
-    await expect(inbox).toHaveAttribute("data-state", "forbidden");
-    await expect(page.getByText("You do not have access to these tasks."))
-      .toBeVisible();
-    await expect(page.getByRole("button", { name: "Retry", exact: true }))
+    await expect(page.getByRole("heading", {
+      name: "You do not have access to this organization",
+    })).toBeVisible();
+    await expect(page.getByRole("button", {
+      name: "Choose another organization",
+    })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Try again", exact: true }))
+      .toHaveCount(0);
+    await expect(page.locator('[data-ui-component="taskInbox"]'))
       .toHaveCount(0);
   });
 
-  test("a failed lookup on a task shows the task error with Retry", async ({ page }) => {
+  test("a failed lookup on a task is the startup gate's error, and Try again opens the task", async ({ page }) => {
     const observed = await collectRejections(page);
     let failing = true;
     await page.route(
@@ -738,9 +744,10 @@ test.describe("tasks organization restore", () => {
       (route) => route.fulfill({ json: task }),
     );
     await page.goto(`/tasks/${id}`);
-    await expect(page.getByText("The task could not be loaded.")).toBeVisible();
+    const gate = page.getByTestId("startup-error");
+    await expect(gate).toContainText("Bakery could not load your organization");
     failing = false;
-    await page.getByRole("button", { name: "Retry", exact: true }).click();
+    await gate.getByRole("button", { name: "Try again", exact: true }).click();
     await expect(page.getByText("Persisted description").first())
       .toBeVisible();
     expect(await observed.rejections()).toEqual([]);
