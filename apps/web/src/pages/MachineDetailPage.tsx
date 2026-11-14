@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import type { MessageArguments, MessageKey, Translator } from "@bakery/i18n";
 import { useBakeryApi } from "../api/context.tsx";
@@ -160,9 +161,11 @@ export function MachineDetailPage(
     scope,
     machineId,
   );
+  // Only an administrator reads the sign-ins, and only for a machine that is still in use.
   const providers = useQuery({
     ...providersOptions,
-    enabled: isAdmin && providersOptions.enabled,
+    enabled: isAdmin && worker.data !== undefined &&
+      worker.data.status !== "revoked" && providersOptions.enabled,
   });
   useEffect(() => {
     setComponentCursor(null);
@@ -299,6 +302,7 @@ export function MachineDetailPage(
     : isAdmin
     ? "full"
     : "adminOnly";
+  const navigate = useNavigate();
   const signIn = useAgentSignIn({
     api,
     organizationId: organizationId ?? "",
@@ -315,7 +319,17 @@ export function MachineDetailPage(
     const row = agents.find((entry) => entry.agent === signInAgent);
     if (!row) return;
     openedFor.current = `${machineId}:${signInAgent}`;
-    if (row.state === "notSignedIn" || row.state === "signedOut") {
+    // The address has done its job: a reload must not start another sign-in.
+    void navigate({
+      to: "/machines/$machineId",
+      params: { machineId },
+      search: {},
+      replace: true,
+    });
+    if (
+      (row.state === "notSignedIn" || row.state === "signedOut") &&
+      (row.binding !== null || row.componentKey !== null)
+    ) {
       signIn.signIn(row);
     }
   });

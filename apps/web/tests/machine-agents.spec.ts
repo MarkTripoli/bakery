@@ -49,6 +49,11 @@ type World = {
   cancels: string[];
   reads: number;
   listReads: number;
+  /** How many attempt creations answer 500 before they work. */
+  failAttempts: number;
+  /** When set, an attempt creation answers only once this settles. */
+  hold: Promise<void> | null;
+  status: "online" | "revoked";
 };
 
 const inMinutes = (minutes: number) =>
@@ -59,7 +64,7 @@ function script(over: Partial<Script> = {}): Script {
     flow: "remote_device",
     createState: "pending",
     challenge: {
-      verificationUri: "https://login.example/device",
+      verificationUri: "https://claude.ai/device",
       userCode: "ABCD-EFGH",
     },
     instructions: null,
@@ -81,6 +86,9 @@ function world(over: Partial<World> = {}): World {
     cancels: [],
     reads: 0,
     listReads: 0,
+    failAttempts: 0,
+    hold: null,
+    status: "online",
     ...over,
   };
 }
@@ -121,8 +129,8 @@ function workerBody(w: World) {
     capabilities: w.capabilities,
     toolchainVersions: {},
     slots: 2,
-    status: "online",
-    desiredMode: "accepting",
+    status: w.status,
+    desiredMode: w.status === "revoked" ? "revoked" : "accepting",
     connectivity: "online",
     readiness: "ready",
     readinessReason: null,
@@ -213,19 +221,39 @@ async function open(page: Page, w: World, path = `/machines/${MACHINE_ID}`) {
       );
     }
     if (path.endsWith("/auth-attempts") && method === "POST") {
-      const id = `00000000-0000-4000-8000-00000000d${
-        String(w.createdAttempts.length).padStart(3, "0")
-      }`;
-      w.createdAttempts.push(id);
-      w.reads = 0;
-      return route.fulfill(json({
-        authAttemptId: id,
-        flow: w.script.flow,
-        state: w.script.createState,
-        challenge: w.script.challenge,
-        instructions: w.script.instructions,
-        expiresAt: w.script.expiresAt ?? inMinutes(10),
-      }, 201));
+      return (async () => {
+        if (w.failAttempts > 0) {
+          w.failAttempts -= 1;
+          return route.fulfill({
+            status: 500,
+            contentType: "application/problem+json",
+            body: JSON.stringify({
+              type: "https://bakery.example/problems/internal",
+              title: "Internal error",
+              status: 500,
+              code: "INTERNAL_ERROR",
+              retryable: true,
+              detail: "Try again.",
+              requestId: "00000000-0000-4000-8000-00000000f002",
+              traceId: "00000000000000000000000000000002",
+            }),
+          });
+        }
+        if (w.hold) await w.hold;
+        const id = `00000000-0000-4000-8000-00000000d${
+          String(w.createdAttempts.length).padStart(3, "0")
+        }`;
+        w.createdAttempts.push(id);
+        w.reads = 0;
+        return route.fulfill(json({
+          authAttemptId: id,
+          flow: w.script.flow,
+          state: w.script.createState,
+          challenge: w.script.challenge,
+          instructions: w.script.instructions,
+          expiresAt: w.script.expiresAt ?? inMinutes(10),
+        }, 201));
+      })();
     }
     if (path.includes("/auth-attempts/") && method === "PATCH") {
       w.cancels.push(path.split("/").pop()!);
@@ -422,6 +450,15 @@ test.describe("the Coding agents rows", () => {
     expect(w.listReads).toBe(0);
   });
 
+  test("a retired machine's rows have no buttons and nothing is asked of the administrators' list", async ({ page }) => {
+    const w = world({ status: "revoked" });
+    await open(page, w);
+    await expect(row(page, "claude")).toBeVisible();
+    await expect(row(page, "claude").getByRole("button")).toHaveCount(0);
+    await page.waitForTimeout(500);
+    expect(w.listReads).toBe(0);
+  });
+
   test("another way to pay that already exists is described in plain words", async ({ page }) => {
     await open(
       page,
@@ -545,9 +582,9 @@ test.describe("the sign-in dialog", () => {
     }).click();
     await expect(dialog(page).getByText("2. Enter this code:")).toBeVisible();
     const link = dialog(page).getByRole("link", {
-      name: "login.example/device",
+      name: "claude.ai/device",
     });
-    await expect(link).toHaveAttribute("href", "https://login.example/device");
+    await expect(link).toHaveAttribute("href", "https://claude.ai/device");
     await expect(link).toHaveAttribute("target", "_blank");
     await expect(dialog(page).getByLabel("Sign-in code")).toContainText(
       "ABCD-EFGH",
@@ -573,7 +610,7 @@ test.describe("the sign-in dialog", () => {
       world({
         script: script({
           flow: "remote_browser",
-          challenge: { url: "https://login.example/start" },
+          challenge: { url: "https://claude.ai/start" },
         }),
       }),
     );
@@ -586,7 +623,7 @@ test.describe("the sign-in dialog", () => {
     });
     await expect(openPage).toHaveAttribute(
       "href",
-      "https://login.example/start",
+      "https://claude.ai/start",
     );
     await expect(openPage).toHaveAttribute("target", "_blank");
     await expect(dialog(page).getByText("Waiting for you to finish…"))
@@ -594,15 +631,91 @@ test.describe("the sign-in dialog", () => {
     await shot(page, "machine-agents-dialog-link", [], { windowOnly: true });
   });
 
-  test("a challenge that is not a plain https address is never made a link, and a bare code is not shown", async ({ page }) => {
+  for (
+    const address of [
+      "javascript:alert(1)",
+      "http://claude.ai/device",
+      "https://user:pw@claude.ai/device",
+      "https://evil.example/claude-login",
+      "https://claude.ai.evil.example/device",
+      "https://127.0.0.1:8443/device",
+    ]
+  ) {
+    test(`an address that is not https on the agent's own hosts is never a link and ends the sign-in: ${address}`, async ({ page }) => {
+      const w = world({
+        script: script({
+          challenge: { verificationUri: address, userCode: "ABCD-EFGH" },
+        }),
+      });
+      await open(page, w);
+      await row(page, "claude").getByRole("button", {
+        name: "Sign in",
+        exact: true,
+      }).click();
+      await expect(
+        dialog(page).getByText("Sign-in did not work. Try again."),
+      ).toBeVisible();
+      await expect(dialog(page).getByRole("link")).toHaveCount(0);
+      await expect(dialog(page)).not.toContainText("ABCD-EFGH");
+      // The attempt the machine opened is cancelled, not left to expire.
+      await expect.poll(() => w.cancels.length).toBe(1);
+      await expect(dialog(page).getByRole("button", { name: "Try again" }))
+        .toBeVisible();
+    });
+  }
+
+  test("a code that is not plainly one ends the sign-in too: no link, no code, Try again", async ({ page }) => {
+    const w = world({
+      script: script({
+        challenge: {
+          verificationUri: "https://claude.ai/device",
+          userCode: "<img src=x onerror=alert(1)>",
+        },
+      }),
+    });
+    await open(page, w);
+    await row(page, "claude").getByRole("button", {
+      name: "Sign in",
+      exact: true,
+    }).click();
+    await expect(dialog(page).getByText("Sign-in did not work. Try again."))
+      .toBeVisible();
+    await expect(dialog(page).getByRole("link")).toHaveCount(0);
+    await expect.poll(() => w.cancels.length).toBe(1);
+    // Try again reuses the setup and starts one more attempt.
+    w.script = script({ reads: ["challenge_issued"] });
+    await dialog(page).getByRole("button", { name: "Try again" }).click();
+    await expect(dialog(page).getByText("2. Enter this code:")).toBeVisible();
+    expect(w.createdBindings.length).toBe(1);
+    expect(w.createdAttempts.length).toBe(2);
+  });
+
+  test("an address on another agent's host is not this agent's sign-in page", async ({ page }) => {
+    const w = world({
+      script: script({
+        challenge: { verificationUri: "https://auth.openai.com/device" },
+      }),
+    });
+    await open(page, w);
+    await row(page, "claude").getByRole("button", {
+      name: "Sign in",
+      exact: true,
+    }).click();
+    await expect(dialog(page).getByText("Sign-in did not work. Try again."))
+      .toBeVisible();
+    await expect(dialog(page).getByRole("link")).toHaveCount(0);
+  });
+
+  test("a command with a second line is not shown or copied: only one plain line ever is", async ({ page }) => {
     await open(
       page,
       world({
         script: script({
-          challenge: {
-            verificationUri: "javascript:alert(1)",
-            userCode: "ABCD-EFGH",
-          },
+          flow: "terminal",
+          createState: "terminal",
+          challenge: null,
+          instructions: "claude login\nrm -rf ~",
+          reads: ["terminal"],
         }),
       }),
     );
@@ -610,10 +723,12 @@ test.describe("the sign-in dialog", () => {
       name: "Sign in",
       exact: true,
     }).click();
-    await expect(dialog(page).getByText("Waiting for you to finish…"))
-      .toBeVisible();
-    await expect(dialog(page).getByRole("link")).toHaveCount(0);
-    await expect(dialog(page)).not.toContainText("ABCD-EFGH");
+    await expect(
+      dialog(page).getByText("Finish signing in in a terminal on the machine."),
+    ).toBeVisible();
+    await expect(dialog(page)).not.toContainText("rm -rf");
+    await expect(dialog(page).getByRole("button", { name: "Copy" }))
+      .toHaveCount(0);
   });
 
   test("an agent that must be finished on the machine shows the command only when the server gives one", async ({ page }) => {
@@ -691,6 +806,49 @@ test.describe("the sign-in dialog", () => {
     await expect(dialog(page).getByText("Signed in.")).toBeVisible();
     expect(w.createdAttempts.length).toBe(2);
     expect(w.createdBindings.length).toBe(1);
+  });
+
+  test("a failed start keeps the setup it made: Try again makes one attempt, not a second setup", async ({ page }) => {
+    const w = world({
+      failAttempts: 1,
+      script: script({ reads: ["challenge_issued"] }),
+    });
+    await open(page, w);
+    await row(page, "claude").getByRole("button", {
+      name: "Sign in",
+      exact: true,
+    }).click();
+    await expect(dialog(page).getByText("Sign-in did not work. Try again."))
+      .toBeVisible();
+    expect(w.createdBindings.length).toBe(1);
+    expect(w.createdAttempts.length).toBe(0);
+    await dialog(page).getByRole("button", { name: "Try again" }).click();
+    await expect(dialog(page).getByText("2. Enter this code:")).toBeVisible();
+    expect(w.createdBindings.length).toBe(1);
+    expect(w.createdAttempts.length).toBe(1);
+  });
+
+  test("closing the dialog while it still says Starting cancels the sign-in as soon as it exists", async ({ page }) => {
+    let release: () => void = () => {};
+    const w = world({
+      hold: new Promise<void>((resolve) => {
+        release = resolve;
+      }),
+      script: script({ reads: ["challenge_issued"] }),
+    });
+    await open(page, w);
+    await row(page, "claude").getByRole("button", {
+      name: "Sign in",
+      exact: true,
+    }).click();
+    await expect(dialog(page).getByText("Starting sign-in…")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dialog(page)).toHaveCount(0);
+    release();
+    // It answered after nobody was waiting for it: it is cancelled, and the dialog stays closed.
+    await expect.poll(() => w.createdAttempts.length).toBe(1);
+    await expect.poll(() => w.cancels).toEqual(w.createdAttempts);
+    await expect(dialog(page)).toHaveCount(0);
   });
 
   test("an expired sign-in offers Start again", async ({ page }) => {
@@ -822,9 +980,15 @@ test.describe("arriving from the wizard", () => {
     await expect(dialog(page)).toContainText(
       "Sign in to Claude Code on fixture-host",
     );
+    // The address has done its job: its search is gone, so a reload cannot start another sign-in.
+    await expect(page).toHaveURL(new RegExp(`/machines/${MACHINE_ID}$`));
     await dialog(page).getByRole("button", { name: "Cancel sign-in" }).click();
     await expect(dialog(page)).toHaveCount(0);
-    // Closing it does not open it again.
+    // Closing it does not open it again, nor does a reload.
+    await page.waitForTimeout(500);
+    await expect(dialog(page)).toHaveCount(0);
+    await page.reload();
+    await expect(row(page, "claude")).toBeVisible();
     await page.waitForTimeout(500);
     await expect(dialog(page)).toHaveCount(0);
     expect(w.createdAttempts.length).toBe(1);

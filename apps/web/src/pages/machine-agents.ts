@@ -193,7 +193,6 @@ export type AttemptFacts = Readonly<{
 
 export type DialogView =
   | Readonly<{ kind: "starting" }>
-  | Readonly<{ kind: "waiting"; minutes: number | null }>
   | Readonly<
     {
       kind: "codeAndAddress";
@@ -205,6 +204,8 @@ export type DialogView =
   | Readonly<{ kind: "addressOnly"; address: string; minutes: number | null }>
   | Readonly<{ kind: "onMachine"; command: string | null }>
   | Readonly<{ kind: "completed" }>
+  /** The machine asked for a sign-in the page cannot show safely: it is treated as one that did not start. */
+  | Readonly<{ kind: "unusable" }>
   | Readonly<{ kind: "failed" }>
   | Readonly<{ kind: "expired" }>
   | Readonly<{ kind: "canceled" }>;
@@ -220,15 +221,36 @@ const ADDRESS_KEYS = [
 ];
 const CODE_KEYS = ["userCode", "user_code", "code"];
 
-function httpsAddress(value: unknown): string | null {
+/**
+ * The hosts a sign-in page may be on, per agent; a subdomain of one counts and
+ * nothing else does. The machine names the address, and the person is told to
+ * type a code on it, so the page only links to a site the agent's own sign-in
+ * uses. Pi signs in to several providers, so it may use any of theirs (an
+ * assumption: the worker's contract does not name them).
+ */
+const CLAUDE_HOSTS = ["claude.ai", "claude.com", "anthropic.com"] as const;
+const CODEX_HOSTS = ["openai.com", "chatgpt.com"] as const;
+export const SIGN_IN_HOSTS: Readonly<Record<CodingAgent, readonly string[]>> = {
+  claude: CLAUDE_HOSTS,
+  codex: CODEX_HOSTS,
+  pi: [...CLAUDE_HOSTS, ...CODEX_HOSTS, "github.com", "google.com"],
+};
+
+function signInAddress(value: unknown, agent: CodingAgent): string | null {
   if (typeof value !== "string" || value.length === 0 || value.length > 2000) {
     return null;
   }
   try {
     const url = new URL(value);
-    // Only a plain https address with no login in it: it opens in a new tab.
-    return url.protocol === "https:" && url.username === "" &&
-        url.password === ""
+    // Only a plain https address with no login and no odd port, on one of the agent's own hosts: it opens in a new tab.
+    if (
+      url.protocol !== "https:" || url.username !== "" || url.password !== "" ||
+      url.port !== ""
+    ) return null;
+    const host = url.hostname;
+    return SIGN_IN_HOSTS[agent].some((domain) =>
+        host === domain || host.endsWith(`.${domain}`)
+      )
       ? url.toString()
       : null;
   } catch {
@@ -236,31 +258,49 @@ function httpsAddress(value: unknown): string | null {
   }
 }
 
-/** The address and the code in a challenge, each only if it is plainly one. */
+/** The address and the code in a challenge, each only if it is plainly one; `codeRejected` when a code was given but is not. */
 export function parseChallenge(
   challenge: unknown,
-): { address: string | null; code: string | null } {
+  agent: CodingAgent,
+): { address: string | null; code: string | null; codeRejected: boolean } {
   if (typeof challenge === "string") {
-    return { address: httpsAddress(challenge), code: null };
+    return {
+      address: signInAddress(challenge, agent),
+      code: null,
+      codeRejected: false,
+    };
   }
   if (typeof challenge !== "object" || challenge === null) {
-    return { address: null, code: null };
+    return { address: null, code: null, codeRejected: false };
   }
   const record = challenge as Record<string, unknown>;
   let address: string | null = null;
   for (const key of ADDRESS_KEYS) {
-    address = httpsAddress(record[key]);
+    address = signInAddress(record[key], agent);
     if (address !== null) break;
   }
   let code: string | null = null;
+  let given = false;
   for (const key of CODE_KEYS) {
     const value = record[key];
+    if (value === undefined || value === null) continue;
+    given = true;
     if (typeof value === "string" && /^[A-Za-z0-9-]{3,64}$/.test(value)) {
       code = value;
       break;
     }
   }
-  return { address, code };
+  return { address, code, codeRejected: given && code === null };
+}
+
+/**
+ * The one line to type on the machine, only if it is plainly one: a single
+ * line of ordinary characters, so that copying it can never paste a second
+ * command. Anything else is not shown.
+ */
+export function safeCommand(text: string | null | undefined): string | null {
+  const line = text?.trim() ?? "";
+  return /^[A-Za-z0-9][A-Za-z0-9 ._/=:@+,-]{0,199}$/.test(line) ? line : null;
 }
 
 /** Whole minutes left, at least one, or null when there is no usable expiry. */
@@ -282,6 +322,7 @@ export function minutesLeft(
 export function dialogView(
   attempt: AttemptFacts | null,
   now: number,
+  agent: CodingAgent,
 ): DialogView {
   if (attempt === null) return { kind: "starting" };
   switch (attempt.state) {
@@ -294,23 +335,26 @@ export function dialogView(
     case "canceled":
       return { kind: "canceled" };
     case "terminal":
-      return {
-        kind: "onMachine",
-        command: attempt.instructions?.trim() || null,
-      };
+      return { kind: "onMachine", command: safeCommand(attempt.instructions) };
     default:
       break;
   }
   if (attempt.flow === "terminal") {
-    return { kind: "onMachine", command: attempt.instructions?.trim() || null };
+    return { kind: "onMachine", command: safeCommand(attempt.instructions) };
   }
   const minutes = minutesLeft(attempt.expiresAt, now);
-  const { address, code } = parseChallenge(attempt.challenge);
+  const { address, code, codeRejected } = parseChallenge(
+    attempt.challenge,
+    agent,
+  );
+  // Once the machine says the person is needed, a page or a code that cannot be shown safely means the sign-in cannot go on.
+  if (
+    codeRejected || (attempt.state === "challenge_issued" && address === null)
+  ) return { kind: "unusable" };
   if (address !== null && code !== null) {
     return { kind: "codeAndAddress", address, code, minutes };
   }
   if (address !== null) return { kind: "addressOnly", address, minutes };
-  if (attempt.state === "challenge_issued") return { kind: "waiting", minutes };
   return { kind: "starting" };
 }
 

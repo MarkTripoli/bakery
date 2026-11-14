@@ -24,6 +24,10 @@
     "path": "/machines"
   },
   {
+    "id": "machine-new",
+    "path": "/machines/new"
+  },
+  {
     "id": "machine-detail",
     "path": "/machines/$machineId"
   },

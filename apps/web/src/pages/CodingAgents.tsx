@@ -99,6 +99,9 @@ export function useAgentSignIn(options: {
     new Set(),
   );
   const settled = useRef<string | null>(null);
+  // The sign-in being started: closing the dialog (or starting another) ends it, so a late answer knows nobody is waiting.
+  const started = useRef(0);
+  const live = useRef<number | null>(null);
 
   const polled = useQuery(
     workerProviderAuthQueryOptions(api, scope, {
@@ -130,6 +133,19 @@ export function useAgentSignIn(options: {
     }, 50);
   }, []);
 
+  const cancelAttempt = useCallback(
+    (bindingId: string, authAttemptId: string) => {
+      void api.workerProviderAuth.cancel({
+        organizationId,
+        workerId: machineId,
+        bindingId,
+        authAttemptId,
+        idempotencyKey: crypto.randomUUID(),
+      });
+    },
+    [api, machineId, organizationId],
+  );
+
   const start = useCallback(
     async (
       row: AgentRow,
@@ -137,6 +153,9 @@ export function useAgentSignIn(options: {
       knownBindingId: string | null = null,
     ) => {
       settled.current = null;
+      const key = ++started.current;
+      live.current = key;
+      const mine = () => live.current === key;
       setCheckFailed((previous) => {
         const next = new Set(previous);
         next.delete(row.agent);
@@ -151,12 +170,14 @@ export function useAgentSignIn(options: {
         failedToStart: false,
         dialogOpen: mode === "signIn",
       });
-      const failed = () =>
+      const failed = () => {
+        if (!mine()) return;
         setSession((current) =>
           current && current.row.agent === row.agent
             ? { ...current, failedToStart: true }
             : current
         );
+      };
       let bindingId = knownBindingId ?? row.binding?.id ?? null;
       if (bindingId === null) {
         if (row.componentKey === null) return failed();
@@ -174,6 +195,15 @@ export function useAgentSignIn(options: {
         });
         if (!made.ok) return failed();
         bindingId = made.data.id;
+        // Kept at once: if the attempt cannot be made, Try again must reuse this setup, not make a second.
+        const madeId = made.data.id;
+        if (mine()) {
+          setSession((current) =>
+            current && current.row.agent === row.agent
+              ? { ...current, bindingId: madeId }
+              : current
+          );
+        }
         void onChanged();
       }
       const created = await api.workerProviderAuth.create({
@@ -183,6 +213,13 @@ export function useAgentSignIn(options: {
         idempotencyKey: crypto.randomUUID(),
       });
       if (!created.ok) return failed();
+      if (!mine()) {
+        // The dialog was closed (or another sign-in began) while this one was starting: nobody is waiting for it.
+        if (!attemptEnded(created.data.state)) {
+          cancelAttempt(bindingId, created.data.authAttemptId);
+        }
+        return;
+      }
       setSession((current) =>
         current && current.row.agent === row.agent
           ? {
@@ -200,31 +237,25 @@ export function useAgentSignIn(options: {
           : current
       );
     },
-    [api, machineId, onChanged, organizationId],
+    [api, cancelAttempt, machineId, onChanged, organizationId],
   );
 
   const close = useCallback(
-    (agent: CodingAgent, cancelAttempt: boolean) => {
+    (agent: CodingAgent, cancelOnClose: boolean) => {
       if (
-        cancelAttempt && session?.bindingId && session.attemptId &&
+        cancelOnClose && session?.bindingId && session.attemptId &&
         !attemptEnded(facts?.state ?? "pending")
       ) {
-        void api.workerProviderAuth.cancel({
-          organizationId,
-          workerId: machineId,
-          bindingId: session.bindingId,
-          authAttemptId: session.attemptId,
-          idempotencyKey: crypto.randomUUID(),
-        });
+        cancelAttempt(session.bindingId, session.attemptId);
       }
+      // A sign-in still starting is cancelled when it answers.
+      live.current = null;
       setSession(null);
       refocus(agent);
     },
     [
-      api,
+      cancelAttempt,
       facts?.state,
-      machineId,
-      organizationId,
       refocus,
       session?.attemptId,
       session?.bindingId,
@@ -267,6 +298,23 @@ export function useAgentSignIn(options: {
       refocus(agent);
     }
   }, [agent, attemptId, mode, onChanged, refocus, state]);
+  // A challenge the page cannot show safely ends this attempt: it is cancelled and the dialog says it did not start.
+  const unusable = Boolean(
+    session && !session.failedToStart && session.attemptId && facts &&
+      dialogView(facts, Date.now(), session.row.agent).kind === "unusable",
+  );
+  const unusableHandled = useRef<string | null>(null);
+  useEffect(() => {
+    if (!unusable || !session?.bindingId || !session.attemptId) return;
+    if (unusableHandled.current === session.attemptId) return;
+    unusableHandled.current = session.attemptId;
+    cancelAttempt(session.bindingId, session.attemptId);
+    setSession((current) =>
+      current && current.attemptId === session.attemptId
+        ? { ...current, failedToStart: true, attemptId: null, created: null }
+        : current
+    );
+  }, [cancelAttempt, session, unusable]);
   // A check that could not even start says so under the row.
   useEffect(() => {
     if (session?.mode === "check" && session.failedToStart) {
@@ -278,9 +326,10 @@ export function useAgentSignIn(options: {
 
   let dialog: ReactNode = null;
   if (session?.dialogOpen) {
-    const view = session.failedToStart
+    const raw = dialogView(facts, Date.now(), session.row.agent);
+    const view = session.failedToStart || raw.kind === "unusable"
       ? ({ kind: "failed" } as const)
-      : dialogView(facts, Date.now());
+      : raw;
     const name = agentName(translate, session.row.agent);
     const ended = view.kind === "completed" || view.kind === "failed" ||
       view.kind === "expired" || view.kind === "canceled";
@@ -377,15 +426,16 @@ export function useAgentSignIn(options: {
                 )
                 : null}
               {view.kind === "codeAndAddress" || view.kind === "addressOnly" ||
-                  view.kind === "waiting" || view.kind === "onMachine"
+                  view.kind === "onMachine"
                 ? (
                   <UI.Text variant="muted">
                     {message(translate, "machines.signIn.waiting")}
                   </UI.Text>
                 )
                 : null}
-              {(view.kind === "codeAndAddress" || view.kind === "addressOnly" ||
-                  view.kind === "waiting") && view.minutes !== null
+              {(view.kind === "codeAndAddress" ||
+                  view.kind === "addressOnly") &&
+                  view.minutes !== null
                 ? (
                   <UI.Text variant="muted">
                     {message(translate, "machines.signIn.expires", {
