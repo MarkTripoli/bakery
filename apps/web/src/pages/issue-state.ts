@@ -210,3 +210,168 @@ export function reasonKey(code: string): KnownReason | "unknown" {
     ? folded as KnownReason
     : "unknown";
 }
+
+/** What the person can do about a reason, in the design's words: where the fix lives. */
+export type ReasonAction =
+  | { kind: "none" }
+  | { kind: "checkAgain" }
+  | {
+    kind: "github";
+    label:
+      | "fixLink"
+      | "addLabel"
+      | "removeLabel"
+      | "addCriteria"
+      | "shorten"
+      | "openSubIssue";
+  }
+  | { kind: "integrations" }
+  | { kind: "issueSettings" }
+  | { kind: "projects" }
+  | { kind: "askAdmin" }
+  | { kind: "startAgain" };
+
+/** The next step each reason code leads to (the design's reason table). */
+export function reasonAction(code: string): ReasonAction {
+  switch (reasonKey(code)) {
+    case "closed_unmerged":
+      return { kind: "github", label: "fixLink" };
+    case "proof_unavailable":
+    case "provider_unavailable":
+    case "not_checked":
+      return { kind: "checkAgain" };
+    case "inaccessible":
+    case "connection_not_enabled":
+    case "installation_not_enabled":
+      return { kind: "integrations" };
+    case "label_missing":
+    case "label_withdrawn":
+      return { kind: "github", label: "addLabel" };
+    case "held":
+      return { kind: "github", label: "removeLabel" };
+    case "acceptance_missing":
+      return { kind: "github", label: "addCriteria" };
+    case "requirements_too_large":
+      return { kind: "github", label: "shorten" };
+    case "has_sub_issues":
+      return { kind: "github", label: "openSubIssue" };
+    case "acceptance_changed":
+      return { kind: "startAgain" };
+    case "no_delegation":
+    case "actor_not_allowlisted":
+    case "actor_role_insufficient":
+    case "actor_unverifiable":
+    case "principal_inactive":
+      return { kind: "askAdmin" };
+    case "source_disabled":
+    case "resource_not_selected":
+      return { kind: "issueSettings" };
+    case "no_active_profile":
+    case "preset_setup_required":
+      return { kind: "projects" };
+    default:
+      return { kind: "none" };
+  }
+}
+
+/** Every check of the latest report, in the report's order. */
+export function issueChecks(row: IssueRow): readonly IssueCheck[] {
+  return checksOf(row);
+}
+
+/** What the "Can Bakery start this?" card offers as its one primary action. */
+export type StartOffer = "start" | "startWhenReady" | "none";
+
+/**
+ * Start work is offered when the latest verdict is ready and nothing runs for
+ * the issue; "Start when ready" when the only things in the way are
+ * dependencies that clear by themselves; nothing otherwise.
+ */
+export function startOffer(row: IssueRow): StartOffer {
+  const { status } = issueStatus(row);
+  if (status === "canStart") return "start";
+  if (status !== "waiting") return "none";
+  const waits = issueChecks(row).filter((check) => check.status !== "pass");
+  const onlyDependencies = waits.length > 0 &&
+    waits.every((check) =>
+      check.id === "dependencies_satisfied" &&
+      check.status === "wait" && check.reason === "predecessor_open"
+    );
+  return onlyDependencies ? "startWhenReady" : "none";
+}
+
+/** One issue an issue depends on, as the saved copy lists it. */
+export type IssueDependency = {
+  readonly repository: string;
+  readonly number: number;
+  /** done: the check passed; open: still open; closedUnmerged; unreadable; unknown: not checked yet. */
+  readonly state: "done" | "open" | "closedUnmerged" | "unreadable" | "unknown";
+};
+
+/** The native links of the saved copy, defensively read. */
+export type IssueLinks = {
+  readonly parent: { repository: string; number: number } | null;
+  readonly subIssues: number;
+  readonly dependencies: readonly IssueDependency[];
+  /** The links could not be read in full: no list, or more than the saved copy keeps. */
+  readonly incomplete: boolean;
+};
+
+const issueRef = (
+  value: unknown,
+): { repository: string; number: number } | null => {
+  const ref = record(value);
+  const number = Number(ref.number);
+  const repository = text(ref.repositoryFullName);
+  return Number.isInteger(number) && number > 0 && repository
+    ? { repository, number }
+    : null;
+};
+
+/** Reads the links, naming each dependency's state from the dependency check's evidence. */
+export function issueLinks(row: IssueRow): IssueLinks {
+  const links = record(record(row.snapshot).links);
+  const dependencyCheck = issueChecks(row).find((check) =>
+    check.id === "dependencies_satisfied"
+  );
+  const blocked = Array.isArray(links.blockedBy) ? links.blockedBy : [];
+  const dependencies = blocked.flatMap((candidate): IssueDependency[] => {
+    const ref = issueRef(candidate);
+    if (ref === null) return [];
+    const named = `${ref.repository}#${ref.number}`;
+    const mentioned = dependencyCheck?.evidence.some((entry) =>
+      entry === `blocker:${named}`
+    ) ?? false;
+    const state: IssueDependency["state"] = dependencyCheck === undefined
+      ? "unknown"
+      : dependencyCheck.status === "pass"
+      ? "done"
+      : !mentioned
+      ? "done"
+      : dependencyCheck.reason === "closed_unmerged"
+      ? "closedUnmerged"
+      : dependencyCheck.reason === "inaccessible" ||
+          dependencyCheck.reason === "proof_unavailable"
+      ? "unreadable"
+      : "open";
+    return [{ ...ref, state }];
+  });
+  const truncated = dependencyCheck?.reason === "links_truncated";
+  return {
+    parent: issueRef(links.parent),
+    subIssues: Number(links.subIssuesTotal) > 0
+      ? Number(links.subIssuesTotal)
+      : 0,
+    dependencies,
+    incomplete: Object.keys(links).length === 0 || truncated,
+  };
+}
+
+/** The saved description, and whether it is only the first part of a long one. */
+export function issueBody(row: IssueRow): { body: string; truncated: boolean } {
+  const snapshot = record(row.snapshot);
+  return {
+    body: text(snapshot.body),
+    truncated: snapshot.bodyTruncated === true,
+  };
+}
