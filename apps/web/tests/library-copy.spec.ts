@@ -315,8 +315,11 @@ for (
         "A workflow with this name already exists. Choose another name.",
       );
       await expect(name).toBeEnabled();
+      // The refused name is marked invalid, not only explained.
+      await expect(name).toHaveAttribute("aria-invalid", "true");
       await name.fill("Another name");
       await expect(dialog(page)).not.toContainText("already exists");
+      await expect(name).not.toHaveAttribute("aria-invalid", "true");
       await dialog(page).getByRole("button", { name: "Make a copy" }).click();
       await expect(page).toHaveURL(/\/library\/workflows\/[0-9a-f-]{36}$/);
       expect(seen.created.map((row) => row.name)).toEqual(["Another name"]);
@@ -330,6 +333,10 @@ for (
         "This name cannot be used. Change it and try again.",
       );
       await expect(dialog(page).getByLabel("Name")).toBeEnabled();
+      await expect(dialog(page).getByLabel("Name")).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
     });
 
     test("a write whose answer was lost is retried with the same key, so the server can tell it is the same write", async ({ page }) => {
