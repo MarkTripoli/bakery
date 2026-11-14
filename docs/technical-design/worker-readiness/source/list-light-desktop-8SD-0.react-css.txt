@@ -15,7 +15,7 @@ export default function () {
         </div>
         <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px', paddingBlock: '12px', paddingInline: '8px' }}>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', flexBasis: '0%', flexGrow: '1', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', fontWeight: 500, lineHeight: '20px' }}>
-            Alex’s workspace
+            Mark’s workspace
           </div>
           <svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: '0' }}>
             <path d="m6 9 6 6 6-6" fill="none" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -120,11 +120,11 @@ export default function () {
         <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px', padding: '8px' }}>
           <div style={{ backgroundColor: 'var(--color-border)', borderRadius: '20px', boxSizing: 'border-box', fontFamily: 'var(--font-sans)', padding: '4px' }}>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '12px', lineHeight: '20px' }}>
-              AM
+              MT
             </div>
           </div>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', flexBasis: '0%', flexGrow: '1', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
-            Alex Morgan
+            Mark Tripoli
           </div>
           <svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: '0' }}>
             <path d="m6 9 6 6 6-6" fill="none" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -164,7 +164,7 @@ export default function () {
         <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '24px', minWidth: '0px', paddingBottom: '40px', paddingInline: '40px', paddingTop: '32px' }}>
           <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
-              Organization · Alex’s workspace
+              Organization · Mark’s workspace
             </div>
             <div style={{ alignItems: 'start', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
               <div style={{ boxSizing: 'border-box', display: 'flex', flexBasis: '0%', flexDirection: 'column', flexGrow: '1', gap: '8px', minWidth: '0px' }}>
@@ -317,7 +317,7 @@ export default function () {
               Your machines, your organization
             </div>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
-              Only Alex’s workspace can use these machines. Connect your own Linux server or Mac to add capacity.
+              Only Mark’s workspace can use these machines. Connect your own Linux server or Mac to add capacity.
             </div>
           </div>
         </div>

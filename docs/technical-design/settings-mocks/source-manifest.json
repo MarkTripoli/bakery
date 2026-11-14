@@ -95,8 +95,8 @@
       "computedStylesPath": "HJE-0.computed-styles.json",
       "computedStylesSha256": "85fae719a996c29dbc9707bbd0a840fd36dacd63722f82fcd72dd65c953b156a",
       "referencePath": "docs/technical-design/ui-baselines/paper/settings/profile--default--light--desktop.png",
-      "referenceSha256": "5f5cfb447ff50aeb604a0d22917a0624ebf9ca7dd03b64f12205b47c6ac14b57",
-      "paperExportScore": 0.8949
+      "referenceSha256": "218d8317689c7dd326ca2f2265ea4f5bb3a17e8baad679d6f53375dc6b494459",
+      "paperExportScore": 0.865
     },
     {
       "id": "profile",
@@ -122,8 +122,8 @@
       "computedStylesPath": "IG3-0.computed-styles.json",
       "computedStylesSha256": "9aa23a893c5c8191fee6a22bd301cc99f4922cc438566b10631c0070f832a460",
       "referencePath": "docs/technical-design/ui-baselines/paper/settings/profile--default--light--phone.png",
-      "referenceSha256": "4e27acacd1f925b9aae734124fe5fb5050a657a0e24a996c643a2dcbfaf372e0",
-      "paperExportScore": 0.87
+      "referenceSha256": "64db2bafedd8941ef51c7fd5cd34f9e0b4cc98707589cd87bae3373a04874264",
+      "paperExportScore": 0.8315
     },
     {
       "id": "appearance",
@@ -149,8 +149,8 @@
       "computedStylesPath": "N1T-0.computed-styles.json",
       "computedStylesSha256": "224e845ddd600394b2046a6ba89954f2ca44c10cb08aff3ec77de416099ee41b",
       "referencePath": "docs/technical-design/ui-baselines/paper/settings/appearance--default--light--desktop.png",
-      "referenceSha256": "bddbe8c0e85003dbebb55ed5dd729fc41e0a5ed1e2a1c37ca3d8a201e1bb56c5",
-      "paperExportScore": 0.9116
+      "referenceSha256": "54a6325ed5db94ce3a4101139e8d66463d9f287cc4ccdd393c1ab2ebfc06a1fb",
+      "paperExportScore": 0.9088
     },
     {
       "id": "appearance",
@@ -203,8 +203,8 @@
       "computedStylesPath": "SGB-0.computed-styles.json",
       "computedStylesSha256": "7c4ede9797ad6c8b62bb2e16c3ed8cdf6a35b28f06c4a8053408c561b945403d",
       "referencePath": "docs/technical-design/ui-baselines/paper/settings/appearance--default--dark--desktop.png",
-      "referenceSha256": "76702a1e6520087a38b7659a7f72f7e2a9ea9c7a3ad252ec5e48391ef156af57",
-      "paperExportScore": 0.9179
+      "referenceSha256": "ea69cb4832ae2fa9035a4bcbd064e6415dad26a36d67b2f1d8b2134483e552e0",
+      "paperExportScore": 0.9153
     },
     {
       "id": "appearance",
@@ -257,8 +257,8 @@
       "computedStylesPath": "KHJ-0.computed-styles.json",
       "computedStylesSha256": "5e67aee8f154264acb887f33fdd335b1488eaee9e837d5f12fa40cbbd3742421",
       "referencePath": "docs/technical-design/ui-baselines/paper/settings/your-access--developer--dark--desktop.png",
-      "referenceSha256": "d28cb2ffc74ff81366d304c5eab185b08d54e4e7e3258bbcaf1ba9a8daa6d66a",
-      "paperExportScore": 0.854
+      "referenceSha256": "f616a387d9bd9d768ee9f4ad82990114df00928353cc5cc19729527f57f01618",
+      "paperExportScore": 0.8493
     },
     {
       "id": "your-access",
@@ -311,8 +311,8 @@
       "computedStylesPath": "QM9-0.computed-styles.json",
       "computedStylesSha256": "c3aa995af3421aa041e270708d99469bd8a0b8370d6653f37ba11afc056c39f6",
       "referencePath": "docs/technical-design/ui-baselines/paper/settings/section-index--default--light--phone.png",
-      "referenceSha256": "89e0950cfe9ec0f98b0fa3115eabf3bb47388766c581d77120d7c72b290fa0f5",
-      "paperExportScore": 0.9081
+      "referenceSha256": "c1bfe4bd57529c064131f27796f0912543343fe3f3631ba5c64f5a8562305aaa",
+      "paperExportScore": 0.8798
     }
   ],
   "referenceModel": {

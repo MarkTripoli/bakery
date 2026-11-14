@@ -32,13 +32,13 @@ export default function () {
           </div>
         </div>
         <div style={{ boxSizing: 'border-box', color: 'var(--color-dark-fg-secondary)', fontFamily: '"Geist", system-ui, sans-serif', fontSize: '13px', lineHeight: '20px' }}>
-          Alex’s workspace⌄
+          Mark’s workspace⌄
         </div>
       </div>
       <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', gap: '24px', paddingBottom: '32px', paddingInline: '16px', paddingTop: '24px', width: '390px' }}>
         <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-dark-fg-secondary)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
-            Organization · Alex’s workspace
+            Organization · Mark’s workspace
           </div>
           <div style={{ alignItems: 'start', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
             <div style={{ boxSizing: 'border-box', display: 'flex', flexBasis: '0%', flexDirection: 'column', flexGrow: '1', gap: '8px', minWidth: '0px' }}>
@@ -191,7 +191,7 @@ export default function () {
             Your machines, your organization
           </div>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-dark-fg-secondary)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '20px' }}>
-            Only Alex’s workspace can use these machines. Connect your own Linux server or Mac to add capacity.
+            Only Mark’s workspace can use these machines. Connect your own Linux server or Mac to add capacity.
           </div>
         </div>
         <div style={{ boxSizing: 'border-box', color: 'var(--color-dark-fg-secondary)', fontFamily: 'var(--font-sans)', fontSize: '12px', lineHeight: '20px' }}>

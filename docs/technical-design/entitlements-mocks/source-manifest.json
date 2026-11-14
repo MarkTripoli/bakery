@@ -87,7 +87,7 @@
       "computedStylesPath": "2DA1-0.computed-styles.json",
       "computedStylesSha256": "f88dd1697ff9200e744ed576b20a930f72ffd64b6b34a421033249abf07b13df",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v3/installation-settings--default--dark--desktop.png",
-      "referenceSha256": "f542436d5890664bc48f7034c0af867b55e39f33c99a09c153a91fdd0888e466",
+      "referenceSha256": "183453e76ac0de624b5a99511530332c3ead35f9669ddb54e82ecf4e55828fb8",
       "paperExportScore": null
     },
     {
@@ -106,7 +106,7 @@
       "computedStylesPath": "2C24-0.computed-styles.json",
       "computedStylesSha256": "be08a004ca3b441c163bdaf0718361415df01349c839863db2cdaa69f34b238a",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v3/installation-settings--default--light--desktop.png",
-      "referenceSha256": "d8e43448607be7e7cd204757906ff9c3f86bf34bd03cf851e35d25ab6c46c5c0",
+      "referenceSha256": "7965a26731ee0a95cfb5736d30004d9e618a3401093fba125066fb5ac1ff6028",
       "paperExportScore": null
     },
     {
@@ -163,7 +163,7 @@
       "computedStylesPath": "2E5Y-0.computed-styles.json",
       "computedStylesSha256": "4ae8283b3ea65ce9400aafa8ba40be696ac8d6c027cce3600d5332915df741c9",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v3/installation-settings--save-conflict--light--desktop.png",
-      "referenceSha256": "419d12bbd90d704e4de704bd1afe4735fc1f14b7c3b7524bbf9a18578975086f",
+      "referenceSha256": "d6af5c554d3f372756a3f2da1befd0d63121cba4a39a9526c6e7104746454728",
       "paperExportScore": null
     },
     {
@@ -201,7 +201,7 @@
       "computedStylesPath": "2E5Z-0.computed-styles.json",
       "computedStylesSha256": "e48e289a6f309ee146f7e44bd24b6594710f9752abc59f8a615d3b0aaa2707ac",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-settings-v3/installation-settings--save-error--light--desktop.png",
-      "referenceSha256": "82a11d549e3f2eec0c91a5052fea11ad7a134fa8ed80c28d3ca8285172066274",
+      "referenceSha256": "fe494e4c0c3689aace04710d0bba61e90e1ccaab02f9fd7b569bc87907ce1351",
       "paperExportScore": null
     },
     {
@@ -239,7 +239,7 @@
       "computedStylesPath": "2E61-0.computed-styles.json",
       "computedStylesSha256": "65c4a4c22b7c65a80a010c4dbee1d68f15ca6f8803561660169f507135b5c6af",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-administrators--denied-non-admin--light--desktop.png",
-      "referenceSha256": "91bfb734d37f96cb4bc14d358f0024f3dbbfa919d48814cdbf244706ec346272",
+      "referenceSha256": "0c06f54d98edb5b6f32851499c66c570a0319e6ed412728891d16961e1c66b40",
       "paperExportScore": null
     },
     {
@@ -258,7 +258,7 @@
       "computedStylesPath": "2E65-0.computed-styles.json",
       "computedStylesSha256": "d9a9b3ea3ea56e275e738676b22d15ab3e530eea042103217f896cdd666b6715",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-administrators--denied-non-admin--light--phone.png",
-      "referenceSha256": "0bfe0e4b47cd7b03e2d7e63c51186259e8625962eaabcc84d99524e4b830725b",
+      "referenceSha256": "78837407864456bb8dc7b3de1adc457edfa7b8d0780a90b7d39da8f74b871740",
       "paperExportScore": null
     },
     {
@@ -277,7 +277,7 @@
       "computedStylesPath": "2DCR-0.computed-styles.json",
       "computedStylesSha256": "16a5275f1b8ab82fafce21653dfae06a927fede63cbf0d6826965c84791d5ce6",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-administrators--list--dark--desktop.png",
-      "referenceSha256": "c805f63b60e07b1cda82a48c227e7c9280f496e26053ebea38b3bb9462a1fc94",
+      "referenceSha256": "8f91d098d37b33d58cccec22269dc96b26b56af7332372c4a3404ce3564dd391",
       "paperExportScore": null
     },
     {
@@ -296,7 +296,7 @@
       "computedStylesPath": "2C4V-0.computed-styles.json",
       "computedStylesSha256": "2b2bc0d33ebf8c4987789ae28c4c896577e4e736fa649ac23998d56a9e612184",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-administrators--list--light--desktop.png",
-      "referenceSha256": "0b982a8da750dbccd57e95e07f033e8bab508f80ca9f533874ebc0755ad22074",
+      "referenceSha256": "31822462c66ec2c66af7f8e04e1a347b793c809d1356678cb0de0e82be3a7c63",
       "paperExportScore": null
     },
     {
@@ -315,7 +315,7 @@
       "computedStylesPath": "2DYD-0.computed-styles.json",
       "computedStylesSha256": "4022361126ec7439a97aa59084ef53123ced574510155fb8a1cf2cb647815aed",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-administrators--list--dark--phone.png",
-      "referenceSha256": "57b585244fe830ed802ae23f93c8a41c49647fd024d05166920098012961df7f",
+      "referenceSha256": "335544e88f0e236fddf15ea6cb1403f19f81a1634d277614ee496e8cbd31ea9a",
       "paperExportScore": null
     },
     {
@@ -334,7 +334,7 @@
       "computedStylesPath": "2D28-0.computed-styles.json",
       "computedStylesSha256": "28738c002ceb19984488e28524acfe3475050c233657ee829b271ae79c192b5a",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-administrators--list--light--phone.png",
-      "referenceSha256": "ae678570d1546cc0c8ce74ae5d9666079850dfd5077b9b7231f0f1339caf1b2c",
+      "referenceSha256": "ed56a1cf46a03bde872b90380f4c7c3d744ad3c4e28858096d09c44adc9102aa",
       "paperExportScore": null
     },
     {
@@ -353,7 +353,7 @@
       "computedStylesPath": "2E60-0.computed-styles.json",
       "computedStylesSha256": "8c850cf579627446f4104860e3ee9ef9f9ce656a3fbfb7fffdbb0ca889c6d9a1",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/installation-administrators--revoke-confirm--light--desktop.png",
-      "referenceSha256": "ece4e762f46dd2b412ec3e1ab68873013f5264298e1551c64b3fcfb09a0c319f",
+      "referenceSha256": "890d1489556936767cd631c0993734a9efdd3e0be1c01194834c21c094d4d155",
       "paperExportScore": null
     },
     {
@@ -961,7 +961,7 @@
       "computedStylesPath": "2ENV-0.computed-styles.json",
       "computedStylesSha256": "c772eefff9e808796e59fd7b58ac45e3bc3213f56c47d9f4a8af774555a59581",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/access-page--empty--light--desktop.png",
-      "referenceSha256": "a052d5661d032eb44b70ef28cb478683085b5f84d892022e37c29adf804e1b17",
+      "referenceSha256": "a064b6221731420b19cadb17a5c1e4edc3127ea9a420c48a83e0b742e885dfe3",
       "paperExportScore": null
     },
     {
@@ -999,7 +999,7 @@
       "computedStylesPath": "2ENX-0.computed-styles.json",
       "computedStylesSha256": "d66d52cc4526c7d40a339f88cf81cf7837ae51efa48c42348ee9d6a5889327d1",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/access-page--error--light--desktop.png",
-      "referenceSha256": "65a57918ce0e00f528fe080530aaca2b8a285a61202bb8f4b00245f24ef644c9",
+      "referenceSha256": "13257bffc831006694b927a9736057ac6752b1129dc63da79d0897e7f1fd45d4",
       "paperExportScore": null
     },
     {
@@ -1037,7 +1037,7 @@
       "computedStylesPath": "2ENW-0.computed-styles.json",
       "computedStylesSha256": "c6383b58d55fe2d725d88e43148caa920cdae2d4923811f3be855f8afba9ddd7",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/access-page--loading--light--desktop.png",
-      "referenceSha256": "c36a50c00d54059cb76464d82873ea4931af99bde06c1d19e532e6330ed1670e",
+      "referenceSha256": "70a921270938ca3356a4660dc806d9e1e4de4a601a84e2a20d3d17cd36fe7f3c",
       "paperExportScore": null
     },
     {
@@ -1075,7 +1075,7 @@
       "computedStylesPath": "2DCW-0.computed-styles.json",
       "computedStylesSha256": "8adf32447bf7f873d1a6db4eb74bd57f0e8138f42684672f006e7bcaf7a2ae10",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/access-page--members--dark--desktop.png",
-      "referenceSha256": "bdd33ed12b23be3850a678ebfc05add392fc4afd258194da0917eaf4a4b77e64",
+      "referenceSha256": "375e51d1b0c577e235c8ee73cc1f7ad331e9fb2024ae58b0cecfdd8590a0aac8",
       "paperExportScore": null
     },
     {
@@ -1094,7 +1094,7 @@
       "computedStylesPath": "2CCD-0.computed-styles.json",
       "computedStylesSha256": "249a1fbb7b70bd0b517e7a6360493387f0bc70aabc680aa3536b2d9f0b03d98c",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/access-page--members--light--desktop.png",
-      "referenceSha256": "06390efe465117f13a1b8c922ceba8f45ae8889443573da119427aef64cebd55",
+      "referenceSha256": "e6e20be9fc136028b29f140a76f60ddc14db0a1e45190be16ff9e01bca1226c5",
       "paperExportScore": null
     },
     {
@@ -1151,7 +1151,7 @@
       "computedStylesPath": "2EXJ-0.computed-styles.json",
       "computedStylesSha256": "a8a8bd4f598212ecfeea839f7af31752a11fdd999481079eaab983a112d3711f",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/custom-roles--create-or-edit--light--desktop.png",
-      "referenceSha256": "5ed7b9744cd78fb73c8affd0b431176ca9076c500ad9d1a1a0321b71bb3282c9",
+      "referenceSha256": "6135fa5f599121fae7335085f5acb31fbd1cadda818773bca3e4b889079837fe",
       "paperExportScore": null
     },
     {
@@ -1189,7 +1189,7 @@
       "computedStylesPath": "2DCX-0.computed-styles.json",
       "computedStylesSha256": "7a713c04ea88c2a0cea241cb0b2787db9860c126398817125e3bfc588cd137bd",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/custom-roles--list--dark--desktop.png",
-      "referenceSha256": "1ed9ecb7f19016f2e0d321cc4e0b43a7071cf1d5506ddad4c6e59029909fe228",
+      "referenceSha256": "da206d356ca2bdc5089547f41f981a6fb85cb82daee2dc989fd2cc6f15cfa2c7",
       "paperExportScore": null
     },
     {
@@ -1208,7 +1208,7 @@
       "computedStylesPath": "2CGG-0.computed-styles.json",
       "computedStylesSha256": "bb40e6acc5b7382ff5f0861feb73c9888ea3a433da62231af387a41899fc4b03",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/custom-roles--list--light--desktop.png",
-      "referenceSha256": "4b8a041e9e670164071d42ab0b624fc6071fa58dc78642c69c2451205d96811f",
+      "referenceSha256": "be4d0ca3bc4637702f2ad841ecc84d35cab18b7f15cf1ae89bec20741d29e40d",
       "paperExportScore": null
     },
     {
@@ -1265,7 +1265,7 @@
       "computedStylesPath": "2EXK-0.computed-styles.json",
       "computedStylesSha256": "de1d7f5d6edadeb04b941e01393661e4f8759b96415efd6f222157953fa85d4b",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/audit-log--export-dialog--light--desktop.png",
-      "referenceSha256": "289b3c896430c0d0b742a33a024fdc6c05ae13800991b2302a90e04eb7521502",
+      "referenceSha256": "8ba5ee5efcd9afbfced196407bdafd90845d855347e180b732523e68820043b6",
       "paperExportScore": null
     },
     {
@@ -1303,7 +1303,7 @@
       "computedStylesPath": "2DCY-0.computed-styles.json",
       "computedStylesSha256": "8bf67846ad1abe691c687257ed8a447ea16fe98f225580ac548b2c293491d221",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/audit-log--list--dark--desktop.png",
-      "referenceSha256": "252e45d9562a783d76519547245dcfcfd1d726c44acb347602aaec0b289a27e4",
+      "referenceSha256": "36e3cfdf722ae4c149e53c2109b918b20b487dc544acd73a60d6c67c71e7aafa",
       "paperExportScore": null
     },
     {
@@ -1322,7 +1322,7 @@
       "computedStylesPath": "2CJE-0.computed-styles.json",
       "computedStylesSha256": "04ce676b0bcf215ee4f74ae174673b2bcfdac09fb8ccccd6e28854eab07be428",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/audit-log--list--light--desktop.png",
-      "referenceSha256": "ab779d94e7d15d175c4f3d151fe0b43d4a03bc6fcb48d3b59f5a25cc75e16a32",
+      "referenceSha256": "afd996d7db99e07a029fcc5cc4f264adbda88fef9fdbf056e09d1896ea39619e",
       "paperExportScore": null
     },
     {
@@ -1341,7 +1341,7 @@
       "computedStylesPath": "2DYK-0.computed-styles.json",
       "computedStylesSha256": "e32b53fa9244d3ccca6aa895cf101f849e0b404b9bd8f76cebf2f7fd1c32db25",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/audit-log--list--dark--phone.png",
-      "referenceSha256": "2ed1f4764a84b7ff03cf03010148c07e2015d8516ee5c1b4eca7bf776506311b",
+      "referenceSha256": "ab7d402c71bfc9f189baf6b2aa10e781ffe00a4918ab8ac53b7d16d82c19c5f7",
       "paperExportScore": null
     },
     {
@@ -1360,7 +1360,7 @@
       "computedStylesPath": "2D2F-0.computed-styles.json",
       "computedStylesSha256": "d651ba6aa7a077389b5a7609b03335ef185a5b4f2c007b6889d82f5092045a51",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/audit-log--list--light--phone.png",
-      "referenceSha256": "3c474197e29ee6bd16538ccf776fc6c8cd4e66c0f80f4ca32a6f5809c9730881",
+      "referenceSha256": "a38ebdba3e5fa16fb3271fecfa39dcfc8b8e441a1c4eb9274d940830b138120c",
       "paperExportScore": null
     },
     {
@@ -1379,7 +1379,7 @@
       "computedStylesPath": "2EXL-0.computed-styles.json",
       "computedStylesSha256": "e3949aab8188e47ece0d6bffe0de63f183ae14d82d5227e05d124ea8f36fe8be",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/sso--add-oidc--light--desktop.png",
-      "referenceSha256": "3d06edebc5438d4814959a11fbd209fde3cc17a34eef55528579f7a93bbe4117",
+      "referenceSha256": "3aa9e0419944c43a3c1dd623bf17b4c9bfd1078e418c66725c377d18fb133f78",
       "paperExportScore": null
     },
     {
@@ -1417,7 +1417,7 @@
       "computedStylesPath": "2EXM-0.computed-styles.json",
       "computedStylesSha256": "f10bc868ac8fd4811b5ca4cbf774eb7d5c2297b6d51f73d988e58902508645ee",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/sso--add-saml-and-domain-verification--light--desktop.png",
-      "referenceSha256": "02d498003967907d9da32f78abc56e5d7c7e3e205b117ea66b11857fe690c555",
+      "referenceSha256": "2a61ce49a5a30360082c51b0b10cc011e8fa8e036c4c4e1b83b49e99cf7e91dd",
       "paperExportScore": null
     },
     {
@@ -1455,7 +1455,7 @@
       "computedStylesPath": "2DCZ-0.computed-styles.json",
       "computedStylesSha256": "104819a73f99e1416013fc72627ed481131b41d34192ac19712ab7ddc993a771",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/sso--list--dark--desktop.png",
-      "referenceSha256": "0f7e5522635823d1bf30ce012bf353c5516aaf8f30c2b581a80eb5c8797a8506",
+      "referenceSha256": "89680dcb3588b885bdad3548831cab336b678a55e13437f323b64fb5b858fc66",
       "paperExportScore": null
     },
     {
@@ -1474,7 +1474,7 @@
       "computedStylesPath": "2CMC-0.computed-styles.json",
       "computedStylesSha256": "e15205a5cacb2222d3ba69dc2f9bbeacb7719d02c5a4c775256c525b67fd452e",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/sso--list--light--desktop.png",
-      "referenceSha256": "a6d47dc3e55acd90f2fc44e40e89aa1e0ba256c994e983196bc70bd76de3b325",
+      "referenceSha256": "e76528de7c4548c16389b9463678a0996fc59105dc138b932a4fc30dadb938f5",
       "paperExportScore": null
     },
     {
@@ -1531,7 +1531,7 @@
       "computedStylesPath": "2EXO-0.computed-styles.json",
       "computedStylesSha256": "ae7835785423c316658ac05b7b8dca3f436e1176dcae2db5ca0f24ed6c749796",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/scim--revoke-and-decommission-confirm--light--desktop.png",
-      "referenceSha256": "2a51d364cf20506e2a2c6c15fb282acca7300a7ec39105e572807c95a5b2265b",
+      "referenceSha256": "2cd5bc93137f43b1ebff20a769c3683c03892590b45dbaba751ab368e3e2a47c",
       "paperExportScore": null
     },
     {
@@ -1569,7 +1569,7 @@
       "computedStylesPath": "2EXN-0.computed-styles.json",
       "computedStylesSha256": "9c024882d9fbc8a240d2c54e9e3d024e360f083436c9b6f90e70e04df01a830a",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/scim--rotate-confirm--light--desktop.png",
-      "referenceSha256": "0dd06b4eb5e985ad870fdc9233764ed4f1766f0080676e2f0535ca908a2bfc5c",
+      "referenceSha256": "7b469f2041778ba54085986c37487b9787182d35d87115d4eb7a4e9b22fc7bbb",
       "paperExportScore": null
     },
     {
@@ -1607,7 +1607,7 @@
       "computedStylesPath": "2DD0-0.computed-styles.json",
       "computedStylesSha256": "3a0a959a12bd49d5249422015f9b2effcb4f0ff7050c4ed34c71a127eaedc50b",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/scim--token-shown-once--dark--desktop.png",
-      "referenceSha256": "0bf5ece6cc711d69133beb921285c7d948b91c3fd93bf66058009184a0964861",
+      "referenceSha256": "4975643acd9308e04b3ebf510bd83351590781c4731e244efa43e77c71d5795e",
       "paperExportScore": null
     },
     {
@@ -1626,7 +1626,7 @@
       "computedStylesPath": "2CPA-0.computed-styles.json",
       "computedStylesSha256": "8a4aaae6d777421c1fc744c488321a29d43f0b2de173b837947a6c0ace2e2ca4",
       "referencePath": "docs/technical-design/ui-baselines/paper/entitlements/scim--token-shown-once--light--desktop.png",
-      "referenceSha256": "273d7fddc67a77aac57223b7ca63d74f440da32a3fe2e77c385f7cd5d5d618f1",
+      "referenceSha256": "8129244dcaf8978469dd3f129e99b6816c98338f0757ba0968cffc99d0582495",
       "paperExportScore": null
     },
     {

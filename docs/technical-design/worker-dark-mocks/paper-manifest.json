@@ -17,7 +17,7 @@
   "inputs": [
     {
       "path": "source/detail-dark-phone-90D-0-derived.react-css.txt",
-      "sha256": "16fda21e31dd4cf55b14b3626673d7db9b2be5fe7e8f85b4468214695f029a44"
+      "sha256": "f57cc5c95e740b6c7dd0c38dff3aa5abf4a9f2214d24eeb74c31a4018da736c7"
     },
     {
       "path": "theme-values.json",

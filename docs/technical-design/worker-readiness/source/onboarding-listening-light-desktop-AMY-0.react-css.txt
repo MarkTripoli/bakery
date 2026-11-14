@@ -15,7 +15,7 @@ export default function () {
         </div>
         <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: 'var(--spacing-12)', paddingBlock: 'var(--spacing-12)', paddingInline: 'var(--spacing-8)' }}>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', flexBasis: '0%', flexGrow: '1', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', fontWeight: 'var(--font-weight-medium)', lineHeight: 'var(--leading-14)' }}>
-            Alex’s workspace
+            Mark’s workspace
           </div>
           <svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: '0' }}>
             <path d="m6 9 6 6 6-6" fill="none" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -120,11 +120,11 @@ export default function () {
         <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: 'var(--spacing-12)', padding: 'var(--spacing-8)' }}>
           <div style={{ backgroundColor: 'var(--color-border)', borderRadius: '20px', boxSizing: 'border-box', fontFamily: 'var(--font-sans)', padding: 'var(--spacing-4)' }}>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-12)', fontWeight: 'var(--font-weight-regular)', lineHeight: '20px' }}>
-              AM
+              MT
             </div>
           </div>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', flexBasis: '0%', flexGrow: '1', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-13)', fontWeight: 'var(--font-weight-regular)', lineHeight: 'var(--leading-13)' }}>
-            Alex Morgan
+            Mark Tripoli
           </div>
           <svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: '0' }}>
             <path d="m6 9 6 6 6-6" fill="none" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -172,7 +172,7 @@ export default function () {
                   Connect web-worker-03
                 </div>
                 <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', fontWeight: 'var(--font-weight-regular)', lineHeight: 'var(--leading-14)' }}>
-                  Add this Linux machine to Alex’s workspace.
+                  Add this Linux machine to Mark’s workspace.
                 </div>
               </div>
             </div>
@@ -261,7 +261,7 @@ export default function () {
                         </div>
                       </div>
                       <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-12)', fontWeight: 'var(--font-weight-regular)', lineHeight: 'var(--leading-12)' }}>
-                        Alex’s workspace only. Expires in 9:42.
+                        Mark’s workspace only. Expires in 9:42.
                       </div>
                     </div>
                   </div>
@@ -316,7 +316,7 @@ export default function () {
                   Linux · 2 task slots
                 </div>
                 <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', fontWeight: 'var(--font-weight-regular)', lineHeight: 'var(--leading-14)' }}>
-                  Owned by Alex’s workspace
+                  Owned by Mark’s workspace
                 </div>
               </div>
               <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-8)' }}>
