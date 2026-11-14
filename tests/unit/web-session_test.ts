@@ -119,6 +119,8 @@ function fakeApi(
       get: rejecting,
       enroll: rejecting,
       repairEnrollment: rejecting,
+      update: rejecting,
+      revoke: rejecting,
     },
     machines: { dispatchBlockers: rejecting },
     workerEnrollments: {
