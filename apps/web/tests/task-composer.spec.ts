@@ -392,7 +392,7 @@ test("a setup-required preset names every missing requirement and blocks submit"
   await expect(field.start(page)).toHaveAccessibleDescription(
     /This workflow cannot start here yet/,
   );
-  await still(page, "composer-setup");
+  await still(page, "composer-setup", form(page));
 });
 
 test("Start is disabled for a budget below the reservation", async ({ page }) => {

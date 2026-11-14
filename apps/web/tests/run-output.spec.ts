@@ -636,7 +636,11 @@ test("revision preview verifies the exact immutable version bytes", async ({ pag
   await expect(fingerprint).toContainText(digest.slice(0, 12));
   await expect(fingerprint).not.toContainText(digest.slice(0, 13));
   await expect(fingerprint.getByRole("button", { name: "Copy" })).toBeVisible();
-  await still(page, "run-revision");
+  await still(
+    page,
+    "run-revision",
+    page.getByRole("region", { name: "Changes" }),
+  );
   await expect(page.getByText("Patch: 1 files · +1 −1", { exact: true }))
     .toBeVisible();
   await expect(page.getByText("1 files · +1 −1", { exact: true }))
