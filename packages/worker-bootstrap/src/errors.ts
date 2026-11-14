@@ -71,6 +71,10 @@ export const BOOTSTRAP_ERRORS = {
     "This installation is already paired with this organization under another setup. It was not changed and no second machine was created.",
   PAIRING_BINDING_CORRUPT:
     "The record of this installation's pairing cannot be read. It was not replaced.",
+  SERVICE_SPEC_INVALID:
+    "A path or name for the service has characters the service definition does not allow. Nothing was written.",
+  SERVICE_SETTING_REFUSED:
+    "A setting for the service is not allowed in a service definition: the setup code is never written there.",
   COMMAND_UNKNOWN:
     "Unknown command or option. Use: setup --server URL, or pair --server URL, optionally with --root DIR and --token-file FILE or --token-fd N.",
   COMMAND_TOKEN_SHORTCUT:

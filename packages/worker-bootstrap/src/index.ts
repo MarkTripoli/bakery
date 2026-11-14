@@ -43,3 +43,19 @@ export {
   runCommand,
 } from "./cli.ts";
 export type { HiddenInputStream } from "./pairing.ts";
+export {
+  type ChangeActor,
+  describeChanges,
+  environmentFilePath,
+  environmentFileText,
+  LINUX_SERVICE,
+  LINUX_UNIT_PATH,
+  MACOS_LABEL,
+  planLinuxService,
+  planMacService,
+  renderLaunchAgent,
+  renderSystemdUnit,
+  type ServiceSpec,
+  type SystemChange,
+  workerPath,
+} from "./service.ts";
