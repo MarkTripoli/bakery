@@ -106,6 +106,15 @@ input:not([type="hidden"]) {
   cursor: not-allowed;
   opacity: .55;
 }
+/* The primary fill is the light colour in the dark theme, so a disabled primary
+   button faded to 55% was still the brightest thing on the page. There it takes
+   the subtle surface with the disabled ink instead, and no fade. */
+[data-theme="dark"] .ui-button--primary:disabled {
+  background: var(--color-surface-subtle);
+  border-color: var(--color-border);
+  color: var(--color-fg-disabled);
+  opacity: 1;
+}
 .ui-link {
   color: var(--color-selection);
   text-underline-offset: var(--underline-offset); /* auth.css:8 a{text-underline-offset:3px} */
@@ -235,9 +244,17 @@ input:not([type="hidden"]) {
 :dir(rtl) .ui-switch input:checked::after {
   translate: calc(var(--size-checkbox) - var(--size-switch)) -50%;
 }
+/* A disabled switch reads as disabled at a glance: the track takes the disabled
+   foreground instead of fading the whole control, and the label stays in the
+   muted text colour so it can still be read. */
+.ui-switch[data-state="disabled"] {
+  color: var(--color-fg-muted);
+}
 .ui-switch input:disabled {
   cursor: not-allowed;
-  opacity: .55;
+}
+.ui-switch input:disabled::before {
+  background: var(--color-fg-disabled);
 }
 .ui-segmented-control {
   border: var(--border-none);

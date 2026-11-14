@@ -7311,7 +7311,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Integrations",
@@ -7334,7 +7334,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Integrations",
@@ -9013,6 +9013,8 @@
     "integrationConnections.create",
     "integrationConnections.list",
     "integrationResources.list",
+    "integrationEffects.list",
+    "integrationEffects.get",
     "integrationConnections.update",
     "integrationConnections.remove",
     "integrationResources.update",
@@ -197278,7 +197280,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:2137e38f26424664276828200b009a2082b39e53d15b1ac96b21ca235be5b798",
+  "compatibilityDigest": "sha256:c0956eb6bd8cfced8edb82b2e18aebee2aca7532902338c733c0f0137a1ab21f",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

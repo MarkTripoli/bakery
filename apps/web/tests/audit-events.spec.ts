@@ -48,15 +48,20 @@ const problem = (status: number, code: string) => ({
 
 async function installationAuditFixture(
   page: Page,
-  options: { forbidden?: boolean } = {},
+  options: { forbidden?: boolean; failOlderOnce?: boolean } = {},
 ) {
   await mockAuthenticatedSession(page);
   const seen: string[] = [];
+  let olderFailures = options.failOlderOnce ? 1 : 0;
   await page.route("**/v1/installation/audit-events**", (route) => {
     const url = new URL(route.request().url());
     seen.push(url.search);
     if (options.forbidden) return route.fulfill(problem(403, "AUTH_FORBIDDEN"));
     const cursor = url.searchParams.get("cursor");
+    if (cursor && olderFailures > 0) {
+      olderFailures -= 1;
+      return route.fulfill(problem(500, "INTERNAL_ERROR"));
+    }
     const operation = url.searchParams.get("operation");
     const items = cursor
       ? [row(1, "installationAdministrators.create")]
@@ -104,6 +109,29 @@ for (
         .toHaveCount(0);
       expect(seen.some((search) => search.includes("cursor=next-page")))
         .toBe(true);
+      // The button that was pressed is gone: focus is on the first row that load added.
+      await expect(
+        page.getByRole("row").filter({
+          hasText: "Installation administrator added",
+        }),
+      ).toBeFocused();
+    });
+
+    test("a failed load of older events leaves focus on the button that retries it, then on the first new row", async ({ page }) => {
+      await installationAuditFixture(page, { failOlderOnce: true });
+      await page.goto("/installation/audit");
+      const more = page.getByRole("button", { name: "Load older events" });
+      await more.click();
+      // The banner and the table both say so.
+      await expect(page.getByText("The audit log could not be loaded.").first())
+        .toBeVisible();
+      await expect(more).toBeFocused();
+      await more.click();
+      await expect(
+        page.getByRole("row").filter({
+          hasText: "Installation administrator added",
+        }),
+      ).toBeFocused();
     });
 
     test("action filter narrows the list through the server query", async ({ page }) => {

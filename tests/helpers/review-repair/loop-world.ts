@@ -26,6 +26,8 @@ import {
   receiveInspectionSource,
 } from "../repository-inspection.ts";
 import {
+  closeWorkerFixture,
+  openWorkerFixture,
   registeredWorker,
   type WorkerFixture,
   workerFixtureCapabilities,
@@ -303,11 +305,65 @@ async function onboardObserved(
   }
 }
 
+/**
+ * Per-file sharing (#37). Opening a worker fixture resets the test database,
+ * applies every migration and starts an app: tens of seconds on a loaded host,
+ * paid by every case before. A test file calls `shareLoopFixture()` before
+ * registering its cases and `loopFixtureCloseStep()` after each group; its
+ * cases then share one fixture. Every case still starts its own run, agents,
+ * repository and task (all suffixed), reads and audits only that run, and on
+ * close cancels its run's still-queued jobs so no later case can claim them.
+ * Files that do not opt in keep a fixture per case.
+ */
+let sharing = false;
+let sharedFixture: Promise<WorkerFixture> | undefined;
+
+export function shareLoopFixture(): void {
+  sharing = true;
+}
+
+/** Registers the step that closes the shared fixture; a later case reopens. */
+export function loopFixtureCloseStep(name: string): void {
+  Deno.test({
+    name: `${name}: close the shared loop fixture`,
+    fn: async () => {
+      const fixture = sharedFixture;
+      sharedFixture = undefined;
+      if (fixture) await closeWorkerFixture(await fixture);
+    },
+    sanitizeOps: false,
+    sanitizeResources: false,
+  });
+}
+
+/**
+ * Deno.test for a loop case: with a shared fixture its pools outlive the case,
+ * so the per-test op and resource sanitizers are off; otherwise unchanged.
+ */
+export function loopTest(name: string, fn: () => unknown): void {
+  if (sharing) {
+    Deno.test({
+      name,
+      fn: async () => {
+        await fn();
+      },
+      sanitizeOps: false,
+      sanitizeResources: false,
+    });
+  } else {
+    Deno.test(name, async () => {
+      await fn();
+    });
+  }
+}
+
 /** Runs `work` with a fixture that has the budget policy a model step needs. */
-export function withLoopFixture<T>(
+export async function withLoopFixture<T>(
   work: (fixture: WorkerFixture) => Promise<T>,
 ): Promise<T> {
-  return withWorkerFixture(work, { env: presetBudgetEnv });
+  if (!sharing) return await withWorkerFixture(work, { env: presetBudgetEnv });
+  sharedFixture ??= openWorkerFixture({ env: presetBudgetEnv });
+  return await work(await sharedFixture);
 }
 
 const sha = (text: string) => sha256Hex(canonicalJson(text));
@@ -705,8 +761,15 @@ export async function openLoopWorld(
         `select outcome, details from bakery.audit_events
           where organization_id = $1 and operation = $2
             and ($3::text is null or outcome = $3)
+            -- This run's only: review audits name a job attempt of the run.
+            and resource_id in (
+              select attempt.id::text
+                from bakery.job_attempts attempt
+                join bakery.jobs job on job.id = attempt.job_id
+                join bakery.run_steps step on step.id = job.run_step_id
+               where step.organization_id = $1 and step.run_id = $4)
           order by created_at, id`,
-        [org, operation, outcome ?? null],
+        [org, operation, outcome ?? null, run.id],
       )).rows;
     },
     sessionIds,
@@ -726,6 +789,15 @@ export async function openLoopWorld(
     },
     async close() {
       await engine.releaseEngineOwner(owner);
+      // Nothing of this run may stay claimable for a later case's worker.
+      await database.query(
+        `update bakery.jobs set status = 'canceled'
+          where organization_id = $1 and status = 'queued'
+            and run_step_id in (
+              select id from bakery.run_steps
+               where organization_id = $1 and run_id = $2)`,
+        [org, run.id],
+      );
     },
   };
   return world;
