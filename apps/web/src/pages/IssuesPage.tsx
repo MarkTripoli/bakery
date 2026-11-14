@@ -159,7 +159,7 @@ export function IssuesPage() {
       {canRefresh && !phone
         ? <ShellSlot name="actions">{refreshButton}</ShellSlot>
         : null}
-      <UI.SettingsContent data-testid="issues-page">
+      <UI.Stack gap="spacious" data-testid="issues-page">
         <UI.PageHeader
           variant="list"
           title={translate("issues.title" as never)}
@@ -355,7 +355,7 @@ export function IssuesPage() {
                 : null}
             </UI.Stack>
           )}
-      </UI.SettingsContent>
+      </UI.Stack>
     </>
   );
 }
