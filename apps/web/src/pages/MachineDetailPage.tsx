@@ -507,6 +507,7 @@ export function MachineDetailPage(
       </ShellSlot>
       <UI.SettingsContent data-testid="machine-detail-page" variant="wide">
         <UI.PageHeader
+          flush
           variant="list"
           title={machineTitle}
           subtitle={workerData

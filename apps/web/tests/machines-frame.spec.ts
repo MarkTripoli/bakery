@@ -3,6 +3,7 @@ import {
   adminMachinesFixture,
   MACHINE_ID,
 } from "./helpers/machines-fixture.ts";
+import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { shot } from "./helpers/real-api.ts";
 
@@ -100,6 +101,39 @@ for (const entry of PAGES) {
   });
 }
 
+test.describe("alignment", () => {
+  test.beforeEach(async ({ page }) => {
+    await adminMachinesFixture(page);
+  });
+
+  test("the title, its line and the section headings start at the same left edge", async ({ page }) => {
+    await page.goto("/machines");
+    const title = page.getByRole("heading", { level: 1, name: "Machines" });
+    const section = page.getByRole("heading", {
+      level: 2,
+      name: "Finishing setup",
+    });
+    await expect(section).toBeVisible();
+    const edge = (await title.boundingBox())!.x;
+    expect((await section.boundingBox())!.x).toBeCloseTo(edge, 0);
+    expect(
+      (await page.getByText("The computers that run your agents.")
+        .boundingBox())!.x,
+    ).toBeCloseTo(edge, 0);
+    await page.goto(`/machines/${MACHINE_ID}`);
+    const name = page.getByRole("heading", {
+      level: 1,
+      name: "touch-target-host",
+    });
+    const checks = page.getByRole("heading", { level: 2, name: "Checks" });
+    await expect(checks).toBeVisible();
+    expect((await checks.boundingBox())!.x).toBeCloseTo(
+      (await name.boundingBox())!.x,
+      0,
+    );
+  });
+});
+
 test.describe("Machines frame, evidence", () => {
   test("the list, the wizard's first step and a machine page", async ({ page }) => {
     await adminMachinesFixture(page);
@@ -112,5 +146,29 @@ test.describe("Machines frame, evidence", () => {
     await page.goto(`/machines/${MACHINE_ID}`);
     await expect(page.getByTestId("machine-detail-page")).toBeVisible();
     await shot(page, "machines-frame-machine");
+  });
+
+  test("a settings page beside them, for the left edge", async ({ page }) => {
+    await mockAuthenticatedSession(page);
+    await page.route("**/v1/me/profile", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          principalId: "00000000-0000-4000-8000-000000000001",
+          name: "Alex Morgan",
+          firstName: "Alex",
+          lastName: "Morgan",
+          title: null,
+          image: null,
+          email: "alex.morgan@example.com",
+          emailVerified: true,
+          version: 3,
+          updatedAt: "2026-01-02T00:00:00.000Z",
+        }),
+      }));
+    await page.goto("/settings/profile");
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await shot(page, "machines-frame-profile");
   });
 });

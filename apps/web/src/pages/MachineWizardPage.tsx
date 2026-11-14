@@ -523,6 +523,7 @@ export function MachineWizardPage(
       {breadcrumbs}
       <UI.SettingsContent data-testid="machine-wizard">
         <UI.PageHeader
+          flush
           variant="list"
           title={translate("machines.wizard.title" as never)}
         />
@@ -577,6 +578,7 @@ export function MachineWizardPage(
       {breadcrumbs}
       <UI.SettingsContent data-testid="machine-wizard">
         <UI.PageHeader
+          flush
           variant="list"
           title={translate("machines.wizard.title" as never)}
           subtitle={translate("machines.wizard.progress" as never, {

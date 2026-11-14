@@ -180,6 +180,7 @@ export function MachinesPage() {
         {/* The wrapper is what the first-read retry looks for; the focus goes to its heading. */}
         <div data-paged-heading="machines">
           <UI.PageHeader
+            flush
             variant="list"
             title={translate("machines.title")}
             subtitle={translate("machines.description")}

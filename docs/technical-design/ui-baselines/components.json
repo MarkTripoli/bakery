@@ -10996,7 +10996,8 @@
             "default",
             "personal",
             "preferences",
-            "access"
+            "access",
+            "wide"
           ],
           "states": [
             "default"
