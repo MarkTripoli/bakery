@@ -3163,7 +3163,6 @@
   "machines.wizard.install.signInButton": "⟪Sign in to {agent}⟫",
   "machines.wizard.agent.help": "⟪One coding agent per machine. You sign it in after the machine connects.⟫",
   "machines.wizard.install.opening": "⟪Getting the machine's page ready. Signing in will be available in a moment.⟫",
-  "tasks.delivery.now.approval.title": "⟪Waiting for your approval⟫",
   "tasks.delivery.now.approval.body": "⟪Checks passed and the reviewer found nothing blocking. Approving lets Bakery merge these changes.⟫",
   "tasks.delivery.now.changesRequested.title": "⟪Changes were requested⟫",
   "tasks.delivery.now.changesRequested.body": "⟪Bakery sent the note to the agent. It will fix the changes and check again.⟫",
@@ -3171,8 +3170,6 @@
   "tasks.delivery.now.rejected.body": "⟪Bakery will not merge them. The changes are kept.⟫",
   "tasks.delivery.approval.title": "⟪Approval⟫",
   "tasks.delivery.approval.approve": "⟪Approve⟫",
-  "tasks.delivery.approval.more": "⟪More⟫",
-  "tasks.delivery.approval.moreMenu": "⟪Other ways to answer⟫",
   "tasks.delivery.approval.requestChanges": "⟪Request changes⟫",
   "tasks.delivery.approval.reject": "⟪Reject⟫",
   "tasks.delivery.approval.approveDialog.title": "⟪Approve these changes?⟫",
@@ -3189,7 +3186,6 @@
   "tasks.delivery.approval.forbidden": "⟪You cannot decide this approval.⟫",
   "tasks.delivery.approval.error": "⟪The decision could not be sent. Try again.⟫",
   "tasks.delivery.approval.unknown": "⟪Bakery could not confirm that the decision was saved. The latest state is shown.⟫",
-  "tasks.delivery.approval.step.waiting": "⟪Waiting for your approval.⟫",
   "tasks.delivery.approval.step.approved": "⟪Approved. Bakery may merge these changes.⟫",
   "tasks.delivery.approval.step.changesRequested": "⟪Changes were requested. Bakery sent the note to the agent.⟫",
   "tasks.delivery.approval.step.rejected": "⟪Rejected. Bakery will not merge these changes.⟫",
@@ -3200,5 +3196,9 @@
   "tasks.delivery.approval.status.closed": "⟪Closed⟫",
   "tasks.delivery.help.approval.label": "⟪About approval⟫",
   "tasks.delivery.help.approval.text": "⟪Your workflow asks a person to approve at this point.⟫",
-  "tasks.delivery.approval.changesDialog.intro": "⟪Say what is wrong with these changes. The agent fixes them and Bakery checks them again.⟫"
+  "tasks.delivery.approval.changesDialog.intro": "⟪Say what is wrong with these changes. The agent fixes them and Bakery checks them again.⟫",
+  "tasks.delivery.now.approval.title": "⟪Waiting for approval⟫",
+  "tasks.delivery.now.approved.title": "⟪Approved⟫",
+  "tasks.delivery.now.approved.body": "⟪Bakery may now merge these changes. Nothing is waiting for you.⟫",
+  "tasks.delivery.approval.step.waiting": "⟪Waiting for approval.⟫"
 }

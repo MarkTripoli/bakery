@@ -527,8 +527,8 @@ Deno.test("each decision gives its own state and card", () => {
     DeliveryInput["approvals"][number]["status"],
     string,
   ][] = [
-    ["approve", "approved", "answered", "clean"],
-    ["approve", "approved", "consumed", "clean"],
+    ["approve", "approved", "answered", "approved"],
+    ["approve", "approved", "consumed", "approved"],
     ["request_changes", "changesRequested", "answered", "changesRequested"],
     ["reject", "rejected", "answered", "rejected"],
   ];

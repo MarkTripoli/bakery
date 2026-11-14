@@ -190,6 +190,7 @@ export type NowCard =
   | Readonly<{ kind: "paused" }>
   | Readonly<{ kind: "clean" }>
   | Readonly<{ kind: "approval" }>
+  | Readonly<{ kind: "approved" }>
   | Readonly<{ kind: "changesRequested" }>
   | Readonly<{ kind: "rejected" }>
   | Readonly<{ kind: "checksFailed"; failed: number }>
@@ -491,6 +492,7 @@ function nowCard(
     if (approval?.state === "waiting") {
       return outOfDate ? { kind: "checking" } : { kind: "approval" };
     }
+    if (approval?.state === "approved") return { kind: "approved" };
     if (approval?.state === "changesRequested") {
       return { kind: "changesRequested" };
     }

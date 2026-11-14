@@ -3163,7 +3163,6 @@
   "machines.wizard.install.signInButton": "⟦Šïĝñ ïñ ŧô {agent} ŧëšŧ⟧",
   "machines.wizard.agent.help": "⟦Ôñë çôðïñĝ àĝëñŧ þëŕ ɱàçĥïñë. Ÿôû šïĝñ ïŧ ïñ àƒŧëŕ ŧĥë ɱàçĥïñë çôññëçŧš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "machines.wizard.install.opening": "⟦Ĝëŧŧïñĝ ŧĥë ɱàçĥïñë'š þàĝë ŕëàðÿ. Šïĝñïñĝ ïñ ŵïļļ ƀë àṽàïļàƀļë ïñ à ɱôɱëñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
-  "tasks.delivery.now.approval.title": "⟦Ŵàïŧïñĝ ƒôŕ ÿôûŕ àþþŕôṽàļ ŧëšŧ ç⟧",
   "tasks.delivery.now.approval.body": "⟦Çĥëçķš þàššëð àñð ŧĥë ŕëṽïëŵëŕ ƒôûñð ñôŧĥïñĝ ƀļôçķïñĝ. Àþþŕôṽïñĝ ļëŧš Ɓàķëŕÿ ɱëŕĝë ŧĥëšë çĥàñĝëš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "tasks.delivery.now.changesRequested.title": "⟦Çĥàñĝëš ŵëŕë ŕëǫûëšŧëð ŧëšŧŧ⟧",
   "tasks.delivery.now.changesRequested.body": "⟦Ɓàķëŕÿ šëñŧ ŧĥë ñôŧë ŧô ŧĥë àĝëñŧ. Ïŧ ŵïļļ ƒïẋ ŧĥë çĥàñĝëš àñð çĥëçķ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
@@ -3171,8 +3170,6 @@
   "tasks.delivery.now.rejected.body": "⟦Ɓàķëŕÿ ŵïļļ ñôŧ ɱëŕĝë ŧĥëɱ. Ŧĥë çĥàñĝëš àŕë ķëþŧ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "tasks.delivery.approval.title": "⟦Àþþŕôṽàļ…⟧",
   "tasks.delivery.approval.approve": "⟦Àþþŕôṽë…⟧",
-  "tasks.delivery.approval.more": "⟦Ṁôŕë⟧",
-  "tasks.delivery.approval.moreMenu": "⟦Ôŧĥëŕ ŵàÿš ŧô àñšŵëŕ ŧëšŧ⟧",
   "tasks.delivery.approval.requestChanges": "⟦Ŕëǫûëšŧ çĥàñĝëš ŧëš⟧",
   "tasks.delivery.approval.reject": "⟦Ŕëĵëçŧ…⟧",
   "tasks.delivery.approval.approveDialog.title": "⟦Àþþŕôṽë ŧĥëšë çĥàñĝëš? ŧëšŧŧ⟧",
@@ -3189,7 +3186,6 @@
   "tasks.delivery.approval.forbidden": "⟦Ÿôû çàññôŧ ðëçïðë ŧĥïš àþþŕôṽàļ. ŧëšŧ çôþÿ⟧",
   "tasks.delivery.approval.error": "⟦Ŧĥë ðëçïšïôñ çôûļð ñôŧ ƀë šëñŧ. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧë⟧",
   "tasks.delivery.approval.unknown": "⟦Ɓàķëŕÿ çôûļð ñôŧ çôñƒïŕɱ ŧĥàŧ ŧĥë ðëçïšïôñ ŵàš šàṽëð. Ŧĥë ļàŧëšŧ šŧàŧë ïš šĥôŵñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "tasks.delivery.approval.step.waiting": "⟦Ŵàïŧïñĝ ƒôŕ ÿôûŕ àþþŕôṽàļ. ŧëšŧ çô⟧",
   "tasks.delivery.approval.step.approved": "⟦Àþþŕôṽëð. Ɓàķëŕÿ ɱàÿ ɱëŕĝë ŧĥëšë çĥàñĝëš. ŧëšŧ çôþÿ ŧë⟧",
   "tasks.delivery.approval.step.changesRequested": "⟦Çĥàñĝëš ŵëŕë ŕëǫûëšŧëð. Ɓàķëŕÿ šëñŧ ŧĥë ñôŧë ŧô ŧĥë àĝëñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "tasks.delivery.approval.step.rejected": "⟦Ŕëĵëçŧëð. Ɓàķëŕÿ ŵïļļ ñôŧ ɱëŕĝë ŧĥëšë çĥàñĝëš. ŧëšŧ çôþÿ ŧëšŧ⟧",
@@ -3200,5 +3196,9 @@
   "tasks.delivery.approval.status.closed": "⟦Çļôšëð…⟧",
   "tasks.delivery.help.approval.label": "⟦Àƀôûŧ àþþŕôṽàļ ŧë⟧",
   "tasks.delivery.help.approval.text": "⟦Ÿôûŕ ŵôŕķƒļôŵ àšķš à þëŕšôñ ŧô àþþŕôṽë àŧ ŧĥïš þôïñŧ. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
-  "tasks.delivery.approval.changesDialog.intro": "⟦Šàÿ ŵĥàŧ ïš ŵŕôñĝ ŵïŧĥ ŧĥëšë çĥàñĝëš. Ŧĥë àĝëñŧ ƒïẋëš ŧĥëɱ àñð Ɓàķëŕÿ çĥëçķš ŧĥëɱ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
+  "tasks.delivery.approval.changesDialog.intro": "⟦Šàÿ ŵĥàŧ ïš ŵŕôñĝ ŵïŧĥ ŧĥëšë çĥàñĝëš. Ŧĥë àĝëñŧ ƒïẋëš ŧĥëɱ àñð Ɓàķëŕÿ çĥëçķš ŧĥëɱ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "tasks.delivery.now.approval.title": "⟦Ŵàïŧïñĝ ƒôŕ àþþŕôṽàļ ŧëšŧ⟧",
+  "tasks.delivery.now.approved.title": "⟦Àþþŕôṽëð…⟧",
+  "tasks.delivery.now.approved.body": "⟦Ɓàķëŕÿ ɱàÿ ñôŵ ɱëŕĝë ŧĥëšë çĥàñĝëš. Ñôŧĥïñĝ ïš ŵàïŧïñĝ ƒôŕ ÿôû. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "tasks.delivery.approval.step.waiting": "⟦Ŵàïŧïñĝ ƒôŕ àþþŕôṽàļ. ŧëšŧŧ⟧"
 }

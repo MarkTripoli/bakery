@@ -82,6 +82,12 @@ function nowCopy(t: Translate, now: NowCard): NowCopy {
         body: t("tasks.delivery.now.approval.body"),
         action: "decide",
       };
+    case "approved":
+      return {
+        title: t("tasks.delivery.now.approved.title"),
+        body: t("tasks.delivery.now.approved.body"),
+        action: null,
+      };
     case "changesRequested":
       return {
         title: t("tasks.delivery.now.changesRequested.title"),
@@ -180,6 +186,7 @@ function stoppedCopy(
 function nowTone(now: NowCard): "success" | "information" | "warning" {
   switch (now.kind) {
     case "clean":
+    case "approved":
       return "success";
     case "checking":
     case "fixing":
@@ -360,7 +367,6 @@ function ReadyView(
   const { translate: t } = useI18n();
   const fieldId = useId();
   const [dialog, setDialog] = useState<ApprovalDialog | null>(null);
-  const [moreOpen, setMoreOpen] = useState(false);
   const [comment, setComment] = useState("");
   const deciding = decisionPhase === "deciding";
   const copy = nowCopy(t, model.now);
@@ -385,45 +391,32 @@ function ReadyView(
     if (!deciding) setDialog(null);
   };
 
+  // A person who was refused cannot decide, so the answers go away for them.
   const action = copy.action === null
     ? null
     : copy.action === "decide"
-    ? (
+    ? decisionPhase === "forbidden" ? null : (
       <UI.Inline>
-        <UI.Popover
-          label={t("tasks.delivery.approval.moreMenu")}
-          onOpenChange={setMoreOpen}
-          open={moreOpen}
-          trigger={t("tasks.delivery.approval.more")}
-          triggerAppearance="toolbar"
-          variant="interactive"
-        >
-          <UI.Menu
-            aria-label={t("tasks.delivery.approval.moreMenu")}
-            items={[
-              {
-                id: "changes",
-                label: t("tasks.delivery.approval.requestChanges"),
-                disabled: offline || deciding,
-              },
-              {
-                id: "reject",
-                label: t("tasks.delivery.approval.reject"),
-                disabled: offline || deciding,
-              },
-            ]}
-            onSelect={(id) => {
-              setMoreOpen(false);
-              setDialog(id === "changes" ? "changes" : "reject");
-            }}
-          />
-        </UI.Popover>
         <UI.Button
           disabled={offline || deciding}
           onClick={() => setDialog("approve")}
           variant="primary"
         >
           {t("tasks.delivery.approval.approve")}
+        </UI.Button>
+        <UI.Button
+          disabled={offline || deciding}
+          onClick={() => setDialog("changes")}
+          variant="outline"
+        >
+          {t("tasks.delivery.approval.requestChanges")}
+        </UI.Button>
+        <UI.Button
+          disabled={offline || deciding}
+          onClick={() => setDialog("reject")}
+          variant="destructive-outline"
+        >
+          {t("tasks.delivery.approval.reject")}
         </UI.Button>
       </UI.Inline>
     )
@@ -461,20 +454,22 @@ function ReadyView(
               ` ${t("tasks.delivery.lastUpdated", { time: lastUpdated })}`}
           </UI.Text>
         )}
-        <div aria-atomic="true" aria-live="polite" role="status">
-          {refusal !== null && (
-            <UI.InlineNotice
-              data-testid="delivery-approval-notice"
-              id={NOTICE_ID}
-              role="none"
-              tabIndex={-1}
-              tone={decisionPhase === "unknown" ? "neutral" : "error"}
-            >
-              {t(refusal)}
-            </UI.InlineNotice>
-          )}
-        </div>
       </UI.AlertBanner>
+      {refusal !== null && (
+        // Nothing failed when a decision lost or the answer is unknown, and a
+        // refusal is an explanation: all three are information. Only a decision
+        // that could not be sent is an error.
+        <UI.InlineNotice
+          data-testid="delivery-approval-notice"
+          icon={decisionPhase === "error" ? undefined : "info"}
+          id={NOTICE_ID}
+          role="status"
+          tabIndex={-1}
+          tone={decisionPhase === "error" ? "error" : "neutral"}
+        >
+          {t(refusal)}
+        </UI.InlineNotice>
+      )}
       {model.outOfDate && (
         <UI.InlineNotice
           data-testid="delivery-out-of-date"
