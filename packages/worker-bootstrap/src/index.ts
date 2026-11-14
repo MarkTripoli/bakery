@@ -24,6 +24,7 @@ export {
 export {
   type EnrollmentPreview,
   hasUnsafeCharacter,
+  hasVisibleCharacter,
   inspectEnrollment,
   normalizeServerOrigin,
   PAIRING_FILE,

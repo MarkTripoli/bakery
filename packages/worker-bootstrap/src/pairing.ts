@@ -197,6 +197,35 @@ export function hasUnsafeCharacter(value: string): boolean {
   return false;
 }
 
+/**
+ * Characters that Unicode files as letters or symbols yet draw nothing: the
+ * Hangul fillers, the halfwidth Hangul filler and the Braille blank. (Marks
+ * such as the grapheme joiner and the Khmer inherent vowels are not letters,
+ * numbers, punctuation or symbols, so they never count as showing anything.)
+ * A name made only of these reads as an empty one.
+ */
+const BLANK_FILLERS = new Set([
+  0x115f,
+  0x1160,
+  0x2800,
+  0x3164,
+  0xffa0,
+]);
+
+/**
+ * Whether the text shows anything at all: at least one letter, number,
+ * punctuation or symbol that draws. Spaces, marks with no base, the fillers
+ * above and the other format characters do not count.
+ */
+export function hasVisibleCharacter(value: string): boolean {
+  for (const character of value) {
+    const code = character.codePointAt(0)!;
+    if (BLANK_FILLERS.has(code)) continue;
+    if (/[\p{L}\p{N}\p{P}\p{S}]/u.test(character)) return true;
+  }
+  return false;
+}
+
 const PREVIEW_FIELDS = new Set([
   "enrollmentId",
   "organizationName",
@@ -231,7 +260,7 @@ function parsePreview(value: unknown): EnrollmentPreview {
   const text = (key: string, max: number): string => {
     const field = value[key];
     if (
-      typeof field !== "string" || field.trim().length === 0 ||
+      typeof field !== "string" || !hasVisibleCharacter(field) ||
       field.length > max || hasUnsafeCharacter(field)
     ) throw new BootstrapError("PAIRING_INSPECTION_MALFORMED");
     return field;
@@ -243,7 +272,7 @@ function parsePreview(value: unknown): EnrollmentPreview {
     typeof slots !== "number" || !Number.isInteger(slots) || slots < 1 ||
     slots > 100 || !Array.isArray(capabilities) || capabilities.length > 200 ||
     !capabilities.every((item) =>
-      typeof item === "string" && item.trim().length > 0 &&
+      typeof item === "string" && hasVisibleCharacter(item) &&
       item.length <= 200 && !hasUnsafeCharacter(item)
     ) || JSON.stringify(capabilities).length > 32_000 ||
     (state !== "pending" && state !== "canceled" && state !== "expired")
