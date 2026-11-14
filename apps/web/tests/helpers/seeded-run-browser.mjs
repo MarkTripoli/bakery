@@ -202,17 +202,13 @@ async function proveIntake(page, baseUrl, organizationId) {
   ]);
   const inbox = watchPageLoad(page);
   await page.goto(`${baseUrl}/tasks`);
-  // Paper filter bar: free-text search opens from the "Filter" button.
-  const filter = page.getByRole("button", { name: "Filter", exact: true });
-  await filter.waitFor({ timeout: 30_000 }).catch(async () => {
+  // The search is a field in the Work list toolbar row, labelled "Search tasks".
+  const search = page.getByRole("searchbox", { name: "Search tasks" });
+  await search.waitFor({ timeout: 30_000 }).catch(async () => {
     throw new Error(`SEEDED_RUN_TASK_INBOX_MISSING:${await inbox.report()}`);
   });
   inbox.stop();
-  await filter.click();
-  await page.getByLabel("Search titles and descriptions", { exact: true }).fill(
-    title,
-  );
-  await page.keyboard.press("Escape");
+  await search.fill(title);
   await page.getByRole("link", { name: title, exact: true }).click();
   await expect(page).toHaveURL(`${baseUrl}/tasks/${task.id}`);
   assert.equal(

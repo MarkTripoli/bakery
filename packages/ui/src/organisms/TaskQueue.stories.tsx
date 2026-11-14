@@ -12,7 +12,7 @@ const labels = {
   task: "Task",
   application: "Application",
   stage: "Stage",
-  harness: "Harness",
+  harness: "Coding agent",
   age: "Age",
 };
 

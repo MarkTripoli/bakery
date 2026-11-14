@@ -45,6 +45,11 @@ export type TaskQueueProps =
     groups: readonly TaskQueueGroup[];
     labels: TaskQueueLabels;
     selectedId?: string;
+    /**
+     * Columns the data can fill. A column the caller has no value for in any
+     * row is hidden instead of showing a dash in every row.
+     */
+    columns?: { application?: boolean; harness?: boolean };
     variant?: "table" | "list";
     onOpen?: (event: MouseEvent<HTMLAnchorElement>, row: TaskQueueRow) => void;
     /** Preview a row (pointer on the row, or focus on its title link). */
@@ -58,6 +63,7 @@ export type TaskQueueProps =
  */
 export function TaskQueue(
   {
+    columns,
     groups,
     labels,
     onOpen,
@@ -78,6 +84,7 @@ export function TaskQueue(
       {variant === "table"
         ? (
           <TableQueue
+            columns={columns}
             groups={groups}
             labels={labels}
             onOpen={onOpen}
@@ -87,6 +94,7 @@ export function TaskQueue(
         )
         : (
           <ListQueue
+            columns={columns}
             groups={groups}
             labels={labels}
             onOpen={onOpen}
@@ -100,7 +108,7 @@ export function TaskQueue(
 
 type QueueBodyProps = Pick<
   TaskQueueProps,
-  "groups" | "labels" | "onOpen" | "onPreview" | "selectedId"
+  "columns" | "groups" | "labels" | "onOpen" | "onPreview" | "selectedId"
 >;
 
 /**
@@ -149,28 +157,39 @@ function RowDetails({ children }: { children: ReactNode }) {
 }
 
 function TableQueue(
-  { groups, labels, onOpen, onPreview, selectedId }: QueueBodyProps,
+  { columns, groups, labels, onOpen, onPreview, selectedId }: QueueBodyProps,
 ) {
+  const application = columns?.application !== false;
+  const harness = columns?.harness !== false;
   return (
     <table className="ui-task-queue__table">
       <caption className="ui-task-queue__caption">{labels.caption}</caption>
       <thead>
         <tr>
           <th scope="col">{labels.task}</th>
-          <th className="ui-task-queue__application" scope="col">
-            {labels.application}
-          </th>
+          {application && (
+            <th className="ui-task-queue__application" scope="col">
+              {labels.application}
+            </th>
+          )}
           <th className="ui-task-queue__stage" scope="col">{labels.stage}</th>
-          <th className="ui-task-queue__harness" scope="col">
-            {labels.harness}
-          </th>
+          {harness && (
+            <th className="ui-task-queue__harness" scope="col">
+              {labels.harness}
+            </th>
+          )}
           <th className="ui-task-queue__age" scope="col">{labels.age}</th>
         </tr>
       </thead>
       {groups.map((group) => (
         <tbody key={group.id}>
           <tr className="ui-task-queue__group">
-            <th colSpan={5} scope="colgroup">{group.label}</th>
+            <th
+              colSpan={3 + Number(application) + Number(harness)}
+              scope="colgroup"
+            >
+              {group.label}
+            </th>
           </tr>
           {group.rows.map((row) => {
             const selected = row.id === selectedId;
@@ -188,19 +207,19 @@ function TableQueue(
                     row={row}
                     selected={selected}
                   >
+                    <RowTitle>{row.title}</RowTitle>
                     <span className="ui-task-queue__reference">
                       {row.reference}
                     </span>
-                    <RowTitle>{row.title}</RowTitle>
                     <RowDetails>
                       {row.reference} · {row.application} · {row.stage} ·{" "}
                       {row.age}
                     </RowDetails>
                   </RowLink>
                 </td>
-                <td>{row.application}</td>
+                {application && <td>{row.application}</td>}
                 <td>{row.stage}</td>
-                <td>{row.harness}</td>
+                {harness && <td>{row.harness}</td>}
                 <td className="ui-task-queue__age">{row.age}</td>
               </tr>
             );
@@ -212,7 +231,7 @@ function TableQueue(
 }
 
 function ListGroup(
-  { group, labels, onOpen, onPreview, selectedId }:
+  { columns, group, labels, onOpen, onPreview, selectedId }:
     & Omit<QueueBodyProps, "groups">
     & { group: TaskQueueGroup },
 ) {
@@ -261,6 +280,7 @@ function ListGroup(
                 row={row}
                 selected={selected}
               >
+                <RowTitle>{row.title}</RowTitle>
                 <span className="ui-task-queue__line">
                   <span className="ui-task-queue__reference">
                     {row.reference}
@@ -272,14 +292,15 @@ function ListGroup(
                     {row.age}
                   </span>
                 </span>
-                <RowTitle>{row.title}</RowTitle>
                 <RowDetails>
                   {row.reference} · {row.application} · {row.stage} · {row.age}
                 </RowDetails>
                 <span className="ui-task-queue__line">
-                  <span className="ui-task-queue__application">
-                    {row.application}
-                  </span>
+                  {columns?.application !== false && (
+                    <span className="ui-task-queue__application">
+                      {row.application}
+                    </span>
+                  )}
                   {row.stage}
                 </span>
               </RowLink>
@@ -292,12 +313,13 @@ function ListGroup(
 }
 
 function ListQueue(
-  { groups, labels, onOpen, onPreview, selectedId }: QueueBodyProps,
+  { columns, groups, labels, onOpen, onPreview, selectedId }: QueueBodyProps,
 ) {
   return (
     <div aria-label={labels.caption} role="region">
       {groups.map((group) => (
         <ListGroup
+          columns={columns}
           group={group}
           key={group.id}
           labels={labels}

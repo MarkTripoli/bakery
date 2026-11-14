@@ -207,7 +207,7 @@ export function PaperInspector(
 ) {
   return (
     <UI.InspectorPanel
-      footer={<UI.Button variant="secondary">Open session</UI.Button>}
+      footer={<UI.Button variant="secondary">Open task</UI.Button>}
       header={
         <UI.Heading level="section" rank={2}>
           Add repository onboarding

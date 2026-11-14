@@ -271,7 +271,11 @@ const field = {
     page.getByRole("textbox", { name: /^Description/ }),
   budget: (page: Page) =>
     page.getByRole("textbox", { name: /^Budget limit \(USD\)/ }),
-  preset: (page: Page) => page.getByRole("radio", { name: /Fixed coding/ }),
+  // One preset is one choice, so it is a line of text, not a radio group.
+  preset: (page: Page) =>
+    page.getByText(
+      "Workflow: write the brief, then run the coding agent once.",
+    ),
   start: (page: Page) =>
     page.getByRole("button", { name: "Start task", exact: true }),
   retry: (page: Page) =>
@@ -282,7 +286,7 @@ const field = {
 
 async function fill(page: Page) {
   await field.repository(page).selectOption(repositoryId);
-  await expect(field.preset(page)).toBeChecked();
+  await expect(field.preset(page)).toBeVisible();
   await field.title(page).fill(task.title);
   await field.description(page).fill(task.description);
 }
@@ -308,6 +312,12 @@ test(
       // Desktop keeps the queue and puts the form in the inspector region.
       await expect(page.getByRole("heading", { level: 1, name: "Work" }))
         .toBeVisible();
+      // The panel sits under Work, and the trail says so.
+      await expect(
+        page.getByRole("navigation", { name: "Breadcrumb" }).getByRole(
+          "listitem",
+        ),
+      ).toHaveText(["Workspace", "Work", "New task"]);
       await expect(
         page.getByRole("complementary", { name: "New task" }).getByRole(
           "form",
@@ -318,6 +328,8 @@ test(
       ).toBeVisible();
     }
     await expect(field.repository(page)).toBeVisible();
+    await expect(field.preset(page)).toBeVisible();
+    await expect(page.getByRole("radio")).toHaveCount(0);
     await expect(field.type(page)).toBeVisible();
     await expect(field.budget(page)).toBeVisible();
     await expect(field.start(page)).toBeDisabled();
@@ -806,20 +818,19 @@ test("keyboard order follows the form", async ({ page }) => {
       }`;
     });
   order.push(await label());
-  for (let step = 0; step < 6; step++) {
+  for (let step = 0; step < 5; step++) {
     await page.keyboard.press("Tab");
     order.push(await label());
   }
   expect(order.map((entry) => entry.split(":")[0])).toEqual([
     "select",
-    "input", // the checked preset radio
     "input", // title
     "select", // task type
     "textarea",
     "input", // budget
     "button",
   ]);
-  expect(order[6]).toContain("Start task");
+  expect(order[5]).toContain("Start task");
 });
 
 // Coarse-pointer floor: 44px. The iPhone project is the coarse pointer.
@@ -835,8 +846,6 @@ test(
     await fill(page);
     const targets = [
       field.repository(page),
-      // The radio's hit area is its whole card, not the 16px glyph.
-      page.locator('[data-ui-component="presetOption"]'),
       field.title(page),
       field.type(page),
       field.budget(page),
