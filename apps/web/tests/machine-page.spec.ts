@@ -519,6 +519,10 @@ test.describe("machine page: mode and Retire", () => {
     // The old panel's words are gone.
     await expect(page.getByText(/setup key|worker host|Run the worker/i))
       .toHaveCount(0);
+    // The banner that started it stays above the instructions.
+    const bannerBox = await banner(page).boundingBox();
+    const setupBox = await setup.boundingBox();
+    expect(bannerBox!.y).toBeLessThan(setupBox!.y);
     await shot(page, "machine-page-set-up-again");
     // It connects: the page says so.
     f.repairState = "consumed";

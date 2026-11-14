@@ -583,6 +583,71 @@ export function MachineDetailPage(
           : workerData
           ? (
             <>
+              {reason
+                ? (
+                  <UI.AlertBanner
+                    tone={reason.kind === "checkFailed" ||
+                        reason.kind === "needsAttention"
+                      ? "error"
+                      : reason.kind === "offline" || reason.kind === "stale"
+                      ? "warning"
+                      : "information"}
+                    data-testid="machine-problem-banner"
+                    action={fix
+                      ? (
+                        <UI.Button
+                          variant="secondary"
+                          loading={modeBusy}
+                          onClick={() => runFix(fix)}
+                        >
+                          {message(translate, `machines.banner.fix.${fix}`)}
+                        </UI.Button>
+                      )
+                      : undefined}
+                  >
+                    <UI.Stack gap="compact">
+                      <UI.Text variant="strong">
+                        {machineLine(workerData, translate)}
+                      </UI.Text>
+                      {BANNER_BODY.has(reason.kind)
+                        ? (
+                          <UI.Text>
+                            {message(
+                              translate,
+                              `machines.banner.body.${reason.kind}`,
+                              {
+                                time: formatDate(
+                                  workerData.lastHeartbeatAt ?? "",
+                                ),
+                              },
+                            )}
+                          </UI.Text>
+                        )
+                        : null}
+                      {reason.kind === "checkFailed" && blockers.data
+                        ? (
+                          <UI.Text>
+                            {blockers.data.allBlocked
+                              ? message(
+                                translate,
+                                "machines.banner.wholeMachine",
+                              )
+                              : message(
+                                translate,
+                                "machines.banner.capabilityOnly",
+                                {
+                                  what: blockers.data.blockedCapabilities.join(
+                                    ", ",
+                                  ),
+                                },
+                              )}
+                          </UI.Text>
+                        )
+                        : null}
+                    </UI.Stack>
+                  </UI.AlertBanner>
+                )
+                : null}
               {repairFailed
                 ? (
                   <UI.AlertBanner tone="error">
@@ -655,71 +720,6 @@ export function MachineDetailPage(
                         </UI.Stack>
                       )}
                   </UI.SettingsSection>
-                )
-                : null}
-              {reason
-                ? (
-                  <UI.AlertBanner
-                    tone={reason.kind === "checkFailed" ||
-                        reason.kind === "needsAttention"
-                      ? "error"
-                      : reason.kind === "offline" || reason.kind === "stale"
-                      ? "warning"
-                      : "information"}
-                    data-testid="machine-problem-banner"
-                    action={fix
-                      ? (
-                        <UI.Button
-                          variant="secondary"
-                          loading={modeBusy}
-                          onClick={() => runFix(fix)}
-                        >
-                          {message(translate, `machines.banner.fix.${fix}`)}
-                        </UI.Button>
-                      )
-                      : undefined}
-                  >
-                    <UI.Stack gap="compact">
-                      <UI.Text variant="strong">
-                        {machineLine(workerData, translate)}
-                      </UI.Text>
-                      {BANNER_BODY.has(reason.kind)
-                        ? (
-                          <UI.Text>
-                            {message(
-                              translate,
-                              `machines.banner.body.${reason.kind}`,
-                              {
-                                time: formatDate(
-                                  workerData.lastHeartbeatAt ?? "",
-                                ),
-                              },
-                            )}
-                          </UI.Text>
-                        )
-                        : null}
-                      {reason.kind === "checkFailed" && blockers.data
-                        ? (
-                          <UI.Text>
-                            {blockers.data.allBlocked
-                              ? message(
-                                translate,
-                                "machines.banner.wholeMachine",
-                              )
-                              : message(
-                                translate,
-                                "machines.banner.capabilityOnly",
-                                {
-                                  what: blockers.data.blockedCapabilities.join(
-                                    ", ",
-                                  ),
-                                },
-                              )}
-                          </UI.Text>
-                        )
-                        : null}
-                    </UI.Stack>
-                  </UI.AlertBanner>
                 )
                 : null}
               {isAdmin && controlMode(requestedMode(workerData)) !== null
