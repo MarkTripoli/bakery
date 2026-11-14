@@ -351,6 +351,21 @@ export const workflowActionDiscoveryImplementedActions = Object.freeze(
   Object.values(WorkflowActionDiscoveryImplementedAction),
 );
 
+export const AutomationImplementedAction = Object.freeze(
+  {
+    AutomationsList: "automations.list",
+    AutomationsGet: "automations.get",
+    AutomationsCreate: "automations.create",
+    AutomationsUpdate: "automations.update",
+    AutomationVersionsList: "automationVersions.list",
+    AutomationVersionsCreate: "automationVersions.create",
+    AutomationFiringsList: "automationFirings.list",
+  } as const satisfies Record<string, CatalogActionName>,
+);
+export const automationImplementedActions = Object.freeze(
+  Object.values(AutomationImplementedAction),
+);
+
 export const ArtifactImplementedAction = Object.freeze(
   {
     ArtifactCommentsCreate: "artifactComments.create",
@@ -463,6 +478,7 @@ export const implementedActions = Object.freeze(
     ...ticketImplementedActions,
     ...workflowImplementedActions,
     ...workflowActionDiscoveryImplementedActions,
+    ...automationImplementedActions,
     ...artifactImplementedActions,
     ...draftImplementedActions,
     ...secretsImplementedActions,

@@ -1960,6 +1960,7 @@
       "action": "automations.list",
       "access": "Developer",
       "permission": "automation:read",
+      "organizationContext": "required_authenticated_context",
       "input": "CursorQuery",
       "output": "Page<Automation>",
       "event": "",
@@ -1970,7 +1971,8 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
-        "MALFORMED_REQUEST"
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ]
     },
     {
@@ -1980,6 +1982,7 @@
       "action": "automations.get",
       "access": "Developer",
       "permission": "automation:read",
+      "organizationContext": "required_authenticated_context",
       "input": "IdPath",
       "output": "Automation",
       "event": "",
@@ -1988,7 +1991,8 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND"
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED"
       ]
     },
     {
@@ -1998,6 +2002,7 @@
       "action": "automations.create",
       "access": "Admin",
       "permission": "automation:manage",
+      "organizationContext": "required_authenticated_context",
       "input": "NamedDefinitionCreate",
       "output": "Automation",
       "event": "automations.created",
@@ -2010,7 +2015,8 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED"
       ]
     },
     {
@@ -2020,6 +2026,7 @@
       "action": "automations.update",
       "access": "Admin",
       "permission": "automation:manage",
+      "organizationContext": "required_authenticated_context",
       "input": "AutomationUpdate",
       "output": "Automation",
       "event": "automations.updated",
@@ -2032,7 +2039,8 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED"
       ]
     },
     {
@@ -2042,6 +2050,7 @@
       "action": "automationVersions.create",
       "access": "Admin",
       "permission": "automationVersion:manage",
+      "organizationContext": "required_authenticated_context",
       "input": "AutomationVersionCreate",
       "output": "AutomationVersion",
       "event": "automation.version_created",
@@ -2054,7 +2063,8 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED"
       ]
     },
     {
@@ -2064,6 +2074,7 @@
       "action": "automationVersions.list",
       "access": "Developer",
       "permission": "automationVersion:read",
+      "organizationContext": "required_authenticated_context",
       "input": "CursorQuery",
       "output": "Page<AutomationVersion>",
       "event": "",
@@ -2074,7 +2085,8 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
-        "MALFORMED_REQUEST"
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ]
     },
     {
@@ -2106,6 +2118,7 @@
       "action": "automationFirings.list",
       "access": "Developer",
       "permission": "automationFiring:read",
+      "organizationContext": "required_authenticated_context",
       "input": "CursorQuery",
       "output": "Page<AutomationFiring>",
       "event": "",
@@ -2116,7 +2129,8 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
-        "MALFORMED_REQUEST"
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ]
     },
     {

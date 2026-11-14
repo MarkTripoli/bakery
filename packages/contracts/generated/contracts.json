@@ -2012,10 +2012,11 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
-        "MALFORMED_REQUEST"
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Automation",
@@ -2032,10 +2033,11 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
-        "RESOURCE_NOT_FOUND"
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Automation",
@@ -2056,10 +2058,11 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Automation",
@@ -2080,10 +2083,11 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Automation",
@@ -2104,10 +2108,11 @@
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Automation",
@@ -2126,10 +2131,11 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
-        "MALFORMED_REQUEST"
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Automation",
@@ -2172,10 +2178,11 @@
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
-        "MALFORMED_REQUEST"
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Skills",
@@ -9054,6 +9061,13 @@
     "workflows.validate",
     "workflowActions.list",
     "workflowActions.get",
+    "automations.list",
+    "automations.get",
+    "automations.create",
+    "automations.update",
+    "automationVersions.list",
+    "automationVersions.create",
+    "automationFirings.list",
     "artifactComments.create",
     "artifactComments.update",
     "artifactComments.list",
@@ -14273,6 +14287,18 @@
                 "minimum": 1,
                 "maximum": 100
               }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
             }
           ],
           "responses": {
@@ -14302,7 +14328,20 @@
         },
         "post": {
           "operationId": "automations.create",
-          "parameters": [],
+          "parameters": [
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
           "responses": {
             "200": {
               "description": "Successful response",
@@ -14353,6 +14392,18 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
               }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
             }
           ],
           "responses": {
@@ -14392,6 +14443,18 @@
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
               }
             }
           ],
@@ -14444,6 +14507,18 @@
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
               }
             }
           ],
@@ -14516,6 +14591,18 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 100
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
               }
             }
           ],
@@ -14632,6 +14719,18 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 100
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
               }
             }
           ],
@@ -197817,7 +197916,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:6658f8267455717fb9b29758d3923f1c686e6d02f81ce8ede67bc0db9d52c9a4",
+  "compatibilityDigest": "sha256:623d6a7faf9f3c60e4e41572b883999bcf864ecabc499d9e2fbfcb49357a34cb",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

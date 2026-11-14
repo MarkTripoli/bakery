@@ -6,6 +6,10 @@ import {
   occurrencesBetween,
   parseCron,
 } from "../../apps/server/src/modules/workflows/automations/schedule.ts";
+import {
+  parseTrigger,
+  TriggerError,
+} from "../../apps/server/src/modules/workflows/automations/trigger.ts";
 
 // #36 [B07.06]: schedules are cron expressions in an IANA timezone, and what
 // the tick needs is the UTC instants of their occurrences, with the daylight
@@ -742,4 +746,257 @@ Deno.test("occurrences are strictly increasing and equal to asking one at a time
       }
     }
   }
+});
+
+const triggerReason = (value: unknown): string => {
+  try {
+    parseTrigger(value);
+  } catch (error) {
+    assert(error instanceof TriggerError);
+    return `${error.path.join(".")}:${error.reason}`;
+  }
+  return "accepted";
+};
+
+Deno.test("a trigger is exactly a schedule or an event: data, with nothing else accepted", () => {
+  assertEquals(
+    parseTrigger({
+      type: "schedule",
+      cron: " 0 9 * * mon-fri ",
+      timezone: "Europe/Berlin",
+    }),
+    { type: "schedule", cron: "0 9 * * mon-fri", timezone: "Europe/Berlin" },
+  );
+  assertEquals(
+    parseTrigger({ type: "event", provider: "github", kind: "issues" }),
+    { type: "event", provider: "github", kind: "issues", filter: {} },
+  );
+  // The filter is sorted by key, so the same trigger is the same bytes.
+  assertEquals(
+    JSON.stringify(
+      parseTrigger({
+        type: "event",
+        provider: "github",
+        kind: "issues",
+        action: "opened",
+        filter: { b: 2, a: "x", c: true },
+      }),
+    ),
+    JSON.stringify({
+      type: "event",
+      provider: "github",
+      kind: "issues",
+      action: "opened",
+      filter: { a: "x", b: 2, c: true },
+    }),
+  );
+  const cases: [unknown, string][] = [
+    [null, ":trigger_not_object"],
+    [undefined, ":trigger_not_object"],
+    [7, ":trigger_not_object"],
+    ["0 9 * * *", ":trigger_not_object"],
+    [[], ":trigger_not_object"],
+    [{}, "type:type_unknown"],
+    [{ type: "run", command: "rm -rf /" }, "type:type_unknown"],
+    [{ type: "SCHEDULE" }, "type:type_unknown"],
+    [{ type: "schedule", timezone: "UTC" }, "cron:cron_invalid"],
+    [{ type: "schedule", cron: 5, timezone: "UTC" }, "cron:cron_invalid"],
+    [
+      { type: "schedule", cron: "@daily", timezone: "UTC" },
+      "cron:cron_invalid",
+    ],
+    [
+      { type: "schedule", cron: "$(id) * * * *", timezone: "UTC" },
+      "cron:cron_invalid",
+    ],
+    [{ type: "schedule", cron: "0 9 * * *" }, "timezone:timezone_invalid"],
+    [
+      { type: "schedule", cron: "0 9 * * *", timezone: 3 },
+      "timezone:timezone_invalid",
+    ],
+    [
+      { type: "schedule", cron: "0 9 * * *", timezone: "+02:00" },
+      "timezone:timezone_invalid",
+    ],
+    [
+      { type: "schedule", cron: "0 9 * * *", timezone: "Nowhere/Land" },
+      "timezone:timezone_invalid",
+    ],
+    [
+      { type: "schedule", cron: "0 9 * * *", timezone: "UTC", extra: 1 },
+      "extra:unknown_key",
+    ],
+    [{
+      type: "schedule",
+      cron: "0 9 * * *",
+      timezone: "UTC",
+      provider: "github",
+    }, "provider:unknown_key"],
+    [
+      { type: "event", provider: "gitlab", kind: "issues" },
+      "provider:provider_unknown",
+    ],
+    [{ type: "event", kind: "issues" }, "provider:provider_unknown"],
+    [{ type: "event", provider: "github" }, "kind:kind_invalid"],
+    [
+      { type: "event", provider: "github", kind: "Issues" },
+      "kind:kind_invalid",
+    ],
+    [
+      { type: "event", provider: "github", kind: "a".repeat(65) },
+      "kind:kind_invalid",
+    ],
+    [
+      { type: "event", provider: "github", kind: "issues", action: "Opened" },
+      "action:action_invalid",
+    ],
+    [
+      { type: "event", provider: "github", kind: "issues", action: 7 },
+      "action:action_invalid",
+    ],
+    [
+      { type: "event", provider: "github", kind: "issues", filter: [] },
+      "filter:filter_not_object",
+    ],
+    [
+      { type: "event", provider: "github", kind: "issues", filter: null },
+      "filter:filter_not_object",
+    ],
+    [
+      { type: "event", provider: "github", kind: "issues", filter: "a=b" },
+      "filter:filter_not_object",
+    ],
+    [{
+      type: "event",
+      provider: "github",
+      kind: "issues",
+      filter: { "a b": 1 },
+    }, "filter.a b:filter_key_invalid"],
+    [
+      { type: "event", provider: "github", kind: "issues", filter: { "": 1 } },
+      "filter.:filter_key_invalid",
+    ],
+    [
+      {
+        type: "event",
+        provider: "github",
+        kind: "issues",
+        filter: { "1a": 1 },
+      },
+      "filter.1a:filter_key_invalid",
+    ],
+    [{
+      type: "event",
+      provider: "github",
+      kind: "issues",
+      filter: { a: { b: 1 } },
+    }, "filter.a:filter_value_invalid"],
+    [
+      { type: "event", provider: "github", kind: "issues", filter: { a: [1] } },
+      "filter.a:filter_value_invalid",
+    ],
+    [
+      {
+        type: "event",
+        provider: "github",
+        kind: "issues",
+        filter: { a: null },
+      },
+      "filter.a:filter_value_invalid",
+    ],
+    [
+      { type: "event", provider: "github", kind: "issues", filter: { a: NaN } },
+      "filter.a:filter_value_invalid",
+    ],
+    [{
+      type: "event",
+      provider: "github",
+      kind: "issues",
+      filter: { a: Infinity },
+    }, "filter.a:filter_value_invalid"],
+    [{
+      type: "event",
+      provider: "github",
+      kind: "issues",
+      filter: { a: "x".repeat(257) },
+    }, "filter.a:filter_value_too_long"],
+    [
+      { type: "event", provider: "github", kind: "issues", extra: 1 },
+      "extra:unknown_key",
+    ],
+    [
+      { type: "event", provider: "github", kind: "issues", cron: "0 9 * * *" },
+      "cron:unknown_key",
+    ],
+  ];
+  for (const [value, expected] of cases) {
+    assertEquals(triggerReason(value), expected, JSON.stringify(value));
+  }
+  // At most 16 filter entries; exactly 16 is fine; 256 characters of value is fine.
+  const entries = (count: number) =>
+    Object.fromEntries(
+      Array.from({ length: count }, (_, index) => [`k${index}`, index]),
+    );
+  assertEquals(
+    triggerReason({
+      type: "event",
+      provider: "github",
+      kind: "issues",
+      filter: entries(17),
+    }),
+    "filter:filter_too_large",
+  );
+  assertEquals(
+    triggerReason({
+      type: "event",
+      provider: "github",
+      kind: "issues",
+      filter: entries(16),
+    }),
+    "accepted",
+  );
+  assertEquals(
+    triggerReason({
+      type: "event",
+      provider: "github",
+      kind: "issues",
+      filter: { a: "x".repeat(256) },
+    }),
+    "accepted",
+  );
+  // Only plain objects: a class instance, a null-prototype object or a prototype key is refused, not read through.
+  class Fake {
+    type = "schedule";
+    cron = "0 9 * * *";
+    timezone = "UTC";
+  }
+  assertEquals(triggerReason(new Fake()), ":trigger_not_object");
+  assertEquals(
+    triggerReason(
+      Object.assign(Object.create(null), {
+        type: "schedule",
+        cron: "0 9 * * *",
+        timezone: "UTC",
+      }),
+    ),
+    ":trigger_not_object",
+  );
+  assertEquals(
+    triggerReason(
+      JSON.parse(
+        '{"type":"schedule","cron":"0 9 * * *","timezone":"UTC","__proto__":{"x":1}}',
+      ),
+    ),
+    "__proto__:unknown_key",
+  );
+  // A trigger is never changed by being read.
+  const original = {
+    type: "event",
+    provider: "github",
+    kind: "issues",
+    filter: { b: 1, a: 2 },
+  };
+  const snapshot = JSON.stringify(original);
+  parseTrigger(original);
+  assertEquals(JSON.stringify(original), snapshot);
 });

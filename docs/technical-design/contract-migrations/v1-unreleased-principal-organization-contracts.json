@@ -1,13 +1,22 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "cfbd67d7133f57a3809f1ac4f362cb334c313682"
+    "58638d0db08f92c59e747fe97e9f4211f31f5283"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:6658f8267455717fb9b29758d3923f1c686e6d02f81ce8ede67bc0db9d52c9a4",
-  "reason": "#36 contract re-bind by dev-workflows on 2026-11-14 under owner's standing breaking-change authorization (2026-10-09), main cfbd67d7133f57a3809f1ac4f362cb334c313682: AutomationFiring gains required pending and skippedCount (the design's safe projection of a scheduling outcome).",
+  "targetCompatibilityDigest": "sha256:623d6a7faf9f3c60e4e41572b883999bcf864ecabc499d9e2fbfcb49357a34cb",
+  "reason": "#36 contract re-bind by dev-workflows on 2026-11-14 under owner's standing breaking-change authorization (2026-10-09), main 58638d0db08f92c59e747fe97e9f4211f31f5283: AutomationFiring gains required pending and skippedCount (the design's safe projection of a scheduling outcome); the automation catalog entries declare their organization context (required_authenticated_context), as the workflow ones do.",
   "priorApprovals": [
+    {
+      "allowBreaking": true,
+      "fromBaseRefs": [
+        "cfbd67d7133f57a3809f1ac4f362cb334c313682"
+      ],
+      "reason": "#36 contract re-bind by dev-workflows on 2026-11-14 under owner's standing breaking-change authorization (2026-10-09), main cfbd67d7133f57a3809f1ac4f362cb334c313682: AutomationFiring gains required pending and skippedCount (the design's safe projection of a scheduling outcome).",
+      "status": "approved",
+      "targetCompatibilityDigest": "sha256:6658f8267455717fb9b29758d3923f1c686e6d02f81ce8ede67bc0db9d52c9a4"
+    },
     {
       "allowBreaking": true,
       "fromBaseRefs": [
