@@ -10,6 +10,10 @@ import {
 } from "../../apps/server/src/platform/database.ts";
 import { resetTestDatabase } from "../../apps/server/src/platform/migrate.ts";
 import {
+  admitDueAutomations,
+  AUTOMATION_TICK_BATCH_CEILING,
+} from "../../apps/server/src/modules/workflows/automations/tick.ts";
+import {
   authTestOrigin,
   openAuthFixture,
   signSessionCookie,
@@ -992,6 +996,338 @@ Deno.test("automations: definitions, versions with a validated trigger, lifecycl
         (await unchanged.json() as { version: number }).version,
         version,
       );
+    });
+  } finally {
+    await fixture.close();
+  }
+});
+
+Deno.test("automation.tick: due automations are admitted once, catch-ups are one firing, and nothing is claimed twice", async (test) => {
+  await resetDatabase();
+  const fixture = await openAuthFixture({ databaseConfig });
+  const owner = fixture.database;
+  const runtime = fixture.runtimePgDatabase;
+  const now = new Date("2026-10-04T12:00:00.000Z");
+  const organizationId = crypto.randomUUID();
+  const userId = crypto.randomUUID();
+  const principalId = crypto.randomUUID();
+  const workflowId = crypto.randomUUID();
+  const workflowVersionId = crypto.randomUUID();
+  try {
+    await owner`
+      insert into bakery.organizations (id, name, slug, metadata, created_at, updated_at, version)
+      values (${organizationId}, 'Tick org', ${`tick-${organizationId}`}, '{}'::jsonb, ${now}, ${now}, 1)`;
+    await owner`
+      insert into public."user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+      values (${userId}, 'tick', ${`tick-${userId}@example.test`}, true, ${now}, ${now})`;
+    await owner`
+      insert into bakery.principals (id, provider_user_id, display_name, principal_type)
+      values (${principalId}, ${userId}, 'tick', 'human')`;
+    await owner`
+      insert into bakery.workflow_definitions (id, organization_id, slug, name, description)
+      values (${workflowId}, ${organizationId}, 'wf', 'Workflow', '')`;
+    await owner`
+      insert into bakery.workflow_versions (
+        id, organization_id, workflow_id, revision, source_yaml, normalized_spec, digest, status, created_by
+      ) values (
+        ${workflowVersionId}, ${organizationId}, ${workflowId}, 1, 'kind: fixed',
+        ${owner.json({ kind: "fixed" })}, 'digest', 'published', ${principalId}
+      )`;
+
+    let counter = 0;
+    /** An automation whose active version has this trigger, policy and cursor. */
+    const seed = async (options: {
+      trigger: unknown;
+      misfire?: "coalesce" | "skip";
+      cursor: string | null;
+      enabled?: boolean;
+    }): Promise<{ automationId: string; versionId: string }> => {
+      counter += 1;
+      const automationId = crypto.randomUUID();
+      const versionId = crypto.randomUUID();
+      await owner`
+        insert into bakery.automation_definitions (id, organization_id, slug, name, description, enabled)
+        values (${automationId}, ${organizationId}, ${`auto-${counter}`}, 'Auto', '', ${
+        options.enabled ?? true
+      })`;
+      await owner`
+        insert into bakery.automation_versions (
+          id, organization_id, automation_id, revision, trigger, workflow_version_id,
+          actor_id, inputs, misfire_policy, overlap_policy, digest
+        ) values (
+          ${versionId}, ${organizationId}, ${automationId}, 1, ${
+        owner.json(options.trigger as never)
+      },
+          ${workflowVersionId}, ${principalId}, '{}'::jsonb, ${
+        options.misfire ?? "coalesce"
+      }, 'skip',
+          ${`digest-${versionId}`}
+        )`;
+      await owner`
+        update bakery.automation_definitions
+           set active_version_id = ${versionId}, next_fire_at = ${options.cursor}
+         where id = ${automationId}`;
+      return { automationId, versionId };
+    };
+    const schedule = (cron: string, timezone = "UTC") => ({
+      type: "schedule",
+      cron,
+      timezone,
+    });
+    const firingsOf = async (versionId: string) =>
+      await owner<
+        {
+          at: Date;
+          status: string;
+          pending: boolean;
+          skipped: number;
+        }[]
+      >`select scheduled_at as at, status, pending, skipped_count as skipped
+          from bakery.automation_firings where automation_version_id = ${versionId}
+         order by scheduled_at`;
+    // Ticks look at every organization, so the steps that count admissions start from none.
+    const clearAutomations = async () => {
+      await owner`delete from bakery.automation_definitions`;
+    };
+    const cursorOf = async (automationId: string) =>
+      (await owner<{ next: Date | null; version: number }[]>`
+        select next_fire_at as next, version from bakery.automation_definitions where id = ${automationId}`)[
+        0
+      ]!;
+
+    await test.step("an on-time automation gets one queued, pending firing and its cursor moves to the next occurrence; a second tick at the same moment changes nothing", async () => {
+      const { automationId, versionId } = await seed({
+        trigger: schedule("*/5 * * * *"),
+        cursor: "2026-11-14T10:05:00Z",
+      });
+      const tickAt = new Date("2026-11-14T10:05:40Z");
+      assertEquals(
+        await admitDueAutomations({ database: runtime, now: tickAt }),
+        { admitted: 1, coalesced: 0, cleared: 0 },
+      );
+      const firings = await firingsOf(versionId);
+      assertEquals(firings.length, 1);
+      assertEquals(firings[0]!.at.toISOString(), "2026-11-14T10:05:00.000Z");
+      assertEquals(firings[0]!.status, "queued");
+      assertEquals(firings[0]!.pending, true);
+      assertEquals(firings[0]!.skipped, 0);
+      const moved = await cursorOf(automationId);
+      assertEquals(moved.next?.toISOString(), "2026-11-14T10:10:00.000Z");
+      // A duplicate wake: nothing is due, nothing changes.
+      assertEquals(
+        await admitDueAutomations({ database: runtime, now: tickAt }),
+        { admitted: 0, coalesced: 0, cleared: 0 },
+      );
+      assertEquals((await firingsOf(versionId)).length, 1);
+      assertEquals((await cursorOf(automationId)).version, moved.version);
+    });
+
+    await test.step("a firing already admitted for that instant is not admitted again, and the cursor still moves; the record's version is not changed by the clock", async () => {
+      const { automationId, versionId } = await seed({
+        trigger: schedule("*/5 * * * *"),
+        cursor: "2026-11-14T11:05:00Z",
+      });
+      await owner`
+        insert into bakery.automation_firings (
+          organization_id, automation_version_id, scheduled_at, status, pending, skipped_count
+        ) values (${organizationId}, ${versionId}, '2026-11-14T11:05:00Z', 'started', false, 0)`;
+      const before = await cursorOf(automationId);
+      assertEquals(
+        await admitDueAutomations({
+          database: runtime,
+          now: new Date("2026-11-14T11:05:20Z"),
+        }),
+        { admitted: 0, coalesced: 0, cleared: 0 },
+      );
+      const firings = await firingsOf(versionId);
+      assertEquals(firings.length, 1);
+      assertEquals(firings[0]!.status, "started");
+      const after = await cursorOf(automationId);
+      assertEquals(after.next?.toISOString(), "2026-11-14T11:10:00.000Z");
+      assertEquals(after.version, before.version);
+    });
+
+    await test.step("after downtime coalesce admits one queued firing for the latest due occurrence and counts the rest exactly", async () => {
+      // Hourly, due since 2026-11-10T00:00Z; now is 2026-11-14T10:20Z: 4 days 10 hours = 107 occurrences from the cursor to 10:00Z.
+      const { automationId, versionId } = await seed({
+        trigger: schedule("0 * * * *"),
+        cursor: "2026-11-10T00:00:00Z",
+      });
+      const tickAt = new Date("2026-11-14T10:20:00Z");
+      const result = await admitDueAutomations({
+        database: runtime,
+        now: tickAt,
+      });
+      assertEquals(result.coalesced >= 1, true);
+      const firings = await firingsOf(versionId);
+      assertEquals(firings.length, 1);
+      assertEquals(firings[0]!.at.toISOString(), "2026-11-14T10:00:00.000Z");
+      assertEquals(firings[0]!.status, "queued");
+      assertEquals(firings[0]!.pending, true);
+      assertEquals(firings[0]!.skipped, 4 * 24 + 10);
+      assertEquals(
+        (await cursorOf(automationId)).next?.toISOString(),
+        "2026-11-14T11:00:00.000Z",
+      );
+    });
+
+    await test.step("skip records the miss without a run and still moves on", async () => {
+      const { automationId, versionId } = await seed({
+        trigger: schedule("0 * * * *"),
+        misfire: "skip",
+        cursor: "2026-11-14T06:00:00Z",
+      });
+      await admitDueAutomations({
+        database: runtime,
+        now: new Date("2026-11-14T10:20:00Z"),
+      });
+      const firings = await firingsOf(versionId);
+      assertEquals(firings.length, 1);
+      assertEquals(firings[0]!.at.toISOString(), "2026-11-14T10:00:00.000Z");
+      assertEquals(firings[0]!.status, "skipped");
+      assertEquals(firings[0]!.pending, false);
+      assertEquals(firings[0]!.skipped, 5);
+      assertEquals(
+        (await cursorOf(automationId)).next?.toISOString(),
+        "2026-11-14T11:00:00.000Z",
+      );
+    });
+
+    await test.step("a disabled automation is not admitted; enabling it applies the misfire policy to what it missed", async () => {
+      const { automationId, versionId } = await seed({
+        trigger: schedule("0 * * * *"),
+        cursor: "2026-11-14T06:00:00Z",
+        enabled: false,
+      });
+      const tickAt = new Date("2026-11-14T10:20:00Z");
+      await admitDueAutomations({ database: runtime, now: tickAt });
+      assertEquals((await firingsOf(versionId)).length, 0);
+      assertEquals(
+        (await cursorOf(automationId)).next?.toISOString(),
+        "2026-11-14T06:00:00.000Z",
+      );
+      await owner`update bakery.automation_definitions set enabled = true where id = ${automationId}`;
+      await admitDueAutomations({ database: runtime, now: tickAt });
+      const firings = await firingsOf(versionId);
+      assertEquals(firings.length, 1);
+      assertEquals(firings[0]!.skipped, 4);
+    });
+
+    await test.step("a clock-change day: a skipped local time fires at the change instant, once", async () => {
+      // Berlin 2026-03-29 02:30 does not exist: it fires at 01:00:00Z, and the next is the day after.
+      const { automationId, versionId } = await seed({
+        trigger: schedule("30 2 * * *", "Europe/Berlin"),
+        cursor: "2026-03-29T01:00:00Z",
+      });
+      await admitDueAutomations({
+        database: runtime,
+        now: new Date("2026-03-29T01:00:30Z"),
+      });
+      const firings = await firingsOf(versionId);
+      assertEquals(firings.map((row) => row.at.toISOString()), [
+        "2026-03-29T01:00:00.000Z",
+      ]);
+      assertEquals(
+        (await cursorOf(automationId)).next?.toISOString(),
+        "2026-03-30T00:30:00.000Z",
+      );
+    });
+
+    await test.step("a version without a schedule has its cursor cleared and fires nothing", async () => {
+      const event = await seed({
+        trigger: {
+          type: "event",
+          provider: "github",
+          kind: "issues",
+          filter: {},
+        },
+        cursor: "2026-11-14T06:00:00Z",
+      });
+      const broken = await seed({
+        trigger: { type: "schedule", cron: "not a cron", timezone: "UTC" },
+        cursor: "2026-11-14T06:00:00Z",
+      });
+      const result = await admitDueAutomations({
+        database: runtime,
+        now: new Date("2026-11-14T10:20:00Z"),
+      });
+      assertEquals(result.cleared, 2);
+      for (const { automationId, versionId } of [event, broken]) {
+        assertEquals((await firingsOf(versionId)).length, 0);
+        assertEquals((await cursorOf(automationId)).next, null);
+      }
+    });
+
+    await test.step("ticks that overlap claim each automation once: twenty due automations, three concurrent ticks, twenty firings", async () => {
+      await clearAutomations();
+      const seeded: string[] = [];
+      for (let index = 0; index < 20; index += 1) {
+        seeded.push(
+          (await seed({
+            trigger: schedule("*/10 * * * *"),
+            cursor: "2026-11-15T09:00:00Z",
+          })).versionId,
+        );
+      }
+      const tickAt = new Date("2026-11-15T09:05:00Z");
+      const results = await Promise.all([
+        admitDueAutomations({ database: runtime, now: tickAt }),
+        admitDueAutomations({ database: runtime, now: tickAt }),
+        admitDueAutomations({ database: runtime, now: tickAt }),
+      ]);
+      assertEquals(
+        results.reduce((sum, result) => sum + result.admitted, 0),
+        20,
+      );
+      for (const versionId of seeded) {
+        assertEquals((await firingsOf(versionId)).length, 1);
+      }
+    });
+
+    await test.step("one tick is bounded: a batch of 2 admits 2 of 5 and the next tick the rest; a batch outside 1 to the ceiling is refused", async () => {
+      await clearAutomations();
+      const seeded: string[] = [];
+      for (let index = 0; index < 5; index += 1) {
+        seeded.push(
+          (await seed({
+            trigger: schedule("*/10 * * * *"),
+            cursor: "2026-11-16T09:00:00Z",
+          })).versionId,
+        );
+      }
+      const tickAt = new Date("2026-11-16T09:05:00Z");
+      assertEquals(
+        (await admitDueAutomations({
+          database: runtime,
+          now: tickAt,
+          batch: 2,
+        })).admitted,
+        2,
+      );
+      assertEquals(
+        (await admitDueAutomations({
+          database: runtime,
+          now: tickAt,
+          batch: 10,
+        })).admitted,
+        3,
+      );
+      let total = 0;
+      for (const versionId of seeded) {
+        total += (await firingsOf(versionId)).length;
+      }
+      assertEquals(total, 5);
+      for (
+        const batch of [0, -1, 1.5, NaN, AUTOMATION_TICK_BATCH_CEILING + 1]
+      ) {
+        let refused = false;
+        try {
+          await admitDueAutomations({ database: runtime, now: tickAt, batch });
+        } catch (error) {
+          refused = error instanceof RangeError;
+        }
+        assert(refused, `batch ${batch}`);
+      }
     });
   } finally {
     await fixture.close();
