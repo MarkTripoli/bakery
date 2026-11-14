@@ -138,20 +138,40 @@ export function ConnectionView(props: ConnectionViewProps) {
   });
   // The page's one secondary action: in the shell's action slot on desktop,
   // under the title on a phone.
-  const checkNow = state === "ready" && props.canManage
-    ? (
-      <UI.Button
-        disabled={props.checkStatus === "checking" ||
-          props.status === "pending" || props.status === "revoked"}
-        loading={props.checkStatus === "checking"}
-        onClick={props.onCheck}
-        type="button"
-        variant="secondary"
-      >
-        {translate("settings.connections.action.checkNow")}
-      </UI.Button>
-    )
+  // The server checks only a connection that is on, so a connection still
+  // being set up or turned off says why next to the button; a removed one has
+  // nothing to check and shows no button.
+  const checkOff = props.status === "pending"
+    ? "pending"
+    : props.status === "disabled"
+    ? "disabled"
     : null;
+  const checkNow =
+    state === "ready" && props.canManage && props.status !== "revoked"
+      ? (
+        <UI.Inline gap="compact">
+          {checkOff
+            ? (
+              <UI.Text id="check-now-reason" variant="hint">
+                {translate(
+                  `settings.connections.check.off.${checkOff}` as MessageKey,
+                )}
+              </UI.Text>
+            )
+            : null}
+          <UI.Button
+            aria-describedby={checkOff ? "check-now-reason" : undefined}
+            disabled={props.checkStatus === "checking" || checkOff !== null}
+            loading={props.checkStatus === "checking"}
+            onClick={props.onCheck}
+            type="button"
+            variant="secondary"
+          >
+            {translate("settings.connections.action.checkNow")}
+          </UI.Button>
+        </UI.Inline>
+      )
+      : null;
   return (
     <UI.SettingsContent data-testid="connection-page">
       {checkNow && !phone
@@ -354,6 +374,7 @@ function ReadyContent(props: ConnectionViewProps) {
       {props.steps ? <Steps {...props} steps={props.steps} /> : null}
       <RepositoriesSection
         canManage={canManage}
+        removed={props.status === "revoked"}
         repositories={props.repositories}
       />
       <PermissionsSection permissions={props.permissions} />
@@ -407,9 +428,11 @@ function Steps(props: ConnectionViewProps & { steps: readonly SetupStep[] }) {
 }
 
 function RepositoriesSection(
-  { repositories, canManage }: {
+  { repositories, canManage, removed }: {
     readonly repositories: RepositoriesProps;
     readonly canManage: boolean;
+    /** Bakery has no access, so nothing here can change until it is connected again. */
+    readonly removed: boolean;
   },
 ) {
   const { translate } = useI18n();
@@ -428,6 +451,13 @@ function RepositoriesSection(
       <UI.Text variant="muted">
         {translate("settings.connections.repositories.intro")}
       </UI.Text>
+      {removed
+        ? (
+          <UI.Text variant="hint">
+            {translate("settings.connections.repositories.removed")}
+          </UI.Text>
+        )
+        : null}
       {repositories.state === "loading"
         ? (
           <UI.Text role="status">
@@ -489,7 +519,7 @@ function RepositoriesSection(
                   {shown.map((item) => (
                     <UI.Checkbox
                       checked={item.ticked}
-                      disabled={!canManage || repositories.saving ||
+                      disabled={!canManage || removed || repositories.saving ||
                         (!item.available && !item.ticked)}
                       key={item.id}
                       name="repository"
@@ -527,7 +557,7 @@ function RepositoriesSection(
       {notice
         ? <UI.InlineNotice tone="warning">{translate(notice)}</UI.InlineNotice>
         : null}
-      {canManage && repositories.changed
+      {canManage && !removed && repositories.changed
         ? (
           <UI.Inline gap="compact">
             <UI.Button

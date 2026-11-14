@@ -51,6 +51,8 @@ type World = {
   failLaterPage?: boolean;
   /** While true, the first read of the repositories fails with a 500. */
   failFirstRead?: boolean;
+  /** The next change to the connection (Turn on, Turn off) fails once, with a 502. */
+  failNextSwitch?: boolean;
   /** What a health check answers; healthy unless a test says otherwise. */
   checkHealth?: "healthy" | "degraded" | "auth_required";
   seen: { method: string; path: string; body: unknown; ifMatch?: string }[];
@@ -230,6 +232,10 @@ async function fixture(page: Page, world: World) {
       return route.fulfill(json(resourceBody(resource)));
     }
     if (method === "PATCH" && path === base) {
+      if (world.failNextSwitch) {
+        world.failNextSwitch = false;
+        return route.fulfill(problem(502, "UPSTREAM_UNAVAILABLE"));
+      }
       if (request.headers()["if-match"] !== `"v${connection.version}"`) {
         return route.fulfill(problem(412, "PRECONDITION_FAILED"));
       }
@@ -635,6 +641,30 @@ test("loading more repositories mid-edit leaves what was already selected there 
   await expect(page.getByLabel("acme-org/repo-12")).toBeChecked();
 });
 
+test("a turn on that fails says so, keeps Turn on available, and a retry succeeds", async ({ page }) => {
+  const world = newWorld({
+    connections: [connection(3, "pending")],
+    resources: [repository(1, true)],
+    failNextSwitch: true,
+  });
+  await fixture(page, world);
+  await page.goto(pageFor(ID(3)));
+  const turnOn = page.getByRole("button", { name: "Turn on" });
+  await turnOn.click();
+  await expect(
+    page.getByText("The connection could not be changed. Try again."),
+  ).toBeVisible();
+  // Still set up, not on: the same button is there to try again.
+  await expect(turnOn).toBeEnabled();
+  await turnOn.click();
+  await expect(page.getByRole("list", { name: "Setup steps" })).toHaveCount(0);
+  expect(
+    world.seen.filter((call) =>
+      call.method === "PATCH" && call.path.endsWith(`/${ID(3)}`)
+    ),
+  ).toHaveLength(2);
+});
+
 test("turning a connection off asks first and says nothing is deleted", async ({ page }) => {
   const world = newWorld({
     connections: [connection(1, "enabled")],
@@ -695,10 +725,13 @@ test("a degraded connection says Reconnect, and a check that finds the authoriza
   await expect.poll(() => world.github).toEqual([INSTALL_URL]);
 });
 
-test("a removed connection says so and offers one way back", async ({ page }) => {
+test("a removed connection says so, offers one way back and changes nothing else", async ({ page }) => {
   await fixture(
     page,
-    newWorld({ connections: [connection(6, "revoked")], resources: [] }),
+    newWorld({
+      connections: [connection(6, "revoked")],
+      resources: [repository(1, true), repository(2)],
+    }),
   );
   await page.goto(pageFor(ID(6)));
   await expect(page.getByText("Removed", { exact: true })).toBeVisible();
@@ -708,6 +741,39 @@ test("a removed connection says so and offers one way back", async ({ page }) =>
   ).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Connect again" }))
     .toBeVisible();
+  // Bakery has no access: there is nothing to check and nothing to choose.
+  await expect(page.getByRole("button", { name: "Check now" })).toHaveCount(0);
+  await expect(page.getByText("Connect again to change repositories."))
+    .toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "acme-org/repo-1" }))
+    .toBeDisabled();
+  await expect(page.getByRole("checkbox", { name: "acme-org/repo-2" }))
+    .toBeDisabled();
+  await expect(page.getByRole("button", { name: "Save selection" }))
+    .toHaveCount(0);
+});
+
+test("Check now is off, and says why, while setup is unfinished or the connection is turned off", async ({ page }) => {
+  const world = newWorld({
+    connections: [connection(3, "pending"), connection(4, "disabled")],
+    resources: [repository(1, true)],
+  });
+  await fixture(page, world);
+  await page.goto(pageFor(ID(3)));
+  await expect(page.getByRole("button", { name: "Check now" })).toBeDisabled();
+  await expect(
+    page.getByText("Finish setting up the connection to check it."),
+  ).toBeVisible();
+  await page.goto(pageFor(ID(4)));
+  await expect(page.getByRole("button", { name: "Check now" })).toBeDisabled();
+  await expect(page.getByText("Turn the connection on to check it."))
+    .toBeVisible();
+  // The button points at its reason, so it is read with the button.
+  await expect(page.getByRole("button", { name: "Check now" }))
+    .toHaveAccessibleDescription("Turn the connection on to check it.");
+  expect(
+    world.seen.filter((call) => call.path.endsWith("/checks")),
+  ).toEqual([]);
 });
 
 test("what Bakery can do is in plain words, with GitHub's names behind a button", async ({ page }) => {

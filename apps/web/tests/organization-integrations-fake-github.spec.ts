@@ -175,7 +175,10 @@ test.describe("GitHub setup against the real API and the fake GitHub App", () =>
     await expect(name).toBeVisible();
     await name.fill(APP_NAME);
     await page.getByRole("button", { name: "Create GitHub App" }).click();
-    await expect(page).toHaveURL(/githubAppRegistration=registered/);
+    // The same real-stack chain as the connect test below: 30 s, not 5 s.
+    await expect(page).toHaveURL(/githubAppRegistration=registered/, {
+      timeout: 30_000,
+    });
     expect(manifests.map((manifest) => manifest.name)).toEqual([APP_NAME]);
     await expect(page.getByText(APP_NAME, { exact: true })).toBeVisible();
     await expect(page.getByText("acme-bakery-preview", { exact: true }))
@@ -219,11 +222,13 @@ test.describe("GitHub setup against the real API and the fake GitHub App", () =>
     await expect(page.getByText("Repositories (1 selected)")).toBeVisible();
     await expect(page.getByRole("checkbox", { name: "bakery" })).toBeChecked();
     await page.getByRole("button", { name: "Turn on" }).click();
-    await expect(steps).toHaveCount(0);
+    await expect(steps).toHaveCount(0, { timeout: 30_000 });
     // Enabled and never checked: the page says so, and Check now settles it.
     await expect(page.getByText("Not checked yet").first()).toBeVisible();
     await page.getByRole("button", { name: "Check now" }).click();
-    await expect(page.getByText("Working", { exact: true })).toBeVisible();
+    await expect(page.getByText("Working", { exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(page.getByText("Not checked yet")).toHaveCount(0);
     // The reloaded list agrees with what the server stored.
     await page.goto(CONNECT_PAGE);
