@@ -166,7 +166,7 @@ async function issuesFixture(page: Page, options: Options = {}) {
             organizationId: MOCK_ORGANIZATION_ID,
             integrationConnectionId: uuid(901),
             integrationResourceId: uuid(902),
-            applicationId: null,
+            applicationId: uuid(904),
             repositoryId: uuid(903),
             externalContainerId: "acme/web",
             enabled: true,
