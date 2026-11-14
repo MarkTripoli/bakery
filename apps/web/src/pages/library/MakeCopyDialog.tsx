@@ -2,7 +2,12 @@ import { useState } from "react";
 import * as UI from "@bakery/ui";
 import type { WorkflowDefinitionResponse } from "../../api/client.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
-import { copyName, type CopySource, NAME_LIMIT } from "./copy-workflow.ts";
+import {
+  clip,
+  copyName,
+  type CopySource,
+  NAME_LIMIT,
+} from "./copy-workflow.ts";
 import { useCreateDraft } from "./use-create-draft.ts";
 
 /**
@@ -62,6 +67,9 @@ export function MakeCopyDialog(
           <UI.Field
             label={translate("library.copy.name" as never)}
             htmlFor="workflow-copy-name"
+            hint={made !== null
+              ? translate("library.copy.locked" as never)
+              : undefined}
             required
             error={tried && empty
               ? translate("library.copy.empty" as never)
@@ -75,7 +83,7 @@ export function MakeCopyDialog(
               value={name}
               disabled={made !== null}
               invalid={tried && empty || undefined}
-              onChange={(value) => setName(value.slice(0, NAME_LIMIT))}
+              onChange={(value) => setName(clip(value, NAME_LIMIT))}
             />
           </UI.Field>
           <UI.Text variant="muted">
@@ -108,7 +116,11 @@ export function MakeCopyDialog(
               variant="primary"
               disabled={draft.pending}
             >
-              {translate("library.copy.submit" as never)}
+              {translate(
+                (made !== null
+                  ? "library.copy.retry"
+                  : "library.copy.submit") as never,
+              )}
             </UI.Button>
           </UI.Inline>
         </UI.Stack>
