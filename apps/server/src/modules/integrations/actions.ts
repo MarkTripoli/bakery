@@ -69,6 +69,7 @@ import {
 } from "./connections.ts";
 import {
   createResourceUpdateRunner,
+  removeConnection,
   updateConnection,
   updateResource,
 } from "./updates.ts";
@@ -434,7 +435,9 @@ export function createIntegrationsAuthorityRunner(
       }
       if (
         action.name ===
-          IntegrationsImplementedAction.IntegrationConnectionsUpdate
+          IntegrationsImplementedAction.IntegrationConnectionsUpdate ||
+        action.name ===
+          IntegrationsImplementedAction.IntegrationConnectionsRemove
       ) {
         return await invalidating(
           context,
@@ -754,6 +757,17 @@ export function createIntegrationsActionRegistry(
     policy: adminEdit,
     explicitIdempotency: "key-and-if-match",
     handler: updateConnection,
+  }).register({
+    name: IntegrationsImplementedAction.IntegrationConnectionsRemove,
+    method: HttpMethod.Post,
+    path: "/v1/integration-connections/:id/removal",
+    input: contractSchemas.Empty,
+    output: contractSchemas.IntegrationConnection,
+    policy: adminEdit,
+    explicitIdempotency: "key-and-if-match",
+    // The removed connection is returned; nothing is created.
+    successStatus: 200,
+    handler: removeConnection,
   }).register({
     name: IntegrationsImplementedAction.IntegrationResourcesUpdate,
     method: HttpMethod.Patch,

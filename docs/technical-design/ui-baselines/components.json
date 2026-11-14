@@ -1,5 +1,5 @@
 {
-  "revision": "12b58fbdf45d137c2d01eb158f2500d4aad94c906d488d60b60d93e78a74f829",
+  "revision": "bad471b38e51df60fedba610c6792fa8ad025dcf30ed2c48e7b673bb219be968",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -19513,6 +19513,287 @@
           "rtl"
         ]
       }
+    },
+    {
+      "id": "ui.stepList",
+      "name": "StepList",
+      "description": "An ordered list of gates, each a StepItem: a bordered surface that lays its steps out one under the other.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/StepList",
+      "usage": {
+        "whenToUse": "Show a few steps one after another with a status and a result, where the ones that need attention open in place: delivery steps, a setup guide.",
+        "whenNotToUse": "Do not use it for a log of events in time, a fixed row of stages without detail, or a form wizard.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "The items are events in time",
+            "use": "ui.runTimeline"
+          },
+          {
+            "when": "A fixed row of stages needs no detail",
+            "use": "ui.workflowStageStrip"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "list",
+        "accessibleName": "aria-label",
+        "keyboard": [
+          "The list takes no focus; the actions inside a step are buttons in reading order"
+        ],
+        "targetSize": "not interactive itself; the actions inside a step keep min 44px (coarse pointer)",
+        "notes": "An ordered list named by aria-label; each StepItem states its status in words."
+      },
+      "tokens": [
+        "--border-default",
+        "--border-none",
+        "--color-border",
+        "--color-fg",
+        "--radius-surface",
+        "--space-0",
+        "--type-body"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "default"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises a StepList with a done step and action, a failed step with a help tip, an older-commit badge and open detail, a running step and a long wrapping step.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "default"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.auth"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.stepList.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.stepList.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.stepList.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the #57 UX design comment (2026-11-12); no Paper frame names it."
+    },
+    {
+      "id": "ui.stepItem",
+      "name": "StepItem",
+      "description": "One gate of a StepList: a status mark with its words, a name, one line of result, at most one text action at the end and an open detail for a step that failed, is running or waits; on a phone the action moves under the text.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/StepItem",
+      "usage": {
+        "whenToUse": "One step of a StepList.",
+        "whenNotToUse": "Do not use it outside a StepList, and do not use it for an event in a log (RunTimeline).",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "The items are events in time",
+            "use": "ui.runTimeline"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "listitem",
+        "accessibleName": "content",
+        "keyboard": [
+          "The step takes no focus; its action is a button in reading order"
+        ],
+        "targetSize": "min 44px (coarse pointer) for the action",
+        "notes": "The status is text read first (Done, Failed, Running, Waiting for you, Not started, Unknown), never colour or the mark alone; an unknown outcome is never drawn as passed or failed."
+      },
+      "tokens": [
+        "--border-default",
+        "--border-none",
+        "--color-border",
+        "--color-border-strong",
+        "--color-destructive",
+        "--color-destructive-surface",
+        "--color-fg",
+        "--color-fg-disabled",
+        "--color-fg-muted",
+        "--color-selection",
+        "--color-selection-surface",
+        "--color-status-neutral",
+        "--color-status-neutral-surface",
+        "--color-status-success",
+        "--color-status-success-surface",
+        "--color-status-warning",
+        "--color-status-warning-surface",
+        "--radius-pill",
+        "--space-0-5",
+        "--space-1",
+        "--space-2",
+        "--space-3",
+        "--space-4",
+        "--space-5",
+        "--type-avatar",
+        "--type-control"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "done",
+        "failed",
+        "running",
+        "waiting",
+        "upcoming",
+        "unknown"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises every StepItem status: done, failed, running, waiting, not started and unknown.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "done",
+            "failed",
+            "running",
+            "waiting",
+            "upcoming",
+            "unknown"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.auth"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.stepItem.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.stepItem.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.stepItem.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the #57 UX design comment (2026-11-12); no Paper frame names it."
     },
     {
       "id": "ui.planRevisionSummary",
