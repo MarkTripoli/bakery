@@ -140,8 +140,8 @@ export function createConnection(
 }
 
 const ORDERING = "createdAt:desc,id:desc";
-const DEFAULT_LIMIT = 25;
-const cursorCreatedAt = (alias: string) =>
+export const DEFAULT_LIMIT = 25;
+export const cursorCreatedAt = (alias: string) =>
   `to_char(${alias}.created_at at time zone 'UTC', ${TIMESTAMP})
     as "cursorCreatedAt"`;
 
@@ -151,7 +151,7 @@ const cursorCreatedAt = (alias: string) =>
  * against another connection, other filters or another organization is
  * INVALID_CURSOR. The digest keeps the cursor under its 512-byte cap.
  */
-async function listBinding(
+export async function listBinding(
   action: string,
   actor: { organizationId: string; subject: { principalId: string } },
   filters: Record<string, unknown>,
@@ -167,7 +167,9 @@ async function listBinding(
 }
 
 /** One (created_at, id) keyset page: visible rows and the next cursor. */
-async function keysetPage<Row extends { id: string; cursorCreatedAt: string }>(
+export async function keysetPage<
+  Row extends { id: string; cursorCreatedAt: string },
+>(
   cursorSecret: string,
   binding: CursorBinding,
   limit: number | undefined,

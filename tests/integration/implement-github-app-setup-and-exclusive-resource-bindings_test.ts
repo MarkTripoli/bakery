@@ -3543,3 +3543,112 @@ Deno.test("a connection's recent activity lists its effects with their outcome, 
     assertEquals(foreignOne.status, 404, await foreignOne.clone().text());
   });
 });
+
+Deno.test("an Admin grants, lists and revokes one exact capability on a connection (#20)", async () => {
+  await withFixture(async (f) => {
+    const { connectionId, resources } = await pendingConnection(f);
+    const path = `${connectionsPath}/${connectionId}/grants`;
+    const headers = (key = crypto.randomUUID()) => ({
+      "Bakery-Organization-Id": f.organizationId,
+      "Idempotency-Key": key,
+    });
+    const body = {
+      subjectType: "principal",
+      subjectPrincipalId: f.developerId,
+      direction: "out_of_bakery",
+      capability: "github.issue.comment.create",
+      actionVersion: 1,
+      resourceId: resources[0].id,
+    };
+
+    // A Developer may read grants but not create them.
+    const forbidden = await call(f, "POST", path, f.developerCookie, {
+      body,
+      headers: headers(),
+    });
+    assertEquals(forbidden.status, 403, await forbidden.clone().text());
+
+    // The subject must match its type, and automations do not exist yet.
+    const mixed = await call(f, "POST", path, f.adminCookie, {
+      body: { ...body, subjectRole: "developer" },
+      headers: headers(),
+    });
+    assertEquals(mixed.status, 422, await mixed.clone().text());
+    const automation = await call(f, "POST", path, f.adminCookie, {
+      body: {
+        subjectType: "automation",
+        automationDefinitionId: crypto.randomUUID(),
+        direction: "out_of_bakery",
+        capability: "github.issue.comment.create",
+      },
+      headers: headers(),
+    });
+    assertEquals(automation.status, 422, await automation.clone().text());
+    const wildcard = await call(f, "POST", path, f.adminCookie, {
+      body: { ...body, capability: "github.*" },
+      headers: headers(),
+    });
+    assertEquals(wildcard.status, 422, await wildcard.clone().text());
+
+    const created = await call(f, "POST", path, f.adminCookie, {
+      body,
+      headers: headers(),
+    });
+    assertEquals(created.status, 201, await created.clone().text());
+    const grant = await created.json();
+    assertEquals(grant.connectionId, connectionId);
+    assertEquals(grant.subjectPrincipalId, f.developerId);
+    assertEquals(grant.capability, "github.issue.comment.create");
+    assertEquals(grant.resourceId, resources[0].id);
+    assertEquals(grant.revokedAt, null);
+
+    const listed = await call(f, "GET", path, f.developerCookie, {
+      headers: { "Bakery-Organization-Id": f.organizationId },
+    });
+    assertEquals(listed.status, 200, await listed.clone().text());
+    assertEquals(
+      (await listed.json()).items.map((item: { id: string }) => item.id),
+      [grant.id],
+    );
+
+    // Another organization sees no grants and cannot revoke this one.
+    const otherOrganization = await secondOrganization(f);
+    const foreign = await call(f, "GET", path, f.adminCookie, {
+      headers: { "Bakery-Organization-Id": otherOrganization },
+    });
+    assertEquals(foreign.status, 404, await foreign.clone().text());
+    const foreignRevoke = await call(
+      f,
+      "DELETE",
+      `${path}/${grant.id}`,
+      f.adminCookie,
+      {
+        headers: {
+          "Bakery-Organization-Id": otherOrganization,
+          "Idempotency-Key": crypto.randomUUID(),
+          "If-Match": versionTag(grant.version),
+        },
+      },
+    );
+    assertEquals(foreignRevoke.status, 404, await foreignRevoke.clone().text());
+
+    const revoke = (version: number) =>
+      call(f, "DELETE", `${path}/${grant.id}`, f.adminCookie, {
+        headers: { ...headers(), "If-Match": versionTag(version) },
+      });
+    const stale = await revoke(grant.version + 5);
+    assertEquals(stale.status, 412, await stale.clone().text());
+    const revoked = await revoke(grant.version);
+    assertEquals(revoked.status, 204, await revoked.clone().text());
+    const again = await revoke(grant.version + 1);
+    assertEquals(again.status, 409, await again.clone().text());
+
+    // The revoked grant stays readable, with its revocation time.
+    const after = await call(f, "GET", path, f.adminCookie, {
+      headers: { "Bakery-Organization-Id": f.organizationId },
+    });
+    const [kept] = (await after.json()).items;
+    assertEquals(kept.id, grant.id);
+    assert(kept.revokedAt !== null);
+  });
+});
