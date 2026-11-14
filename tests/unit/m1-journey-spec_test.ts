@@ -250,25 +250,33 @@ Deno.test("the brief poll has its own timeout well under the P6 budget (review F
   );
 });
 
-Deno.test("P3 waits for the host id to render after the enrollment flips to Consumed (live run, stage A)", async () => {
+Deno.test("P3 waits for the machine's id before it reads it (live run, stage A)", async () => {
   const source = await code(specPath);
   const p3 = source.slice(
     source.indexOf("P3 worker"),
     source.indexOf("P4 plan"),
   );
-  // The Machines page shows `workerHostId ?? "Waiting for the worker"`: the
-  // state flips to Consumed on the worker's registration and the id follows on
-  // the next enrollment poll, so a single read at the flip is a race.
+  // The enrollment flips to Consumed on the worker's registration and names the
+  // machine a moment later, so a single read at the flip is a race. The wizard
+  // shows "<name> is connected." at the flip, enables Done only once the
+  // machine is named, and Done opens the machine's page: the id is read from
+  // that address, after the wait for it.
+  const connected = p3.indexOf("m1-claude-worker is connected.");
+  const done = p3.indexOf('name: "Done"');
+  const address = p3.search(/toHaveURL\(\s*\/\\\/machines\\\/\[0-9a-f\]\{8\}-/);
+  const read = p3.indexOf("j.hostId =");
   assert(
-    /expect\(status\)\.toHaveText\(\s*\/Worker: \[0-9a-f\]\{8\}-/.test(p3),
-    "P3 must wait for the status line to name the worker host id",
+    connected >= 0,
+    "P3 must wait for the wizard to say the machine is connected",
   );
-  const consumed = p3.indexOf('"Status: Consumed"');
-  const named = p3.search(/expect\(status\)\.toHaveText\(\s*\/Worker: /);
-  const read = p3.indexOf("const hostMatch");
+  assert(done > connected, "P3 must press Done after it is connected");
   assert(
-    consumed >= 0 && consumed < named && named < read,
-    "the wait for the named host precedes the one-shot read of the host id",
+    address > done,
+    "P3 must wait for the machine's own address before it reads the host id",
+  );
+  assert(
+    read > address,
+    "the wait for the machine's address precedes the one-shot read of the host id",
   );
 });
 

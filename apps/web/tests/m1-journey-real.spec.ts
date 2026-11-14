@@ -637,20 +637,21 @@ test("P3 worker: Machines UI enrollment, token reveal, worker start, truthful re
   phase(3);
   test.setTimeout(BUDGET.P3);
   const { context, page, api } = await open(browser);
-  await page.goto("/machines");
-  const enrollment = page.getByTestId("machine-enrollment");
-  await expect(enrollment).toBeVisible();
-  await axeClean(page, "/machines");
-  // Name, OS, architecture and capabilities match what the worker registers
-  // with (worker.env); the server compares them at registration.
-  await enrollment.getByLabel("Machine name").fill("m1-claude-worker");
-  await enrollment.getByLabel("Architecture").fill("x64");
-  await enrollment.getByLabel("Capabilities").fill("git,shell,web,model");
+  await page.goto("/machines/new");
+  await expect(page.getByTestId("machine-wizard")).toBeVisible();
+  await axeClean(page, "/machines/new");
+  // Name and system match what the worker registers with (worker.env); the
+  // server compares them at registration (it treats x86_64 and x64 as one).
+  await page.getByLabel("Name").fill("m1-claude-worker");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("radio", { name: /Claude Code/ }).check({
+    force: true,
+  });
   const created = page.waitForResponse((response) =>
     new URL(response.url()).pathname === "/v1/worker-enrollments" &&
     response.request().method() === "POST"
   );
-  await enrollment.getByRole("button", { name: "Create enrollment" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
   const response = await created;
   expect(response.request().headers()["idempotency-key"]).toBeTruthy();
   expect(response.status()).toBe(201);
@@ -658,21 +659,18 @@ test("P3 worker: Machines UI enrollment, token reveal, worker start, truthful re
     ((await response.json()) as { enrollmentId: string }).enrollmentId;
   remember("enrollmentId", enrollmentId);
 
-  // The one-time reveal: the key is on screen once; it goes to a 0600 file the
+  // The one-time reveal: the code is on screen once; it goes to a 0600 file the
   // worker reads, never into the evidence.
-  const panel = page.getByTestId("machine-enrollment-token");
-  const setupKey = panel.locator('[data-ui-component="setupKey"]');
+  const setupKey = page.locator('[data-ui-component="setupKey"]');
   await expect(setupKey).toBeVisible();
   const token = ((await setupKey.textContent()) ?? "").trim();
-  expect(token.length, "a setup key was revealed").toBeGreaterThan(16);
+  expect(token.length, "a setup code was revealed").toBeGreaterThan(16);
   const tokenFile = `${stateDirectory()}/enrollment-token`;
   writeFileSync(tokenFile, `${token}\n`, { mode: 0o600 });
   chmodSync(tokenFile, 0o600);
-  const status = panel.getByRole("status").filter({ hasText: /^Status: / });
-  await expect(status).toHaveText(
-    "Status: Pending. Worker: Waiting for the worker.",
-  );
-  // The key is a live credential until the worker registers: mask it.
+  await expect(page.getByText("Waiting for the machine to connect…"))
+    .toBeVisible();
+  // The code is a live credential until the worker registers: mask it.
   if (shots()) {
     mkdirSync(shots(), { recursive: true });
     await page.screenshot({
@@ -683,22 +681,15 @@ test("P3 worker: Machines UI enrollment, token reveal, worker start, truthful re
   }
 
   await startWorker();
-  await expect(status).toContainText("Status: Consumed", {
+  // The page polls the enrollment and says so when the machine registers.
+  await expect(page.getByText("m1-claude-worker is connected.")).toBeVisible({
     timeout: 5 * MINUTE,
   });
-  // The state flips to Consumed when the worker registers; the page shows
-  // `workerHostId ?? "Waiting for the worker"`, so the id follows on the next
-  // enrollment poll. Wait for it instead of reading once at the flip.
-  await expect(status).toHaveText(/Worker: [0-9a-f]{8}-[0-9a-f-]{27}/, {
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect(page).toHaveURL(/\/machines\/[0-9a-f]{8}-[0-9a-f-]{27}$/, {
     timeout: 2 * MINUTE,
   });
-  const hostMatch = /Worker: ([0-9a-f]{8}-[0-9a-f-]{27})/.exec(
-    (await status.textContent()) ?? "",
-  );
-  expect(hostMatch, "the status line names the enrolled host").toBeTruthy();
-  j.hostId = hostMatch![1];
-  await panel.getByRole("button", { name: "Dismiss setup key" }).click();
-  await expect(panel).toHaveCount(0);
+  j.hostId = new URL(page.url()).pathname.split("/").pop()!;
   const enrollmentRecord = await api.get<
     { state: string; workerHostId: string }
   >(
