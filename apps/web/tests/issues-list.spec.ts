@@ -355,5 +355,69 @@ for (
       await expect(row(page, 325)).toBeFocused();
       await expect(row(page, 329)).toBeVisible();
     });
+
+    const rejected = (count: number, from: number): Seed[] =>
+      Array.from({ length: count }, (_, index) => ({
+        number: from + index,
+        title: `Needs criteria ${index + 1}`,
+        verdict: "rejected" as const,
+        checks: [{
+          id: "acceptance_present",
+          status: "reject",
+          reason: "acceptance_missing",
+        }],
+      }));
+
+    test("Can start keeps reading pages until it finds an issue, never saying nothing over a Load more button", async ({ page }) => {
+      // 25 issues that cannot start, then one that can on the next page.
+      await issuesFixture(page, {
+        open: [...rejected(25, 1000), {
+          number: 2000,
+          title: "Ready on the second page",
+          verdict: "ready",
+          checks: ready,
+        }],
+      });
+      await page.goto("/issues");
+      await expect(row(page, 2000)).toContainText("Can start");
+      await expect(page.getByText("No issue is ready to start")).toHaveCount(0);
+    });
+
+    test("In progress looks past the first page too", async ({ page }) => {
+      await issuesFixture(page, {
+        open: [...rejected(25, 1000), {
+          number: 2001,
+          title: "Running on the second page",
+          verdict: "ready",
+          checks: ready,
+          request: { disposition: "active" },
+        }],
+      });
+      await page.goto("/issues");
+      await page.getByRole("radio", { name: "In progress" }).click({
+        force: true,
+      });
+      await expect(row(page, 2001)).toContainText("In progress");
+    });
+
+    test("when the search gives up at 200 issues, it says how far it looked and offers Load more", async ({ page }) => {
+      await issuesFixture(page, {
+        open: [...rejected(200, 1000), {
+          number: 2002,
+          title: "Ready on the ninth page",
+          verdict: "ready",
+          checks: ready,
+        }],
+      });
+      await page.goto("/issues");
+      await expect(page.getByText(
+        "None of the issues loaded so far can start. Load more to look further.",
+      )).toBeVisible();
+      await expect(page.getByText("No issue is ready to start")).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await shot(page, "issues-list-searched-partly");
+      await page.getByRole("button", { name: "Load more" }).click();
+      await expect(row(page, 2002)).toContainText("Can start");
+    });
   });
 }

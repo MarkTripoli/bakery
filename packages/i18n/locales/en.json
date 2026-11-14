@@ -3005,5 +3005,9 @@
   "issues.reason.provider_unavailable": "GitHub is not answering right now.",
   "issues.reason.repository_mismatch": "The issue belongs to a different repository than the one set up.",
   "issues.line.inProgress": "Bakery is working on this.",
-  "issues.noSources.openIntegrations": "Open Integrations"
+  "issues.noSources.openIntegrations": "Open Integrations",
+  "issues.searching.canStart": "Looking for issues that can start.",
+  "issues.searching.inProgress": "Looking for issues in progress.",
+  "issues.partial.canStart": "None of the issues loaded so far can start. Load more to look further.",
+  "issues.partial.inProgress": "None of the issues loaded so far are in progress. Load more to look further."
 }

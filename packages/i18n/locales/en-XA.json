@@ -3005,5 +3005,9 @@
   "issues.reason.provider_unavailable": "⟦ĜïŧĤûƀ ïš ñôŧ àñšŵëŕïñĝ ŕïĝĥŧ ñôŵ. ŧëšŧ çôþÿ⟧",
   "issues.reason.repository_mismatch": "⟦Ŧĥë ïššûë ƀëļôñĝš ŧô à ðïƒƒëŕëñŧ ŕëþôšïŧôŕÿ ŧĥàñ ŧĥë ôñë šëŧ ûþ. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "issues.line.inProgress": "⟦Ɓàķëŕÿ ïš ŵôŕķïñĝ ôñ ŧĥïš. ŧëšŧ çô⟧",
-  "issues.noSources.openIntegrations": "⟦Ôþëñ Ïñŧëĝŕàŧïôñš ŧëš⟧"
+  "issues.noSources.openIntegrations": "⟦Ôþëñ Ïñŧëĝŕàŧïôñš ŧëš⟧",
+  "issues.searching.canStart": "⟦Ļôôķïñĝ ƒôŕ ïššûëš ŧĥàŧ çàñ šŧàŕŧ. ŧëšŧ çôþÿ⟧",
+  "issues.searching.inProgress": "⟦Ļôôķïñĝ ƒôŕ ïššûëš ïñ þŕôĝŕëšš. ŧëšŧ çôþ⟧",
+  "issues.partial.canStart": "⟦Ñôñë ôƒ ŧĥë ïššûëš ļôàðëð šô ƒàŕ çàñ šŧàŕŧ. Ļôàð ɱôŕë ŧô ļôôķ ƒûŕŧĥëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "issues.partial.inProgress": "⟦Ñôñë ôƒ ŧĥë ïššûëš ļôàðëð šô ƒàŕ àŕë ïñ þŕôĝŕëšš. Ļôàð ɱôŕë ŧô ļôôķ ƒûŕŧĥëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧"
 }
