@@ -20,9 +20,17 @@ export type HeadingProps =
      * document outline (axe heading-order) while keeping its type scale.
      */
     rank?: 1 | 2 | 3;
+    /**
+     * `row` lines the heading up with the text of a stacked row below it on a
+     * phone, where those rows are inset from the page edge. Wide screens are
+     * unchanged.
+     */
+    inset?: "row";
   };
 
-export function Heading({ level = "section", rank, ...props }: HeadingProps) {
+export function Heading(
+  { level = "section", rank, inset, ...props }: HeadingProps,
+) {
   const Tag = rank !== undefined
     ? (`h${rank}` as "h1" | "h2" | "h3")
     : level.startsWith("page")
@@ -36,6 +44,7 @@ export function Heading({ level = "section", rank, ...props }: HeadingProps) {
         " ",
       )}
       {...props}
+      data-inset={inset}
       data-state="default"
       data-ui-component="heading"
       data-variant={level}

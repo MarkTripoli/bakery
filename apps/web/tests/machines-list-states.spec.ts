@@ -78,10 +78,11 @@ const FLEET = [
 async function open(
   page: Page,
   options: {
-    role?: "admin" | "member";
+    role?: "admin" | "developer";
     workers?: unknown;
     workersStatus?: number;
     hang?: boolean;
+    enrollments?: unknown[];
   } = {},
 ) {
   await mockAuthenticatedSession(page);
@@ -114,7 +115,10 @@ async function open(
   );
   await page.route(
     (url) => url.pathname === "/v1/worker-enrollments",
-    (route) => route.fulfill(json({ items: [], nextCursor: null })),
+    (route) =>
+      route.fulfill(
+        json({ items: options.enrollments ?? [], nextCursor: null }),
+      ),
   );
   await page.goto("/machines");
 }
@@ -271,7 +275,7 @@ test.describe("machines list states", () => {
     ).toBeVisible();
     await shot(page, "machines-list-empty");
     await page.unrouteAll({ behavior: "ignoreErrors" });
-    await open(page, { workers: [], role: "member" });
+    await open(page, { workers: [], role: "developer" });
     await expect(
       page.getByText("Ask an organization administrator to add one."),
     ).toBeVisible();
@@ -294,6 +298,12 @@ test.describe("machines list states", () => {
     await page.unrouteAll({ behavior: "ignoreErrors" });
     await open(page, { workersStatus: 500 });
     await expect(page.getByText("Machines could not be loaded")).toBeVisible();
+    // A failed read is not a refused one: Add machine stays, at both widths
+    // (top bar on a wide screen, under the title on a phone), once.
+    await expect(page.getByRole("button", { name: "Add machine", exact: true }))
+      .toHaveCount(1);
+    await expect(page.getByRole("button", { name: "Add machine", exact: true }))
+      .toBeVisible();
     await shot(page, "machines-list-error");
     await page.unrouteAll({ behavior: "ignoreErrors" });
     await open(page, { hang: true });
@@ -302,5 +312,81 @@ test.describe("machines list states", () => {
     await expect(page.locator("[data-ui-component=skeleton]")).toHaveCount(3);
     await expect(page.getByRole("table", { name: "Machines" })).toHaveCount(0);
     await shot(page, "machines-list-loading");
+  });
+
+  test("setups that are not finished are listed first, and only those", async ({ page }) => {
+    const row = (
+      id: string,
+      name: string,
+      state: string,
+      expiresAt: string,
+    ) => ({
+      enrollmentId: id,
+      state,
+      name,
+      os: "linux",
+      architecture: "x86_64",
+      capabilities: ["git", "shell", "web", "model", "claude"],
+      slots: 1,
+      expiresAt,
+      consumedAt: null,
+      canceledAt: null,
+      workerHostId: null,
+      replacementOfId: null,
+      targetWorkerHostId: null,
+      version: 1,
+    });
+    const later = new Date(Date.now() + 20 * 60_000).toISOString();
+    const earlier = "2026-01-01T00:00:00.000Z";
+    await open(page, {
+      enrollments: [
+        row(
+          "00000000-0000-4000-8000-0000000000f1",
+          "waiting-box",
+          "pending",
+          later,
+        ),
+        row(
+          "00000000-0000-4000-8000-0000000000f2",
+          "late-box",
+          "expired",
+          earlier,
+        ),
+        row(
+          "00000000-0000-4000-8000-0000000000f3",
+          "done-box",
+          "consumed",
+          earlier,
+        ),
+        row(
+          "00000000-0000-4000-8000-0000000000f4",
+          "dropped-box",
+          "canceled",
+          earlier,
+        ),
+      ],
+    });
+    const group = page.getByTestId("machines-finishing-setup");
+    await expect(group.getByRole("heading", { name: "Finishing setup" }))
+      .toBeVisible();
+    await expect(group.locator("[data-enrollment-id]")).toHaveCount(2);
+    await expect(group).toContainText("waiting-box");
+    await expect(group).toContainText("late-box");
+    await expect(group).not.toContainText("done-box");
+    await expect(group).not.toContainText("dropped-box");
+    // The machines below the group have their own heading, at the same level.
+    await expect(
+      page.getByRole("heading", { name: "Machines", level: 2 }),
+    ).toBeVisible();
+    // The machines come after the group.
+    const groupBox = await group.boundingBox();
+    const machinesBox = await rowOf(page, "build-linux-01").boundingBox();
+    expect(groupBox!.y).toBeLessThan(machinesBox!.y);
+    await shot(page, "machines-list-finishing");
+    await group.getByRole("button", { name: "Get new settings for late-box" })
+      .click();
+    await expect(page).toHaveURL(
+      /\/machines\/new\?finish=00000000-0000-4000-8000-0000000000f2$/,
+    );
   });
 });
