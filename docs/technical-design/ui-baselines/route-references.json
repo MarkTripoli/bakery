@@ -5153,6 +5153,13 @@
       "status": "no-mock",
       "rationale": "One workflow of the organization (its steps, versions and the version in use) is designed by design-ux on #66; Paper has no frame for it.",
       "frames": []
+    },
+    {
+      "routeId": "library-builtin",
+      "path": "/library/built-in/$presetId",
+      "status": "no-mock",
+      "rationale": "One built-in workflow (read-only, with Make a copy) is designed by design-ux on #66; Paper has no frame for it.",
+      "frames": []
     }
   ]
 }

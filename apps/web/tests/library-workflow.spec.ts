@@ -266,7 +266,11 @@ for (
       // The menu opens inside the window at every width: every item sits
       // within the viewport (on a phone the trigger starts its row).
       const viewport = page.viewportSize()!;
-      for (const item of await page.getByRole("menuitem").all()) {
+      // (The entries are plain buttons in the popover, not role=menuitem: a
+      // locator by that role matches nothing and checks nothing.)
+      const items = await page.locator(".ui-popover__content button").all();
+      expect(items.length).toBeGreaterThanOrEqual(4);
+      for (const item of items) {
         const box = (await item.boundingBox())!;
         expect(box.x).toBeGreaterThanOrEqual(0);
         expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);

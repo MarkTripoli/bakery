@@ -114,3 +114,10 @@ export function exportFileName(slug: string, revision: number): string {
   const safe = slug.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
   return `${safe === "" ? "workflow" : safe}-v${revision}.yaml`;
 }
+
+/** The sentences for the actions a definition's steps run most. */
+export const ACTION_TITLES: Readonly<Record<string, string>> = {
+  "task.brief": "library.workflow.action.taskBrief",
+  "harness.implement": "library.workflow.action.harnessImplement",
+  "agent.review": "library.workflow.action.agentReview",
+};
