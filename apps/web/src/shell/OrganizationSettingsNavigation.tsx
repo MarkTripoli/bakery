@@ -52,7 +52,7 @@ export function OrganizationSettingsNavigation(
       }, {
         id: "organization-scim",
         href: "/settings/scim",
-        label: translate("shell.navigation.scimShort"),
+        label: translate("shell.navigation.userProvisioning"),
       }]}
       narrowMode="menu"
       variant={viewport === "desktop" ? "sidebar" : "menu"}

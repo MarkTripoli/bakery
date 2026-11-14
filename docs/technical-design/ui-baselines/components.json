@@ -1,5 +1,5 @@
 {
-  "revision": "ed72694ae8acb59b4d839331127954a9b7b916a01b8f197dde34ecec6f6a7609",
+  "revision": "bad471b38e51df60fedba610c6792fa8ad025dcf30ed2c48e7b673bb219be968",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -3963,7 +3963,7 @@
     {
       "id": "ui.sectionNavigation",
       "name": "SectionNavigation",
-      "description": "Provides one ordered sibling-section model across wide and narrow layouts while preserving parent selection.",
+      "description": "Provides one ordered sibling-section model across wide and narrow layouts while preserving parent selection; links can sit under labelled group headings.",
       "level": "organism",
       "owner": "Mark Tripoli",
       "storyTitle": "Bakery/Organisms/SectionNavigation",
