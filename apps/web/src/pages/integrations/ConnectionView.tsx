@@ -138,40 +138,23 @@ export function ConnectionView(props: ConnectionViewProps) {
   });
   // The page's one secondary action: in the shell's action slot on desktop,
   // under the title on a phone.
-  // The server checks only a connection that is on, so a connection still
-  // being set up or turned off says why next to the button; a removed one has
-  // nothing to check and shows no button.
-  const checkOff = props.status === "pending"
-    ? "pending"
-    : props.status === "disabled"
-    ? "disabled"
+  // The server checks only a connection that is on, so Check now is shown only
+  // then: not while setup is unfinished, not turned off, not removed.
+  const checkNow = state === "ready" && props.canManage &&
+      props.status !== "pending" && props.status !== "disabled" &&
+      props.status !== "revoked"
+    ? (
+      <UI.Button
+        disabled={props.checkStatus === "checking"}
+        loading={props.checkStatus === "checking"}
+        onClick={props.onCheck}
+        type="button"
+        variant="secondary"
+      >
+        {translate("settings.connections.action.checkNow")}
+      </UI.Button>
+    )
     : null;
-  const checkNow =
-    state === "ready" && props.canManage && props.status !== "revoked"
-      ? (
-        <UI.Inline gap="compact">
-          {checkOff
-            ? (
-              <UI.Text id="check-now-reason" variant="hint">
-                {translate(
-                  `settings.connections.check.off.${checkOff}` as MessageKey,
-                )}
-              </UI.Text>
-            )
-            : null}
-          <UI.Button
-            aria-describedby={checkOff ? "check-now-reason" : undefined}
-            disabled={props.checkStatus === "checking" || checkOff !== null}
-            loading={props.checkStatus === "checking"}
-            onClick={props.onCheck}
-            type="button"
-            variant="secondary"
-          >
-            {translate("settings.connections.action.checkNow")}
-          </UI.Button>
-        </UI.Inline>
-      )
-      : null;
   return (
     <UI.SettingsContent data-testid="connection-page">
       {checkNow && !phone

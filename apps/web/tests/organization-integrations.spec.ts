@@ -753,24 +753,30 @@ test("a removed connection says so, offers one way back and changes nothing else
     .toHaveCount(0);
 });
 
-test("Check now is off, and says why, while setup is unfinished or the connection is turned off", async ({ page }) => {
+test("Check now is shown only while the connection is on", async ({ page }) => {
   const world = newWorld({
-    connections: [connection(3, "pending"), connection(4, "disabled")],
+    connections: [
+      connection(1, "enabled"),
+      connection(5, "degraded"),
+      connection(3, "pending"),
+      connection(4, "disabled"),
+      connection(6, "revoked"),
+    ],
     resources: [repository(1, true)],
   });
   await fixture(page, world);
-  await page.goto(pageFor(ID(3)));
-  await expect(page.getByRole("button", { name: "Check now" })).toBeDisabled();
-  await expect(
-    page.getByText("Finish setting up the connection to check it."),
-  ).toBeVisible();
-  await page.goto(pageFor(ID(4)));
-  await expect(page.getByRole("button", { name: "Check now" })).toBeDisabled();
-  await expect(page.getByText("Turn the connection on to check it."))
-    .toBeVisible();
-  // The button points at its reason, so it is read with the button.
-  await expect(page.getByRole("button", { name: "Check now" }))
-    .toHaveAccessibleDescription("Turn the connection on to check it.");
+  for (const id of [1, 5]) {
+    await page.goto(pageFor(ID(id)));
+    await expect(page.getByRole("button", { name: "Check now" })).toBeEnabled();
+  }
+  // Setup unfinished, turned off, removed: the server would refuse a check,
+  // so the page offers none (and shows no disabled button without a reason).
+  for (const id of [3, 4, 6]) {
+    await page.goto(pageFor(ID(id)));
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Check now" }))
+      .toHaveCount(0);
+  }
   expect(
     world.seen.filter((call) => call.path.endsWith("/checks")),
   ).toEqual([]);

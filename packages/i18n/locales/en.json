@@ -2649,8 +2649,6 @@
   "settings.connections.banner.removed": "Access to GitHub was removed.",
   "settings.connections.action.manage": "Manage",
   "settings.connections.action.checkNow": "Check now",
-  "settings.connections.check.off.pending": "Finish setting up the connection to check it.",
-  "settings.connections.check.off.disabled": "Turn the connection on to check it.",
   "settings.connections.action.checkAgain": "Check again",
   "settings.connections.action.finishSetup": "Finish setup",
   "settings.connections.action.reconnect": "Reconnect",
