@@ -5106,6 +5106,13 @@
       "frames": []
     },
     {
+      "routeId": "issue-detail",
+      "path": "/issues/$issueId",
+      "status": "no-mock",
+      "rationale": "One issue's saved copy with its Can Bakery start this? card, dependencies and Start work confirmation is designed in the part 2 design comment on #56 (design-ux); no Paper frame exists for it.",
+      "frames": []
+    },
+    {
       "routeId": "machines",
       "path": "/machines",
       "status": "no-mock",

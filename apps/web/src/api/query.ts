@@ -29,6 +29,7 @@ import type {
   EffectiveAccess,
   EnrollmentStatus,
   ExternalTicketListResponse,
+  ExternalTicketResponse,
   InstallationCapabilities,
   InstallationSettings,
   InstallationStatus,
@@ -151,6 +152,27 @@ export function externalTicketsPagesQueryOptions(
           state: input.state,
           cursor: pageParam ?? undefined,
           limit,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** One issue with its latest check and running request. */
+export function externalTicketQueryOptions(
+  client: Pick<BakeryApiClient, "tickets">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<ExternalTicketResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "externalTickets.get", { id }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.tickets.get({
+          organizationId: requireOrganization(scope),
+          id,
           signal,
         }),
       ),

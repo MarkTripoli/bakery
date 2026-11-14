@@ -1,12 +1,15 @@
 import { assertEquals } from "@std/assert";
 import {
+  issueLinks,
   issueMatchesFilter,
   issueNumber,
   type IssueRow,
   issueSnapshot,
   issueStatus,
+  reasonAction,
   reasonKey,
   referencedNumber,
+  startOffer,
 } from "../../apps/web/src/pages/issue-state.ts";
 
 const check = (
@@ -180,4 +183,118 @@ Deno.test("reason codes map to their sentence, the provider ones fold into one a
   assertEquals(reasonKey("something_new"), "unknown");
   assertEquals(referencedNumber("acme/web#201"), "201");
   assertEquals(referencedNumber(null), null);
+});
+
+Deno.test("Start work is offered only when ready, Start when ready only when dependencies are all that is in the way", () => {
+  const ready = ticket({
+    latestReadiness: readiness("ready", [check("source_live", "pass", "ok")]),
+  });
+  assertEquals(startOffer(ready), "start");
+  const dependencyWait = ticket({
+    latestReadiness: readiness("waiting", [
+      check("source_live", "pass", "ok"),
+      check("dependencies_satisfied", "wait", "predecessor_open", [
+        "blocker:acme/web#201",
+      ]),
+    ]),
+  });
+  assertEquals(startOffer(dependencyWait), "startWhenReady");
+  // A dependency wait with another thing in the way is not enough.
+  const twoThings = ticket({
+    latestReadiness: readiness("waiting", [
+      check("dependencies_satisfied", "wait", "predecessor_open"),
+      check("repository_ready", "wait", "provider_unavailable"),
+    ]),
+  });
+  assertEquals(startOffer(twoThings), "none");
+  assertEquals(
+    startOffer(ticket({
+      latestReadiness: readiness("rejected", [
+        check("acceptance_present", "reject", "acceptance_missing"),
+      ]),
+    })),
+    "none",
+  );
+  // Running work, and an issue never checked, offer nothing.
+  assertEquals(
+    startOffer(ticket({
+      latestReadiness: readiness("ready", [check("source_live", "pass", "ok")]),
+      activeRequest: { disposition: "active" },
+    })),
+    "none",
+  );
+  assertEquals(startOffer(ticket()), "none");
+});
+
+Deno.test("each reason leads to where the fix lives", () => {
+  assertEquals(reasonAction("acceptance_missing"), {
+    kind: "github",
+    label: "addCriteria",
+  });
+  assertEquals(reasonAction("held"), { kind: "github", label: "removeLabel" });
+  assertEquals(reasonAction("provider:timeout"), { kind: "checkAgain" });
+  assertEquals(reasonAction("inaccessible"), { kind: "integrations" });
+  assertEquals(reasonAction("source_disabled"), { kind: "issueSettings" });
+  assertEquals(reasonAction("no_active_profile"), { kind: "projects" });
+  assertEquals(reasonAction("actor_role_insufficient"), { kind: "askAdmin" });
+  assertEquals(reasonAction("acceptance_changed"), { kind: "startAgain" });
+  assertEquals(reasonAction("repository_archived"), { kind: "none" });
+  assertEquals(reasonAction("brand_new_code"), { kind: "none" });
+});
+
+Deno.test("dependencies take their state from the check's evidence, and unread links are said to be incomplete", () => {
+  const withLinks = (links: unknown, row: Record<string, unknown> = {}) =>
+    ticket({
+      snapshot: {
+        title: "T",
+        labels: [],
+        state: "open",
+        repositoryFullName: "acme/web",
+        body: "Body",
+        bodyTruncated: true,
+        links,
+      },
+      ...row,
+    });
+  const refs = [
+    { id: "a", repositoryFullName: "acme/web", number: 201 },
+    { id: "b", repositoryFullName: "acme/api", number: 7 },
+  ];
+  const links = {
+    parent: { id: "p", repositoryFullName: "acme/web", number: 100 },
+    subIssuesTotal: 0,
+    blockedBy: refs,
+    blockingTotal: 0,
+  };
+  const waiting = issueLinks(withLinks(links, {
+    latestReadiness: readiness("waiting", [
+      check("dependencies_satisfied", "wait", "predecessor_open", [
+        "blocker:acme/web#201",
+      ]),
+    ]),
+  }));
+  assertEquals(waiting.dependencies, [
+    { repository: "acme/web", number: 201, state: "open" },
+    { repository: "acme/api", number: 7, state: "done" },
+  ]);
+  assertEquals(waiting.parent, { repository: "acme/web", number: 100 });
+  assertEquals(waiting.incomplete, false);
+  assertEquals(
+    issueLinks(withLinks(links)).dependencies.map((dependency) =>
+      dependency.state
+    ),
+    [
+      "unknown",
+      "unknown",
+    ],
+  );
+  assertEquals(issueLinks(withLinks(null)).incomplete, true);
+  assertEquals(
+    issueLinks(withLinks(links, {
+      latestReadiness: readiness("waiting", [
+        check("dependencies_satisfied", "wait", "links_truncated"),
+      ]),
+    })).incomplete,
+    true,
+  );
 });

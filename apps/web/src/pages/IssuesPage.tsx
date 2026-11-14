@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useInfiniteQuery,
   useMutation,
@@ -16,16 +16,26 @@ import { asyncKindForError, isForbiddenFailure } from "../app/async-state.ts";
 import { usePagedFocus } from "../app/focus.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useNavigate } from "@tanstack/react-router";
+import { useConnectivity } from "../app/connectivity.ts";
+import { focusAfterPaint } from "../app/focus.ts";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { IssuesList } from "./IssuesList.tsx";
+import { IssuesTroubleBanner } from "./IssuesTroubleBanner.tsx";
+import { type StartRefusal, StartWorkDialog } from "./StartWorkDialog.tsx";
+import { StartWorkNotices } from "./StartWorkNotices.tsx";
 import {
+  ageOf,
   ISSUE_FILTERS,
   type IssueFilter,
   issueMatchesFilter,
+  issueNumber,
+  type IssueRow,
   issueSnapshot,
+  startOffer,
+  troubleOf,
 } from "./issue-state.ts";
 
 /** Issues are read 25 at a time. */
@@ -37,22 +47,6 @@ const PAGE_SIZE = 25;
  * pages while nothing matches, up to this many (200 issues), and then say so.
  */
 const MAX_SEARCH_PAGES = 8;
-
-/** How long ago a time was, as the whole unit that fits: minutes, hours or days. */
-function ageOf(
-  then: string | null,
-  now: number,
-): { unit: "minute" | "hour" | "day"; count: number } | "now" | null {
-  if (then === null) return null;
-  const elapsed = now - Date.parse(then);
-  if (!Number.isFinite(elapsed)) return null;
-  const minutes = Math.floor(elapsed / 60_000);
-  if (minutes < 1) return "now";
-  if (minutes < 60) return { unit: "minute", count: minutes };
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return { unit: "hour", count: hours };
-  return { unit: "day", count: Math.floor(hours / 24) };
-}
 
 /**
  * The GitHub issues Bakery has read for the organization, newest first, with
@@ -71,6 +65,12 @@ export function IssuesPage() {
   const [filter, setFilter] = useState<IssueFilter>("canStart");
   const [sourceId, setSourceId] = useState("");
   const [started, setStarted] = useState(false);
+  const [startFor, setStartFor] = useState<IssueRow | null>(null);
+  // The row's Start work button that opened the confirmation.
+  const opener = useRef<HTMLElement | null>(null);
+  const [workStarted, setWorkStarted] = useState<number | null | false>(false);
+  const [refusal, setRefusal] = useState<StartRefusal | null>(null);
+  const offline = useConnectivity() === "offline";
 
   const state = filter === "closed" ? "closed" : "open";
   const issues = useInfiniteQuery(
@@ -151,11 +151,7 @@ export function IssuesPage() {
     .at(-1) ?? null;
   const age = ageOf(lastSyncedAt, Date.now());
   const health = (sources.data?.items ?? []).map((source) => source.syncHealth);
-  const trouble = health.includes("auth_required")
-    ? "authRequired"
-    : health.includes("degraded")
-    ? "degraded"
-    : null;
+  const trouble = troubleOf(health);
 
   // The page's one action: in the top bar on a wide screen, under the title on a
   // phone (the page header hides its actions on a wide one).
@@ -170,8 +166,19 @@ export function IssuesPage() {
   );
   const canRefresh = isAdmin && sources.isSuccess &&
     sources.data.items.length > 0;
+  const sourceFor = (row: IssueRow) =>
+    sources.data?.items.find((source) => source.id === row.ticketSourceId);
+  // Start work is offered only where the answer is current: can start, GitHub
+  // readable for that repository, and online.
+  const startOffered = (row: IssueRow) => {
+    const trouble = troubleOf(
+      sourceFor(row) ? [sourceFor(row)!.syncHealth] : [],
+    );
+    return startOffer(row) === "start" && !offline &&
+      trouble !== "authRequired" && trouble !== "degraded";
+  };
   const forbidden = issues.isError && isForbiddenFailure(issues.error);
-  const offline = issues.isError &&
+  const loadOffline = issues.isError &&
     asyncKindForError(issues.error) === "offline";
   const noSources = sources.isSuccess && sources.data.items.length === 0;
 
@@ -181,9 +188,10 @@ export function IssuesPage() {
       {canRefresh && !phone
         ? <ShellSlot name="actions">{refreshButton}</ShellSlot>
         : null}
-      <UI.SettingsContent data-testid="issues-page">
+      <UI.Stack gap="spacious" data-testid="issues-page">
         <UI.PageHeader
           variant="list"
+          flush
           title={translate("issues.title" as never)}
           subtitle={translate("issues.description" as never)}
           actions={canRefresh && phone ? refreshButton : null}
@@ -195,6 +203,12 @@ export function IssuesPage() {
             </UI.InlineNotice>
           )
           : null}
+        <StartWorkNotices
+          number={workStarted === false ? null : workStarted}
+          started={workStarted !== false}
+          refusal={refusal}
+          onDismiss={() => setRefusal(null)}
+        />
         {refresh.isError
           ? (
             <UI.InlineNotice tone="error">
@@ -204,11 +218,12 @@ export function IssuesPage() {
           : null}
         {trouble !== null
           ? (
-            <UI.AlertBanner
-              tone={trouble === "authRequired" ? "error" : "warning"}
-            >
-              {translate(`issues.trouble.${trouble}` as never)}
-            </UI.AlertBanner>
+            <IssuesTroubleBanner
+              trouble={trouble}
+              admin={isAdmin}
+              refreshing={refresh.isPending}
+              onRefresh={() => refresh.mutate()}
+            />
           )
           : null}
         {forbidden
@@ -248,12 +263,12 @@ export function IssuesPage() {
           ? (
             <UI.ErrorState
               title={translate(
-                (offline
+                (loadOffline
                   ? "issues.offline.title"
                   : "issues.error.title") as never,
               )}
               description={translate(
-                (offline
+                (loadOffline
                   ? "issues.offline.description"
                   : "issues.error.description") as never,
               )}
@@ -351,6 +366,16 @@ export function IssuesPage() {
                 : (
                   <div data-paged-list="issues">
                     <IssuesList
+                      offered={startOffered}
+                      onStart={(row) => {
+                        opener.current = document.activeElement instanceof
+                            HTMLElement
+                          ? document.activeElement
+                          : null;
+                        setRefusal(null);
+                        setWorkStarted(false);
+                        setStartFor(row);
+                      }}
                       rows={visible}
                       loading={issues.isPending}
                       phone={phone}
@@ -389,7 +414,35 @@ export function IssuesPage() {
                 : null}
             </UI.Stack>
           )}
-      </UI.SettingsContent>
+      </UI.Stack>
+      {startFor !== null
+        ? (
+          <StartWorkDialog
+            intent="start"
+            row={startFor}
+            policyRevision={sourceFor(startFor)?.policyRevision ?? null}
+            onClose={() => {
+              setStartFor(null);
+              // Cancel or Escape: back to the button that opened it.
+              focusAfterPaint(() => opener.current);
+            }}
+            onDone={() => {
+              setWorkStarted(issueNumber(startFor));
+              setStartFor(null);
+              focusAfterPaint(() =>
+                document.querySelector<HTMLElement>("[data-start-notice]")
+              );
+            }}
+            onRefused={(why) => {
+              setRefusal(why);
+              setStartFor(null);
+              focusAfterPaint(() =>
+                document.querySelector<HTMLElement>("[data-start-notice]")
+              );
+            }}
+          />
+        )
+        : null}
     </>
   );
 }
