@@ -6,6 +6,7 @@ import * as organizationSelection from "../app/organization-selection.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { SETTINGS_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { CustomRolesPanel } from "./CustomRolesPanel.tsx";
 
@@ -39,7 +40,10 @@ export function OrganizationRolesPage() {
         <UI.Breadcrumbs
           aria-label={translate("shell.navigation.breadcrumb")}
           items={[
-            { label: translate("shell.states.settingsTitle") },
+            {
+              href: SETTINGS_HOME,
+              label: translate("shell.states.settingsTitle"),
+            },
             { label: translate("shell.navigation.customRoles") },
           ]}
         />

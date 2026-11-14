@@ -25,6 +25,7 @@ import { useConnectivity } from "../app/connectivity.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { MACHINES_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { boundedReason, formatMachineDate } from "./MachinesPage.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { machineLine } from "./MachineList.tsx";
@@ -499,8 +500,14 @@ export function MachineDetailPage(
         <UI.Breadcrumbs
           aria-label={message(translate, "shell.navigation.breadcrumb")}
           items={[
-            { label: message(translate, "shell.navigation.workspace") },
-            { label: message(translate, "shell.navigation.machines") },
+            {
+              href: WORK_HOME,
+              label: message(translate, "shell.navigation.workspace"),
+            },
+            {
+              href: MACHINES_HOME,
+              label: message(translate, "shell.navigation.machines"),
+            },
             { label: machineTitle },
           ]}
         />

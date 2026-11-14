@@ -2043,6 +2043,19 @@ a.bakery-application-rail__link:hover {
   min-block-size: var(--space-0);
   text-decoration: none;
 }
+/* The current page's name is cut with an ellipsis when it is long. */
+.bakery-top-bar .ui-breadcrumbs li:last-child > span {
+  max-inline-size: var(--layout-inspector);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A crumb that leads somewhere reads as a link on hover and keyboard focus. */
+.bakery-top-bar .ui-breadcrumbs a:not(.ui-link):is(:hover, :focus-visible) {
+  color: var(--color-fg);
+  text-decoration: underline;
+  text-underline-offset: var(--underline-offset);
+}
 .bakery-top-bar .ui-breadcrumbs li {
   align-items: center;
   display: flex;
