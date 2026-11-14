@@ -2835,6 +2835,7 @@
   "tasks.delivery.approval.forbidden": "You cannot decide this approval.",
   "tasks.delivery.approval.error": "The decision could not be sent. Try again.",
   "tasks.delivery.approval.unknown": "Bakery could not confirm that the decision was saved. The latest state is shown.",
+  "tasks.delivery.approval.unknownInDialog": "Bakery could not confirm that this was saved. Send it again; Bakery will not record it twice.",
   "tasks.delivery.approval.step.waiting": "Waiting for approval.",
   "tasks.delivery.approval.step.approved": "Approved. Bakery may merge these changes.",
   "tasks.delivery.approval.step.changesRequested": "Changes were requested. Bakery sent the note to the agent.",

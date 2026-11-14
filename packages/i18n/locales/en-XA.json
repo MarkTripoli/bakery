@@ -3203,5 +3203,6 @@
   "tasks.delivery.approval.step.waiting": "⟦Ŵàïŧïñĝ ƒôŕ àþþŕôṽàļ. ŧëšŧŧ⟧",
   "tasks.delivery.now.approvalUnknown.title": "⟦Ɓàķëŕÿ çôûļð ñôŧ çĥëçķ ŵĥëŧĥëŕ àþþŕôṽàļ ïš ñëëðëð ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "tasks.delivery.now.approvalUnknown.body": "⟦Çĥëçķš þàššëð àñð ŧĥë ŕëṽïëŵ ƒôûñð ñôŧĥïñĝ ƀļôçķïñĝ. Ŧŕÿ àĝàïñ ŧô šëë ŵĥëŧĥëŕ ŧĥë çĥàñĝë ïš ŵàïŧïñĝ ƒôŕ àþþŕôṽàļ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
-  "tasks.delivery.approval.changesDialog.tooLong": "⟦Ŧĥë ñôŧë çàñ ƀë àŧ ɱôšŧ {max} çĥàŕàçŧëŕš; ïŧ ïš {count} ñôŵ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
+  "tasks.delivery.approval.changesDialog.tooLong": "⟦Ŧĥë ñôŧë çàñ ƀë àŧ ɱôšŧ {max} çĥàŕàçŧëŕš; ïŧ ïš {count} ñôŵ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "tasks.delivery.approval.unknownInDialog": "⟦Ɓàķëŕÿ çôûļð ñôŧ çôñƒïŕɱ ŧĥàŧ ŧĥïš ŵàš šàṽëð. Šëñð ïŧ àĝàïñ; Ɓàķëŕÿ ŵïļļ ñôŧ ŕëçôŕð ïŧ ŧŵïçë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
 }

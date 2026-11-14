@@ -926,7 +926,9 @@ test("a lost answer keeps the key, so asking again is the same decision", async 
   await button(dialog, "Approve").click();
   // The dialog stays open and says so, so asking again is its own button.
   await expect(dialog.getByTestId("delivery-approval-dialog-notice"))
-    .toContainText("Bakery could not confirm that the decision was saved.");
+    .toContainText(
+      "Bakery could not confirm that this was saved. Send it again; Bakery will not record it twice.",
+    );
   await button(dialog, "Approve").click();
   await expect(now).toContainText("Approved");
   expect(mock.posted).toHaveLength(2);
@@ -951,7 +953,8 @@ const FAILURES = [
   {
     status: 500,
     code: "INTERNAL_ERROR",
-    says: "Bakery could not confirm that the decision was saved.",
+    says:
+      "Bakery could not confirm that this was saved. Send it again; Bakery will not record it twice.",
     sameKey: true,
   },
   {

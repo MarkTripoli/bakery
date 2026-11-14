@@ -535,7 +535,9 @@ function ReadyView(
         role="alert"
         {...noticeProps}
       >
-        {t(refusal)}
+        {decisionPhase === "unknown"
+          ? t("tasks.delivery.approval.unknownInDialog")
+          : t(refusal)}
       </UI.InlineNotice>
     )
     : null;
