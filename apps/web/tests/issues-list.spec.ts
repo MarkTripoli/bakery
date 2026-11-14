@@ -147,8 +147,9 @@ for (
         name: "Choose where Bakery takes issues from",
       })).toBeVisible();
       // The way forward is the Choose repositories sheet.
-      await expect(page.getByRole("button", { name: "Choose repositories" }))
-        .first().toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Choose repositories" }).first(),
+      ).toBeVisible();
       await shot(page, "issues-no-sources");
     });
 
