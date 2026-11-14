@@ -3200,5 +3200,8 @@
   "tasks.delivery.now.approval.title": "⟪Waiting for approval⟫",
   "tasks.delivery.now.approved.title": "⟪Approved⟫",
   "tasks.delivery.now.approved.body": "⟪Bakery may now merge these changes. Nothing is waiting for you.⟫",
-  "tasks.delivery.approval.step.waiting": "⟪Waiting for approval.⟫"
+  "tasks.delivery.approval.step.waiting": "⟪Waiting for approval.⟫",
+  "tasks.delivery.now.approvalUnknown.title": "⟪Bakery could not check whether approval is needed⟫",
+  "tasks.delivery.now.approvalUnknown.body": "⟪Checks passed and the review found nothing blocking. Try again to see whether the change is waiting for approval.⟫",
+  "tasks.delivery.approval.changesDialog.tooLong": "⟪The note can be at most {max} characters; it is {count} now.⟫"
 }

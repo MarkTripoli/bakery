@@ -3200,5 +3200,8 @@
   "tasks.delivery.now.approval.title": "⟦Ŵàïŧïñĝ ƒôŕ àþþŕôṽàļ ŧëšŧ⟧",
   "tasks.delivery.now.approved.title": "⟦Àþþŕôṽëð…⟧",
   "tasks.delivery.now.approved.body": "⟦Ɓàķëŕÿ ɱàÿ ñôŵ ɱëŕĝë ŧĥëšë çĥàñĝëš. Ñôŧĥïñĝ ïš ŵàïŧïñĝ ƒôŕ ÿôû. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
-  "tasks.delivery.approval.step.waiting": "⟦Ŵàïŧïñĝ ƒôŕ àþþŕôṽàļ. ŧëšŧŧ⟧"
+  "tasks.delivery.approval.step.waiting": "⟦Ŵàïŧïñĝ ƒôŕ àþþŕôṽàļ. ŧëšŧŧ⟧",
+  "tasks.delivery.now.approvalUnknown.title": "⟦Ɓàķëŕÿ çôûļð ñôŧ çĥëçķ ŵĥëŧĥëŕ àþþŕôṽàļ ïš ñëëðëð ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "tasks.delivery.now.approvalUnknown.body": "⟦Çĥëçķš þàššëð àñð ŧĥë ŕëṽïëŵ ƒôûñð ñôŧĥïñĝ ƀļôçķïñĝ. Ŧŕÿ àĝàïñ ŧô šëë ŵĥëŧĥëŕ ŧĥë çĥàñĝë ïš ŵàïŧïñĝ ƒôŕ àþþŕôṽàļ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "tasks.delivery.approval.changesDialog.tooLong": "⟦Ŧĥë ñôŧë çàñ ƀë àŧ ɱôšŧ {max} çĥàŕàçŧëŕš; ïŧ ïš {count} ñôŵ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
 }

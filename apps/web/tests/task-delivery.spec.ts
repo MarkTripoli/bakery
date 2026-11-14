@@ -271,6 +271,8 @@ type ApprovalsMock = {
   posted: Posted[];
   /** Answers a decision instead of the default (accepting it). */
   reply?: (route: Route, mock: ApprovalsMock) => Promise<void>;
+  /** While true the list read fails with a 500. */
+  listFails: boolean;
 };
 
 /** Serves the task's approvals and records every decision sent. */
@@ -279,10 +281,22 @@ async function mockApprovals(
   approvals: ApprovalRow[],
   reply?: ApprovalsMock["reply"],
 ): Promise<ApprovalsMock> {
-  const mock: ApprovalsMock = { approvals, posted: [], reply };
+  const mock: ApprovalsMock = {
+    approvals,
+    posted: [],
+    reply,
+    listFails: false,
+  };
   await page.route(
     "**/v1/approvals?*",
-    (route) => route.fulfill({ json: page_(mock.approvals) }),
+    (route) =>
+      mock.listFails
+        ? route.fulfill({
+          status: 500,
+          contentType: "application/problem+json",
+          json: problemBody(500, "INTERNAL_ERROR"),
+        })
+        : route.fulfill({ json: page_(mock.approvals) }),
   );
   await page.route("**/v1/approvals/*/decision", async (route) => {
     const request = route.request();
@@ -696,11 +710,13 @@ test("an open approval asks for a decision with three visible answers, Approve f
   // The page cannot know who may decide, so it does not call the approval theirs.
   await expect(now).not.toContainText("your approval");
   await expect(now).toHaveAttribute("data-variant", "warning");
-  await expect(now.getByRole("button")).toHaveText([
-    "Approve",
-    "Request changes",
-    "Reject",
-  ]);
+  // Beside the text the primary is first; on a phone they are stacked with it last.
+  const phone = (page.viewportSize()?.width ?? 1280) <= 743;
+  await expect(now.getByRole("button")).toHaveText(
+    phone
+      ? ["Reject", "Request changes", "Approve"]
+      : ["Approve", "Request changes", "Reject"],
+  );
   await expect(now.getByRole("button", { name: "More" })).toHaveCount(0);
   const steps = page.getByRole("list", { name: "Delivery steps" });
   await expect(steps.getByRole("listitem")).toHaveCount(4);
@@ -765,6 +781,11 @@ test("changes need a note, which is sent as the decision's comment", async ({ pa
   const now = nowCard(page);
   await button(now, "Request changes").click();
   const dialog = page.getByRole("dialog", { name: "Request changes" });
+  // Typing goes into the note, and closing gives focus back to the button.
+  await expect(dialog.getByLabel("What should change?")).toBeFocused();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(button(now, "Request changes")).toBeFocused();
+  await button(now, "Request changes").click();
   await expect(dialog).toContainText(
     "The agent gets this as its next instruction.",
   );
@@ -921,6 +942,181 @@ test("an approval asked about an earlier candidate is not shown", async ({ page 
   );
 });
 
+const FAILURES = [
+  {
+    status: 500,
+    code: "INTERNAL_ERROR",
+    says: "Bakery could not confirm that the decision was saved.",
+    sameKey: true,
+  },
+  {
+    status: 422,
+    code: "VALIDATION_FAILED",
+    says: "The decision could not be sent. Try again.",
+    sameKey: false,
+  },
+] as const;
+for (const failure of FAILURES) {
+  test(`a failed Request changes send (${failure.status}) keeps the form and its note`, async ({ page }) => {
+    await mockRun(page);
+    await mockDelivery(page, CLEAN);
+    let fail = true;
+    const mock = await mockApprovals(
+      page,
+      [approvalRow()],
+      async (route, m) => {
+        if (fail) {
+          return await route.fulfill({
+            status: failure.status,
+            contentType: "application/problem+json",
+            json: problemBody(failure.status, failure.code),
+          });
+        }
+        const body = route.request().postDataJSON() as Record<string, unknown>;
+        m.approvals = m.approvals.map((entry) => ({
+          ...entry,
+          status: "answered",
+          decision: body.decision as string,
+          decisionComment: (body.comment as string | undefined) ?? null,
+          version: entry.version + 1,
+        }));
+        return await route.fulfill({ json: m.approvals[0] });
+      },
+    );
+    await page.goto(`/tasks/${id}`);
+    const now = nowCard(page);
+    await button(now, "Request changes").click();
+    const dialog = page.getByRole("dialog", { name: "Request changes" });
+    const noteText = "Validate the refund amount against the original charge.";
+    await dialog.getByLabel("What should change?").fill(noteText);
+    await button(dialog, "Send").click();
+    // The form stays, with the note, and says why where the person is looking.
+    await expect(dialog.getByTestId("delivery-approval-dialog-notice"))
+      .toContainText(failure.says);
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByLabel("What should change?")).toHaveValue(
+      noteText,
+    );
+    expect(mock.posted).toHaveLength(1);
+    fail = false;
+    await button(dialog, "Send").click();
+    await expect(now).toContainText("Changes were requested");
+    expect(mock.posted).toHaveLength(2);
+    expect(mock.posted[1]?.body).toEqual(mock.posted[0]?.body);
+    // A lost answer is the same decision again; a refusal is a new one.
+    if (failure.sameKey) expect(mock.posted[1]?.key).toBe(mock.posted[0]?.key);
+    else expect(mock.posted[1]?.key).not.toBe(mock.posted[0]?.key);
+  });
+}
+
+test("a note over 4000 characters is refused in the form, counted as the server counts, and kept", async ({ page }) => {
+  const mock = await openApproval(page);
+  const now = nowCard(page);
+  await button(now, "Request changes").click();
+  const dialog = page.getByRole("dialog", { name: "Request changes" });
+  const field = dialog.getByLabel("What should change?");
+  const send = button(dialog, "Send");
+  await field.fill("a".repeat(4001));
+  await expect(dialog).toContainText(
+    "The note can be at most 4000 characters; it is 4001 now.",
+  );
+  await expect(send).toBeDisabled();
+  // 2001 emoji are 4002 UTF-16 units, which is what the server counts.
+  await field.fill("😀".repeat(2001));
+  await expect(dialog).toContainText("it is 4002 now.");
+  await expect(send).toBeDisabled();
+  expect(mock.posted).toHaveLength(0);
+  await field.fill("a".repeat(4000));
+  await expect(dialog).not.toContainText("The note can be at most");
+  await expect(send).toBeEnabled();
+  await send.click();
+  await expect(now).toContainText("Changes were requested");
+  expect((mock.posted[0]?.body.comment as string).length).toBe(4000);
+});
+
+test("a failed approvals read says it could not check, not that nothing is waiting", async ({ page }) => {
+  await mockRun(page);
+  await mockDelivery(page, CLEAN);
+  const mock = await mockApprovals(page, [approvalRow()]);
+  mock.listFails = true;
+  await page.goto(`/tasks/${id}`);
+  const now = nowCard(page);
+  await expect(now).toContainText(
+    "Bakery could not check whether approval is needed",
+  );
+  await expect(now).not.toContainText("Nothing is waiting for you");
+  await expect(now).toHaveAttribute("data-variant", "warning");
+  mock.listFails = false;
+  await button(now, "Try again").click();
+  await expect(now).toContainText("Waiting for approval");
+  await expect(now.getByRole("button")).toHaveCount(3);
+});
+
+test("an Approve dialog closes when someone else decides, and the card shows what they decided", async ({ page }) => {
+  const mock = await openApproval(page);
+  const now = nowCard(page);
+  await button(now, "Approve").click();
+  const dialog = page.getByRole("alertdialog", {
+    name: "Approve these changes?",
+  });
+  await expect(dialog).toBeVisible();
+  mock.approvals = mock.approvals.map((entry) => ({
+    ...entry,
+    status: "answered",
+    decision: "reject",
+    version: entry.version + 1,
+  }));
+  // The next read (every five seconds) finds the approval is no longer waiting.
+  await expect(dialog).toBeHidden({ timeout: 15_000 });
+  await expect(now).toContainText("These changes were rejected");
+  expect(mock.posted).toHaveLength(0);
+});
+
+for (const width of [320, 390, 820, 1280]) {
+  test(`the card's answers fit at ${width}px and stack on a phone with Approve last`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await openApproval(page);
+    const section = page.getByTestId("delivery-section");
+    const now = nowCard(page);
+    expect(
+      await section.evaluate((element) =>
+        element.scrollWidth <= element.clientWidth
+      ),
+    ).toBe(true);
+    const card = (await now.boundingBox())!;
+    const names = ["Approve", "Request changes", "Reject"];
+    const boxes = new Map<
+      string,
+      { x: number; y: number; width: number; height: number }
+    >();
+    for (const name of names) {
+      boxes.set(name, (await button(now, name).boundingBox())!);
+    }
+    for (const [name, box] of boxes) {
+      // Nothing is cut: every button sits inside the card.
+      expect(box.x, name).toBeGreaterThanOrEqual(card.x - 1);
+      expect(box.x + box.width, name).toBeLessThanOrEqual(
+        card.x + card.width + 1,
+      );
+      expect(box.height, name).toBeGreaterThanOrEqual(44 - 1);
+    }
+    const approve = boxes.get("Approve")!;
+    const changes = boxes.get("Request changes")!;
+    const reject = boxes.get("Reject")!;
+    if (width <= 743) {
+      // Stacked, one under the other, equally wide, the primary last.
+      expect(reject.y).toBeLessThan(changes.y);
+      expect(changes.y).toBeLessThan(approve.y);
+      expect(Math.abs(reject.width - approve.width)).toBeLessThan(2);
+      expect(Math.abs(changes.width - approve.width)).toBeLessThan(2);
+      expect(approve.width).toBeGreaterThan(width * 0.6);
+    } else {
+      expect(approve.x).toBeLessThan(changes.x);
+      expect(changes.x).toBeLessThan(reject.x);
+    }
+  });
+}
+
 test("the approval card and its dialogs have no accessibility violations and fit a 390px screen", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openApproval(page);
@@ -989,6 +1185,7 @@ const APPROVAL_STILLS = [
   "approval-approved",
   "approval-conflict",
   "approval-refused",
+  "approval-unavailable",
 ] as const;
 for (const name of APPROVAL_STILLS) {
   for (
@@ -1006,7 +1203,7 @@ for (const name of APPROVAL_STILLS) {
         await mockRun(page);
         await mockDelivery(page, CLEAN);
         const conflict = name === "approval-conflict";
-        await mockApprovals(
+        const mock = await mockApprovals(
           page,
           [approvalRow()],
           conflict
@@ -1032,10 +1229,16 @@ for (const name of APPROVAL_STILLS) {
               })
             : undefined,
         );
+        const unavailable = name === "approval-unavailable";
+        if (unavailable) mock.listFails = true;
         await page.goto(`/tasks/${id}`);
         const section = page.getByTestId("delivery-section");
         const now = section.getByTestId("delivery-now");
-        await expect(now).toContainText("Waiting for approval");
+        await expect(now).toContainText(
+          unavailable
+            ? "Bakery could not check whether approval is needed"
+            : "Waiting for approval",
+        );
         // A dialog is pictured alone: the page behind it is not what changed.
         const dialogPicture = async () => {
           await page.locator("dialog[open]").screenshot({

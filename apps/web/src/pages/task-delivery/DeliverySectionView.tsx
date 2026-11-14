@@ -1,5 +1,6 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { focusAfterPaint } from "../../app/focus.ts";
+import { useShellViewport } from "../../app/responsive.ts";
 import * as UI from "@bakery/ui";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import type { MessageKey } from "@bakery/i18n";
@@ -27,8 +28,13 @@ export type DeliverySectionViewProps = Readonly<{
   onOpenRules: () => void;
   /** Where the person's decision on the approval stands. */
   decisionPhase: DecisionPhase;
-  /** Sends the decision; resolves once its outcome is known. */
-  onDecide: (choice: ApprovalChoice, comment: string) => Promise<void>;
+  /** Sends the decision; resolves to how it ended (`idle` when accepted). */
+  onDecide: (
+    choice: ApprovalChoice,
+    comment: string,
+  ) => Promise<DecisionPhase>;
+  /** Reads the approvals again after a failed read. */
+  onRetryApprovals: () => void;
 }>;
 
 /** The Now card's title takes focus after a decision, so it is announced. */
@@ -43,7 +49,7 @@ type Translate = ReturnType<typeof useI18n>["translate"];
 type NowCopy = Readonly<{
   title: string;
   body: string;
-  action: "tell" | "rules" | "decide" | null;
+  action: "tell" | "rules" | "decide" | "retryApprovals" | null;
 }>;
 
 function nowCopy(t: Translate, now: NowCard): NowCopy {
@@ -81,6 +87,12 @@ function nowCopy(t: Translate, now: NowCard): NowCopy {
         title: t("tasks.delivery.now.approval.title"),
         body: t("tasks.delivery.now.approval.body"),
         action: "decide",
+      };
+    case "approvalUnknown":
+      return {
+        title: t("tasks.delivery.now.approvalUnknown.title"),
+        body: t("tasks.delivery.now.approvalUnknown.body"),
+        action: "retryApprovals",
       };
     case "approved":
       return {
@@ -194,6 +206,7 @@ function nowTone(now: NowCard): "success" | "information" | "warning" {
     case "rejected":
       return "information";
     case "approval":
+    case "approvalUnknown":
     case "paused":
     case "checksFailed":
     case "stopped":
@@ -277,6 +290,7 @@ export function DeliverySectionView(
     onDecide,
     onOpenRules,
     onRetry,
+    onRetryApprovals,
     onTellBakery,
     state,
   }: DeliverySectionViewProps,
@@ -326,6 +340,7 @@ export function DeliverySectionView(
             offline={offline}
             onDecide={onDecide}
             onOpenRules={onOpenRules}
+            onRetryApprovals={onRetryApprovals}
             onTellBakery={onTellBakery}
           />
         )}
@@ -345,6 +360,13 @@ const NOTICE_COPY: Readonly<
 
 type ApprovalDialog = "approve" | "changes" | "reject";
 
+/** The contract's limit for a decision's comment, counted as the server does. */
+const MAX_NOTE = 4000;
+
+/** Opens a dialog's field only once the dialog really is open. */
+const fieldInOpenDialog = (id: string) => () =>
+  document.querySelector<HTMLElement>(`dialog[open] [id="${id}"]`);
+
 function ReadyView(
   {
     decisionPhase,
@@ -353,27 +375,52 @@ function ReadyView(
     offline,
     onDecide,
     onOpenRules,
+    onRetryApprovals,
     onTellBakery,
   }: Readonly<{
     model: DeliveryModel;
     offline: boolean;
     lastUpdated: string | null;
     decisionPhase: DecisionPhase;
-    onDecide: (choice: ApprovalChoice, comment: string) => Promise<void>;
+    onDecide: (
+      choice: ApprovalChoice,
+      comment: string,
+    ) => Promise<DecisionPhase>;
     onOpenRules: () => void;
+    onRetryApprovals: () => void;
     onTellBakery: () => void;
   }>,
 ) {
   const { translate: t } = useI18n();
+  const phone = useShellViewport() === "phone";
   const fieldId = useId();
+  const changesFieldId = `${fieldId}-changes`;
   const [dialog, setDialog] = useState<ApprovalDialog | null>(null);
   const [comment, setComment] = useState("");
   const deciding = decisionPhase === "deciding";
   const copy = nowCopy(t, model.now);
   const head = model.headSha === null ? "" : model.headSha.slice(0, 7);
+  const note = comment.trim();
+  const tooLong = note.length > MAX_NOTE;
+  const waiting = model.approval?.state === "waiting";
+
+  // Someone else decided, or the changes moved: a dialog asking for a decision
+  // on an approval that is no longer waiting would only be refused.
+  useEffect(() => {
+    if (dialog !== null && !deciding && !waiting) {
+      setDialog(null);
+      setComment("");
+    }
+  }, [dialog, deciding, waiting]);
 
   const send = async (choice: ApprovalChoice, text: string) => {
-    await onDecide(choice, text);
+    const outcome = await onDecide(choice, text);
+    // A failed send that can be tried again keeps the dialog and its note.
+    if (
+      outcome === "error" || outcome === "unknown" || outcome === "forbidden"
+    ) {
+      return;
+    }
     setDialog(null);
     setComment("");
     // Closing the dialog returns focus to the button that opened it, and that
@@ -390,37 +437,53 @@ function ReadyView(
   const closeDialog = () => {
     if (!deciding) setDialog(null);
   };
+  const openDialog = (next: ApprovalDialog) => {
+    setDialog(next);
+    // A note is typed straight away, so its field, not the close button, takes focus.
+    if (next === "changes") focusAfterPaint(fieldInOpenDialog(changesFieldId));
+  };
 
   // A person who was refused cannot decide, so the answers go away for them.
-  const action = copy.action === null
-    ? null
-    : copy.action === "decide"
-    ? decisionPhase === "forbidden" ? null : (
-      <UI.Inline>
-        <UI.Button
-          disabled={offline || deciding}
-          onClick={() => setDialog("approve")}
-          variant="primary"
-        >
-          {t("tasks.delivery.approval.approve")}
-        </UI.Button>
-        <UI.Button
-          disabled={offline || deciding}
-          onClick={() => setDialog("changes")}
-          variant="outline"
-        >
-          {t("tasks.delivery.approval.requestChanges")}
-        </UI.Button>
-        <UI.Button
-          disabled={offline || deciding}
-          onClick={() => setDialog("reject")}
-          variant="destructive-outline"
-        >
-          {t("tasks.delivery.approval.reject")}
-        </UI.Button>
-      </UI.Inline>
-    )
-    : (
+  const canDecide = copy.action === "decide" && decisionPhase !== "forbidden";
+  const answerDisabled = offline || deciding;
+  const approveButton = (
+    <UI.Button
+      disabled={answerDisabled}
+      key="approve"
+      onClick={() => openDialog("approve")}
+      variant="primary"
+    >
+      {t("tasks.delivery.approval.approve")}
+    </UI.Button>
+  );
+  const changesButton = (
+    <UI.Button
+      disabled={answerDisabled}
+      key="changes"
+      onClick={() => openDialog("changes")}
+      variant="outline"
+    >
+      {t("tasks.delivery.approval.requestChanges")}
+    </UI.Button>
+  );
+  const rejectButton = (
+    <UI.Button
+      disabled={answerDisabled}
+      key="reject"
+      onClick={() => openDialog("reject")}
+      variant="destructive-outline"
+    >
+      {t("tasks.delivery.approval.reject")}
+    </UI.Button>
+  );
+  const retryButton = (
+    <UI.Button key="retry" onClick={onRetryApprovals} variant="outline">
+      {t("core.actions.retry")}
+    </UI.Button>
+  );
+  // The slice-1 buttons (Tell Bakery, Open rules) keep their place on every screen.
+  const otherButton = copy.action === "tell" || copy.action === "rules"
+    ? (
       <UI.Button
         disabled={offline && copy.action === "tell"}
         onClick={copy.action === "tell" ? onTellBakery : onOpenRules}
@@ -432,10 +495,51 @@ function ReadyView(
             : "tasks.delivery.now.openRules",
         )}
       </UI.Button>
-    );
+    )
+    : null;
+  // Beside the text where they fit and under it where they do not; on a phone
+  // the answers are full width and stacked, with the primary last.
+  const action = phone
+    ? otherButton
+    : copy.action === "decide"
+    ? canDecide
+      ? <UI.Inline>{approveButton}{changesButton}{rejectButton}</UI.Inline>
+      : null
+    : copy.action === "retryApprovals"
+    ? retryButton
+    : otherButton;
+  const phoneActions = !phone
+    ? null
+    : canDecide
+    ? [rejectButton, changesButton, approveButton]
+    : copy.action === "retryApprovals"
+    ? [retryButton]
+    : null;
+
   const refusal = decisionPhase in NOTICE_COPY
     ? NOTICE_COPY[decisionPhase as keyof typeof NOTICE_COPY]
     : null;
+  // A failure that can be tried again is shown inside the open dialog, where
+  // the person is; the card's notice shows once the dialog is closed.
+  const inDialog = refusal !== null &&
+    (decisionPhase === "error" || decisionPhase === "unknown" ||
+      decisionPhase === "forbidden");
+  const noticeProps = {
+    icon: decisionPhase === "error" ? undefined : ("info" as const),
+    tone: decisionPhase === "error" ? ("error" as const) : ("neutral" as const),
+  };
+  const dialogNotice = inDialog
+    ? (
+      <UI.InlineNotice
+        data-testid="delivery-approval-dialog-notice"
+        role="alert"
+        {...noticeProps}
+      >
+        {t(refusal)}
+      </UI.InlineNotice>
+    )
+    : null;
+  const confirmDisabled = deciding || offline || decisionPhase === "forbidden";
   return (
     <>
       <UI.AlertBanner
@@ -454,18 +558,22 @@ function ReadyView(
               ` ${t("tasks.delivery.lastUpdated", { time: lastUpdated })}`}
           </UI.Text>
         )}
+        {phoneActions !== null && (
+          <UI.Stack data-testid="delivery-now-actions" gap="compact">
+            {phoneActions}
+          </UI.Stack>
+        )}
       </UI.AlertBanner>
-      {refusal !== null && (
+      {refusal !== null && dialog === null && (
         // Nothing failed when a decision lost or the answer is unknown, and a
         // refusal is an explanation: all three are information. Only a decision
         // that could not be sent is an error.
         <UI.InlineNotice
           data-testid="delivery-approval-notice"
-          icon={decisionPhase === "error" ? undefined : "info"}
           id={NOTICE_ID}
           role="status"
           tabIndex={-1}
-          tone={decisionPhase === "error" ? "error" : "neutral"}
+          {...noticeProps}
         >
           {t(refusal)}
         </UI.InlineNotice>
@@ -495,7 +603,7 @@ function ReadyView(
         }
         confirmAction={
           <UI.Button
-            disabled={deciding || offline}
+            disabled={confirmDisabled}
             loading={deciding && dialog === "approve"}
             onClick={() => void send("approve", "")}
             variant="primary"
@@ -505,19 +613,28 @@ function ReadyView(
         }
         onOpenChange={(open) => !open && closeDialog()}
         open={dialog === "approve"}
-        state={deciding && dialog === "approve" ? "confirming" : "open"}
+        state={deciding && dialog === "approve"
+          ? "confirming"
+          : inDialog && dialog === "approve"
+          ? "error"
+          : "open"}
         title={t("tasks.delivery.approval.approveDialog.title")}
         variant="security"
       >
         <UI.Text>
           {t("tasks.delivery.approval.approveDialog.body", { head })}
         </UI.Text>
+        {dialog === "approve" && dialogNotice}
       </UI.AlertDialog>
       <UI.Dialog
         dismissLabel={t("core.actions.close")}
         onOpenChange={(open) => !open && closeDialog()}
         open={dialog === "changes"}
-        state={deciding && dialog === "changes" ? "submitting" : "open"}
+        state={deciding && dialog === "changes"
+          ? "submitting"
+          : inDialog && dialog === "changes"
+          ? "error"
+          : "open"}
         title={t("tasks.delivery.approval.changesDialog.title")}
         variant="form"
       >
@@ -526,14 +643,22 @@ function ReadyView(
             {t("tasks.delivery.approval.changesDialog.intro")}
           </UI.Text>
           <UI.Field
+            error={tooLong
+              ? t("tasks.delivery.approval.changesDialog.tooLong", {
+                count: note.length,
+                max: MAX_NOTE,
+              })
+              : undefined}
             hint={t("tasks.delivery.approval.changesDialog.hint")}
-            htmlFor={`${fieldId}-changes`}
+            htmlFor={changesFieldId}
             label={t("tasks.delivery.approval.changesDialog.label")}
+            state={tooLong ? "invalid" : "default"}
             variant="textarea"
           >
             <textarea
+              aria-invalid={tooLong || undefined}
               aria-required="true"
-              id={`${fieldId}-changes`}
+              id={changesFieldId}
               name="comment"
               onChange={(event) => setComment(event.currentTarget.value)}
               readOnly={deciding}
@@ -542,6 +667,7 @@ function ReadyView(
               value={comment}
             />
           </UI.Field>
+          {dialog === "changes" && dialogNotice}
           <UI.Inline>
             <UI.Button
               disabled={deciding}
@@ -551,9 +677,9 @@ function ReadyView(
               {t("core.actions.cancel")}
             </UI.Button>
             <UI.Button
-              disabled={deciding || offline || comment.trim() === ""}
+              disabled={confirmDisabled || note === "" || tooLong}
               loading={deciding && dialog === "changes"}
-              onClick={() => void send("request_changes", comment.trim())}
+              onClick={() => void send("request_changes", note)}
               variant="primary"
             >
               {t("tasks.delivery.approval.changesDialog.send")}
@@ -573,7 +699,7 @@ function ReadyView(
         }
         confirmAction={
           <UI.Button
-            disabled={deciding || offline}
+            disabled={confirmDisabled}
             loading={deciding && dialog === "reject"}
             onClick={() => void send("reject", "")}
             variant="destructive"
@@ -583,11 +709,16 @@ function ReadyView(
         }
         onOpenChange={(open) => !open && closeDialog()}
         open={dialog === "reject"}
-        state={deciding && dialog === "reject" ? "confirming" : "open"}
+        state={deciding && dialog === "reject"
+          ? "confirming"
+          : inDialog && dialog === "reject"
+          ? "error"
+          : "open"}
         title={t("tasks.delivery.approval.rejectDialog.title")}
         variant="destructive"
       >
         <UI.Text>{t("tasks.delivery.approval.rejectDialog.body")}</UI.Text>
+        {dialog === "reject" && dialogNotice}
       </UI.AlertDialog>
     </>
   );

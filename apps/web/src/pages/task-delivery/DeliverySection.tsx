@@ -173,10 +173,10 @@ export function DeliverySection(
       reviews: reviews.data?.items ?? [],
       findings: latestReviewId === null ? [] : findings.data?.items ?? [],
       decisions: decisions.data?.items ?? [],
-      approvals: approvalsForRun(
-        approvals.isError ? [] : approvals.data?.items ?? [],
-        runId,
-      ),
+      approvals: approvalsForRun(approvals.data?.items ?? [], runId),
+      // A refusal means this person cannot see approvals, so none is shown;
+      // any other failure means one may be waiting that could not be read.
+      approvalsUnavailable: approvals.isError && !forbidden(approvals.error),
       revisionHeadSha,
       baseSha,
       paused,
@@ -210,6 +210,7 @@ export function DeliverySection(
       offline={offline}
       onDecide={decision.decide}
       onOpenRules={onOpenRules}
+      onRetryApprovals={() => void approvals.refetch()}
       onRetry={() => {
         for (const read of [checks, reviews, decisions, findings, approvals]) {
           if (read.isError) void read.refetch();

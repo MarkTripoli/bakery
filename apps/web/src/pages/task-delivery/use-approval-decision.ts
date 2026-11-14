@@ -33,7 +33,9 @@ type Held = Readonly<{
  * same decision on the same approval reuses its idempotency key, so a decision
  * whose answer was lost is never recorded twice; any other decision gets a new
  * key. `refresh` reads the approval and the decisions back before a success is
- * reported, so "approved" on screen is always what the server holds.
+ * reported, so "approved" on screen is always what the server holds. It
+ * resolves to how the decision ended: `idle` when it was accepted, else the
+ * failure, so the caller can keep a form open when a retry can succeed.
  */
 export function useApprovalDecision(
   approval: Readonly<{ id: string; version: number }> | null,
@@ -53,8 +55,11 @@ export function useApprovalDecision(
   }, []);
 
   const decide = useCallback(
-    async (decision: ApprovalChoice, comment: string): Promise<void> => {
-      if (organizationId === null || approval === null) return;
+    async (
+      decision: ApprovalChoice,
+      comment: string,
+    ): Promise<DecisionPhase> => {
+      if (organizationId === null || approval === null) return "conflict";
       const current = held.current;
       const next: Held =
         current !== null && current.approvalId === approval.id &&
@@ -79,13 +84,13 @@ export function useApprovalDecision(
           expectedVersion: next.version,
         },
       });
-      if (!alive.current) return;
+      if (!alive.current) return "idle";
       if (result.ok) {
         held.current = null;
         await refresh();
-        if (!alive.current) return;
+        if (!alive.current) return "idle";
         setPhase("idle");
-        return;
+        return "idle";
       }
       const failure = commandFailure(result.error);
       if (failure === "unknown") {
@@ -93,11 +98,12 @@ export function useApprovalDecision(
         // the current state.
         setPhase("unknown");
         void refresh();
-        return;
+        return "unknown";
       }
       held.current = null;
       setPhase(failure);
       void refresh();
+      return failure;
     },
     [api, approval, organizationId, refresh],
   );

@@ -158,6 +158,8 @@ export type DeliveryInput = Readonly<{
   decisions: readonly DeliveryDecision[];
   /** The run's run-stage approvals, in any order (see `approvalsForRun`). */
   approvals: readonly DeliveryApproval[];
+  /** The approvals read failed (other than a refusal), so none may be missing. */
+  approvalsUnavailable: boolean;
   /** The revision artifact's head sha, the best source of the current commit. */
   revisionHeadSha: string | null;
   /** The run's base sha (`workspaceBaseSha`, else `baseSha`). */
@@ -190,6 +192,7 @@ export type NowCard =
   | Readonly<{ kind: "paused" }>
   | Readonly<{ kind: "clean" }>
   | Readonly<{ kind: "approval" }>
+  | Readonly<{ kind: "approvalUnknown" }>
   | Readonly<{ kind: "approved" }>
   | Readonly<{ kind: "changesRequested" }>
   | Readonly<{ kind: "rejected" }>
@@ -497,6 +500,10 @@ function nowCard(
       return { kind: "changesRequested" };
     }
     if (approval?.state === "rejected") return { kind: "rejected" };
+    // An approval may be waiting that could not be read: never say nothing is.
+    if (approval === null && input.approvalsUnavailable) {
+      return { kind: "approvalUnknown" };
+    }
     return { kind: "clean" };
   }
   return { kind: "checking" };

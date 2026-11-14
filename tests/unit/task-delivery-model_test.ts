@@ -68,6 +68,7 @@ const input = (over: Partial<DeliveryInput> = {}): DeliveryInput => ({
   findings: [],
   decisions: [],
   approvals: [],
+  approvalsUnavailable: false,
   revisionHeadSha: null,
   baseSha: "a7254e7cccccccccccccccccccccccccccccccc",
   paused: false,
@@ -573,4 +574,43 @@ Deno.test("a repair after the approval was asked leaves no current approval", ()
   }));
   assertEquals(model.approval, null);
   assertEquals(model.now.kind, "fixing");
+});
+
+Deno.test("an approvals read that failed never reads as nothing waiting", () => {
+  const model = deliveryModel(clean({ approvalsUnavailable: true }));
+  assertEquals(model.now, { kind: "approvalUnknown" });
+  assertEquals(model.approval, null);
+});
+
+Deno.test("a known approval wins over a failed read, and failed checks over both", () => {
+  assertEquals(
+    deliveryModel(clean({
+      approvals: [approval()],
+      approvalsUnavailable: true,
+    })).now,
+    { kind: "approval" },
+    "an approval already read is still shown",
+  );
+  assertEquals(
+    deliveryModel(clean({
+      approvals: [approval({ status: "answered", decision: "approve" })],
+      approvalsUnavailable: true,
+    })).now,
+    { kind: "approved" },
+  );
+  assertEquals(
+    deliveryModel(clean({
+      checks: [check({ id: "c1", checkId: "tests", result: "failed" })],
+      approvalsUnavailable: true,
+    })).now,
+    { kind: "checksFailed", failed: 1 },
+  );
+});
+
+Deno.test("a failed approvals read says nothing while the run is still being checked", () => {
+  const model = deliveryModel(clean({
+    reviews: [review({ status: "running" })],
+    approvalsUnavailable: true,
+  }));
+  assertEquals(model.now, { kind: "checking" });
 });
