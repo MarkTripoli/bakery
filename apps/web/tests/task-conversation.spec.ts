@@ -13,6 +13,7 @@ import {
 } from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { firstRender } from "./helpers/first-render.ts";
+import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
 
@@ -530,6 +531,7 @@ test("renders the transcript with attribution, plan, question and stage strip", 
   await expect(plan(page).getByRole("listitem")).toHaveCount(3);
   await expect(plan(page)).toContainText("1. Select the repository");
   await expect(approve(page, 3)).toBeEnabled();
+  await still(page, "plan-conversation");
   await expect(
     page.getByRole("button", { name: "Request changes", exact: true }),
   ).toBeVisible();

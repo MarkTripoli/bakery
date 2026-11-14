@@ -4,6 +4,7 @@ import {
   MOCK_ORGANIZATION_ID,
   mockAuthenticatedSession,
 } from "./helpers/mock-session.ts";
+import { still } from "./helpers/stills.ts";
 const id = "00000000-0000-4000-8000-000000000012";
 const runId = "00000000-0000-4000-8000-000000000020";
 const stepId = "00000000-0000-4000-8000-000000000021";
@@ -635,6 +636,7 @@ test("revision preview verifies the exact immutable version bytes", async ({ pag
   await expect(fingerprint).toContainText(digest.slice(0, 12));
   await expect(fingerprint).not.toContainText(digest.slice(0, 13));
   await expect(fingerprint.getByRole("button", { name: "Copy" })).toBeVisible();
+  await still(page, "run-revision");
   await expect(page.getByText("Patch: 1 files · +1 −1", { exact: true }))
     .toBeVisible();
   await expect(page.getByText("1 files · +1 −1", { exact: true }))

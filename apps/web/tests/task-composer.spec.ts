@@ -4,6 +4,7 @@ import {
   mockAuthenticatedSession,
   mockUserPreferences,
 } from "./helpers/mock-session.ts";
+import { still } from "./helpers/stills.ts";
 
 const organizationId = "00000000-0000-4000-8000-000000000003";
 const principalId = "00000000-0000-4000-8000-000000000001";
@@ -391,6 +392,7 @@ test("a setup-required preset names every missing requirement and blocks submit"
   await expect(field.start(page)).toHaveAccessibleDescription(
     /This workflow cannot start here yet/,
   );
+  await still(page, "composer-setup");
 });
 
 test("Start is disabled for a budget below the reservation", async ({ page }) => {

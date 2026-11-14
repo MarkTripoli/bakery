@@ -7,6 +7,7 @@ import {
 import { revealShellNavigation } from "./helpers/shell-navigation.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { firstRender } from "./helpers/first-render.ts";
+import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
 
@@ -389,6 +390,7 @@ test("queue inspector answers the selected task's open question and the top bar 
   await expect(
     inspector.getByRole("heading", { name: open.prompt }),
   ).toBeVisible();
+  await still(page, "work-list");
   await inspector.getByLabel("Bakery only").check({ force: true });
   await inspector.getByRole("button", { name: "Send answer" }).click();
   await expect.poll(() => answers).toEqual([{

@@ -11,6 +11,7 @@ import {
   mockAuthenticatedSession,
   mockUserPreferences,
 } from "./helpers/mock-session.ts";
+import { still } from "./helpers/stills.ts";
 
 const applicationId = "00000000-0000-4000-8000-000000000004";
 const apiRepositoryId = "00000000-0000-4000-8000-000000000005";
@@ -851,6 +852,7 @@ test("an ad hoc plan shows its origin and revision, and the digest behind a fing
   await expect(root(page)).toContainText("Plan, version 2");
   await expect(page.locator('[data-ui-region="plan-ticket-claim"]'))
     .toHaveCount(0);
+  await still(page, "plan-coordination");
 });
 
 test("a saved workflow origin names the workflow and version", async ({ page }) => {
