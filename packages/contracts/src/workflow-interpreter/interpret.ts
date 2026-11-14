@@ -1,7 +1,9 @@
 import { cloneJson } from "./clone.ts";
 import type {
   WorkflowActionNode,
+  WorkflowLane,
   WorkflowNode,
+  WorkflowParallelNode,
   WorkflowReferenceNode,
   WorkflowRepeatNode,
   WorkflowSemanticDocument,
@@ -38,6 +40,14 @@ export type RunState = Readonly<{
   steps: ReadonlyMap<string, StepRecord>;
   /** The run was canceled: nothing further may be dispatched. */
   cancelRequested?: boolean;
+  /**
+   * Keys of steps the host has dispatched that have no result yet. Revision 1
+   * runs one step at a time and ignores it. Revision 2 reads it to know which
+   * lanes of a parallel group are already running, so that a lane that has
+   * started keeps its place against `maxConcurrency` however the others
+   * finish.
+   */
+  inFlight?: ReadonlySet<string>;
 }>;
 
 export type ActionDispatch = Readonly<{
@@ -76,6 +86,17 @@ export type WaitDispatch = Readonly<{
 
 export type NextStep =
   | Readonly<{ kind: "dispatch"; step: ActionDispatch | WaitDispatch }>
+  /**
+   * Revision 2, inside a parallel group: every step that may run now, in
+   * authored order, one next step for each lane that is allowed to run (at
+   * most `maxConcurrency` lanes, lanes already running first). The same set
+   * is answered again until a step in it is recorded, so a host dispatches
+   * each key once and treats the rest as already running.
+   */
+  | Readonly<{
+    kind: "dispatch_many";
+    steps: readonly (ActionDispatch | WaitDispatch)[];
+  }>
   /** Every node has finished or was skipped. */
   | Readonly<{ kind: "finished" }>
   /**
@@ -107,6 +128,10 @@ type RepeatResult = {
 
 type Walk =
   | Readonly<{ t: "pending"; step: ActionDispatch | WaitDispatch }>
+  | Readonly<{
+    t: "pending_many";
+    steps: readonly (ActionDispatch | WaitDispatch)[];
+  }>
   | Readonly<{ t: "done" }>
   | Readonly<{
     t: "halt";
@@ -138,9 +163,14 @@ class Run {
     Record<string, JsonValue>
   >();
 
+  /** Exports of finished lanes, keyed by `<group key>.<lane id>`. */
+  private readonly laneExports = new Map<string, Record<string, JsonValue>>();
+
   constructor(
     private readonly document: WorkflowSemanticDocument,
     private readonly state: RunState,
+    /** Revision 2: parallel groups run. Revision 1 refuses them by name. */
+    private readonly groups: boolean = false,
   ) {}
 
   next(): NextStep {
@@ -154,6 +184,8 @@ class Run {
     switch (walk.t) {
       case "pending":
         return { kind: "dispatch", step: walk.step };
+      case "pending_many":
+        return { kind: "dispatch_many", steps: walk.steps };
       case "halt":
         return { kind: "halted", outcome: walk.outcome, key: walk.key };
       case "done":
@@ -263,8 +295,32 @@ class Run {
           nodes = inSeed ? seedSteps : node.steps;
           break;
         }
-        case "parallel":
-          throw new WorkflowInterpreterError("parallel_unsupported");
+        case "parallel": {
+          if (!this.groups) {
+            throw new WorkflowInterpreterError("parallel_unsupported");
+          }
+          // `<group>.<lane>.<name>`: a finished lane's export, or (from inside
+          // that lane) one of its own steps, named by its absolute path.
+          const lane = node.lanes.find((candidate) => candidate.id === rest[0]);
+          if (!lane) throw new WorkflowInterpreterError("reference_unresolved");
+          const name = rest[1];
+          if (
+            name !== undefined &&
+            Object.hasOwn(node.outputs[lane.id] ?? {}, name)
+          ) {
+            const exported = this.laneExports.get(
+              `${keyOf(segments, node.id)}.${lane.id}`,
+            );
+            if (!exported) {
+              throw new WorkflowInterpreterError("reference_unresolved");
+            }
+            return readFields(exported[name] ?? null, rest.slice(2));
+          }
+          segments.push({ id: node.id }, { id: lane.id });
+          nodes = lane.steps;
+          at += 1;
+          break;
+        }
       }
     }
     // The path stopped at a container, which has no value of its own.
@@ -309,7 +365,10 @@ class Run {
       case "repeat":
         return this.walkRepeat(node, scope);
       case "parallel":
-        throw new WorkflowInterpreterError("parallel_unsupported");
+        if (!this.groups) {
+          throw new WorkflowInterpreterError("parallel_unsupported");
+        }
+        return this.walkParallel(node, scope);
     }
   }
 
@@ -408,6 +467,114 @@ class Run {
   }
 
   /**
+   * A bounded parallel group (revision 2). Lanes are sequences; a lane runs
+   * once the lanes it `needs` are done, and at most `maxConcurrency` lanes run
+   * at once, those already running first and then new ones in authored order.
+   * The join is all-required: the group is done only when every lane is, and
+   * lane exports exist only then. A failed lane (any step outside a repeat
+   * failed, was canceled or timed out) stops its dependants; lanes that already
+   * started run to the end, no lane starts after a failure, and once nothing is
+   * running the group halts with the failed lane's outcome.
+   */
+  private walkParallel(node: WorkflowParallelNode, scope: Scope): Walk {
+    const groupSegments: readonly Segment[] = [...scope.segments, {
+      id: node.id,
+    }];
+    const laneStatus = new Map<
+      string,
+      "done" | "failed" | "waiting" | "active"
+    >();
+    const halts = new Map<string, Extract<Walk, { t: "halt" }>>();
+    const pending = new Map<
+      string,
+      readonly (ActionDispatch | WaitDispatch)[]
+    >();
+    const laneScope = (lane: WorkflowLane): Scope => ({
+      segments: [...groupSegments, { id: lane.id }],
+      frames: scope.frames,
+    });
+    const started = (lane: WorkflowLane): boolean => {
+      const prefix = `${keyOf(groupSegments, lane.id)}.`;
+      for (const key of this.state.steps.keys()) {
+        if (key.startsWith(prefix)) return true;
+      }
+      for (const key of this.state.inFlight ?? []) {
+        if (key.startsWith(prefix)) return true;
+      }
+      return false;
+    };
+    const lanes = new Map(node.lanes.map((lane) => [lane.id, lane]));
+    const classify = (lane: WorkflowLane, path: readonly string[]): void => {
+      if (laneStatus.has(lane.id)) return;
+      // The compiler rejects a cycle; a document that has one anyway is refused.
+      if (path.includes(lane.id)) {
+        throw new WorkflowInterpreterError("document_invalid");
+      }
+      for (const need of lane.needs) {
+        const prerequisite = lanes.get(need);
+        if (!prerequisite) {
+          throw new WorkflowInterpreterError("document_invalid");
+        }
+        classify(prerequisite, [...path, lane.id]);
+      }
+      // A lane whose prerequisites are not all done does not start; one whose
+      // prerequisite failed (or itself waits on one that did) never will.
+      if (lane.needs.some((need) => laneStatus.get(need) !== "done")) {
+        laneStatus.set(lane.id, "waiting");
+        return;
+      }
+      const inner = laneScope(lane);
+      const walk = this.walkList(lane.steps, inner);
+      if (walk.t === "halt") {
+        laneStatus.set(lane.id, "failed");
+        halts.set(lane.id, walk);
+      } else if (walk.t === "done") {
+        const exports: Record<string, JsonValue> = {};
+        for (
+          const [name, value] of Object.entries(node.outputs[lane.id] ?? {})
+        ) {
+          exports[name] = evaluateValue(value, this.reader(inner));
+        }
+        this.laneExports.set(keyOf(groupSegments, lane.id), exports);
+        laneStatus.set(lane.id, "done");
+      } else {
+        laneStatus.set(lane.id, "active");
+        pending.set(
+          lane.id,
+          walk.t === "pending" ? [walk.step] : walk.steps,
+        );
+      }
+    };
+    for (const lane of node.lanes) classify(lane, []);
+
+    const failed = node.lanes.filter((lane) =>
+      laneStatus.get(lane.id) === "failed"
+    );
+    const active = node.lanes.filter((lane) =>
+      laneStatus.get(lane.id) === "active"
+    );
+    const running = active.filter(started);
+    // After a failure nothing new starts; otherwise free slots go to the
+    // first lanes, in authored order, that are ready and have not started.
+    const room = failed.length > 0
+      ? 0
+      : Math.max(0, node.maxConcurrency - running.length);
+    const fresh = active.filter((lane) => !started(lane)).slice(0, room);
+    const chosen = new Set([...running, ...fresh].map((lane) => lane.id));
+    const steps = active.filter((lane) => chosen.has(lane.id)).flatMap((lane) =>
+      pending.get(lane.id)!
+    );
+    if (steps.length > 0) return { t: "pending_many", steps };
+    if (failed.length > 0) return halts.get(failed[0]!.id)!;
+    if (node.lanes.every((lane) => laneStatus.get(lane.id) === "done")) {
+      return { t: "done" };
+    }
+    // Lanes are waiting with nothing running and nothing failed: only a
+    // document with a cycle gets here.
+    throw new WorkflowInterpreterError("document_invalid");
+  }
+
+  /**
    * A bounded repeat. `until` is checked before the first iteration and after
    * each completed one; a seed that already satisfies it runs zero iterations.
    * The accumulator changes only when a whole iteration completed, so a failed,
@@ -460,7 +627,7 @@ class Run {
         frames: [...scope.frames, { node, iteration: number, candidate }],
       };
       const walk = this.walkList(node.steps, body);
-      if (walk.t === "pending") return walk;
+      if (walk.t === "pending" || walk.t === "pending_many") return walk;
       if (walk.t === "halt") {
         outcome = walk.outcome;
         break;
@@ -499,4 +666,17 @@ export function nextStep(
   state: RunState,
 ): NextStep {
   return cloneJson(new Run(document, state).next()) as NextStep;
+}
+
+/**
+ * Interpreter revision 2: revision 1 plus bounded parallel groups. A plan
+ * without a parallel group gets the answers revision 1 gives; inside a group
+ * the answer is a set of steps (`dispatch_many`), see `NextStep`. Everything
+ * said of `nextStep` holds, and `state.inFlight` is read.
+ */
+export function nextStepWithGroups(
+  document: WorkflowSemanticDocument,
+  state: RunState,
+): NextStep {
+  return cloneJson(new Run(document, state, true).next()) as NextStep;
 }
