@@ -261,6 +261,9 @@ for (
         "Release train (copy)",
       );
       await dialog(page).getByRole("button", { name: "Make a copy" }).click();
+      // The page starts on a workflow's own address, so wait for the copy's.
+      await expect.poll(() => seen.versionsCreated.length).toBe(1);
+      await expect(page).not.toHaveURL(new RegExp(`${OWN.id}$`));
       await expect(page).toHaveURL(/\/library\/workflows\/[0-9a-f-]{36}$/);
       expect(seen.versionsCreated[0]?.definition.steps).toEqual([
         { id: "brief", uses: "task.brief" },
