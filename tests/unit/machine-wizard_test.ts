@@ -2,6 +2,7 @@ import { assertEquals } from "@std/assert";
 import {
   agentOfCapabilities,
   enrollmentInput,
+  environmentValue,
   harnessRepositorySetting,
   hasInstaller,
   initialAnswers,
@@ -122,6 +123,35 @@ Deno.test("the worker settings name the machine, its slots and capabilities and 
     /TOKEN=|TOKEN_FD|enrollmentToken/.test(settings("claude")),
     false,
   );
+});
+
+Deno.test("a machine name the settings file could misread is quoted so the service reads it back exactly", () => {
+  const line = (name: string) =>
+    workerEnvironment({
+      serverUrl: "https://bakery.example",
+      input: enrollmentInput({
+        name,
+        os: "linux",
+        architecture: "x86_64",
+        slots: "1",
+        agent: "claude",
+      })!,
+      agent: "claude",
+    }).split("\n").find((entry) => entry.startsWith("BAKERY_WORKER_NAME="));
+  // Plain names stay as they are.
+  assertEquals(line("ci-linux-02"), "BAKERY_WORKER_NAME=ci-linux-02");
+  // A space, an apostrophe, a double quote, a hash or a trailing backslash.
+  assertEquals(line("Alex's box"), 'BAKERY_WORKER_NAME="Alex\'s box"');
+  assertEquals(
+    line('the "big" one'),
+    'BAKERY_WORKER_NAME="the \\"big\\" one"',
+  );
+  assertEquals(line("build #2"), 'BAKERY_WORKER_NAME="build #2"');
+  assertEquals(line("path\\"), 'BAKERY_WORKER_NAME="path\\\\"');
+  // Escapes do not pile up: a backslash before a quote keeps both.
+  assertEquals(line('a\\"b'), 'BAKERY_WORKER_NAME="a\\\\\\"b"');
+  // A line break cannot be in a value.
+  assertEquals(environmentValue("one\ntwo"), '"one two"');
 });
 
 Deno.test("the setup code is typed into a file only its owner can read, and a Linux worker starts as its service", () => {
