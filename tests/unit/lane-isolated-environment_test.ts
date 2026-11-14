@@ -466,6 +466,18 @@ Deno.test("the worker's unit, which starts inside env -i, is given the lane's va
     assertEquals(carried[name], undefined, name);
   }
   assert(!CARRIED_LANE_VARIABLES.includes("HOME"));
+  // Whatever the environment holds, the Codex login, HOME and PATH are never carried.
+  assertEquals(
+    carriedLaneVariables({
+      CODEX_HOME: "/home/operator/.codex",
+      BAKERY_CODEX_AUTH_SOURCE_DIR: "/home/operator/.codex",
+      HOME: "/home/operator",
+      PATH: "/usr/bin",
+      BAKERY_TEST_CODEX_AUTH_DIR: "/tmp/dedicated",
+      OPENAI_API_KEY: "sk-x",
+    }),
+    {},
+  );
   // Unset and empty values are not carried.
   assertEquals(
     carriedLaneVariables({ MISE_CONFIG_DIR: "", XDG_DATA_HOME: "/x" }),

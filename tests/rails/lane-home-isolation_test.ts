@@ -282,6 +282,37 @@ Deno.test("the root tool refuses to prepare or sweep anything that is not a lane
       JSON.parse(new TextDecoder().decode(swept.stdout)),
       { leaked: 0, prefixes: {}, homeEntries: 1, homeNames: ["dropped"] },
     );
+    // Only that one file in that one directory: the same file in another is reported.
+    const third = new TextDecoder().decode(
+      (await tool("create", base)).stdout,
+    ).trim();
+    assertEquals((await tool("skeleton", base, third)).code, 0);
+    await mkdir(join(third, "env", "home", "other"), { recursive: true });
+    await writeFile(join(third, "env", "home", "other", "settings.toml"), "");
+    assertEquals(
+      JSON.parse(
+        new TextDecoder().decode((await tool("sweep", base, third)).stdout),
+      ),
+      { leaked: 0, prefixes: {}, homeEntries: 1, homeNames: ["other"] },
+    );
+    // What is reported is capped: twenty names, each at most eighty characters.
+    const fourth = new TextDecoder().decode(
+      (await tool("create", base)).stdout,
+    ).trim();
+    assertEquals((await tool("skeleton", base, fourth)).code, 0);
+    for (let index = 0; index < 24; index += 1) {
+      await writeFile(
+        join(fourth, "env", "home", `file-${String(index).padStart(2, "0")}`),
+        "",
+      );
+    }
+    await writeFile(join(fourth, "env", "home", "x".repeat(120)), "");
+    const capped = JSON.parse(
+      new TextDecoder().decode((await tool("sweep", base, fourth)).stdout),
+    );
+    assertEquals(capped.homeEntries, 25);
+    assertEquals(capped.homeNames.length, 20);
+    assert(capped.homeNames.every((name: string) => name.length <= 80));
     // A .rustup that holds more than that settings file is reported.
     const second = new TextDecoder().decode(
       (await tool("create", base)).stdout,

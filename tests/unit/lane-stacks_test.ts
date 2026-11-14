@@ -131,7 +131,7 @@ Deno.test("what compose could not remove goes by id from the project's own label
       "bakery-e2e-a": {
         containers: ["created-1"],
         networks: ["net-1"],
-        volumes: [],
+        volumes: ["vol-1"],
       },
     },
     { composeRemoves: false },
@@ -147,6 +147,10 @@ Deno.test("what compose could not remove goes by id from the project's own label
   assertEquals(
     stubborn.calls.find((call) => call[0] === "network" && call[1] === "rm"),
     ["network", "rm", "net-1"],
+  );
+  assertEquals(
+    stubborn.calls.find((call) => call[0] === "volume" && call[1] === "rm"),
+    ["volume", "rm", "-f", "vol-1"],
   );
   // Only ids found under the registered project are ever removed by id.
   const everything = stubborn.calls.flat().filter((arg) =>
