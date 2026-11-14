@@ -698,6 +698,7 @@ for (
       outcome: { resultStatus: "completed", exitCode: 0, processExited: true },
       status: "completed",
       leaseState: "closed",
+      lease: "Machine is no longer working on it",
       title: "Process exited · code 0",
     },
     {
@@ -705,13 +706,17 @@ for (
       outcome: { resultStatus: "timed_out" },
       status: "failed",
       leaseState: "closed",
+      lease: "Machine is no longer working on it",
       title: "Run timed out",
+      says:
+        "The worker exceeded its execution deadline. The output saved so far is kept.",
     },
     {
       name: "lost lease",
       outcome: { reasonCode: "lease_lost" },
       status: "lost",
       leaseState: "lost",
+      lease: "Machine stopped responding",
       title: "Task taken back",
     },
     {
@@ -723,6 +728,7 @@ for (
       },
       status: "canceled",
       leaseState: "closed",
+      lease: "Machine is no longer working on it",
       title: "Cancellation pending",
     },
     {
@@ -735,13 +741,17 @@ for (
       },
       status: "canceled",
       leaseState: "closed",
+      lease: "Machine is no longer working on it",
       title: "Run canceled",
+      says:
+        "The worker confirmed process termination. The output saved so far is kept.",
     },
     {
       name: "quota reason",
       outcome: { resultStatus: "failed", reasonCode: "quota_exceeded" },
       status: "failed",
       leaseState: "closed",
+      lease: "Machine is no longer working on it",
       title: "Provider quota exceeded",
     },
   ] as const
@@ -788,6 +798,14 @@ for (
     await expect(page.getByRole("link", { name: "atlas-01", exact: true }))
       .toHaveAttribute("href", /^\/machines\/[0-9a-f-]{36}$/);
     await expect(page.getByText("Try 2", { exact: true })).toBeVisible();
+    // What the machine is doing is said in words, never as a lease.
+    await expect(page.getByText(scenario.lease, { exact: true }).first())
+      .toBeVisible();
+    await expect(page.getByText(/^Lease /)).toHaveCount(0);
+    if ("says" in scenario) {
+      await expect(page.getByText(scenario.says, { exact: true }))
+        .toBeVisible();
+    }
     await expect(page.getByText("Provider usage: unknown", { exact: true }))
       .toBeVisible();
     await expect(
@@ -797,6 +815,45 @@ for (
     ).toBeVisible();
   });
 }
+
+for (
+  const [leaseState, says] of [
+    ["active", "Machine is working on it"],
+    ["expired", "Machine stopped responding"],
+    ["unknown", "Machine status unknown"],
+  ] as const
+) {
+  test(`a ${leaseState} lease reads as plain words in the identity block`, async ({ page }) => {
+    await prepare(page);
+    await page.route(
+      `**/v1/jobs/${stream.jobId}/attempts?*`,
+      (route) =>
+        route.fulfill({
+          json: { items: [{ ...attempt, leaseState }], nextCursor: null },
+        }),
+    );
+    await page.routeWebSocket("**/v1/events?*", () => {});
+    await page.goto(`/tasks/${id}`);
+    await expect(page.getByText(says, { exact: true })).toBeVisible();
+    await expect(page.getByText(/^Lease /)).toHaveCount(0);
+  });
+}
+
+test("with no try to name, the identity block says Bakery cannot tell which machine ran it", async ({ page }) => {
+  await prepare(page);
+  await page.route(
+    `**/v1/jobs/${stream.jobId}/attempts?*`,
+    (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
+  );
+  await page.routeWebSocket("**/v1/events?*", () => {});
+  await page.goto(`/tasks/${id}`);
+  await expect(
+    page.getByText("Bakery cannot tell which machine ran this.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.getByText(/trusted/i)).toHaveCount(0);
+});
 
 test("three timed-out attempts end on the timeout heading with the history kept", async ({ page }) => {
   await prepare(page);
@@ -959,12 +1016,21 @@ test("current artifact metadata advances without reloading the task", async ({ p
   await page.routeWebSocket("**/v1/events?*", () => {});
   await page.goto(`/tasks/${id}`);
   const card = page.locator('[data-ui-component="runArtifactSummary"]');
-  await expect(card.getByText("r3", { exact: true })).toBeVisible();
+  await expect(card.getByText("Version 3", { exact: true })).toBeVisible();
+  await expect(
+    card.getByText("A saved version never changes.", { exact: true }),
+  )
+    .toBeVisible();
+  // The digest is behind the Fingerprint row, not printed in the card.
+  await expect(card.getByTestId("fingerprint-row")).toContainText(
+    "Fingerprint",
+  );
+  await expect(card).not.toContainText("sha256");
   revision = 4;
-  await expect(card.getByText("r4", { exact: true })).toBeVisible({
+  await expect(card.getByText("Version 4", { exact: true })).toBeVisible({
     timeout: 10_000,
   });
-  await expect(card.getByText("r3", { exact: true })).toHaveCount(0);
+  await expect(card.getByText("Version 3", { exact: true })).toHaveCount(0);
   await expect(card.getByRole("button", { name: "Download", exact: true }))
     .toBeEnabled();
   await page.route(

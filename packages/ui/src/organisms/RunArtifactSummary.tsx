@@ -7,13 +7,23 @@ export type RunArtifactSummaryProps = {
   revision: string;
   size: string;
   detail: string;
+  /** The fingerprint row of the version, when it is known; it sits above the actions. */
+  fingerprint?: ReactNode;
   actions: ReactNode;
   state?: "ready" | "unknown";
 };
 
 export function RunArtifactSummary(
-  { title, name, revision, size, detail, actions, state = "ready" }:
-    RunArtifactSummaryProps,
+  {
+    title,
+    name,
+    revision,
+    size,
+    detail,
+    fingerprint,
+    actions,
+    state = "ready",
+  }: RunArtifactSummaryProps,
 ) {
   const titleId = useId();
   const nameId = useId();
@@ -32,6 +42,9 @@ export function RunArtifactSummary(
         <span className="ui-run-card__meta">{size}</span>
       </div>
       <span className="ui-run-card__meta">{detail}</span>
+      {fingerprint
+        ? <div className="ui-run-artifact__fingerprint">{fingerprint}</div>
+        : null}
       <div className="ui-run-card__actions">{actions}</div>
     </section>
   );

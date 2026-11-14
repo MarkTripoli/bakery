@@ -34,7 +34,7 @@ const props: RunOutputPageProps = {
       title="Execution identity"
       worker="atlas-01"
       attempt="Try 2"
-      lease="Lease active"
+      lease="Machine is working on it"
       detail="Codex on atlas-01"
       unknownLabel="Unknown"
     />

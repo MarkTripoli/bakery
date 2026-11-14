@@ -27,9 +27,13 @@ type FixtureState = Readonly<{
 }>;
 
 const stateData: Record<RunOutputFixtureState, FixtureState> = {
-  default: { notice: undefined, lease: "Lease active", outputState: "live" },
+  default: {
+    notice: undefined,
+    lease: "Machine is working on it",
+    outputState: "live",
+  },
   truncated: {
-    lease: "Lease active",
+    lease: "Machine is working on it",
     outputState: "truncated",
     notice: {
       title: "Output truncated",
@@ -39,7 +43,7 @@ const stateData: Record<RunOutputFixtureState, FixtureState> = {
     },
   },
   reconnecting: {
-    lease: "Lease active",
+    lease: "Machine is working on it",
     outputState: "reconnecting",
     notice: {
       title: "Reconnecting",
@@ -49,7 +53,7 @@ const stateData: Record<RunOutputFixtureState, FixtureState> = {
     },
   },
   reset: {
-    lease: "Lease active",
+    lease: "Machine is working on it",
     outputState: "reset",
     notice: {
       title: "History expired",
@@ -59,7 +63,7 @@ const stateData: Record<RunOutputFixtureState, FixtureState> = {
     },
   },
   exit: {
-    lease: "Lease released",
+    lease: "Machine is no longer working on it",
     outputState: "complete",
     notice: {
       title: "Process exited · code 0",
@@ -69,7 +73,7 @@ const stateData: Record<RunOutputFixtureState, FixtureState> = {
     },
   },
   interrupted: {
-    lease: "Lease active",
+    lease: "Machine is working on it",
     outputState: "interrupted",
     notice: {
       title: "Output interrupted",
@@ -79,7 +83,7 @@ const stateData: Record<RunOutputFixtureState, FixtureState> = {
     },
   },
   quota: {
-    lease: "Lease active",
+    lease: "Machine is working on it",
     outputState: "interrupted",
     notice: {
       title: "Run paused · storage capacity",
@@ -89,7 +93,7 @@ const stateData: Record<RunOutputFixtureState, FixtureState> = {
     },
   },
   "usage-unknown": {
-    lease: "Lease active",
+    lease: "Machine is working on it",
     outputState: "interrupted",
     notice: {
       title: "Usage unavailable",
@@ -99,12 +103,12 @@ const stateData: Record<RunOutputFixtureState, FixtureState> = {
     },
   },
   timeout: {
-    lease: "Lease released",
+    lease: "Machine is no longer working on it",
     outputState: "interrupted",
     notice: {
       title: "Run timed out",
       description:
-        "The worker exceeded its execution deadline. Last durable output is retained.",
+        "The worker exceeded its execution deadline. The output saved so far is kept.",
       actionLabel: "View run details",
     },
   },
@@ -170,7 +174,7 @@ export function runOutputFixtureData(state: string): RunOutputFixtureData {
           ? "14:32:08  process exited (0)"
           : "14:32:08  waiting for next output…",
       ].map((message, index) => ({ id: String(index), message })),
-      statusLabel: selected === "default" ? "Live" : "Last durable output",
+      statusLabel: selected === "default" ? "Live" : "Last saved output",
       captureLabel: "stdout + stderr · cursor 128",
       downloadLink: { href: "#output", label: "Download output" },
       latestLabel: "Jump to latest",
@@ -188,9 +192,9 @@ export function runOutputFixtureData(state: string): RunOutputFixtureData {
     artifact: {
       title: "Artifacts",
       name: "delivery-notes.md",
-      revision: "r3",
+      revision: "Version 3",
       size: "12.8 KiB",
-      detail: "Immutable revision · sha256 83b1f920…4e8d09a1",
+      detail: "A saved version never changes.",
     },
     inspector: {
       label: "Artifact",
