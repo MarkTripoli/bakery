@@ -1514,6 +1514,11 @@ a.bakery-application-rail__link:hover {
   max-inline-size: 760px; /* auth.css:10 .settings-content max-width:840px less its 40px padding */
   min-inline-size: 0;
 }
+/* A main-rail page that is a list or a detail (Machines): the same column
+   rhythm and targets, and the frame's whole width. */
+.ui-settings-content[data-variant="wide"] {
+  max-inline-size: none;
+}
 /* Paper keeps 44px controls on these pages regardless of pointer type
    (auth.css:8 .btn/.text-link min-height:44px). Buttons take their width
    from the flex column they sit in (`.btn.full` in a column, `.two-actions>*`
@@ -2175,6 +2180,10 @@ a.bakery-application-rail__link:hover {
   margin-block-end: var(--space-0);
   padding: var(--space-6) var(--space-6) var(--space-4);
 }
+/* `flush`: the head starts at the page's own left edge (see PageHeader). */
+.bakery-page-header--list[data-flush="true"] {
+  padding-inline: var(--space-0);
+}
 .bakery-page-header--list .bakery-page-header__lead {
   display: flex;
   flex-direction: column;
@@ -2195,6 +2204,9 @@ a.bakery-application-rail__link:hover {
   .bakery-page-header--list {
     border-block-end: var(--border-default) solid var(--color-border);
     padding: var(--space-3) var(--space-4) var(--space-4);
+  }
+  .bakery-page-header--list[data-flush="true"] {
+    padding-inline: var(--space-0);
   }
   .bakery-page-header--list .bakery-page-header__subtitle {
     font: var(--type-hint);

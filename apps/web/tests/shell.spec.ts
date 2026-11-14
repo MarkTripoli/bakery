@@ -232,14 +232,9 @@ async function expectSelectedParent(page: Page, path: string) {
     return;
   }
   if (path === "/machines" || path.startsWith("/machines/")) {
-    // Machines is a main rail destination, not a settings section: the settings
-    // navigation has no Machines link and marks nothing current here.
-    await expect(
-      page.locator('.bakery-section-navigation a[href="/machines"]'),
-    ).toHaveCount(0);
-    await expect(
-      page.locator('.bakery-section-navigation a[aria-current="page"]'),
-    ).toHaveCount(0);
+    // Machines is a main rail destination, not a settings section: these pages
+    // use the frame Work uses, so there is no settings navigation at all.
+    await expect(page.locator(".bakery-section-navigation")).toHaveCount(0);
     return;
   }
   // Paper `settingsShell` fixtures (`isSettingsPath` in `auth-paths.ts`):
