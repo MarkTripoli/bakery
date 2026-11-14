@@ -108,6 +108,11 @@ test("an issue's page leads back to Workspace and Issues, with the issue as the 
     "aria-current",
     "page",
   );
+  await page.mouse.move(900, 600);
+  await shot(page, "breadcrumbs-issue", [], {
+    windowOnly: true,
+    only: "desktop",
+  });
   // A click on Issues moves to the list without a page load.
   await page.evaluate(() => {
     (globalThis as unknown as { __kept: number }).__kept = 1;
