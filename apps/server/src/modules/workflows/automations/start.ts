@@ -30,12 +30,15 @@ import { createRunCommand } from "../../work/run-command.ts";
 import { createTaskCommand } from "../../work/postgres.ts";
 import { inSavepoint } from "../../work/ticket-sync.ts";
 import { appendFacts } from "./facts.ts";
+import { hasActiveRun } from "./overlap.ts";
 
 export type StartOutcome =
   | Readonly<{ kind: "started"; runId: string; run: StartedRun }>
   | Readonly<{ kind: "failed"; code: string }>
   /** The firing is not queued, already has a run, or does not exist. */
-  | Readonly<{ kind: "not_startable" }>;
+  | Readonly<{ kind: "not_startable" }>
+  /** An earlier run of the automation is still active: the firing stays queued. */
+  | Readonly<{ kind: "held" }>;
 
 type FiringFacts = {
   organization_id: string;
@@ -134,6 +137,11 @@ export type StartOptions = Readonly<{
    * run and is told why, and the caller's transaction undoes the firing.
    */
   refusals?: "mark" | "throw";
+  /**
+   * Leave the firing queued while a run of the automation is still active
+   * (the promotion of a waiting firing). A manual run checks this itself.
+   */
+  holdWhileActive?: boolean;
 }>;
 
 const SAVEPOINT = "automation_firing_start";
@@ -157,10 +165,14 @@ export function mergedInputs(stored: unknown, override: unknown): unknown {
 export async function startFiring(options: {
   database: PgDatabase;
   firingId: string;
+  holdWhileActive?: boolean;
 }): Promise<StartOutcome> {
   return await withPgTransaction(
     options.database,
-    (transaction) => startFiringIn(transaction, options.firingId),
+    (transaction) =>
+      startFiringIn(transaction, options.firingId, {
+        ...(options.holdWhileActive === true ? { holdWhileActive: true } : {}),
+      }),
   );
 }
 
@@ -212,6 +224,14 @@ export async function startFiringIn(
   if (!firing || firing.status !== "queued" || firing.run_id !== null) {
     return { kind: "not_startable" } as const;
   }
+  if (
+    startOptions.holdWhileActive === true &&
+    await hasActiveRun(
+      transaction,
+      firing.organization_id,
+      firing.automation_id,
+    )
+  ) return { kind: "held" } as const;
   const trace = {
     requestId: crypto.randomUUID(),
     traceId: crypto.randomUUID().replaceAll("-", ""),
