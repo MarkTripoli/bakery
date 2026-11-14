@@ -58,6 +58,8 @@ export type Options = {
   agentReads?: "hold" | "fail";
   /** Every workflow versions page says there is another, two versions to a page. */
   endlessVersions?: boolean;
+  /** What the checker says about a definition: fine (default), with problems, with only warnings, or it cannot answer. */
+  validation?: "ok" | "errors" | "warnings" | "fail";
   /** A copy whose workflow cannot be made, or whose steps cannot be added (always, or on the first try). */
   copy?: "workflow-fails" | "steps-fail" | "steps-fail-once";
   /** A change that answers 409 (someone else got there first). */
@@ -165,6 +167,7 @@ export async function libraryFixture(page: Page, options: Options = {}) {
       sourceYaml?: string;
     }[],
     stepWrites: 0,
+    validations: [] as { definition: unknown }[],
     workflowReads: 0,
     agentReads: 0,
     presetReads: 0,
@@ -350,6 +353,40 @@ export async function libraryFixture(page: Page, options: Options = {}) {
       }
       if (options.agentReads === "hold") await agentsHeld;
       return answer("agents", (options.agents ?? []).map(body))(route);
+    },
+  );
+  await page.route(
+    (url) => url.pathname === "/v1/workflow-validations",
+    (route) => {
+      const input = route.request().postDataJSON() as { definition: unknown };
+      seen.validations.push(input);
+      if (options.validation === "fail") {
+        return route.fulfill(problem(500, "INTERNAL_ERROR"));
+      }
+      const errors = options.validation === "errors"
+        ? [
+          {
+            path: "/steps/1/uses",
+            code: "action_unknown",
+            message: "The action is not registered.",
+          },
+          {
+            path: "",
+            code: "field_missing",
+            message: "A required field is missing.",
+          },
+        ]
+        : [];
+      const warnings = options.validation === "warnings"
+        ? [{
+          path: "/steps/0/uses",
+          code: "model_agent_unbound",
+          message: "The step runs a model but no agent is bound.",
+        }]
+        : [];
+      return route.fulfill(
+        json({ valid: errors.length === 0, errors, warnings }),
+      );
     },
   );
   await page.route(

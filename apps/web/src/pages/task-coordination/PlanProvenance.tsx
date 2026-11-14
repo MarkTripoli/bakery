@@ -1,3 +1,4 @@
+import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import type { CoordinationPlanResponse } from "../../api/client.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
@@ -12,15 +13,26 @@ import { planOrigin, shortId } from "./model.ts";
  * not verified, and its link renders only for https.
  */
 export function PlanProvenance(
-  { leadingSeparator = false, plan, workflowName }: {
+  {
+    leadingSeparator = false,
+    olderVersion = false,
+    plan,
+    workflowName,
+    workflowVersion,
+  }: {
     /** Header form: a dot leads this run; it binds to the next word so no line ends in a lone dot. */
     leadingSeparator?: boolean;
     plan: CoordinationPlanResponse;
     /** Name of the saved workflow when readable; the id stands in otherwise. */
     workflowName: string | undefined;
+    /** The saved workflow's version number when readable; its short id stands in otherwise. */
+    workflowVersion?: number | undefined;
+    /** True when the workflow is readable and a newer version is the one in use. */
+    olderVersion?: boolean;
   },
 ) {
   const { translate: t } = useI18n();
+  const navigate = useNavigate();
   const origin = planOrigin(plan);
   const digest = typeof plan.digest === "string" ? plan.digest : "";
   const hint = t("tasks.coordination.digestHint");
@@ -32,16 +44,50 @@ export function PlanProvenance(
     : origin.kind === "saved_workflow"
     ? t("tasks.coordination.origin.workflow", {
       name: workflowName ?? shortId(origin.workflowId),
-      version: shortId(origin.workflowVersionId),
+      version: workflowVersion === undefined
+        ? shortId(origin.workflowVersionId)
+        : String(workflowVersion),
     })
     : t("tasks.coordination.origin.ticket", {
       provider: origin.provider,
       reference: origin.reference,
     });
+  // A saved workflow's line leads to that version's page.
+  const href = origin?.kind === "saved_workflow" && origin.workflowVersionId
+    ? `/library/workflows/${origin.workflowId}?version=${origin.workflowVersionId}`
+    : null;
   return (
     <span data-ui-region="plan-provenance">
       {leadingSeparator && <span aria-hidden="true">·&nbsp;</span>}
-      {label !== null && <span data-plan-origin={origin?.kind}>{label}</span>}
+      {label !== null && (
+        <span data-plan-origin={origin?.kind}>
+          {href === null ? label : (
+            <UI.Link
+              href={href}
+              onClick={(event) => {
+                event.preventDefault();
+                void navigate({ to: href });
+              }}
+            >
+              {label}
+            </UI.Link>
+          )}
+          {olderVersion && (
+            <>
+              {" "}
+              <UI.Badge tone="neutral">
+                {t("tasks.coordination.origin.older")}
+              </UI.Badge>
+              <UI.HelpTip
+                closeLabel={t("core.actions.close")}
+                label={t("tasks.coordination.origin.older")}
+              >
+                {t("tasks.coordination.origin.olderHelp")}
+              </UI.HelpTip>
+            </>
+          )}
+        </span>
+      )}
       {label !== null && digest !== "" && (
         <span aria-hidden="true">·&nbsp;</span>
       )}

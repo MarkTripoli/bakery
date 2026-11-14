@@ -10,6 +10,7 @@ import {
   repositoriesListQueryOptions,
   taskQueryOptions,
   workflowQueryOptions,
+  workflowVersionsQueryOptions,
 } from "../../api/query.ts";
 import { useLiveEvents } from "../../api/use-live-events.ts";
 import { useConnectivity } from "../../app/connectivity.ts";
@@ -118,6 +119,21 @@ export function TaskCoordinationPage(
     ...workflowQueryOptions(api, scope, workflowId ?? ""),
     enabled: enabled && workflowId !== undefined,
   });
+  // The version number and whether a newer version is in use are nicer to
+  // have: a failed or forbidden read leaves the short id and no badge.
+  const versions = useQuery({
+    ...workflowVersionsQueryOptions(api, scope, workflowId ?? ""),
+    enabled: enabled && workflowId !== undefined,
+  });
+  const workflowVersionId = origin?.kind === "saved_workflow"
+    ? origin.workflowVersionId
+    : undefined;
+  const workflowVersion = versions.data?.items.find((version) =>
+    version.id === workflowVersionId
+  )?.revision;
+  const inUse = workflow.data?.activeVersionId;
+  const olderVersion = workflowVersionId !== undefined &&
+    typeof inUse === "string" && inUse !== workflowVersionId;
   const lanes: PlanLane[] = plan
     ? planLanes(plan, roles.data, repositories.data)
     : [];
@@ -327,6 +343,8 @@ export function TaskCoordinationPage(
                     <PlanProvenance
                       plan={plan}
                       workflowName={workflow.data?.name}
+                      workflowVersion={workflowVersion}
+                      olderVersion={olderVersion}
                     />
                   }
                 >
@@ -497,6 +515,8 @@ export function TaskCoordinationPage(
                             leadingSeparator
                             plan={plan}
                             workflowName={workflow.data?.name}
+                            workflowVersion={workflowVersion}
+                            olderVersion={olderVersion}
                           />
                         </span>
                       )

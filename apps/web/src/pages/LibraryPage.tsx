@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
@@ -16,6 +16,7 @@ import {
 } from "../api/query.ts";
 import { asyncKindForError, isForbiddenFailure } from "../app/async-state.ts";
 import { useConnectivity } from "../app/connectivity.ts";
+import { focusAfterPaint } from "../app/focus.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useShellViewport } from "../app/responsive.ts";
@@ -30,6 +31,7 @@ import {
 } from "./library/library-state.ts";
 import { presetSource } from "./library/copy-workflow.ts";
 import { type LibraryRow, LibraryRows } from "./library/LibraryRows.tsx";
+import { ImportDialog } from "./library/ImportDialog.tsx";
 import { MakeCopyDialog } from "./library/MakeCopyDialog.tsx";
 import { presetCopy } from "./task-composer-labels.ts";
 
@@ -64,6 +66,8 @@ export function LibraryPage() {
   const canManage = access.data?.role === "admin";
   const offlineNow = useConnectivity() === "offline";
   const [copying, setCopying] = useState<WorkflowPresetResponse | null>(null);
+  const [importing, setImporting] = useState(false);
+  const importOpener = useRef<HTMLElement | null>(null);
   const active = tab === "workflows" ? [workflows, presets] : [agents];
   const failure = active.find((query) => query.isError)?.error;
   const forbidden = failure !== undefined && isForbiddenFailure(failure);
@@ -284,6 +288,24 @@ export function LibraryPage() {
       </UI.Stack>
     );
 
+  // Import is the Workflows tab's, for an administrator.
+  const importButton = canManage && tab === "workflows"
+    ? (
+      <UI.Button
+        variant="secondary"
+        disabled={offlineNow}
+        onClick={() => {
+          importOpener.current = document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
+          setImporting(true);
+        }}
+      >
+        {translate("library.workflow.import" as never)}
+      </UI.Button>
+    )
+    : null;
+
   return (
     <>
       <ShellSlot name="breadcrumbs">
@@ -298,12 +320,16 @@ export function LibraryPage() {
           ]}
         />
       </ShellSlot>
+      {importButton === null || phone
+        ? null
+        : <ShellSlot name="actions">{importButton}</ShellSlot>}
       <UI.SettingsContent data-testid="library-page" variant="wide">
         <UI.PageHeader
           variant="list"
           flush
           title={translate("library.title" as never)}
           subtitle={translate("library.description" as never)}
+          actions={phone ? importButton : null}
         />
         <UI.Tabs
           aria-label={translate("library.tabs.label" as never)}
@@ -329,6 +355,23 @@ export function LibraryPage() {
           ]}
         />
       </UI.SettingsContent>
+      {importing
+        ? (
+          <ImportDialog
+            onClose={() => {
+              setImporting(false);
+              focusAfterPaint(() => importOpener.current);
+            }}
+            onMade={(workflow) => {
+              setImporting(false);
+              void navigate({
+                to: "/library/workflows/$workflowId",
+                params: { workflowId: workflow.id },
+              });
+            }}
+          />
+        )
+        : null}
       {copying === null ? null : (
         <MakeCopyDialog
           source={presetSource(copying, {
