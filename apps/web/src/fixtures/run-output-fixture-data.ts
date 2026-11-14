@@ -158,7 +158,7 @@ export function runOutputFixtureData(state: string): RunOutputFixtureData {
     status: fixture.notice?.title ?? "Running",
     notice: fixture.notice,
     identity: {
-      title: "Execution identity",
+      title: "Where this ran",
       worker: "atlas-01",
       attempt: "Try 2",
       lease: fixture.lease,

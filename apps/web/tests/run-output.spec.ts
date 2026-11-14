@@ -862,6 +862,10 @@ test("with no try to name, the identity block says Bakery cannot tell which mach
     }),
   ).toBeVisible();
   await expect(page.getByText(/trusted/i)).toHaveCount(0);
+  // With no try there is nothing to badge: the sentence is the whole block.
+  const identity = page.getByRole("region", { name: "Where this ran" });
+  await expect(identity.getByText("Unknown")).toHaveCount(0);
+  await still(page, "run-identity-unknown", identity);
 });
 
 test("three timed-out attempts end on the timeout heading with the history kept", async ({ page }) => {
@@ -892,7 +896,7 @@ test("three timed-out attempts end on the timeout heading with the history kept"
     page.getByRole("heading", { name: "Run timed out", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("region", { name: "Execution identity" }).getByText(
+    page.getByRole("region", { name: "Where this ran" }).getByText(
       "Try 3",
       { exact: true },
     ),
@@ -1265,8 +1269,10 @@ test("current attempt selection returns from historical pages", async ({ page })
   await page.goto(`/tasks/${id}`);
   await expect(page.getByText("atlas-01", { exact: true }).first())
     .toBeVisible();
-  const identity = page.getByRole("region", { name: "Execution identity" });
+  const identity = page.getByRole("region", { name: "Where this ran" });
   await expect(identity).toContainText("Ran on atlas-01");
+  // The machine is named once, by the line with its link: no badge repeats it.
+  await expect(identity.getByText("atlas-01", { exact: true })).toHaveCount(1);
   await still(page, "run-identity", identity);
   await page.locator("button:enabled").filter({ hasText: /^Next$/ }).click();
   // The name shows in the attempt badge and as the machine link.

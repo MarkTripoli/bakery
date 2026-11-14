@@ -36,13 +36,17 @@ export function RunIdentity(
         data-state={worker && attempt && lease ? "known" : "unknown"}
       >
         <h2>{title}</h2>
-        <div className="ui-run-card__row">
-          <span className="ui-run-card__badge">{worker ?? unknownLabel}</span>
-          <span className="ui-run-card__badge">{attempt ?? unknownLabel}</span>
-          <span className="ui-run-card__badge" data-tone={leaseTone}>
-            {lease ?? unknownLabel}
-          </span>
-        </div>
+        {/* With no try to name there is nothing to badge: the sentence is the content. */}
+        {attempt
+          ? (
+            <div className="ui-run-card__row">
+              <span className="ui-run-card__badge">{attempt}</span>
+              <span className="ui-run-card__badge" data-tone={leaseTone}>
+                {lease ?? unknownLabel}
+              </span>
+            </div>
+          )
+          : null}
         <p className="ui-run-card__meta">{detail}</p>
       </section>
     </>

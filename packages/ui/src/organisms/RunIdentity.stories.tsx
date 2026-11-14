@@ -11,7 +11,7 @@ export const Contract: StoryObj = {
   render: () => (
     <Stack>
       <RunIdentity
-        title="Execution identity"
+        title="Where this ran"
         worker="atlas-01"
         attempt="Try 2"
         lease="Machine is working on it"
@@ -19,7 +19,7 @@ export const Contract: StoryObj = {
         unknownLabel="Unknown"
       />
       <RunIdentity
-        title="Execution identity"
+        title="Where this ran"
         worker="atlas-01"
         attempt="Try 2"
         lease="Machine stopped responding. Bakery took the task back."
@@ -28,7 +28,7 @@ export const Contract: StoryObj = {
         unknownLabel="Unknown"
       />
       <RunIdentity
-        title="Execution identity unavailable"
+        title="Where this ran"
         worker={null}
         attempt={null}
         lease={null}

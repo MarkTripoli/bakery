@@ -31,7 +31,7 @@ const props: RunOutputPageProps = {
   description: "Platform / bakery · started 2 minutes ago",
   identity: (
     <RunIdentity
-      title="Execution identity"
+      title="Where this ran"
       worker="atlas-01"
       attempt="Try 2"
       lease="Machine is working on it"
