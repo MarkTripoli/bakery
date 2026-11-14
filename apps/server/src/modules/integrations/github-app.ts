@@ -1173,6 +1173,14 @@ export type GitHubAppLookup =
   | { kind: "rejected" };
 
 /** Port to the GitHub App endpoints Bakery uses; tests inject a fake fetch. */
+/** The fields of GitHub's user read that identify an App's bot account. */
+const GitHubBotUserSchema = z.object({
+  id: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).describe(
+    "Numeric GitHub user id of the App's bot account.",
+  ),
+  type: z.string().describe('GitHub account type; an App\'s bot is "Bot".'),
+}).describe("The identifying fields of a GitHub user read.");
+
 export type GitHubAppClient = {
   /** Converts a one-time manifest code into the new App's identity and credentials. */
   convertManifest(
@@ -1227,6 +1235,11 @@ export type GitHubAppClient = {
    * DEPENDENCY_UNAVAILABLE.
    */
   getApp(jwt: string, signal: AbortSignal): Promise<GitHubAppLookup>;
+  /**
+   * The App's bot account id (#20): GitHub's public "<slug>[bot]" user. Null
+   * when GitHub has no such user or it is not a Bot; the caller retries later.
+   */
+  getBotUser(slug: string, signal: AbortSignal): Promise<number | null>;
   /**
    * Whether, right now and with App authority, one installation of this App
    * is active and still covers one repository, by their stable numeric ids.
@@ -1652,6 +1665,17 @@ export function createFetchGitHubAppClient(
         throw error;
       }
       return { kind: "confirmed", app: parsed(GitHubAppIdentitySchema, body) };
+    },
+    async getBotUser(slug, signal) {
+      const { body } = await readJson(
+        transport,
+        `${GITHUB_API_ORIGIN}/users/${encodeURIComponent(`${slug}[bot]`)}`,
+        { method: "GET", expectedStatus: 200, absentStatuses: [404] },
+        signal,
+      );
+      if (body === null) return null;
+      const user = GitHubBotUserSchema.safeParse(body);
+      return user.success && user.data.type === "Bot" ? user.data.id : null;
     },
     async isRepositoryCovered(request, signal) {
       if (
