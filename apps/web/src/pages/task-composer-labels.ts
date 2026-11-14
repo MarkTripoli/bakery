@@ -26,14 +26,16 @@ export function presetCopy(t: Translator, id: string) {
       return {
         title: t("tasks.preset.fixedCoding.title"),
         description: t("tasks.preset.fixedCoding.description"),
+        line: t("tasks.preset.fixedCoding.line"),
       };
     case "fixed-coding-reviewed":
       return {
         title: t("tasks.preset.fixedCodingReviewed.title"),
         description: t("tasks.preset.fixedCodingReviewed.description"),
+        line: t("tasks.preset.fixedCodingReviewed.line"),
       };
     default:
-      return { title: id, description: undefined };
+      return { title: id, description: undefined, line: undefined };
   }
 }
 

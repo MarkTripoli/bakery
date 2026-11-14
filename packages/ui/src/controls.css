@@ -536,6 +536,26 @@ input.ui-password-input__field {
 .ui-task-composer textarea.ui-text-input {
   resize: vertical;
 }
+/* Its selects draw like the text fields beside them: the field font, the same
+   height and padding, and a drawn chevron in place of the browser's own. */
+.ui-task-composer .ui-combobox {
+  position: relative;
+}
+.ui-task-composer .ui-combobox select {
+  appearance: none;
+  box-sizing: border-box;
+  font: var(--type-field);
+  min-block-size: max(var(--size-control), var(--target-coarse));
+  padding-block: var(--space-2);
+  padding-inline: var(--space-3) var(--space-8);
+}
+.ui-task-composer .ui-combobox > .ui-icon {
+  display: block;
+  inset-block-end: var(--space-3);
+  inset-inline-end: var(--space-3);
+  pointer-events: none;
+  position: absolute;
+}
 .ui-task-composer__plan-first {
   display: flex;
   flex-direction: column;
