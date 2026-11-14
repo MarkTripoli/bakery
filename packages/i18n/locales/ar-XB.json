@@ -2893,5 +2893,5 @@
   "machines.wizard.install.leave": "⟪If you leave this page the setup code is lost. You can get new settings from Finishing setup on the Machines page.⟫",
   "machines.finishing.machines": "⟪Machines⟫",
   "machines.wizard.macos": "⟪Bakery has no installer for macOS yet. A one-step installer is coming. Until it ships, a Mac cannot join through this page; choose Linux to add a Linux machine.⟫",
-  "machines.wizard.install.opening": "⟪Opening the machine's page…⟫"
+  "machines.wizard.install.opening": "⟪Getting the machine's page ready. Done will be available in a moment.⟫"
 }

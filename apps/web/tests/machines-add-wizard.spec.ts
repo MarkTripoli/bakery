@@ -303,7 +303,11 @@ test.describe("add a machine wizard", () => {
     const done = page.getByRole("button", { name: "Done" });
     await expect(done).toBeDisabled();
     // A disabled button says why, and the reason is tied to it.
-    await expect(page.getByText("Opening the machine's page…")).toBeVisible();
+    await expect(
+      page.getByText(
+        "Getting the machine's page ready. Done will be available in a moment.",
+      ),
+    ).toBeVisible();
     await expect(done).toHaveAttribute(
       "aria-describedby",
       "machine-wizard-opening",
@@ -311,7 +315,11 @@ test.describe("add a machine wizard", () => {
     await shot(page, "machines-wizard-connected");
     setup.workerHostId = MACHINE_ID;
     await expect(done).toBeEnabled({ timeout: 30_000 });
-    await expect(page.getByText("Opening the machine's page…")).toHaveCount(0);
+    await expect(
+      page.getByText(
+        "Getting the machine's page ready. Done will be available in a moment.",
+      ),
+    ).toHaveCount(0);
     await page.getByRole("button", { name: "Done" }).click();
     await expect(page).toHaveURL(new RegExp(`/machines/${MACHINE_ID}$`));
     expect(setup.creates).toHaveLength(1);
