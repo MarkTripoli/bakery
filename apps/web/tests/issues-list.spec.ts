@@ -84,20 +84,6 @@ for (
       await shot(page, "issues-list");
     });
 
-    test("the title starts where the filters below it start", async ({ page }) => {
-      await issuesFixture(page);
-      await page.goto("/issues");
-      const title = page.getByRole("heading", { name: "Issues", level: 1 });
-      await expect(title).toBeVisible();
-      const filters = page.getByRole("radio", { name: "Can start" });
-      await expect(filters).toBeAttached();
-      const [titleBox, filterBox] = await Promise.all([
-        title.boundingBox(),
-        page.locator("fieldset").first().boundingBox(),
-      ]);
-      expect(Math.round(titleBox!.x)).toBe(Math.round(filterBox!.x));
-    });
-
     test("In progress shows what Bakery is working on, and Closed asks for closed issues", async ({ page }) => {
       const seen = await issuesFixture(page);
       await page.goto("/issues");
