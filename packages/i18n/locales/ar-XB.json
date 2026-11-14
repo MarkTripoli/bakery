@@ -3250,5 +3250,14 @@
   "projects.list.failure.forbidden": "⟪Only organization administrators can add or change repositories.⟫",
   "projects.list.failure.invalid": "⟪Bakery could not accept that. Check the fields and try again.⟫",
   "projects.list.failure.offline": "⟪You are offline.⟫",
-  "projects.list.failure.failed": "⟪That did not work. Try again.⟫"
+  "projects.list.failure.failed": "⟪That did not work. Try again.⟫",
+  "shell.startup.signedOut.title": "⟪You are signed out⟫",
+  "shell.startup.signedOut.body": "⟪Sign in again to carry on.⟫",
+  "shell.startup.signedOut.action": "⟪Sign in⟫",
+  "shell.startup.noAccess.title": "⟪You do not have access to this organization⟫",
+  "shell.startup.noAccess.body": "⟪Ask an organization administrator for access, or choose another organization.⟫",
+  "shell.startup.noAccess.action": "⟪Choose another organization⟫",
+  "shell.startup.verify.title": "⟪Confirm it is you⟫",
+  "shell.startup.verify.body": "⟪Bakery needs you to verify your identity before it shows this organization.⟫",
+  "shell.startup.verify.action": "⟪Verify⟫"
 }

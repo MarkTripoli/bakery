@@ -9,6 +9,7 @@ import {
   SIGN_IN_PATH,
   TWO_FACTOR_PATH,
 } from "../app/auth-required.tsx";
+import { focusAfterPaint } from "../app/focus.ts";
 import { rememberDestination } from "../app/auth-return.ts";
 import * as organizationSelection from "../app/organization-selection.ts";
 import {
@@ -21,6 +22,32 @@ import { useI18n } from "../i18n/I18nProvider.tsx";
 export const STARTUP_SKELETON_DELAY_MS = 200;
 /** After this the skeleton says it is taking longer than usual. */
 export const STARTUP_SLOW_AFTER_MS = 8_000;
+
+/** An information card for a refusal; focus lands on its title so it is read. */
+function RefusalCard(
+  { action, description, title }: {
+    readonly action: ReactNode;
+    readonly description: string;
+    readonly title: string;
+  },
+) {
+  useEffect(() => {
+    focusAfterPaint(() =>
+      document.querySelector<HTMLElement>(
+        '[data-testid="startup-error"] :is(h1, h2, h3)',
+      )
+    );
+  }, []);
+  return (
+    <UI.EmptyState
+      action={action}
+      data-testid="startup-error"
+      description={description}
+      title={title}
+      variant="firstUse"
+    />
+  );
+}
 
 /**
  * A page's content does not render until the app knows which organization the
@@ -101,72 +128,79 @@ export function StartupGate(
           : {}),
       });
     };
-    const action = forbidden
-      ? (
-        <UI.Button onClick={() => recover(ORGANIZATIONS_PATH)} type="button">
-          {translate("auth.organizations.title")}
-        </UI.Button>
-      )
-      : authRequired
-      ? code === "AUTH_FACTOR_REQUIRED"
-        ? (
-          <UI.Inline gap="compact" variant="actions">
-            <UI.Button onClick={() => recover(TWO_FACTOR_PATH)} type="button">
-              {translate("auth.twoFactor.verify")}
-            </UI.Button>
-            <UI.Link
-              href={RECOVERY_CODE_PATH}
-              onClick={(event) => {
-                event.preventDefault();
-                recover(RECOVERY_CODE_PATH);
-              }}
-            >
-              {translate("auth.twoFactor.useBackupCode")}
-            </UI.Link>
-          </UI.Inline>
-        )
-        : (
-          <UI.Button onClick={() => recover(SIGN_IN_PATH)} type="button">
-            {translate("auth.signIn.submit")}
-          </UI.Button>
-        )
-      : (
-        <UI.Inline gap="compact">
-          <UI.Button onClick={onRetry} type="button" variant="secondary">
-            {translate("core.actions.retry")}
-          </UI.Button>
-          {offline ? null : (
-            <UI.Link
-              href={signOutHref}
-              onClick={(event) => {
-                event.preventDefault();
-                onSignOut();
-              }}
-            >
-              {translate("core.actions.signOut")}
-            </UI.Link>
-          )}
-        </UI.Inline>
+    const signOut = offline ? null : (
+      <UI.Link
+        href={signOutHref}
+        onClick={(event) => {
+          event.preventDefault();
+          onSignOut();
+        }}
+      >
+        {translate("core.actions.signOut")}
+      </UI.Link>
+    );
+    // A refusal is not a failure: it is named for what it is, with its one
+    // action, in an information card; only the connection and the server are
+    // an error.
+    if (authRequired || forbidden) {
+      const factor = code === "AUTH_FACTOR_REQUIRED";
+      const kind = forbidden ? "noAccess" : factor ? "verify" : "signedOut";
+      return (
+        <RefusalCard
+          action={
+            <UI.Inline gap="compact" variant="actions">
+              <UI.Button
+                onClick={() =>
+                  recover(
+                    forbidden
+                      ? ORGANIZATIONS_PATH
+                      : factor
+                      ? TWO_FACTOR_PATH
+                      : SIGN_IN_PATH,
+                  )}
+                type="button"
+              >
+                {translate(`shell.startup.${kind}.action` as never)}
+              </UI.Button>
+              {factor
+                ? (
+                  <UI.Link
+                    href={RECOVERY_CODE_PATH}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      recover(RECOVERY_CODE_PATH);
+                    }}
+                  >
+                    {translate("auth.twoFactor.useBackupCode")}
+                  </UI.Link>
+                )
+                : null}
+              {forbidden ? signOut : null}
+            </UI.Inline>
+          }
+          description={translate(`shell.startup.${kind}.body` as never)}
+          title={translate(`shell.startup.${kind}.title` as never)}
+        />
       );
+    }
     return (
       <UI.ErrorState
-        action={action}
+        action={
+          <UI.Inline gap="compact">
+            <UI.Button onClick={onRetry} type="button" variant="secondary">
+              {translate("core.actions.retry")}
+            </UI.Button>
+            {signOut}
+          </UI.Inline>
+        }
         data-testid="startup-error"
         description={translate(
-          forbidden
-            ? "shell.states.forbiddenDescription"
-            : authRequired
-            ? "shell.states.authRequiredDescription"
-            : offline
+          offline
             ? "shell.startup.offline.body"
             : "shell.startup.organizationError.body",
         )}
         title={translate(
-          forbidden
-            ? "shell.states.forbiddenTitle"
-            : authRequired
-            ? "shell.states.authRequiredTitle"
-            : offline
+          offline
             ? "shell.startup.offline.title"
             : "shell.startup.organizationError.title",
         )}

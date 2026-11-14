@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
+import { shot } from "./helpers/real-api.ts";
 
 // Denial/reconnect fixture only: the real shared page, resolver and auth
 // routes run unchanged. This is not live repository/onboarding acceptance.
@@ -79,6 +80,10 @@ test.describe("projects onboarding scope recovery", () => {
       });
       await page.goto(path);
       await expect(page.getByTestId("startup-error")).toBeVisible();
+      if (failure === "500") {
+        await page.mouse.move(900, 600);
+        await shot(page, "startup-connection");
+      }
       if (failure === "network") {
         await expect(page.getByTestId("startup-error")).toContainText(
           "You are offline",
@@ -126,13 +131,13 @@ test.describe("projects onboarding scope recovery", () => {
       [
         403,
         "AUTH_FACTOR_REQUIRED",
-        "Verify and sign in",
+        "Verify",
         "/sign-in/two-factor",
       ],
       [
         403,
         "AUTH_FORBIDDEN",
-        "Where are we working?",
+        "Choose another organization",
         "/organizations?reason=forbidden",
       ],
     ] as const
@@ -146,6 +151,21 @@ test.describe("projects onboarding scope recovery", () => {
       await deny(page, status, code);
       await page.goto(path);
       await expect(page.getByTestId("startup-error")).toBeVisible();
+      // Named for what it is, not as a connection problem; focus is on the title.
+      const title = code === "AUTH_FORBIDDEN"
+        ? "You do not have access to this organization"
+        : code === "AUTH_FACTOR_REQUIRED"
+        ? "Confirm it is you"
+        : "You are signed out";
+      await expect(page.getByTestId("startup-error")).toContainText(title);
+      await expect(page.getByTestId("startup-error")).not.toContainText(
+        "Check your connection",
+      );
+      await expect(
+        page.getByTestId("startup-error").getByRole("heading", { name: title }),
+      ).toBeFocused();
+      await page.mouse.move(900, 600);
+      await shot(page, `startup-${code.toLowerCase().replace(/_/g, "-")}`);
       expect(observed.protectedReads).toEqual([]);
       expect(observed.errors).toEqual([]);
       await page.getByTestId("startup-error").getByRole("button", {
@@ -288,12 +308,12 @@ test.describe("projects onboarding scope recovery", () => {
       dispatchEvent(new PopStateEvent("popstate"));
     }, replacement);
     await expect(page.getByTestId("startup-error")).toContainText(
-      "Sign in required",
+      "You are signed out",
     );
     release();
     await page.waitForTimeout(300);
     await expect(page.getByTestId("startup-error")).toContainText(
-      "Sign in required",
+      "You are signed out",
     );
     expect(await savedDestination(page)).toBeNull();
     expect(

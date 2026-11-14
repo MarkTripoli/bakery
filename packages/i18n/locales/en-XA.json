@@ -3250,5 +3250,14 @@
   "projects.list.failure.forbidden": "⟦Ôñļÿ ôŕĝàñïžàŧïôñ àðɱïñïšŧŕàŧôŕš çàñ àðð ôŕ çĥàñĝë ŕëþôšïŧôŕïëš. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
   "projects.list.failure.invalid": "⟦Ɓàķëŕÿ çôûļð ñôŧ àççëþŧ ŧĥàŧ. Çĥëçķ ŧĥë ƒïëļðš àñð ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "projects.list.failure.offline": "⟦Ÿôû àŕë ôƒƒļïñë. ŧëš⟧",
-  "projects.list.failure.failed": "⟦Ŧĥàŧ ðïð ñôŧ ŵôŕķ. Ŧŕÿ àĝàïñ. ŧëšŧ çôþ⟧"
+  "projects.list.failure.failed": "⟦Ŧĥàŧ ðïð ñôŧ ŵôŕķ. Ŧŕÿ àĝàïñ. ŧëšŧ çôþ⟧",
+  "shell.startup.signedOut.title": "⟦Ÿôû àŕë šïĝñëð ôûŧ ŧëšŧ⟧",
+  "shell.startup.signedOut.body": "⟦Šïĝñ ïñ àĝàïñ ŧô çàŕŕÿ ôñ. ŧëšŧ çô⟧",
+  "shell.startup.signedOut.action": "⟦Šïĝñ ïñ…⟧",
+  "shell.startup.noAccess.title": "⟦Ÿôû ðô ñôŧ ĥàṽë àççëšš ŧô ŧĥïš ôŕĝàñïžàŧïôñ ŧëšŧ çôþÿ ŧëš⟧",
+  "shell.startup.noAccess.body": "⟦Àšķ àñ ôŕĝàñïžàŧïôñ àðɱïñïšŧŕàŧôŕ ƒôŕ àççëšš, ôŕ çĥôôšë àñôŧĥëŕ ôŕĝàñïžàŧïôñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "shell.startup.noAccess.action": "⟦Çĥôôšë àñôŧĥëŕ ôŕĝàñïžàŧïôñ ŧëšŧ çô⟧",
+  "shell.startup.verify.title": "⟦Çôñƒïŕɱ ïŧ ïš ÿôû ŧëš⟧",
+  "shell.startup.verify.body": "⟦Ɓàķëŕÿ ñëëðš ÿôû ŧô ṽëŕïƒÿ ÿôûŕ ïðëñŧïŧÿ ƀëƒôŕë ïŧ šĥôŵš ŧĥïš ôŕĝàñïžàŧïôñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "shell.startup.verify.action": "⟦Ṽëŕïƒÿ…⟧"
 }
