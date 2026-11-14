@@ -179,11 +179,21 @@ export function ImportDialog(
         action: problem.detail,
       })
       : problem.code === "field_missing" && problem.where.kind === "step"
-      ? translate("library.import.problem.stepFieldMissing" as never, {
-        number: problem.where.number,
-      })
+      ? problem.field === undefined
+        ? translate("library.import.problem.stepFieldMissing" as never, {
+          number: problem.where.number,
+        })
+        : translate("library.import.problem.stepFieldMissingNamed" as never, {
+          number: problem.where.number,
+          field: problem.field,
+        })
       : problem.code === "field_missing" && problem.where.kind === "whole"
       ? translate("library.import.problem.fieldMissing" as never)
+      : problem.code === "field_missing" && problem.field !== undefined &&
+          problem.where.kind === "path" && !problem.where.path.includes(".")
+      ? translate("library.import.problem.fieldMissingNamed" as never, {
+        field: problem.field,
+      })
       : null;
   const lines = (problems: readonly ImportProblem[], label: string) => (
     <UI.Stack gap="compact" role="list" aria-label={label}>

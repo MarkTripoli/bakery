@@ -160,6 +160,23 @@ for (
       await shot(page, "import-invalid", [], { windowOnly: true });
     });
 
+    test("a missing field is named, in a step and at the top of the definition", async ({ page }) => {
+      await open(page, { ...WORLD, validation: "named" });
+      await paste(page, GOOD);
+      await expect(state(page)).toContainText(
+        "Step 1 is missing a required field: id.",
+      );
+      await expect(state(page)).toContainText(
+        "The definition is missing a required field: steps.",
+      );
+      await expect(
+        dialog(page).getByRole("button", { name: "Import as draft" }),
+      )
+        .toBeDisabled();
+      await page.mouse.move(700, 700);
+      await shot(page, "import-invalid-named", [], { windowOnly: true });
+    });
+
     test("text that is not a definition is refused here, with where and why, without asking the server", async ({ page }) => {
       const seen = await open(page);
       await paste(page, "steps: [");

@@ -3502,5 +3502,7 @@
   "library.import.empty": "⟪Choose a file or paste a definition first.⟫",
   "library.agent.tools.help": "⟪What this agent is allowed to do in a repository.⟫",
   "library.agent.prompts.help": "⟪The instructions this agent starts with. Bakery does not show their text here yet.⟫",
-  "library.agent.skills.help": "⟪Extra instructions the agent can load for a kind of work.⟫"
+  "library.agent.skills.help": "⟪Extra instructions the agent can load for a kind of work.⟫",
+  "library.import.problem.stepFieldMissingNamed": "⟪Step {number} is missing a required field: {field}.⟫",
+  "library.import.problem.fieldMissingNamed": "⟪The definition is missing a required field: {field}.⟫"
 }

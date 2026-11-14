@@ -18,6 +18,8 @@ export type ImportProblem = {
   readonly message: string;
   /** What the definition itself says at that place, when it is a name to show (the action a step uses). */
   readonly detail?: string;
+  /** The name of the missing field, as the checker reports it (the last part of the pointer). */
+  readonly field?: string;
 };
 
 /** What reading a definition file or pasted text gave. */
@@ -68,13 +70,22 @@ export function problemsOf(
         Array.isArray(steps)
       ? record(steps[where.number - 1]).uses
       : undefined;
+    // A missing field is reported at the field itself, so the pointer names it.
+    const field = issue.code === "field_missing" ? lastSegment(issue.path) : "";
     return {
       where,
       code: issue.code ?? "",
       message: issue.message,
       ...(typeof used === "string" && used !== "" ? { detail: used } : {}),
+      ...(field !== "" ? { field } : {}),
     };
   });
+}
+
+/** The last part of a JSON Pointer ("/steps/0/id" is "id"), unescaped; empty for the whole document. */
+function lastSegment(path: string): string {
+  const last = path.split("/").pop() ?? "";
+  return path === "" ? "" : last.replace(/~1/g, "/").replace(/~0/g, "~");
 }
 
 function record(value: unknown): Record<string, unknown> {

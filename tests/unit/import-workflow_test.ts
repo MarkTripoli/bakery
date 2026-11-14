@@ -95,3 +95,33 @@ Deno.test("the action a step uses is read from the definition, since the checker
     undefined,
   );
 });
+
+Deno.test("a missing field is named by the last part of the pointer the checker reports it at", () => {
+  const [inStep, top, whole, other] = problemsOf([
+    {
+      path: "/steps/0/id",
+      code: "field_missing",
+      message: "A required field is missing.",
+    },
+    {
+      path: "/steps",
+      code: "field_missing",
+      message: "A required field is missing.",
+    },
+    {
+      path: "",
+      code: "field_missing",
+      message: "A required field is missing.",
+    },
+    {
+      path: "/steps/0/id",
+      code: "step_id_invalid",
+      message: "A step id is invalid.",
+    },
+  ]);
+  assertEquals(inStep?.field, "id");
+  assertEquals(inStep?.where, { kind: "step", number: 1, field: "id" });
+  assertEquals(top?.field, "steps");
+  assertEquals(whole?.field, undefined);
+  assertEquals(other?.field, undefined);
+});

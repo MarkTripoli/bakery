@@ -66,7 +66,7 @@ export type Options = {
   /** Every workflow versions page says there is another, two versions to a page. */
   endlessVersions?: boolean;
   /** What the checker says about a definition: fine (default), with problems, with only warnings, or it cannot answer. */
-  validation?: "ok" | "errors" | "warnings" | "fail";
+  validation?: "ok" | "errors" | "named" | "warnings" | "fail";
   /** A copy whose workflow cannot be made, or whose steps cannot be added (always, or on the first try). */
   copy?:
     | "workflow-fails"
@@ -455,7 +455,20 @@ export async function libraryFixture(page: Page, options: Options = {}) {
       if (options.validation === "fail") {
         return route.fulfill(problem(500, "INTERNAL_ERROR"));
       }
-      const errors = options.validation === "errors"
+      const errors = options.validation === "named"
+        ? [
+          {
+            path: "/steps/0/id",
+            code: "field_missing",
+            message: "A required field is missing.",
+          },
+          {
+            path: "/steps",
+            code: "field_missing",
+            message: "A required field is missing.",
+          },
+        ]
+        : options.validation === "errors"
         ? [
           {
             path: "/steps/1/uses",
