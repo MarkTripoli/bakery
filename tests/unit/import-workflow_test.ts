@@ -125,3 +125,15 @@ Deno.test("a missing field is named by the last part of the pointer the checker 
   assertEquals(whole?.field, undefined);
   assertEquals(other?.field, undefined);
 });
+
+Deno.test("a name the definition gives itself is cut without splitting an emoji", async () => {
+  const name = "a".repeat(199) + "\u{1F35E}" + "tail";
+  const read = await readImport(
+    `name: "${name}"\nsteps:\n  - id: a\n    uses: task.brief\n`,
+  );
+  assertEquals(read.ok, true);
+  if (read.ok) {
+    assertEquals(read.name, "a".repeat(199));
+    assertEquals((read.name ?? "").length <= 200, true);
+  }
+});

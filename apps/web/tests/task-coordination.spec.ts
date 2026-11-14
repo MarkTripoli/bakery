@@ -959,10 +959,10 @@ test("a saved workflow whose newer version is in use says this run's version is 
   await expect(origin).toContainText("Older version");
   // In the wide header the workflow's link starts its own line, under the plan's.
   if (test.info().project.name === "desktop") {
-    const planLine = await page.getByText("Plan, version 2").first()
+    const firstLine = await page.getByText("Ship the contract change").first()
       .boundingBox();
     const link = await origin.getByRole("link").boundingBox();
-    expect(link!.y).toBeGreaterThan(planLine!.y + planLine!.height - 4);
+    expect(link!.y).toBeGreaterThan(firstLine!.y + firstLine!.height - 2);
   }
   // On a phone the tip closes when the page scrolls, and this line is at the
   // end of the page: bring the button into view first so opening it does not.

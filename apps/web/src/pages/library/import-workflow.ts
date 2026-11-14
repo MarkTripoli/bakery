@@ -1,4 +1,5 @@
 import type { WorkflowVersionCreate } from "../../api/client.ts";
+import { clip, NAME_LIMIT } from "./copy-workflow.ts";
 
 /** Where in the file a problem is, in terms a person can find. */
 export type ProblemWhere =
@@ -133,7 +134,7 @@ export async function readImport(text: string): Promise<ImportRead> {
     definition: value as WorkflowVersionCreate["definition"],
     steps: Array.isArray(record.steps) ? record.steps.length : null,
     name: typeof record.name === "string" && record.name.trim() !== ""
-      ? record.name.trim().slice(0, 200)
+      ? clip(record.name.trim(), NAME_LIMIT)
       : null,
   };
 }
