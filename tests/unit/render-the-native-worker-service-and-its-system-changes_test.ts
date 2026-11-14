@@ -409,9 +409,69 @@ Deno.test("the service account is a dedicated one: root, system accounts and sys
       assertEquals(refusal(use), "SERVICE_ACCOUNT_REFUSED", account);
     }
   }
-  for (const account of ["bakery-worker", "svc", "builder_01", "a"]) {
+  for (const account of ["bakery-worker", "bakery", "bakery-ci", "bakery_01"]) {
     assert(
       renderSystemdUnit(spec({ account })).includes(`User=${account}`),
+      account,
+    );
+  }
+});
+
+Deno.test("the Linux account is dedicated by its name; the Mac's is the person's own and only root and system accounts are refused", () => {
+  for (
+    const account of [
+      "adm",
+      "ubuntu",
+      "alice",
+      "svc",
+      "builder_01",
+      "worker",
+      // The prefix is the start of the name, not somewhere in it.
+      "mybakery",
+      "xbakery",
+      "svc-bakery",
+      "_bakery",
+    ]
+  ) {
+    for (
+      const use of [
+        () => renderSystemdUnit(spec({ account })),
+        () => planLinuxService(spec({ account })),
+      ]
+    ) {
+      assertEquals(refusal(use), "SERVICE_ACCOUNT_REFUSED", account);
+    }
+  }
+  // A name the account syntax does not allow is a different refusal.
+  for (const account of ["bakeryX", "Bakery", "bakery worker", "bakery;rm"]) {
+    assertEquals(
+      refusal(() => renderSystemdUnit(spec({ account }))),
+      "SERVICE_SPEC_INVALID",
+      account,
+    );
+  }
+  // 26 characters after the prefix is the longest; one more is refused.
+  assert(
+    renderSystemdUnit(spec({ account: `bakery${"a".repeat(26)}` })).includes(
+      "User=bakery",
+    ),
+  );
+  assertEquals(
+    refusal(() =>
+      renderSystemdUnit(spec({ account: `bakery${"a".repeat(27)}` }))
+    ),
+    "SERVICE_SPEC_INVALID",
+  );
+  // The settings file and the LaunchAgent belong to whoever's session or file it is.
+  for (const account of ["alice", "operator", "svc"]) {
+    assert(environmentFileText(spec({ account })).length > 0);
+    assert(renderLaunchAgent(spec({ account })).includes("io.bakery.worker"));
+    assert(planMacService(spec({ account }), "/Users/alice", 501).length > 0);
+  }
+  for (const account of ["root", "daemon", "nobody"]) {
+    assertEquals(
+      refusal(() => renderLaunchAgent(spec({ account }))),
+      "SERVICE_ACCOUNT_REFUSED",
       account,
     );
   }

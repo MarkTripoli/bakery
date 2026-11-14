@@ -816,7 +816,16 @@ Deno.test(
         (await cli(root, releases.origin, setup(bakery.origin, file))).code,
         0,
       );
-      for (const account of ["root", "daemon", "nobody", "systemd-network"]) {
+      for (
+        const account of [
+          "root",
+          "daemon",
+          "nobody",
+          "systemd-network",
+          "adm",
+          "ubuntu",
+        ]
+      ) {
         const result = await cli(root, releases.origin, [
           "plan",
           "--account",
@@ -838,10 +847,10 @@ Deno.test(
       const fine = await cli(root, releases.origin, [
         "plan",
         "--account",
-        "svc-worker",
+        "bakery-ci",
       ]);
       assertEquals(fine.code, 0, fine.text);
-      assertStringIncludes(fine.text, "User=svc-worker");
+      assertStringIncludes(fine.text, "User=bakery-ci");
     } finally {
       await releases.close();
       await bakery.close();

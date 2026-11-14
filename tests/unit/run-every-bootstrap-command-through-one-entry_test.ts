@@ -654,7 +654,7 @@ Deno.test("plan prints every change and every definition for the machine that wa
       await runBootstrap([
         "plan",
         "--account",
-        "svc-worker",
+        "bakery-ci",
         "--setting",
         "BAKERY_CLAUDE_HARNESS=1",
       ], more.io),
@@ -662,7 +662,7 @@ Deno.test("plan prints every change and every definition for the machine that wa
     );
     assertStringIncludes(
       more.text(),
-      "Create the dedicated account svc-worker",
+      "Create the dedicated account bakery-ci",
     );
     assertStringIncludes(more.text(), "BAKERY_CLAUDE_HARNESS=1");
   } finally {
@@ -769,6 +769,13 @@ Deno.test("plan never runs the worker as root or as a system account, and what p
         "wheel",
         "sudo",
         "admin",
+        // Identities no list can know: a login the host already has, a
+        // person's own, and an ordinary-looking name that is not the worker's.
+        "adm",
+        "ubuntu",
+        "alice",
+        "svc-worker",
+        "builder",
       ]
     ) {
       const h = harness(root, world());
@@ -779,7 +786,7 @@ Deno.test("plan never runs the worker as root or as a system account, and what p
       );
       assertStringIncludes(
         h.text(),
-        "dedicated account, never root or a system account",
+        "dedicated account whose name starts with bakery",
         account,
       );
       assertFalse(
@@ -787,14 +794,36 @@ Deno.test("plan never runs the worker as root or as a system account, and what p
         `${account}: no unit was printed`,
       );
     }
+    // A name with a character the account syntax does not allow never gets as far as being judged.
+    for (
+      const account of [
+        "bakery!",
+        "bakeryX",
+        "Bakery",
+        "bakery worker",
+        "bakery;rm",
+      ]
+    ) {
+      const h = harness(root, world());
+      assertEquals(
+        await runBootstrap(["plan", "--account", account], h.io),
+        2,
+        account,
+      );
+      assertStringIncludes(
+        h.text(),
+        "characters the service definition does not allow",
+        account,
+      );
+    }
     // The default and an ordinary new account still plan, and run as themselves.
     for (
       const account of [
         undefined,
-        "svc-worker",
-        "builder",
+        "bakery-ci",
         "bakery_worker1",
-        "worker",
+        "bakery",
+        "bakery-worker-2",
       ]
     ) {
       const h = harness(root, world());

@@ -82,7 +82,7 @@ export const BOOTSTRAP_ERRORS = {
   SERVICE_SPEC_INVALID:
     "A path or name for the service has characters the service definition does not allow. Nothing was written.",
   SERVICE_ACCOUNT_REFUSED:
-    "The service must run as a dedicated account, never root or a system account. Nothing was written.",
+    "The Linux service must run as a dedicated account whose name starts with bakery (the default is bakery-worker), never root, a system account or an existing person's. Nothing was written.",
   SERVICE_SETTING_REFUSED:
     "A setting for the service is not allowed in a service definition: the setup code is never written there.",
   COMMAND_UNKNOWN:
