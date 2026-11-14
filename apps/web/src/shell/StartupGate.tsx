@@ -50,6 +50,29 @@ function RefusalCard(
 }
 
 /**
+ * After a retry opens the gate, the card that held focus is gone. Puts focus on
+ * the page's heading and keeps it there while the page swaps its loading
+ * heading for its own (a frame at a time, for about a second), unless the
+ * person has already moved focus somewhere else.
+ */
+function holdFocusOnHeading(frames = 60): void {
+  let last: HTMLElement | null = null;
+  const settle = () => {
+    const active = document.activeElement;
+    const lost = !active || active === document.body;
+    if (!lost && active !== last) return;
+    const heading = document.querySelector<HTMLElement>("main h1");
+    if (heading !== null && heading !== last) {
+      if (!heading.hasAttribute("tabindex")) heading.tabIndex = -1;
+      heading.focus();
+      last = heading;
+    }
+    if (frames-- > 0) requestAnimationFrame(settle);
+  };
+  requestAnimationFrame(() => requestAnimationFrame(settle));
+}
+
+/**
  * A page's content does not render until the app knows which organization the
  * person is in. A page drawn for a provisional scope may be wrong, and showing
  * it and then replacing it is the flash (and how edits are lost), so the
@@ -95,6 +118,23 @@ export function StartupGate(
       globalThis.clearTimeout(skeleton);
       globalThis.clearTimeout(slow);
     };
+  }, [resolved]);
+
+  // Where a failure card was shown. When a retry then gets through at that
+  // same place, focus goes to the page's heading instead of being lost with
+  // the card; at another place (the person moved on) it is left alone.
+  const failedAt = useRef<string | null>(null);
+  const showingFailure = !shown.current && failure !== null &&
+    failure !== undefined;
+  useEffect(() => {
+    if (showingFailure) failedAt.current = location.href;
+  }, [showingFailure, location.href]);
+  useEffect(() => {
+    if (!resolved || failedAt.current === null) return;
+    const at = failedAt.current;
+    failedAt.current = null;
+    if (at === location.href) holdFocusOnHeading();
+    // Only the moment the gate opens: later navigation is the page's own.
   }, [resolved]);
 
   if (shown.current) return <>{children}</>;
