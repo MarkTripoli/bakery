@@ -337,7 +337,8 @@ for (
         ...WORLD,
         copy: "workflow-drop-once",
       });
-      await expect(dialog(page)).toContainText("The copy could not be made.");
+      // No answer at all is the offline wording (design-ux's ruling).
+      await expect(dialog(page)).toContainText("You are offline.");
       await dialog(page).getByRole("button", { name: "Make a copy" }).click();
       await expect(page).toHaveURL(/\/library\/workflows\/[0-9a-f-]{36}$/);
       expect(seen.workflowKeys).toHaveLength(2);
