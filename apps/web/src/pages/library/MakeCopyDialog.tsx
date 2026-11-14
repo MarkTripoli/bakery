@@ -129,6 +129,9 @@ export function MakeCopyDialog(
           <UI.Field
             label={translate("library.copy.name" as never)}
             htmlFor="workflow-copy-name"
+            hint={made !== null
+              ? translate("library.copy.locked" as never)
+              : undefined}
             required
             error={tried && empty
               ? translate("library.copy.empty" as never)
@@ -175,7 +178,11 @@ export function MakeCopyDialog(
               variant="primary"
               disabled={copy.isPending}
             >
-              {translate("library.copy.submit" as never)}
+              {translate(
+                (made !== null
+                  ? "library.copy.retry"
+                  : "library.copy.submit") as never,
+              )}
             </UI.Button>
           </UI.Inline>
         </UI.Stack>

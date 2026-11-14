@@ -72,6 +72,8 @@ for (
           name: /Make a copy/,
         }),
       ).toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await shot(page, "library-built-in-rows");
     });
 
     test("a member sees the built-in rows without Make a copy", async ({ page }) => {
@@ -117,10 +119,12 @@ for (
         "/library/built-in/fixed-coding",
       );
       await expect(page.getByTestId("builtin-workflow-page")).toContainText(
-        "Only organization administrators can change workflows and agents.",
+        "Built-in workflows cannot be changed. An organization administrator can make a copy to edit.",
       );
       await expect(page.getByRole("button", { name: "Make a copy" }))
         .toHaveCount(0);
+      await page.mouse.move(700, 700);
+      await shot(page, "builtin-page-member");
     });
 
     test("a built-in workflow that is not there says so and leads back to the library", async ({ page }) => {
@@ -234,12 +238,19 @@ for (
       await page.getByRole("button", { name: "Make a copy" }).click();
       await dialog(page).getByRole("button", { name: "Make a copy" }).click();
       await expect(dialog(page)).toContainText(
-        "The copy Fixed coding (copy) was made, but its steps could not be added. Try again.",
+        "The copy Fixed coding (copy) was made, but its steps could not be added. It is in Library as a draft with no steps.",
       );
       expect(seen.created).toHaveLength(1);
+      // The name is locked and says why; the button says what it will do.
+      await expect(dialog(page).getByLabel("Name")).toBeDisabled();
+      await expect(dialog(page)).toContainText(
+        "The copy already has this name.",
+      );
+      await expect(dialog(page).getByRole("button", { name: "Make a copy" }))
+        .toHaveCount(0);
       await page.mouse.move(700, 700);
       await shot(page, "copy-steps-failed", [], { windowOnly: true });
-      await dialog(page).getByRole("button", { name: "Make a copy" }).click();
+      await dialog(page).getByRole("button", { name: "Try again" }).click();
       await expect(page).toHaveURL(/\/library\/workflows\/[0-9a-f-]{36}$/);
       // One workflow, two attempts at its steps.
       expect(seen.created).toHaveLength(1);
@@ -251,6 +262,8 @@ for (
       const seen = await open(page, WORLD, `/library/workflows/${OWN.id}`);
       await page.getByRole("button", { name: "More actions for Release train" })
         .click();
+      await page.mouse.move(700, 700);
+      await shot(page, "workflow-menu-with-copy", [], { windowOnly: true });
       await page.locator(".ui-popover__content").getByRole("button", {
         name: "Make a copy",
       }).click();
