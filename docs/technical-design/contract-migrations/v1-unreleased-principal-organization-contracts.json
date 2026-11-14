@@ -1,13 +1,22 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "752daef1429173ec613fac0d76d7e3e225671bb4"
+    "484936723f13c3ecd5db8ea1f07fb8884e777b07"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:139ea14b6964c5354840656bfacffc5447fff97615cb711676b40fc299f972d9",
-  "reason": "#36 contract re-bind by dev-workflows on 2026-11-14 under owner's standing breaking-change authorization (2026-10-09), main 752daef1429173ec613fac0d76d7e3e225671bb4: AutomationFiring gains required pending and skippedCount (the design's safe projection of a scheduling outcome); the automation catalog entries declare their organization context and the errors that context implies, as the workflow ones do.",
+  "targetCompatibilityDigest": "sha256:dbe1889d84e59edf1f69da64749e7b604addfe93ea97413c1d34dc40bf167231",
+  "reason": "Pre-release breaking change approved against main 484936723f13c3ecd5db8ea1f07fb8884e777b07: AutomationVersionCreate requires applicationId and adds repositoryId, budgetLimitUsd and brief; AutomationVersion and AutomationFiring project the target and failureCode; firing started/failed events (issue #36, automations start a task and a run).",
   "priorApprovals": [
+    {
+      "allowBreaking": true,
+      "fromBaseRefs": [
+        "752daef1429173ec613fac0d76d7e3e225671bb4"
+      ],
+      "reason": "#36 contract re-bind by dev-workflows on 2026-11-14 under owner's standing breaking-change authorization (2026-10-09), main 752daef1429173ec613fac0d76d7e3e225671bb4: AutomationFiring gains required pending and skippedCount (the design's safe projection of a scheduling outcome); the automation catalog entries declare their organization context and the errors that context implies, as the workflow ones do.",
+      "status": "approved",
+      "targetCompatibilityDigest": "sha256:139ea14b6964c5354840656bfacffc5447fff97615cb711676b40fc299f972d9"
+    },
     {
       "allowBreaking": true,
       "fromBaseRefs": [

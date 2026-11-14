@@ -24,6 +24,7 @@ import {
   postgresErrorCode,
 } from "../../../platform/postgres-errors.ts";
 import { canonicalJson, sha256Hex } from "../../../platform/canonical-json.ts";
+import { validateBudgetLimitUsd } from "../../work/run-command.ts";
 import { requireWorkTransaction } from "../../work/work-transaction.ts";
 import { nextOccurrence, parseCron } from "./schedule.ts";
 import {
@@ -62,6 +63,10 @@ type VersionRow = {
   workflow_version_id: string;
   actor_id: string;
   inputs: unknown;
+  application_id: string | null;
+  repository_id: string | null;
+  budget_limit_usd: string;
+  brief: string | null;
   misfire_policy: string;
   overlap_policy: string;
   digest: string;
@@ -79,6 +84,7 @@ type FiringRow = {
   pending: boolean;
   skipped_count: number;
   run_id: string | null;
+  failure_code: string | null;
   created_at: Date | string;
   updated_at: Date | string;
   version: number;
@@ -95,6 +101,10 @@ type VersionCreateInput = {
   trigger: JsonValue;
   workflowVersionId: string;
   inputs: JsonValue;
+  applicationId: string;
+  repositoryId?: string | null;
+  budgetLimitUsd?: string;
+  brief?: string;
   misfirePolicy: "coalesce" | "skip";
   overlapPolicy: "skip" | "queue_one";
 };
@@ -144,6 +154,10 @@ export function toAutomationVersion(row: VersionRow) {
     workflowVersionId: row.workflow_version_id,
     actorId: row.actor_id,
     inputs: jsonValue(row.inputs, "AUTOMATION_VERSION_INPUTS"),
+    applicationId: row.application_id,
+    repositoryId: row.repository_id,
+    budgetLimitUsd: row.budget_limit_usd,
+    brief: row.brief,
     misfirePolicy: row.misfire_policy as "coalesce" | "skip",
     overlapPolicy: row.overlap_policy as "skip" | "queue_one",
     digest: row.digest,
@@ -166,6 +180,7 @@ export function toAutomationFiring(row: FiringRow) {
     version: row.version,
     pending: row.pending,
     skippedCount: row.skipped_count,
+    failureCode: row.failure_code,
   };
 }
 
@@ -186,7 +201,7 @@ async function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
 }
 
 /** Audit and event facts carry ids and versions only, never definition text. */
-async function appendFacts(
+export async function appendFacts(
   transaction: PgTransactionClient,
   options: {
     organizationId: string;
@@ -451,7 +466,7 @@ export async function updateAutomation(context: ActionContext, input: unknown) {
 }
 
 const VERSION_COLUMNS =
-  "id, automation_id, revision, trigger, workflow_version_id, actor_id, inputs, misfire_policy, overlap_policy, digest, created_at, updated_at, version";
+  "id, automation_id, revision, trigger, workflow_version_id, actor_id, inputs, application_id, repository_id, budget_limit_usd::text as budget_limit_usd, brief, misfire_policy, overlap_policy, digest, created_at, updated_at, version";
 
 export function createAutomationVersionsListHandler(secret: string) {
   return async (context: ActionContext, input: unknown) => {
@@ -501,6 +516,53 @@ export function createAutomationVersionsListHandler(secret: string) {
   };
 }
 
+/**
+ * What each run of an automation version is made for, checked in the caller's
+ * organization: the application, the repository (which must belong to that
+ * application), a budget and an optional brief. The budget is held in one
+ * form, so equal configurations have equal digests.
+ */
+async function validatedTarget(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  value: VersionCreateInput,
+): Promise<{
+  applicationId: string;
+  repositoryId: string | null;
+  budgetLimitUsd: string;
+  brief: string | null;
+}> {
+  const budgetLimitUsd = String(
+    Number(validateBudgetLimitUsd(value.budgetLimitUsd)),
+  );
+  const application = await transaction.query(
+    `select 1 from bakery.applications where organization_id = $1 and id = $2`,
+    [organizationId, value.applicationId],
+  );
+  if (application.rows.length !== 1) {
+    throw unprocessable(["applicationId"], "application_not_found");
+  }
+  const repositoryId = value.repositoryId ?? null;
+  if (repositoryId !== null) {
+    const repository = await transaction.query<{ application_id: string }>(
+      `select application_id from bakery.repositories
+        where organization_id = $1 and id = $2`,
+      [organizationId, repositoryId],
+    );
+    const found = repository.rows[0];
+    if (!found) throw unprocessable(["repositoryId"], "repository_not_found");
+    if (found.application_id !== value.applicationId) {
+      throw unprocessable(["repositoryId"], "repository_not_in_application");
+    }
+  }
+  return {
+    applicationId: value.applicationId,
+    repositoryId,
+    budgetLimitUsd,
+    brief: value.brief ?? null,
+  };
+}
+
 export async function createAutomationVersion(
   context: ActionContext,
   input: unknown,
@@ -544,6 +606,7 @@ export async function createAutomationVersion(
       "workflow_version_not_published",
     );
   }
+  const target = await validatedTarget(transaction, organizationId, value);
   const highest = await transaction.query<{ revision: number | null }>(
     `select max(revision) as revision from bakery.automation_versions
       where organization_id = $1 and automation_id = $2`,
@@ -554,6 +617,10 @@ export async function createAutomationVersion(
     trigger,
     workflowVersionId: value.workflowVersionId,
     inputs: value.inputs,
+    applicationId: target.applicationId,
+    repositoryId: target.repositoryId,
+    budgetLimitUsd: target.budgetLimitUsd,
+    brief: target.brief,
     misfirePolicy: value.misfirePolicy,
     overlapPolicy: value.overlapPolicy,
   }));
@@ -562,9 +629,12 @@ export async function createAutomationVersion(
     transaction.query<VersionRow>(
       `insert into bakery.automation_versions (
          id, organization_id, automation_id, revision, trigger,
-         workflow_version_id, actor_id, inputs, misfire_policy,
-         overlap_policy, digest
-       ) values ($1, $2, $3, $4, $5::jsonb, $6, $7, $8::jsonb, $9, $10, $11)
+         workflow_version_id, actor_id, inputs, application_id, repository_id,
+         budget_limit_usd, brief, misfire_policy, overlap_policy, digest
+       ) values (
+         $1, $2, $3, $4, $5::jsonb, $6, $7, $8::jsonb, $9, $10, $11::numeric,
+         $12, $13, $14, $15
+       )
        returning ${VERSION_COLUMNS}`,
       [
         id,
@@ -575,6 +645,10 @@ export async function createAutomationVersion(
         value.workflowVersionId,
         principalId,
         JSON.stringify(value.inputs),
+        target.applicationId,
+        target.repositoryId,
+        target.budgetLimitUsd,
+        target.brief,
         value.misfirePolicy,
         value.overlapPolicy,
         digest,
@@ -599,7 +673,8 @@ export async function createAutomationVersion(
 
 const FIRING_COLUMNS =
   `f.id, f.automation_version_id, f.scheduled_at, f.trigger_event_id, f.status,
-   f.pending, f.skipped_count, f.run_id, f.created_at, f.updated_at, f.version`;
+   f.pending, f.skipped_count, f.run_id, f.failure_code, f.created_at,
+   f.updated_at, f.version`;
 
 export function createAutomationFiringsListHandler(secret: string) {
   return async (context: ActionContext, input: unknown) => {

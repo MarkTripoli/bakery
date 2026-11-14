@@ -246,6 +246,27 @@ async function deleteWorkerOrganization(
       where organization_id = any($1::uuid[])`,
     [organizationIds],
   );
+  // Automations point at workflow versions, and their firings at runs.
+  await pgDatabase.query(
+    `delete from bakery.automation_firings
+      where organization_id = any($1::uuid[])`,
+    [organizationIds],
+  );
+  await pgDatabase.query(
+    `update bakery.automation_definitions set active_version_id = null
+      where organization_id = any($1::uuid[])`,
+    [organizationIds],
+  );
+  await pgDatabase.query(
+    `delete from bakery.automation_versions
+      where organization_id = any($1::uuid[])`,
+    [organizationIds],
+  );
+  await pgDatabase.query(
+    `delete from bakery.automation_definitions
+      where organization_id = any($1::uuid[])`,
+    [organizationIds],
+  );
   await pgDatabase.query(
     `delete from bakery.run_steps
       where organization_id = any($1::uuid[])`,
