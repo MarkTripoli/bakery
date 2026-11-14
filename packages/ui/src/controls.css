@@ -106,6 +106,15 @@ input:not([type="hidden"]) {
   cursor: not-allowed;
   opacity: .55;
 }
+/* The primary fill is the light colour in the dark theme, so a disabled primary
+   button faded to 55% was still the brightest thing on the page. There it takes
+   the subtle surface with the disabled ink instead, and no fade. */
+[data-theme="dark"] .ui-button--primary:disabled {
+  background: var(--color-surface-subtle);
+  border-color: var(--color-border);
+  color: var(--color-fg-disabled);
+  opacity: 1;
+}
 .ui-link {
   color: var(--color-selection);
   text-underline-offset: var(--underline-offset); /* auth.css:8 a{text-underline-offset:3px} */
