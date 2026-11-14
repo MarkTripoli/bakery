@@ -5113,6 +5113,13 @@
       "frames": []
     },
     {
+      "routeId": "machine-new",
+      "path": "/machines/new",
+      "status": "no-mock",
+      "rationale": "The add-a-machine wizard (#70): three steps (name and system, coding agent, install) that create one setup and then wait for the machine to connect. Its design is the UX design on #70 (design-ux, 2026-11-12 and 2026-11-13) and the Paper worker-readiness K-0 manifest has no wizard frame, so none is invented. Organization-scoped API data and a setup code shown once make it real-API only; it is not scored against synthetic records.",
+      "frames": []
+    },
+    {
       "routeId": "machine-detail",
       "path": "/machines/$machineId",
       "status": "no-mock",
