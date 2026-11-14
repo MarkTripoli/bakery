@@ -90,19 +90,43 @@ for (
       await expect(page.getByText("In use").first()).toBeVisible();
       const steps = page.getByTestId("workflow-steps");
       await expect(steps).toContainText("Steps in version 3");
+      // Steps are named by what they do, never by their id or action key.
+      await expect(steps.locator("[data-step-id=brief]")).toContainText(
+        "Write the task brief",
+      );
       await expect(steps.locator("[data-step-id=implement]")).toContainText(
-        "harness.implement",
+        "Run the coding agent",
       );
       await expect(steps.locator("[data-step-id=implement]")).toContainText(
         "Agent: Code writer, version 2",
       );
       await expect(steps.locator("[data-step-id=review]")).toContainText(
-        "agent.review",
+        "Review the changes",
       );
-      await expect(steps).toContainText(
+      await expect(steps).not.toContainText("harness.implement");
+      await expect(steps).not.toContainText("task.brief");
+      await expect(page.getByRole("list", { name: "Steps" }))
+        .toBeVisible();
+      const versions = page.getByTestId("workflow-versions");
+      // The sentence about versions never changing belongs to Versions.
+      await expect(versions).toContainText(
         "A version never changes after it is published. Tasks keep the version they started with.",
       );
-      const versions = page.getByTestId("workflow-versions");
+      await expect(steps).not.toContainText("never changes");
+      // Every version has its badge; dates say what happened.
+      await expect(versionRow(page, 2)).toContainText("Published");
+      await expect(versionRow(page, 1)).toContainText("Retired");
+      await expect(versionRow(page, 4)).toContainText("Changed");
+      await expect(versionRow(page, 3)).toContainText("Created");
+      // The state badge sits directly under the description.
+      const description = (await page.getByText("Release train does its work.")
+        .first().boundingBox())!;
+      const badge = (await page.getByTestId("workflow-page")
+        .getByText("In use", { exact: true }).first().boundingBox())!;
+      expect(badge.y).toBeGreaterThanOrEqual(
+        description.y + description.height - 1,
+      );
+      expect(badge.y - (description.y + description.height)).toBeLessThan(24);
       // Newest first: 4 (draft), 3 (in use), 2, 1 (retired).
       await expect(versions.locator("[data-version-id]")).toHaveCount(4);
       await expect(versionRow(page, 4)).toHaveAttribute(
@@ -130,13 +154,30 @@ for (
 
     test("View shows another version's steps and agents", async ({ page }) => {
       await open(page);
-      await page.getByRole("button", { name: "View version 2" }).click();
+      await page.getByRole("link", { name: "View version 2" }).click();
       const steps = page.getByTestId("workflow-steps");
       await expect(steps).toContainText("Steps in version 2");
       await expect(steps.locator("[data-step-id=implement]")).toContainText(
         "Agent: Code writer, version 1",
       );
       await expect(steps.locator("[data-step-id=review]")).toHaveCount(0);
+      // The version being shown is the address, and says so instead of View.
+      await expect(page).toHaveURL(new RegExp(`\\?version=${uuid(1002)}$`));
+      await expect(versionRow(page, 2)).toContainText("Shown above");
+      await expect(page.getByRole("link", { name: "View version 2" }))
+        .toHaveCount(0);
+      await expect(page.getByRole("link", { name: "View version 3" }))
+        .toBeVisible();
+    });
+
+    test("an address with ?version= opens that version", async ({ page }) => {
+      await libraryFixture(page, WORLD);
+      await page.goto(
+        `/library/workflows/${WORKFLOW.id}?version=${uuid(1002)}`,
+      );
+      await expect(page.getByTestId("workflow-steps")).toContainText(
+        "Steps in version 2",
+      );
     });
 
     test("Use this version asks first, says what happens to running tasks, then sends the version with the one it saw", async ({ page }) => {
@@ -180,6 +221,8 @@ for (
       await expect(dialog.getByText(
         "Someone else changed this just now. The latest version is shown.",
       )).toBeVisible();
+      await page.mouse.move(700, 700);
+      await shot(page, "workflow-conflict", [], { windowOnly: true });
       expect(seen.activations).toHaveLength(1);
       await expect(versionRow(page, 3)).toHaveAttribute(
         "data-version-state",
@@ -190,6 +233,10 @@ for (
     test("Turn off asks first and says what it does; Turn on is direct; both send the version they saw", async ({ page }) => {
       const seen = await open(page);
       await more(page).click();
+      await expect(page.getByRole("button", { name: "Turn off", exact: true }))
+        .toBeVisible();
+      await page.mouse.move(700, 700);
+      await shot(page, "workflow-menu", [], { windowOnly: true });
       await page.getByRole("button", { name: "Turn off", exact: true })
         .click();
       // The menu closed behind the dialog.
@@ -197,6 +244,8 @@ for (
         .toHaveCount(0);
       const dialog = page.getByRole("alertdialog");
       await expect(dialog).toContainText("Turn off Release train?");
+      await page.mouse.move(700, 700);
+      await shot(page, "workflow-turn-off", [], { windowOnly: true });
       await expect(dialog).toContainText(
         "It can no longer be chosen for new tasks. Tasks already running finish. You can turn it on again.",
       );
@@ -237,6 +286,8 @@ for (
       await page.getByRole("button", { name: "Rename", exact: true }).click();
       const dialog = page.getByRole("dialog", { name: "Rename workflow" });
       await dialog.getByLabel(/^Name\b/).fill("Release pipeline");
+      await page.mouse.move(700, 700);
+      await shot(page, "workflow-rename", [], { windowOnly: true });
       await dialog.getByRole("button", { name: "Rename" }).click();
       await expect.poll(() => seen.updates.length).toBe(1);
       expect(seen.updates[0]).toMatchObject({
@@ -272,6 +323,8 @@ for (
       await expect(page.getByText(
         "No version is in use, so this workflow cannot be chosen for new tasks.",
       )).toBeVisible();
+      await page.mouse.move(700, 700);
+      await shot(page, "workflow-none-in-use");
       await page.getByRole("button", { name: "Use version 3" }).first()
         .click();
       await page.getByRole("alertdialog").getByRole("button", {
@@ -286,6 +339,8 @@ for (
       await expect(page.getByText(
         "Only organization administrators can change workflows and agents.",
       )).toBeVisible();
+      await page.mouse.move(700, 700);
+      await shot(page, "workflow-member");
       await expect(page.getByRole("button", { name: "Use this version" }))
         .toHaveCount(0);
       await more(page).click();
@@ -317,8 +372,67 @@ for (
         name: "All versions of Release train",
       });
       await expect(sheet.locator("[data-version-id]")).toHaveCount(11);
+      await page.mouse.move(700, 700);
+      await shot(page, "workflow-show-all", [], { windowOnly: true });
       await expect(sheet.getByRole("button", { name: "Export" }).first())
         .toBeVisible();
+    });
+
+    test("while the agents are read the step shows no agent line, then the agent; when the read fails it says it could not be read", async ({ page }) => {
+      const seen = await libraryFixture(page, { ...WORLD, agentReads: "hold" });
+      await page.goto(`/library/workflows/${WORKFLOW.id}`);
+      const implement = page.locator("[data-step-id=implement]");
+      await expect(implement).toContainText("Run the coding agent");
+      // Nothing is said about the agent until the reads have answered.
+      await expect(implement).not.toContainText("Agent:");
+      await expect(page.getByText("version not found")).toHaveCount(0);
+      seen.releaseAgents();
+      await expect(implement).toContainText("Agent: Code writer, version 2");
+    });
+
+    test("a failed agents read says the agent could not be read, not that its version is missing", async ({ page }) => {
+      await libraryFixture(page, { ...WORLD, agentReads: "fail" });
+      await page.goto(`/library/workflows/${WORKFLOW.id}`);
+      await expect(page.locator("[data-step-id=implement]")).toContainText(
+        "Agent: could not be read",
+      );
+      await expect(page.getByText("version not found")).toHaveCount(0);
+      // The rest of the page works.
+      await expect(page.getByTestId("workflow-versions")).toContainText(
+        "Version 3",
+      );
+    });
+
+    test("an agent version that is truly missing says so once the reads have answered", async ({ page }) => {
+      await libraryFixture(page, { ...WORLD, agentVersions: [] });
+      await page.goto(`/library/workflows/${WORKFLOW.id}`);
+      await expect(page.locator("[data-step-id=implement]")).toContainText(
+        "Agent: version not found",
+      );
+    });
+
+    test("a version list cut short says so on the card and in Show all", async ({ page }) => {
+      await libraryFixture(page, { ...WORLD, endlessVersions: true });
+      await page.goto(`/library/workflows/${WORKFLOW.id}`);
+      const versions = page.getByTestId("workflow-versions");
+      await expect(
+        versions.getByText("Only the newest 500 versions are shown."),
+      )
+        .toBeVisible();
+      // Five pages of two versions are read; Show all counts what was read.
+      await page.getByRole("button", { name: /^Show all 10/ }).click();
+      const sheet = page.getByRole("dialog", {
+        name: "All versions of Release train",
+      });
+      await expect(sheet.getByText("Only the newest 500 versions are shown."))
+        .toBeVisible();
+      await expect(sheet.locator("[data-version-id]")).toHaveCount(10);
+    });
+
+    test("a version list that ends early has no cut-short warning", async ({ page }) => {
+      await open(page);
+      await expect(page.getByText("Only the newest 500 versions are shown."))
+        .toHaveCount(0);
     });
 
     test("a workflow that is not there says so and leads back to the library", async ({ page }) => {

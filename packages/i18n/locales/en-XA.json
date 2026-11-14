@@ -3345,8 +3345,6 @@
   "library.workflow.versions.retired": "⟦Ŕëŧïŕëð…⟧",
   "library.workflow.versions.published": "⟦Þûƀļïšĥëð ŧ⟧",
   "library.workflow.versions.row": "⟦Ṽëŕšïôñ {version} ŧëš⟧",
-  "library.workflow.versions.date": "⟦{date}…⟧",
-  "library.workflow.versions.viewing": "⟦Ṽïëŵïñĝ…⟧",
   "library.workflow.versions.view": "⟦Ṽïëŵ⟧",
   "library.workflow.versions.viewNamed": "⟦Ṽïëŵ ṽëŕšïôñ {version} ŧëšŧŧ⟧",
   "library.workflow.versions.use": "⟦Ûšë ŧĥïš ṽëŕšïôñ ŧëš⟧",
@@ -3372,5 +3370,15 @@
   "library.workflow.offline": "⟦Ÿôû àŕë ôƒƒļïñë. ŧëš⟧",
   "library.workflow.moreAbout": "⟦ àçŧïôñš ƒôŕ {name} ŧëšŧ⟧",
   "library.column.details": "⟦Ðëŧàïļš…⟧",
-  "library.column.action": "⟦Àçŧïôñ…⟧"
+  "library.column.action": "⟦Àçŧïôñ…⟧",
+  "library.workflow.steps.label": "⟦Šŧëþš⟧",
+  "library.workflow.steps.number": "⟦Šŧëþ {n}…⟧",
+  "library.workflow.action.taskBrief": "⟦Ŵŕïŧë ŧĥë ŧàšķ ƀŕïëƒ ŧëšŧ⟧",
+  "library.workflow.action.harnessImplement": "⟦Ŕûñ ŧĥë çôðïñĝ àĝëñŧ ŧëšŧ⟧",
+  "library.workflow.action.agentReview": "⟦Ŕëṽïëŵ ŧĥë çĥàñĝëš ŧëšŧ⟧",
+  "library.workflow.versions.shown": "⟦Šĥôŵñ àƀôṽë ŧ⟧",
+  "library.workflow.versions.created": "⟦Çŕëàŧëð {date} ŧë⟧",
+  "library.workflow.versions.changed": "⟦Çĥàñĝëð {date} ŧë⟧",
+  "library.workflow.steps.agentUnreadable": "⟦Àĝëñŧ: çôûļð ñôŧ ƀë ŕëàð ŧëšŧ ç⟧",
+  "library.workflow.versions.truncated": "⟦Ôñļÿ ŧĥë ñëŵëšŧ 500 ṽëŕšïôñš àŕë šĥôŵñ. ŧëšŧ çôþÿ ŧ⟧"
 }

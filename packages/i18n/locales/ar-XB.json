@@ -3345,8 +3345,6 @@
   "library.workflow.versions.retired": "⟪Retired⟫",
   "library.workflow.versions.published": "⟪Published⟫",
   "library.workflow.versions.row": "⟪Version {version}⟫",
-  "library.workflow.versions.date": "⟪{date}⟫",
-  "library.workflow.versions.viewing": "⟪Viewing⟫",
   "library.workflow.versions.view": "⟪View⟫",
   "library.workflow.versions.viewNamed": "⟪View version {version}⟫",
   "library.workflow.versions.use": "⟪Use this version⟫",
@@ -3372,5 +3370,15 @@
   "library.workflow.offline": "⟪You are offline.⟫",
   "library.workflow.moreAbout": "⟪ actions for {name}⟫",
   "library.column.details": "⟪Details⟫",
-  "library.column.action": "⟪Action⟫"
+  "library.column.action": "⟪Action⟫",
+  "library.workflow.steps.label": "⟪Steps⟫",
+  "library.workflow.steps.number": "⟪Step {n}⟫",
+  "library.workflow.action.taskBrief": "⟪Write the task brief⟫",
+  "library.workflow.action.harnessImplement": "⟪Run the coding agent⟫",
+  "library.workflow.action.agentReview": "⟪Review the changes⟫",
+  "library.workflow.versions.shown": "⟪Shown above⟫",
+  "library.workflow.versions.created": "⟪Created {date}⟫",
+  "library.workflow.versions.changed": "⟪Changed {date}⟫",
+  "library.workflow.steps.agentUnreadable": "⟪Agent: could not be read⟫",
+  "library.workflow.versions.truncated": "⟪Only the newest 500 versions are shown.⟫"
 }

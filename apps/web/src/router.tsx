@@ -1031,6 +1031,11 @@ const libraryRoute = createRoute({
 const workflowRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/library/workflows/$workflowId",
+  // `?version=` is the version being viewed.
+  validateSearch: (search: Record<string, unknown>): { version?: string } =>
+    typeof search.version === "string" && isUuid(search.version)
+      ? { version: search.version }
+      : {},
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => (

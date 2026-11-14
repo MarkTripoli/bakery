@@ -1860,7 +1860,10 @@ export function workflowVersionsQueryOptions(
   scope: ApiScope,
   workflowId: string,
 ) {
-  return queryOptions<WorkflowVersionResponse[], ApiFailure>({
+  return queryOptions<
+    { items: WorkflowVersionResponse[]; truncated: boolean },
+    ApiFailure
+  >({
     queryKey: protectedQueryKey(scope, "library.workflowVersions", {
       workflowId,
     }),
@@ -1878,23 +1881,27 @@ export function workflowVersionsQueryOptions(
           }),
         );
         items.push(...read.items);
-        if (read.nextCursor === null) return items;
+        if (read.nextCursor === null) return { items, truncated: false };
         cursor = read.nextCursor;
       }
-      return items;
+      // The server lists newest first, so a cut-short list lacks the oldest.
+      return { items, truncated: true };
     },
     enabled: Boolean(scope.organizationId),
     retry: retryNetworkOnce,
   });
 }
 
-/** Every version of one agent (a few pages at most). */
+/** Every version of one agent (a few pages at most), and whether the list was cut short. */
 export function agentVersionsQueryOptions(
   client: Pick<BakeryApiClient, "listAgentVersions">,
   scope: ApiScope,
   agentId: string,
 ) {
-  return queryOptions<AgentVersionResponse[], ApiFailure>({
+  return queryOptions<
+    { items: AgentVersionResponse[]; truncated: boolean },
+    ApiFailure
+  >({
     queryKey: protectedQueryKey(scope, "library.agentVersions", { agentId }),
     queryFn: async ({ signal }) => {
       const items: AgentVersionResponse[] = [];
@@ -1910,10 +1917,10 @@ export function agentVersionsQueryOptions(
           }),
         );
         items.push(...read.items);
-        if (read.nextCursor === null) return items;
+        if (read.nextCursor === null) return { items, truncated: false };
         cursor = read.nextCursor;
       }
-      return items;
+      return { items, truncated: true };
     },
     enabled: Boolean(scope.organizationId),
     retry: retryNetworkOnce,

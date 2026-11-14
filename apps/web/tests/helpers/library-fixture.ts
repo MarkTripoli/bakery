@@ -52,6 +52,10 @@ export type Options = {
   agents?: Definition[];
   versions?: VersionRow[];
   agentVersions?: AgentVersionRow[];
+  /** The agents and their versions are read slowly (until `seen.releaseAgents()`) or fail. */
+  agentReads?: "hold" | "fail";
+  /** Every workflow versions page says there is another, two versions to a page. */
+  endlessVersions?: boolean;
   /** A change that answers 409 (someone else got there first). */
   conflict?: "activate" | "update";
   /** A read that answers 500 INTERNAL_ERROR, or 403 AUTH_FORBIDDEN. */
@@ -128,8 +132,14 @@ export async function libraryFixture(page: Page, options: Options = {}) {
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
+  let releaseAgents: () => void = () => {};
+  const agentsHeld = new Promise<void>((resolve) => {
+    releaseAgents = resolve;
+  });
+  let versionPages = 0;
   const seen = {
     release: () => release(),
+    releaseAgents: () => releaseAgents(),
     activations: [] as {
       id: string;
       ifMatch: string | null;
@@ -214,6 +224,22 @@ export async function libraryFixture(page: Page, options: Options = {}) {
     (url) => /^\/v1\/workflows\/[^/]+\/versions$/.test(url.pathname),
     (route) => {
       const id = new URL(route.request().url()).pathname.split("/")[3] ?? "";
+      if (options.endlessVersions) {
+        versionPages += 1;
+        const base = 100 * versionPages;
+        return route.fulfill(json({
+          items: [base + 1, base + 2].map((revision) =>
+            versionBody({
+              id: uuid(5000 + revision),
+              workflowId: id,
+              revision,
+              status: "published",
+              steps: [{ id: "brief", uses: "task.brief" }],
+            })
+          ),
+          nextCursor: `more-${versionPages}`,
+        }));
+      }
       return route.fulfill(json({
         items: versions.filter((row) => row.workflowId === id).map(versionBody),
         nextCursor: null,
@@ -261,8 +287,12 @@ export async function libraryFixture(page: Page, options: Options = {}) {
   );
   await page.route(
     (url) => url.pathname === "/v1/agents",
-    (route) => {
+    async (route) => {
       seen.agentReads += 1;
+      if (options.agentReads === "fail") {
+        return route.fulfill(problem(500, "INTERNAL_ERROR"));
+      }
+      if (options.agentReads === "hold") await agentsHeld;
       return answer("agents", (options.agents ?? []).map(body))(route);
     },
   );

@@ -5,7 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import type {
   AgentVersionResponse,
@@ -42,6 +42,13 @@ import {
   stepsOf,
   versionState,
 } from "./library/workflow-state.ts";
+
+/** The sentences for the actions a definition's steps run most. */
+const ACTION_TITLES: Readonly<Record<string, string>> = {
+  "task.brief": "library.workflow.action.taskBrief",
+  "harness.implement": "library.workflow.action.harnessImplement",
+  "agent.review": "library.workflow.action.agentReview",
+};
 
 /** How many versions the Versions card lists before "Show all". */
 const CARD_VERSIONS = 5;
@@ -90,7 +97,16 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
       agentVersionsQueryOptions(api, scope, agent.id)
     ),
   });
-  const [viewing, setViewing] = useState<string | null>(null);
+  // The version being viewed is the page's address, so it can be shared.
+  const viewing = (useSearch({ strict: false }) as { version?: string })
+    .version ?? null;
+  const setViewing = (versionId: string) =>
+    void navigate({
+      to: "/library/workflows/$workflowId",
+      params: { workflowId },
+      search: { version: versionId },
+      replace: true,
+    });
   const [dialog, setDialog] = useState<Dialog>(null);
   const [failure, setFailure] = useState<Failure>(null);
   const [name, setName] = useState("");
@@ -102,6 +118,11 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
     new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone }).format(
       new Date(value),
     );
+  // A step is named by what it does; an action without a sentence shows its key.
+  const stepTitle = (uses: string) => {
+    const key = ACTION_TITLES[uses];
+    return key === undefined ? uses : translate(key as never);
+  };
   const refresh = () =>
     void queryClient.invalidateQueries({ queryKey: ["protected"] });
   const organizationId = scope.organizationId as string;
@@ -182,17 +203,28 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
   const loading = loadFailure === undefined &&
     (workflow.isPending || versions.isPending);
   const current = workflow.data;
-  const all = newestFirst(versions.data ?? []);
+  const all = newestFirst(versions.data?.items ?? []);
+  const versionsTruncated = versions.data?.truncated === true;
   const activeId = current?.activeVersionId ?? null;
   const shown = all.find((version) => version.id === viewing) ??
     defaultVersion(all, activeId);
   const bindings = useMemo(() => {
     const byAgent = new Map<string, readonly AgentVersionResponse[]>();
     agentList.forEach((agent, index) => {
-      byAgent.set(agent.id, agentVersionReads[index]?.data ?? []);
+      byAgent.set(agent.id, agentVersionReads[index]?.data?.items ?? []);
     });
     return agentBindings(agentList, byAgent);
   }, [agentList, agentVersionReads]);
+  // What an agent line may say: nothing while the reads are in flight, that it
+  // could not be read when they failed (or were cut short), else the answer.
+  const agentReads: "pending" | "failed" | "ready" = agents.isError ||
+      agentVersionReads.some((read) =>
+        read.isError || read.data?.truncated === true
+      )
+    ? "failed"
+    : agents.isPending || agentVersionReads.some((read) => read.isPending)
+    ? "pending"
+    : "ready";
   const published = all.filter((version) => version.status === "published");
   const newestPublished = published[0] ?? null;
   const noneInUse = current !== undefined && current.enabled &&
@@ -241,7 +273,11 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
           {translate("library.workflow.versions.retired" as never)}
         </UI.Badge>
       )
-      : null;
+      : (
+        <UI.Badge tone="neutral">
+          {translate("library.workflow.versions.published" as never)}
+        </UI.Badge>
+      );
   };
 
   const versionRow = (version: WorkflowVersionResponse, sheet: boolean) => {
@@ -260,7 +296,15 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
           })}
           status={stateBadge(version)}
         >
-          <UI.Text variant="caption">{date(version.createdAt)}</UI.Text>
+          <UI.Text variant="caption">
+            {state === "draft"
+              ? translate("library.workflow.versions.changed" as never, {
+                date: date(version.updatedAt),
+              })
+              : translate("library.workflow.versions.created" as never, {
+                date: date(version.createdAt),
+              })}
+          </UI.Text>
           {sheet
             ? (
               <UI.Text variant="caption">
@@ -283,24 +327,28 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
               )
               : null}
             {sheet || state !== "retired"
-              ? (
-                <UI.Button
-                  variant="quiet"
-                  aria-pressed={isShown}
-                  aria-label={translate(
-                    "library.workflow.versions.viewNamed" as never,
-                    { version: version.revision },
-                  )}
-                  onClick={() => {
-                    setViewing(version.id);
-                    if (sheet) close();
-                  }}
-                >
-                  {isShown
-                    ? translate("library.workflow.versions.viewing" as never)
-                    : translate("library.workflow.versions.view" as never)}
-                </UI.Button>
-              )
+              ? isShown
+                ? (
+                  <UI.Text variant="muted">
+                    {translate("library.workflow.versions.shown" as never)}
+                  </UI.Text>
+                )
+                : (
+                  <UI.Link
+                    href={`/library/workflows/${workflowId}?version=${version.id}`}
+                    aria-label={translate(
+                      "library.workflow.versions.viewNamed" as never,
+                      { version: version.revision },
+                    )}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      setViewing(version.id);
+                      if (sheet) close();
+                    }}
+                  >
+                    {translate("library.workflow.versions.view" as never)}
+                  </UI.Link>
+                )
               : null}
             {sheet
               ? (
@@ -527,11 +575,17 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
           variant="list"
           flush
           title={current.name}
-          subtitle={current.description ?? undefined}
+          subtitle={
+            <UI.Stack gap="compact">
+              {current.description !== null && current.description !== ""
+                ? <UI.Text variant="muted">{current.description}</UI.Text>
+                : null}
+              <UI.Inline gap="compact">{badge}</UI.Inline>
+            </UI.Stack>
+          }
           actions={phone ? moreMenu : null}
         />
         <UI.Stack gap="spacious">
-          <UI.Inline gap="compact">{badge}</UI.Inline>
           {!canManage
             ? (
               <UI.InlineNotice tone="information">
@@ -589,46 +643,59 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
                 </UI.Text>
               )
               : (
-                <UI.Stack gap="none" role="list">
-                  {steps.map((step) => {
-                    const binding = step.agentVersionId === null
+                <UI.StepList
+                  label={translate("library.workflow.steps.label" as never)}
+                >
+                  {steps.map((step, index) => {
+                    const binding = step.agentVersionId === null ||
+                        agentReads === "pending"
                       ? null
                       : bindings.get(step.agentVersionId) ?? undefined;
                     return (
-                      <div key={step.id} role="listitem" data-step-id={step.id}>
-                        <UI.StackedRow flush title={step.id}>
-                          <UI.Text variant="caption">{step.uses}</UI.Text>
-                          {binding === null ? null : (
-                            <UI.Text variant="caption">
-                              {binding === undefined
-                                ? translate(
-                                  "library.workflow.steps.agentUnknown" as never,
-                                )
-                                : translate(
-                                  "library.workflow.steps.agent" as never,
-                                  {
-                                    name: binding.agentName,
-                                    version: binding.revision,
-                                  },
-                                )}
-                            </UI.Text>
-                          )}
-                        </UI.StackedRow>
-                      </div>
+                      <UI.StepItem
+                        key={step.id}
+                        data-step-id={step.id}
+                        status="upcoming"
+                        statusLabel={translate(
+                          "library.workflow.steps.number" as never,
+                          { n: index + 1 },
+                        )}
+                        title={stepTitle(step.uses)}
+                        summary={binding === null ? undefined : (
+                          binding === undefined
+                            ? translate(
+                              (agentReads === "failed"
+                                ? "library.workflow.steps.agentUnreadable"
+                                : "library.workflow.steps.agentUnknown") as never,
+                            )
+                            : translate(
+                              "library.workflow.steps.agent" as never,
+                              {
+                                name: binding.agentName,
+                                version: binding.revision,
+                              },
+                            )
+                        )}
+                      />
                     );
                   })}
-                </UI.Stack>
+                </UI.StepList>
               )}
-            <UI.Text variant="caption">
-              {translate("library.workflow.steps.never" as never)}
-            </UI.Text>
           </UI.ListSection>
           <UI.ListSection
             flush
             data-testid="workflow-versions"
             title={translate("library.workflow.versions.title" as never)}
+            description={translate("library.workflow.steps.never" as never)}
             variant="list"
           >
+            {versionsTruncated
+              ? (
+                <UI.InlineNotice tone="warning">
+                  {translate("library.workflow.versions.truncated" as never)}
+                </UI.InlineNotice>
+              )
+              : null}
             {all.length === 0
               ? (
                 <UI.Text variant="muted">
@@ -824,6 +891,13 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
             })}
             variant="side"
           >
+            {versionsTruncated
+              ? (
+                <UI.InlineNotice tone="warning">
+                  {translate("library.workflow.versions.truncated" as never)}
+                </UI.InlineNotice>
+              )
+              : null}
             <UI.Stack gap="none" role="list">
               {all.map((version) => (
                 <div key={version.id} role="listitem">
