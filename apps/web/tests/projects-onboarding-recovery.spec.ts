@@ -78,9 +78,9 @@ test.describe("projects onboarding scope recovery", () => {
         });
       });
       await page.goto(path);
-      await expect(page.getByTestId("projects-scope-error")).toBeVisible();
+      await expect(page.getByTestId("startup-error")).toBeVisible();
       if (failure === "network") {
-        await expect(page.getByTestId("projects-scope-error")).toContainText(
+        await expect(page.getByTestId("startup-error")).toContainText(
           "You are offline",
         );
       }
@@ -93,24 +93,25 @@ test.describe("projects onboarding scope recovery", () => {
       // Restore the stated sole-membership fixture, not a replacement page.
       await page.unroute("**/v1/organizations");
       await mockAuthenticatedSession(page);
-      await page.getByRole("button", {
-        name: "Try loading onboarding again.",
-        exact: true,
-      }).click();
-      // The dev root runs StrictMode: each list mounts, aborts, then remounts,
-      // so recovery reads each list endpoint exactly twice and nothing else,
-      // and no further read follows once the page has settled.
-      await expect.poll(() => observed.protectedReads.length).toBe(4);
+      await page.getByRole("button", { name: "Try again", exact: true })
+        .click();
+      // The dev root runs StrictMode: each read mounts, aborts, then remounts,
+      // so recovery reads each endpoint exactly twice (the two lists, and the
+      // repository the address names) and nothing else, and no further read
+      // follows once the page has settled.
+      await expect.poll(() => observed.protectedReads.length).toBe(6);
       await page.waitForTimeout(500);
       expect([...observed.protectedReads].sort()).toEqual([
         "/v1/applications",
         "/v1/applications",
         "/v1/repositories",
         "/v1/repositories",
+        `/v1/repositories/${REPOSITORY}`,
+        `/v1/repositories/${REPOSITORY}`,
       ]);
-      await expect(page.getByTestId("projects-scope-error")).toHaveCount(0);
+      await expect(page.getByTestId("startup-error")).toHaveCount(0);
       expect(new URL(page.url()).search + new URL(page.url()).hash).toBe(
-        "?source=bookmark#repositories",
+        `?repository=${REPOSITORY}&source=bookmark#repositories`,
       );
       expect(await savedDestination(page)).toBeNull();
       expect(observed.errors).toEqual([]);
@@ -144,10 +145,10 @@ test.describe("projects onboarding scope recovery", () => {
       ]);
       await deny(page, status, code);
       await page.goto(path);
-      await expect(page.getByTestId("projects-scope-error")).toBeVisible();
+      await expect(page.getByTestId("startup-error")).toBeVisible();
       expect(observed.protectedReads).toEqual([]);
       expect(observed.errors).toEqual([]);
-      await page.getByTestId("projects-scope-error").getByRole("button", {
+      await page.getByTestId("startup-error").getByRole("button", {
         name: action,
         exact: true,
       }).click();
@@ -286,12 +287,12 @@ test.describe("projects onboarding scope recovery", () => {
       history.pushState({}, "", destination);
       dispatchEvent(new PopStateEvent("popstate"));
     }, replacement);
-    await expect(page.getByTestId("projects-scope-error")).toContainText(
+    await expect(page.getByTestId("startup-error")).toContainText(
       "Sign in required",
     );
     release();
     await page.waitForTimeout(300);
-    await expect(page.getByTestId("projects-scope-error")).toContainText(
+    await expect(page.getByTestId("startup-error")).toContainText(
       "Sign in required",
     );
     expect(await savedDestination(page)).toBeNull();
@@ -299,7 +300,7 @@ test.describe("projects onboarding scope recovery", () => {
       await page.evaluate((key) => localStorage.getItem(key), preferenceKey),
     ).toBeNull();
     expect(observed.protectedReads).toEqual([]);
-    await page.getByTestId("projects-scope-error").getByRole("button", {
+    await page.getByTestId("startup-error").getByRole("button", {
       name: "Sign in",
       exact: true,
     }).click();
