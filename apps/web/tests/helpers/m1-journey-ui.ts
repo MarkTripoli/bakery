@@ -39,7 +39,7 @@ export const planRegion = (page: Page) =>
   page.locator('[data-ui-region="plan-revision"]');
 export const approve = (page: Page, revision: number) =>
   page.getByRole("button", {
-    name: `Approve revision ${revision}`,
+    name: `Approve plan, version ${revision}`,
     exact: true,
   });
 export const startRunButton = (page: Page) =>

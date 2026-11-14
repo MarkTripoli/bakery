@@ -11,8 +11,8 @@ export const sectionIndexSpecimens: Readonly<
 > = {
   default: () => (
     <SettingsIndexScreen
-      displayName="Mark Tripoli"
-      email="me@marktripoli.com"
+      displayName="Alex Morgan"
+      email="alex.morgan@example.com"
       items={[
         {
           id: "profile",

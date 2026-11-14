@@ -94,7 +94,7 @@ const message = (page: Page) =>
 const send = (page: Page) =>
   page.getByRole("button", { name: "Send", exact: true });
 const approve = (page: Page, n: number) =>
-  page.getByRole("button", { name: `Approve revision ${n}`, exact: true });
+  page.getByRole("button", { name: `Approve plan, version ${n}`, exact: true });
 
 async function say(page: Page, intent: "Discuss" | "Ask agent", body: string) {
   await page.getByLabel(intent, { exact: true }).check({ force: true });
@@ -245,7 +245,7 @@ test(
 
     // ---- plan revision 1 with numbered steps -------------------------------
     const plan = page.locator('[data-ui-region="plan-revision"]');
-    await expect(plan).toContainText("Revision 1", { timeout: 60_000 });
+    await expect(plan).toContainText("Plan, version 1", { timeout: 60_000 });
     await expect(plan.getByRole("listitem")).toHaveCount(3);
     await expect(plan).toContainText("1. Select the repository");
     await expect(approve(page, 1)).toBeEnabled();
@@ -269,7 +269,7 @@ test(
       "Please give the retry action its own step.",
     );
     await page.getByRole("button", { name: "Send change request" }).click();
-    await expect(plan).toContainText("Revision 2", { timeout: 60_000 });
+    await expect(plan).toContainText("Plan, version 2", { timeout: 60_000 });
     await expect(plan.getByRole("listitem")).toHaveCount(4);
     await expect(page.getByRole("log").getByText("give the retry action"))
       .toBeVisible();
@@ -280,9 +280,11 @@ test(
     await approve(stale, 1).click();
     await expect(stale.getByText("Nothing was decided")).toBeVisible();
     await stale.unroute(planReads, blockPlanReads);
-    await expect(stale.getByText("Revision 1 is obsolete")).toBeVisible({
-      timeout: 30_000,
-    });
+    await expect(stale.getByText("Plan, version 1 is out of date")).toBeVisible(
+      {
+        timeout: 30_000,
+      },
+    );
     await expect(approve(stale, 2)).toBeVisible();
     await shot(stale, "05-obsolete-conflict");
     await stale.close();
@@ -299,7 +301,7 @@ test(
 
     // ---- reload continues the same durable conversation --------------------
     await page.reload();
-    await expect(plan).toContainText("Revision 2");
+    await expect(plan).toContainText("Plan, version 2");
     await expect(page.getByRole("log").getByText("Let's make onboarding"))
       .toBeVisible();
     await expect(page.getByText("I read the task.")).toBeVisible();
@@ -336,7 +338,7 @@ test(
 
     // ---- approve the exact revision, then the run starts -------------------
     await approve(page, 2).click();
-    await expect(page.getByText("You approved revision 2")).toBeVisible();
+    await expect(page.getByText("You approved plan, version 2")).toBeVisible();
     await expect(approve(page, 2)).toHaveCount(0);
     await page.getByRole("button", { name: "Start run" }).click();
     await expect.poll(
@@ -354,7 +356,7 @@ test(
     );
     await page.reload();
     await expect(conversationRegion(page)).toBeVisible();
-    await expect(plan).toContainText("Revision 2");
+    await expect(plan).toContainText("Plan, version 2");
     await expect(page.getByText("A run is in progress.")).toBeVisible();
     await shot(page, "06-run-started");
     expect(
@@ -383,7 +385,7 @@ test(
     // ---- final results are discussed and a revision is requested (AC3) -----
     script(conversationId, "fs26-plan-revised");
     await say(page, "Ask agent", "Revise the plan to add retries.");
-    await expect(plan).toContainText("Revision 3", { timeout: 60_000 });
+    await expect(plan).toContainText("Plan, version 3", { timeout: 60_000 });
     await shot(page, "07-results-revision");
 
     // ---- keyboard: send with Control+Enter, focus stays in the composer ----
@@ -466,7 +468,7 @@ test(
     await say(page, "Ask agent", "Plan this one.");
     await expect(approve(page, 1)).toBeEnabled({ timeout: 60_000 });
     await page.getByRole("button", { name: "Reject", exact: true }).click();
-    await expect(page.getByText("You rejected revision 1")).toBeVisible();
+    await expect(page.getByText("You rejected plan, version 1")).toBeVisible();
     await page.getByRole("button", { name: "Start run" }).click();
     await expect(page.getByText("The server did not admit the run."))
       .toBeVisible({

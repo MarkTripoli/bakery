@@ -429,7 +429,7 @@ test("shows the current revision with lanes as rows", async ({ page }) => {
   await open(page);
   await expect(page.getByRole("heading", { name: "Coordination plan" }))
     .toBeVisible();
-  await expect(root(page)).toContainText("Plan revision 2");
+  await expect(root(page)).toContainText("Plan, version 2");
   await expect(root(page)).toContainText("1 of 3 lanes completed");
   await expect(root(page)).toContainText(
     "Shared budget ceiling: $12.50",
@@ -835,16 +835,20 @@ const ticketOrigin = {
   url: "https://github.com/example/shop/issues/214",
 };
 
-test("an ad hoc plan shows its origin, revision and short digest", async ({ page }) => {
+test("an ad hoc plan shows its origin and revision, and the digest behind a fingerprint row", async ({ page }) => {
   await open(page);
   const provenance = page.locator('[data-ui-region="plan-provenance"]');
   await expect(provenance).toContainText("Ad hoc");
-  await expect(provenance).toContainText("Digest eeeeeeeeeeee");
-  await expect(provenance).not.toContainText("eeeeeeeeeeeee");
-  await expect(provenance).toContainText(
+  await expect(provenance).not.toContainText("Digest");
+  await expect(provenance).not.toContainText("eeeeeeeeeeee");
+  const fingerprint = page.getByTestId("fingerprint-row");
+  await expect(fingerprint).toContainText("Fingerprint");
+  await expect(fingerprint).toContainText("eeeeeeeeeeee");
+  await expect(fingerprint).not.toContainText("eeeeeeeeeeeee");
+  await expect(fingerprint).toContainText(
     "Identifies the selected requirements and versions.",
   );
-  await expect(root(page)).toContainText("Plan revision 2");
+  await expect(root(page)).toContainText("Plan, version 2");
   await expect(page.locator('[data-ui-region="plan-ticket-claim"]'))
     .toHaveCount(0);
 });
@@ -951,11 +955,11 @@ test("a stale lane has its own label, hint and a plan notice", async ({ page }) 
   await expect(web).toHaveAttribute("data-lane-status", "stale");
   await expect(web).toContainText("Stale");
   await expect(web).toContainText(
-    "An input it used was replaced after it finished. Rework it in a new plan revision.",
+    "An input it used was replaced after it finished. Rework it in a new version of the plan.",
   );
   const notice = page.locator('[data-ui-region="stale-lanes"]');
   await expect(notice).toContainText("Some lanes are stale");
-  await expect(notice).toContainText("new plan revision");
+  await expect(notice).toContainText("new version of the plan");
   await expect(root(page)).toContainText("In progress");
 });
 

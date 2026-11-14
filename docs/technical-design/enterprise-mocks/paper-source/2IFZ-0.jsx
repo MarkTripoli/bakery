@@ -270,10 +270,7 @@
             <path d="M6 3h9l4 4v14H6zM9 12h7M9 16h7" fill="none" stroke="var(--color-dark-fg-secondary)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <div id="2IGO-0" style={{ boxSizing: 'border-box', color: 'var(--color-dark-fg)', flexGrow: '1', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>
-            Plan
-          </div>
-          <div id="2IGN-0" style={{ boxSizing: 'border-box', color: 'var(--color-dark-fg-secondary)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
-            Revision 2
+            Plan, version 2
           </div>
         </div>
         <div id="2IGC-0" style={{ borderBottomColor: 'var(--color-dark-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '12px', paddingBlock: '20px', paddingInline: '24px' }}>
@@ -308,7 +305,7 @@
             </div>
             <div id="2IG6-0" style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '8px' }}>
               <div id="2IGA-0" style={{ boxSizing: 'border-box', color: 'var(--color-dark-fg-secondary)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
-                Revision 2
+                Plan, version 2
               </div>
               <div id="2IG7-0" style={{ alignItems: 'center', backgroundColor: 'var(--color-dark-warning-surface)', borderRadius: '4px', boxSizing: 'border-box', display: 'flex', gap: '6px', paddingInline: '8px' }}>
                 <div id="2IG9-0" style={{ backgroundColor: 'var(--color-dark-warning)', borderRadius: '999px', boxSizing: 'border-box', flexShrink: '0', height: '6px', width: '6px' }} />

@@ -258,10 +258,7 @@
             <path d="M6 3h9l4 4v14H6zM9 12h7M9 16h7" fill="none" stroke="var(--color-muted-foreground)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <div id="2IKQ-0" style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', flexGrow: '1', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px' }}>
-            Plan
-          </div>
-          <div id="2IKP-0" style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
-            Revision 2
+            Plan, version 2
           </div>
         </div>
         <div id="2IKE-0" style={{ borderBottomColor: 'var(--color-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '12px', paddingBlock: '20px', paddingInline: '24px' }}>
@@ -297,7 +294,7 @@
               </div>
               <div id="2J1I-0" style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '8px' }}>
                 <div id="2J1J-0" style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
-                  Revision 2
+                  Plan, version 2
                 </div>
                 <div id="2J1K-0" style={{ alignItems: 'center', backgroundColor: 'var(--color-warning-surface)', borderRadius: '4px', boxSizing: 'border-box', display: 'flex', gap: '6px', paddingInline: '8px' }}>
                   <div id="2J1L-0" style={{ backgroundColor: 'var(--color-warning)', borderRadius: '999px', boxSizing: 'border-box', flexShrink: '0', height: '6px', width: '6px' }} />
@@ -346,7 +343,7 @@
             <div id="2J22-0" style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
               <div id="2J23-0" style={{ alignItems: 'center', backgroundColor: 'var(--color-primary)', borderRadius: '6px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '36px', justifyContent: 'center', paddingInline: '14px', width: '100%' }}>
                 <div id="2J24-0" style={{ boxSizing: 'border-box', color: 'var(--color-primary-foreground)', display: 'flex', flexShrink: '0', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '20px', width: 'max-content' }}>
-                  Approve revision 2
+                  Approve plan, version 2
                 </div>
               </div>
               <div id="2J25-0" style={{ alignItems: 'center', borderColor: 'var(--color-border)', borderRadius: '6px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexBasis: '0%', flexGrow: '1', flexShrink: '0', height: '36px', justifyContent: 'center', paddingInline: '14px' }}>

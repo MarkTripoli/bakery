@@ -37,7 +37,11 @@ export function presetCopy(t: Translator, id: string) {
   }
 }
 
-export function composerLabels(t: Translator): TaskComposerLabels {
+export function composerLabels(
+  t: Translator,
+  /** The smallest budget that works, already formatted, when the server says. */
+  minimumBudget: string | null = null,
+): TaskComposerLabels {
   return {
     heading: t("tasks.composer.heading"),
     repository: t("tasks.composer.repository"),
@@ -72,7 +76,11 @@ export function composerLabels(t: Translator): TaskComposerLabels {
     setupRequired: Object.fromEntries(
       SETUP_REASONS.map((reason) => [
         reason,
-        t(`tasks.composer.setup.${reason}`),
+        reason === "budget_below_reservation" && minimumBudget !== null
+          ? `${t(`tasks.composer.setup.${reason}`)} ${
+            t("tasks.composer.budgetMinimum", { amount: minimumBudget })
+          }`
+          : t(`tasks.composer.setup.${reason}`),
       ]),
     ) as TaskComposerLabels["setupRequired"],
   };

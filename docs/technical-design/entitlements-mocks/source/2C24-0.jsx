@@ -114,11 +114,11 @@
         <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px', padding: '8px' }}>
           <div style={{ backgroundColor: 'var(--color-border)', borderRadius: '20px', boxSizing: 'border-box', fontFamily: 'var(--font-sans)', padding: '4px' }}>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '12px', lineHeight: '20px' }}>
-              MT
+              AM
             </div>
           </div>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', flexBasis: '0%', flexGrow: '1', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
-            Mark Tripoli
+            Alex Morgan
           </div>
           <svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: '0' }}>
             <path d="m6 9 6 6 6-6" fill="none" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -149,7 +149,7 @@
             </div>
             <div style={{ alignItems: 'center', backgroundColor: 'var(--color-border)', borderRadius: '999px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', height: '32px', justifyContent: 'center', width: '32px' }}>
               <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', display: 'flex', fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 500, lineHeight: '16px' }}>
-                MT
+                AM
               </div>
             </div>
           </div>
@@ -268,7 +268,7 @@
               </div>
               <div style={{ alignItems: 'center', borderTopColor: 'var(--color-border)', borderTopStyle: 'solid', borderTopWidth: '1px', boxSizing: 'border-box', display: 'flex', justifyContent: 'space-between', paddingBlock: '20px' }}>
                 <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
-                  Last changed by Mark Tripoli, 2 Oct 2026 14:12
+                  Last changed by Alex Morgan, 2 Oct 2026 14:12
                 </div>
                 <div style={{ boxSizing: 'border-box', display: 'flex', gap: '8px' }}>
                   <div style={{ alignItems: 'center', borderColor: 'var(--color-control-border)', borderRadius: '4px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', minHeight: '36px', paddingBlock: '8px', paddingInline: '14px' }}>

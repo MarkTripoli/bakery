@@ -9,7 +9,7 @@
         </div>
         <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px', paddingBlock: '12px', paddingInline: '8px' }}>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', flexBasis: '0%', flexGrow: '1', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', fontWeight: 500, lineHeight: '20px' }}>
-            Mark’s workspace
+            Alex’s workspace
           </div>
           <svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: '0' }}>
             <path d="m6 9 6 6 6-6" fill="none" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -110,11 +110,11 @@
         <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px', padding: '8px' }}>
           <div style={{ backgroundColor: 'var(--color-border)', borderRadius: '20px', boxSizing: 'border-box', fontFamily: 'var(--font-sans)', padding: '4px' }}>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '12px', lineHeight: '20px' }}>
-              MT
+              AM
             </div>
           </div>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', flexBasis: '0%', flexGrow: '1', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
-            Mark Tripoli
+            Alex Morgan
           </div>
           <svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: '0' }}>
             <path d="m6 9 6 6 6-6" fill="none" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -159,7 +159,7 @@
               GPT-5.6 Luna · OpenAI · Workspace default
             </div>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
-              Mark and Sam are here
+              Alex and Sam are here
             </div>
           </div>
         </div>
@@ -168,7 +168,7 @@
           <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
               <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', fontWeight: 600, lineHeight: '20px' }}>
-                Mark
+                Alex
               </div>
               <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '12px', lineHeight: '20px' }}>
                 10:21
@@ -303,7 +303,7 @@
               <path d="m6 9 6 6 6-6" fill="none" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '18px' }}>
-              Revision 3
+              Plan, version 3
             </div>
           </div>
         </div>
@@ -385,7 +385,7 @@
           </div>
           <div style={{ alignItems: 'center', backgroundColor: 'var(--color-primary)', borderColor: 'var(--color-primary)', borderRadius: 'var(--radius-4)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', fontFamily: 'var(--font-sans)', gap: '8px', justifyContent: 'center', minHeight: '36px', paddingInline: '12px' }}>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-primary-foreground)', display: 'flex', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '18px' }}>
-              Approve revision 3
+              Approve plan, version 3
             </div>
           </div>
         </div>

@@ -245,9 +245,15 @@ export function StreamOutput({ stream, onUsageChange, onReload }: {
           },
         unknownLabel: t("tasks.run.unknown"),
         detail: attempt && !attempt.isCurrent
-          ? t("tasks.run.identity.recorded", { actor: stream.logicalActor })
+          ? t("tasks.run.identity.recorded", {
+            actor: stream.logicalActor,
+            machine: attempt.workerName,
+          })
           : attempt
-          ? t("tasks.run.identity.trusted", { actor: stream.logicalActor })
+          ? t("tasks.run.identity.actor", {
+            actor: stream.logicalActor,
+            machine: attempt.workerName,
+          })
           : t("tasks.run.identity.unavailable"),
       }}
       output={{

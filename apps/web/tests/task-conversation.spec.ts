@@ -474,7 +474,7 @@ const conversation = (page: Page) =>
   page.getByRole("region", { name: "Conversation", exact: true });
 const plan = (page: Page) => page.locator('[data-ui-region="plan-revision"]');
 const approve = (page: Page, n: number) =>
-  page.getByRole("button", { name: `Approve revision ${n}`, exact: true });
+  page.getByRole("button", { name: `Approve plan, version ${n}`, exact: true });
 
 /**
  * On a phone the plan and its decisions open from a card in the transcript
@@ -526,7 +526,7 @@ test("renders the transcript with attribution, plan, question and stage strip", 
   const bodies = await transcript.locator("article").allTextContents();
   expect(bodies[0]).toContain("Let's make onboarding");
   expect(bodies.at(-1)).toContain("show missing checks");
-  await expect(plan(page)).toContainText("Revision 3");
+  await expect(plan(page)).toContainText("Plan, version 3");
   await expect(plan(page).getByRole("listitem")).toHaveCount(3);
   await expect(plan(page)).toContainText("1. Select the repository");
   await expect(approve(page, 3)).toBeEnabled();
@@ -675,7 +675,7 @@ test("approve sends the exact approval id and version", async ({ page }) => {
     decision: "approve",
     expectedVersion: 7,
   });
-  await expect(page.getByText("You approved revision 3")).toBeVisible();
+  await expect(page.getByText("You approved plan, version 3")).toBeVisible();
   await expect(approve(page, 3)).toHaveCount(0);
 });
 
@@ -718,7 +718,7 @@ test("Start run right after approving still carries the approval id", async ({ p
   await showPlan(page);
   holdApprovals = true;
   await approve(page, 3).click();
-  await expect(page.getByText("You approved revision 3")).toBeVisible();
+  await expect(page.getByText("You approved plan, version 3")).toBeVisible();
   // On a phone the plan is a sheet over the page; close it to reach the form.
   const sheet = page.locator('[data-ui-region="plan-sheet"]');
   if (await sheet.isVisible()) {
@@ -773,7 +773,9 @@ test("an accepted change request closes the form and the next revision is decida
     }),
     approval(4, { version: 2 }),
   ];
-  await expect(plan(page)).toContainText("Revision 4", { timeout: 15_000 });
+  await expect(plan(page)).toContainText("Plan, version 4", {
+    timeout: 15_000,
+  });
   await expect(approve(page, 4)).toBeEnabled();
   await expect(
     page.getByRole("button", { name: "Request changes", exact: true }),
@@ -796,7 +798,7 @@ test("reject records the decision and removes the controls", async ({ page }) =>
     decision: "reject",
     expectedVersion: 7,
   });
-  await expect(page.getByText("You rejected revision 3")).toBeVisible();
+  await expect(page.getByText("You rejected plan, version 3")).toBeVisible();
 });
 
 test("approving an obsolete revision is refused with a conflict and the new revision shows", async ({ page }) => {
@@ -817,8 +819,8 @@ test("approving an obsolete revision is refused with a conflict and the new revi
   await open(page, state);
   await showPlan(page);
   await approve(page, 3).click();
-  await expect(page.getByText("Revision 3 is obsolete")).toBeVisible();
-  await expect(plan(page)).toContainText("Revision 4");
+  await expect(page.getByText("Plan, version 3 is out of date")).toBeVisible();
+  await expect(plan(page)).toContainText("Plan, version 4");
   await expect(approve(page, 3)).toHaveCount(0);
   await expect(approve(page, 4)).toBeEnabled();
   await approve(page, 4).click();
@@ -909,7 +911,7 @@ test("an unknown outcome the server applied settles to the recorded decision", a
   await open(page, state);
   await showPlan(page);
   await approve(page, 3).click();
-  await expect(page.getByText("You approved revision 3")).toBeVisible({
+  await expect(page.getByText("You approved plan, version 3")).toBeVisible({
     timeout: 15_000,
   });
   await expect(page.getByText("may not have been recorded")).toHaveCount(0);
@@ -953,7 +955,7 @@ test("an idempotency payload mismatch is an error, not an obsolete revision", as
   await open(page, state);
   await showPlan(page);
   await approve(page, 3).click();
-  await expect(page.getByText("Revision 3 is obsolete")).toHaveCount(0);
+  await expect(page.getByText("Plan, version 3 is out of date")).toHaveCount(0);
   await expect(page.getByText("Your decision was not recorded")).toBeVisible();
 });
 
@@ -1077,7 +1079,7 @@ test("unsupported steering is explicit in the run controls while a run is active
   await page.goto(`/tasks/${taskId}`);
   await expect(page.getByText("A run is in progress.")).toBeVisible();
   await expect(page.locator('[data-ui-region="steering-unsupported"]'))
-    .toContainText("Live steering is not supported");
+    .toContainText("You cannot redirect this run while it works");
   await expect(
     page.getByText("This worker's adapter does not support this control.")
       .first(),
@@ -1279,7 +1281,7 @@ test.describe("route states", () => {
     state.sectionsStatus = 200;
     await page.getByRole("button", { name: "Try again" }).click();
     await page.clock.resume();
-    await expect(plan(page)).toContainText("Revision 3");
+    await expect(plan(page)).toContainText("Plan, version 3");
     await expect(
       page.getByText("could not be loaded. What is shown may be out"),
     )
@@ -1710,7 +1712,7 @@ test(
     const zoomed = await planTabOrder(page);
     expect(zoomed).toEqual(baseline);
     expect(zoomed.slice(-3)).toEqual([
-      "Approve revision 3",
+      "Approve plan, version 3",
       "Request changes",
       "Reject",
     ]);
@@ -1911,7 +1913,7 @@ test.describe("participants and live updates", () => {
     stream.push();
     await expect(page.getByRole("log").getByText("I looked at it too."))
       .toBeVisible();
-    await expect(page.getByText("Dana Teammate approved revision 3"))
+    await expect(page.getByText("Dana Teammate approved plan, version 3"))
       .toBeVisible();
     await expect(approve(page, 3)).toHaveCount(0);
     await expect(page.getByText("Answered by Dana Teammate")).toBeVisible();

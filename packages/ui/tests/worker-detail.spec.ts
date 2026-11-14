@@ -111,7 +111,7 @@ for (const item of cases) {
         await expect(
           root.locator(".ui-worker-detail__mobile-header .ui-text"),
         )
-          .toHaveText("Mark’s workspace⌄");
+          .toHaveText("Alex’s workspace⌄");
         for (
           const icon of await root.locator(
             ".ui-worker-detail__phone-status .ui-icon, .ui-worker-detail__mobile-header .ui-icon",

@@ -12,6 +12,7 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { protectedQueryKey } from "../app/query-scope.ts";
 import type { ApiFailure, ArtifactVersionResponse } from "../api/client.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { FingerprintRow } from "./FingerprintRow.tsx";
 
 export function TaskRunRevision(
   { taskId, runId, baseSha }: {
@@ -238,11 +239,9 @@ function PatchContent(
       {open && (
         <>
           <UI.Text>
-            {t("tasks.run.revision.version", {
-              revision: version.revision,
-              digest: version.sha256,
-            })}
+            {t("tasks.run.revision.version", { revision: version.revision })}
           </UI.Text>
+          <FingerprintRow fingerprint={version.sha256} />
           <UI.Text>
             {version.subjectBaseSha ?? baseSha} → {version.subjectHeadSha}
           </UI.Text>

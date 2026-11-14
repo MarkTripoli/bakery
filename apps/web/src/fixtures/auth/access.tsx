@@ -18,7 +18,7 @@ function AccessHost(
   return (
     <AccessScreen
       async={async}
-      displayName="Mark Tripoli"
+      displayName="Alex Morgan"
       externalActions={[{
         id: "github",
         title: "GitHub · MarkTripoli/bakery",

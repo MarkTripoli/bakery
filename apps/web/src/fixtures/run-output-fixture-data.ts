@@ -44,7 +44,7 @@ const stateData: Record<RunOutputFixtureState, FixtureState> = {
     notice: {
       title: "Reconnecting",
       description:
-        "Showing the last durable state. Live updates resume from the saved cursor.",
+        "Showing the last saved state. Live updates will continue when you are reconnected.",
       actionLabel: "Retry connection",
     },
   },
@@ -109,12 +109,12 @@ const stateData: Record<RunOutputFixtureState, FixtureState> = {
     },
   },
   "lost-lease": {
-    lease: "Lease lost",
+    lease: "Machine stopped responding",
     outputState: "interrupted",
     notice: {
-      title: "Worker lease lost",
+      title: "Task taken back",
       description:
-        "This attempt no longer owns execution. Last output is retained; live status is unconfirmed.",
+        "The machine stopped responding and the task was taken back. The last output is kept; live status is not confirmed.",
       actionLabel: "Reload run",
     },
   },
@@ -156,9 +156,9 @@ export function runOutputFixtureData(state: string): RunOutputFixtureData {
     identity: {
       title: "Execution identity",
       worker: "atlas-01",
-      attempt: "Attempt 2",
+      attempt: "Try 2",
       lease: fixture.lease,
-      detail: "Codex · trusted worker record · run_42 / step_3",
+      detail: "Codex on atlas-01 · run_42 / step_3",
       unknownLabel: "Unknown",
     },
     output: {
@@ -176,7 +176,7 @@ export function runOutputFixtureData(state: string): RunOutputFixtureData {
       latestLabel: "Jump to latest",
     },
     revision: {
-      title: "Repository revision",
+      title: "Changes",
       baseRevision: "8ac02e1",
       candidateRevision: "5d138ac",
       summary: "3 files · +84 −12",

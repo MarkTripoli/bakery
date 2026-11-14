@@ -28,7 +28,7 @@ const SplitStory: StoryObj = {
     <PageHeader
       variant="split"
       title="Coordination plan"
-      subtitle={<span>Shared checkout onboarding · Plan revision 2</span>}
+      subtitle={<span>Shared checkout onboarding · Plan, version 2</span>}
       summary={<span>1 of 5 lanes completed</span>}
     />
   ),

@@ -124,33 +124,34 @@ const problem = (status: number, code: string, retryable = false) => ({
 
 /** Every availability reason, with the copy the composer owes it. */
 const REASON_COPY: Record<string, string> = {
-  repository_archived: "This repository is archived and cannot start tasks.",
+  repository_archived:
+    "This repository is archived. Restore it in Projects to start tasks here.",
   application_archived:
-    "The application that owns this repository is archived.",
+    "The application this repository belongs to is archived. Restore it in Projects to start tasks here.",
   no_active_profile:
-    "This repository has no active profile. Create a repository profile first.",
+    "This repository is not set up for Bakery yet. Finish its setup in Projects.",
   coding_agent_unbound:
-    "The repository profile has no coding agent bound to the implement step.",
+    "No coding agent is chosen for this repository. An organization administrator can choose one in the repository's setup.",
   coding_agent_disabled:
-    "The bound coding agent is disabled or its version is unavailable.",
+    "The coding agent chosen for this repository is turned off or no longer available. An organization administrator can turn it on or choose another.",
   coding_agent_unbilled:
-    "The bound coding agent has no billing, so it cannot run.",
+    "The coding agent has no way to pay for its model. Add a billing source on the machine it runs on, or publish a new version of the agent with an API key and choose it for this repository.",
   coding_agent_capability_denied:
-    "The bound coding agent is not allowed to run the implement step.",
+    "The coding agent chosen for this repository is not allowed to change code. An organization administrator can choose a different agent.",
   coding_agent_unpriced:
-    "The coding agent model has no active price. An operator must publish pricing.",
+    "Bakery has no price for the model this coding agent uses, so it cannot work out a budget. Ask whoever runs your Bakery server to add the price.",
   review_agent_unavailable:
-    "The repository profile has no usable agent for the independent review step. Bind an enabled, billed and priced agent that may run model and reviewer work.",
+    "This workflow includes a review, and no agent is available to do it. An organization administrator can choose a reviewing agent that is turned on and has a way to pay for its model.",
   repair_agent_unavailable:
-    "The repository profile has no usable agent for the repair step. Bind an enabled, billed and priced agent that may run the repair step.",
+    "This workflow fixes problems it finds, and no agent is available to do that. An organization administrator can choose an agent for fixes that is turned on and has a way to pay for its model.",
   profile_effect_denied:
-    "The repository profile policy does not permit the effects this preset needs.",
+    "This repository's setup does not allow something this workflow needs to do. Choose a different workflow, or ask an organization administrator to change the repository's setup.",
   budget_below_reservation:
-    "The budget limit is below what this run must reserve. Raise the budget limit.",
+    "The budget for this task is lower than the amount Bakery must set aside to start. Raise the budget.",
   budget_policy_unavailable:
-    "The organization budget policy is unavailable, so a budget cannot be reserved.",
+    "Bakery could not read your organization's budget settings, so it cannot set money aside for this task. Try again in a moment; if it continues, ask whoever runs your Bakery server.",
   required_check_missing:
-    "A required organization rule needs a check stage this preset does not have, so starting it is unavailable for this repository until the rule changes or a workflow with the check stage is used.",
+    "Your organization requires a check that this workflow does not run. Choose a workflow that runs checks, or ask an organization administrator to change the rule in Repository rules.",
 };
 
 type Seen = {
@@ -379,12 +380,16 @@ test("a setup-required preset names every missing requirement and blocks submit"
   await field.title(page).fill("Needs setup");
   const list = form(page).getByRole("listitem");
   await expect(list).toHaveCount(Object.keys(REASON_COPY).length);
-  for (const text of Object.values(REASON_COPY)) {
+  for (const [reason, copy] of Object.entries(REASON_COPY)) {
+    // The budget reason also names the smallest budget that works ($6.00).
+    const text = reason === "budget_below_reservation"
+      ? `${copy} The smallest budget that works is $6.00.`
+      : copy;
     await expect(form(page).getByText(text, { exact: true })).toBeVisible();
   }
   await expect(field.start(page)).toBeDisabled();
   await expect(field.start(page)).toHaveAccessibleDescription(
-    /Setup required before this preset can run/,
+    /This workflow cannot start here yet/,
   );
 });
 
@@ -406,9 +411,10 @@ test("Start is disabled for a budget below the reservation", async ({ page }) =>
     /budget_below_reservation/,
   );
   await expect(
-    form(page).getByText(REASON_COPY.budget_below_reservation, {
-      exact: true,
-    }),
+    form(page).getByText(
+      `${REASON_COPY.budget_below_reservation} The smallest budget that works is $1.50.`,
+      { exact: true },
+    ),
   ).toBeVisible();
   await field.budget(page).fill("2");
   await expect(field.start(page)).toBeEnabled();

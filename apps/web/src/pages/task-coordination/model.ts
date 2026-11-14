@@ -227,7 +227,6 @@ export const shortId = (value: string, length = 8): string =>
 /** Whether a lane's typed input has its upstream output committed. */
 export type HandoffState = "committed" | "waiting";
 
-/** Whether the plan carries an origin or a digest to show. */
+/** Whether the plan carries an origin to show. */
 export const hasProvenance = (plan: CoordinationPlanResponse): boolean =>
-  planOrigin(plan) !== null ||
-  (typeof plan.digest === "string" && plan.digest !== "");
+  planOrigin(plan) !== null;

@@ -5,8 +5,8 @@
  * production ever presenting invented people or sessions.
  */
 export const SHELL_FIXTURE_IDENTITY = {
-  workspace: "Mark’s workspace",
-  person: "Mark Tripoli",
+  workspace: "Alex’s workspace",
+  person: "Alex Morgan",
   note: "Design v1 · Synthetic data",
   phoneNote: "Synthetic example data",
   recentSessions: [

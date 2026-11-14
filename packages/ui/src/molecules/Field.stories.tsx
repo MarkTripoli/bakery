@@ -52,7 +52,7 @@ export const Contract: StoryObj = {
           layout="inline"
           hint="Shown across Bakery."
         >
-          <input id={`${id}-inline`} defaultValue="Mark Tripoli" />
+          <input id={`${id}-inline`} defaultValue="Alex Morgan" />
         </Field>
         <Field htmlFor={`${id}-disabled`} label="Unavailable" state="disabled">
           <input disabled id={`${id}-disabled`} value="No access" readOnly />
