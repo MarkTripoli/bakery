@@ -16,6 +16,11 @@ import {
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { OrganizationSwitchGuard } from "./OrganizationSwitchGuard.tsx";
 import { StartupGate } from "./StartupGate.tsx";
+import {
+  SETTINGS_HOME,
+  useBreadcrumbNavigation,
+  WORK_HOME,
+} from "./breadcrumb-paths.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import * as UI from "@bakery/ui";
 import { useI18n } from "../i18n/I18nProvider.tsx";
@@ -474,6 +479,7 @@ export function AppLayout() {
 }
 
 function ShellFrame() {
+  useBreadcrumbNavigation();
   const slots = useShellSlotTargets();
   const { translate } = useI18n();
   const viewport = useShellViewport();
@@ -742,11 +748,17 @@ function ShellFrame() {
                 aria-label={translate("shell.navigation.breadcrumb")}
                 items={settingsSection
                   ? [
-                    { label: translate("shell.states.settingsTitle") },
+                    {
+                      href: SETTINGS_HOME,
+                      label: translate("shell.states.settingsTitle"),
+                    },
                     { label: translate(settingsSection) },
                   ]
                   : [
-                    { label: translate("shell.navigation.workspace") },
+                    {
+                      href: WORK_HOME,
+                      label: translate("shell.navigation.workspace"),
+                    },
                     ...(pageTitle ? [{ label: pageTitle }] : []),
                   ]}
               />

@@ -10,6 +10,7 @@ import { useSingleFlightSubmit } from "../app/auth-form.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useSession } from "../app/session-context.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { INSTALLATION_HOME } from "../shell/breadcrumb-paths.ts";
 import { InstallationSettingsScreen } from "../screens/InstallationSettingsScreen.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 
@@ -138,7 +139,10 @@ export function InstallationSettingsPage() {
       <ShellSlot name="breadcrumbs">
         <UI.Breadcrumbs
           aria-label={translate("shell.navigation.breadcrumb")}
-          items={[{ label: translate("shell.navigation.installation") }, {
+          items={[{
+            href: INSTALLATION_HOME,
+            label: translate("shell.navigation.installation"),
+          }, {
             label: translate("settings.installation.section"),
           }]}
         />
