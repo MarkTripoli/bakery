@@ -26,7 +26,7 @@ import {
   CONNECTION_OUTCOMES,
   type ConnectionOutcome,
 } from "./integrations/outcomes.ts";
-import { useGitHubConnect } from "./integrations/use-github-connect.ts";
+import { useGitHubConnect } from "./integrations/providers/github/use-github-connect.ts";
 
 /** Query parameters the GitHub callbacks redirect with (server contract). */
 export const CONNECTION_OUTCOME_PARAMETER = "githubConnection";

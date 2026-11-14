@@ -19,7 +19,7 @@ import type {
   SelectionStatus,
   SwitchStatus,
 } from "./use-connection.ts";
-import type { ConnectStatus } from "./use-github-connect.ts";
+import type { ConnectStatus } from "./connect.ts";
 
 export type ConnectionViewState =
   | "loading"

@@ -6,7 +6,7 @@ import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { ShellSlot } from "../../shell/shell-slots.tsx";
 import type { Health } from "./model.ts";
 import { type ConnectionOutcome, OUTCOME_COPY } from "./outcomes.ts";
-import type { ConnectStatus } from "./use-github-connect.ts";
+import type { ConnectStatus } from "./connect.ts";
 
 export type IntegrationsHomeState = "loading" | "error" | "forbidden" | "ready";
 

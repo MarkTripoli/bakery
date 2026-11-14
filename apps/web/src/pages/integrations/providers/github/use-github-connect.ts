@@ -1,21 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import type { ApiFailure } from "../../api/client.ts";
-import { useBakeryApi } from "../../api/context.tsx";
+import type { ApiFailure } from "../../../../api/client.ts";
+import { useBakeryApi } from "../../../../api/context.tsx";
 import {
   clearGitHubConnectHandoff,
   saveGitHubConnectHandoff,
   takeGitHubConnectUrl,
-} from "../../app/github-connect-handoff.ts";
-import { useProtectedScope } from "../../app/query-scope-context.tsx";
-import type { ConnectionOutcome } from "./outcomes.ts";
-
-export type ConnectStatus =
-  | "idle"
-  | "starting"
-  | "redirecting"
-  | "unregistered"
-  | "storageUnavailable"
-  | "failed";
+} from "../../../../app/github-connect-handoff.ts";
+import { useProtectedScope } from "../../../../app/query-scope-context.tsx";
+import type { ConnectStatus } from "../../connect.ts";
+import type { ConnectionOutcome } from "../../outcomes.ts";
 
 /** What a connect or reconnect starts with. */
 export type ConnectOptions = {

@@ -29,7 +29,7 @@ import {
 } from "./model.ts";
 import type { ConnectionOutcome } from "./outcomes.ts";
 import { useConnectionActions } from "./use-connection.ts";
-import { useGitHubConnect } from "./use-github-connect.ts";
+import { useGitHubConnect } from "./providers/github/use-github-connect.ts";
 
 const INTEGRATIONS_PATH = "/settings/organization/integrations";
 
