@@ -3261,5 +3261,6 @@
   "projects.list.application.moreNamed": "⟪More actions for {application}⟫",
   "projects.list.archiveDialog.body": "⟪Bakery will not start new tasks in its repositories, and their settings can no longer be changed. Work already running is not stopped.⟫",
   "shell.navigation.projects": "⟪Projects⟫",
-  "projects.list.archiveDialog.restore": "⟪The application is hidden from this list. Choose Show archived, then Restore, to bring it back.⟫"
+  "projects.list.archiveDialog.restore": "⟪The application is hidden from this list. Choose Show archived, then Restore, to bring it back.⟫",
+  "projects.list.add.branchInvalid": "⟪Use a branch name Git accepts: no spaces, no .. or ~ ^ : ? * [ \\, not starting with - or /, not ending with / or a dot.⟫"
 }

@@ -316,7 +316,11 @@ export function AddRepositoryDialog(
                 required
                 hint={translate("projects.list.add.branchHelp" as never)}
                 error={tried && errors.branch !== undefined
-                  ? translate("projects.list.add.branchEmpty" as never)
+                  ? translate(
+                    (errors.branch === "empty"
+                      ? "projects.list.add.branchEmpty"
+                      : "projects.list.add.branchInvalid") as never,
+                  )
                   : undefined}
               >
                 <UI.TextInput

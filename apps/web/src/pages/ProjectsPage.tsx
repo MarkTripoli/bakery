@@ -193,13 +193,17 @@ export function ProjectsPage() {
   const forbidden = (applications.isError &&
     isForbiddenFailure(applications.error)) ||
     (repositories.isError && isForbiddenFailure(repositories.error));
-  const loadOffline = (applications.isError || repositories.isError) &&
-    asyncKindForError(
-        applications.isError ? applications.error : repositories.error,
-      ) === "offline";
-  const loadFailed = !forbidden &&
-    (applications.isError || repositories.isError) &&
+  // A failed "Load more" keeps the applications already shown; a failed read
+  // of the repositories is never shown as "no repositories".
+  const applicationsFailed = applications.isError &&
     applicationItems.length === 0;
+  const repositoriesFailed = repositories.isError &&
+    repositories.data === undefined;
+  const loadOffline = (applicationsFailed || repositoriesFailed) &&
+    asyncKindForError(
+        applicationsFailed ? applications.error : repositories.error,
+      ) === "offline";
+  const loadFailed = !forbidden && (applicationsFailed || repositoriesFailed);
   const loading = applications.isPending || repositories.isPending;
 
   const addButton = canManage

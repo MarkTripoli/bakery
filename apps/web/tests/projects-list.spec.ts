@@ -117,6 +117,27 @@ for (
       );
     });
 
+    test('a repositories read that fails is an error with Try again, never "no repositories"', async ({ page }) => {
+      const seen = await open(page, { ...WORLD, repositoriesDown: true });
+      await expect(page.getByText("Projects could not be loaded."))
+        .toBeVisible();
+      // Not the applications as empty groups.
+      await expect(page.getByText("No repositories in this application"))
+        .toHaveCount(0);
+      await expect(page.locator("[data-application-id]")).toHaveCount(0);
+      const retry = page.getByRole("button", { name: "Try again" });
+      await expect(retry).toBeVisible();
+      await page.mouse.move(700, 700);
+      await shot(page, "projects-repositories-failed");
+      const before = seen.repositoryReads;
+      seen.repositoriesDown = false;
+      await retry.click();
+      await expect.poll(() => seen.repositoryReads).toBeGreaterThan(before);
+      await expect(page.getByText("Projects could not be loaded."))
+        .toHaveCount(0);
+      await expect(section(page, "Payments")).toContainText("acme/ledger");
+    });
+
     test("an empty organization is told to add a repository, or to connect GitHub first", async ({ page }) => {
       await open(page, { applications: [], repositories: [], offered: [] });
       await expect(page.getByText("No repositories yet")).toBeVisible();
@@ -247,6 +268,42 @@ for (
       const select = await style(dialog.getByLabel("Application"));
       const field = await style(dialog.getByLabel("Short name"));
       expect(select).toEqual(field);
+    });
+
+    test("a default branch Git would refuse is named in plain words and nothing is sent", async ({ page }) => {
+      const seen = await open(page);
+      await page.getByRole("button", { name: "Add repository" }).first()
+        .click();
+      const dialog = page.getByRole("dialog", { name: "Add repository" });
+      await dialog.getByRole("button", { name: /acme\/payments-web/ }).click();
+      await dialog.getByLabel("Application").selectOption({
+        label: "Payments",
+      });
+      const branch = dialog.getByLabel("Default branch");
+      for (
+        const bad of [
+          "--force",
+          "a..b",
+          "a b",
+          "a~b",
+          "HEAD",
+          "/lead",
+          "trail/",
+        ]
+      ) {
+        await branch.fill(bad);
+        await dialog.getByRole("button", { name: "Add repository" }).click();
+        await expect(
+          dialog.getByText(
+            "Use a branch name Git accepts: no spaces, no .. or ~ ^ : ? * [ \\, not starting with - or /, not ending with / or a dot.",
+          ),
+          bad,
+        ).toBeVisible();
+        expect(seen.createdRepositories, bad).toEqual([]);
+      }
+      await branch.fill("release/1.2");
+      await expect(dialog.getByText("Use a branch name Git accepts"))
+        .toHaveCount(0);
     });
 
     test("a short name that does not fit, or an emptied branch, is named", async ({ page }) => {
