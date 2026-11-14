@@ -69,8 +69,10 @@ for (
       page.getByRole("button", { name: "More actions for Code writer" });
 
     test("opens from the Agents list and shows the version in use and every version", async ({ page }) => {
-      await open(page, WORLD, "/library?tab=agents");
+      await libraryFixture(page, WORLD);
+      await page.goto("/library?tab=agents");
       await page.getByRole("button", { name: "Open Code writer" }).click();
+      await expect(page.getByTestId("agent-page")).toBeVisible();
       await expect(page).toHaveURL(`/library/agents/${AGENT.id}`);
       const root = page.getByTestId("agent-page");
       await expect(page.getByRole("heading", { name: "Code writer", level: 1 }))
