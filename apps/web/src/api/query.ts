@@ -28,6 +28,7 @@ import type {
   DispatchBlockersResponse,
   EffectiveAccess,
   EnrollmentStatus,
+  ExternalTicketListResponse,
   InstallationCapabilities,
   InstallationSettings,
   InstallationStatus,
@@ -64,6 +65,7 @@ import type {
   TaskListResponse,
   TaskRepositoryListResponse,
   TaskResponse,
+  TicketSourceListResponse,
   UserPreferences,
   UserProfile,
   WorkerComponentListResponse,
@@ -118,6 +120,67 @@ async function collectMachinePages<
     pageCount += 1;
   }
   return { ...first, items, nextCursor } as T;
+}
+
+/** The saved copy of the organization's GitHub issues, read a page at a time. */
+export function externalTicketsPagesQueryOptions(
+  client: Pick<BakeryApiClient, "tickets">,
+  scope: ApiScope,
+  input: Readonly<{ sourceId?: string; state?: string; limit?: number }> = {},
+) {
+  const limit = input.limit ?? 25;
+  return infiniteQueryOptions<
+    ExternalTicketListResponse,
+    ApiFailure,
+    { pages: ExternalTicketListResponse[]; pageParams: (string | null)[] },
+    ReturnType<typeof protectedQueryKey>,
+    string | null
+  >({
+    queryKey: protectedQueryKey(scope, "externalTickets.list", {
+      sourceId: input.sourceId ?? null,
+      state: input.state ?? null,
+      limit,
+    }),
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor,
+    queryFn: async ({ signal, pageParam }) =>
+      unwrap(
+        await client.tickets.list({
+          organizationId: requireOrganization(scope),
+          sourceId: input.sourceId,
+          state: input.state,
+          cursor: pageParam ?? undefined,
+          limit,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** The repositories Bakery takes issues from, with how their last read went. */
+export function ticketSourcesListQueryOptions(
+  client: Pick<BakeryApiClient, "tickets">,
+  scope: ApiScope,
+) {
+  return queryOptions<TicketSourceListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "ticketSources.list", {}),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      return unwrap(
+        await client.tickets.sources({
+          organizationId: scope.organizationId,
+          limit: 100,
+          signal,
+        }),
+      );
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
 }
 
 export function readinessQueryOptions(
