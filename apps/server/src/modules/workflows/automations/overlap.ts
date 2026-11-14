@@ -5,7 +5,11 @@ import type { PgTransactionClient } from "../../../platform/database.ts";
  * is not among them: a blocked run is waiting to be unblocked, so it still
  * holds its automation.
  */
-const TERMINAL_RUN_STATUSES = ["completed", "failed", "canceled"] as const;
+export const TERMINAL_RUN_STATUSES = [
+  "completed",
+  "failed",
+  "canceled",
+] as const;
 
 /**
  * Whether a run of the automation is still active, from any of its firings and

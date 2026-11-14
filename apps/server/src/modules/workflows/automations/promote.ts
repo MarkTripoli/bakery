@@ -11,6 +11,7 @@
  */
 import type { Inngest } from "inngest";
 import type { PgDatabase } from "../../../platform/database.ts";
+import { TERMINAL_RUN_STATUSES } from "./overlap.ts";
 import { startFiring } from "./start.ts";
 
 /** Waiting firings one pass looks at; the next minute takes the rest. */
@@ -43,13 +44,35 @@ export async function promoteWaitingFirings(options: {
       `batch must be a whole number from 1 to ${AUTOMATION_PROMOTE_BATCH_CEILING}`,
     );
   }
+  // Only firings whose automation is free are candidates. One held behind an
+  // active run would stay queued and pending, so a batch of oldest waiting
+  // firings could be filled by held ones, any number of automations stuck
+  // behind runs that never end, and starve every startable firing behind
+  // them. The start re-checks under the definition lock.
   const waiting = await options.database.query<{ id: string }>(
-    `select id
-       from bakery.automation_firings
-      where status = 'queued' and pending and run_id is null
-      order by created_at, id
+    `select firing.id
+       from bakery.automation_firings firing
+       join bakery.automation_versions version
+         on version.organization_id = firing.organization_id
+        and version.id = firing.automation_version_id
+      where firing.status = 'queued' and firing.pending
+        and firing.run_id is null
+        and not exists (
+          select 1
+            from bakery.automation_firings other
+            join bakery.automation_versions other_version
+              on other_version.organization_id = other.organization_id
+             and other_version.id = other.automation_version_id
+            join bakery.workflow_runs run
+              on run.organization_id = other.organization_id
+             and run.id = other.run_id
+           where other.organization_id = firing.organization_id
+             and other_version.automation_id = version.automation_id
+             and run.status <> all($2::text[])
+        )
+      order by firing.created_at, firing.id
       limit $1`,
-    [batch],
+    [batch, TERMINAL_RUN_STATUSES],
   );
   let started = 0;
   let held = 0;
