@@ -224,10 +224,9 @@ for (
 ) {
   test.describe(`${viewport.name}: issues list`, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
+    // A row, on a wide screen or a phone, by the issue it shows.
     const row = (page: Page, number: number) =>
-      viewport.name === "phone"
-        ? page.getByRole("listitem").filter({ hasText: `#${number} ` })
-        : page.getByRole("row").filter({ hasText: `#${number} ` });
+      page.locator(`[data-issue-id="${uuid(number)}"]`);
 
     test("shows only what can start by default, and everything open under All open, each row with one status and one reason", async ({ page }) => {
       await issuesFixture(page);

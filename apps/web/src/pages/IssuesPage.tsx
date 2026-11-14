@@ -18,7 +18,7 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
-import { ShellActiveNavigation } from "../shell/shell-slots.tsx";
+import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { IssuesList } from "./IssuesList.tsx";
 import {
   ISSUE_FILTERS,
@@ -132,6 +132,19 @@ export function IssuesPage() {
     ? "degraded"
     : null;
 
+  // The page's one action: in the top bar on a wide screen, under the title on a
+  // phone (the page header hides its actions on a wide one).
+  const refreshButton = (
+    <UI.Button
+      variant="secondary"
+      disabled={refresh.isPending}
+      onClick={() => refresh.mutate()}
+    >
+      {translate("issues.refresh" as never)}
+    </UI.Button>
+  );
+  const canRefresh = isAdmin && sources.isSuccess &&
+    sources.data.items.length > 0;
   const forbidden = issues.isError && isForbiddenFailure(issues.error);
   const offline = issues.isError &&
     asyncKindForError(issues.error) === "offline";
@@ -140,22 +153,15 @@ export function IssuesPage() {
   return (
     <>
       <ShellActiveNavigation id="issues" />
+      {canRefresh && !phone
+        ? <ShellSlot name="actions">{refreshButton}</ShellSlot>
+        : null}
       <UI.SettingsContent data-testid="issues-page">
         <UI.PageHeader
           variant="list"
           title={translate("issues.title" as never)}
           subtitle={translate("issues.description" as never)}
-          actions={isAdmin && !noSources
-            ? (
-              <UI.Button
-                variant="secondary"
-                disabled={refresh.isPending}
-                onClick={() => refresh.mutate()}
-              >
-                {translate("issues.refresh" as never)}
-              </UI.Button>
-            )
-            : null}
+          actions={canRefresh && phone ? refreshButton : null}
         />
         {started
           ? (
