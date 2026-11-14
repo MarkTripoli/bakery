@@ -395,6 +395,11 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
       <>
         {breadcrumbs}
         <UI.SettingsContent data-testid="workflow-page" variant="wide">
+          <UI.PageHeader
+            variant="list"
+            flush
+            title={translate("library.workflow.breadcrumb" as never)}
+          />
           <UI.Stack gap="standard" aria-busy="true">
             <UI.Text variant="muted" role="status">
               {translate("library.workflow.loading" as never)}
@@ -411,6 +416,11 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
       <>
         {breadcrumbs}
         <UI.SettingsContent data-testid="workflow-page" variant="wide">
+          <UI.PageHeader
+            variant="list"
+            flush
+            title={translate("library.workflow.breadcrumb" as never)}
+          />
           {notFound
             ? (
               <UI.EmptyState
