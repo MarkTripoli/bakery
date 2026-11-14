@@ -248,30 +248,52 @@ function offsetAt(zone: string, utcMs: number): number {
 }
 
 /**
- * The UTC instant of a local wall time, by the daylight saving rules above: the
- * first instant when the time happens twice, the instant the clocks change when
- * it does not exist.
+ * The UTC instants of a schedule's occurrences on one local day, ascending and
+ * without repeats, by the daylight saving rules above. A day away from a clock
+ * change has one offset all day and each time is just that offset away from
+ * UTC; on a change day the instant of the change is found once and every time
+ * of the day is placed against it, so a schedule of a thousand occurrences in
+ * the day costs a thousand subtractions, not a thousand searches.
  */
-function instantOfWall(zone: string, wall: number): number {
-  // The zone's offset a day either side bounds every offset the wall time can have.
-  const before = offsetAt(zone, wall - 86_400_000);
-  const after = offsetAt(zone, wall + 86_400_000);
-  const candidates = new Set<number>();
-  for (const offset of new Set([before, after])) {
-    const utc = wall - offset;
-    if (wallMs(wallOf(zone, utc)) === wall) candidates.add(utc);
+function instantsOfDay(
+  schedule: CronSchedule,
+  zone: string,
+  year: number,
+  month: number,
+  day: number,
+): number[] {
+  const noon = Date.UTC(year, month - 1, day, 12, 0, 0);
+  // The zone's offset a day either side bounds every offset of the local day.
+  const before = offsetAt(zone, noon - 86_400_000);
+  const after = offsetAt(zone, noon + 86_400_000);
+  const walls: number[] = [];
+  for (const hour of schedule.hours) {
+    for (const minute of schedule.minutes) {
+      walls.push(Date.UTC(year, month - 1, day, hour, minute, 0));
+    }
   }
-  if (candidates.size > 0) return Math.min(...candidates);
-  // The time does not exist: the clocks change somewhere between the two
-  // estimates. Find the first instant whose local time has reached it.
-  let low = wall - Math.max(before, after) - 3_600_000 * 24;
-  let high = wall - Math.min(before, after) + 3_600_000 * 24;
+  if (before === after) return walls.map((wall) => wall - before);
+  // The clocks change in this window: find the instant, to the second.
+  let low = noon - 86_400_000;
+  let high = noon + 86_400_000;
   while (high - low > 1000) {
     const middle = Math.floor((low + high) / 2000) * 1000;
-    if (wallMs(wallOf(zone, middle)) >= wall) high = middle;
-    else low = middle;
+    if (offsetAt(zone, middle) === before) low = middle;
+    else high = middle;
   }
-  return high;
+  const change = high;
+  const instants = new Set<number>();
+  for (const wall of walls) {
+    const first = wall - before; // right if it falls before the change
+    const second = wall - after; // right if it falls at or after the change
+    const early = first < change;
+    const late = second >= change;
+    // Both: the time happens twice, the first instant counts. Neither: the time
+    // does not exist, the instant of the change stands in for it.
+    instants.add(early ? first : late ? second : change);
+  }
+  // Placed in the order of their wall times, which the change never reverses: a Set keeps that order and drops the repeats.
+  return [...instants];
 }
 
 function daysInMonth(year: number, month: number): number {
@@ -312,6 +334,44 @@ function requireInstant(name: string, date: Date): number {
 /** How far ahead to look for an occurrence: covers a February 29 schedule across a century gap. */
 const HORIZON_DAYS = 366 * 9;
 
+/** The local calendar day after the given one. */
+function nextDay(
+  year: number,
+  month: number,
+  day: number,
+): [number, number, number] {
+  return day < daysInMonth(year, month)
+    ? [year, month, day + 1]
+    : month < 12
+    ? [year, month + 1, 1]
+    : [year + 1, 1, 1];
+}
+
+/**
+ * The occurrences strictly after `afterMs`, in order, day by day from the local
+ * day it falls on, for at most `days` local days; each day's instants are
+ * worked out once.
+ */
+function* occurrencesFrom(
+  schedule: CronSchedule,
+  zone: string,
+  afterMs: number,
+  days: number,
+): Generator<number> {
+  const start = wallOf(zone, afterMs);
+  let year = start.year;
+  let month = start.month;
+  let day = start.day;
+  for (let index = 0; index < days; index += 1) {
+    if (dayMatches(schedule, year, month, day)) {
+      for (const instant of instantsOfDay(schedule, zone, year, month, day)) {
+        if (instant > afterMs) yield instant;
+      }
+    }
+    [year, month, day] = nextDay(year, month, day);
+  }
+}
+
 /**
  * The first occurrence strictly after `after`, as a UTC instant, or null when
  * the schedule never fires within the horizon (for example `0 0 31 2 *`).
@@ -325,45 +385,20 @@ export function nextOccurrence(
     throw new CronError("CRON_TIMEZONE_INVALID", `unknown time zone ${zone}`);
   }
   const afterMs = requireInstant("after", after);
-  const start = wallOf(zone, afterMs);
-  let year = start.year;
-  let month = start.month;
-  let day = start.day;
-  for (let index = 0; index < HORIZON_DAYS; index += 1) {
-    if (dayMatches(schedule, year, month, day)) {
-      let best: number | null = null;
-      // Away from a clock change the offset is the same all day: no search.
-      const noon = Date.UTC(year, month - 1, day, 12, 0, 0);
-      const steady = offsetAt(zone, noon - 86_400_000);
-      const away = steady === offsetAt(zone, noon + 86_400_000);
-      for (const hour of schedule.hours) {
-        for (const minute of schedule.minutes) {
-          const wall = Date.UTC(year, month - 1, day, hour, minute, 0);
-          const instant = away ? wall - steady : instantOfWall(zone, wall);
-          if (instant > afterMs && (best === null || instant < best)) {
-            best = instant;
-          }
-        }
-      }
-      // An occurrence past year 9999 is outside what a schedule is asked about.
-      if (best !== null) return best > LATEST_MS ? null : new Date(best);
-    }
-    day += 1;
-    if (day > daysInMonth(year, month)) {
-      day = 1;
-      month += 1;
-      if (month > 12) {
-        month = 1;
-        year += 1;
-      }
-    }
+  for (
+    const instant of occurrencesFrom(schedule, zone, afterMs, HORIZON_DAYS)
+  ) {
+    // An occurrence past year 9999 is outside what a schedule is asked about.
+    return instant > LATEST_MS ? null : new Date(instant);
   }
   return null;
 }
 
 /**
  * The occurrences after `after` up to and including `until`, oldest first, at
- * most `limit` of them; `truncated` says there were more.
+ * most `limit` of them; `truncated` says there were more. The window may span
+ * at most nine years, and each local day is worked out once, so the cost is the
+ * number of days plus the number of occurrences.
  */
 export function occurrencesBetween(
   schedule: CronSchedule,
@@ -377,17 +412,21 @@ export function occurrencesBetween(
       `limit must be a whole number from 1 to ${MAX_OCCURRENCES}`,
     );
   }
-  requireInstant("after", after);
+  const afterMs = requireInstant("after", after);
   const untilMs = requireInstant("until", until);
-  const occurrences: Date[] = [];
-  let cursor = after;
-  while (true) {
-    const next = nextOccurrence(schedule, zone, cursor);
-    if (next === null || next.getTime() > untilMs) {
-      return { occurrences, truncated: false };
-    }
-    if (occurrences.length >= limit) return { occurrences, truncated: true };
-    occurrences.push(next);
-    cursor = next;
+  if (!isValidTimeZone(zone)) {
+    throw new CronError("CRON_TIMEZONE_INVALID", `unknown time zone ${zone}`);
   }
+  // Whole days of the window, with a day either side for the zone's offset.
+  const days = Math.ceil((untilMs - afterMs) / 86_400_000) + 2;
+  if (days > HORIZON_DAYS) {
+    throw new RangeError("the window must be at most nine years");
+  }
+  const occurrences: Date[] = [];
+  for (const instant of occurrencesFrom(schedule, zone, afterMs, days)) {
+    if (instant > untilMs) break;
+    if (occurrences.length >= limit) return { occurrences, truncated: true };
+    occurrences.push(new Date(instant));
+  }
+  return { occurrences, truncated: false };
 }

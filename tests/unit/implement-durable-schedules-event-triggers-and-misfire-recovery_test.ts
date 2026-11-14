@@ -503,3 +503,137 @@ Deno.test("a parsed schedule cannot be changed by its caller, and only spaces an
   ) assertThrows(() => parseCron(bad), CronError, "", JSON.stringify(bad));
   assertEquals(parseCron(" \t* * * * *\t ").minutes.length, 60);
 });
+
+Deno.test("a per-minute catch-up over a clock-change day is bounded: each day is worked out once, not once per occurrence", () => {
+  const everyMinute = parseCron("* * * * *");
+  const timed = (
+    zone: string,
+    after: string,
+    until: string,
+    limit: number,
+  ) => {
+    const started = performance.now();
+    const result = occurrencesBetween(
+      everyMinute,
+      zone,
+      new Date(after),
+      new Date(until),
+      limit,
+    );
+    return { result, ms: performance.now() - started };
+  };
+  // Berlin 2026-03-29 has 23 hours: 1380 occurrences between its two midnights.
+  const spring = timed(
+    "Europe/Berlin",
+    "2026-03-28T23:00:00Z",
+    "2026-03-29T22:00:00Z",
+    10_000,
+  );
+  assertEquals(spring.result.occurrences.length, 1380);
+  assertEquals(spring.result.truncated, false);
+  // Berlin 2026-10-25 has 25 hours, but each of its 1440 wall-clock minutes is one occurrence.
+  const fall = timed(
+    "Europe/Berlin",
+    "2026-10-24T22:00:00Z",
+    "2026-10-25T23:00:00Z",
+    10_000,
+  );
+  assertEquals(fall.result.occurrences.length, 1440);
+  // Before the change it took over a minute of blocking CPU; whole seconds are a generous bound for a loaded runner.
+  assert(spring.ms < 3000, `spring day took ${spring.ms} ms`);
+  assert(fall.ms < 3000, `fall day took ${fall.ms} ms`);
+  // A month of them, cut by the limit, stops at the limit without working out the month.
+  const month = timed(
+    "Europe/Berlin",
+    "2026-03-01T00:00:00Z",
+    "2026-04-01T00:00:00Z",
+    50,
+  );
+  assertEquals(month.result.occurrences.length, 50);
+  assertEquals(month.result.truncated, true);
+  assert(month.ms < 3000, `limited month took ${month.ms} ms`);
+  // The same instants as asking one at a time, across both change days.
+  let cursor = new Date("2026-03-28T23:30:00Z");
+  for (const instant of spring.result.occurrences.slice(30, 60)) {
+    const next = nextOccurrence(everyMinute, "Europe/Berlin", cursor);
+    assertEquals(iso(next), iso(instant));
+    cursor = next!;
+  }
+});
+
+Deno.test("a window is at most nine years, and an unknown zone is refused before any work", () => {
+  const schedule = parseCron("0 0 1 1 *");
+  const start = new Date("2026-01-01T00:00:00Z");
+  assertEquals(
+    occurrencesBetween(
+      schedule,
+      "UTC",
+      start,
+      new Date("2034-12-31T00:00:00Z"),
+      20,
+    )
+      .occurrences.map(iso),
+    [
+      "2027-01-01T00:00:00.000Z",
+      "2028-01-01T00:00:00.000Z",
+      "2029-01-01T00:00:00.000Z",
+      "2030-01-01T00:00:00.000Z",
+      "2031-01-01T00:00:00.000Z",
+      "2032-01-01T00:00:00.000Z",
+      "2033-01-01T00:00:00.000Z",
+      "2034-01-01T00:00:00.000Z",
+    ],
+  );
+  assertThrows(
+    () =>
+      occurrencesBetween(
+        schedule,
+        "UTC",
+        start,
+        new Date("2036-01-01T00:00:00Z"),
+        5,
+      ),
+    RangeError,
+    "nine years",
+  );
+  assertThrows(
+    () =>
+      occurrencesBetween(
+        schedule,
+        "Mars/Olympus",
+        start,
+        new Date("2026-02-01T00:00:00Z"),
+        5,
+      ),
+    CronError,
+  );
+  // Across the turn of a year and a leap day the calendar is walked correctly.
+  const year = occurrencesBetween(
+    parseCron("0 12 * * *"),
+    "UTC",
+    new Date("2027-12-30T00:00:00Z"),
+    new Date("2028-01-02T00:00:00Z"),
+    10,
+  );
+  assertEquals(year.occurrences.map(iso), [
+    "2027-12-30T12:00:00.000Z",
+    "2027-12-31T12:00:00.000Z",
+    "2028-01-01T12:00:00.000Z",
+  ]);
+  const leap = occurrencesBetween(
+    parseCron("0 12 * * *"),
+    "UTC",
+    new Date("2028-02-27T00:00:00Z"),
+    new Date("2028-03-02T00:00:00Z"),
+    10,
+  );
+  assertEquals(
+    leap.occurrences.map((date) => date.toISOString().slice(0, 10)),
+    [
+      "2028-02-27",
+      "2028-02-28",
+      "2028-02-29",
+      "2028-03-01",
+    ],
+  );
+});
