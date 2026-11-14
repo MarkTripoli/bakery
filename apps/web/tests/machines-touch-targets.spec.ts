@@ -165,6 +165,9 @@ async function measureTargets(page: Page): Promise<Target[]> {
     elements.flatMap((element) => {
       const html = element as HTMLElement;
       if (html.closest("[inert],[aria-hidden=true]")) return [];
+      // The skip link is clipped to a pixel until it has keyboard focus; it is
+      // never a tap target, and skip-link.spec.ts holds its own contract.
+      if (html.matches(".bakery-app-shell__skip-link")) return [];
       if ((html as HTMLButtonElement).disabled) return [];
       const style = getComputedStyle(html);
       if (style.visibility === "hidden" || style.display === "none") return [];

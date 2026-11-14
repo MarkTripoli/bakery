@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useUnsavedChanges } from "../app/unsaved-changes.tsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { SECURITY_SETTINGS_PATH } from "../app/auth-paths.ts";
@@ -93,6 +94,8 @@ export function ProfilePage() {
   const changed = base === null
     ? []
     : FIELDS.filter((field) => draft[field] !== base[field]);
+
+  useUnsavedChanges(changed.length > 0);
 
   const validate = (): Partial<Record<ProfileField, string>> => {
     const found: Partial<Record<ProfileField, string>> = {};

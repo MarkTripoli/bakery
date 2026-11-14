@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useUnsavedChanges } from "../app/unsaved-changes.tsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supportedLocales } from "@bakery/i18n";
 import type { MessageKey } from "@bakery/i18n";
@@ -69,6 +70,9 @@ export function OrganizationSettingsPage() {
 
   const savedLocale = organization.data?.defaultLocale ?? "";
   const draftLocale = draft ?? savedLocale;
+  useUnsavedChanges(
+    organization.data !== undefined && draftLocale !== savedLocale,
+  );
   const role =
     memberships.data?.items.find((item) => item.id === scope.organizationId)
       ?.role ?? null;
