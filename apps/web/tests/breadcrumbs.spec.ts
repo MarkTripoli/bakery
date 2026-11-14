@@ -3,6 +3,7 @@ import {
   adminMachinesFixture,
   MACHINE_ID,
 } from "./helpers/machines-fixture.ts";
+import { issuesFixture, OPEN, uuid } from "./helpers/issues-fixture.ts";
 import { mockAuthenticatedSession } from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { shot } from "./helpers/real-api.ts";
@@ -94,4 +95,28 @@ test("a crumb takes keyboard focus with a visible ring and opens with Enter", as
   await expect(machines).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/machines$/);
+});
+
+test("an issue's page leads back to Workspace and Issues, with the issue as the current page", async ({ page }) => {
+  await issuesFixture(page, { open: OPEN });
+  await page.goto(`/issues/${uuid(201)}`);
+  const links = trail(page).getByRole("link");
+  await expect(links).toHaveText(["Workspace", "Issues"]);
+  await expect(links.first()).toHaveAttribute("href", "/tasks");
+  await expect(links.nth(1)).toHaveAttribute("href", "/issues");
+  await expect(trail(page).getByText("#201")).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  // A click on Issues moves to the list without a page load.
+  await page.evaluate(() => {
+    (globalThis as unknown as { __kept: number }).__kept = 1;
+  });
+  await links.nth(1).click();
+  await expect(page).toHaveURL(/\/issues$/);
+  expect(
+    await page.evaluate(() =>
+      (globalThis as unknown as { __kept: number }).__kept
+    ),
+  ).toBe(1);
 });

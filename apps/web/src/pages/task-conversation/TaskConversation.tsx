@@ -570,6 +570,10 @@ export function TaskConversation(
             items={[
               {
                 href: WORK_HOME,
+                label: t("shell.navigation.workspace"),
+              },
+              {
+                href: WORK_HOME,
                 label: (
                   <>
                     {t("shell.navigation.work")}
@@ -579,7 +583,8 @@ export function TaskConversation(
                   </>
                 ),
               },
-              { label: <UI.DataText>{reference}</UI.DataText> },
+              // The task's title, once it is known (cut with an ellipsis when long).
+              ...(task.title ? [{ label: task.title }] : []),
             ]}
           />
         </ShellSlot>
