@@ -21,31 +21,18 @@ import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { IssuesList } from "./IssuesList.tsx";
+import { IssuesTroubleBanner } from "./IssuesTroubleBanner.tsx";
 import {
+  ageOf,
   ISSUE_FILTERS,
   type IssueFilter,
   issueMatchesFilter,
   issueSnapshot,
+  troubleOf,
 } from "./issue-state.ts";
 
 /** Issues are read 25 at a time. */
 const PAGE_SIZE = 25;
-
-/** How long ago a time was, as the whole unit that fits: minutes, hours or days. */
-function ageOf(
-  then: string | null,
-  now: number,
-): { unit: "minute" | "hour" | "day"; count: number } | "now" | null {
-  if (then === null) return null;
-  const elapsed = now - Date.parse(then);
-  if (!Number.isFinite(elapsed)) return null;
-  const minutes = Math.floor(elapsed / 60_000);
-  if (minutes < 1) return "now";
-  if (minutes < 60) return { unit: "minute", count: minutes };
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return { unit: "hour", count: hours };
-  return { unit: "day", count: Math.floor(hours / 24) };
-}
 
 /**
  * The GitHub issues Bakery has read for the organization, newest first, with
@@ -129,11 +116,7 @@ export function IssuesPage() {
     .at(-1) ?? null;
   const age = ageOf(lastSyncedAt, Date.now());
   const health = (sources.data?.items ?? []).map((source) => source.syncHealth);
-  const trouble = health.includes("auth_required")
-    ? "authRequired"
-    : health.includes("degraded")
-    ? "degraded"
-    : null;
+  const trouble = troubleOf(health);
 
   // The page's one action: in the top bar on a wide screen, under the title on a
   // phone (the page header hides its actions on a wide one).
@@ -182,11 +165,12 @@ export function IssuesPage() {
           : null}
         {trouble !== null
           ? (
-            <UI.AlertBanner
-              tone={trouble === "authRequired" ? "error" : "warning"}
-            >
-              {translate(`issues.trouble.${trouble}` as never)}
-            </UI.AlertBanner>
+            <IssuesTroubleBanner
+              trouble={trouble}
+              admin={isAdmin}
+              refreshing={refresh.isPending}
+              onRefresh={() => refresh.mutate()}
+            />
           )
           : null}
         {forbidden

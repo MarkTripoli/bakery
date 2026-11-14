@@ -375,3 +375,38 @@ export function issueBody(row: IssueRow): { body: string; truncated: boolean } {
     truncated: snapshot.bodyTruncated === true,
   };
 }
+
+/** How long ago a time was, as the whole unit that fits: minutes, hours or days. */
+export function ageOf(
+  then: string | null,
+  now: number,
+): { unit: "minute" | "hour" | "day"; count: number } | "now" | null {
+  if (then === null) return null;
+  const elapsed = now - Date.parse(then);
+  if (!Number.isFinite(elapsed)) return null;
+  const minutes = Math.floor(elapsed / 60_000);
+  if (minutes < 1) return "now";
+  if (minutes < 60) return { unit: "minute", count: minutes };
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return { unit: "hour", count: hours };
+  return { unit: "day", count: Math.floor(hours / 24) };
+}
+
+/** The health of a repository's GitHub connection, as the sources report it. */
+export type SourceHealth = "unknown" | "healthy" | "degraded" | "auth_required";
+
+/** What the page tells about GitHub: the worst trouble among the repositories read. */
+export type GitHubTrouble = "authRequired" | "degraded" | "unknown";
+
+/**
+ * Trouble to show for the sources in question. Unknown counts only when no
+ * source is healthy (a newly added repository must not hide a working one).
+ */
+export function troubleOf(
+  healths: readonly SourceHealth[],
+): GitHubTrouble | null {
+  if (healths.includes("auth_required")) return "authRequired";
+  if (healths.includes("degraded")) return "degraded";
+  if (healths.length > 0 && !healths.includes("healthy")) return "unknown";
+  return null;
+}
