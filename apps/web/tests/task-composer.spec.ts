@@ -395,7 +395,36 @@ test("a setup-required preset names every missing requirement and blocks submit"
   // The rule it names is a link to the page where it is changed.
   await expect(form(page).getByRole("link", { name: "Repository rules" }))
     .toHaveAttribute("href", "/settings/organization/repository-rules");
+  // Projects, named by three reasons, is a link to the page where it is fixed.
+  const projects = form(page).getByRole("link", {
+    name: "Projects",
+    exact: true,
+  });
+  await expect(projects).toHaveCount(3);
+  for (const link of await projects.all()) {
+    await expect(link).toHaveAttribute("href", "/projects");
+  }
   await still(page, "composer-setup", form(page));
+});
+
+test("a reason Bakery does not know still points to Projects", async ({ page }) => {
+  await mockComposer(page, {
+    availability: {
+      status: "setup_required",
+      reasons: ["a_reason_added_later"],
+    },
+  });
+  await page.goto("/tasks/new");
+  await field.repository(page).selectOption(repositoryId);
+  await field.title(page).fill("Needs setup");
+  await expect(
+    form(page).getByText(
+      "Something in this repository's setup is not ready, and Bakery could not tell what. Check the repository in Projects, or ask an organization administrator.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(form(page).getByRole("link", { name: "Projects", exact: true }))
+    .toHaveAttribute("href", "/projects");
 });
 
 test("Start is disabled for a budget below the reservation", async ({ page }) => {

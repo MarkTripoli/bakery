@@ -4,6 +4,13 @@ import type { Translator } from "@bakery/i18n";
 import { RouterLink } from "../app/router-link.tsx";
 import { LINK_SLOT, withLink } from "./with-link.tsx";
 
+/** The reasons whose fix is made in Projects, where the sentence links to it. */
+const PROJECTS_REASONS: ReadonlySet<TaskComposerSetupReason> = new Set([
+  "repository_archived",
+  "application_archived",
+  "no_active_profile",
+]);
+
 /** Every availability reason the contract defines, each with its own copy. */
 export const SETUP_REASONS: readonly TaskComposerSetupReason[] = [
   "repository_archived",
@@ -75,11 +82,19 @@ export function composerLabels(
     error: t("tasks.composer.error"),
     setupHeading: t("tasks.composer.setupHeading"),
     setupBadge: t("tasks.composer.setupBadge"),
-    setupUnknown: t("tasks.composer.setup.unknown"),
+    setupUnknown: withLink(
+      t("tasks.composer.setup.unknown", { projects: LINK_SLOT }),
+      projectsLink(t),
+    ),
     setupRequired: Object.fromEntries(
       SETUP_REASONS.map((reason) => [
         reason,
-        reason === "required_check_missing"
+        PROJECTS_REASONS.has(reason)
+          ? withLink(
+            t(`tasks.composer.setup.${reason}`, { projects: LINK_SLOT }),
+            projectsLink(t),
+          )
+          : reason === "required_check_missing"
           ? withLink(
             t("tasks.composer.setup.required_check_missing", {
               rules: LINK_SLOT,
@@ -98,6 +113,15 @@ export function composerLabels(
       ]),
     ) as TaskComposerLabels["setupRequired"],
   };
+}
+
+/** The link to the Projects page that the setup reasons put where they name it. */
+function projectsLink(t: Translator) {
+  return createElement(
+    RouterLink,
+    { to: "/projects" },
+    t("tasks.composer.setup.projectsPage"),
+  );
 }
 
 /** The budget cap and shape the contract accepts (`RunCreate.budgetLimitUsd`). */
