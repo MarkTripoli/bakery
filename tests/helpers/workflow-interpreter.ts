@@ -88,3 +88,51 @@ export function drive(
   }
   throw new Error("the interpreter never finished");
 }
+
+/**
+ * Plays the engine's part for an interpreter that answers with sets (revision
+ * 2): every step in an answer that is not yet running starts running; one
+ * running step at a time finishes, chosen by `pick` (an index into the running
+ * keys in the order they started), with the scripted result; then it asks
+ * again. Every answer is asked twice and must be the same. `maxRunning` is the
+ * most steps that were running at once.
+ */
+export function driveMany(
+  document: WorkflowSemanticDocument,
+  script: Script,
+  over: Partial<RunState> = {},
+  options: {
+    interpreter?: typeof nextStep;
+    pick?: (running: readonly string[], round: number) => number;
+  } = {},
+) {
+  const interpreter = options.interpreter ?? nextStep;
+  const steps = new Map<string, StepRecord>();
+  const running: string[] = [];
+  const trace: string[] = [];
+  const dispatched: Dispatch[] = [];
+  let maxRunning = 0;
+  for (let round = 0; round < 4000; round += 1) {
+    const state = () => stateOf({ ...over, steps, inFlight: new Set(running) });
+    const next = interpreter(document, state());
+    assertEquals(interpreter(document, state()), next, "answers differ");
+    if (next.kind !== "dispatch" && next.kind !== "dispatch_many") {
+      return { next, trace, dispatched, steps, maxRunning, running };
+    }
+    const set = next.kind === "dispatch" ? [next.step] : next.steps;
+    for (const step of set) {
+      assert(!steps.has(step.key), `${step.key} dispatched after its result`);
+      if (!running.includes(step.key)) {
+        running.push(step.key);
+        trace.push(step.key);
+        dispatched.push(step);
+      }
+    }
+    maxRunning = Math.max(maxRunning, running.length);
+    const index = options.pick ? options.pick(running, round) : 0;
+    const key = running.splice(index, 1)[0]!;
+    const step = dispatched.find((candidate) => candidate.key === key)!;
+    steps.set(key, script(step, trace));
+  }
+  throw new Error("the interpreter never finished");
+}

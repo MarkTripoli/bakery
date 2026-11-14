@@ -29,7 +29,7 @@ type Provenance = EffectiveEntry["provenance"];
 /** How many characters of the fingerprint the page shows; the full value is the title. */
 const FINGERPRINT_CHARS = 8;
 const ORGANIZATION_RULES_PATH = "/settings/organization/repository-rules";
-const PROJECTS_PATH = "/projects/onboarding";
+const PROJECTS_PATH = "/projects";
 
 const SOURCE_LABEL: Readonly<Record<Provenance, MessageKey>> = {
   inherited: "repository.rules.source.inherited",

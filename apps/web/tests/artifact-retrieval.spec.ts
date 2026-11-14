@@ -1025,7 +1025,9 @@ test.describe("artifact retrieval states", () => {
 
     await page.goto(ARTIFACT_PATH);
 
-    await expect(page.getByTestId("artifact-retrieval-error")).toBeVisible();
+    // The organization lookup is the startup gate's (#343): no page content
+    // until it answers, and a failure is the gate's own error card.
+    await expect(page.getByTestId("startup-error")).toBeVisible();
     await expect(page).toHaveURL(ARTIFACT_PATH);
     await expect.poll(() => organizationStatuses[0] ?? null).toBe(500);
     expect(organizationStatuses[0]).toBe(500);
@@ -1034,12 +1036,12 @@ test.describe("artifact retrieval states", () => {
       .toHaveCount(0);
 
     allowOrganizationSuccess = true;
-    const retry = page.getByTestId("artifact-retrieval-retry");
+    const retry = page.getByTestId("startup-error").getByRole("button", {
+      name: "Try again",
+      exact: true,
+    });
     await retry.focus();
     await retry.press("Enter");
-    await expect.poll(() =>
-      page.evaluate(() => document.activeElement?.getAttribute("data-testid"))
-    ).toBe("artifact-retrieval-retry");
     releaseOrganizationSuccess();
 
     await expect(page.getByTestId("artifact-retrieval-page")).toBeVisible();
@@ -1058,10 +1060,13 @@ test.describe("artifact retrieval states", () => {
       delaySuccess: true,
     });
     await page.goto(ARTIFACT_PATH);
-    await expect(page.getByTestId("artifact-retrieval-error")).toBeVisible();
+    await expect(page.getByTestId("startup-error")).toBeVisible();
 
     organization.allowSuccess();
-    const retry = page.getByTestId("artifact-retrieval-retry");
+    const retry = page.getByTestId("startup-error").getByRole("button", {
+      name: "Try again",
+      exact: true,
+    });
     await retry.focus();
     await retry.press("Enter");
     await expect.poll(() => organization.statuses.at(-1) ?? null).toBe(200);
@@ -1101,7 +1106,7 @@ test.describe("artifact retrieval states", () => {
 
     await page.goto(ARTIFACT_PATH);
 
-    await expect(page.getByTestId("artifact-retrieval-error")).toBeVisible();
+    await expect(page.getByTestId("startup-error")).toBeVisible();
     await expect(page).toHaveURL(ARTIFACT_PATH);
     expect(organizationRequests).toBeGreaterThan(0);
     expect(artifactRequests).toBe(0);
@@ -1111,32 +1116,44 @@ test.describe("artifact retrieval states", () => {
       .toHaveCount(0);
   });
 
+  // The startup gate names a refusal for what it is (#343, #363): signed out,
+  // no access, or a second factor needed, each with its one way on.
   for (
     const organizationFailure of [
       {
         code: "AUTH_FORBIDDEN",
         status: 403,
-        testId: "artifact-retrieval-forbidden",
+        title: "You do not have access to this organization",
+        action: "Choose another organization",
+        destination: null,
       },
       {
         code: "AUTH_REQUIRED",
         status: 401,
-        testId: "artifact-retrieval-auth-required",
+        title: "You are signed out",
+        action: "Sign in",
+        destination: "/sign-in",
       },
       {
         code: "AUTH_EXPIRED",
         status: 401,
-        testId: "artifact-retrieval-auth-required",
+        title: "You are signed out",
+        action: "Sign in",
+        destination: "/sign-in?reason=expired",
       },
       {
         code: "AUTH_INVALID",
         status: 401,
-        testId: "artifact-retrieval-auth-required",
+        title: "You are signed out",
+        action: "Sign in",
+        destination: "/sign-in?reason=expired",
       },
       {
         code: "AUTH_FACTOR_REQUIRED",
         status: 401,
-        testId: "artifact-retrieval-auth-required",
+        title: "Confirm it is you",
+        action: "Verify",
+        destination: "/sign-in/two-factor",
       },
     ]
   ) {
@@ -1166,30 +1183,29 @@ test.describe("artifact retrieval states", () => {
 
       await page.goto(ARTIFACT_PATH);
 
-      await expect(page.getByTestId(organizationFailure.testId)).toBeVisible();
+      const gate = page.getByTestId("startup-error");
+      await expect(gate).toContainText(organizationFailure.title);
       await expect(page).toHaveURL(ARTIFACT_PATH);
       expect(artifactRequests).toBe(0);
       await expect(page.getByTestId("artifact-retrieval-provenance"))
         .toHaveCount(0);
       await expect(page.getByTestId("artifact-retrieval-download"))
         .toHaveCount(0);
-      if (organizationFailure.code !== "AUTH_FORBIDDEN") {
-        if (organizationFailure.code === "AUTH_FACTOR_REQUIRED") {
-          await expect(
-            page.getByTestId("artifact-retrieval-recovery-action"),
-          ).toBeVisible();
-        }
-        const destination = organizationFailure.code === "AUTH_EXPIRED" ||
-            organizationFailure.code === "AUTH_INVALID"
-          ? "/sign-in?reason=expired"
-          : organizationFailure.code === "AUTH_FACTOR_REQUIRED"
-          ? "/sign-in/two-factor"
-          : "/sign-in";
-        await page.getByTestId("artifact-retrieval-auth-action").click();
-        await expect(page).toHaveURL(destination);
+      if (organizationFailure.code === "AUTH_FACTOR_REQUIRED") {
+        await expect(gate.getByRole("link", { name: "Use a backup code" }))
+          .toBeVisible();
+      }
+      if (organizationFailure.destination !== null) {
+        await gate.getByRole("button", { name: organizationFailure.action })
+          .click();
+        await expect(page).toHaveURL(organizationFailure.destination);
         await expect.poll(() =>
           page.evaluate(() => sessionStorage.getItem("bakery.auth.returnTo.v1"))
         ).toBe(ARTIFACT_PATH);
+      } else {
+        await expect(
+          gate.getByRole("button", { name: organizationFailure.action }),
+        ).toBeVisible();
       }
     });
   }

@@ -79,6 +79,10 @@ export function rememberReturnTo(
 }
 
 export function rememberCurrentReturnTo(): string | null {
+  // A sign-in or other public auth screen is where the person is being sent,
+  // never where they asked to go. The route error boundary runs this again
+  // once its own move to sign-in has happened.
+  if (isPublicAuthPath(globalThis.location.pathname)) return peekReturnTo();
   // The organization picker is an intermediate destination. A protected
   // request there must not replace the deep link it was opened to resolve.
   if (globalThis.location.pathname === ORGANIZATIONS_PATH) {

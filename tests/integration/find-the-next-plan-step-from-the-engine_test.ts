@@ -153,11 +153,14 @@ Deno.test("a failed repeat iteration is an outcome, not the end of the run", () 
     assertEquals((await rows(fixture, seeded)).length, 2);
   }));
 
-Deno.test("a wait is not run yet: the run fails with a stable code in the audit log", () =>
+Deno.test("an event wait is not run yet: the run fails with a stable code in the audit log", () =>
   withWorkerFixture(async (fixture) => {
     const seeded = await seedPlanRun(
       fixture,
-      await compiled([{ id: "pause", wait: { duration: "5m" } }]),
+      await compiled([{
+        id: "pause",
+        wait: { event: "question.answered", timeout: "5m" },
+      }]),
     );
     // The seeded row is renamed to the wait's key; the wait is still the dispatch.
     assertEquals(

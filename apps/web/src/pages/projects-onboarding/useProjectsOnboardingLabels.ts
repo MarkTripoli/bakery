@@ -6,6 +6,7 @@ export function useProjectsOnboardingLabels(): ProjectsOnboardingLabels {
   const { translate } = useI18n();
   return {
     title: translate("projects.onboarding.title"),
+    projectsList: translate("projects.list.title"),
     description: translate("projects.onboarding.description"),
     scopeRequired: translate("projects.onboarding.scopeRequired"),
     errors: {

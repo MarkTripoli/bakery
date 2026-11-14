@@ -16,6 +16,10 @@
     "path": "/tasks/$taskId/coordination"
   },
   {
+    "id": "library",
+    "path": "/library"
+  },
+  {
     "id": "issues",
     "path": "/issues"
   },
@@ -58,6 +62,10 @@
   {
     "id": "setup",
     "path": "/setup"
+  },
+  {
+    "id": "projects",
+    "path": "/projects"
   },
   {
     "id": "projects-onboarding",

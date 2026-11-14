@@ -136,6 +136,8 @@ export type ExternalTicketListResponse =
   ClientOutputMap["Page<ExternalTicket>"];
 export type TicketSourceResponse = ClientOutputMap["TicketSource"];
 export type TicketSourceListResponse = ClientOutputMap["Page<TicketSource>"];
+export type TicketSourceCreate = ClientInputMap["TicketSourceCreate"];
+export type TicketSourceUpdate = ClientInputMap["TicketSourceUpdate"];
 export type TicketOperationReceiptResponse =
   ClientOutputMap["TicketOperationReceipt"];
 export type TicketRequestResponse = ClientOutputMap["TicketRequest"];
@@ -195,6 +197,10 @@ export type RepositoryProfileListResponse =
   ClientOutputMap["Page<RepositoryProfile>"];
 export type ApplicationResponse = ClientOutputMap["Application"];
 export type WorkflowDefinitionResponse = ClientOutputMap["Workflow"];
+export type WorkflowDefinitionListResponse = ClientOutputMap["Page<Workflow>"];
+export type AgentDefinitionResponse = ClientOutputMap["AgentDefinition"];
+export type AgentDefinitionListResponse =
+  ClientOutputMap["Page<AgentDefinition>"];
 export type RepositoryResponse = ClientOutputMap["Repository"];
 export type RepositoryProfileResponse = ClientOutputMap["RepositoryProfile"];
 /** The rules in force for one repository, each with where it came from, and what could check them. */
@@ -675,6 +681,22 @@ export type BakeryApiClient = {
       readonly limit?: number;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<TicketSourceListResponse>>;
+    /** `POST /v1/ticket-sources`: starts taking issues from a repository. Admin only. */
+    readonly createSource: (options: {
+      readonly organizationId: string;
+      readonly input: TicketSourceCreate;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketSourceResponse>>;
+    /** `PATCH /v1/ticket-sources/{id}`: turn a repository on or off, or change its labels. Admin only. */
+    readonly updateSource: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly input: TicketSourceUpdate;
+      readonly version: number;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketSourceResponse>>;
     /** `POST /v1/ticket-sources/{id}/syncs`: asks Bakery to read GitHub again. Admin only. */
     readonly sync: (options: {
       readonly organizationId: string;
@@ -1112,6 +1134,20 @@ export type BakeryApiClient = {
     readonly id: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<WorkflowDefinitionResponse>>;
+  /** The organization's workflow definitions, one page of a cursor list. */
+  readonly listWorkflows: (options: {
+    readonly organizationId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<WorkflowDefinitionListResponse>>;
+  /** The organization's agent definitions, one page of a cursor list. */
+  readonly listAgents: (options: {
+    readonly organizationId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<AgentDefinitionListResponse>>;
   readonly createApplication: (options: {
     readonly organizationId: string;
     readonly input: ApplicationCreate;
@@ -1855,6 +1891,30 @@ export function createBakeryApiClient({
               cursor: options.cursor,
               limit: options.limit,
             }, { signal: options.signal }),
+        );
+      },
+      createSource(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketSources.create"](options.input, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+      updateSource(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketSources.update"]({
+              id: options.id,
+              ...options.input,
+            }, {
+              ifMatch: versionEtag(options.version),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
         );
       },
       sync(options) {
@@ -3832,6 +3892,42 @@ export function createBakeryApiClient({
         if (data.id !== options.id) {
           throw new ApiTransportError("protocol", 200);
         }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listWorkflows(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["workflows.list"](
+          options.cursor === undefined && options.limit === undefined ? {} : {
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listAgents(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["agents.list"](
+          options.cursor === undefined && options.limit === undefined ? {} : {
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
         return { ok: true, data };
       } catch (error) {
         return failed(error);
