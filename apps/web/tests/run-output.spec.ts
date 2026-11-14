@@ -782,7 +782,11 @@ for (
     await expect(
       page.getByRole("heading", { name: scenario.title, exact: true }),
     ).toBeVisible();
-    await expect(page.getByText("atlas-01", { exact: true })).toBeVisible();
+    await expect(page.getByText("atlas-01", { exact: true }).first())
+      .toBeVisible();
+    // The machine named in the identity line is a link to its page.
+    await expect(page.getByRole("link", { name: "atlas-01", exact: true }))
+      .toHaveAttribute("href", /^\/machines\/[0-9a-f-]{36}$/);
     await expect(page.getByText("Try 2", { exact: true })).toBeVisible();
     await expect(page.getByText("Provider usage: unknown", { exact: true }))
       .toBeVisible();
@@ -827,7 +831,8 @@ test("three timed-out attempts end on the timeout heading with the history kept"
       { exact: true },
     ),
   ).toBeVisible();
-  await expect(page.getByText("atlas-01", { exact: true })).toBeVisible();
+  await expect(page.getByText("atlas-01", { exact: true }).first())
+    .toBeVisible();
   await expect(
     page.getByRole("combobox", { name: "Try", exact: true })
       .locator("option"),
@@ -857,7 +862,8 @@ test("printed output cannot invent quota or replace trusted worker identity", as
       }),
   );
   await page.goto(`/tasks/${id}`);
-  await expect(page.getByText("atlas-01", { exact: true })).toBeVisible();
+  await expect(page.getByText("atlas-01", { exact: true }).first())
+    .toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Provider quota exceeded", exact: true }),
   ).toHaveCount(0);
@@ -1182,13 +1188,15 @@ test("current attempt selection returns from historical pages", async ({ page })
   });
   await page.routeWebSocket("**/v1/events?*", () => {});
   await page.goto(`/tasks/${id}`);
-  await expect(page.getByText("atlas-01", { exact: true })).toBeVisible();
+  await expect(page.getByText("atlas-01", { exact: true }).first())
+    .toBeVisible();
   await page.locator("button:enabled").filter({ hasText: /^Next$/ }).click();
   await expect(page.getByText("historical-worker", { exact: true }))
     .toBeVisible();
   await page.getByRole("combobox", { name: "Try", exact: true })
     .selectOption("");
-  await expect(page.getByText("atlas-01", { exact: true })).toBeVisible();
+  await expect(page.getByText("atlas-01", { exact: true }).first())
+    .toBeVisible();
   await expect(page.getByText("historical-worker", { exact: true }))
     .toHaveCount(0);
 });

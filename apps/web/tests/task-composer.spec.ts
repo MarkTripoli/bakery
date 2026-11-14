@@ -392,6 +392,9 @@ test("a setup-required preset names every missing requirement and blocks submit"
   await expect(field.start(page)).toHaveAccessibleDescription(
     /This workflow cannot start here yet/,
   );
+  // The rule it names is a link to the page where it is changed.
+  await expect(form(page).getByRole("link", { name: "Repository rules" }))
+    .toHaveAttribute("href", "/settings/organization/repository-rules");
   await still(page, "composer-setup", form(page));
 });
 

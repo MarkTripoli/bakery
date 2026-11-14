@@ -852,6 +852,25 @@ test("an ad hoc plan shows its origin and revision, and the digest behind a fing
   await expect(root(page)).toContainText("Plan, version 2");
   await expect(page.locator('[data-ui-region="plan-ticket-claim"]'))
     .toHaveCount(0);
+  // The row sits inside the page's column, lined up with the heading, and its
+  // Copy button does not touch the window's edge.
+  const row = (await fingerprint.boundingBox())!;
+  const copy = (await fingerprint.getByRole("button", { name: "Copy" })
+    .boundingBox())!;
+  const heading = (await page.getByRole("heading", {
+    name: "Coordination plan",
+  }).boundingBox())!;
+  const width = page.viewportSize()!.width;
+  expect(row.x, "row starts inside the column").toBeGreaterThan(8);
+  expect(copy.x + copy.width, "Copy keeps a margin").toBeLessThanOrEqual(
+    width - 8,
+  );
+  if (width > 743) {
+    const label = (await fingerprint.getByText("Fingerprint", { exact: true })
+      .first().boundingBox())!;
+    expect(Math.abs(label.x - heading.x), "lines up with the heading")
+      .toBeLessThan(2);
+  }
   await still(page, "plan-coordination");
 });
 

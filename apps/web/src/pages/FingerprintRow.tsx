@@ -13,10 +13,12 @@ const SHOWN = 12;
  * sits behind this row and not in the main view.
  */
 export function FingerprintRow(
-  { fingerprint, helpText }: Readonly<{
+  { fingerprint, helpText, inset }: Readonly<{
     fingerprint: string;
     /** Replaces the generic help text when the thing identified needs saying. */
     helpText?: string;
+    /** `page` on a page whose main area has no inset of its own. */
+    inset?: "page";
   }>,
 ) {
   const { translate: t } = useI18n();
@@ -35,7 +37,7 @@ export function FingerprintRow(
     }
   };
   return (
-    <UI.DescriptionList data-testid="fingerprint-row">
+    <UI.DescriptionList data-testid="fingerprint-row" inset={inset}>
       <UI.DescriptionItem
         action={
           <UI.Inline gap="compact">

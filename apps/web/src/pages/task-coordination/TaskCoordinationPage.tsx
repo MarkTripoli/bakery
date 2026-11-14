@@ -609,6 +609,7 @@ export function TaskCoordinationPage(
             <FingerprintRow
               fingerprint={plan.digest}
               helpText={t("tasks.coordination.digestHint")}
+              inset="page"
             />
           )
           : null}

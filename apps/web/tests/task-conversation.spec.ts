@@ -513,6 +513,46 @@ test.beforeEach(async ({ page }) => {
   await mockAuthenticatedSession(page);
 });
 
+for (const width of [1024, 1280]) {
+  test(`the stage chips wrap, and nothing is cut or covered, at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await open(page);
+    const strip = page.locator('[data-ui-component="workflowStageStrip"]');
+    await expect(strip).toBeVisible();
+    const stripBox = (await strip.boundingBox())!;
+    const chips = strip.locator("li");
+    await expect(chips).toHaveCount(4);
+    const boxes: { x: number; y: number; width: number; height: number }[] = [];
+    for (let index = 0; index < 4; index++) {
+      const chip = chips.nth(index);
+      boxes.push((await chip.boundingBox())!);
+      // Every line of text inside a chip lies within the chip.
+      expect(
+        await chip.evaluate((element) => {
+          const frame = element.getBoundingClientRect();
+          return [...element.querySelectorAll("*")].every((child) => {
+            const box = child.getBoundingClientRect();
+            return box.right <= frame.right + 1 && box.left >= frame.left - 1;
+          });
+        }),
+        `chip ${index + 1} keeps its text`,
+      ).toBe(true);
+      expect(boxes[index].x + boxes[index].width).toBeLessThanOrEqual(
+        stripBox.x + stripBox.width + 1,
+      );
+    }
+    // The Planning only switch is on no chip.
+    const toggle = (await strip.getByText("Planning only").boundingBox())!;
+    for (const [index, box] of boxes.entries()) {
+      const covers = toggle.x < box.x + box.width - 1 &&
+        toggle.x + toggle.width > box.x + 1 &&
+        toggle.y < box.y + box.height - 1 &&
+        toggle.y + toggle.height > box.y + 1;
+      expect(covers, `the switch covers chip ${index + 1}`).toBe(false);
+    }
+  });
+}
+
 test("renders the transcript with attribution, plan, question and stage strip", async ({ page }) => {
   await open(page);
   await showPlan(page);

@@ -116,7 +116,7 @@
             Shared checkout onboarding
           </div>
           <div id="2IYP-0" style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
-            Northwind storefront · northwind/web · Fixed coding preset
+            Northwind storefront · northwind/web · Fixed coding workflow
           </div>
         </div>
         <div id="2IY6-0" style={{ borderBottomColor: 'var(--color-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', gap: '8px', paddingBottom: '16px', paddingInline: '32px' }}>

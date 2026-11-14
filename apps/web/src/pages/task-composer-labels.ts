@@ -1,5 +1,8 @@
+import { createElement } from "react";
 import type { TaskComposerLabels, TaskComposerSetupReason } from "@bakery/ui";
 import type { Translator } from "@bakery/i18n";
+import { RouterLink } from "../app/router-link.tsx";
+import { LINK_SLOT, withLink } from "./with-link.tsx";
 
 /** Every availability reason the contract defines, each with its own copy. */
 export const SETUP_REASONS: readonly TaskComposerSetupReason[] = [
@@ -76,7 +79,18 @@ export function composerLabels(
     setupRequired: Object.fromEntries(
       SETUP_REASONS.map((reason) => [
         reason,
-        reason === "budget_below_reservation" && minimumBudget !== null
+        reason === "required_check_missing"
+          ? withLink(
+            t("tasks.composer.setup.required_check_missing", {
+              rules: LINK_SLOT,
+            }),
+            createElement(
+              RouterLink,
+              { to: "/settings/organization/repository-rules" },
+              t("tasks.composer.setup.rulesPage"),
+            ),
+          )
+          : reason === "budget_below_reservation" && minimumBudget !== null
           ? `${t(`tasks.composer.setup.${reason}`)} ${
             t("tasks.composer.budgetMinimum", { amount: minimumBudget })
           }`

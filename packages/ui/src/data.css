@@ -503,6 +503,16 @@
   inline-size: 100%; /* auth.css:8 .list */
   min-inline-size: 0;
 }
+/* On a page with no main inset the list lines up with the page's table. */
+.ui-description-list[data-inset="page"] {
+  box-sizing: border-box;
+  padding-inline: var(--space-8);
+}
+@media (max-width: 743px) {
+  .ui-description-list[data-inset="page"] {
+    padding-inline: var(--space-4);
+  }
+}
 
 /* Paper `.totp-qr` (auth.css:22): a fixed 176x176 plate with a 12px inset,
    so the modules fill the 150x150 inner box the same way the mock's

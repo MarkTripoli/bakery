@@ -7,7 +7,7 @@ export type RunIdentityProps = {
   worker: string | null;
   attempt: string | null;
   lease: string | null;
-  detail: string;
+  detail: ReactNode;
   unknownLabel: string;
 };
 

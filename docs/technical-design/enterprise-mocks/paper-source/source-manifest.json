@@ -94,7 +94,7 @@
       "pageId": "p-18-0",
       "frameName": "01 · Task conversation · default · light · 1440",
       "source": "2IBL-0.jsx",
-      "sha256": "b824e83a1ba5e81cd25b49cfdbead7eeb37e45792638eae9a5bc32bbb1029a8a"
+      "sha256": "12a53d72f61bb4e67af6a9e548bdcd82a7f5a490671f4adc661bac14b6b04ee9"
     },
     {
       "id": "task-conversation",
@@ -108,7 +108,7 @@
       "pageId": "p-18-0",
       "frameName": "02 · Task conversation · default · dark · 1440",
       "source": "2IFZ-0.jsx",
-      "sha256": "c7edba28af65ad558ddd88ba2c799cf8a2fea7cdd84b28a784ab8d7019352a74"
+      "sha256": "8bbb24325d08578d89b3f2f6753b35ef9f58891333e48e4133a2554c6e6db636"
     },
     {
       "id": "task-conversation",
@@ -136,7 +136,7 @@
       "pageId": "p-18-0",
       "frameName": "04 · Task conversation · plan-review · light · 1440",
       "source": "2IK1-0.jsx",
-      "sha256": "f110b85be09f3a2663bbb0980e43395334ed5dce4ec5bf22e75fc2f63da8fdf8"
+      "sha256": "bbb6d857be7370152b5204298b519892d7305cc3e75c58814a3ede63a82feb20"
     },
     {
       "id": "task-conversation",
@@ -150,7 +150,7 @@
       "pageId": "p-18-0",
       "frameName": "05 · Task conversation · question · light · 1440",
       "source": "2IO3-0.jsx",
-      "sha256": "fcb132a1d0997f1657db90c8c936d51c9dfb9c526a69c49673fa1172eeff39e9"
+      "sha256": "8c3c154b608a32255f997c5b8ac60a025a6b498a5dc985ed308c1a93ac0c06b3"
     },
     {
       "id": "task-conversation",
@@ -164,7 +164,7 @@
       "pageId": "p-18-0",
       "frameName": "06 · Task conversation · empty · light · 1440",
       "source": "2IS5-0.jsx",
-      "sha256": "55fd1cb02324ae494a5e3a8219879edb8d8d932792e76f123d28ee2e77d51904"
+      "sha256": "b0a234393eb6b79d74c7bc9d4bcb63256489d0bdbe9b1cbaa5187f9ea2939da6"
     },
     {
       "id": "task-conversation",
@@ -178,7 +178,7 @@
       "pageId": "p-18-0",
       "frameName": "07 · Task conversation · conflict · light · 1440",
       "source": "2IW7-0.jsx",
-      "sha256": "a5f2427f57b4c9c132c46dac3a10100885327e0cef80e0415ab57131a2d8a56d"
+      "sha256": "2578d33087f00caff3fbd0ab7360f3b518b6272d48570f9378e3f933d45ed918"
     },
     {
       "id": "task-coordination",

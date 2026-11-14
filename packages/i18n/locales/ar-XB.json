@@ -1014,7 +1014,6 @@
   "tasks.session.artifactMeta": "‮{type} · Version {version} توسيع توسيع ‬",
   "tasks.composer.heading": "⟪New task⟫",
   "tasks.composer.repository": "⟪Repository⟫",
-  "tasks.composer.preset": "⟪Preset⟫",
   "tasks.composer.title": "⟪Title⟫",
   "tasks.composer.taskType": "⟪Task type⟫",
   "tasks.composer.taskType.feature": "⟪Feature⟫",
@@ -1028,7 +1027,6 @@
   "tasks.composer.submitting": "⟪Submitting…⟫",
   "tasks.composer.retry": "⟪Retry submission⟫",
   "tasks.composer.discard": "⟪Discard draft⟫",
-  "tasks.composer.loading": "⟪Loading repositories and presets…⟫",
   "tasks.composer.empty": "⟪No repository is available. Add a repository before you start a task.⟫",
   "tasks.composer.offline": "⟪Offline. Nothing is sent until the connection returns.⟫",
   "tasks.composer.reconnecting": "⟪Reconnecting. Your draft is kept.⟫",
@@ -2120,7 +2118,6 @@
   "tasks.conversation.status.plan": "⟪Planning⟫",
   "tasks.conversation.status.implement": "⟪Implementing⟫",
   "tasks.conversation.status.review": "⟪Reviewing⟫",
-  "tasks.conversation.subtitle.preset": "⟪Fixed coding preset⟫",
   "tasks.coordination.status.column": "⟪Status⟫",
   "tasks.coordination.prerequisites.column": "⟪Prerequisites⟫",
   "tasks.coordination.child.column": "⟪Child task⟫",
@@ -2269,7 +2266,6 @@
   "settings.integrations.existing.failed": "⟪The credentials could not be saved. Nothing was stored. Try again.⟫",
   "settings.integrations.existing.cleared": "⟪Secret fields are cleared after every attempt; paste them again to retry.⟫",
   "settings.integrations.existing.tooLong": "⟪This value is longer than GitHub issues; check what was pasted.⟫",
-  "tasks.composer.setup.required_check_missing": "⟪Your organization requires a check that this workflow does not run. Choose a workflow that runs checks, or ask an organization administrator to change the rule in Repository rules.⟫",
   "settings.integrations.appName": "⟪App name⟫",
   "settings.integrations.appName.hint": "⟪GitHub shows this name. App names are unique across github.com and at most {max} characters; if GitHub says the name is already taken, come back and choose another.⟫",
   "settings.integrations.appName.invalid": "⟪Enter a name of 1 to {max} characters.⟫",
@@ -3170,5 +3166,10 @@
   "tasks.fingerprint.copy": "⟪Copy⟫",
   "tasks.fingerprint.copied": "⟪Copied⟫",
   "tasks.fingerprint.copyFailed": "⟪Could not copy the fingerprint. Select it and copy it yourself.⟫",
-  "tasks.composer.budgetMinimum": "⟪The smallest budget that works is {amount}.⟫"
+  "tasks.composer.budgetMinimum": "⟪The smallest budget that works is {amount}.⟫",
+  "tasks.composer.preset": "⟪Workflow⟫",
+  "tasks.composer.loading": "⟪Loading repositories and workflows…⟫",
+  "tasks.conversation.subtitle.preset": "⟪Fixed coding workflow⟫",
+  "tasks.composer.setup.required_check_missing": "⟪Your organization requires a check that this workflow does not run. Choose a workflow that runs checks, or ask an organization administrator to change the rule in {rules}.⟫",
+  "tasks.composer.setup.rulesPage": "⟪Repository rules⟫"
 }
