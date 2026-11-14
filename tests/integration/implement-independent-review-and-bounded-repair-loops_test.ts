@@ -4,6 +4,10 @@ import { registerMigrationCases } from "../helpers/review-repair/migration-cases
 import { registerPresetIntegrationCases } from "../helpers/review-repair/preset-integration-cases.ts";
 import { registerReviewerClaimCases } from "../helpers/review-repair/reviewer-claim-cases.ts";
 import { registerStageApprovalCases } from "../helpers/review-repair/stage-approval-cases.ts";
+import {
+  loopFixtureCloseStep,
+  shareLoopFixture,
+} from "../helpers/review-repair/loop-world.ts";
 
 // Issue #94 (B10.03). Phase 1 proves migration 0147 against real Postgres:
 // three insert-only evidence tables, their keys and the application role's
@@ -15,8 +19,14 @@ import { registerStageApprovalCases } from "../helpers/review-repair/stage-appro
 // with both the model and the reviewer capability.
 registerMigrationCases();
 registerPresetIntegrationCases();
+// #37: the loop cases share one worker fixture per group instead of resetting
+// and migrating the database for every case. The read cases between the two
+// groups reset the database, so each group closes its fixture first.
+shareLoopFixture();
 registerLoopIntegrationCases();
+loopFixtureCloseStep("loop integration cases");
 registerLoopReadCases();
 registerReviewerClaimCases();
 // #37 with #57 slice 2: a review stage that waits for a person.
 registerStageApprovalCases();
+loopFixtureCloseStep("reviewer claim and stage approval cases");
