@@ -73,6 +73,8 @@ const MAX_WORKFLOW_STEPS = 32;
  * (a full-width set reads and completes its waits, about 40) and the hand-off.
  */
 const STEP_OPERATION_BUDGET = 900;
+/** The reason `stateFromRow` gives for a job a cancel was requested on. */
+const CANCEL_REQUESTED = "cancel_requested_at";
 const MAX_RECONCILIATION_WAITS = 8;
 const MAX_RETRY_ATTEMPTS = 8;
 const MAX_PERSISTED_ATTEMPTS = 2_147_483_647;
@@ -400,7 +402,7 @@ function stateFromRow(
       : {}),
   };
   const terminalFailure = row.cancelRequestedAt !== null
-    ? "cancel_requested_at"
+    ? CANCEL_REQUESTED
     : terminal && result === undefined
     ? row.stepError
       ? "workflow_step_failed"
@@ -2262,7 +2264,13 @@ export function createBakeryFixedWorkflow(options: {
             }
             if (outcome.decision.kind === "waiting") continue;
             if (outcome.decision.kind === "failed") {
-              if (planRun) return undefined;
+              // A plan run goes on: the rows say the step failed and the next
+              // answer projects the halt. Not for a cancel the worker has not
+              // acted on yet: the row is not over, the same step would be
+              // found again at once, so the run is left to the cancel as before.
+              if (planRun && outcome.decision.reason !== CANCEL_REQUESTED) {
+                return undefined;
+              }
               await releaseOwner();
               return {
                 result: {
@@ -2336,8 +2344,20 @@ export function createBakeryFixedWorkflow(options: {
             const decision = outcome.decision;
             switch (decision.kind) {
               case "terminal-result":
+                moved = true;
+                break;
               case "failed":
-                // The rows say so; the next answer projects it.
+                // The rows say so; the next answer projects it, except for a
+                // cancel the worker has not acted on yet (see `driveKey`).
+                if (decision.reason === CANCEL_REQUESTED) {
+                  await releaseOwner();
+                  return {
+                    result: {
+                      status: "failed" as const,
+                      reason: decision.reason,
+                    },
+                  };
+                }
                 moved = true;
                 break;
               case "retryable":

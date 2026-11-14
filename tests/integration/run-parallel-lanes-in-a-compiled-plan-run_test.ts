@@ -622,3 +622,57 @@ Deno.test("a step that failed between the answer and the pass is not a surprise:
     );
     assert(record.indexOf("wait-for-job-1-fan.lane_b.b1-0") >= -1);
   }));
+
+const requestCancel = (
+  fixture: WorkerFixture,
+  seeded: Seeded,
+  stepKey: string,
+) =>
+  fixture.pgDatabase.query(
+    `update bakery.jobs set cancel_requested_at = clock_timestamp()
+      where run_step_id = (
+        select id from bakery.run_steps where run_id = $1 and step_key = $2)`,
+    [seeded.job.runId, stepKey],
+  );
+
+/** A cancel is requested on the first step's job and the worker has not stopped it. */
+async function cancelRequestedNotYetActedOn(
+  fixture: WorkerFixture,
+  document: Awaited<ReturnType<typeof plan>>,
+) {
+  const seeded = await seedRun(fixture, document);
+  await seeded.repository.releaseEngineOwner(seeded.owner);
+  const { handler } = engineFor(fixture);
+  await requestCancel(fixture, seeded, seeded.firstKey);
+  const record: string[] = [];
+  const result = await handler({
+    event: eventFor(seeded.job.runId),
+    step: recordingStep(record),
+  });
+  // Back to the caller at once, naming the cancel: no wait, no second pass.
+  assertEquals(result, { status: "failed", reason: "cancel_requested_at" });
+  assertEquals(
+    record.filter((id) => id.startsWith("load-next-workflow-step-")),
+    ["load-next-workflow-step-0"],
+  );
+  assert(record.length <= 14, `${record.length} operations`);
+  assertEquals((await state(fixture, seeded)).run.status, "running");
+  // The owner is released so the cancel (or recovery) takes it from here.
+  assertEquals((await state(fixture, seeded)).run.owner, null);
+}
+
+Deno.test("a cancel the worker has not acted on yet ends the pass of a set: the function neither spins nor goes on", () =>
+  withWorkerFixture(async (fixture) => {
+    await cancelRequestedNotYetActedOn(fixture, await plan());
+  }));
+
+Deno.test("a cancel the worker has not acted on yet ends a sequential plan run's pass as well", () =>
+  withWorkerFixture(async (fixture) => {
+    await cancelRequestedNotYetActedOn(
+      fixture,
+      await compiled([
+        check("first"),
+        check("second", { needs: ["first"] }),
+      ], inputs),
+    );
+  }));
