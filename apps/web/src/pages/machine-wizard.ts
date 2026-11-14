@@ -127,6 +127,19 @@ export function hasInstaller(os: MachineSystem): boolean {
 }
 
 /**
+ * One value of the worker's settings file (a systemd `EnvironmentFile`). A
+ * plain value (letters, digits and `_ . : / @ , = + -`) is written as it is; any
+ * other, such as a name with a space, an apostrophe, a quote or a trailing
+ * backslash, is double-quoted with `\` and `"` escaped, so the service reads it
+ * back exactly. A line break cannot be in a value and becomes a space.
+ */
+export function environmentValue(value: string): string {
+  const single = value.replace(/[\r\n]+/g, " ");
+  if (/^[A-Za-z0-9_.:/@,=+-]+$/.test(single)) return single;
+  return `"${single.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+/**
  * The settings the worker is started with: the exact values, in the order the
  * install step shows them. The setup code itself is never in them: the worker
  * reads it from the file the person saves it in. Only the chosen agent's
@@ -143,7 +156,7 @@ export function workerEnvironment(options: {
     `BAKERY_SERVER_URL=${options.serverUrl}`,
     `BAKERY_WORKER_STATE_DIR=${WORKER_STATE_DIR}`,
     `BAKERY_WORKER_ENROLLMENT_TOKEN_FILE=${SETUP_CODE_FILE}`,
-    `BAKERY_WORKER_NAME=${input.name}`,
+    `BAKERY_WORKER_NAME=${environmentValue(input.name)}`,
     `BAKERY_WORKER_SLOTS=${input.slots}`,
     `BAKERY_WORKER_CAPABILITIES=${input.capabilities.join(",")}`,
     `BAKERY_${prefix}_HARNESS=1`,

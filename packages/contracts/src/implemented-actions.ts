@@ -266,6 +266,8 @@ export const IntegrationsImplementedAction = Object.freeze(
     IntegrationConnectionsCreate: "integrationConnections.create",
     IntegrationConnectionsList: "integrationConnections.list",
     IntegrationResourcesList: "integrationResources.list",
+    IntegrationEffectsList: "integrationEffects.list",
+    IntegrationEffectsGet: "integrationEffects.get",
     IntegrationConnectionsUpdate: "integrationConnections.update",
     IntegrationConnectionsRemove: "integrationConnections.remove",
     IntegrationResourcesUpdate: "integrationResources.update",

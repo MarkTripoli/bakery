@@ -9,6 +9,9 @@ import {
   type SsoOverview,
   type SsoProvider,
 } from "../api/sso.ts";
+import { useBakeryApi } from "../api/context.tsx";
+import { organizationQueryOptions } from "../api/query.ts";
+import { focusAfterPaint } from "../app/focus.ts";
 import { protectedQueryKey } from "../app/query-scope.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import * as organizationSelection from "../app/organization-selection.ts";
@@ -73,6 +76,11 @@ export function SsoPage() {
     ? undefined
     : overview.data;
 
+  const api = useBakeryApi();
+  const organization = useQuery(
+    organizationQueryOptions(api, { ...scope, organizationId }),
+  );
+  const [confirmingRequire, setConfirmingRequire] = useState(false);
   const [view, setView] = useState<View>({ kind: "list" });
   const [notice, setNotice] = useState<Notice | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -122,6 +130,9 @@ export function SsoPage() {
       ?.data;
   // Requiring SSO needs a verified provider to require; an enforced
   // organization keeps the switch so it can still be turned off.
+  const verifiedProviders = (data?.providers ?? []).filter((provider) =>
+    provider.domainVerified
+  );
   const canRequire = data !== undefined &&
     (data.enforce ||
       data.providers.some((provider) => provider.domainVerified));
@@ -141,6 +152,9 @@ export function SsoPage() {
       );
       await refresh();
     });
+  const requireSwitchId = useId();
+  const returnToRequireSwitch = () =>
+    focusAfterPaint(() => document.getElementById(requireSwitchId));
   const toggle = (enforce: boolean) =>
     run("enforce", async () => {
       const result = await ssoApi.setEnforcement(organizationId ?? "", enforce);
@@ -196,7 +210,7 @@ export function SsoPage() {
     <>
       <ShellActiveNavigation id="settings" />
       <OrganizationSectionBreadcrumbs section="settings.sso.section" />
-      <div data-testid="organization-sso">
+      <UI.SettingsContent data-testid="organization-sso">
         {view.kind !== "list"
           ? (
             <UI.SsoSettings
@@ -359,25 +373,96 @@ export function SsoPage() {
                     <UI.Switch
                       checked={data.enforce}
                       disabled={!canRequire}
+                      id={requireSwitchId}
                       pending={busy === "enforce"}
-                      onChange={(event) => void toggle(event.target.checked)}
+                      onChange={(event) => {
+                        // Turning it on changes how every member signs in, so it
+                        // asks first and the switch only moves once the request
+                        // succeeds; turning it off needs no question.
+                        if (event.target.checked) setConfirmingRequire(true);
+                        else void toggle(false);
+                      }}
                     >
                       {translate("settings.sso.enforce.label")}
                     </UI.Switch>
-                    {canRequire ? null : (
-                      <UI.Text variant="muted">
-                        {translate("settings.sso.enforce.needsProvider")}
-                      </UI.Text>
-                    )}
-                    <UI.Text>
-                      {translate("settings.sso.enforce.breakGlass")}
-                    </UI.Text>
+                    {data.enforce
+                      ? (
+                        <UI.Text>
+                          {translate("settings.sso.enforce.breakGlass")}
+                        </UI.Text>
+                      )
+                      : (
+                        <UI.Text variant="muted">
+                          {translate(
+                            canRequire
+                              ? "settings.sso.require.help"
+                              : "settings.sso.enforce.needsProvider",
+                          )}
+                        </UI.Text>
+                      )}
                   </div>
                 )
                 : undefined}
             />
           )}
-      </div>
+        {data
+          ? (
+            <UI.AlertDialog
+              open={confirmingRequire}
+              onOpenChange={(open) => {
+                setConfirmingRequire(open);
+                if (!open) returnToRequireSwitch();
+              }}
+              state={busy === "enforce" ? "confirming" : "open"}
+              title={translate("settings.sso.require.confirm.title")}
+              variant="security"
+              cancelAction={
+                <UI.Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setConfirmingRequire(false);
+                    returnToRequireSwitch();
+                  }}
+                >
+                  {translate("settings.sso.dialog.cancel")}
+                </UI.Button>
+              }
+              confirmAction={
+                <UI.Button
+                  type="button"
+                  loading={busy === "enforce"}
+                  onClick={() => {
+                    void toggle(true).then(() => {
+                      setConfirmingRequire(false);
+                      returnToRequireSwitch();
+                    });
+                  }}
+                >
+                  {translate("settings.sso.require.confirm.confirm")}
+                </UI.Button>
+              }
+            >
+              <UI.Text>
+                {verifiedProviders.length === 1
+                  ? translate("settings.sso.require.confirm.body", {
+                    organization: organization.data?.name ??
+                      translate(
+                        "settings.sso.require.confirm.thisOrganization",
+                      ),
+                    provider: verifiedProviders[0]?.providerId ?? "",
+                  })
+                  : translate("settings.sso.require.confirm.bodyMany", {
+                    organization: organization.data?.name ??
+                      translate(
+                        "settings.sso.require.confirm.thisOrganization",
+                      ),
+                  })}
+              </UI.Text>
+            </UI.AlertDialog>
+          )
+          : null}
+      </UI.SettingsContent>
     </>
   );
 }
@@ -413,6 +498,8 @@ function ProviderForm({
     issuer: useId(),
     clientId: useId(),
     secret: useId(),
+    clientIdHint: useId(),
+    secretHint: useId(),
     metadata: useId(),
   };
   const editing = view.kind === "edit" ? view.provider : null;
@@ -558,12 +645,20 @@ function ProviderForm({
               </UI.Field>
               <UI.Field
                 htmlFor={ids.clientId}
+                hint={editing
+                  ? (
+                    <span id={ids.clientIdHint}>
+                      {translate("settings.sso.field.keepClientId")}
+                    </span>
+                  )
+                  : undefined}
                 label={translate("settings.sso.field.clientId")}
               >
                 <UI.TextInput
                   id={ids.clientId}
                   name="clientId"
                   autoComplete="off"
+                  describedBy={editing ? ids.clientIdHint : undefined}
                   type="text"
                   value={clientId}
                   onChange={setClientId}
@@ -571,12 +666,20 @@ function ProviderForm({
               </UI.Field>
               <UI.Field
                 htmlFor={ids.secret}
+                hint={editing
+                  ? (
+                    <span id={ids.secretHint}>
+                      {translate("settings.sso.field.keepSecret")}
+                    </span>
+                  )
+                  : undefined}
                 label={translate("settings.sso.field.clientSecret")}
               >
                 <UI.PasswordInput
                   id={ids.secret}
                   name="clientSecret"
                   autoComplete="new-password"
+                  describedBy={editing ? ids.secretHint : undefined}
                   value={clientSecret}
                   onChange={setClientSecret}
                   revealLabels={{

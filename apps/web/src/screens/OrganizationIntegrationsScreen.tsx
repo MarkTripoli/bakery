@@ -498,11 +498,13 @@ export function ConnectionPanel(
         <div
           aria-busy={repositories.state === "loading" || undefined}
           aria-labelledby={`connection-${id}-repositories`}
+          data-paged-list="repositories"
           data-testid="github-connection-repositories"
           role="group"
         >
           <UI.Stack gap="compact">
             <UI.Heading
+              data-paged-heading="repositories"
               id={`connection-${id}-repositories`}
               level="subsection-compact"
             >
@@ -521,7 +523,11 @@ export function ConnectionPanel(
               ? (
                 <UI.AlertBanner
                   action={
-                    <UI.Button onClick={repositories.onRetry} type="button">
+                    <UI.Button
+                      data-paged-retry="repositories"
+                      onClick={repositories.onRetry}
+                      type="button"
+                    >
                       {translate("settings.connections.retry")}
                     </UI.Button>
                   }
@@ -561,6 +567,7 @@ export function ConnectionPanel(
               ? (
                 <div>
                   <UI.Button
+                    data-paged-more="repositories"
                     disabled={repositories.loadingMore}
                     loading={repositories.loadingMore}
                     onClick={repositories.onLoadMore}

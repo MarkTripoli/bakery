@@ -44,6 +44,12 @@ type World = {
   connections: Connection[];
   resources: Resource[];
   createAnswer: "ok" | "unregistered";
+  /** Repositories per page; the rest follow a `nextCursor`. */
+  pageSize?: number;
+  /** The next request for a later page fails once, with a 500. */
+  failLaterPage?: boolean;
+  /** While true, the first read of the repositories fails with a 500. */
+  failFirstRead?: boolean;
   seen: { method: string; path: string; body: unknown; ifMatch?: string }[];
   github: string[];
 };
@@ -170,9 +176,20 @@ async function fixture(page: Page, world: World) {
     if (!connection) return route.fulfill(problem(404, "RESOURCE_NOT_FOUND"));
     const base = `/v1/integration-connections/${connection.id}`;
     if (method === "GET" && path === `${base}/resources`) {
+      const cursor = new URL(request.url()).searchParams.get("cursor");
+      if (!cursor && world.failFirstRead) {
+        return route.fulfill(problem(500, "INTERNAL_ERROR"));
+      }
+      const size = world.pageSize ?? world.resources.length;
+      if (cursor && world.failLaterPage) {
+        world.failLaterPage = false;
+        return route.fulfill(problem(500, "INTERNAL_ERROR"));
+      }
       return route.fulfill(json({
-        items: world.resources.map(resourceBody),
-        nextCursor: null,
+        items: (cursor
+          ? world.resources.slice(size)
+          : world.resources.slice(0, size)).map(resourceBody),
+        nextCursor: !cursor && size < world.resources.length ? "r2" : null,
       }));
     }
     if (method === "PATCH" && path.startsWith(`${base}/resources/`)) {
@@ -514,4 +531,63 @@ test("a Developer sees connections but no way to change them", async ({ page }) 
   await expect(panel.getByRole("button")).toHaveCount(0);
   await expect(panel.getByRole("checkbox", { name: "acme-org/bakery" }))
     .toBeDisabled();
+});
+
+const pagedWorld = (overrides: Partial<World> = {}) =>
+  newWorld({
+    connections: [{
+      id: CONNECTION_ID,
+      status: "pending",
+      version: 1,
+      lastCheckedAt: null,
+    }],
+    resources: [1, 2, 3].map((index) => ({
+      id: `00000000-0000-4000-8000-0000000001a${index}`,
+      name: `acme-org/repo-${index}`,
+      selected: false,
+      available: true,
+      version: 1,
+    })),
+    pageSize: 2,
+    ...overrides,
+  });
+
+test("showing more repositories puts focus on the first one it added", async ({ page }) => {
+  await fixture(page, pagedWorld());
+  await page.goto(PAGE_PATH);
+  const more = page.getByRole("button", { name: "Show more repositories" });
+  await more.click();
+  await expect(page.getByLabel("acme-org/repo-3")).toBeVisible();
+  await expect(more).toHaveCount(0);
+  // The button that was pressed is gone: focus is on the first repository it added.
+  await expect(page.getByLabel("acme-org/repo-3")).toBeFocused();
+});
+
+test("a failed load of more repositories puts focus on Try again, and a good retry puts it back on the button", async ({ page }) => {
+  await fixture(page, pagedWorld({ failLaterPage: true }));
+  await page.goto(PAGE_PATH);
+  await page.getByRole("button", { name: "Show more repositories" }).click();
+  const retry = page.getByRole("button", { name: "Try again" });
+  await expect(retry).toBeVisible();
+  await expect(retry).toBeFocused();
+  await retry.click();
+  // Try again re-reads the list; the button that loads more is back, so focus goes to it.
+  await expect(retry).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Show more repositories" }),
+  ).toBeFocused();
+});
+
+test("a failed first read of the repositories, retried from the keyboard, puts focus on the list's heading", async ({ page }) => {
+  const world = pagedWorld({ failFirstRead: true });
+  await fixture(page, world);
+  await page.goto(PAGE_PATH);
+  const retry = page.getByRole("button", { name: "Try again" });
+  await expect(retry).toBeVisible();
+  world.failFirstRead = false;
+  await retry.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByLabel("acme-org/repo-1")).toBeVisible();
+  await expect(page.locator('[data-paged-heading="repositories"]'))
+    .toBeFocused();
 });
