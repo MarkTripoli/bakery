@@ -574,6 +574,9 @@ test("swapping repositories adds before it removes, so a connection that is on n
   await page.getByLabel("acme-org/repo-1").uncheck();
   await page.getByLabel("acme-org/repo-2").check();
   await page.getByRole("button", { name: "Save selection" }).click();
+  // The boxes already show the new choice; the save is over when its button goes.
+  await expect(page.getByRole("button", { name: "Save selection" }))
+    .toHaveCount(0);
   await expect(page.getByLabel("acme-org/repo-2")).toBeChecked();
   await expect(page.getByLabel("acme-org/repo-1")).not.toBeChecked();
   const patches = world.seen.filter((call) =>
