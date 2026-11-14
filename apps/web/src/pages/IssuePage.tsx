@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
 import type { TicketRequestIntent } from "../api/client.ts";
@@ -17,6 +17,7 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { ISSUES_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
 import { reasonSentence } from "./IssuesList.tsx";
 import { IssuesTroubleBanner } from "./IssuesTroubleBanner.tsx";
@@ -520,18 +521,12 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
           aria-label={translate("shell.navigation.breadcrumb")}
           items={[
             {
-              label: (
-                <RouterLink to="/">
-                  {translate("shell.navigation.workspace")}
-                </RouterLink>
-              ),
+              href: WORK_HOME,
+              label: translate("shell.navigation.workspace"),
             },
             {
-              label: (
-                <RouterLink to="/issues">
-                  {translate("shell.navigation.issues")}
-                </RouterLink>
-              ),
+              href: ISSUES_HOME,
+              label: translate("shell.navigation.issues"),
             },
             { label: number === null ? snapshot.title : `#${number}` },
           ]}

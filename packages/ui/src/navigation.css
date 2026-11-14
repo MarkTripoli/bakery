@@ -1618,6 +1618,12 @@ a.bakery-application-rail__link:hover {
     justify-content: flex-end; /* auth.css:8 .row in the right-aligned item action */
     row-gap: var(--space-0);
   }
+  .ui-settings-content .ui-description-item[data-action-placement="below"] .ui-description-item__action:has(.ui-inline) {
+    max-inline-size: none; /* the action has its own line under the text */
+  }
+  .ui-settings-content .ui-description-item[data-action-placement="below"] .ui-description-item__action .ui-inline {
+    justify-content: flex-start;
+  }
 }
 
 /* Paper O-0 personal settings pages (Profile, Appearance, Your access): a 24px
@@ -2042,6 +2048,19 @@ a.bakery-application-rail__link:hover {
   color: var(--color-fg-muted);
   min-block-size: var(--space-0);
   text-decoration: none;
+}
+/* The current page's name is cut with an ellipsis when it is long. */
+.bakery-top-bar .ui-breadcrumbs li:last-child > span {
+  max-inline-size: var(--layout-inspector);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A crumb that leads somewhere reads as a link on hover and keyboard focus. */
+.bakery-top-bar .ui-breadcrumbs a:not(.ui-link):is(:hover, :focus-visible) {
+  color: var(--color-fg);
+  text-decoration: underline;
+  text-underline-offset: var(--underline-offset);
 }
 .bakery-top-bar .ui-breadcrumbs li {
   align-items: center;

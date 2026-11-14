@@ -23,6 +23,7 @@ import { protectedQueryKey } from "../app/query-scope.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { SETTINGS_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 
 const PAGE_LIMIT = 100;
@@ -1087,7 +1088,10 @@ export function OrganizationAccessPage() {
         <UI.Breadcrumbs
           aria-label={translate("shell.navigation.breadcrumb")}
           items={[
-            { label: translate("shell.states.settingsTitle") },
+            {
+              href: SETTINGS_HOME,
+              label: translate("shell.states.settingsTitle"),
+            },
             { label: translate("settings.orgAccess.title") },
           ]}
         />

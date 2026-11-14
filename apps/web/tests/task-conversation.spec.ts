@@ -13,6 +13,7 @@ import {
 } from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { firstRender } from "./helpers/first-render.ts";
+import { shot } from "./helpers/real-api.ts";
 
 registerPageHealth(test);
 
@@ -2001,5 +2002,27 @@ test.describe("participants and live updates", () => {
     await expect(page.getByRole("log").getByText("From Dana.")).toBeVisible();
     await expect(box).toHaveValue("Not yet");
     expect(state.sent).toHaveLength(0);
+  });
+});
+
+test("the trail leads back to Workspace and Work and names the task as the current page", async ({ page, isMobile }) => {
+  // The trail is in the top bar; a phone shows the page title there instead.
+  test.skip(isMobile, "the top bar shows no trail on a phone");
+  await open(page);
+  const trail = page.getByRole("navigation", { name: "Breadcrumb" });
+  const links = trail.getByRole("link");
+  await expect(links).toHaveCount(2);
+  await expect(links.first()).toHaveText("Workspace");
+  await expect(links.nth(1)).toContainText("Work");
+  await expect(links.first()).toHaveAttribute("href", "/tasks");
+  await expect(links.nth(1)).toHaveAttribute("href", "/tasks");
+  // The task's title, not its raw id, is the current page.
+  const current = trail.locator("[aria-current=page]");
+  await expect(current).toHaveCount(1);
+  await expect(current).toHaveText("Add repository onboarding");
+  await page.mouse.move(900, 600);
+  await shot(page, "breadcrumbs-task", [], {
+    windowOnly: true,
+    only: "desktop",
   });
 });
