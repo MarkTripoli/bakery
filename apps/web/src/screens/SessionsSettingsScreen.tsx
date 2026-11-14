@@ -1,8 +1,5 @@
 import * as UI from "@bakery/ui";
-import {
-  SECURITY_SETTINGS_PATH,
-  SESSION_REVOKE_PATH,
-} from "../app/auth-paths.ts";
+import { SESSION_REVOKE_PATH } from "../app/auth-paths.ts";
 import { RouterLink } from "../app/router-link.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 
@@ -30,7 +27,7 @@ export type SessionsSettingsScreenProps = {
 
 /**
  * `/settings/sessions` presenter — Paper `sessions` (auth.js L188):
- * back link, heading, optional "signed out" notice, this device's row with
+ * heading, optional "signed out" notice, this device's row with
  * its `Current` badge, one row per other session with a Revoke link (or the
  * "no other sessions" notice), and the "Sign out all other sessions" button
  * (the artboard keeps it in the empty state too; confirming there is a no-op
@@ -42,15 +39,7 @@ export function SessionsSettingsScreen(
 ) {
   const { translate } = useI18n();
   return (
-    <UI.SettingsContent
-      back={
-        <RouterLink to={SECURITY_SETTINGS_PATH}>
-          <UI.IconGlyph name="back" size="large" />
-          {translate("auth.settings.security.title")}
-        </RouterLink>
-      }
-      data-testid="sessions-settings"
-    >
+    <UI.SettingsContent data-testid="sessions-settings">
       <UI.AuthHeading
         description={translate("auth.settings.sessions.description")}
         title={translate("auth.sessions.title")}

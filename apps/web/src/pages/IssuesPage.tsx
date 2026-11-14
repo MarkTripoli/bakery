@@ -35,6 +35,13 @@ import {
 const PAGE_SIZE = 25;
 
 /**
+ * Can start and In progress are decided from each issue's saved check and
+ * request, which the list route cannot filter on, so those views keep reading
+ * pages while nothing matches, up to this many (200 issues), and then say so.
+ */
+const MAX_SEARCH_PAGES = 8;
+
+/**
  * The GitHub issues Bakery has read for the organization, newest first, with
  * what can be started now by default. The list is the server's saved copy and
  * says how old it is; Refresh (administrators) asks the server to read GitHub
@@ -69,6 +76,21 @@ export function IssuesPage() {
     [issues.data],
   );
   const visible = rows.filter((row) => issueMatchesFilter(row, filter));
+  const searchable = filter === "canStart" || filter === "inProgress";
+  const pagesRead = issues.data?.pages.length ?? 0;
+  // Nothing matches yet but more pages exist: keep looking rather than say
+  // "nothing" over a Load more button.
+  const searching = searchable && visible.length === 0 &&
+    issues.hasNextPage && !issues.isFetchNextPageError &&
+    pagesRead < MAX_SEARCH_PAGES;
+  // The search gave up at the page limit: say how far it looked.
+  const searchedPartly = searchable && visible.length === 0 &&
+    issues.hasNextPage && !searching && !issues.isPending;
+  const fetchMore = issues.fetchNextPage;
+  const fetchingMore = issues.isFetchingNextPage;
+  useEffect(() => {
+    if (searching && !fetchingMore) void fetchMore();
+  }, [searching, fetchingMore, pagesRead, fetchMore]);
   const repositories = useMemo(() => {
     const seen = new Map<string, string>();
     for (const row of rows) {
@@ -278,7 +300,19 @@ export function IssuesPage() {
                   </UI.Text>
                 )
                 : null}
-              {visible.length === 0 && !issues.isPending
+              {visible.length === 0 && !issues.isPending && searching
+                ? (
+                  <UI.Text variant="muted" role="status">
+                    {translate(`issues.searching.${filter}` as never)}
+                  </UI.Text>
+                )
+                : visible.length === 0 && !issues.isPending && searchedPartly
+                ? (
+                  <UI.InlineNotice tone="information">
+                    {translate(`issues.partial.${filter}` as never)}
+                  </UI.InlineNotice>
+                )
+                : visible.length === 0 && !issues.isPending
                 ? (
                   <UI.EmptyState
                     title={translate(`issues.empty.${filter}.title` as never)}

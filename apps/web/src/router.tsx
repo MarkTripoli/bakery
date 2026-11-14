@@ -1305,7 +1305,7 @@ const settingsScimRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => (
-    <InOrganization section="shell.navigation.scimShort">
+    <InOrganization section="shell.navigation.userProvisioning">
       <ScimConnectionPage />
     </InOrganization>
   ),
@@ -1406,7 +1406,10 @@ const twoFactorSettingsRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => (
-    <InSettings section="shell.navigation.security">
+    <InSettings
+      page="auth.twoFactor.sectionTitle"
+      section="shell.navigation.security"
+    >
       <TwoFactorSettingsPage />
     </InSettings>
   ),
@@ -1419,7 +1422,10 @@ const totpSetupRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => (
-    <InSettings section="shell.navigation.security">
+    <InSettings
+      page="auth.twoFactor.sectionTitle"
+      section="shell.navigation.security"
+    >
       <TotpSetupPage />
     </InSettings>
   ),
@@ -1439,7 +1445,10 @@ const backupCodesRoute = createRoute({
   component: () => {
     const { regenerate } = backupCodesRoute.useSearch();
     return (
-      <InSettings section="shell.navigation.security">
+      <InSettings
+        page="auth.twoFactor.sectionTitle"
+        section="shell.navigation.security"
+      >
         <BackupCodesPage regenerate={regenerate === true} />
       </InSettings>
     );
@@ -1453,7 +1462,10 @@ const totpDisableRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => (
-    <InSettings section="shell.navigation.security">
+    <InSettings
+      page="auth.twoFactor.sectionTitle"
+      section="shell.navigation.security"
+    >
       <TotpDisablePage />
     </InSettings>
   ),
@@ -1466,7 +1478,10 @@ const passwordRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => (
-    <InSettings section="shell.navigation.security">
+    <InSettings
+      page="settings.password.title"
+      section="shell.navigation.security"
+    >
       <ChangePasswordPage />
     </InSettings>
   ),
@@ -1479,7 +1494,7 @@ const passkeysRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => (
-    <InSettings section="shell.navigation.security">
+    <InSettings page="passkeys.title" section="shell.navigation.security">
       <PasskeysPage />
     </InSettings>
   ),
@@ -1492,7 +1507,7 @@ const passkeyAddRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => (
-    <InSettings section="shell.navigation.security">
+    <InSettings page="passkeys.title" section="shell.navigation.security">
       <AddPasskeyPage />
     </InSettings>
   ),
