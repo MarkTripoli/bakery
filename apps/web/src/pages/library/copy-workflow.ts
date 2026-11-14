@@ -8,12 +8,23 @@ import type {
 export const NAME_LIMIT = 200;
 const SLUG_LIMIT = 100;
 
+/**
+ * The text cut to at most `limit` characters as the server counts them (UTF-16
+ * units), never leaving half of a pair (an emoji) at the cut.
+ */
+export function clip(text: string, limit: number): string {
+  if (text.length <= limit) return text;
+  const cut = text.slice(0, limit);
+  const last = cut.charCodeAt(cut.length - 1);
+  return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut;
+}
+
 /** "Release train" becomes "Release train (copy)", kept within the name limit. */
 export function copyName(name: string, suffix: string): string {
   const base = `${name.trim()} ${suffix}`.trim();
   return base.length <= NAME_LIMIT
     ? base
-    : `${name.trim().slice(0, NAME_LIMIT - suffix.length - 1)} ${suffix}`;
+    : `${clip(name.trim(), NAME_LIMIT - suffix.length - 1)} ${suffix}`;
 }
 
 /** A name as the lower-case words and hyphens a workflow's address uses. */

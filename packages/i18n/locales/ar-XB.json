@@ -3436,5 +3436,8 @@
   "library.workflow.makeCopy": "⟪Make a copy⟫",
   "library.builtIn.page.badge": "⟪Built in⟫",
   "library.builtIn.page.notice": "⟪Built-in workflows cannot be changed. Make a copy to edit it.⟫",
-  "library.builtIn.page.notFoundTitle": "⟪This built-in workflow was not found⟫"
+  "library.builtIn.page.notFoundTitle": "⟪This built-in workflow was not found⟫",
+  "library.copy.retry": "⟪Try again⟫",
+  "library.copy.locked": "⟪The copy already has this name.⟫",
+  "library.builtIn.page.memberNotice": "⟪Built-in workflows cannot be changed. An organization administrator can make a copy to edit.⟫"
 }

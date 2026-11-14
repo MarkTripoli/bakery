@@ -195,13 +195,12 @@ export function BuiltInWorkflowPage(
         />
         <UI.Stack gap="spacious">
           <UI.InlineNotice tone="information">
-            {translate("library.builtIn.page.notice" as never)}
+            {translate(
+              (canManage
+                ? "library.builtIn.page.notice"
+                : "library.builtIn.page.memberNotice") as never,
+            )}
           </UI.InlineNotice>
-          {canManage ? null : (
-            <UI.InlineNotice tone="information">
-              {translate("library.workflow.adminOnly" as never)}
-            </UI.InlineNotice>
-          )}
           <UI.ListSection
             flush
             data-testid="workflow-steps"

@@ -3436,5 +3436,8 @@
   "library.workflow.makeCopy": "⟦Ṁàķë à çôþÿ ŧ⟧",
   "library.builtIn.page.badge": "⟦Ɓûïļŧ ïñ…⟧",
   "library.builtIn.page.notice": "⟦Ɓûïļŧ-ïñ ŵôŕķƒļôŵš çàññôŧ ƀë çĥàñĝëð. Ṁàķë à çôþÿ ŧô ëðïŧ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
-  "library.builtIn.page.notFoundTitle": "⟦Ŧĥïš ƀûïļŧ-ïñ ŵôŕķƒļôŵ ŵàš ñôŧ ƒôûñð ŧëšŧ çôþÿŧ⟧"
+  "library.builtIn.page.notFoundTitle": "⟦Ŧĥïš ƀûïļŧ-ïñ ŵôŕķƒļôŵ ŵàš ñôŧ ƒôûñð ŧëšŧ çôþÿŧ⟧",
+  "library.copy.retry": "⟦Ŧŕÿ àĝàïñ ŧ⟧",
+  "library.copy.locked": "⟦Ŧĥë çôþÿ àļŕëàðÿ ĥàš ŧĥïš ñàɱë. ŧëšŧ çôþ⟧",
+  "library.builtIn.page.memberNotice": "⟦Ɓûïļŧ-ïñ ŵôŕķƒļôŵš çàññôŧ ƀë çĥàñĝëð. Àñ ôŕĝàñïžàŧïôñ àðɱïñïšŧŕàŧôŕ çàñ ɱàķë à çôþÿ ŧô ëðïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
 }
