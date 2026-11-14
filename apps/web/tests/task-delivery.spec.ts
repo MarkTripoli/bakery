@@ -702,11 +702,18 @@ test("an open approval asks for a decision: Approve is the one button, the other
   const step = steps.getByRole("listitem").filter({ hasText: "Approval" });
   await expect(step).toContainText("Waiting for you");
   await expect(step).toContainText("Waiting for your approval.");
-  await step.getByRole("button", { name: "About approval" }).click();
+  // Keyboard focus opens a help tip on every screen; a tap near the bottom of
+  // a phone first scrolls the page, and scrolling closes the tip there.
+  const help = step.getByRole("button", { name: "About approval" });
+  await help.focus();
   await expect(
-    page.getByText("Your workflow asks a person to approve at this point."),
-  )
-    .toBeVisible();
+    page.getByRole("tooltip").filter({
+      hasText: "Your workflow asks a person to approve at this point.",
+    }),
+  ).toBeVisible();
+  await expect(help).toHaveAccessibleDescription(
+    "Your workflow asks a person to approve at this point.",
+  );
 });
 
 test("approving asks first, sends the version it saw once, and the card announces the result", async ({ page }) => {
