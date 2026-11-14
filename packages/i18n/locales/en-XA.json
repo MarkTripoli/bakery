@@ -3056,7 +3056,6 @@
   "machines.agents.banner.notSignedIn.title": "⟦{agent} ïš ñôŧ šïĝñëð ïñ ÿëŧ. ŧëšŧ çôþ⟧",
   "machines.agents.banner.notSignedIn.body": "⟦Šïĝñ ïñ ŵïŧĥ à {agent} šûƀšçŕïþŧïôñ ôñ ŧĥïš ɱàçĥïñë šô ïŧ çàñ ŧàķë {agent} ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "machines.agents.banner.signedOut.title": "⟦{agent} ïš šïĝñëð ôûŧ ôñ ŧĥïš ɱàçĥïñë. ŧëšŧ çôþÿ ŧ⟧",
-  "machines.agents.banner.signedOut.body": "⟦Ŵôŕķ ŧĥàŧ ñëëðš {agent} ïš ŵàïŧïñĝ. Ôŧĥëŕ ŵôŕķ çôñŧïñûëš. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "machines.signIn.title": "⟦Šïĝñ ïñ ŧô {agent} ôñ {machine} ŧëšŧ çôþ⟧",
   "machines.signIn.starting": "⟦Šŧàŕŧïñĝ šïĝñ-ïñ… ŧëš⟧",
   "machines.signIn.waiting": "⟦Ŵàïŧïñĝ ƒôŕ ÿôû ŧô ƒïñïšĥ… ŧëšŧ çô⟧",
@@ -3083,5 +3082,7 @@
   "machines.wizard.install.opening": "⟦Ĝëŧŧïñĝ ŧĥë ɱàçĥïñë'š þàĝë ŕëàðÿ. Šïĝñïñĝ ïñ ŵïļļ ƀë àṽàïļàƀļë ïñ à ɱôɱëñŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "machines.software.entry": "⟦{name} {version} ŧëš⟧",
   "machines.agents.lineSignedOut": "⟦Ŧĥë šïĝñ-ïñ ôñ ŧĥïš ɱàçĥïñë ñô ļôñĝëŕ ŵôŕķš. ŧëšŧ çôþÿ ŧëš⟧",
-  "machines.agents.lineNotChecked": "⟦Ɓàķëŕÿ ĥàš ñôŧ çĥëçķëð ŧĥë šïĝñ-ïñ ôñ ŧĥïš ɱàçĥïñë ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çô⟧"
+  "machines.agents.lineNotChecked": "⟦Ɓàķëŕÿ ĥàš ñôŧ çĥëçķëð ŧĥë šïĝñ-ïñ ôñ ŧĥïš ɱàçĥïñë ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "machines.agents.banner.signedOut.body": "⟦Ŵôŕķ ŧĥàŧ ñëëðš {agent} ïš ŵàïŧïñĝ. ŧëšŧ çôþÿŧ⟧",
+  "machines.agents.banner.otherWork": "⟦Ôŧĥëŕ ŵôŕķ çôñŧïñûëš. ŧëšŧŧ⟧"
 }

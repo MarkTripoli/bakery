@@ -3056,7 +3056,6 @@
   "machines.agents.banner.notSignedIn.title": "⟪{agent} is not signed in yet.⟫",
   "machines.agents.banner.notSignedIn.body": "⟪Sign in with a {agent} subscription on this machine so it can take {agent} work.⟫",
   "machines.agents.banner.signedOut.title": "⟪{agent} is signed out on this machine.⟫",
-  "machines.agents.banner.signedOut.body": "⟪Work that needs {agent} is waiting. Other work continues.⟫",
   "machines.signIn.title": "⟪Sign in to {agent} on {machine}⟫",
   "machines.signIn.starting": "⟪Starting sign-in…⟫",
   "machines.signIn.waiting": "⟪Waiting for you to finish…⟫",
@@ -3083,5 +3082,7 @@
   "machines.wizard.install.opening": "⟪Getting the machine's page ready. Signing in will be available in a moment.⟫",
   "machines.software.entry": "⟪{name} {version}⟫",
   "machines.agents.lineSignedOut": "⟪The sign-in on this machine no longer works.⟫",
-  "machines.agents.lineNotChecked": "⟪Bakery has not checked the sign-in on this machine yet.⟫"
+  "machines.agents.lineNotChecked": "⟪Bakery has not checked the sign-in on this machine yet.⟫",
+  "machines.agents.banner.signedOut.body": "⟪Work that needs {agent} is waiting.⟫",
+  "machines.agents.banner.otherWork": "⟪Other work continues.⟫"
 }

@@ -563,6 +563,10 @@ export function MachineDetailPage(
                     row={signInBanner ?? bannerAgent!}
                     translate={translate}
                     signIn={signIn}
+                    otherAgentReady={agents.some((entry) =>
+                      entry.agent !== (signInBanner ?? bannerAgent!).agent &&
+                      entry.state === "ready"
+                    )}
                   />
                 )
                 : null}

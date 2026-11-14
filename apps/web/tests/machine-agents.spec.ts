@@ -509,6 +509,11 @@ test.describe("the Coding agents rows", () => {
     );
     await expect(banner(page).getByRole("button", { name: "Sign in again" }))
       .toBeVisible();
+    // No other coding agent here is Ready, so it does not say other work continues.
+    await expect(banner(page)).toContainText(
+      "Work that needs Claude Code is waiting.",
+    );
+    await expect(banner(page)).not.toContainText("Other work continues.");
     await expect(page.getByTestId("machine-problem-banner")).toHaveCount(0);
     // The failed check is still in Checks.
     const checks = page.getByTestId("machine-checks");
@@ -517,6 +522,30 @@ test.describe("the Coding agents rows", () => {
     await expect(header(page).getByText("Needs attention", { exact: true }))
       .toBeVisible();
     await shot(page, "machine-agents-banner-model-check");
+  });
+
+  test("the banner says other work continues only when another coding agent on the machine is Ready", async ({ page }) => {
+    // Codex signed out with Claude Code not checked: nothing else is Ready.
+    await open(
+      page,
+      world({
+        capabilities: ["git", "claude", "codex"],
+        components: ["harness.claude", "harness.codex"],
+        bindings: [
+          binding(),
+          binding({
+            id: "00000000-0000-4000-8000-0000000000b2",
+            componentKey: "harness.codex",
+            provider: "openai",
+            safeProblem: "AUTH",
+          }),
+        ],
+      }),
+    );
+    await expect(banner(page)).toContainText(
+      "Work that needs Codex is waiting.",
+    );
+    await expect(banner(page)).not.toContainText("Other work continues.");
   });
 
   test("a model check of an agent never signed in is that agent's banner too", async ({ page }) => {

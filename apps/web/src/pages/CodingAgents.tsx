@@ -711,10 +711,12 @@ export function CodingAgentRow(
 
 /** The one banner for an agent that is not signed in or is signed out. */
 export function CodingAgentBanner(
-  { row, translate, signIn }: {
+  { row, translate, signIn, otherAgentReady }: {
     row: AgentRow;
     translate: Translator;
     signIn: AgentSignIn;
+    /** Another coding agent on the machine is Ready: only then does the banner say other work continues. */
+    otherAgentReady: boolean;
   },
 ) {
   const name = agentName(translate, row.agent);
@@ -747,6 +749,9 @@ export function CodingAgentBanner(
           {message(translate, `machines.agents.banner.${kind}.body`, {
             agent: name,
           })}
+          {kind === "signedOut" && otherAgentReady
+            ? ` ${message(translate, "machines.agents.banner.otherWork")}`
+            : ""}
         </UI.Text>
       </UI.Stack>
     </UI.AlertBanner>
