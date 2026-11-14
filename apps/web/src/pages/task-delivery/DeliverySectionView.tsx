@@ -370,12 +370,15 @@ function ReadyView(
     await onDecide(choice, text);
     setDialog(null);
     setComment("");
-    // Closing the dialog returns focus to the button that opened it, so this
-    // waits for the screen to settle: a refusal's notice takes focus, else the
+    // Closing the dialog returns focus to the button that opened it, and that
+    // happens in an effect that can run after the next frames, so this waits
+    // until no dialog is open: a refusal's notice then takes focus, else the
     // card's title, which announces the new state.
     focusAfterPaint(() =>
-      document.getElementById(NOTICE_ID) ??
-        document.getElementById(NOW_TITLE_ID)
+      document.querySelector("dialog[open]") !== null ? null : (
+        document.getElementById(NOTICE_ID) ??
+          document.getElementById(NOW_TITLE_ID)
+      )
     );
   };
   const closeDialog = () => {

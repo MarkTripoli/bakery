@@ -694,6 +694,9 @@ test("an open approval asks for a decision: Approve is the one button, the other
     "Request changes",
     "Reject",
   ]);
+  // Close the menu the way a person would before reaching for anything else.
+  await page.keyboard.press("Escape");
+  await expect(moreMenu(page)).toBeHidden();
   const steps = page.getByRole("list", { name: "Delivery steps" });
   await expect(steps.getByRole("listitem")).toHaveCount(4);
   const step = steps.getByRole("listitem").filter({ hasText: "Approval" });
