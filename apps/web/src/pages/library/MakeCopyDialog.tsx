@@ -84,7 +84,8 @@ export function MakeCopyDialog(
               autoComplete="off"
               value={name}
               disabled={made !== null}
-              invalid={tried && empty || undefined}
+              invalid={(tried && empty) || failure === "nameTaken" ||
+                failure === "nameRejected" || undefined}
               onChange={(value) => {
                 setName(clip(value, NAME_LIMIT));
                 // A refused name is edited, not repeated.
