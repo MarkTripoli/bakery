@@ -13,6 +13,7 @@ import {
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { MACHINES_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { SetupInstructions } from "./SetupInstructions.tsx";
 import type { CodingAgent } from "./machine-state.ts";
@@ -509,8 +510,14 @@ export function MachineWizardPage(
       <UI.Breadcrumbs
         aria-label={translate("shell.navigation.breadcrumb")}
         items={[
-          { label: translate("shell.navigation.workspace") },
-          { label: translate("shell.navigation.machines") },
+          {
+            href: WORK_HOME,
+            label: translate("shell.navigation.workspace"),
+          },
+          {
+            href: MACHINES_HOME,
+            label: translate("shell.navigation.machines"),
+          },
           { label: translate("machines.wizard.title" as never) },
         ]}
       />

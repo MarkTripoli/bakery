@@ -13,6 +13,7 @@ import {
 } from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { firstRender } from "./helpers/first-render.ts";
+import { shot } from "./helpers/real-api.ts";
 
 registerPageHealth(test);
 
@@ -2002,4 +2003,16 @@ test.describe("participants and live updates", () => {
     await expect(box).toHaveValue("Not yet");
     expect(state.sent).toHaveLength(0);
   });
+});
+
+test("the trail leads back to Work and names the task as the current page", async ({ page, isMobile }) => {
+  // The trail is in the top bar; a phone shows the page title there instead.
+  test.skip(isMobile, "the top bar shows no trail on a phone");
+  await open(page);
+  const trail = page.getByRole("navigation", { name: "Breadcrumb" });
+  await expect(trail.getByRole("link")).toHaveCount(1);
+  await expect(trail.getByRole("link")).toHaveAttribute("href", "/tasks");
+  await expect(trail.locator("[aria-current=page]")).toHaveCount(1);
+  await page.mouse.move(900, 600);
+  await shot(page, "breadcrumbs-task");
 });

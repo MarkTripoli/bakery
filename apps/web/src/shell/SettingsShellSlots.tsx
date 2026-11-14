@@ -3,6 +3,7 @@ import type { MessageKey } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
 import { SECURITY_SETTINGS_PATH } from "../app/auth-paths.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { INSTALLATION_HOME, SETTINGS_HOME } from "./breadcrumb-paths.ts";
 import { ShellSlot } from "./shell-slots.tsx";
 
 /** Where a section's own page lives, for the crumb above one of its sub-pages. */
@@ -28,7 +29,10 @@ export function SettingsBreadcrumbs(
       <UI.Breadcrumbs
         aria-label={translate("shell.navigation.breadcrumb")}
         items={[
-          { label: translate("shell.states.settingsTitle") },
+          {
+            href: SETTINGS_HOME,
+            label: translate("shell.states.settingsTitle"),
+          },
           ...(page
             ? [{
               href: SETTINGS_SECTION_PATHS[section],
@@ -71,7 +75,10 @@ export function OrganizationBreadcrumbs() {
       <UI.Breadcrumbs
         aria-label={translate("shell.navigation.breadcrumb")}
         items={[
-          { label: translate("shell.states.settingsTitle") },
+          {
+            href: SETTINGS_HOME,
+            label: translate("shell.states.settingsTitle"),
+          },
           { label: translate("shell.navigation.organizationSettings") },
         ]}
       />
@@ -94,7 +101,10 @@ export function OrganizationSectionBreadcrumbs(
       <UI.Breadcrumbs
         aria-label={translate("shell.navigation.breadcrumb")}
         items={[
-          { label: translate("shell.states.settingsTitle") },
+          {
+            href: SETTINGS_HOME,
+            label: translate("shell.states.settingsTitle"),
+          },
           { label: translate(section) },
         ]}
       />
@@ -135,7 +145,10 @@ export function InstallationBreadcrumbs(
         <UI.Breadcrumbs
           aria-label={translate("shell.navigation.breadcrumb")}
           items={[
-            { label: translate("shell.navigation.installation") },
+            {
+              href: INSTALLATION_HOME,
+              label: translate("shell.navigation.installation"),
+            },
             { label: translate(section) },
           ]}
         />

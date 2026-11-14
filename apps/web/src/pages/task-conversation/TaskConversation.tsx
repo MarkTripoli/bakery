@@ -569,7 +569,7 @@ export function TaskConversation(
             items={[
               {
                 label: (
-                  <RouterLink to="/tasks">
+                  <RouterLink to="/tasks" activeOptions={{ exact: true }}>
                     {t("shell.navigation.work")}
                     <UI.VisuallyHidden>
                       {t("tasks.live.back")}
