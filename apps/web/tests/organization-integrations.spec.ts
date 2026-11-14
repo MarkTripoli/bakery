@@ -886,3 +886,169 @@ test("both pages have no accessibility violations", async ({ page }) => {
   ).analyze();
   expect(detail.violations).toEqual([]);
 });
+
+// Stills for design-ux's review, written only when BAKERY_STILLS_DIR is set:
+// each state on desktop and on a 390 px phone, light and dark.
+const STILLS = process.env.BAKERY_STILLS_DIR;
+const STILL_FORMS = [[1280, 1800, "desktop"], [390, 3600, "phone"]] as const;
+
+type StillScenario = {
+  readonly name: string;
+  readonly path: string;
+  /** The region pictured. */
+  readonly testId: string;
+  readonly world: () => World;
+  readonly act?: (page: Page, world: World) => Promise<void>;
+};
+
+const manyRepositories = (count: number, selected = 1) =>
+  Array.from(
+    { length: count },
+    (_, index) => repository(index + 1, index < selected),
+  );
+
+const STILL_SCENARIOS: readonly StillScenario[] = [
+  {
+    name: "home-states",
+    path: PAGE_PATH,
+    testId: "organization-integrations",
+    world: () =>
+      newWorld({
+        connections: [
+          connection(1, "enabled"),
+          connection(2, "enabled", { lastCheckedAt: null }),
+          connection(3, "pending"),
+          connection(4, "disabled"),
+          connection(5, "degraded"),
+          connection(6, "revoked"),
+        ],
+      }),
+  },
+  {
+    name: "home-empty",
+    path: PAGE_PATH,
+    testId: "organization-integrations",
+    world: () => newWorld(),
+  },
+  ...([
+    ["working", connection(1, "enabled")],
+    ["not-checked", connection(2, "enabled", { lastCheckedAt: null })],
+    ["finish-setup", connection(3, "pending")],
+    ["turned-off", connection(4, "disabled")],
+    ["needs-attention", connection(5, "degraded")],
+    ["removed", connection(6, "revoked")],
+  ] as const).map(([name, item]): StillScenario => ({
+    name: `connection-${name}`,
+    path: pageFor(item.id),
+    testId: "connection-page",
+    world: () =>
+      newWorld({
+        connections: [{ ...item }],
+        resources: manyRepositories(3, item.status === "pending" ? 0 : 1),
+      }),
+  })),
+  {
+    name: "repositories-filter",
+    path: pageFor(ID(1)),
+    testId: "repositories",
+    world: () =>
+      newWorld({
+        connections: [connection(1, "enabled")],
+        resources: manyRepositories(12),
+        pageSize: 11,
+      }),
+    act: async (page) => {
+      await page.getByRole("searchbox", { name: "Search repositories" })
+        .fill("repo-1");
+      await expect(page.getByLabel("acme-org/repo-10")).toBeVisible();
+    },
+  },
+  {
+    name: "repositories-save",
+    path: pageFor(ID(1)),
+    testId: "repositories",
+    world: () =>
+      newWorld({
+        connections: [connection(1, "enabled")],
+        resources: manyRepositories(3),
+      }),
+    act: async (page) => {
+      await page.getByLabel("acme-org/repo-2").check();
+      await expect(page.getByRole("button", { name: "Save selection" }))
+        .toBeVisible();
+    },
+  },
+  {
+    name: "repositories-refusal",
+    path: pageFor(ID(1)),
+    testId: "repositories",
+    world: () =>
+      newWorld({
+        connections: [connection(1, "enabled")],
+        resources: manyRepositories(3),
+      }),
+    act: async (page) => {
+      await page.getByLabel("acme-org/repo-1").uncheck();
+      await page.getByRole("button", { name: "Save selection" }).click();
+      await expect(
+        page.getByText(
+          "Keep at least one repository, or turn the connection off first.",
+        ),
+      ).toBeVisible();
+    },
+  },
+  {
+    name: "permissions-closed",
+    path: pageFor(ID(1)),
+    testId: "permissions",
+    world: () =>
+      newWorld({
+        connections: [connection(1, "enabled")],
+        resources: manyRepositories(2),
+      }),
+  },
+  {
+    name: "permissions-open",
+    path: pageFor(ID(1)),
+    testId: "permissions",
+    world: () =>
+      newWorld({
+        connections: [connection(1, "enabled")],
+        resources: manyRepositories(2),
+      }),
+    act: async (page) => {
+      await page.getByRole("button", { name: "Show GitHub permission names" })
+        .click();
+      await expect(page.getByText("contents:write")).toBeVisible();
+    },
+  },
+];
+
+for (const scenario of STILL_SCENARIOS) {
+  for (const [width, height, label] of STILL_FORMS) {
+    for (const scheme of ["light", "dark"] as const) {
+      test(`still: ${scenario.name} ${label} ${scheme}`, async ({ page, isMobile }) => {
+        test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+        test.skip(
+          isMobile,
+          "the stills set their own sizes; one project takes them",
+        );
+        await page.setViewportSize({ width, height });
+        await page.emulateMedia({ colorScheme: scheme });
+        const world = scenario.world();
+        await fixture(page, world);
+        await page.goto(scenario.path);
+        const region = page.getByTestId(scenario.testId);
+        await expect(region).toBeVisible();
+        // Settle the data before the picture: the list and the page load first.
+        await expect(page.getByLabel("Loading connections.")).toHaveCount(0);
+        await expect(page.getByText("Loading repositories.")).toHaveCount(0);
+        await scenario.act?.(page, world);
+        await region.scrollIntoViewIfNeeded();
+        await region.screenshot({
+          path: `${STILLS}/${scenario.name}-${label}-${scheme}.png`,
+        });
+      });
+    }
+  }
+}
