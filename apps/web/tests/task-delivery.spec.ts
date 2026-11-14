@@ -887,6 +887,14 @@ test("a person who may not decide is told so, the answers go away and nothing ch
     page.getByRole("alertdialog", { name: "Approve these changes?" }),
     "Approve",
   ).click();
+  // The form is not lost: it stays, says why, and cannot be sent again.
+  const dialog = page.getByRole("alertdialog", {
+    name: "Approve these changes?",
+  });
+  await expect(dialog.getByTestId("delivery-approval-dialog-notice"))
+    .toContainText("You cannot decide this approval.");
+  await expect(button(dialog, "Approve")).toBeDisabled();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(notice(page)).toContainText("You cannot decide this approval.");
   await expect(now).toContainText("Waiting for approval");
   await expect(now.getByRole("button")).toHaveCount(0);
@@ -911,18 +919,15 @@ test("a lost answer keeps the key, so asking again is the same decision", async 
   });
   await page.goto(`/tasks/${id}`);
   const now = nowCard(page);
-  const approve = async () => {
-    await button(now, "Approve").click();
-    await button(
-      page.getByRole("alertdialog", { name: "Approve these changes?" }),
-      "Approve",
-    ).click();
-  };
-  await approve();
-  await expect(notice(page)).toContainText(
-    "Bakery could not confirm that the decision was saved.",
-  );
-  await approve();
+  const dialog = page.getByRole("alertdialog", {
+    name: "Approve these changes?",
+  });
+  await button(now, "Approve").click();
+  await button(dialog, "Approve").click();
+  // The dialog stays open and says so, so asking again is its own button.
+  await expect(dialog.getByTestId("delivery-approval-dialog-notice"))
+    .toContainText("Bakery could not confirm that the decision was saved.");
+  await button(dialog, "Approve").click();
   await expect(now).toContainText("Approved");
   expect(mock.posted).toHaveLength(2);
   expect(mock.posted[1]?.key).toBe(mock.posted[0]?.key);
@@ -1185,6 +1190,7 @@ const APPROVAL_STILLS = [
   "approval-approved",
   "approval-conflict",
   "approval-refused",
+  "approval-retry",
   "approval-unavailable",
 ] as const;
 for (const name of APPROVAL_STILLS) {
@@ -1227,6 +1233,13 @@ for (const name of APPROVAL_STILLS) {
                 contentType: "application/problem+json",
                 json: problemBody(403, "AUTH_FORBIDDEN"),
               })
+            : name === "approval-retry"
+            ? (route) =>
+              route.fulfill({
+                status: 500,
+                contentType: "application/problem+json",
+                json: problemBody(500, "INTERNAL_ERROR"),
+              })
             : undefined,
         );
         const unavailable = name === "approval-unavailable";
@@ -1263,6 +1276,17 @@ for (const name of APPROVAL_STILLS) {
           await expect(page.getByRole("alertdialog")).toBeVisible();
           return await dialogPicture();
         }
+        if (name === "approval-retry") {
+          // A send that failed keeps the form, the note and says why in it.
+          await button(now, "Request changes").click();
+          await page.getByLabel("What should change?").fill(
+            "Validate the refund amount against the original charge.",
+          );
+          await button(page.locator("dialog[open]"), "Send").click();
+          await expect(page.getByTestId("delivery-approval-dialog-notice"))
+            .toBeVisible();
+          return await dialogPicture();
+        }
         if (
           name === "approval-approved" || conflict ||
           name === "approval-refused"
@@ -1270,6 +1294,11 @@ for (const name of APPROVAL_STILLS) {
           await button(now, "Approve").click();
           await button(page.getByRole("alertdialog"), "Approve").click();
           if (name === "approval-refused") {
+            // The dialog explains first; closing it leaves the card without answers.
+            await expect(page.getByTestId("delivery-approval-dialog-notice"))
+              .toBeVisible();
+            await page.getByRole("alertdialog")
+              .getByRole("button", { name: "Cancel" }).click();
             await expect(notice(page)).toBeVisible();
           } else {
             await expect(now).toContainText("Approved");
