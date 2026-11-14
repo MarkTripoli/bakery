@@ -57,3 +57,4 @@ export {
   type SystemChange,
   workerPath,
 } from "./service.ts";
+export { boundedDownload, type DownloadOptions } from "./download.ts";

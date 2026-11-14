@@ -71,6 +71,14 @@ export const BOOTSTRAP_ERRORS = {
     "This installation is already paired with this organization under another setup. It was not changed and no second machine was created.",
   PAIRING_BINDING_CORRUPT:
     "The record of this installation's pairing cannot be read. It was not replaced.",
+  DOWNLOAD_ORIGIN_INVALID:
+    "The release origin must be an https address with no path, login or query. The existing installation was not changed.",
+  DOWNLOAD_PATH_INVALID:
+    "The release file path is not an allowed path on the release origin. The existing installation was not changed.",
+  DOWNLOAD_REDIRECT_REFUSED:
+    "The release origin sent the download somewhere it may not go. The existing installation was not changed.",
+  DOWNLOAD_ENCODING_REFUSED:
+    "The release origin sent the file compressed or re-encoded, which is refused. The existing installation was not changed.",
   SERVICE_SPEC_INVALID:
     "A path or name for the service has characters the service definition does not allow. Nothing was written.",
   SERVICE_SETTING_REFUSED:
