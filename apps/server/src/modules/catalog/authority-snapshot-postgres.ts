@@ -191,19 +191,24 @@ export async function loadSnapshot(
   let role: string | undefined;
   let permissions: readonly string[] = [];
   await transaction.query("savepoint snapshot_actor");
+  let actor: Awaited<ReturnType<typeof resolveOrganizationActor>> | undefined;
   try {
-    const actor = await resolveOrganizationActor(
+    actor = await resolveOrganizationActor(
       transaction,
       key.actorRef as PrincipalId,
       key.organizationId as OrganizationId,
     );
+  } catch (error) {
+    // Only the resolver runs under the savepoint, so this rollback always
+    // targets a live savepoint and never masks a later error.
+    await transaction.query("rollback to savepoint snapshot_actor");
+    if (!(error instanceof StandardError)) throw error;
+  }
+  if (actor) {
     await transaction.query("release savepoint snapshot_actor");
     active = row.disabled_at === null;
     role = actor.role;
     permissions = active ? organizationPermissions(actor) : [];
-  } catch (error) {
-    await transaction.query("rollback to savepoint snapshot_actor");
-    if (!(error instanceof StandardError)) throw error;
   }
   // The revision effects record as authorization_revision: the newest policy
   // interpretation among the grants in force, or 1 when there are none.
