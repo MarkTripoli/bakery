@@ -1992,7 +1992,8 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
-        "SCOPE_REQUIRED"
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ]
     },
     {
@@ -2016,7 +2017,8 @@
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "SCOPE_REQUIRED"
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ]
     },
     {
@@ -2040,7 +2042,8 @@
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "SCOPE_REQUIRED"
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ]
     },
     {
@@ -2064,7 +2067,8 @@
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "SCOPE_REQUIRED"
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ]
     },
     {

@@ -2034,7 +2034,8 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
-        "SCOPE_REQUIRED"
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -2059,7 +2060,8 @@
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "SCOPE_REQUIRED"
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -2084,7 +2086,8 @@
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "SCOPE_REQUIRED"
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -2109,7 +2112,8 @@
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "SCOPE_REQUIRED"
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -197916,7 +197920,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:623d6a7faf9f3c60e4e41572b883999bcf864ecabc499d9e2fbfcb49357a34cb",
+  "compatibilityDigest": "sha256:139ea14b6964c5354840656bfacffc5447fff97615cb711676b40fc299f972d9",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

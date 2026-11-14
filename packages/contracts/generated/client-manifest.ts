@@ -1987,7 +1987,8 @@ export const clientManifest = {
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
-        "SCOPE_REQUIRED"
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -2012,7 +2013,8 @@ export const clientManifest = {
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "SCOPE_REQUIRED"
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -2037,7 +2039,8 @@ export const clientManifest = {
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "SCOPE_REQUIRED"
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
@@ -2062,7 +2065,8 @@ export const clientManifest = {
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH",
-        "SCOPE_REQUIRED"
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true

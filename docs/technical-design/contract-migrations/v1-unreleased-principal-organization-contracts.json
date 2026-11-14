@@ -5,9 +5,18 @@
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:623d6a7faf9f3c60e4e41572b883999bcf864ecabc499d9e2fbfcb49357a34cb",
-  "reason": "#36 contract re-bind by dev-workflows on 2026-11-14 under owner's standing breaking-change authorization (2026-10-09), main 752daef1429173ec613fac0d76d7e3e225671bb4: AutomationFiring gains required pending and skippedCount (the design's safe projection of a scheduling outcome); the automation catalog entries declare their organization context (required_authenticated_context), as the workflow ones do.",
+  "targetCompatibilityDigest": "sha256:139ea14b6964c5354840656bfacffc5447fff97615cb711676b40fc299f972d9",
+  "reason": "#36 contract re-bind by dev-workflows on 2026-11-14 under owner's standing breaking-change authorization (2026-10-09), main 752daef1429173ec613fac0d76d7e3e225671bb4: AutomationFiring gains required pending and skippedCount (the design's safe projection of a scheduling outcome); the automation catalog entries declare their organization context and the errors that context implies, as the workflow ones do.",
   "priorApprovals": [
+    {
+      "allowBreaking": true,
+      "fromBaseRefs": [
+        "752daef1429173ec613fac0d76d7e3e225671bb4"
+      ],
+      "reason": "#36 contract re-bind by dev-workflows on 2026-11-14 under owner's standing breaking-change authorization (2026-10-09), main 752daef1429173ec613fac0d76d7e3e225671bb4: AutomationFiring gains required pending and skippedCount (the design's safe projection of a scheduling outcome); the automation catalog entries declare their organization context (required_authenticated_context), as the workflow ones do.",
+      "status": "approved",
+      "targetCompatibilityDigest": "sha256:623d6a7faf9f3c60e4e41572b883999bcf864ecabc499d9e2fbfcb49357a34cb"
+    },
     {
       "allowBreaking": true,
       "fromBaseRefs": [
