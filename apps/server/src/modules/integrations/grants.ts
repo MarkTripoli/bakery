@@ -23,6 +23,8 @@ type GrantQuery = z.output<typeof contractSchemas.IntegrationGrantQuery>;
 /** Domain event for a connection whose grants changed (#20). */
 export const GRANTS_CHANGED = "integration.grants_changed";
 
+const CAPABILITY = /^[a-z][a-z0-9_]{0,63}(?:\.[a-z][a-z0-9_]{0,63}){1,7}$/;
+
 const TIMESTAMP = `'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'`;
 
 // Explicit projection: who granted and who revoked stay internal (audit has
@@ -96,8 +98,18 @@ async function validateGrant(
   } else {
     throw unprocessable(["subjectType"], "automation_unavailable");
   }
-  if (input.capability.includes("*") || input.capability.trim() === "") {
-    fields.push("capability");
+  // A provider action or event identifier: dot-separated lowercase segments
+  // (github.issue.comment.create). Nothing else is stored, so no control
+  // character or lookalike reaches audit details, events or a rendered list.
+  if (
+    input.capability.length > 200 || !CAPABILITY.test(input.capability)
+  ) fields.push("capability");
+  // A grant that could never take effect would read as live in a list.
+  if (
+    input.expiresAt !== undefined && input.expiresAt !== null &&
+    Date.parse(input.expiresAt) <= Date.now()
+  ) {
+    fields.push("expiresAt");
   }
   if (fields.length > 0) throw unprocessable(fields, "grant_subject_invalid");
 

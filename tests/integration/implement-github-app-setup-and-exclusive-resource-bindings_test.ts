@@ -3590,6 +3590,22 @@ Deno.test("an Admin grants, lists and revokes one exact capability on a connecti
       headers: headers(),
     });
     assertEquals(wildcard.status, 422, await wildcard.clone().text());
+    // Only an action identifier is stored: no control characters, and no
+    // grant that has already expired.
+    for (
+      const invalid of [
+        { ...body, capability: "github.issue\ncomment.create" },
+        { ...body, capability: "Github.Issue.Comment.Create" },
+        { ...body, capability: "github" },
+        { ...body, expiresAt: "2020-01-01T00:00:00.000Z" },
+      ]
+    ) {
+      const refused = await call(f, "POST", path, f.adminCookie, {
+        body: invalid,
+        headers: headers(),
+      });
+      assertEquals(refused.status, 422, await refused.clone().text());
+    }
 
     const created = await call(f, "POST", path, f.adminCookie, {
       body,
