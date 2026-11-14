@@ -188,7 +188,7 @@ export function StartupGate(
       return (
         <RefusalCard
           action={
-            <UI.Inline gap="compact" variant="actions">
+            <UI.Inline gap="compact">
               <UI.Button
                 onClick={() =>
                   recover(

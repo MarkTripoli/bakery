@@ -95,6 +95,13 @@ for (
       );
       await page.getByRole("button", { name: "Show archived" }).click();
       await expect(page.getByText("acme/legacy")).toBeVisible();
+      // An archived repository keeps its usual line beside its badge, not a
+      // second "Archived".
+      const legacy = page.locator("[data-repository-id]").filter({
+        hasText: "acme/legacy",
+      });
+      await expect(legacy).toContainText("Archived");
+      await expect(legacy).toContainText("Default branch main");
       await expect(page.getByRole("heading", { name: /Old app/ }))
         .toBeVisible();
       await page.getByRole("button", { name: "Hide archived" }).click();
@@ -295,14 +302,14 @@ for (
         await dialog.getByRole("button", { name: "Add repository" }).click();
         await expect(
           dialog.getByText(
-            "Use a branch name Git accepts: no spaces, no .. or ~ ^ : ? * [ \\, not starting with - or /, not ending with / or a dot.",
+            "That is not a valid branch name. Use letters, numbers, dashes, dots and slashes, for example main or release/2.0.",
           ),
           bad,
         ).toBeVisible();
         expect(seen.createdRepositories, bad).toEqual([]);
       }
       await branch.fill("release/1.2");
-      await expect(dialog.getByText("Use a branch name Git accepts"))
+      await expect(dialog.getByText("That is not a valid branch name."))
         .toHaveCount(0);
     });
 
