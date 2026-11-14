@@ -194,6 +194,18 @@ export function AgentPage({ agentId }: { readonly agentId: string }) {
       pi: "Pi",
       mastra: "Mastra",
     } as Record<string, string>)[harness] ?? harness;
+  // A label with the help button that says what the identifiers below it mean.
+  const helpLabel = (key: "tools" | "prompts" | "skills") => (
+    <UI.Inline gap="compact">
+      {translate(`library.agent.${key}` as never)}
+      <UI.HelpTip
+        closeLabel={translate("core.actions.close")}
+        label={translate(`library.agent.${key}` as never)}
+      >
+        {translate(`library.agent.${key}.help` as never)}
+      </UI.HelpTip>
+    </UI.Inline>
+  );
   const names = (list: readonly string[]) =>
     list.length === 0
       ? translate("library.agent.none" as never)
@@ -559,17 +571,13 @@ export function AgentPage({ agentId }: { readonly agentId: string }) {
                   {summary.model ??
                     translate("library.agent.notSet" as never)}
                 </UI.DetailRow>
-                <UI.DetailRow label={translate("library.agent.tools" as never)}>
+                <UI.DetailRow label={helpLabel("tools")}>
                   {names(summary.capabilities)}
                 </UI.DetailRow>
-                <UI.DetailRow
-                  label={translate("library.agent.prompts" as never)}
-                >
+                <UI.DetailRow label={helpLabel("prompts")}>
                   {names(summary.prompts)}
                 </UI.DetailRow>
-                <UI.DetailRow
-                  label={translate("library.agent.skills" as never)}
-                >
+                <UI.DetailRow label={helpLabel("skills")}>
                   {names(summary.skills)}
                 </UI.DetailRow>
               </UI.DescriptionList>

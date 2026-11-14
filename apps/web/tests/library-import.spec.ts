@@ -63,6 +63,10 @@ for (
       await open(page);
       await importButton(page).click();
       const form = dialog(page);
+      // Disabled with its reason beside it, until something is given.
+      await expect(form.getByTestId("import-reason")).toHaveText(
+        "Choose a file or paste a definition first.",
+      );
       await expect(form).toContainText(
         "A workflow definition file exported from Bakery (.yaml).",
       );
@@ -140,11 +144,12 @@ for (
       await expect(state(page)).toContainText(
         "This definition has 2 problems.",
       );
+      // Each problem names what to fix (the action is read from the definition).
       await expect(state(page)).toContainText(
-        "Step 2, uses: The action is not registered.",
+        "Step 2 uses an action Bakery does not have: harness.implement.",
       );
       await expect(state(page)).toContainText(
-        "The definition: A required field is missing.",
+        "The definition is missing a required field.",
       );
       await expect(
         dialog(page).getByRole("button", { name: "Import as draft" }),

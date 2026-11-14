@@ -511,9 +511,13 @@ export function TaskCoordinationPage(
                           {task.data && <span aria-hidden="true">·&nbsp;</span>}
                           {t("tasks.coordination.revision", {
                             revision: String(plan.revision),
-                          })}{" "}
+                          })} {
+                            /* A saved workflow's link, badge and tip start their own line, so
+                            the line does not wrap into the lane count. */
+                          }
+                          {origin?.kind === "saved_workflow" && <br />}
                           <PlanProvenance
-                            leadingSeparator
+                            leadingSeparator={origin?.kind !== "saved_workflow"}
                             plan={plan}
                             workflowName={workflow.data?.name}
                             workflowVersion={workflowVersion}

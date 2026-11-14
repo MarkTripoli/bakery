@@ -106,12 +106,15 @@ export function ImportDialog(
           ),
         ];
         if (errors.length > 0) {
-          setCheck({ state: "invalid", problems: problemsOf(errors) });
+          setCheck({
+            state: "invalid",
+            problems: problemsOf(errors, read.definition),
+          });
         } else {
           setCheck({
             state: "valid",
             read,
-            warnings: problemsOf(report.warnings ?? []),
+            warnings: problemsOf(report.warnings ?? [], read.definition),
           });
         }
       } catch (error) {
@@ -166,11 +169,29 @@ export function ImportDialog(
           field: problem.where.field,
         })
       : problem.where.path;
+  // A problem says what to fix when the checker's code and the definition
+  // let it; otherwise the place and the checker's own sentence.
+  const sentence = (problem: ImportProblem): string | null =>
+    problem.code === "action_unknown" && problem.where.kind === "step" &&
+      problem.detail !== undefined
+      ? translate("library.import.problem.actionUnknown" as never, {
+        number: problem.where.number,
+        action: problem.detail,
+      })
+      : problem.code === "field_missing" && problem.where.kind === "step"
+      ? translate("library.import.problem.stepFieldMissing" as never, {
+        number: problem.where.number,
+      })
+      : problem.code === "field_missing" && problem.where.kind === "whole"
+      ? translate("library.import.problem.fieldMissing" as never)
+      : null;
   const lines = (problems: readonly ImportProblem[], label: string) => (
     <UI.Stack gap="compact" role="list" aria-label={label}>
       {problems.map((problem, index) => (
         <div key={index} role="listitem">
-          {problem.where.kind === "path"
+          {sentence(problem) !== null
+            ? <UI.Text variant="caption">{sentence(problem)}</UI.Text>
+            : problem.where.kind === "path"
             ? (
               <UI.Inline gap="compact">
                 <UI.DataText>{where(problem)}</UI.DataText>
@@ -249,6 +270,7 @@ export function ImportDialog(
               id="workflow-import-text"
               name="definition"
               rows={8}
+              cols={80}
               spellCheck={false}
               autoComplete="off"
               disabled={draft.pending || made !== null}
@@ -385,6 +407,13 @@ export function ImportDialog(
               )}
             </UI.Button>
           </UI.Inline>
+          {check.state === "empty"
+            ? (
+              <UI.Text variant="muted" data-testid="import-reason">
+                {translate("library.import.empty" as never)}
+              </UI.Text>
+            )
+            : null}
         </UI.Stack>
       </form>
     </UI.Dialog>

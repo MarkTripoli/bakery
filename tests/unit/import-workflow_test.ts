@@ -22,6 +22,7 @@ Deno.test("a pointer becomes a place a person can find", () => {
     problemsOf([{ path: "/steps/1/id", message: "A step id repeats." }]),
     [{
       where: { kind: "step", number: 2, field: "id" },
+      code: "",
       message: "A step id repeats.",
     }],
   );
@@ -63,4 +64,34 @@ Deno.test("text the runtime would refuse is refused with where and why", async (
   assertEquals(list.ok, false);
   const empty = await readImport("");
   assertEquals(empty.ok, false);
+});
+
+Deno.test("the action a step uses is read from the definition, since the checker never repeats it", () => {
+  const definition = {
+    steps: [{ id: "a", uses: "task.brief" }, { id: "b", uses: "nope.action" }],
+  };
+  const [problem, other] = problemsOf([
+    {
+      path: "/steps/1/uses",
+      code: "action_unknown",
+      message: "The action is not registered.",
+    },
+    {
+      path: "/steps/0/id",
+      code: "step_id_invalid",
+      message: "A step id is invalid.",
+    },
+  ], definition);
+  assertEquals(problem?.detail, "nope.action");
+  assertEquals(problem?.code, "action_unknown");
+  assertEquals(other?.detail, undefined);
+  assertEquals(
+    problemsOf([{ path: "/steps/9/uses", message: "x" }], definition)[0]
+      ?.detail,
+    undefined,
+  );
+  assertEquals(
+    problemsOf([{ path: "/steps/0/uses", message: "x" }])[0]?.detail,
+    undefined,
+  );
 });

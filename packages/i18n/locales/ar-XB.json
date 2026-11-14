@@ -3495,5 +3495,12 @@
   "library.import.failed": "⟪The workflow could not be imported. Try again in a moment.⟫",
   "library.import.forbidden": "⟪Only organization administrators can import a workflow.⟫",
   "library.import.stepsFailed": "⟪The workflow {name} was made, but its steps could not be added. It is in Library with no steps yet.⟫",
-  "tasks.coordination.origin.workflow": "⟪Workflow: {name}, version {version}⟫"
+  "tasks.coordination.origin.workflow": "⟪Workflow: {name}, version {version}⟫",
+  "library.import.problem.actionUnknown": "⟪Step {number} uses an action Bakery does not have: {action}.⟫",
+  "library.import.problem.stepFieldMissing": "⟪Step {number} is missing a required field.⟫",
+  "library.import.problem.fieldMissing": "⟪The definition is missing a required field.⟫",
+  "library.import.empty": "⟪Choose a file or paste a definition first.⟫",
+  "library.agent.tools.help": "⟪What this agent is allowed to do in a repository.⟫",
+  "library.agent.prompts.help": "⟪The instructions this agent starts with. Bakery does not show their text here yet.⟫",
+  "library.agent.skills.help": "⟪Extra instructions the agent can load for a kind of work.⟫"
 }

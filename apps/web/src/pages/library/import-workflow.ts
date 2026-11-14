@@ -10,10 +10,14 @@ export type ProblemWhere =
   }
   | { readonly kind: "path"; readonly path: string };
 
-/** One thing wrong with a definition: where, and the checker's sentence. */
+/** One thing wrong with a definition: where, the checker's code and sentence. */
 export type ImportProblem = {
   readonly where: ProblemWhere;
+  /** The checker's stable code ("action_unknown"); empty when it gave none. */
+  readonly code: string;
   readonly message: string;
+  /** What the definition itself says at that place, when it is a name to show (the action a step uses). */
+  readonly detail?: string;
 };
 
 /** What reading a definition file or pasted text gave. */
@@ -44,14 +48,39 @@ export function whereOf(path: string): ProblemWhere {
   return { kind: "path", path: parts.join(".") };
 }
 
-/** The checker's issues (a path and a sentence each) as problems to show. */
+/**
+ * The checker's issues (a path, a code and a sentence each) as problems to
+ * show. The checker never repeats submitted text, so the name of an action a
+ * step uses is read from the definition itself.
+ */
 export function problemsOf(
-  issues: readonly { readonly path: string; readonly message: string }[],
+  issues: readonly {
+    readonly path: string;
+    readonly message: string;
+    readonly code?: string;
+  }[],
+  definition?: unknown,
 ): ImportProblem[] {
-  return issues.map((issue) => ({
-    where: whereOf(issue.path),
-    message: issue.message,
-  }));
+  const steps = record(definition).steps;
+  return issues.map((issue) => {
+    const where = whereOf(issue.path);
+    const used = where.kind === "step" && where.field === "uses" &&
+        Array.isArray(steps)
+      ? record(steps[where.number - 1]).uses
+      : undefined;
+    return {
+      where,
+      code: issue.code ?? "",
+      message: issue.message,
+      ...(typeof used === "string" && used !== "" ? { detail: used } : {}),
+    };
+  });
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
 }
 
 /** A file name as a name for the workflow: "release-train.yaml" is "Release train". */
@@ -82,6 +111,7 @@ export async function readImport(text: string): Promise<ImportRead> {
       ok: false,
       problems: [{
         where: { kind: "whole" },
+        code: "definition_not_object",
         message: "The definition must be one object.",
       }],
     };
