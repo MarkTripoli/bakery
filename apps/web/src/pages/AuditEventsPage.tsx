@@ -5,6 +5,7 @@ import * as UI from "@bakery/ui";
 import type { AuditEventItem } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
 import { isForbiddenFailure } from "../app/async-state.ts";
+import { usePagedFocus } from "../app/focus.ts";
 import { protectedQueryKey } from "../app/query-scope.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import * as organizationSelection from "../app/organization-selection.ts";
@@ -193,6 +194,12 @@ export function AuditEventsPage({ scope: audience }: {
   const rows: AuditEventItem[] = events.isError
     ? []
     : events.data?.pages.flatMap((page) => page.items) ?? [];
+  const paging = usePagedFocus("audit", {
+    pending: events.isFetchingNextPage,
+    failed: events.isFetchNextPageError,
+    rowCount: rows.length,
+    hasMore: events.hasNextPage,
+  });
   const when = new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeStyle: "short",
@@ -263,56 +270,65 @@ export function AuditEventsPage({ scope: audience }: {
                 }))}
               />
             </form>
-            <UI.DataTable<AuditEventItem>
-              caption={translate("settings.audit.table.caption")}
-              columns={[
-                {
-                  id: "when",
-                  header: translate("settings.audit.column.when"),
-                  cell: (row) => when.format(new Date(row.createdAt)),
-                },
-                {
-                  id: "actor",
-                  header: translate("settings.audit.column.actor"),
-                  cell: (row) =>
-                    row.principalId
-                      ? row.principalId.slice(0, 8)
-                      : translate("settings.audit.actor.system"),
-                },
-                {
-                  id: "action",
-                  header: translate("settings.audit.column.action"),
-                  cell: (row) => label(OPERATION_KEYS, row.operation),
-                },
-                {
-                  id: "target",
-                  header: translate("settings.audit.column.target"),
-                  cell: (row) => row.resourceId,
-                },
-                {
-                  id: "outcome",
-                  header: translate("settings.audit.column.outcome"),
-                  cell: (row) => label(OUTCOME_KEYS, row.outcome),
-                },
-              ]}
-              emptyMessage={translate("settings.audit.empty")}
-              error={translate("settings.audit.loadError")}
-              getRowKey={(row) => row.id}
-              rows={rows}
-              state={events.isPending
-                ? "loading"
-                : events.isError
-                ? "error"
-                : rows.length === 0
-                ? "empty"
-                : "ready"}
-              variant="table"
-            />
+            <div data-paged-list="audit">
+              <UI.DataTable<AuditEventItem>
+                caption={translate("settings.audit.table.caption")}
+                columns={[
+                  {
+                    id: "when",
+                    header: translate("settings.audit.column.when"),
+                    cell: (row) => when.format(new Date(row.createdAt)),
+                  },
+                  {
+                    id: "actor",
+                    header: translate("settings.audit.column.actor"),
+                    cell: (row) =>
+                      row.principalId
+                        ? row.principalId.slice(0, 8)
+                        : translate("settings.audit.actor.system"),
+                  },
+                  {
+                    id: "action",
+                    header: translate("settings.audit.column.action"),
+                    cell: (row) => label(OPERATION_KEYS, row.operation),
+                  },
+                  {
+                    id: "target",
+                    header: translate("settings.audit.column.target"),
+                    cell: (row) => row.resourceId,
+                  },
+                  {
+                    id: "outcome",
+                    header: translate("settings.audit.column.outcome"),
+                    cell: (row) => label(OUTCOME_KEYS, row.outcome),
+                  },
+                ]}
+                emptyMessage={translate("settings.audit.empty")}
+                error={translate("settings.audit.loadError")}
+                getRowKey={(row) => row.id}
+                rows={rows}
+                state={events.isPending
+                  ? "loading"
+                  : events.isError
+                  ? "error"
+                  : rows.length === 0
+                  ? "empty"
+                  : "ready"}
+                variant="table"
+              />
+            </div>
             {events.hasNextPage
               ? (
                 <UI.Button
+                  data-paged-more="audit"
+                  data-paged-retry={events.isFetchNextPageError
+                    ? "audit"
+                    : undefined}
                   loading={events.isFetchingNextPage}
-                  onClick={() => void events.fetchNextPage()}
+                  onClick={() => {
+                    paging.ask();
+                    void events.fetchNextPage();
+                  }}
                   type="button"
                 >
                   {translate("settings.audit.loadMore")}

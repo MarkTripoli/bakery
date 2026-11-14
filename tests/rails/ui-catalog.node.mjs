@@ -29,7 +29,7 @@ const entry = (value, id) => value.entries.find((e) => e.id === id);
 test("schema accepts the authored catalog", () => {
   const result = parseComponentCatalog(raw());
   assert.deepEqual(result.success ? [] : result.issues, []);
-  assert.equal(result.catalog.entries.length, 137);
+  assert.equal(result.catalog.entries.length, 139);
 });
 
 test("every entry carries paper frames or a stated absence reason", () => {

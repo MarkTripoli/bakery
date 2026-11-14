@@ -2639,6 +2639,35 @@
     {
       "group": "Extensions",
       "method": "POST",
+      "path": "/v1/integration-connections/{id}/removal",
+      "action": "integrationConnections.remove",
+      "access": "Admin",
+      "permission": "integrationConnection:manage",
+      "input": "Empty",
+      "output": "IntegrationConnection",
+      "event": "integrationConnections.updated",
+      "mcp": "bakery_integrationConnections_remove",
+      "idempotency": "Idempotency-Key required; PATCH also If-Match",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_INVALID",
+        "AUTH_EXPIRED",
+        "AUTH_FACTOR_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "STATE_CONFLICT",
+        "PRECONDITION_REQUIRED",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "SCOPE_REQUIRED"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Extensions",
+      "method": "POST",
       "path": "/v1/integration-connections/{id}/checks",
       "action": "integrationConnections.check",
       "access": "Admin",
@@ -7282,7 +7311,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Integrations",
@@ -7305,7 +7334,7 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Integrations",
@@ -8984,7 +9013,10 @@
     "integrationConnections.create",
     "integrationConnections.list",
     "integrationResources.list",
+    "integrationEffects.list",
+    "integrationEffects.get",
     "integrationConnections.update",
+    "integrationConnections.remove",
     "integrationResources.update",
     "integrationConnections.check",
     "integrationDiscoveries.create",
@@ -15707,6 +15739,70 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/IntegrationConnectionUpdate"
+                }
+              }
+            }
+          }
+        }
+      },
+      "/v1/integration-connections/{id}/removal": {
+        "post": {
+          "operationId": "integrationConnections.remove",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/IntegrationConnection"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Empty"
                 }
               }
             }
@@ -38059,6 +38155,7 @@
                 "integrationConnections.get",
                 "integrationConnections.create",
                 "integrationConnections.update",
+                "integrationConnections.remove",
                 "integrationConnections.check",
                 "integrationConnections.invoke",
                 "mcpServers.list",
@@ -80399,6 +80496,7 @@
                 "integrationConnections.get",
                 "integrationConnections.create",
                 "integrationConnections.update",
+                "integrationConnections.remove",
                 "integrationConnections.check",
                 "integrationConnections.invoke",
                 "mcpServers.list",
@@ -80860,6 +80958,7 @@
                 "integrationConnections.get",
                 "integrationConnections.create",
                 "integrationConnections.update",
+                "integrationConnections.remove",
                 "integrationConnections.check",
                 "integrationConnections.invoke",
                 "mcpServers.list",
@@ -81321,6 +81420,7 @@
                 "integrationConnections.get",
                 "integrationConnections.create",
                 "integrationConnections.update",
+                "integrationConnections.remove",
                 "integrationConnections.check",
                 "integrationConnections.invoke",
                 "mcpServers.list",
@@ -123861,6 +123961,7 @@
                       "integrationConnections.get",
                       "integrationConnections.create",
                       "integrationConnections.update",
+                      "integrationConnections.remove",
                       "integrationConnections.check",
                       "integrationConnections.invoke",
                       "mcpServers.list",
@@ -197179,7 +197280,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:c078bd6d5c6a6da2de8bd282e3509208b0aa436cc0e0f681d477e8047b72989d",
+  "compatibilityDigest": "sha256:c0956eb6bd8cfced8edb82b2e18aebee2aca7532902338c733c0f0137a1ab21f",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -204230,6 +204331,7 @@
             "integrationConnections.get",
             "integrationConnections.create",
             "integrationConnections.update",
+            "integrationConnections.remove",
             "integrationConnections.check",
             "integrationConnections.invoke",
             "mcpServers.list",
@@ -246718,6 +246820,7 @@
             "integrationConnections.get",
             "integrationConnections.create",
             "integrationConnections.update",
+            "integrationConnections.remove",
             "integrationConnections.check",
             "integrationConnections.invoke",
             "mcpServers.list",
@@ -247179,6 +247282,7 @@
             "integrationConnections.get",
             "integrationConnections.create",
             "integrationConnections.update",
+            "integrationConnections.remove",
             "integrationConnections.check",
             "integrationConnections.invoke",
             "mcpServers.list",
@@ -247640,6 +247744,7 @@
             "integrationConnections.get",
             "integrationConnections.create",
             "integrationConnections.update",
+            "integrationConnections.remove",
             "integrationConnections.check",
             "integrationConnections.invoke",
             "mcpServers.list",
@@ -290322,6 +290427,7 @@
                   "integrationConnections.get",
                   "integrationConnections.create",
                   "integrationConnections.update",
+                  "integrationConnections.remove",
                   "integrationConnections.check",
                   "integrationConnections.invoke",
                   "mcpServers.list",

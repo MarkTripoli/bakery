@@ -14,11 +14,20 @@ export type VersionPickerProps = {
   readonly onChange: (versionId: string) => void;
   readonly disabled?: boolean;
   readonly labelHidden?: boolean;
+  /** Names the paged list these versions are, so a page can move focus to the picker after loading more. */
+  readonly name?: string;
 };
 
 export function VersionPicker(
-  { label, value, versions, onChange, disabled = false, labelHidden = false }:
-    VersionPickerProps,
+  {
+    label,
+    value,
+    versions,
+    onChange,
+    disabled = false,
+    labelHidden = false,
+    name,
+  }: VersionPickerProps,
 ) {
   return (
     <label
@@ -34,6 +43,7 @@ export function VersionPicker(
       </span>
       <span className="ui-version-picker__control">
         <select
+          data-paged-list={name}
           value={value}
           disabled={disabled}
           onChange={(event) => onChange(event.currentTarget.value)}

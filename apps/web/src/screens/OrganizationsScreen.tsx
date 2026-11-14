@@ -89,6 +89,7 @@ export function OrganizationsScreen(
   return (
     <UI.AuthEntry variant="brand" {...brand}>
       <UI.AuthHeading
+        data-paged-heading="organizations"
         data-testid="organizations-page"
         description={translate("auth.organizations.description")}
         title={translate("auth.organizations.title")}
@@ -122,7 +123,10 @@ export function OrganizationsScreen(
           />
         )
         : (
-          <UI.DescriptionList data-testid="organizations-list">
+          <UI.DescriptionList
+            data-paged-list="organizations"
+            data-testid="organizations-list"
+          >
             {organizations.map((organization) => (
               <UI.DescriptionItem
                 action={<UI.IconGlyph name="arrow" size="large" />}
@@ -148,6 +152,7 @@ export function OrganizationsScreen(
               previous: translate("core.pagination.previous"),
               retry: translate("core.pagination.retry"),
             }}
+            name="organizations"
             onNext={onLoadMore}
             onRetry={onLoadMore}
             state={loadMore.state}

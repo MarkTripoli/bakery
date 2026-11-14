@@ -22,6 +22,11 @@ import type { PlanRevisionBody } from "./plan-revisions.ts";
 import { lockConversationScope } from "./postgres.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
+  approvalPolicyDigest,
+  effectiveApprovalPolicy,
+  REVIEW_STAGE,
+} from "../work/stage-policy.ts";
+import {
   DEFAULT_QUESTION_TTL_SECONDS,
   queueAgentRequest,
   type ScopeFacts,
@@ -230,6 +235,190 @@ export async function requestPlanApproval(
   return row.id;
 }
 
+/**
+ * Digest of the exact candidate a run-stage approval is about: the delivery
+ * decision that let it proceed and the head, base and check policy it judged.
+ */
+async function runStageDigest(decision: {
+  run_id: string;
+  id: string;
+  head_sha: string;
+  base_sha: string | null;
+  policy_digest: string | null;
+}): Promise<string> {
+  return await sha256Hex(canonicalJson({
+    runId: decision.run_id,
+    deliveryDecisionId: decision.id,
+    headSha: decision.head_sha,
+    baseSha: decision.base_sha,
+    policyDigest: decision.policy_digest,
+  }));
+}
+
+type StageDecisionRow = {
+  id: string;
+  run_id: string;
+  decision: string;
+  head_sha: string;
+  base_sha: string | null;
+  policy_digest: string | null;
+};
+
+/**
+ * The candidate a run-stage approval may still decide: the run's latest
+ * delivery decision must be the one asked about, still `proceed`, at the same
+ * digest. A newer decision (a repair, a stop or another review) supersedes it.
+ */
+async function currentStageCandidate(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  row: { subject_id: string | null; subject_digest: string | null },
+): Promise<{ runId: string; headSha: string }> {
+  if (!row.subject_id || !row.subject_digest) conflict("approval_superseded");
+  const asked = await transaction.query<{ run_id: string }>(
+    `select run_id from bakery.delivery_decisions
+      where organization_id = $1 and id = $2`,
+    [organizationId, row.subject_id],
+  );
+  const runId = asked.rows[0]?.run_id;
+  if (!runId) conflict("approval_superseded");
+  const latest = await transaction.query<StageDecisionRow>(
+    `select id, run_id, decision, head_sha, base_sha, policy_digest
+       from bakery.delivery_decisions
+      where organization_id = $1 and run_id = $2
+      order by ordinal desc
+      limit 1`,
+    [organizationId, runId],
+  );
+  const decision = latest.rows[0];
+  if (
+    !decision || decision.id !== row.subject_id ||
+    decision.decision !== "proceed" ||
+    await runStageDigest(decision) !== row.subject_digest
+  ) conflict("approval_superseded");
+  return { runId: decision.run_id, headSha: decision.head_sha };
+}
+
+/**
+ * Opens a run-stage approval for a candidate the review loop let proceed, when
+ * the task's policy makes the review stage wait for a person (#37). Returns
+ * the approval id, or undefined when the policy is automatic. Idempotent per
+ * delivery decision: a replayed finalization finds the existing request.
+ */
+export async function requestRunStageApproval(
+  transaction: PgTransactionClient,
+  facts: { organizationId: string; runId: string; deliveryDecisionId: string },
+): Promise<string | undefined> {
+  const { organizationId } = facts;
+  const task = await transaction.query<{
+    task_id: string;
+    conversation_id: string;
+    approval_policy: unknown;
+  }>(
+    `select t.id as task_id, t.conversation_id, t.approval_policy
+       from bakery.workflow_runs r
+       join bakery.tasks t
+         on t.organization_id = r.organization_id and t.id = r.task_id
+      where r.organization_id = $1 and r.id = $2`,
+    [organizationId, facts.runId],
+  );
+  const owner = task.rows[0];
+  if (!owner) return undefined;
+  const policy = effectiveApprovalPolicy(owner.approval_policy);
+  if (policy.review !== "human_approval") return undefined;
+  const existing = await transaction.query<{ id: string }>(
+    `select id from bakery.questions
+      where organization_id = $1 and task_id = $2 and kind = 'approval'
+        and subject_type = 'run_stage' and subject_id = $3`,
+    [organizationId, owner.task_id, facts.deliveryDecisionId],
+  );
+  if (existing.rows[0]) return existing.rows[0].id;
+  const decision = await transaction.query<StageDecisionRow>(
+    `select id, run_id, decision, head_sha, base_sha, policy_digest
+       from bakery.delivery_decisions
+      where organization_id = $1 and id = $2`,
+    [organizationId, facts.deliveryDecisionId],
+  );
+  const judged = decision.rows[0];
+  if (!judged || judged.decision !== "proceed") {
+    throw new Error("RUN_STAGE_APPROVAL_DECISION_INVALID");
+  }
+  const scope = await scopeOf(
+    transaction,
+    organizationId,
+    owner.conversation_id,
+  );
+  // No asking turn: the run asks. Bind to the conversation's current
+  // generation so later turns can tell the request is from before them.
+  const generation = await transaction.query<{ generation: number }>(
+    `select greatest(count(*), 1)::int as generation
+       from bakery.conversation_turns
+      where organization_id = $1 and conversation_id = $2`,
+    [organizationId, owner.conversation_id],
+  );
+  const subjectDigest = await runStageDigest(judged);
+  const inserted = await transaction.query<{ id: string; version: number }>(
+    `insert into bakery.questions (
+       organization_id, kind, conversation_id, task_id, turn_id, generation,
+       prompt, allow_free_text, audience, expires_at, subject_type, subject_id,
+       subject_digest, scope, policy_digest
+     ) values ($1, 'approval', $2, $3, null, $4, $5, false, $6::jsonb,
+       now() + ($7 || ' seconds')::interval, 'run_stage', $8, $9,
+       $10::jsonb, $11)
+     returning id, version`,
+    [
+      organizationId,
+      owner.conversation_id,
+      owner.task_id,
+      generation.rows[0]?.generation ?? 1,
+      `Approve the reviewed change ${
+        judged.head_sha.slice(0, 12)
+      } before it may merge`,
+      JSON.stringify({ type: "task_participants" }),
+      String(DEFAULT_QUESTION_TTL_SECONDS),
+      judged.id,
+      subjectDigest,
+      JSON.stringify({
+        stage: REVIEW_STAGE,
+        runId: facts.runId,
+        headSha: judged.head_sha,
+        repositoryId: scope.repository_id,
+      }),
+      await approvalPolicyDigest(policy),
+    ],
+  );
+  const row = inserted.rows[0];
+  if (!row) throw new Error("APPROVAL_INSERT_FAILED");
+  await appendDomainEvent(transaction, {
+    organizationId,
+    applicationId: scope.application_id,
+    repositoryId: scope.repository_id,
+    taskId: owner.task_id,
+    conversationId: owner.conversation_id,
+    eventType: "approval.requested",
+    aggregateId: row.id,
+    aggregateVersion: row.version,
+    payload: { resourceId: row.id, resourceVersion: row.version },
+    traceId: crypto.randomUUID(),
+  });
+  await appendAudit(transaction, {
+    organizationId,
+    principalId: null,
+    operation: "approvals.request",
+    resourceType: "approval",
+    resourceId: row.id,
+    requestId: crypto.randomUUID(),
+    traceId: crypto.randomUUID(),
+    details: {
+      taskId: owner.task_id,
+      runId: facts.runId,
+      deliveryDecisionId: judged.id,
+      subjectDigest,
+    },
+  });
+  return row.id;
+}
+
 async function loadApproval(
   transaction: PgTransactionClient,
   organizationId: string,
@@ -377,7 +566,11 @@ export async function decideApproval(
   );
   const row = await loadApproval(transaction, organizationId, id, true);
   assertAudienceMember(row, principalId);
-  if (row.subject_type !== "plan_revision") conflict("unsupported");
+  if (
+    row.subject_type !== "plan_revision" && row.subject_type !== "run_stage"
+  ) {
+    conflict("unsupported");
+  }
   const digest = await sha256Hex(
     canonicalJson({ decision: input.decision, comment }),
   );
@@ -388,18 +581,26 @@ export async function decideApproval(
   if (row.status !== "open") conflict(`approval_${row.status}`);
   if (row.version !== input.expectedVersion) conflict("approval_stale");
 
-  const revision = await transaction.query<
-    { id: string; revision: number; digest: string; status: string }
-  >(
-    `select id, revision, digest, status from bakery.plan_revisions
-      where organization_id = $1 and id = $2 for update`,
-    [organizationId, row.subject_id],
-  );
-  const subject = revision.rows[0];
-  if (
-    !subject || subject.status !== "proposed" ||
-    subject.digest !== row.subject_digest
-  ) conflict("approval_superseded");
+  // The subject must still be exactly what was asked about.
+  let plan: { id: string; revision: number } | undefined;
+  let candidate: { runId: string; headSha: string } | undefined;
+  if (row.subject_type === "plan_revision") {
+    const revision = await transaction.query<
+      { id: string; revision: number; digest: string; status: string }
+    >(
+      `select id, revision, digest, status from bakery.plan_revisions
+        where organization_id = $1 and id = $2 for update`,
+      [organizationId, row.subject_id],
+    );
+    const subject = revision.rows[0];
+    if (
+      !subject || subject.status !== "proposed" ||
+      subject.digest !== row.subject_digest
+    ) conflict("approval_superseded");
+    plan = { id: subject.id, revision: subject.revision };
+  } else {
+    candidate = await currentStageCandidate(transaction, organizationId, row);
+  }
 
   const updated = await transaction.query<ApprovalRow>(
     `update bakery.questions q
@@ -424,18 +625,22 @@ export async function decideApproval(
   );
   const decided = updated.rows[0];
   if (!decided) conflict("approval_unavailable");
-  const revisionUpdate = await transaction.query<{ version: number }>(
-    `update bakery.plan_revisions
-        set status = $3, updated_at = now(), version = version + 1
-      where organization_id = $1 and id = $2 and status = 'proposed'
-      returning version`,
-    [
-      organizationId,
-      subject.id,
-      REVISION_STATUS_BY_DECISION[input.decision],
-    ],
-  );
-  if (revisionUpdate.rows.length !== 1) conflict("approval_superseded");
+  let revisionVersion: number | undefined;
+  if (plan) {
+    const revisionUpdate = await transaction.query<{ version: number }>(
+      `update bakery.plan_revisions
+          set status = $3, updated_at = now(), version = version + 1
+        where organization_id = $1 and id = $2 and status = 'proposed'
+        returning version`,
+      [
+        organizationId,
+        plan.id,
+        REVISION_STATUS_BY_DECISION[input.decision],
+      ],
+    );
+    if (revisionUpdate.rows.length !== 1) conflict("approval_superseded");
+    revisionVersion = revisionUpdate.rows[0].version;
+  }
 
   const scope = await scopeOf(
     transaction,
@@ -454,28 +659,33 @@ export async function decideApproval(
     payload: { resourceId: decided.id, resourceVersion: decided.version },
     traceId: context.traceId,
   });
-  await appendDomainEvent(transaction, {
-    organizationId,
-    applicationId: scope.application_id,
-    repositoryId: scope.repository_id,
-    taskId: decided.task_id,
-    conversationId: decided.conversation_id,
-    eventType: "planRevision.updated",
-    aggregateId: subject.id,
-    aggregateVersion: revisionUpdate.rows[0].version,
-    payload: {
-      resourceId: subject.id,
-      resourceVersion: revisionUpdate.rows[0].version,
-    },
-    traceId: context.traceId,
-  });
+  if (plan && revisionVersion !== undefined) {
+    await appendDomainEvent(transaction, {
+      organizationId,
+      applicationId: scope.application_id,
+      repositoryId: scope.repository_id,
+      taskId: decided.task_id,
+      conversationId: decided.conversation_id,
+      eventType: "planRevision.updated",
+      aggregateId: plan.id,
+      aggregateVersion: revisionVersion,
+      payload: { resourceId: plan.id, resourceVersion: revisionVersion },
+      traceId: context.traceId,
+    });
+  }
   if (input.decision === "request_changes") {
+    // The comment goes to the task's agent as an ordinary request, so a
+    // requested change starts a new turn that repairs and re-reviews; the
+    // decision itself never approves anything.
     await queueAgentRequest(transaction, {
       organizationId,
       conversationId: decided.conversation_id,
       authorId: principalId,
-      body:
-        `Changes requested on plan revision ${subject.revision}: ${comment}`,
+      body: plan
+        ? `Changes requested on plan revision ${plan.revision}: ${comment}`
+        : `Changes requested on the reviewed candidate ${
+          candidate!.headSha.slice(0, 12)
+        }: ${comment}`,
       clientMessageId: `approval:${decided.id}:changes`,
       scope,
       traceId: context.traceId,
@@ -491,7 +701,11 @@ export async function decideApproval(
     traceId: context.traceId,
     details: {
       decision: input.decision,
-      planRevisionId: subject.id,
+      ...(plan ? { planRevisionId: plan.id } : {
+        runId: candidate!.runId,
+        deliveryDecisionId: row.subject_id,
+        headSha: candidate!.headSha,
+      }),
       subjectDigest: row.subject_digest,
     },
   });

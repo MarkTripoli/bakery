@@ -52,6 +52,7 @@ import {
   readRegistration,
   registerApp,
   registrationFacts,
+  removeConnection,
   resourceRows,
   secondOrganization,
   settingsLocation,
@@ -3349,5 +3350,196 @@ Deno.test("a same-account reinstall reconnect fails reconnect_unavailable when a
       (await selectedHolders(f, target.external_id)).sort(),
       [f.organizationId, secondId].sort(),
     );
+  });
+});
+
+Deno.test("an Admin removes a connection: it ends revoked, its repositories are released and no update can revive it (#68)", async () => {
+  await withFixture(async (f) => {
+    const { connectionId, resources } = await pendingConnection(f);
+    const [target] = resources;
+    const selected = await patchResource(f, connectionId, target.id, {
+      selected: true,
+    });
+    assertEquals(selected.status, 200, await selected.clone().text());
+
+    // A Developer may not remove it, and a stale If-Match changes nothing.
+    const forbidden = await removeConnection(f, connectionId, {
+      cookie: f.developerCookie,
+    });
+    assertEquals(forbidden.status, 403, await forbidden.clone().text());
+    const stale = await removeConnection(f, connectionId, {
+      ifMatch: versionTag(1),
+    });
+    assertEquals(stale.status, 412, await stale.clone().text());
+    assertEquals((await connectionState(f, connectionId)).status, "pending");
+
+    // An Admin of another organization cannot see it to remove it, and
+    // nothing of it changes: status, secret reference and selections.
+    const before = await f.pgDatabase.query<
+      { status: string; secret_id: string | null; version: number }
+    >(
+      `select status, secret_id, version from bakery.integration_connections
+        where id = $1`,
+      [connectionId],
+    );
+    const otherOrganization = await secondOrganization(f);
+    const foreign = await removeConnection(f, connectionId, {
+      organizationId: otherOrganization,
+    });
+    assertEquals(foreign.status, 404, await foreign.clone().text());
+    assert((await foreign.text()).includes("RESOURCE_NOT_FOUND"));
+    const after = await f.pgDatabase.query<
+      { status: string; secret_id: string | null; version: number }
+    >(
+      `select status, secret_id, version from bakery.integration_connections
+        where id = $1`,
+      [connectionId],
+    );
+    assertEquals(after.rows[0], before.rows[0]);
+    assertEquals(
+      (await connectionState(f, connectionId)).resources
+        .filter((row) => row.selected).map((row) => row.id),
+      [target.id],
+    );
+
+    const removed = await removeConnection(f, connectionId);
+    assertEquals(removed.status, 200, await removed.clone().text());
+    const connection = await removed.json();
+    assertEquals(connection.status, "revoked");
+    assertEquals(connection.secretId, null);
+    const state = await connectionState(f, connectionId);
+    assertEquals(state.status, "revoked");
+    assertEquals(state.resources.filter((row) => row.selected), []);
+
+    // Revoked is final for every Admin edit, removal included.
+    const again = await removeConnection(f, connectionId);
+    assertEquals(again.status, 409, await again.clone().text());
+    const revive = await patchConnection(f, connectionId, { enabled: true });
+    assertEquals(revive.status, 409, await revive.clone().text());
+
+    const audit = await f.pgDatabase.query<
+      { details: Record<string, unknown> }
+    >(
+      `select details from bakery.audit_events
+        where operation = 'integrationConnections.remove' and resource_id = $1`,
+      [connectionId],
+    );
+    assertEquals(audit.rows.length, 1);
+    assertEquals(audit.rows[0].details.releasedResources, 1);
+    assertEquals(audit.rows[0].details.to, "revoked");
+  });
+});
+
+/** One effect of a connection's resource, as an executor would leave it. */
+async function seedConnectionEffect(
+  f: GitHubAppFixture,
+  connectionId: string,
+  resourceId: string,
+  status: "confirmed" | "failed" | "uncertain",
+): Promise<string> {
+  const id = crypto.randomUUID();
+  await f.pgDatabase.query(
+    `insert into bakery.external_effects (
+       id, organization_id, operation, action_version, target,
+       integration_connection_id, integration_resource_id,
+       integration_install_id, requesting_principal_id, actor_ref,
+       idempotency_key, request_digest, external_account_id,
+       external_resource_id, adapter_version, authorization_revision, status,
+       safe_arguments
+     )
+     select $1, connection.organization_id, 'github.issue.comment.create', 1,
+       'resource:' || resource.id, connection.id, resource.id, 'inst-1', $4,
+       $7, $5, repeat('a', 64), connection.external_account_id,
+       resource.external_id, 'github@2026-03-10',
+       connection.authorization_revision, $6, '{"body":"secret-ish"}'::jsonb
+       from bakery.integration_connections connection
+       join bakery.integration_resources resource
+         on resource.connection_id = connection.id
+      where connection.id = $2 and resource.id = $3`,
+    [
+      id,
+      connectionId,
+      resourceId,
+      f.adminId,
+      `activity-${id}`,
+      status,
+      f.adminId,
+    ],
+  );
+  return id;
+}
+
+Deno.test("a connection's recent activity lists its effects with their outcome, unknown included, and nothing internal (#68)", async () => {
+  await withFixture(async (f) => {
+    const { connectionId, resources } = await pendingConnection(f);
+    const [resource] = resources;
+    const confirmed = await seedConnectionEffect(
+      f,
+      connectionId,
+      resource.id,
+      "confirmed",
+    );
+    const unknown = await seedConnectionEffect(
+      f,
+      connectionId,
+      resource.id,
+      "uncertain",
+    );
+    const path = `${connectionsPath}/${connectionId}/effects`;
+    const headers = { "Bakery-Organization-Id": f.organizationId };
+
+    const all = await call(f, "GET", path, f.developerCookie, { headers });
+    const body = await all.text();
+    assertEquals(all.status, 200, body);
+    const page = JSON.parse(body);
+    assertEquals(
+      page.items.map((item: { id: string }) => item.id).sort(),
+      [confirmed, unknown].sort(),
+    );
+    assert(!body.includes("secret-ish"), "arguments stay internal");
+
+    const uncertain = await call(
+      f,
+      "GET",
+      `${path}?status=uncertain`,
+      f.developerCookie,
+      { headers },
+    );
+    assertEquals(uncertain.status, 200, await uncertain.clone().text());
+    const filtered = await uncertain.json();
+    assertEquals(filtered.items.map((item: { id: string }) => item.id), [
+      unknown,
+    ]);
+    assertEquals(filtered.items[0].status, "uncertain");
+
+    const one = await call(
+      f,
+      "GET",
+      `${path}/${unknown}`,
+      f.developerCookie,
+      { headers },
+    );
+    assertEquals(one.status, 200, await one.clone().text());
+    const effect = await one.json();
+    assertEquals(effect.id, unknown);
+    assertEquals(effect.integrationConnectionId, connectionId);
+
+    // Another organization sees neither the list nor the effect.
+    const otherOrganization = await secondOrganization(f);
+    const foreignHeaders = { "Bakery-Organization-Id": otherOrganization };
+    const foreignList = await call(f, "GET", path, f.adminCookie, {
+      headers: foreignHeaders,
+    });
+    assertEquals(foreignList.status, 404, await foreignList.clone().text());
+    const foreignOne = await call(
+      f,
+      "GET",
+      `${path}/${unknown}`,
+      f.adminCookie,
+      {
+        headers: foreignHeaders,
+      },
+    );
+    assertEquals(foreignOne.status, 404, await foreignOne.clone().text());
   });
 });
