@@ -31,7 +31,7 @@ function network(
 }
 
 const file = (
-  body: Uint8Array = BODY,
+  body: Uint8Array<ArrayBuffer> = BODY,
   headers: Record<string, string> = {},
 ) => new Response(body, { status: 200, headers });
 
