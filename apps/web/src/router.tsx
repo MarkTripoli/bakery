@@ -964,6 +964,13 @@ const taskCoordinationRoute = createRoute({
 const issuesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/issues",
+  // `?choose=true` opens the Choose repositories sheet (an issue whose
+  // repository is off sends an administrator there).
+  validateSearch: (search: Record<string, unknown>) => ({
+    choose: search.choose === true || search.choose === "true"
+      ? true
+      : undefined,
+  }),
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: IssuesPage,

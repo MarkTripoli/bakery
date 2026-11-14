@@ -140,6 +140,8 @@ export type Options = {
   closed?: Seed[];
   sources?: "none" | "healthy" | "degraded" | "authRequired" | "unknown";
   pageSize?: number;
+  /** The person's role in the organization; an administrator by default. */
+  role?: "admin" | "developer";
   /** What starting work answers: ok (default), or a refusal. */
   start?:
     | "ok"
@@ -170,7 +172,7 @@ export async function issuesFixture(page: Page, options: Options = {}) {
         contentType: "application/json",
         body: JSON.stringify({
           organizationId: MOCK_ORGANIZATION_ID,
-          role: "admin",
+          role: options.role ?? "admin",
           capabilities: [],
         }),
       }),

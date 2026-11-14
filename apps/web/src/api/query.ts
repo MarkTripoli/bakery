@@ -69,6 +69,7 @@ import type {
   TaskRepositoryListResponse,
   TaskResponse,
   TicketSourceListResponse,
+  TicketSourceResponse,
   UserPreferences,
   UserProfile,
   WorkerComponentListResponse,
@@ -2231,6 +2232,41 @@ export function connectionRepositoriesQueryOptions(
         }
       }
       return { connections: usable, resources };
+    },
+    enabled: enabled && Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * Every repository source of issues, collected 100 at a time up to a bound,
+ * for the Choose repositories sheet (it needs each repository's source and
+ * labels at once).
+ */
+export function ticketSourcesAllQueryOptions(
+  client: Pick<BakeryApiClient, "tickets">,
+  scope: ApiScope,
+  enabled: boolean,
+) {
+  return queryOptions<TicketSourceResponse[], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "ticketSources.all", {}),
+    queryFn: async ({ signal }) => {
+      const items: TicketSourceResponse[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < PROJECTS_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.tickets.sources({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) break;
+        cursor = read.nextCursor;
+      }
+      return items;
     },
     enabled: enabled && Boolean(scope.organizationId),
     retry: retryNetworkOnce,

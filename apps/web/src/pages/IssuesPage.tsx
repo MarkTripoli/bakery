@@ -8,6 +8,7 @@ import {
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
 import {
+  connectionRepositoriesQueryOptions,
   effectiveAccessQueryOptions,
   externalTicketsPagesQueryOptions,
   ticketSourcesListQueryOptions,
@@ -15,7 +16,7 @@ import {
 import { asyncKindForError, isForbiddenFailure } from "../app/async-state.ts";
 import { usePagedFocus } from "../app/focus.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useConnectivity } from "../app/connectivity.ts";
 import { focusAfterPaint } from "../app/focus.ts";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
@@ -23,6 +24,7 @@ import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { ShellActiveNavigation, ShellSlot } from "../shell/shell-slots.tsx";
 import { IssuesList } from "./IssuesList.tsx";
+import { ChooseRepositoriesSheet } from "./ChooseRepositoriesSheet.tsx";
 import { IssuesTroubleBanner } from "./IssuesTroubleBanner.tsx";
 import { type StartRefusal, StartWorkDialog } from "./StartWorkDialog.tsx";
 import { StartWorkNotices } from "./StartWorkNotices.tsx";
@@ -65,6 +67,22 @@ export function IssuesPage() {
   const [filter, setFilter] = useState<IssueFilter>("canStart");
   const [sourceId, setSourceId] = useState("");
   const [started, setStarted] = useState(false);
+  // The Choose repositories sheet: opened here, or by an issue that says its repository is off.
+  const search = useSearch({ strict: false }) as { choose?: boolean };
+  const [choosing, setChoosingOpen] = useState(search.choose === true);
+  const chooser = useRef<HTMLElement | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const setChoosing = (open: boolean) => {
+    if (open) {
+      // From the menu, focus goes back to the menu's own button.
+      chooser.current = document.querySelector<HTMLElement>(
+        "[data-choose-menu] > .ui-popover > button",
+      ) ?? (document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null);
+    }
+    setChoosingOpen(open);
+  };
   const [startFor, setStartFor] = useState<IssueRow | null>(null);
   // The row's Start work button that opened the confirmation.
   const opener = useRef<HTMLElement | null>(null);
@@ -166,6 +184,46 @@ export function IssuesPage() {
   );
   const canRefresh = isAdmin && sources.isSuccess &&
     sources.data.items.length > 0;
+  // Administrators also reach Choose repositories from a menu beside Refresh.
+  const moreMenu = isAdmin && sources.isSuccess
+    ? (
+      <span data-choose-menu>
+        <UI.Popover
+          label={translate("issues.more" as never)}
+          open={menuOpen}
+          onOpenChange={setMenuOpen}
+          variant="interactive"
+          triggerAppearance="toolbar"
+          trigger={
+            <>
+              {translate("issues.more" as never)}
+            </>
+          }
+        >
+          <UI.Menu
+            aria-label={translate("issues.more" as never)}
+            items={[{
+              id: "choose",
+              label: translate("issues.choose.title" as never),
+              disabled: offline,
+            }]}
+            onSelect={() => {
+              setChoosing(true);
+              setMenuOpen(false);
+            }}
+          />
+        </UI.Popover>
+      </span>
+    )
+    : null;
+  const headerActions = canRefresh
+    ? (
+      <UI.Inline gap="compact">
+        {refreshButton}
+        {moreMenu}
+      </UI.Inline>
+    )
+    : moreMenu;
   const sourceFor = (row: IssueRow) =>
     sources.data?.items.find((source) => source.id === row.ticketSourceId);
   // Start work is offered only where the answer is current: can start, GitHub
@@ -181,12 +239,18 @@ export function IssuesPage() {
   const loadOffline = issues.isError &&
     asyncKindForError(issues.error) === "offline";
   const noSources = sources.isSuccess && sources.data.items.length === 0;
+  const connection = useQuery(
+    connectionRepositoriesQueryOptions(api, scope, isAdmin && noSources),
+  );
+  // Until it is read, an administrator is shown the choice, not a wrong dead end.
+  const connected = !connection.isSuccess ||
+    connection.data.connections.length > 0;
 
   return (
     <>
       <ShellActiveNavigation id="issues" />
-      {canRefresh && !phone
-        ? <ShellSlot name="actions">{refreshButton}</ShellSlot>
+      {headerActions !== null && !phone
+        ? <ShellSlot name="actions">{headerActions}</ShellSlot>
         : null}
       <UI.Stack gap="spacious" data-testid="issues-page">
         <UI.PageHeader
@@ -194,7 +258,7 @@ export function IssuesPage() {
           flush
           title={translate("issues.title" as never)}
           subtitle={translate("issues.description" as never)}
-          actions={canRefresh && phone ? refreshButton : null}
+          actions={headerActions !== null && phone ? headerActions : null}
         />
         {started
           ? (
@@ -237,24 +301,40 @@ export function IssuesPage() {
           : noSources
           ? (
             <UI.EmptyState
-              title={translate("issues.noSources.title" as never)}
+              title={translate(
+                (connected
+                  ? "issues.noSources.title"
+                  : "issues.noGithub.title") as never,
+              )}
               description={translate(
-                (isAdmin
+                (!isAdmin
+                  ? "issues.noSources.adminOnly"
+                  : connected
                   ? "issues.noSources.description"
-                  : "issues.noSources.adminOnly") as never,
+                  : "issues.noGithub.description") as never,
               )}
               action={isAdmin
-                ? (
-                  <UI.Button
-                    variant="secondary"
-                    onClick={() =>
-                      void navigate({
-                        to: "/settings/organization/integrations",
-                      })}
-                  >
-                    {translate("issues.noSources.openIntegrations" as never)}
-                  </UI.Button>
-                )
+                ? connected
+                  ? (
+                    <UI.Button
+                      variant="primary"
+                      disabled={offline}
+                      onClick={() => setChoosing(true)}
+                    >
+                      {translate("issues.choose.title" as never)}
+                    </UI.Button>
+                  )
+                  : (
+                    <UI.Button
+                      variant="secondary"
+                      onClick={() =>
+                        void navigate({
+                          to: "/settings/organization/integrations",
+                        })}
+                    >
+                      {translate("issues.noGithub.connect" as never)}
+                    </UI.Button>
+                  )
                 : undefined}
               variant="firstUse"
             />
@@ -439,6 +519,24 @@ export function IssuesPage() {
               focusAfterPaint(() =>
                 document.querySelector<HTMLElement>("[data-start-notice]")
               );
+            }}
+          />
+        )
+        : null}
+      {choosing && isAdmin
+        ? (
+          <ChooseRepositoriesSheet
+            onClose={() => {
+              setChoosing(false);
+              // Back to the control that opened the sheet.
+              focusAfterPaint(() => chooser.current);
+              if (search.choose) {
+                void navigate({
+                  to: "/issues",
+                  search: { choose: undefined },
+                  replace: true,
+                });
+              }
             }}
           />
         )

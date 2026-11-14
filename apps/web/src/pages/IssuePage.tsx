@@ -63,9 +63,10 @@ const DEPENDENCY_TONE = {
 
 /** The sentence's next step: a link to where the fix lives, or a control, or nothing. */
 function ReasonNext(
-  { code, disabled, row, onCheck, onStart }: {
+  { code, disabled, isAdmin, row, onCheck, onStart }: {
     code: string;
     disabled: boolean;
+    isAdmin: boolean;
     row: IssueRow;
     onCheck: () => void;
     onStart: () => void;
@@ -89,10 +90,25 @@ function ReasonNext(
       </UI.Button>
     );
   }
-  // The repository sheet that holds issue settings lands in part 3; until then
-  // the sentence stands without a link rather than pointing at a page that
-  // cannot change it.
-  if (action.kind === "issueSettings") return null;
+  // Issue settings: an administrator is taken to the Choose repositories sheet;
+  // everyone else is told who can change it.
+  if (action.kind === "issueSettings") {
+    return isAdmin
+      ? (
+        <UI.Button
+          variant="quiet"
+          onClick={() =>
+            void navigate({ to: "/issues", search: { choose: true } })}
+        >
+          {translate("issues.choose.title" as never)}
+        </UI.Button>
+      )
+      : (
+        <UI.Text variant="muted">
+          {translate("issues.next.askAdmin" as never)}
+        </UI.Text>
+      );
+  }
   if (action.kind === "askAdmin") {
     return (
       <UI.Text variant="muted">
@@ -210,7 +226,7 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
       variant="back"
       onClick={(event) => {
         event.preventDefault();
-        void navigate({ to: "/issues" });
+        void navigate({ to: "/issues", search: { choose: undefined } });
       }}
     >
       {translate("issues.back" as never)}
@@ -249,7 +265,11 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
                 action={
                   <UI.Button
                     variant="secondary"
-                    onClick={() => void navigate({ to: "/issues" })}
+                    onClick={() =>
+                      void navigate({
+                        to: "/issues",
+                        search: { choose: undefined },
+                      })}
                   >
                     {translate("issues.back" as never)}
                   </UI.Button>
@@ -363,6 +383,7 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
               code={entry.reason}
               row={row}
               disabled={!canAsk}
+              isAdmin={isAdmin}
               onCheck={() => check.mutate()}
               onStart={() => openDialog("start")}
             />

@@ -136,6 +136,8 @@ export type ExternalTicketListResponse =
   ClientOutputMap["Page<ExternalTicket>"];
 export type TicketSourceResponse = ClientOutputMap["TicketSource"];
 export type TicketSourceListResponse = ClientOutputMap["Page<TicketSource>"];
+export type TicketSourceCreate = ClientInputMap["TicketSourceCreate"];
+export type TicketSourceUpdate = ClientInputMap["TicketSourceUpdate"];
 export type TicketOperationReceiptResponse =
   ClientOutputMap["TicketOperationReceipt"];
 export type TicketRequestResponse = ClientOutputMap["TicketRequest"];
@@ -675,6 +677,22 @@ export type BakeryApiClient = {
       readonly limit?: number;
       readonly signal?: AbortSignal;
     }) => Promise<ApiResult<TicketSourceListResponse>>;
+    /** `POST /v1/ticket-sources`: starts taking issues from a repository. Admin only. */
+    readonly createSource: (options: {
+      readonly organizationId: string;
+      readonly input: TicketSourceCreate;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketSourceResponse>>;
+    /** `PATCH /v1/ticket-sources/{id}`: turn a repository on or off, or change its labels. Admin only. */
+    readonly updateSource: (options: {
+      readonly organizationId: string;
+      readonly id: string;
+      readonly input: TicketSourceUpdate;
+      readonly version: number;
+      readonly idempotencyKey?: string;
+      readonly signal?: AbortSignal;
+    }) => Promise<ApiResult<TicketSourceResponse>>;
     /** `POST /v1/ticket-sources/{id}/syncs`: asks Bakery to read GitHub again. Admin only. */
     readonly sync: (options: {
       readonly organizationId: string;
@@ -1855,6 +1873,30 @@ export function createBakeryApiClient({
               cursor: options.cursor,
               limit: options.limit,
             }, { signal: options.signal }),
+        );
+      },
+      createSource(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketSources.create"](options.input, {
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
+        );
+      },
+      updateSource(options) {
+        return workerResult(
+          options.organizationId,
+          (scoped) =>
+            scoped.actions["ticketSources.update"]({
+              id: options.id,
+              ...options.input,
+            }, {
+              ifMatch: versionEtag(options.version),
+              idempotencyKey: options.idempotencyKey,
+              signal: options.signal,
+            }),
         );
       },
       sync(options) {
