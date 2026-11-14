@@ -46,7 +46,7 @@ const VERSIONS: VersionRow[] = [
   version(3, 3, "published", [
     { id: "brief", uses: "task.brief" },
     { id: "implement", uses: "harness.implement", agentVersionId: uuid(2001) },
-    { id: "review", uses: "agent.review" },
+    { id: "review", uses: "review.independent" },
   ]),
   version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
 ];

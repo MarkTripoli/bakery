@@ -115,9 +115,25 @@ export function exportFileName(slug: string, revision: number): string {
   return `${safe === "" ? "workflow" : safe}-v${revision}.yaml`;
 }
 
-/** The sentences for the actions a definition's steps run most. */
+/** The sentences for the registered actions a step can run, so a step is named by what it does. */
 export const ACTION_TITLES: Readonly<Record<string, string>> = {
   "task.brief": "library.workflow.action.taskBrief",
+  "rpi.research": "library.workflow.action.rpiResearch",
+  "rpi.design": "library.workflow.action.rpiDesign",
+  "rpi.plan": "library.workflow.action.rpiPlan",
   "harness.implement": "library.workflow.action.harnessImplement",
-  "agent.review": "library.workflow.action.agentReview",
+  "harness.repair": "library.workflow.action.harnessRepair",
+  "quality.check": "library.workflow.action.qualityCheck",
+  "review.independent": "library.workflow.action.agentReview",
+  "integration.action": "library.workflow.action.integrationAction",
+  "delivery.candidate_evidence": "library.workflow.action.deliveryEvidence",
+  "delivery.prepare": "library.workflow.action.deliveryPrepare",
+  "delivery.merge": "library.workflow.action.deliveryMerge",
+  "delivery.deploy": "library.workflow.action.deliveryDeploy",
+  "delivery.health": "library.workflow.action.deliveryHealth",
+  "agent.freeform": "library.workflow.action.agentFreeform",
+  "workflow.noop": "library.workflow.action.workflowNoop",
+  "artifact.publish": "library.workflow.action.artifactPublish",
+  "memory.promote": "library.workflow.action.memoryPromote",
+  "evaluation.sample": "library.workflow.action.evaluationSample",
 };

@@ -164,7 +164,27 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
     },
     onSettled: refresh,
   });
-  const pending = activate.isPending || update.isPending;
+  // Editing works on a draft: the one there is, or a new one made from the
+  // version being viewed.
+  const startDraft = useMutation({
+    mutationKey: ["workflowVersions.create"],
+    mutationFn: async (from: WorkflowVersionResponse) => {
+      const result = await api.createWorkflowVersion({
+        organizationId,
+        workflowId,
+        input: {
+          definition: from.normalizedSpec as never,
+          ...(from.sourceYaml === "" ? {} : { sourceYaml: from.sourceYaml }),
+        },
+        idempotencyKey: crypto.randomUUID(),
+      });
+      if (!result.ok) throw result.error;
+      return result.data;
+    },
+    onSettled: refresh,
+  });
+  const pending = activate.isPending || update.isPending ||
+    startDraft.isPending;
 
   const open = (next: Dialog) => {
     opener.current = document.activeElement instanceof HTMLElement
@@ -586,10 +606,44 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
     </UI.Inline>
   );
 
+  const existingDraft = all.find((version) => version.status === "draft") ??
+    null;
+  const edit = () => {
+    const go = () =>
+      void navigate({
+        to: "/library/workflows/$workflowId/edit",
+        params: { workflowId },
+      });
+    if (existingDraft !== null) return go();
+    if (shown === null) return;
+    void run(() => startDraft.mutateAsync(shown), go);
+  };
+  const editButton = canManage && (existingDraft !== null || shown !== null)
+    ? (
+      <UI.Button
+        variant="primary"
+        disabled={offline || pending}
+        onClick={edit}
+      >
+        {translate(
+          (existingDraft !== null
+            ? "library.workflow.continueEditing"
+            : "library.workflow.edit") as never,
+        )}
+      </UI.Button>
+    )
+    : null;
+  const headerActions = (
+    <UI.Inline gap="compact">
+      {editButton}
+      {moreMenu}
+    </UI.Inline>
+  );
+
   return (
     <>
       {breadcrumbs}
-      {!phone ? <ShellSlot name="actions">{moreMenu}</ShellSlot> : null}
+      {!phone ? <ShellSlot name="actions">{headerActions}</ShellSlot> : null}
       <UI.SettingsContent data-testid="workflow-page" variant="wide">
         <UI.PageHeader
           variant="list"
@@ -603,7 +657,7 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
               <UI.Inline gap="compact">{badge}</UI.Inline>
             </UI.Stack>
           }
-          actions={phone ? moreMenu : null}
+          actions={phone ? headerActions : null}
         />
         <UI.Stack gap="spacious">
           {!canManage

@@ -32,6 +32,8 @@ export type VersionRow = {
   /** The workflow's agent bindings by action. */
   agents?: Record<string, string>;
   createdAt?: string;
+  /** The version row's own version, sent back as If-Match. */
+  version?: number;
 };
 export type AgentVersionRow = { id: string; agentId: string; revision: number };
 
@@ -58,6 +60,14 @@ export type Options = {
   agentReads?: "hold" | "fail";
   /** Every workflow versions page says there is another, two versions to a page. */
   endlessVersions?: boolean;
+  /** What the editor's checker says: its own judgement of the definition (default), or it cannot answer. */
+  checker?: "judge" | "fail";
+  /** Saving a draft or publishing it is refused: someone else changed it (409), or it fails (500). */
+  editor?:
+    | "save-conflict"
+    | "save-fails"
+    | "publish-conflict"
+    | "publish-fails";
   /** A copy whose workflow cannot be made, or whose steps cannot be added (always, or on the first try). */
   copy?:
     | "workflow-fails"
@@ -126,13 +136,14 @@ const versionBody = (row: VersionRow) => ({
     steps: row.steps,
     ...(row.agents ? { agents: row.agents } : {}),
   },
-  digest: String(row.revision).padStart(2, "0").repeat(32),
+  digest: String(row.revision).padStart(2, "0").repeat(31) +
+    String(row.version ?? 1).padStart(2, "0"),
   status: row.status,
   createdBy: uuid(1),
   createdAt: row.createdAt ?? "2026-02-0" + Math.min(row.revision, 9) +
       "T10:00:00.000Z",
   updatedAt: STAMP,
-  version: 1,
+  version: row.version ?? 1,
 });
 
 /** Stubs the session, the role and the three Library reads; returns what it saw and a switch to stop failing. */
@@ -173,6 +184,18 @@ export async function libraryFixture(page: Page, options: Options = {}) {
       sourceYaml?: string;
     }[],
     stepWrites: 0,
+    /** Each save of a draft and each publish, with the If-Match sent. */
+    draftSaves: [] as {
+      versionId: string;
+      ifMatch: string | null;
+      steps: { id: string; uses: string }[];
+    }[],
+    publishes: [] as {
+      versionId: string;
+      ifMatch: string | null;
+      expectedDigest: unknown;
+    }[],
+    validations: [] as { steps: { id: string; uses: string }[] }[],
     /** The Idempotency-Key of each workflow write and each version write, in order. */
     workflowKeys: [] as (string | undefined)[],
     versionKeys: [] as (string | undefined)[],
@@ -304,7 +327,12 @@ export async function libraryFixture(page: Page, options: Options = {}) {
         const row: VersionRow = {
           id: uuid(8000 + seen.versionsCreated.length),
           workflowId: id,
-          revision: 1,
+          revision: Math.max(
+            0,
+            ...versions.filter((item) => item.workflowId === id).map((item) =>
+              item.revision
+            ),
+          ) + 1,
           status: "draft",
           steps: input.definition.steps ?? [],
         };
@@ -383,6 +411,129 @@ export async function libraryFixture(page: Page, options: Options = {}) {
       return answer("agents", (options.agents ?? []).map(body))(route);
     },
   );
+  const ACTIONS = [
+    "task.brief",
+    "harness.implement",
+    "quality.check",
+    "review.independent",
+  ];
+  await page.route(
+    (url) => url.pathname === "/v1/workflow-actions",
+    (route) =>
+      route.fulfill(json({
+        items: ACTIONS.map((actionId) => ({
+          actionId,
+          version: 1,
+          input: "WorkflowActionInput",
+          output: "WorkflowActionOutput",
+          capabilities: actionId === "harness.implement" ? ["model"] : [],
+          cancel: "immediate",
+          retry: { maxAttempts: 1, backoff: "0s", faults: [] },
+          effectPolicy: "none",
+          modelBillingRequired: actionId === "harness.implement",
+        })),
+        nextCursor: null,
+      })),
+  );
+  await page.route(
+    (url) => url.pathname === "/v1/workflow-validations",
+    (route) => {
+      if (options.checker === "fail") {
+        return route.fulfill(problem(500, "INTERNAL_ERROR"));
+      }
+      const input = route.request().postDataJSON() as {
+        definition: { steps?: { id?: string; uses?: string }[] };
+      };
+      const steps = (input.definition.steps ?? []).map((step) => ({
+        id: step.id ?? "",
+        uses: step.uses ?? "",
+      }));
+      seen.validations.push({ steps });
+      const errors: { path: string; code: string; message: string }[] = [];
+      if (steps.length === 0) {
+        errors.push({
+          path: "/steps",
+          code: "steps_required",
+          message: "The workflow needs at least one step.",
+        });
+      }
+      steps.forEach((step, index) => {
+        if (step.id === "") {
+          errors.push({
+            path: `/steps/${index}/id`,
+            code: "step_id_invalid",
+            message: "A step needs a name.",
+          });
+        }
+        if (!ACTIONS.includes(step.uses)) {
+          errors.push({
+            path: `/steps/${index}/uses`,
+            code: "action_unknown",
+            message: "The action is not registered.",
+          });
+        }
+      });
+      return route.fulfill(json({
+        valid: errors.length === 0,
+        errors,
+        warnings: [],
+        normalizedDigest: errors.length === 0 ? "a".repeat(64) : null,
+      }));
+    },
+  );
+  await page.route(
+    (url) => /^\/v1\/workflows\/[^/]+\/versions\/[^/]+$/.test(url.pathname),
+    (route) => {
+      const parts = new URL(route.request().url()).pathname.split("/");
+      const row = versions.find((item) => item.id === parts[5]);
+      if (!row) return route.fulfill(problem(404, "RESOURCE_NOT_FOUND"));
+      if (route.request().method() === "PATCH") {
+        const input = route.request().postDataJSON() as {
+          definition: { steps?: { id: string; uses: string }[] };
+        };
+        seen.draftSaves.push({
+          versionId: row.id,
+          ifMatch: route.request().headers()["if-match"] ?? null,
+          steps: input.definition.steps ?? [],
+        });
+        if (options.editor === "save-conflict") {
+          return route.fulfill(problem(409, "STATE_CONFLICT"));
+        }
+        if (options.editor === "save-fails") {
+          return route.fulfill(problem(500, "INTERNAL_ERROR"));
+        }
+        row.steps = input.definition.steps ?? [];
+        row.version = (row.version ?? 1) + 1;
+      }
+      return route.fulfill(json(versionBody(row)));
+    },
+  );
+  await page.route(
+    (url) =>
+      /^\/v1\/workflows\/[^/]+\/versions\/[^/]+\/publish$/.test(url.pathname),
+    (route) => {
+      const parts = new URL(route.request().url()).pathname.split("/");
+      const row = versions.find((item) => item.id === parts[5]);
+      if (!row) return route.fulfill(problem(404, "RESOURCE_NOT_FOUND"));
+      const input = route.request().postDataJSON() as
+        | { expectedDigest?: unknown }
+        | null;
+      seen.publishes.push({
+        versionId: row.id,
+        ifMatch: route.request().headers()["if-match"] ?? null,
+        expectedDigest: input?.expectedDigest,
+      });
+      if (options.editor === "publish-conflict") {
+        return route.fulfill(problem(409, "STATE_CONFLICT"));
+      }
+      if (options.editor === "publish-fails") {
+        return route.fulfill(problem(500, "INTERNAL_ERROR"));
+      }
+      row.status = "published";
+      row.version = (row.version ?? 1) + 1;
+      return route.fulfill(json(versionBody(row)));
+    },
+  );
   await page.route(
     (url) => url.pathname === "/v1/workflow-presets",
     (route) => {
@@ -408,7 +559,7 @@ export async function libraryFixture(page: Page, options: Options = {}) {
           steps: [
             { id: "brief", uses: "task.brief" },
             { id: "implement", uses: "harness.implement" },
-            { id: "review", uses: "agent.review" },
+            { id: "review", uses: "review.independent" },
           ],
           defaultBudgetLimitUsd: "8.00",
           availability: null,

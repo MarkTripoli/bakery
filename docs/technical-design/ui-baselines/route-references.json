@@ -5155,6 +5155,13 @@
       "frames": []
     },
     {
+      "routeId": "library-workflow-edit",
+      "path": "/library/workflows/$workflowId/edit",
+      "status": "no-mock",
+      "rationale": "The editor of one workflow's draft (steps, code, validation, save and publish) is designed by design-ux on #67; Paper has no frame for it.",
+      "frames": []
+    },
+    {
       "routeId": "library-builtin",
       "path": "/library/built-in/$presetId",
       "status": "no-mock",

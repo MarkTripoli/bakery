@@ -80,6 +80,7 @@ import type {
   WorkerProviderAuthAttemptResponse,
   WorkerProviderBindingListResponse,
   WorkerResponse,
+  WorkflowActionResponse,
   WorkflowDefinitionResponse,
   WorkflowPresetListResponse,
   WorkflowVersionResponse,
@@ -1855,6 +1856,36 @@ export function libraryAgentsQueryOptions(
 }
 
 /** Every version of one workflow (a few pages at most). */
+/** The registered workflow actions: the kinds of step a workflow may use. */
+export function workflowActionsQueryOptions(
+  client: Pick<BakeryApiClient, "listWorkflowActions">,
+  scope: ApiScope,
+) {
+  return queryOptions<WorkflowActionResponse[], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "library.workflowActions", {}),
+    queryFn: async ({ signal }) => {
+      const items: WorkflowActionResponse[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listWorkflowActions({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) return items;
+        cursor = read.nextCursor;
+      }
+      return items;
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
 export function workflowVersionsQueryOptions(
   client: Pick<BakeryApiClient, "listWorkflowVersions">,
   scope: ApiScope,

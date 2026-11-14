@@ -24,6 +24,10 @@
     "path": "/library/workflows/$workflowId"
   },
   {
+    "id": "library-workflow-edit",
+    "path": "/library/workflows/$workflowId/edit"
+  },
+  {
     "id": "library-builtin",
     "path": "/library/built-in/$presetId"
   },

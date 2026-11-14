@@ -35,7 +35,7 @@ const WORLD: Options = {
     own(1, 1, "retired", [{ id: "brief", uses: "task.brief" }]),
     own(2, 2, "published", [
       { id: "brief", uses: "task.brief" },
-      { id: "review", uses: "agent.review" },
+      { id: "review", uses: "review.independent" },
     ]),
   ],
 };
@@ -190,7 +190,7 @@ for (
         steps: [
           { id: "brief", uses: "task.brief" },
           { id: "implement", uses: "harness.implement" },
-          { id: "review", uses: "agent.review" },
+          { id: "review", uses: "review.independent" },
         ],
       });
       // The new workflow is a draft that nothing uses yet.
@@ -417,7 +417,7 @@ for (
       await expect(page).toHaveURL(/\/library\/workflows\/[0-9a-f-]{36}$/);
       expect(seen.versionsCreated[0]?.definition.steps).toEqual([
         { id: "brief", uses: "task.brief" },
-        { id: "review", uses: "agent.review" },
+        { id: "review", uses: "review.independent" },
       ]);
       expect(seen.versionsCreated[0]?.sourceYaml).toContain("version 2");
     });

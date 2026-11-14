@@ -63,6 +63,11 @@ export type WorkflowPresetsListQuery =
   ClientInputMap["WorkflowPresetsListQuery"];
 export type NamedDefinitionCreate = ClientInputMap["NamedDefinitionCreate"];
 export type WorkflowVersionCreate = ClientInputMap["WorkflowVersionCreate"];
+export type WorkflowDraftUpdate = ClientInputMap["WorkflowDraftUpdate"];
+export type WorkflowActionListResponse =
+  ClientOutputMap["Page<WorkflowActionDeclaration>"];
+export type WorkflowActionResponse =
+  WorkflowActionListResponse["items"][number];
 export type WorkflowValidationInput = ClientInputMap["WorkflowValidation"];
 export type ValidationReportResponse = ClientOutputMap["ValidationReport"];
 export type TaskResponse = ClientOutputMap["Task"];
@@ -1184,6 +1189,33 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<WorkflowDefinitionResponse>>;
+  /** The registered workflow actions (the kinds of step), one page of a cursor list. */
+  readonly listWorkflowActions: (options: {
+    readonly organizationId: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<WorkflowActionListResponse>>;
+  /** Replaces a draft version's definition; `version` is the version's own, sent as If-Match. */
+  readonly updateWorkflowDraft: (options: {
+    readonly organizationId: string;
+    readonly workflowId: string;
+    readonly versionId: string;
+    readonly input: WorkflowDraftUpdate;
+    readonly version: number;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<WorkflowVersionResponse>>;
+  /** Publishes a draft version (it never changes after); `expectedDigest` guards against a stale draft. */
+  readonly publishWorkflowVersion: (options: {
+    readonly organizationId: string;
+    readonly workflowId: string;
+    readonly versionId: string;
+    readonly version: number;
+    readonly expectedDigest?: string;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<WorkflowVersionResponse>>;
   /** Adds a draft version to a workflow from a definition. */
   readonly createWorkflowVersion: (options: {
     readonly organizationId: string;
@@ -4054,6 +4086,78 @@ export function createBakeryApiClient({
           idempotencyKey: options.idempotencyKey,
           signal: options.signal,
         });
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listWorkflowActions(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["workflowActions.list"](
+          {
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async updateWorkflowDraft(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["workflowVersions.update"](
+          {
+            id: options.workflowId,
+            versionId: options.versionId,
+            ...options.input,
+          },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.id !== options.versionId) {
+          throw new ApiTransportError("protocol", 200);
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async publishWorkflowVersion(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["workflowVersions.publish"](
+          {
+            id: options.workflowId,
+            versionId: options.versionId,
+            ...(options.expectedDigest === undefined
+              ? {}
+              : { expectedDigest: options.expectedDigest }),
+          },
+          {
+            ifMatch: versionEtag(options.version),
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        if (data.id !== options.versionId) {
+          throw new ApiTransportError("protocol", 200);
+        }
         return { ok: true, data };
       } catch (error) {
         return failed(error);
