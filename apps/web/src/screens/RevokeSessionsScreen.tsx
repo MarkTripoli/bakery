@@ -1,6 +1,4 @@
 import * as UI from "@bakery/ui";
-import { SECURITY_SETTINGS_PATH } from "../app/auth-paths.ts";
-import { RouterLink } from "../app/router-link.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 
 export type RevokeSessionsScreenProps = {
@@ -22,7 +20,7 @@ export type RevokeSessionsScreenProps = {
 
 /**
  * `/settings/sessions/revoke` presenter — Paper `revoke` (auth.js
- * L189): a back link and a 520px form column holding the heading, one notice
+ * L189): a 520px form column holding the heading, one notice
  * (warning while confirming, error after a failed attempt, success once
  * done) and either the Cancel / "Sign out N sessions" pair or the single
  * "Return to sessions" button.
@@ -33,15 +31,9 @@ export function RevokeSessionsScreen(
 ) {
   const { translate } = useI18n();
   const success = state === "success";
-  const back = (
-    <RouterLink to={SECURITY_SETTINGS_PATH}>
-      <UI.IconGlyph name="back" size="large" />
-      {translate("auth.settings.security.title")}
-    </RouterLink>
-  );
   if (state === "loading" || state === "error") {
     return (
-      <UI.SettingsContent back={back} data-testid="revoke-sessions">
+      <UI.SettingsContent data-testid="revoke-sessions">
         {state === "loading"
           ? (
             <UI.Stack data-testid="revoke-sessions-loading" gap="compact">
@@ -66,7 +58,7 @@ export function RevokeSessionsScreen(
     );
   }
   return (
-    <UI.SettingsContent back={back} data-testid="revoke-sessions">
+    <UI.SettingsContent data-testid="revoke-sessions">
       <UI.FormContent>
         <UI.AuthHeading
           description={success

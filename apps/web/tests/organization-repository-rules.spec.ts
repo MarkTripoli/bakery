@@ -150,8 +150,7 @@ test.describe("organization repository rules", () => {
     ).toBeVisible();
     if (!isMobile) {
       const trail = page.getByRole("navigation", { name: "Breadcrumb" });
-      await expect(trail.getByText("Organization", { exact: true }))
-        .toBeVisible();
+      await expect(trail.getByText("Settings", { exact: true })).toBeVisible();
       await expect(trail.getByText("Repository rules")).toBeVisible();
     }
 
