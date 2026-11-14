@@ -19,7 +19,11 @@ export async function still(
   if (directory === undefined || directory === "") return;
   const width = page.viewportSize()?.width ?? 1280;
   const phone = width <= 743;
-  if (!phone) await page.setViewportSize({ width, height: 1500 });
+  // A card can be taller than a window-high pane that scrolls it, so a target
+  // gets a window tall enough for the longest card.
+  if (!phone) {
+    await page.setViewportSize({ width, height: target ? 3200 : 1500 });
+  }
   await page.evaluate(() => {
     for (const element of document.querySelectorAll("*")) {
       if (element.scrollTop > 0) element.scrollTop = 0;
