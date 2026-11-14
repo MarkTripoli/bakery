@@ -272,7 +272,7 @@ for (
       await dialog(page).getByRole("button", { name: "Cancel" }).click();
       expect(seen.created).toHaveLength(1);
       // The Library lists it among the organization's workflows, in use by nothing.
-      await page.getByRole("link", { name: "Library", exact: true }).click();
+      await page.goto("/library");
       const row = page.getByTestId("library-organization").locator(
         "[data-library-id]",
       ).filter({ hasText: "Fixed coding (copy)" });
