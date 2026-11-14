@@ -441,7 +441,9 @@ test.describe("the sign-in dialog", () => {
       credentialLocation: "harness_host",
     }]);
     await expect(dialog(page)).toContainText("Signed in.");
-    await shot(page, "machine-agents-dialog-completed");
+    await shot(page, "machine-agents-dialog-completed", [], {
+      windowOnly: true,
+    });
     await dialog(page).getByRole("button", { name: "Done" }).first().click();
     await expect(dialog(page)).toHaveCount(0);
     await expect(row(page, "claude").getByText("Ready", { exact: true }))
@@ -474,7 +476,7 @@ test.describe("the sign-in dialog", () => {
       .toBeVisible();
     await expect(dialog(page).getByText("Closing this cancels the sign-in."))
       .toBeVisible();
-    await shot(page, "machine-agents-dialog-code");
+    await shot(page, "machine-agents-dialog-code", [], { windowOnly: true });
     const axe = await new AxeBuilder({ page }).include(
       '[data-testid="agent-sign-in"]',
     ).analyze();
@@ -505,7 +507,7 @@ test.describe("the sign-in dialog", () => {
     await expect(openPage).toHaveAttribute("target", "_blank");
     await expect(dialog(page).getByText("Waiting for you to finish…"))
       .toBeVisible();
-    await shot(page, "machine-agents-dialog-link");
+    await shot(page, "machine-agents-dialog-link", [], { windowOnly: true });
   });
 
   test("a challenge that is not a plain https address is never made a link, and a bare code is not shown", async ({ page }) => {
@@ -556,7 +558,9 @@ test.describe("the sign-in dialog", () => {
       .toContainText("claude login");
     await expect(dialog(page).getByRole("button", { name: "Copy" }))
       .toBeVisible();
-    await shot(page, "machine-agents-dialog-terminal");
+    await shot(page, "machine-agents-dialog-terminal", [], {
+      windowOnly: true,
+    });
   });
 
   test("without a command it says only to finish in a terminal, and invents none", async ({ page }) => {
@@ -583,7 +587,9 @@ test.describe("the sign-in dialog", () => {
       .toHaveCount(0);
     await expect(dialog(page).getByText("Run this in a terminal there:"))
       .toHaveCount(0);
-    await shot(page, "machine-agents-dialog-terminal-nocmd");
+    await shot(page, "machine-agents-dialog-terminal-nocmd", [], {
+      windowOnly: true,
+    });
   });
 
   test("a sign-in that failed offers Try again, which starts a new attempt", async ({ page }) => {
@@ -595,7 +601,7 @@ test.describe("the sign-in dialog", () => {
     }).click();
     await expect(dialog(page).getByText("Sign-in did not work. Try again."))
       .toBeVisible();
-    await shot(page, "machine-agents-dialog-failed");
+    await shot(page, "machine-agents-dialog-failed", [], { windowOnly: true });
     w.script = script({ reads: ["completed"] });
     await dialog(page).getByRole("button", { name: "Try again" }).click();
     await expect(dialog(page).getByText("Signed in.")).toBeVisible();
@@ -613,7 +619,7 @@ test.describe("the sign-in dialog", () => {
     await expect(dialog(page).getByText("The sign-in expired.")).toBeVisible();
     await expect(dialog(page).getByRole("button", { name: "Start again" }))
       .toBeVisible();
-    await shot(page, "machine-agents-dialog-expired");
+    await shot(page, "machine-agents-dialog-expired", [], { windowOnly: true });
   });
 
   test("Cancel sign-in calls cancel and closes; Escape does the same; focus returns to the row", async ({ page }) => {
@@ -671,7 +677,9 @@ test.describe("the dialog while it starts", () => {
     await expect(dialog(page).getByText("Starting sign-in…")).toBeVisible();
     await expect(dialog(page).getByRole("button", { name: "Cancel sign-in" }))
       .toBeVisible();
-    await shot(page, "machine-agents-dialog-starting");
+    await shot(page, "machine-agents-dialog-starting", [], {
+      windowOnly: true,
+    });
     release();
     await expect(dialog(page).getByText("2. Enter this code:")).toBeVisible();
   });
