@@ -3262,5 +3262,7 @@
   "shell.navigation.projects": "⟪Projects⟫",
   "projects.list.archiveDialog.restore": "⟪The application is hidden from this list. Choose Show archived, then Restore, to bring it back.⟫",
   "projects.list.add.repositoryShortName": "⟪Repository short name⟫",
-  "projects.list.add.branchInvalid": "⟪That is not a valid branch name. Use letters, numbers, dashes, dots and slashes, for example main or release/2.0.⟫"
+  "projects.list.add.branchInvalid": "⟪That is not a valid branch name. Use letters, numbers, dashes, dots and slashes, for example main or release/2.0.⟫",
+  "projects.list.add.applicationName": "⟪Application name⟫",
+  "projects.list.add.applicationShortName": "⟪Application short name⟫"
 }

@@ -216,7 +216,7 @@ for (
       )
         .toBeVisible();
       expect(seen.createdRepositories).toEqual([]);
-      await dialog.getByLabel("Application").selectOption({
+      await dialog.getByRole("combobox").selectOption({
         label: "Payments",
       });
       await dialog.getByLabel("Short name").fill("pay-web");
@@ -249,8 +249,9 @@ for (
       await dialog.getByRole("button", { name: /acme\/payments-web/ }).click();
       // Nothing to choose from: the form is on "New application", with its
       // name fields open, not a dropdown with nothing in it.
-      await expect(dialog.getByLabel("Application")).toHaveValue("__new__");
-      await expect(dialog.getByLabel(/^Name\b/)).toBeVisible();
+      await expect(dialog.getByRole("combobox")).toHaveValue("__new__");
+      await expect(dialog.getByLabel("Application name")).toBeVisible();
+      await expect(dialog.getByLabel("Application short name")).toBeVisible();
       await page.mouse.move(700, 700);
       await shot(page, "projects-add-first-application", [], {
         windowOnly: true,
@@ -272,7 +273,7 @@ for (
             radius: computed.borderTopLeftRadius,
           };
         });
-      const select = await style(dialog.getByLabel("Application"));
+      const select = await style(dialog.getByRole("combobox"));
       const field = await style(dialog.getByLabel("Short name"));
       expect(select).toEqual(field);
     });
@@ -283,7 +284,7 @@ for (
         .click();
       const dialog = page.getByRole("dialog", { name: "Add repository" });
       await dialog.getByRole("button", { name: /acme\/payments-web/ }).click();
-      await dialog.getByLabel("Application").selectOption({
+      await dialog.getByRole("combobox").selectOption({
         label: "Payments",
       });
       const branch = dialog.getByLabel("Default branch");
@@ -319,7 +320,7 @@ for (
         .click();
       const dialog = page.getByRole("dialog", { name: "Add repository" });
       await dialog.getByRole("button", { name: /acme\/payments-web/ }).click();
-      await dialog.getByLabel("Application").selectOption({
+      await dialog.getByRole("combobox").selectOption({
         label: "Payments",
       });
       await dialog.getByLabel("Short name").fill("-Bad Name");
@@ -336,7 +337,7 @@ for (
         .click();
       const dialog = page.getByRole("dialog", { name: "Add repository" });
       await dialog.getByRole("button", { name: /acme\/payments-web/ }).click();
-      await dialog.getByLabel("Application").selectOption({
+      await dialog.getByRole("combobox").selectOption({
         label: "Payments",
       });
       await dialog.getByRole("button", { name: "Add repository" }).click();
@@ -355,12 +356,17 @@ for (
       // A name with a space is not owner/name, so it is not offered.
       await expect(dialog.getByText("acme/mobile app")).toHaveCount(0);
       await dialog.getByRole("button", { name: /acme\/payments-web/ }).click();
-      await dialog.getByLabel("Application").selectOption({
+      await dialog.getByRole("combobox").selectOption({
         label: "New application…",
       });
-      await dialog.getByLabel(/^Name\b/).fill("Mobile apps");
-      await expect(dialog.getByLabel("Short name").first()).toHaveValue(
+      // Inside Add repository the application's fields say so, beside the
+      // repository's own short name.
+      await dialog.getByLabel("Application name").fill("Mobile apps");
+      await expect(dialog.getByLabel("Application short name")).toHaveValue(
         "mobile-apps",
+      );
+      await expect(dialog.getByLabel("Repository short name")).toHaveValue(
+        "payments-web",
       );
       await dialog.getByRole("button", { name: "Add repository" }).click();
       await expect.poll(() => seen.createdApplications.length).toBe(1);
