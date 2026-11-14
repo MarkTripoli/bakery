@@ -132,7 +132,7 @@ export function agentNeedingSignIn(rows: readonly AgentRow[]): AgentRow | null {
  * needs one.
  */
 export function agentOfFailedChecks(
-  failedCheckIds: readonly string[],
+  failedCheckIds: readonly unknown[],
   rows: readonly AgentRow[],
 ): AgentRow | null {
   if (failedCheckIds.length === 0) return null;
@@ -141,6 +141,8 @@ export function agentOfFailedChecks(
     (row.state === "signedOut" || row.state === "notSignedIn");
   const named: AgentRow[] = [];
   for (const id of failedCheckIds) {
+    // Ids are strings by contract; anything else is broken data, not an agent's sign-in.
+    if (typeof id !== "string") return null;
     const parts = id.split(":");
     if (
       parts.length === 2 && parts[0] === "capability" && parts[1] === "model"
@@ -331,14 +333,26 @@ export function parseChallenge(
   return { address, code, codeRejected: given && code === null };
 }
 
+/** The program an agent is signed in with on the machine: the first word of the one command shown for it. */
+const AGENT_PROGRAM: Readonly<Record<CodingAgent, string>> = {
+  claude: "claude",
+  codex: "codex",
+  pi: "pi",
+};
+
 /**
  * The one line to type on the machine, only if it is plainly one: a single
  * line of ordinary characters, so that copying it can never paste a second
- * command. Anything else is not shown.
+ * command, and one that starts with the agent's own program, so the page never
+ * offers to run something else. Anything else is not shown.
  */
-export function safeCommand(text: string | null | undefined): string | null {
+export function safeCommand(
+  text: string | null | undefined,
+  agent: CodingAgent,
+): string | null {
   const line = text?.trim() ?? "";
-  return /^[A-Za-z0-9][A-Za-z0-9 ._/=:@+,-]{0,199}$/.test(line) ? line : null;
+  if (!/^[A-Za-z0-9][A-Za-z0-9 ._/=:@+,-]{0,199}$/.test(line)) return null;
+  return line.split(" ")[0] === AGENT_PROGRAM[agent] ? line : null;
 }
 
 /** Whole minutes left, at least one, or null when there is no usable expiry. */
@@ -373,12 +387,18 @@ export function dialogView(
     case "canceled":
       return { kind: "canceled" };
     case "terminal":
-      return { kind: "onMachine", command: safeCommand(attempt.instructions) };
+      return {
+        kind: "onMachine",
+        command: safeCommand(attempt.instructions, agent),
+      };
     default:
       break;
   }
   if (attempt.flow === "terminal") {
-    return { kind: "onMachine", command: safeCommand(attempt.instructions) };
+    return {
+      kind: "onMachine",
+      command: safeCommand(attempt.instructions, agent),
+    };
   }
   const minutes = minutesLeft(attempt.expiresAt, now);
   const { address, code, codeRejected } = parseChallenge(

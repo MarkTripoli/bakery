@@ -3072,7 +3072,7 @@
   "machines.signIn.expires": "This code works for {minutes} minutes.",
   "machines.signIn.openPage": "Open the sign-in page",
   "machines.signIn.onMachine": "Finish signing in on the machine itself. Run this in a terminal there:",
-  "machines.signIn.onMachineNoCommand": "Finish signing in in a terminal on the machine.",
+  "machines.signIn.onMachineNoCommand": "Finish signing in from a terminal on the machine.",
   "machines.signIn.commandLabel": "Command to run on the machine",
   "machines.signIn.completed": "Signed in.",
   "machines.signIn.failed": "Sign-in did not work. Try again.",

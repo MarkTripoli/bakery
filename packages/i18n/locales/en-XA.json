@@ -3065,7 +3065,6 @@
   "machines.signIn.expires": "⟦Ŧĥïš çôðë ŵôŕķš ƒôŕ {minutes} ɱïñûŧëš. ŧëšŧ çôþÿ ŧ⟧",
   "machines.signIn.openPage": "⟦Ôþëñ ŧĥë šïĝñ-ïñ þàĝë ŧëšŧŧ⟧",
   "machines.signIn.onMachine": "⟦Ƒïñïšĥ šïĝñïñĝ ïñ ôñ ŧĥë ɱàçĥïñë ïŧšëļƒ. Ŕûñ ŧĥïš ïñ à ŧëŕɱïñàļ ŧĥëŕë: ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
-  "machines.signIn.onMachineNoCommand": "⟦Ƒïñïšĥ šïĝñïñĝ ïñ ïñ à ŧëŕɱïñàļ ôñ ŧĥë ɱàçĥïñë. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "machines.signIn.commandLabel": "⟦Çôɱɱàñð ŧô ŕûñ ôñ ŧĥë ɱàçĥïñë ŧëšŧ çôþ⟧",
   "machines.signIn.completed": "⟦Šïĝñëð ïñ. ŧ⟧",
   "machines.signIn.failed": "⟦Šïĝñ-ïñ ðïð ñôŧ ŵôŕķ. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ⟧",
@@ -3084,5 +3083,6 @@
   "machines.agents.lineSignedOut": "⟦Ŧĥë šïĝñ-ïñ ôñ ŧĥïš ɱàçĥïñë ñô ļôñĝëŕ ŵôŕķš. ŧëšŧ çôþÿ ŧëš⟧",
   "machines.agents.lineNotChecked": "⟦Ɓàķëŕÿ ĥàš ñôŧ çĥëçķëð ŧĥë šïĝñ-ïñ ôñ ŧĥïš ɱàçĥïñë ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "machines.agents.banner.signedOut.body": "⟦Ŵôŕķ ŧĥàŧ ñëëðš {agent} ïš ŵàïŧïñĝ. ŧëšŧ çôþÿŧ⟧",
-  "machines.agents.banner.otherWork": "⟦Ôŧĥëŕ ŵôŕķ çôñŧïñûëš. ŧëšŧŧ⟧"
+  "machines.agents.banner.otherWork": "⟦Ôŧĥëŕ ŵôŕķ çôñŧïñûëš. ŧëšŧŧ⟧",
+  "machines.signIn.onMachineNoCommand": "⟦Ƒïñïšĥ šïĝñïñĝ ïñ ƒŕôɱ à ŧëŕɱïñàļ ôñ ŧĥë ɱàçĥïñë. ŧëšŧ çôþÿ ŧëšŧŧ⟧"
 }
