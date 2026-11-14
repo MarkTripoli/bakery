@@ -200,14 +200,18 @@ test("retry after the server rejects the socket reconnects and clears the notice
   await page.goto(PATH);
   await expect.poll(() => stream.subscribes.length).toBe(1);
 
+  // The page mounts once the startup gate has the organization, and the dev
+  // root's StrictMode runs its effects twice then, so one socket may have been
+  // opened and discarded: count from the live one.
+  const opened = stream.connections();
   stream.reject();
   await expect(page.getByText("Reconnecting", { exact: true })).toBeVisible();
   // A terminal rejection is never retried on its own.
   await page.waitForTimeout(2500);
-  expect(stream.connections()).toBe(1);
+  expect(stream.connections()).toBe(opened);
 
   await page.getByRole("button", { name: "Retry connection" }).click();
-  await expect.poll(() => stream.connections()).toBe(2);
+  await expect.poll(() => stream.connections()).toBe(opened + 1);
   await expect.poll(() => stream.subscribes.length).toBe(2);
   await expect(page.getByText("Reconnecting", { exact: true })).toHaveCount(0);
   await expect(page.locator('[data-ui-component="artifactViewer"]'))
@@ -219,13 +223,15 @@ test("a retry that is rejected again keeps the reconnecting notice", async ({ pa
   const stream = await mockEvents(page);
   await page.goto(PATH);
   await expect.poll(() => stream.subscribes.length).toBe(1);
+  // Count from the live socket (StrictMode may have discarded one at mount).
+  const opened = stream.connections();
 
   stream.rejectSubscriptions(true);
   stream.reject();
   await expect(page.getByText("Reconnecting", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Retry connection" }).click();
-  await expect.poll(() => stream.connections()).toBe(2);
+  await expect.poll(() => stream.connections()).toBe(opened + 1);
   await expect.poll(() => stream.subscribes.length).toBe(2);
   // The second socket was refused too: the page is still disconnected.
   await expect(page.getByText("Reconnecting", { exact: true })).toBeVisible();

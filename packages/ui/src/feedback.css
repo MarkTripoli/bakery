@@ -624,3 +624,25 @@
     flex: 1 1 0;
   }
 }
+
+/* A row of a title and one popover control: the control sits at the end of the
+   row at its natural width and the standard control height, on a phone too
+   (an Inline between stacks it and stretches it there). */
+.ui-inline[data-trailing-popover] {
+  align-items: flex-start;
+  flex-direction: row;
+  flex-wrap: nowrap;
+}
+.ui-inline[data-trailing-popover] > .ui-popover {
+  display: inline-block;
+  flex: 0 0 auto;
+}
+.ui-inline[data-trailing-popover] > .ui-popover > .ui-popover__trigger {
+  inline-size: auto;
+  min-block-size: max(var(--size-control), var(--target-min));
+}
+.ui-inline[data-trailing-popover] > .ui-popover .ui-popover__content {
+  inline-size: max-content;
+  inset-inline: auto var(--space-0);
+  max-inline-size: min(360px, calc(100vw - var(--space-8)));
+}

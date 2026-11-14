@@ -61,7 +61,17 @@ export function AddRepositoryDialog(
   const id = useId();
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<Candidate | null>(null);
-  const [applicationId, setApplicationId] = useState("");
+  // Nothing to choose from: a new application; one application: that one.
+  const [applicationId, setApplicationId] = useState(() => {
+    const open = applications.filter((application) =>
+      application.archivedAt === null
+    );
+    return open.length === 0
+      ? NEW_APPLICATION
+      : open.length === 1
+      ? open[0]!.id
+      : "";
+  });
   const [newName, setNewName] = useState("");
   const [newSlug, setNewSlug] = useState("");
   const [newSlugEdited, setNewSlugEdited] = useState(false);
@@ -306,7 +316,11 @@ export function AddRepositoryDialog(
                 required
                 hint={translate("projects.list.add.branchHelp" as never)}
                 error={tried && errors.branch !== undefined
-                  ? translate("projects.list.add.branchEmpty" as never)
+                  ? translate(
+                    (errors.branch === "empty"
+                      ? "projects.list.add.branchEmpty"
+                      : "projects.list.add.branchInvalid") as never,
+                  )
                   : undefined}
               >
                 <UI.TextInput
@@ -321,7 +335,9 @@ export function AddRepositoryDialog(
                 />
               </UI.Field>
               <UI.Field
-                label={translate("projects.list.shortName" as never)}
+                label={translate(
+                  "projects.list.add.repositoryShortName" as never,
+                )}
                 htmlFor={`${id}-slug`}
                 required
                 hint={translate("projects.list.shortNameHelp" as never)}

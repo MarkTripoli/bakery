@@ -1,6 +1,7 @@
 import { assertEquals } from "@std/assert";
 import {
   addRepositoryErrors,
+  branchProblem,
   candidates,
   deriveSlug,
   hasArchived,
@@ -159,6 +160,50 @@ Deno.test("step two names what is missing: an application, a short name that fit
   assertEquals(
     addRepositoryErrors({ slug: "-web", branch: "main", applicationId: "a" }),
     { slug: "invalid" },
+  );
+});
+
+Deno.test("a default branch must be a name Git accepts", () => {
+  for (const good of ["main", "release/1.2", "feature/x-y_z", "v2.0", "a@b"]) {
+    assertEquals(branchProblem(good), null, good);
+  }
+  assertEquals(branchProblem("  main  "), null);
+  for (const empty of ["", "   "]) assertEquals(branchProblem(empty), "empty");
+  for (
+    const bad of [
+      "--force",
+      "-x",
+      "..",
+      "a..b",
+      "a b",
+      "a\tb",
+      "a\nb",
+      "a~b",
+      "a^b",
+      "a:b",
+      "a?b",
+      "a*b",
+      "a[b",
+      "a\\b",
+      "@{-1}",
+      "a@{u}",
+      "@",
+      "HEAD",
+      "/lead",
+      "trail/",
+      "trail.",
+      "a.lock",
+      "a/b.lock",
+      "a//b",
+      "a/.hidden",
+      ".hidden",
+      "a\u0000b",
+      "a\u007fb",
+    ]
+  ) assertEquals(branchProblem(bad), "invalid", JSON.stringify(bad));
+  assertEquals(
+    addRepositoryErrors({ slug: "web", branch: "a b", applicationId: "a" }),
+    { branch: "invalid" },
   );
 });
 

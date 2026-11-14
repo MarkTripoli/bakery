@@ -69,6 +69,8 @@ export function ProjectsPage() {
   const repositories = useQuery(projectRepositoriesQueryOptions(api, scope));
   const [dialog, setDialog] = useState<Dialog>(null);
   const [showArchived, setShowArchived] = useState(false);
+  // The application whose More menu is open, so choosing an item closes it.
+  const [menuFor, setMenuFor] = useState<string | null>(null);
   const [failure, setFailure] = useState<ProjectFailure | null>(null);
   const opener = useRef<HTMLElement | null>(null);
   const mutations = useProjectMutations();
@@ -193,13 +195,17 @@ export function ProjectsPage() {
   const forbidden = (applications.isError &&
     isForbiddenFailure(applications.error)) ||
     (repositories.isError && isForbiddenFailure(repositories.error));
-  const loadOffline = (applications.isError || repositories.isError) &&
-    asyncKindForError(
-        applications.isError ? applications.error : repositories.error,
-      ) === "offline";
-  const loadFailed = !forbidden &&
-    (applications.isError || repositories.isError) &&
+  // A failed "Load more" keeps the applications already shown; a failed read
+  // of the repositories is never shown as "no repositories".
+  const applicationsFailed = applications.isError &&
     applicationItems.length === 0;
+  const repositoriesFailed = repositories.isError &&
+    repositories.data === undefined;
+  const loadOffline = (applicationsFailed || repositoriesFailed) &&
+    asyncKindForError(
+        applicationsFailed ? applications.error : repositories.error,
+      ) === "offline";
+  const loadFailed = !forbidden && (applicationsFailed || repositoriesFailed);
   const loading = applications.isPending || repositories.isPending;
 
   const addButton = canManage
@@ -370,7 +376,7 @@ export function ProjectsPage() {
               ) => (
                 <div key={application.id} data-application-id={application.id}>
                   <UI.Stack gap="compact">
-                    <UI.Inline variant="between">
+                    <UI.Inline variant="between" data-trailing-popover="">
                       <UI.Stack gap="tight">
                         <UI.Heading level="section">
                           {application.name}
@@ -409,6 +415,9 @@ export function ProjectsPage() {
                               { application: application.name },
                             )}
                             variant="interactive"
+                            open={menuFor === application.id}
+                            onOpenChange={(next) =>
+                              setMenuFor(next ? application.id : null)}
                             triggerAppearance="toolbar"
                             trigger={
                               <>
@@ -450,11 +459,22 @@ export function ProjectsPage() {
                                 },
                               ]}
                               onSelect={(id) => {
+                                // The menu closes, and focus comes back to
+                                // its More button when the dialog closes.
+                                const trigger = document.querySelector<
+                                  HTMLElement
+                                >(
+                                  `[data-application-id="${application.id}"] .ui-popover__trigger`,
+                                );
+                                setMenuFor(null);
                                 if (id === "rename") {
                                   open({ kind: "application", application });
                                 } else if (id === "archive") {
                                   open({ kind: "archive", application });
                                 } else void archive(application, true);
+                                if (trigger !== null && id !== "restore") {
+                                  opener.current = trigger;
+                                }
                               }}
                             />
                           </UI.Popover>
@@ -589,6 +609,9 @@ export function ProjectsPage() {
             <UI.Stack gap="compact">
               <UI.Text>
                 {translate("projects.list.archiveDialog.body" as never)}
+              </UI.Text>
+              <UI.Text variant="muted">
+                {translate("projects.list.archiveDialog.restore" as never)}
               </UI.Text>
               {failure !== null
                 ? (

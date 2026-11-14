@@ -110,6 +110,7 @@ export function ProjectRows(
         application: applicationName,
       })}
       captionHidden
+      headingsHidden
       variant="ruled"
       inset="edge"
       rowSize="double"

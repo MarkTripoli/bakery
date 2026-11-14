@@ -98,9 +98,51 @@ test.describe("route guard", () => {
   // below green.
   test("navigates to /organizations?reason=forbidden when a forbidden session is caught elsewhere", async ({ page }) => {
     await mockBootstrappedInstallation(page);
-    await page.addInitScript(() => {
-      localStorage.setItem("bakery.organization.lastSelected.v1", "org-a");
-    });
+    // The startup gate holds a page until the organization is known (#343),
+    // so the lookup answers: the page then renders and its own `/v1/me`
+    // check is the forbidden one this case is about. The list names the
+    // organization until the page has forgotten the stale preference: from
+    // then on the session is forbidden, so the list is too.
+    const organizationId = "00000000-0000-4000-8000-0000000000a1";
+    await page.route(
+      "**/v1/organizations",
+      async (route) =>
+        route.request().method() !== "GET"
+          ? route.continue()
+          // Once the stale preference has been forgotten (the forbidden
+          // handling ran), the session is forbidden and so is the list.
+          : await page.evaluate(() =>
+              localStorage.getItem("bakery.organization.lastSelected.v1") ===
+                null
+            ).catch(() => false)
+          ? route.fulfill({
+            status: 403,
+            headers: { "content-type": "application/problem+json" },
+            body: JSON.stringify(AUTH_FORBIDDEN_PROBLEM),
+          })
+          : route.fulfill({
+            status: 200,
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              items: [{
+                id: organizationId,
+                name: "Org A",
+                slug: "org-a",
+                logo: null,
+                defaultLocale: null,
+                metadata: {},
+                createdAt: "2026-01-01T00:00:00.000Z",
+                updatedAt: "2026-01-01T00:00:00.000Z",
+                version: 1,
+                role: "admin",
+              }],
+              nextCursor: null,
+            }),
+          }),
+    );
+    await page.addInitScript((id) => {
+      localStorage.setItem("bakery.organization.lastSelected.v1", id);
+    }, organizationId);
     await page.route(
       "**/v1/me*",
       (route) =>

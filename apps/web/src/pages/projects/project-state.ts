@@ -105,9 +105,31 @@ export function matching(
     );
 }
 
+/**
+ * Whether a typed branch is a name Git accepts (the rules of
+ * `git check-ref-format --branch`): no leading dash or slash, no `..` or `//`,
+ * no space or control character, none of `~ ^ : ? * [ \`, no `@{`, no part
+ * that starts with a dot or ends in `.lock`, no trailing slash or dot, and not
+ * `@` or `HEAD`. The value is trimmed first, as it is when sent.
+ */
+export function branchProblem(branch: string): "empty" | "invalid" | null {
+  const name = branch.trim();
+  if (name === "") return "empty";
+  const bad = name.startsWith("-") || name.startsWith("/") ||
+    name.endsWith("/") || name.endsWith(".") || name.endsWith(".lock") ||
+    name.includes("..") || name.includes("//") || name.includes("@{") ||
+    name === "@" || name === "HEAD" ||
+    // deno-lint-ignore no-control-regex
+    /[\u0000-\u0020\u007f~^:?*[\\]/.test(name) ||
+    name.split("/").some((part) =>
+      part.startsWith(".") || part.endsWith(".lock")
+    );
+  return bad ? "invalid" : null;
+}
+
 export type AddRepositoryErrors = {
   readonly slug?: "empty" | "invalid";
-  readonly branch?: "empty";
+  readonly branch?: "empty" | "invalid";
   readonly application?: "empty";
 };
 
@@ -122,7 +144,9 @@ export function addRepositoryErrors(
       : !REPOSITORY_SLUG.test(draft.slug)
       ? { slug: "invalid" as const }
       : {}),
-    ...(draft.branch.trim() === "" ? { branch: "empty" as const } : {}),
+    ...(branchProblem(draft.branch) !== null
+      ? { branch: branchProblem(draft.branch)! }
+      : {}),
   };
 }
 

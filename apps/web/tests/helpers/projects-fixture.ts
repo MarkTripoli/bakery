@@ -70,6 +70,8 @@ export type Options = {
   /** What creating a repository answers: ok, or a 409 without a reason. */
   create?: "ok" | "conflict";
   pageSize?: number;
+  /** The repositories read answers 500 until a test sets `repositoriesDown` false. */
+  repositoriesDown?: boolean;
 };
 
 const applicationBody = (app: App) => ({
@@ -118,6 +120,8 @@ export async function projectsFixture(page: Page, options: Options = {}) {
       body: Record<string, unknown>;
     }[],
     applicationReads: 0,
+    repositoryReads: 0,
+    repositoriesDown: options.repositoriesDown ?? false,
   };
   await page.route(
     `**/v1/organizations/${MOCK_ORGANIZATION_ID}/effective-access`,
@@ -214,6 +218,23 @@ export async function projectsFixture(page: Page, options: Options = {}) {
         );
         repos.push(created);
         return route.fulfill(json(repositoryBody(created), 201));
+      }
+      seen.repositoryReads += 1;
+      if (seen.repositoriesDown) {
+        return route.fulfill({
+          status: 500,
+          contentType: "application/problem+json",
+          body: JSON.stringify({
+            type: "https://bakery.example/problems/test",
+            title: "Internal error",
+            detail: "Internal error.",
+            status: 500,
+            code: "INTERNAL_ERROR",
+            retryable: true,
+            requestId: crypto.randomUUID(),
+            traceId: crypto.randomUUID(),
+          }),
+        });
       }
       return route.fulfill(
         json({ items: repos.map(repositoryBody), nextCursor: null }),
