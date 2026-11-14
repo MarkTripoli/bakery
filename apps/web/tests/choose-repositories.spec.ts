@@ -450,6 +450,24 @@ for (
       await expect(more).toBeFocused();
     });
 
+    test("the side-sheet rule leaves the navigation drawer where and as wide as it was", async ({ page }) => {
+      test.skip(
+        viewport.name !== "phone",
+        "The navigation drawer is a phone and tablet control.",
+      );
+      await fixture(page);
+      await page.goto("/issues");
+      await page.getByRole("button", { name: "Open navigation" }).click();
+      const drawer = page.locator(".bakery-app-shell__drawer .ui-sheet--side");
+      await expect(drawer).toBeVisible();
+      const box = (await drawer.boundingBox())!;
+      // At the start edge, and the rail plus 64px wide (208 + 64), as before.
+      expect(Math.abs(box.x)).toBeLessThanOrEqual(1);
+      expect(Math.abs(box.width - 272)).toBeLessThanOrEqual(1);
+      await page.mouse.move(380, 700);
+      await shot(page, "navigation-drawer", [], { windowOnly: true });
+    });
+
     test("Cancel returns focus to the button that opened the sheet", async ({ page }) => {
       await fixture(page);
       await page.goto("/issues");
