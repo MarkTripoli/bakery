@@ -608,7 +608,8 @@ test("turning a connection off asks first and says nothing is deleted", async ({
   expect(off.map((call) => call.body)).toEqual([{ enabled: false }]);
   // The one fix is the one button of the banner.
   await page.getByRole("button", { name: "Turn on" }).click();
-  await expect(page.getByText("Not checked yet").first()).toBeVisible();
+  // It was checked before it was turned off, so it reads Working again.
+  await expect(page.getByText("Working", { exact: true })).toBeVisible();
 });
 
 test("a degraded connection says Reconnect, and a check that finds the authorization gone says so", async ({ page }) => {

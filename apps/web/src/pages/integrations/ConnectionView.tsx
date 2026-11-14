@@ -1,7 +1,9 @@
 import { type ReactNode, useState } from "react";
 import * as UI from "@bakery/ui";
 import type { MessageKey } from "@bakery/i18n";
+import { useShellViewport } from "../../app/responsive.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
+import { ShellSlot } from "../../shell/shell-slots.tsx";
 import {
   type ConnectionStatus,
   filterRepositories,
@@ -121,27 +123,34 @@ const PERMISSION_COPY: Readonly<Record<string, MessageKey>> = {
 /** One GitHub connection: its health and fix, setup, repositories, access, details. */
 export function ConnectionView(props: ConnectionViewProps) {
   const { translate } = useI18n();
+  const phone = useShellViewport() === "phone";
   const { state } = props;
   const title = translate("settings.connections.row.title", {
     account: props.account,
   });
+  // The page's one secondary action: in the shell's action slot on desktop,
+  // under the title on a phone.
+  const checkNow = state === "ready" && props.canManage
+    ? (
+      <UI.Button
+        disabled={props.checkStatus === "checking" ||
+          props.status === "pending" || props.status === "revoked"}
+        loading={props.checkStatus === "checking"}
+        onClick={props.onCheck}
+        type="button"
+        variant="secondary"
+      >
+        {translate("settings.connections.action.checkNow")}
+      </UI.Button>
+    )
+    : null;
   return (
     <UI.SettingsContent data-testid="connection-page">
+      {checkNow && !phone
+        ? <ShellSlot name="actions">{checkNow}</ShellSlot>
+        : null}
       <UI.PageHeader
-        actions={state === "ready" && props.canManage
-          ? (
-            <UI.Button
-              disabled={props.checkStatus === "checking" ||
-                props.status === "pending" || props.status === "revoked"}
-              loading={props.checkStatus === "checking"}
-              onClick={props.onCheck}
-              type="button"
-              variant="secondary"
-            >
-              {translate("settings.connections.action.checkNow")}
-            </UI.Button>
-          )
-          : undefined}
+        actions={phone ? checkNow : undefined}
         flush
         subtitle={state === "ready"
           ? translate("settings.connections.page.purpose")

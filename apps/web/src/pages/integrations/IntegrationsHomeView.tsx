@@ -1,7 +1,9 @@
 import * as UI from "@bakery/ui";
 import type { MessageKey } from "@bakery/i18n";
+import { useShellViewport } from "../../app/responsive.ts";
 import { RouterLink } from "../../app/router-link.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
+import { ShellSlot } from "../../shell/shell-slots.tsx";
 import type { Health } from "./model.ts";
 import { type ConnectionOutcome, OUTCOME_COPY } from "./outcomes.ts";
 import type { ConnectStatus } from "./use-github-connect.ts";
@@ -46,6 +48,7 @@ const CONNECT_FAILURE: Readonly<Partial<Record<ConnectStatus, MessageKey>>> = {
 /** The home of the organization's integrations: what is connected, what can be added. */
 export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
   const { translate } = useI18n();
+  const phone = useShellViewport() === "phone";
   const { state, canManage, rows, outcome, connectStatus } = props;
   const busy = connectStatus === "starting" ||
     connectStatus === "redirecting" || props.continuing;
@@ -72,16 +75,20 @@ export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
     </UI.Button>
   );
 
+  // Where a list page's one primary action goes: the shell's action slot on
+  // desktop, under the title on a phone.
+  const add = canManage && state === "ready"
+    ? (
+      <UI.Button onClick={props.onAdd} type="button">
+        {translate("settings.connections.add")}
+      </UI.Button>
+    )
+    : null;
   return (
     <UI.SettingsContent data-testid="organization-integrations">
+      {add && !phone ? <ShellSlot name="actions">{add}</ShellSlot> : null}
       <UI.PageHeader
-        actions={canManage && state === "ready"
-          ? (
-            <UI.Button onClick={props.onAdd} type="button">
-              {translate("settings.connections.add")}
-            </UI.Button>
-          )
-          : undefined}
+        actions={phone ? add : undefined}
         flush
         subtitle={translate("settings.connections.description")}
         title={translate("settings.connections.title")}
@@ -220,7 +227,7 @@ export function IntegrationsHomeView(props: IntegrationsHomeViewProps) {
                     : undefined}
                   identity={
                     <UI.Inline gap="compact">
-                      <UI.Avatar alt="" fallback="GH" size="small" />
+                      <UI.Avatar alt="GitHub" fallback="GH" size="small" />
                       <UI.Text variant="strong">
                         {translate("settings.connections.github.heading")}
                       </UI.Text>
@@ -305,7 +312,7 @@ function ConnectedRow(
         : undefined}
       identity={
         <UI.Inline gap="compact">
-          <UI.Avatar alt="" fallback="GH" size="small" />
+          <UI.Avatar alt="GitHub" fallback="GH" size="small" />
           <UI.Text variant="strong">{open}</UI.Text>
         </UI.Inline>
       }

@@ -15,7 +15,6 @@ import { useRestoreOrganizationScope } from "../../app/restore-organization.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { SETTINGS_HOME } from "../../shell/breadcrumb-paths.ts";
 import { ShellActiveNavigation, ShellSlot } from "../../shell/shell-slots.tsx";
-import { InSettings } from "../../shell/SettingsShellSlots.tsx";
 import {
   ConnectionView,
   type ConnectionViewProps,
@@ -70,24 +69,22 @@ export function ConnectionPage(
   return (
     <>
       <ShellActiveNavigation id="settings" />
-      <InSettings section="settings.connections.section">
-        {state === "ready" && read.data && organizationId !== null
-          ? (
-            <Loaded
-              canManage={canManage}
-              connection={read.data}
-              organizationId={organizationId}
-              outcome={outcome}
-              scope={scoped}
-            />
-          )
-          : (
-            <Frame
-              state={state}
-              onReload={() => void read.refetch()}
-            />
-          )}
-      </InSettings>
+      {state === "ready" && read.data && organizationId !== null
+        ? (
+          <Loaded
+            canManage={canManage}
+            connection={read.data}
+            organizationId={organizationId}
+            outcome={outcome}
+            scope={scoped}
+          />
+        )
+        : (
+          <Frame
+            state={state}
+            onReload={() => void read.refetch()}
+          />
+        )}
     </>
   );
 }
