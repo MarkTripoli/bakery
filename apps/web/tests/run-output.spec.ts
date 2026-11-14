@@ -1265,10 +1265,17 @@ test("current attempt selection returns from historical pages", async ({ page })
   await page.goto(`/tasks/${id}`);
   await expect(page.getByText("atlas-01", { exact: true }).first())
     .toBeVisible();
+  const identity = page.getByRole("region", { name: "Execution identity" });
+  await expect(identity).toContainText("Ran on atlas-01");
+  await still(page, "run-identity", identity);
   await page.locator("button:enabled").filter({ hasText: /^Next$/ }).click();
   // The name shows in the attempt badge and as the machine link.
   await expect(page.getByText("historical-worker", { exact: true }).first())
     .toBeVisible();
+  await expect(identity).toContainText(
+    "Recorded try · ran on historical-worker",
+  );
+  await still(page, "run-identity-recorded", identity);
   await page.getByRole("combobox", { name: "Try", exact: true })
     .selectOption("");
   await expect(page.getByText("atlas-01", { exact: true }).first())
