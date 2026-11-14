@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link as RouterLink, useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
@@ -9,7 +9,9 @@ import {
   externalTicketQueryOptions,
   ticketSourcesListQueryOptions,
 } from "../api/query.ts";
+import { isUuid } from "@bakery/contracts/contracts";
 import { failureStatus, isForbiddenFailure } from "../app/async-state.ts";
+import { focusAfterPaint } from "../app/focus.ts";
 import { useConnectivity } from "../app/connectivity.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
@@ -140,7 +142,12 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
   const { translate } = useI18n();
   useRestoreOrganizationScope();
   const phone = useShellViewport() === "phone";
-  const ticket = useQuery(externalTicketQueryOptions(api, scope, issueId));
+  const wellFormed = isUuid(issueId);
+  const ticket = useQuery({
+    ...externalTicketQueryOptions(api, scope, issueId),
+    // An address that is not an issue id is not asked about: it is "not found".
+    enabled: wellFormed && Boolean(scope.organizationId),
+  });
   const sources = useQuery(ticketSourcesListQueryOptions(api, scope));
   const access = useQuery(effectiveAccessQueryOptions(api, scope));
   const isAdmin = access.data?.role === "admin";
@@ -149,6 +156,14 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
   const [refusal, setRefusal] = useState<StartRefusal | null>(null);
   const [started, setStarted] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  // The control that opened the confirmation, so focus can return to it.
+  const opener = useRef<HTMLElement | null>(null);
+  const openDialog = (intent: TicketRequestIntent) => {
+    opener.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    setDialog(intent);
+  };
 
   const row = ticket.data;
   const source = sources.data?.items.find((item) =>
@@ -185,8 +200,9 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
       void queryClient.invalidateQueries({ queryKey: ["protected"] }),
   });
 
-  const notFound = ticket.isError && (isForbiddenFailure(ticket.error) ||
-    failureStatus(ticket.error) === 404);
+  const notFound = !wellFormed ||
+    (ticket.isError && (isForbiddenFailure(ticket.error) ||
+      failureStatus(ticket.error) === 404));
   const back = (
     <UI.Link
       href="/issues"
@@ -200,10 +216,13 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
     </UI.Link>
   );
 
-  if (ticket.isPending) {
+  if (ticket.isPending && wellFormed) {
     return (
       <>
         <UI.Stack gap="standard" aria-busy="true">
+          <UI.Heading level="page">
+            {translate("issues.title" as never)}
+          </UI.Heading>
           {back}
           <UI.Text variant="muted" role="status">
             {translate("issues.loading" as never)}
@@ -218,6 +237,9 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
     return (
       <>
         <UI.Stack gap="standard">
+          <UI.Heading level="page">
+            {translate("issues.title" as never)}
+          </UI.Heading>
           {notFound ? null : back}
           {notFound
             ? (
@@ -296,183 +318,200 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
   const hasRelations = links.dependencies.length > 0 || links.parent !== null ||
     links.subIssues > 0;
 
-  const card = (
-    <UI.InspectorPanel
-      label={translate("issues.card.title" as never)}
-      variant={phone ? "stacked" : "column"}
-      header={
+  const cardHeader = (
+    <UI.Inline gap="compact">
+      <UI.Heading level="section">
+        {translate("issues.card.title" as never)}
+      </UI.Heading>
+      <UI.HelpTip label={translate("issues.card.title" as never)}>
+        {translate("issues.card.help" as never)}
+      </UI.HelpTip>
+    </UI.Inline>
+  );
+  const cardBody = (
+    <UI.Stack gap="standard">
+      <UI.Stack gap="compact" aria-live="polite">
         <UI.Inline gap="compact">
-          <UI.Heading level="section">
-            {translate("issues.card.title" as never)}
-          </UI.Heading>
-          <UI.HelpTip label={translate("issues.card.title" as never)}>
-            {translate("issues.card.help" as never)}
-          </UI.HelpTip>
+          <UI.Badge tone={BADGE_TONE[status]}>
+            {translate(`issues.status.${status}` as never)}
+          </UI.Badge>
         </UI.Inline>
-      }
-    >
-      <UI.Stack gap="standard">
-        <UI.Stack gap="compact" aria-live="polite">
-          <UI.Inline gap="compact">
-            <UI.Badge tone={BADGE_TONE[status]}>
-              {translate(`issues.status.${status}` as never)}
-            </UI.Badge>
-          </UI.Inline>
-          {status === "inProgress"
-            ? <UI.Text>{translate("issues.line.inProgress" as never)}</UI.Text>
-            : null}
-          {status === "waitingToStart" && waitingOn !== ""
-            ? (
-              <UI.Text>
-                {translate("issues.card.startsWhen" as never, {
-                  dependency: waitingOn,
-                })}
-              </UI.Text>
-            )
-            : null}
-          {offer === "startWhenReady"
-            ? (
-              <UI.Text variant="muted">
-                {translate("issues.card.startWhenReadyNote" as never)}
-              </UI.Text>
-            )
-            : null}
-          {failing.map((entry) => (
-            <UI.Stack gap="compact" key={entry.id}>
-              <UI.Text>{reasonSentence(row, entry.reason, translate)}</UI.Text>
-              <ReasonNext
-                code={entry.reason}
-                row={row}
-                disabled={!canAsk}
-                onCheck={() => check.mutate()}
-                onStart={() => setDialog("start")}
-              />
-            </UI.Stack>
-          ))}
-          {failing.length === 0 && status !== "canStart" &&
-              status !== "closed" && status !== "waitingToStart" &&
-              reason !== null
-            ? <UI.Text>{reasonSentence(row, reason, translate)}</UI.Text>
-            : null}
-        </UI.Stack>
-        {offer !== "none"
+        {status === "inProgress"
+          ? <UI.Text>{translate("issues.line.inProgress" as never)}</UI.Text>
+          : null}
+        {status === "waitingToStart" && waitingOn !== ""
           ? (
-            <UI.Stack gap="compact">
-              <UI.Inline gap="compact">
-                <UI.Button
-                  variant="primary"
-                  disabled={startLocked}
-                  onClick={() => setDialog("start")}
-                >
-                  {translate(
-                    (offer === "start"
-                      ? "issues.start.button"
-                      : "issues.start.whenReady") as never,
-                  )}
-                </UI.Button>
-                {offer === "start"
-                  ? (
-                    <>
-                      <UI.Button
-                        variant="secondary"
-                        disabled={startLocked}
-                        onClick={() => setDialog("plan")}
-                      >
-                        {translate("issues.start.planFirst" as never)}
-                      </UI.Button>
-                      <UI.HelpTip
-                        label={translate("issues.start.planHelpLabel" as never)}
-                      >
-                        {translate("issues.start.planHelp" as never)}
-                      </UI.HelpTip>
-                    </>
-                  )
-                  : null}
-              </UI.Inline>
-              <UI.Text variant="caption">
-                {offer === "startWhenReady"
-                  ? translate("issues.card.startWhenReadyCaption" as never, {
-                    dependency: waitingOn,
-                  })
-                  : translate("issues.card.workflow" as never, {
-                    repository: snapshot.repository,
-                  })}
-              </UI.Text>
-            </UI.Stack>
-          )
-          : offline
-          ? (
-            <UI.Text variant="caption">
-              {translate("issues.card.offline" as never)}
+            <UI.Text>
+              {translate("issues.card.startsWhen" as never, {
+                dependency: waitingOn,
+              })}
             </UI.Text>
           )
           : null}
-        {passing > 0
+        {offer === "startWhenReady"
           ? (
-            <UI.Stack gap="compact">
-              <UI.Inline gap="compact">
-                <UI.Text variant="muted">
-                  {translate("issues.card.passed" as never, {
-                    count: passing,
-                  })}
-                </UI.Text>
-                <UI.Button
-                  variant="quiet"
-                  aria-expanded={showAll}
-                  onClick={() => setShowAll(!showAll)}
-                >
-                  {translate(
-                    (showAll
-                      ? "issues.card.hide"
-                      : "issues.card.showAll") as never,
-                  )}
-                </UI.Button>
-              </UI.Inline>
-              {showAll
-                ? checks.filter((entry) => entry.status === "pass").map((
-                  entry,
-                ) => (
-                  <UI.Text variant="muted" key={entry.id}>
-                    {translate(`issues.check.${entry.id}` as never)}
-                  </UI.Text>
-                ))
-                : null}
-            </UI.Stack>
+            <UI.Text variant="muted">
+              {translate("issues.card.startWhenReadyNote" as never)}
+            </UI.Text>
           )
           : null}
-        <UI.Inline gap="compact">
-          {checkedAge !== null
-            ? (
-              <UI.Text variant="muted">
-                {checkedAge === "now"
-                  ? translate("issues.card.checkedNow" as never)
-                  : translate("issues.card.checked" as never, {
-                    age: translate(`issues.age.${checkedAge.unit}` as never, {
-                      count: checkedAge.count,
-                    }),
-                  })}
-              </UI.Text>
-            )
-            : null}
-          <UI.Button
-            variant="quiet"
-            disabled={!canAsk}
-            aria-busy={check.isPending || undefined}
-            onClick={() => check.mutate()}
-          >
-            {translate("issues.card.checkAgain" as never)}
-          </UI.Button>
-        </UI.Inline>
-        {check.isError
-          ? (
-            <UI.InlineNotice tone="error">
-              {translate("issues.card.checkFailed" as never)}
-            </UI.InlineNotice>
-          )
+        {failing.map((entry) => (
+          <UI.Stack gap="compact" key={entry.id}>
+            <UI.Text>{reasonSentence(row, entry.reason, translate)}</UI.Text>
+            <ReasonNext
+              code={entry.reason}
+              row={row}
+              disabled={!canAsk}
+              onCheck={() => check.mutate()}
+              onStart={() => openDialog("start")}
+            />
+          </UI.Stack>
+        ))}
+        {failing.length === 0 && status !== "canStart" &&
+            status !== "closed" && status !== "waitingToStart" &&
+            reason !== null
+          ? <UI.Text>{reasonSentence(row, reason, translate)}</UI.Text>
           : null}
       </UI.Stack>
-    </UI.InspectorPanel>
+      {offer !== "none"
+        ? (
+          <UI.Stack gap="compact">
+            <UI.Inline gap="compact">
+              <UI.Button
+                variant="primary"
+                disabled={startLocked}
+                onClick={() => openDialog("start")}
+              >
+                {translate(
+                  (offer === "start"
+                    ? "issues.start.button"
+                    : "issues.start.whenReady") as never,
+                )}
+              </UI.Button>
+              {offer === "start"
+                ? (
+                  <>
+                    <UI.Button
+                      variant="secondary"
+                      disabled={startLocked}
+                      onClick={() => openDialog("plan")}
+                    >
+                      {translate("issues.start.planFirst" as never)}
+                    </UI.Button>
+                    <UI.HelpTip
+                      label={translate("issues.start.planHelpLabel" as never)}
+                    >
+                      {translate("issues.start.planHelp" as never)}
+                    </UI.HelpTip>
+                  </>
+                )
+                : null}
+            </UI.Inline>
+            <UI.Text variant="caption">
+              {offer === "startWhenReady"
+                ? translate("issues.card.startWhenReadyCaption" as never, {
+                  dependency: waitingOn,
+                })
+                : translate("issues.card.workflow" as never, {
+                  repository: snapshot.repository,
+                })}
+            </UI.Text>
+          </UI.Stack>
+        )
+        : offline
+        ? (
+          <UI.Text variant="caption">
+            {translate("issues.card.offline" as never)}
+          </UI.Text>
+        )
+        : null}
+      {passing > 0
+        ? (
+          <UI.Stack gap="compact">
+            <UI.Inline gap="compact">
+              <UI.Text variant="muted">
+                {translate("issues.card.passed" as never, {
+                  count: passing,
+                })}
+              </UI.Text>
+              <UI.Button
+                variant="quiet"
+                aria-expanded={showAll}
+                onClick={() => setShowAll(!showAll)}
+              >
+                {translate(
+                  (showAll
+                    ? "issues.card.hide"
+                    : "issues.card.showAll") as never,
+                )}
+              </UI.Button>
+            </UI.Inline>
+            {showAll
+              ? checks.filter((entry) => entry.status === "pass").map((
+                entry,
+              ) => (
+                <UI.Text variant="muted" key={entry.id}>
+                  {translate(`issues.check.${entry.id}` as never)}
+                </UI.Text>
+              ))
+              : null}
+          </UI.Stack>
+        )
+        : null}
+      <UI.Inline gap="compact">
+        {checkedAge !== null
+          ? (
+            <UI.Text variant="muted">
+              {checkedAge === "now"
+                ? translate("issues.card.checkedNow" as never)
+                : translate("issues.card.checked" as never, {
+                  age: translate(`issues.age.${checkedAge.unit}` as never, {
+                    count: checkedAge.count,
+                  }),
+                })}
+            </UI.Text>
+          )
+          : null}
+        <UI.Button
+          variant="quiet"
+          disabled={!canAsk}
+          aria-busy={check.isPending || undefined}
+          onClick={() => check.mutate()}
+        >
+          {translate("issues.card.checkAgain" as never)}
+        </UI.Button>
+      </UI.Inline>
+      {check.isError
+        ? (
+          <UI.InlineNotice tone="error">
+            {translate("issues.card.checkFailed" as never)}
+          </UI.InlineNotice>
+        )
+        : null}
+    </UI.Stack>
   );
+  // On a phone the card is a plain section of the page at the page's own left
+  // edge; beside the page it is the inspector column.
+  const card = phone
+    ? (
+      <UI.Stack
+        gap="standard"
+        role="region"
+        aria-label={translate("issues.card.title" as never)}
+      >
+        {cardHeader}
+        {cardBody}
+      </UI.Stack>
+    )
+    : (
+      <UI.InspectorPanel
+        label={translate("issues.card.title" as never)}
+        variant="column"
+        header={cardHeader}
+      >
+        {cardBody}
+      </UI.InspectorPanel>
+    );
 
   return (
     <>
@@ -662,14 +701,24 @@ export function IssuePage({ issueId }: { readonly issueId: string }) {
             intent={dialog}
             row={row}
             policyRevision={policyRevision}
-            onClose={() => setDialog(null)}
+            onClose={() => {
+              setDialog(null);
+              // Cancel or Escape: back to the button that opened it.
+              focusAfterPaint(() => opener.current);
+            }}
             onDone={() => {
               setDialog(null);
+              focusAfterPaint(() =>
+                document.querySelector<HTMLElement>("[data-start-notice]")
+              );
               setRefusal(null);
               setStarted(true);
             }}
             onRefused={(why) => {
               setDialog(null);
+              focusAfterPaint(() =>
+                document.querySelector<HTMLElement>("[data-start-notice]")
+              );
               setStarted(false);
               setRefusal(why);
             }}

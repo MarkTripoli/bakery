@@ -141,7 +141,14 @@ export type Options = {
   sources?: "none" | "healthy" | "degraded" | "authRequired" | "unknown";
   pageSize?: number;
   /** What starting work answers: ok (default), or a refusal. */
-  start?: "ok" | "notReady" | "changed" | "unavailable" | "alreadyRunning";
+  start?:
+    | "ok"
+    | "notReady"
+    | "changed"
+    | "unavailable"
+    | "notAllowed"
+    | "gone"
+    | "alreadyRunning";
 };
 
 /** Stubs the session, the role, the sources and the issues; returns the requests seen. */
@@ -309,6 +316,12 @@ export async function issuesFixture(page: Page, options: Options = {}) {
       }
       if (answer === "notReady") {
         return route.fulfill(problem(409, "STATE_CONFLICT"));
+      }
+      if (answer === "notAllowed") {
+        return route.fulfill(problem(403, "FORBIDDEN"));
+      }
+      if (answer === "gone") {
+        return route.fulfill(problem(404, "NOT_FOUND"));
       }
       if (answer === "changed") {
         return route.fulfill(problem(412, "PRECONDITION_FAILED"));

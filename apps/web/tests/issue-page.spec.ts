@@ -290,6 +290,11 @@ for (
           "This issue changed on GitHub since you opened it. Nothing was started. Review it again.",
         ],
         [
+          "notAllowed",
+          "You are not allowed to start work from issues in this repository. Nothing was started.",
+        ],
+        ["gone", "This issue is no longer there. Nothing was started."],
+        [
           "unavailable",
           "GitHub is not answering, so nothing was started. Try again in a moment.",
         ],
@@ -341,6 +346,101 @@ for (
       await expect(page.getByRole("alertdialog")).toHaveCount(0);
     });
 
+    for (
+      const address of [
+        "not-a-uuid",
+        "%2e%2e%2f%2e%2e%2fetc",
+        "x".repeat(300),
+        "%3Cimg%20src=x%20onerror=alert(1)%3E",
+      ]
+    ) {
+      test(`an address that is not an issue (${address.slice(0, 12)}) is not found, with one title and no request`, async ({ page }) => {
+        let asked = 0;
+        await issuesFixture(page, { open: SEEDS });
+        await page.route(
+          (url) => /^\/v1\/external-tickets\/[^/]+$/.test(url.pathname),
+          (route) => {
+            asked += 1;
+            return route.fallback();
+          },
+        );
+        await page.goto(`/issues/${address}`);
+        await expect(page.getByText(
+          "This issue was not found, or you do not have access to it.",
+        )).toBeVisible();
+        await expect(page.locator("main h1")).toHaveCount(1);
+        await expect(page.getByText("could not be loaded")).toHaveCount(0);
+        expect(asked).toBe(0);
+      });
+    }
+
+    test("Cancel and Escape return focus to the button that opened the confirmation", async ({ page }) => {
+      await open(page, READY);
+      const start = card(page).first().getByRole("button", {
+        name: "Start work",
+        exact: true,
+      });
+      for (const close of ["Cancel", "Escape"]) {
+        await start.focus();
+        await page.keyboard.press("Enter");
+        const dialog = page.getByRole("alertdialog");
+        await expect(dialog).toBeVisible();
+        if (close === "Escape") await page.keyboard.press("Escape");
+        else await dialog.getByRole("button", { name: "Cancel" }).click();
+        await expect(dialog).toHaveCount(0);
+        await expect(start).toBeFocused();
+      }
+      // Plan first returns to Plan first.
+      const plan = card(page).first().getByRole("button", {
+        name: "Plan first",
+        exact: true,
+      });
+      await plan.focus();
+      await page.keyboard.press("Enter");
+      await page.keyboard.press("Escape");
+      await expect(plan).toBeFocused();
+    });
+
+    test("after a start the message takes focus, so it is read", async ({ page }) => {
+      await open(page, READY);
+      await card(page).first().getByRole("button", {
+        name: "Start work",
+        exact: true,
+      }).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Start work",
+      }).click();
+      await expect(page.locator("[data-start-notice]")).toBeFocused();
+      await expect(page.getByText("Work on #201 is starting.")).toBeVisible();
+    });
+
+    test("after a refused start the message takes focus", async ({ page }) => {
+      await open(page, READY, { start: "unavailable" });
+      await card(page).first().getByRole("button", {
+        name: "Start work",
+        exact: true,
+      }).click();
+      await page.getByRole("alertdialog").getByRole("button", {
+        name: "Start work",
+      }).click();
+      await expect(page.locator("[data-start-notice]")).toBeFocused();
+    });
+
+    test("on a phone the card starts at the page's own left edge", async ({ page }) => {
+      test.skip(
+        viewport.name !== "phone",
+        "the card is a column beside the page",
+      );
+      await open(page, READY);
+      const [title, cardHeading] = await Promise.all([
+        page.getByRole("heading", { name: /#201 Add invoice export/, level: 1 })
+          .boundingBox(),
+        page.getByRole("heading", { name: "Can Bakery start this?" })
+          .boundingBox(),
+      ]);
+      expect(Math.round(cardHeading!.x)).toBe(Math.round(title!.x));
+    });
+
     test("Check again asks the server to check, and is not offered while it works", async ({ page }) => {
       const seen = await open(page, WAITING);
       await card(page).first().getByRole("button", { name: "Check again" })
@@ -382,6 +482,20 @@ for (
       )).toBeVisible();
       await page.getByRole("button", { name: "Back to issues" }).click();
       await expect(page).toHaveURL(/\/issues$/);
+    });
+
+    test("from the list, closing the confirmation returns focus to that row's Start work", async ({ page }) => {
+      await issuesFixture(page, { open: SEEDS });
+      await page.goto("/issues");
+      const start = page.getByRole("button", {
+        name: "Start work on #201 Add invoice export",
+      });
+      await start.focus();
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("alertdialog")).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(page.getByRole("alertdialog")).toHaveCount(0);
+      await expect(start).toBeFocused();
     });
 
     test("from the list, a Can start row opens the same confirmation and an Open row opens the issue", async ({ page }) => {

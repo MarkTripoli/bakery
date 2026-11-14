@@ -3132,5 +3132,7 @@
   "issues.card.startsWhen": "⟪Bakery will start this when {dependency} is done.⟫",
   "issues.start.planHelpLabel": "⟪About Plan first⟫",
   "issues.start.openWork": "⟪Open Work⟫",
-  "issues.dependency.openNamed": "⟪{reference} on GitHub (opens in a new tab)⟫"
+  "issues.dependency.openNamed": "⟪{reference} on GitHub (opens in a new tab)⟫",
+  "issues.refused.notAllowed": "⟪You are not allowed to start work from issues in this repository. Nothing was started.⟫",
+  "issues.refused.gone": "⟪This issue is no longer there. Nothing was started.⟫"
 }

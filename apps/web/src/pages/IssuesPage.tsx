@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useInfiniteQuery,
   useMutation,
@@ -17,6 +17,7 @@ import { usePagedFocus } from "../app/focus.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useNavigate } from "@tanstack/react-router";
 import { useConnectivity } from "../app/connectivity.ts";
+import { focusAfterPaint } from "../app/focus.ts";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
@@ -65,6 +66,8 @@ export function IssuesPage() {
   const [sourceId, setSourceId] = useState("");
   const [started, setStarted] = useState(false);
   const [startFor, setStartFor] = useState<IssueRow | null>(null);
+  // The row's Start work button that opened the confirmation.
+  const opener = useRef<HTMLElement | null>(null);
   const [workStarted, setWorkStarted] = useState<number | null | false>(false);
   const [refusal, setRefusal] = useState<StartRefusal | null>(null);
   const offline = useConnectivity() === "offline";
@@ -365,6 +368,10 @@ export function IssuesPage() {
                     <IssuesList
                       offered={startOffered}
                       onStart={(row) => {
+                        opener.current = document.activeElement instanceof
+                            HTMLElement
+                          ? document.activeElement
+                          : null;
                         setRefusal(null);
                         setWorkStarted(false);
                         setStartFor(row);
@@ -414,14 +421,24 @@ export function IssuesPage() {
             intent="start"
             row={startFor}
             policyRevision={sourceFor(startFor)?.policyRevision ?? null}
-            onClose={() => setStartFor(null)}
+            onClose={() => {
+              setStartFor(null);
+              // Cancel or Escape: back to the button that opened it.
+              focusAfterPaint(() => opener.current);
+            }}
             onDone={() => {
               setWorkStarted(issueNumber(startFor));
               setStartFor(null);
+              focusAfterPaint(() =>
+                document.querySelector<HTMLElement>("[data-start-notice]")
+              );
             }}
             onRefused={(why) => {
               setRefusal(why);
               setStartFor(null);
+              focusAfterPaint(() =>
+                document.querySelector<HTMLElement>("[data-start-notice]")
+              );
             }}
           />
         )

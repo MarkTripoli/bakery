@@ -8,7 +8,13 @@ import { useI18n } from "../i18n/I18nProvider.tsx";
 import { issueNumber, type IssueRow, issueSnapshot } from "./issue-state.ts";
 
 /** What a refused start says, from the server's answer. */
-export type StartRefusal = "notReady" | "changed" | "unavailable" | "failed";
+export type StartRefusal =
+  | "notReady"
+  | "changed"
+  | "unavailable"
+  | "notAllowed"
+  | "gone"
+  | "failed";
 
 /** Maps a failed start to what the person is told: not ready (409), changed since opened (412), GitHub not answering (503). */
 export function startRefusal(error: unknown): StartRefusal {
@@ -16,6 +22,8 @@ export function startRefusal(error: unknown): StartRefusal {
   if (status === 409) return "notReady";
   if (status === 412) return "changed";
   if (status === 503) return "unavailable";
+  if (status === 403) return "notAllowed";
+  if (status === 404) return "gone";
   return "failed";
 }
 

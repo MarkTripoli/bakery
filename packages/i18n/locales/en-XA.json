@@ -3132,5 +3132,7 @@
   "issues.card.startsWhen": "⟦Ɓàķëŕÿ ŵïļļ šŧàŕŧ ŧĥïš ŵĥëñ {dependency} ïš ðôñë. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "issues.start.planHelpLabel": "⟦Àƀôûŧ Þļàñ ƒïŕšŧ ŧëš⟧",
   "issues.start.openWork": "⟦Ôþëñ Ŵôŕķ ŧ⟧",
-  "issues.dependency.openNamed": "⟦{reference} ôñ ĜïŧĤûƀ (ôþëñš ïñ à ñëŵ ŧàƀ) ŧëšŧ çôþÿ ŧë⟧"
+  "issues.dependency.openNamed": "⟦{reference} ôñ ĜïŧĤûƀ (ôþëñš ïñ à ñëŵ ŧàƀ) ŧëšŧ çôþÿ ŧë⟧",
+  "issues.refused.notAllowed": "⟦Ÿôû àŕë ñôŧ àļļôŵëð ŧô šŧàŕŧ ŵôŕķ ƒŕôɱ ïššûëš ïñ ŧĥïš ŕëþôšïŧôŕÿ. Ñôŧĥïñĝ ŵàš šŧàŕŧëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "issues.refused.gone": "⟦Ŧĥïš ïššûë ïš ñô ļôñĝëŕ ŧĥëŕë. Ñôŧĥïñĝ ŵàš šŧàŕŧëð. ŧëšŧ çôþÿ ŧëšŧŧ⟧"
 }

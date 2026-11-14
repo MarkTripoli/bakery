@@ -23,45 +23,55 @@ export function StartWorkNotices(
   const navigate = useNavigate();
   if (started) {
     return (
-      <UI.AlertBanner
-        tone="success"
-        action={
-          <UI.Button
-            variant="secondary"
-            onClick={() => void navigate({ to: "/tasks" })}
-          >
-            {translate("issues.start.openWork" as never)}
-          </UI.Button>
-        }
-      >
-        {translate("issues.start.started" as never, { number: number ?? "" })}
-      </UI.AlertBanner>
+      <div data-start-notice="true" tabIndex={-1}>
+        <UI.AlertBanner
+          tone="success"
+          action={
+            <UI.Button
+              variant="secondary"
+              onClick={() => void navigate({ to: "/tasks" })}
+            >
+              {translate("issues.start.openWork" as never)}
+            </UI.Button>
+          }
+        >
+          {translate("issues.start.started" as never, { number: number ?? "" })}
+        </UI.AlertBanner>
+      </div>
     );
   }
   if (refusal === null) return null;
   if (refusal === "changed") {
     return (
-      <UI.InlineNotice
-        tone="warning"
-        action={
-          <UI.Button
-            variant="secondary"
-            onClick={() => {
-              onDismiss();
-              void queryClient.invalidateQueries({ queryKey: ["protected"] });
-            }}
-          >
-            {translate("issues.refused.reload" as never)}
-          </UI.Button>
-        }
-      >
-        {translate("issues.refused.changed" as never)}
-      </UI.InlineNotice>
+      <div data-start-notice="true" tabIndex={-1}>
+        <UI.InlineNotice
+          tone="warning"
+          action={
+            <UI.Button
+              variant="secondary"
+              onClick={() => {
+                onDismiss();
+                void queryClient.invalidateQueries({ queryKey: ["protected"] });
+              }}
+            >
+              {translate("issues.refused.reload" as never)}
+            </UI.Button>
+          }
+        >
+          {translate("issues.refused.changed" as never)}
+        </UI.InlineNotice>
+      </div>
     );
   }
   return (
-    <UI.InlineNotice tone={refusal === "failed" ? "error" : "warning"}>
-      {translate(`issues.refused.${refusal}` as never)}
-    </UI.InlineNotice>
+    <div data-start-notice="true" tabIndex={-1}>
+      <UI.InlineNotice
+        tone={refusal === "failed" || refusal === "notAllowed"
+          ? "error"
+          : "warning"}
+      >
+        {translate(`issues.refused.${refusal}` as never)}
+      </UI.InlineNotice>
+    </div>
   );
 }
