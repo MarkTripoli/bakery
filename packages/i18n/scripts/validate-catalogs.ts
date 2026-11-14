@@ -32,6 +32,7 @@ const namespacePrefixes = [
   "access.",
   "issues.",
   "machines.",
+  "library.",
   "repository.rules.",
 ] as const;
 

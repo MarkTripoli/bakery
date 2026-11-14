@@ -1,5 +1,6 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type {
+  AgentDefinitionResponse,
   ApiFailure,
   ApiResult,
   ApplicationListResponse,
@@ -1776,6 +1777,75 @@ export function workflowPresetsQueryOptions(
           signal,
         }),
       );
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Pages read, 100 at a time, before the Library says a list was cut short. */
+const LIBRARY_COLLECTION_PAGES = 5;
+
+/** Every workflow definition of the organization (a few pages at most), and whether the list was cut short. */
+export function libraryWorkflowsQueryOptions(
+  client: Pick<BakeryApiClient, "listWorkflows">,
+  scope: ApiScope,
+) {
+  return queryOptions<
+    { items: WorkflowDefinitionResponse[]; truncated: boolean },
+    ApiFailure
+  >({
+    queryKey: protectedQueryKey(scope, "library.workflows", {}),
+    queryFn: async ({ signal }) => {
+      const items: WorkflowDefinitionResponse[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listWorkflows({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) return { items, truncated: false };
+        cursor = read.nextCursor;
+      }
+      return { items, truncated: true };
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Every agent definition of the organization (a few pages at most), and whether the list was cut short. */
+export function libraryAgentsQueryOptions(
+  client: Pick<BakeryApiClient, "listAgents">,
+  scope: ApiScope,
+) {
+  return queryOptions<
+    { items: AgentDefinitionResponse[]; truncated: boolean },
+    ApiFailure
+  >({
+    queryKey: protectedQueryKey(scope, "library.agents", {}),
+    queryFn: async ({ signal }) => {
+      const items: AgentDefinitionResponse[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listAgents({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) return { items, truncated: false };
+        cursor = read.nextCursor;
+      }
+      return { items, truncated: true };
     },
     enabled: Boolean(scope.organizationId),
     retry: retryNetworkOnce,

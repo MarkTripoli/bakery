@@ -285,6 +285,10 @@ input:not([type="hidden"]) {
 .ui-tabs {
   border-block-end: var(--border-default) solid var(--color-border);
 }
+/* Tabs that are routes lead to content of their own below: no rule closes it. */
+.ui-tabs--route {
+  border-block-end: var(--border-none);
+}
 .ui-tabs__bar {
   align-items: center;
   display: flex;

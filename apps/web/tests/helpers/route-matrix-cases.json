@@ -16,6 +16,10 @@
     "path": "/tasks/$taskId/coordination"
   },
   {
+    "id": "library",
+    "path": "/library"
+  },
+  {
     "id": "issues",
     "path": "/issues"
   },

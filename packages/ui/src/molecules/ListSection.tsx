@@ -16,17 +16,27 @@ export type ListSectionProps =
      * phone row list on a 16px inset.
      */
     variant?: "table" | "list";
+    /** Drops the side inset, so the heading starts where the page's own heading does. */
+    flush?: boolean;
   };
 
 /** A titled block of a list page: title, optional line, trailing action. */
 export function ListSection(
-  { actions, children, description, title, variant = "table", ...props }:
-    ListSectionProps,
+  {
+    actions,
+    children,
+    description,
+    flush = false,
+    title,
+    variant = "table",
+    ...props
+  }: ListSectionProps,
 ) {
   return (
     <section
       className="ui-list-section"
       {...props}
+      data-inset={flush ? "none" : undefined}
       data-state="default"
       data-ui-component="listSection"
       data-variant={variant}
