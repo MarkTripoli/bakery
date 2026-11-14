@@ -920,9 +920,14 @@ test("a saved workflow whose newer version is in use says this run's version is 
   await expect(origin).toContainText("Workflow: Checkout fan-out, version 3");
   await expect(origin).toContainText("Older version");
   await origin.getByRole("button", { name: "Older version" }).click();
-  await expect(page.getByText(
-    "A newer version is in use for new tasks. This task keeps the one it started with.",
-  )).toBeVisible();
+  const panel = page.locator(
+    '[data-ui-component="helpTip"] .ui-help-tip__panel',
+  ).filter({
+    has: page.getByText(
+      "A newer version is in use for new tasks. This task keeps the one it started with.",
+    ),
+  });
+  await expect(panel).toBeVisible();
 });
 
 test("when the versions cannot be read the version shows its short identifier", async ({ page }) => {
