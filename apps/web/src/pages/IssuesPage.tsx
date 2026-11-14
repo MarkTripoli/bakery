@@ -188,6 +188,7 @@ export function IssuesPage() {
       <UI.Stack gap="spacious" data-testid="issues-page">
         <UI.PageHeader
           variant="list"
+          flush
           title={translate("issues.title" as never)}
           subtitle={translate("issues.description" as never)}
           actions={canRefresh && phone ? refreshButton : null}
