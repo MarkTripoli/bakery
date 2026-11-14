@@ -1384,7 +1384,7 @@
   "tasks.preset.fixedCoding.title": "Fixed coding",
   "tasks.preset.fixedCoding.description": "Write the task brief, then run the coding agent once.",
   "tasks.preset.fixedCodingReviewed.title": "Coding with independent review",
-  "tasks.preset.fixedCodingReviewed.description": "Write the task brief and run the coding agent, then check and independently review the result, repairing it a bounded number of times.",
+  "tasks.preset.fixedCodingReviewed.description": "Write the task brief and run the coding agent, then check and independently review the result, fixing it a limited number of times.",
   "tasks.session.subtitle": "{preset} · {repository} · profile r{revision}",
   "tasks.session.state.loading": "Loading the run from the server…",
   "tasks.session.state.empty": "This task has no run yet. Start a run to see its timeline.",

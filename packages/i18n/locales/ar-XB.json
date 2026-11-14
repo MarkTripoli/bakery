@@ -2427,7 +2427,7 @@
   "artifact.handoff.revisionLink": "⟪Link to revision {revision}⟫",
   "settings.audit.description.installation": "⟪Installation-level changes, such as settings, administrators and sign-in credentials, newest first.⟫",
   "tasks.preset.fixedCodingReviewed.title": "⟪Coding with independent review⟫",
-  "tasks.preset.fixedCodingReviewed.description": "⟪Write the task brief and run the coding agent, then check and independently review the result, repairing it a bounded number of times.⟫",
+  "tasks.preset.fixedCodingReviewed.description": "⟪Write the task brief and run the coding agent, then check and independently review the result, fixing it a limited number of times.⟫",
   "tasks.composer.setup.review_agent_unavailable": "⟪This workflow includes a review, and no agent is available to do it. An organization administrator can choose a reviewing agent that is turned on and has a way to pay for its model.⟫",
   "tasks.composer.setup.repair_agent_unavailable": "⟪This workflow fixes problems it finds, and no agent is available to do that. An organization administrator can choose an agent for fixes that is turned on and has a way to pay for its model.⟫",
   "settings.sso.dialog.metadataInvalid": "⟪That is not SAML metadata. Paste the identity provider's metadata XML, which names its single sign-on endpoint.⟫",
