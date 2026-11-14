@@ -69,6 +69,7 @@ import {
   getConnection,
   getIntegrationEffect,
 } from "./connections.ts";
+import { createGrant, createGrantListHandler, revokeGrant } from "./grants.ts";
 import {
   createResourceUpdateRunner,
   removeConnection,
@@ -750,6 +751,15 @@ export function createIntegrationsActionRegistry(
     policy: memberQuery,
     handler: lists.listResources,
   }).register({
+    // #20: a connection's grants, revoked included.
+    name: IntegrationsImplementedAction.IntegrationGrantsList,
+    method: HttpMethod.Get,
+    path: "/v1/integration-connections/:id/grants",
+    input: contractSchemas.IntegrationGrantQuery,
+    output: contractSchemas["Page<IntegrationGrant>"],
+    policy: memberQuery,
+    handler: createGrantListHandler(dependencies.cursorSecret),
+  }).register({
     // #68 "Recent activity": the connection's effects and their outcomes.
     name: IntegrationsImplementedAction.IntegrationEffectsList,
     method: HttpMethod.Get,
@@ -794,6 +804,25 @@ export function createIntegrationsActionRegistry(
     // The removed connection is returned; nothing is created.
     successStatus: 200,
     handler: removeConnection,
+  }).register({
+    // #20: an Admin grants one exact capability through this connection.
+    name: IntegrationsImplementedAction.IntegrationGrantsCreate,
+    method: HttpMethod.Post,
+    path: "/v1/integration-connections/:id/grants",
+    input: contractSchemas.IntegrationGrantCreate,
+    output: contractSchemas.IntegrationGrant,
+    policy: adminEdit,
+    explicitIdempotency: "key",
+    handler: createGrant,
+  }).register({
+    name: IntegrationsImplementedAction.IntegrationGrantsDelete,
+    method: HttpMethod.Delete,
+    path: "/v1/integration-connections/:id/grants/:grantId",
+    input: contractSchemas.Empty,
+    output: contractSchemas.NoContent,
+    policy: adminEdit,
+    explicitIdempotency: "key-and-if-match",
+    handler: revokeGrant,
   }).register({
     name: IntegrationsImplementedAction.IntegrationResourcesUpdate,
     method: HttpMethod.Patch,

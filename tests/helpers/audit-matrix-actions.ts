@@ -33,6 +33,8 @@ export const AUDIT_MATRIX_ACTIONS = [
   "principals.update",
   "permissionGrants.create",
   "permissionGrants.delete",
+  "integrationGrants.create",
+  "integrationGrants.delete",
   "accessTokens.create",
   "accessTokens.revoke",
   "accessBindings.create",
