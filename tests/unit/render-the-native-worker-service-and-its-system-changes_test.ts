@@ -172,6 +172,7 @@ Deno.test("a path, account or setting that could break out of the definition is 
       { NOT_BAKERY: "x" },
       { BAKERY_X: "a\u0000b" },
       { BAKERY_X: "a\u001bb" },
+      { BAKERY_X: "a\u007fb" },
       { BAKERY_X: "x".repeat(5000) },
       { "BAKERY_X\nBAKERY_Y": "x" },
     ]
