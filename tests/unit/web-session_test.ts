@@ -258,6 +258,8 @@ function fakeApi(
     getRepositoryProfileObservation: rejecting,
     listWorkflowPresets: rejecting,
     getWorkflow: rejecting,
+    listWorkflows: rejecting,
+    listAgents: rejecting,
   };
 }
 
