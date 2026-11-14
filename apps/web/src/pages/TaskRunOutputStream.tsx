@@ -268,7 +268,6 @@ export function StreamOutput({ stream, onUsageChange, onReload }: {
         detail: attempt && !attempt.isCurrent
           ? withLink(
             t("tasks.run.identity.recorded", {
-              actor: stream.logicalActor,
               machine: LINK_SLOT,
             }),
             machineLink(attempt),
@@ -276,7 +275,6 @@ export function StreamOutput({ stream, onUsageChange, onReload }: {
           : attempt
           ? withLink(
             t("tasks.run.identity.actor", {
-              actor: stream.logicalActor,
               machine: LINK_SLOT,
             }),
             machineLink(attempt),

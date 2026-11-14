@@ -15,7 +15,7 @@ export const Contract: StoryObj = {
         worker="atlas-01"
         attempt="Try 2"
         lease="Machine is working on it"
-        detail="Codex on atlas-01 · run_42 / step_3"
+        detail="Ran on atlas-01"
         unknownLabel="Unknown"
       />
       <RunIdentity
@@ -24,7 +24,7 @@ export const Contract: StoryObj = {
         attempt="Try 2"
         lease="Machine stopped responding. Bakery took the task back."
         leaseTone="warning"
-        detail="Codex on atlas-01 · run_42 / step_3"
+        detail="Ran on atlas-01"
         unknownLabel="Unknown"
       />
       <RunIdentity

@@ -164,7 +164,7 @@ export function runOutputFixtureData(state: string): RunOutputFixtureData {
       lease: fixture.lease,
       // A lease that was taken back is a warning, like the page.
       leaseTone: selected === "lost-lease" ? "warning" : undefined,
-      detail: "Codex on atlas-01 · run_42 / step_3",
+      detail: "Ran on atlas-01",
       unknownLabel: "Unknown",
     },
     output: {
