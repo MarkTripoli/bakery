@@ -300,7 +300,10 @@ test(
   async ({ page }, testInfo) => {
     await mockComposer(page);
     await page.goto("/tasks");
-    await page.getByRole("link", { name: "New task", exact: true }).click();
+    await page.getByRole("banner").getByRole("link", {
+      name: "New task",
+      exact: true,
+    }).click();
     await expect(page).toHaveURL(/\/tasks\/new$/);
     await expect(form(page)).toBeVisible();
     if (testInfo.project.name === "mobile") {

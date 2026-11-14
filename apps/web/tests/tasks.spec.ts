@@ -252,10 +252,11 @@ test("task filters reset cursors, preserve focus, and navigate real routes", asy
   await expect.poll(() => requests.at(-1)?.searchParams.get("repositoryId"))
     .toBe(task.repositoryId);
   expect(requests.at(-1)?.searchParams.get("status")).toBe("draft");
-  await expect(page.getByRole("link", { name: "New task" })).toHaveAttribute(
-    "href",
-    "/tasks/new",
-  );
+  await expect(page.getByRole("banner").getByRole("link", { name: "New task" }))
+    .toHaveAttribute(
+      "href",
+      "/tasks/new",
+    );
   await dismissFilters(page);
   await page.getByRole("link", { name: task.title }).click();
   await expect(page).toHaveURL(new RegExp(`/tasks/${id}$`));
@@ -419,10 +420,11 @@ test("trailing slash task entry renders the canonical inbox", async ({ page }) =
   );
   await page.goto("/tasks/");
   await expect(page.locator('[data-ui-component="taskInbox"]')).toBeVisible();
-  await expect(page.getByRole("link", { name: "New task" })).toHaveAttribute(
-    "href",
-    "/tasks/new",
-  );
+  await expect(page.getByRole("banner").getByRole("link", { name: "New task" }))
+    .toHaveAttribute(
+      "href",
+      "/tasks/new",
+    );
 });
 
 test("cursor controls reject stale continuation during a changed-filter fetch", async ({ page }) => {
