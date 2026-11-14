@@ -273,4 +273,25 @@ export async function mockAuthenticatedSession(page: Page): Promise<void> {
       }),
     });
   });
+  // The shell rail names the organization from its own record (`GET
+  // /v1/organizations/{id}`). A spec that drives that record registers its own
+  // route after this helper and wins; every other write falls through.
+  await page.route(`**/v1/organizations/${MOCK_ORGANIZATION_ID}`, (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: MOCK_ORGANIZATION_ID,
+        name: "Fixture Org",
+        slug: "fixture-org",
+        logo: null,
+        defaultLocale: null,
+        metadata: {},
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        version: 1,
+      }),
+    });
+  });
 }
