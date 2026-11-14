@@ -71,15 +71,11 @@ export function IssuesPage() {
   const search = useSearch({ strict: false }) as { choose?: boolean };
   const [choosing, setChoosingOpen] = useState(search.choose === true);
   const chooser = useRef<HTMLElement | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
   const setChoosing = (open: boolean) => {
     if (open) {
-      // From the menu, focus goes back to the menu's own button.
-      chooser.current = document.querySelector<HTMLElement>(
-        "[data-choose-menu] > .ui-popover > button",
-      ) ?? (document.activeElement instanceof HTMLElement
+      chooser.current = document.activeElement instanceof HTMLElement
         ? document.activeElement
-        : null);
+        : null;
     }
     setChoosingOpen(open);
   };
@@ -184,36 +180,16 @@ export function IssuesPage() {
   );
   const canRefresh = isAdmin && sources.isSuccess &&
     sources.data.items.length > 0;
-  // Administrators also reach Choose repositories from a menu beside Refresh.
+  // Administrators also reach Choose repositories from a button beside Refresh.
   const moreMenu = isAdmin && sources.isSuccess
     ? (
-      <span data-choose-menu>
-        <UI.Popover
-          label={translate("issues.more" as never)}
-          open={menuOpen}
-          onOpenChange={setMenuOpen}
-          variant="interactive"
-          triggerAppearance="toolbar"
-          trigger={
-            <>
-              {translate("issues.more" as never)}
-            </>
-          }
-        >
-          <UI.Menu
-            aria-label={translate("issues.more" as never)}
-            items={[{
-              id: "choose",
-              label: translate("issues.choose.title" as never),
-              disabled: offline,
-            }]}
-            onSelect={() => {
-              setChoosing(true);
-              setMenuOpen(false);
-            }}
-          />
-        </UI.Popover>
-      </span>
+      <UI.Button
+        variant="secondary"
+        disabled={offline}
+        onClick={() => setChoosing(true)}
+      >
+        {translate("issues.choose.title" as never)}
+      </UI.Button>
     )
     : null;
   const headerActions = canRefresh

@@ -146,9 +146,9 @@ for (
       await expect(page.getByRole("heading", {
         name: "Choose where Bakery takes issues from",
       })).toBeVisible();
-      // The way forward until the repository sheet exists: the settings page.
-      await expect(page.getByRole("button", { name: "Open Integrations" }))
-        .toBeVisible();
+      // The way forward is the Choose repositories sheet.
+      await expect(page.getByRole("button", { name: "Choose repositories" }))
+        .first().toBeVisible();
       await shot(page, "issues-no-sources");
     });
 

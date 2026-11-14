@@ -180,13 +180,12 @@ for (
   test.describe(`${viewport.name}: choose repositories`, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
 
-    /** Opens the sheet from the page's More menu (a wide screen puts it in the top bar). */
+    /** Opens the sheet from the page's button (a wide screen puts it in the top bar). */
     const openSheet = async (page: Page) => {
       await page.goto("/issues");
-      await page.getByRole("button", { name: "More", exact: true }).click();
-      await page.getByRole("dialog", { name: "More" }).getByRole("button", {
-        name: "Choose repositories",
-      }).click();
+      // The page's button beside Refresh (the empty list has its own as well).
+      await page.getByRole("button", { name: "Choose repositories" }).first()
+        .click();
       const sheet = page.getByRole("dialog", { name: "Choose repositories" });
       await expect(sheet).toBeVisible();
       return sheet;
@@ -321,14 +320,12 @@ for (
       await shot(page, "choose-repositories-refused", [], { windowOnly: true });
     });
 
-    test("Escape closes the sheet and returns focus to the More button", async ({ page }) => {
+    test("Escape closes the sheet and returns focus to the button that opened it", async ({ page }) => {
       await fixture(page);
       await page.goto("/issues");
-      const more = page.getByRole("button", { name: "More", exact: true });
+      const more = page.getByRole("button", { name: "Choose repositories" })
+        .first();
       await more.click();
-      await page.getByRole("dialog", { name: "More" }).getByRole("button", {
-        name: "Choose repositories",
-      }).click();
       await expect(page.getByRole("dialog", { name: "Choose repositories" }))
         .toBeVisible();
       await page.keyboard.press("Escape");
@@ -336,12 +333,12 @@ for (
       await expect(more).toBeFocused();
     });
 
-    test("a member does not see the menu", async ({ page }) => {
+    test("a member does not see the button", async ({ page }) => {
       await fixture(page, { role: "developer" });
       await page.goto("/issues");
       await expect(page.getByRole("heading", { name: "Issues", level: 1 }))
         .toBeVisible();
-      await expect(page.getByRole("button", { name: "More", exact: true }))
+      await expect(page.getByRole("button", { name: "Choose repositories" }))
         .toHaveCount(0);
     });
 
