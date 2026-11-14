@@ -18,6 +18,7 @@ import type {
 import { RepositoryEditor } from "./RepositorySection.tsx";
 import { RepositoryInspector } from "./RepositoryInspector.tsx";
 import { useShellViewport } from "../../app/responsive.ts";
+import { PROJECTS_HOME, WORK_HOME } from "../../shell/breadcrumb-paths.ts";
 import { ShellFlushMain, ShellSlot } from "../../shell/shell-slots.tsx";
 import { BindingSection } from "./BindingSection.tsx";
 import { ProfileBoundary, ProfileSection } from "./ProfileSection.tsx";
@@ -125,8 +126,8 @@ export function ProjectsOnboardingScreen(props: ProjectsOnboardingScreenProps) {
       <ShellSlot name="breadcrumbs">
         <UI.Breadcrumbs
           items={[
-            { href: "/tasks", label: props.workspaceLabel },
-            { href: "/projects", label: labels.projectsList },
+            { href: WORK_HOME, label: props.workspaceLabel },
+            { href: PROJECTS_HOME, label: labels.projectsList },
             ...(props.selectedRepository === null ? [] : [{
               label:
                 `${props.selectedRepository.owner}/${props.selectedRepository.name}`,

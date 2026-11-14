@@ -17,6 +17,7 @@ import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
 import {
   ApplicationDialog,
@@ -231,7 +232,7 @@ export function ProjectsPage() {
           aria-label={translate("shell.navigation.breadcrumb")}
           items={[
             {
-              href: "/tasks",
+              href: WORK_HOME,
               label: translate("shell.navigation.workspace"),
             },
             { label: translate("projects.list.title" as never) },
