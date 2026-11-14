@@ -238,7 +238,7 @@ for (
       await page.getByRole("button", { name: "Make a copy" }).click();
       await dialog(page).getByRole("button", { name: "Make a copy" }).click();
       await expect(dialog(page)).toContainText(
-        "The copy Fixed coding (copy) was made, but its steps could not be added. It is in Library as a draft with no steps.",
+        "The copy Fixed coding (copy) was made, but its steps could not be added. It is in Library with no steps yet.",
       );
       expect(seen.created).toHaveLength(1);
       // The name is locked and says why; the button says what it will do.
@@ -256,6 +256,35 @@ for (
       expect(seen.created).toHaveLength(1);
       expect(seen.stepWrites).toBe(2);
       expect(seen.versionsCreated).toHaveLength(1);
+    });
+
+    test("a copy whose steps never saved is in the Library with no versions, as the message says", async ({ page }) => {
+      const seen = await open(
+        page,
+        { ...WORLD, copy: "steps-fail" },
+        "/library/built-in/fixed-coding",
+      );
+      await page.getByRole("button", { name: "Make a copy" }).click();
+      await dialog(page).getByRole("button", { name: "Make a copy" }).click();
+      await expect(dialog(page)).toContainText(
+        "It is in Library with no steps yet.",
+      );
+      await dialog(page).getByRole("button", { name: "Cancel" }).click();
+      expect(seen.created).toHaveLength(1);
+      // The Library lists it among the organization's workflows, in use by nothing.
+      await page.getByRole("link", { name: "Library", exact: true }).click();
+      const row = page.getByTestId("library-organization").locator(
+        "[data-library-id]",
+      ).filter({ hasText: "Fixed coding (copy)" });
+      await expect(row).toContainText("No version in use");
+      await page.mouse.move(700, 700);
+      await shot(page, "copy-half-made-row");
+      // Its page says it has no versions yet.
+      await row.getByRole("button", { name: /Open Fixed coding \(copy\)/ })
+        .click();
+      await expect(page.getByTestId("workflow-page")).toContainText(
+        "This workflow has no versions yet.",
+      );
     });
 
     test("More on a workflow has Make a copy, which starts from the version being viewed", async ({ page }) => {

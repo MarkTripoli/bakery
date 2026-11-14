@@ -3386,7 +3386,7 @@
   "library.copy.action": "Make a copy of {name}",
   "library.copy.failed": "The copy could not be made. Check your connection, then try again.",
   "library.copy.offline": "You are offline. Try again when you are back online.",
-  "library.copy.stepsFailed": "The copy {name} was made, but its steps could not be added. It is in Library as a draft with no steps.",
+  "library.copy.stepsFailed": "The copy {name} was made, but its steps could not be added. It is in Library with no steps yet.",
   "library.copy.retry": "Try again",
   "library.copy.locked": "The copy already has this name.",
   "library.workflow.makeCopy": "Make a copy",
