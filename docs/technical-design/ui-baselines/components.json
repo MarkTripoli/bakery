@@ -1,5 +1,5 @@
 {
-  "revision": "362632fcf90b854113e13cae7a6afd0879fdaf9fc8265109199a2acf507e8d1a",
+  "revision": "d0a5814b8a19e7352fc0cda0dcc5c0ed1f760449f62947fb4aad40bf3a8fffed",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -5442,7 +5442,8 @@
             "neutral",
             "success",
             "warning",
-            "danger"
+            "danger",
+            "information"
           ],
           "states": [
             "default"
