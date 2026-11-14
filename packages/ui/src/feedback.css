@@ -195,6 +195,12 @@
   border-radius: var(--radius-control);
 }
 
+/* The subtle surface is almost the page colour in the dark theme, so a skeleton
+   drawn in it cannot be seen: there it takes the border colour. */
+[data-theme="dark"] .ui-skeleton {
+  background: var(--color-border);
+}
+
 .ui-skeleton--text {
   block-size: 20px;
   inline-size: min(100%, 32ch);

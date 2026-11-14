@@ -2863,5 +2863,14 @@
   "settings.sso.require.confirm.body": "⟪Members of {organization} will have to sign in through {provider}. Signing in with a password stops working for them. Organization administrators who still have a password or passkey can always sign in with it, so a broken provider cannot lock everyone out.⟫",
   "settings.sso.require.confirm.bodyMany": "⟪Members of {organization} will have to sign in through one of your providers. Signing in with a password stops working for them. Organization administrators who still have a password or passkey can always sign in with it, so a broken provider cannot lock everyone out.⟫",
   "settings.sso.require.confirm.confirm": "⟪Require SSO⟫",
-  "settings.sso.require.confirm.thisOrganization": "⟪this organization⟫"
+  "settings.sso.require.confirm.thisOrganization": "⟪this organization⟫",
+  "shell.startup.slow": "⟪This is taking longer than usual.⟫",
+  "shell.startup.organizationError.title": "⟪Bakery could not load your organization⟫",
+  "shell.startup.organizationError.body": "⟪Check your connection, then try again.⟫",
+  "shell.startup.offline.title": "⟪You are offline⟫",
+  "shell.startup.offline.body": "⟪Bakery will load when you are back online.⟫",
+  "shell.leave.title": "⟪Leave without saving?⟫",
+  "shell.leave.body": "⟪Your changes on this page will be lost.⟫",
+  "shell.leave.stay": "⟪Stay⟫",
+  "shell.leave.confirm": "⟪Leave⟫"
 }
