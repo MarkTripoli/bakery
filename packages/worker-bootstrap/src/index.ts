@@ -92,6 +92,15 @@ export {
   systemProbes,
 } from "./probes.ts";
 export {
+  installFromOrigin,
+  type InstallFromOriginOptions,
+  type ReleaseConfig,
+} from "./bootstrap.ts";
+export { type BootstrapIo, runBootstrap } from "./main.ts";
+export { isExactRelease } from "./manifest.ts";
+export { readPairingBinding } from "./pairing.ts";
+
+export {
   MAX_RECORD_BYTES,
   readRecord,
   UnreadableRecord,

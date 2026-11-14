@@ -7,13 +7,21 @@ import {
   hasUnsafeCharacter,
   hasVisibleCharacter,
   PAIRING_FILE,
+  readPairingBinding,
   TOKEN_FILE,
 } from "./pairing.ts";
 import {
   describeChanges,
   environmentFilePath,
+  environmentFileText,
   LINUX_SERVICE,
+  LINUX_UNIT_PATH,
   MACOS_LABEL,
+  planLinuxService,
+  planMacService,
+  renderLaunchAgent,
+  renderSystemdUnit,
+  type ServiceSpec,
   type SystemChange,
   workerPath,
 } from "./service.ts";
@@ -425,43 +433,72 @@ export function planDrain(
 }
 
 export type Operation = Readonly<{
-  name: "status" | "doctor" | "drain";
+  name: "status" | "doctor" | "drain" | "plan";
   root: string;
+  /** `plan` only: the account that runs the service (Linux: dedicated; macOS: the user). */
+  account?: string;
+  /** `plan` only: the system to plan for; defaults to the one this machine is. */
+  system?: "linux" | "macos";
+  /** `plan` only: extra non-secret settings, such as a coding agent's. */
+  settings?: Readonly<Record<string, string>>;
 }>;
 
+const PLAN_FLAGS = new Set(["--account", "--system", "--setting"]);
+
 /**
- * Reads `status`, `doctor` or `drain` with an optional `--root`. Nothing else
- * is accepted: these commands take no server and no setup code, so a code on
- * the command line is refused by name here as well.
+ * Reads `status`, `doctor`, `drain` or `plan` with an optional `--root`
+ * (`plan` also takes `--account`, `--system` and repeatable `--setting
+ * NAME=VALUE`). Nothing else is accepted: these commands take no server and no
+ * setup code, so a code on the command line is refused by name here as well.
  */
 export function parseOperation(
   argv: readonly string[],
   defaults: Readonly<{ root: string }>,
 ): Operation {
   const [name, ...rest] = argv;
-  if (name !== "status" && name !== "doctor" && name !== "drain") {
-    throw new BootstrapError("COMMAND_UNKNOWN");
-  }
+  if (
+    name !== "status" && name !== "doctor" && name !== "drain" &&
+    name !== "plan"
+  ) throw new BootstrapError("COMMAND_UNKNOWN");
   let root = defaults.root;
+  let account: string | undefined;
+  let system: "linux" | "macos" | undefined;
+  const settings: Record<string, string> = {};
   for (let at = 0; at < rest.length; at += 2) {
     const word = rest[at]!;
     if (word === "--token" || word.startsWith("--token=")) {
       throw new BootstrapError("COMMAND_TOKEN_SHORTCUT");
     }
     const value = rest[at + 1];
-    if (word !== "--root" || value === undefined || value.startsWith("--")) {
-      throw new BootstrapError("COMMAND_UNKNOWN");
+    if (
+      (word !== "--root" && !(name === "plan" && PLAN_FLAGS.has(word))) ||
+      value === undefined || value.startsWith("--")
+    ) throw new BootstrapError("COMMAND_UNKNOWN");
+    if (word === "--root") root = value;
+    else if (word === "--account") account = value;
+    else if (word === "--system") {
+      if (value !== "linux" && value !== "macos") {
+        throw new BootstrapError("COMMAND_UNKNOWN");
+      }
+      system = value;
+    } else {
+      const equals = value.indexOf("=");
+      if (equals < 1) throw new BootstrapError("COMMAND_UNKNOWN");
+      settings[value.slice(0, equals)] = value.slice(equals + 1);
     }
-    root = value;
   }
-  return { name, root };
+  return name === "plan"
+    ? { name, root, account, system, settings }
+    : { name, root };
 }
 
 export type OperationIo = Readonly<{
   write: (text: string) => void;
   probes: Probes;
-  /** The system the service lives on; `drain` names the command for it. */
+  /** The system the service lives on; `drain` and `plan` name their commands for it. */
   target: "linux" | "macos";
+  /** The user's home directory: only the macOS plan needs it (the LaunchAgent lives there). */
+  home?: string;
 }>;
 
 /**
@@ -485,6 +522,10 @@ export async function runOperation(
       io.write(describeChecks(checks));
       return doctorExitCode(checks);
     }
+    if (operation.name === "plan") {
+      io.write(await planText(operation, io));
+      return 0;
+    }
     const uid = io.probes.uid();
     io.write(
       `To drain this worker, run the command below. The worker takes no new work and finishes what it has.\n${
@@ -502,4 +543,81 @@ export async function runOperation(
     );
     return 2;
   }
+}
+
+const DEFAULT_LINUX_ACCOUNT = "bakery-worker";
+
+/**
+ * The exact system changes setting up the service would make, and the text of
+ * each definition, for the machine this root was paired for. It reads the
+ * pairing record and prints; it writes nothing and runs nothing. The settings
+ * come from what the confirmation showed (server, name, slots, capabilities);
+ * the setup code is only ever named by its file.
+ */
+async function planText(
+  operation: Operation,
+  io: OperationIo,
+): Promise<string> {
+  const binding = await readPairingBinding(operation.root);
+  if (binding === null) throw new BootstrapError("SETUP_NOT_PAIRED");
+  // The record lives in a directory anyone with write access could have edited,
+  // and what it holds is printed: it must be safe to show, like the rest.
+  if (
+    !shown(binding.serverOrigin, 300) || !shown(binding.name) ||
+    !shown(binding.architecture, 100) ||
+    !binding.capabilities.every((entry) => shown(entry))
+  ) throw new BootstrapError("PAIRING_BINDING_CORRUPT");
+  const system = operation.system ?? io.target;
+  if (binding.os !== system) {
+    throw new BootstrapError("SERVICE_SYSTEM_MISMATCH");
+  }
+  const account = operation.account ??
+    (system === "linux" ? DEFAULT_LINUX_ACCOUNT : undefined);
+  if (account === undefined) throw new BootstrapError("COMMAND_UNKNOWN");
+  const fixed = {
+    BAKERY_SERVER_URL: binding.serverOrigin,
+    BAKERY_WORKER_STATE_DIR: join(operation.root, "state"),
+    BAKERY_WORKER_ENROLLMENT_TOKEN_FILE: join(operation.root, TOKEN_FILE),
+    BAKERY_WORKER_NAME: binding.name,
+    BAKERY_WORKER_SLOTS: String(binding.slots),
+    BAKERY_WORKER_CAPABILITIES: binding.capabilities.join(","),
+  };
+  // What pairing fixed is what the settings come from: an extra setting adds
+  // (a coding agent's), it never replaces.
+  for (const name of Object.keys(operation.settings ?? {})) {
+    if (name in fixed) throw new BootstrapError("SERVICE_SETTING_REFUSED");
+  }
+  const spec: ServiceSpec = {
+    root: operation.root,
+    account,
+    settings: { ...fixed, ...operation.settings },
+  };
+  let changes: readonly SystemChange[];
+  let definition: string;
+  let where: string;
+  if (system === "linux") {
+    changes = planLinuxService(spec);
+    definition = renderSystemdUnit(spec);
+    where = LINUX_UNIT_PATH;
+  } else {
+    const uid = io.probes.uid();
+    if (io.home === undefined) throw new BootstrapError("SERVICE_SPEC_INVALID");
+    // No user id is refused by the plan itself: -1 is not one.
+    changes = planMacService(spec, io.home, uid ?? -1);
+    definition = renderLaunchAgent(spec);
+    where = `${io.home}/Library/LaunchAgents/${MACOS_LABEL}.plist`;
+  }
+  return [
+    "These are the exact changes setting up the service makes, in order. Nothing has been changed yet; run each step yourself as the account named.",
+    describeChanges(changes).trimEnd(),
+    "",
+    `Service definition (${where}):`,
+    definition.trimEnd(),
+    "",
+    `Settings file (${
+      environmentFilePath(operation.root)
+    }); add a coding agent's settings with --setting NAME=VALUE:`,
+    environmentFileText(spec).trimEnd(),
+    "",
+  ].join("\n");
 }
