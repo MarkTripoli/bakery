@@ -10945,7 +10945,7 @@
         "accessibleName": "none",
         "keyboard": [],
         "targetSize": "min 44px (coarse pointer)",
-        "notes": "Column layout (760px measure); maintains 44px control targets and Paper's 28px/24px gaps"
+        "notes": "Column layout (760px measure); maintains 44px control targets and Paper's 28px/24px gaps; the wide variant drops the measure for a main-rail list or detail page"
       },
       "tokens": [
         "--space-1-5",
@@ -10962,7 +10962,8 @@
         "default",
         "personal",
         "preferences",
-        "access"
+        "access",
+        "wide"
       ],
       "states": [
         "default"
