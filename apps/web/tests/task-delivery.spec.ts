@@ -702,9 +702,11 @@ test("an open approval asks for a decision: Approve is the one button, the other
   const step = steps.getByRole("listitem").filter({ hasText: "Approval" });
   await expect(step).toContainText("Waiting for you");
   await expect(step).toContainText("Waiting for your approval.");
-  // Keyboard focus opens a help tip on every screen; a tap near the bottom of
-  // a phone first scrolls the page, and scrolling closes the tip there.
+  // Keyboard focus opens a help tip on every screen. On a phone, scrolling closes
+  // it, and focusing a button that is below the fold scrolls the page, so the
+  // button is brought into view first.
   const help = step.getByRole("button", { name: "About approval" });
+  await help.scrollIntoViewIfNeeded();
   await help.focus();
   await expect(
     page.getByRole("tooltip").filter({
