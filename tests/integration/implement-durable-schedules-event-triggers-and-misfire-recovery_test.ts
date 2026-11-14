@@ -242,6 +242,12 @@ Deno.test("automations: definitions, versions with a validated trigger, lifecycl
       }
     }
 
+    // The application every run of these automations belongs to.
+    const applicationA = crypto.randomUUID();
+    await owner`
+      insert into bakery.applications (id, organization_id, slug, name)
+      values (${applicationA}, ${organizationAId}, ${`app-${applicationA}`}, 'Application A')`;
+
     const schedule = {
       type: "schedule",
       cron: "0 9 * * mon-fri",
@@ -251,6 +257,7 @@ Deno.test("automations: definitions, versions with a validated trigger, lifecycl
       trigger: schedule,
       workflowVersionId: publishedA,
       inputs: { branch: "main" },
+      applicationId: applicationA,
       misfirePolicy: "coalesce",
       overlapPolicy: "skip",
       ...over,
@@ -757,7 +764,7 @@ Deno.test("automations: definitions, versions with a validated trigger, lifecycl
       const bodyWith = (field: string, value: string) =>
         `{"trigger":${
           field === "trigger" ? value : JSON.stringify(schedule)
-        },"workflowVersionId":"${publishedA}","inputs":${
+        },"workflowVersionId":"${publishedA}","applicationId":"${applicationA}","inputs":${
           field === "inputs" ? value : "{}"
         },"misfirePolicy":"coalesce","overlapPolicy":"skip"}`;
       for (

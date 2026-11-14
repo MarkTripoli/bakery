@@ -1,5 +1,6 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type {
+  AgentDefinitionResponse,
   ApiFailure,
   ApiResult,
   ApplicationListResponse,
@@ -69,6 +70,7 @@ import type {
   TaskRepositoryListResponse,
   TaskResponse,
   TicketSourceListResponse,
+  TicketSourceResponse,
   UserPreferences,
   UserProfile,
   WorkerComponentListResponse,
@@ -1781,6 +1783,75 @@ export function workflowPresetsQueryOptions(
   });
 }
 
+/** Pages read, 100 at a time, before the Library says a list was cut short. */
+const LIBRARY_COLLECTION_PAGES = 5;
+
+/** Every workflow definition of the organization (a few pages at most), and whether the list was cut short. */
+export function libraryWorkflowsQueryOptions(
+  client: Pick<BakeryApiClient, "listWorkflows">,
+  scope: ApiScope,
+) {
+  return queryOptions<
+    { items: WorkflowDefinitionResponse[]; truncated: boolean },
+    ApiFailure
+  >({
+    queryKey: protectedQueryKey(scope, "library.workflows", {}),
+    queryFn: async ({ signal }) => {
+      const items: WorkflowDefinitionResponse[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listWorkflows({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) return { items, truncated: false };
+        cursor = read.nextCursor;
+      }
+      return { items, truncated: true };
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/** Every agent definition of the organization (a few pages at most), and whether the list was cut short. */
+export function libraryAgentsQueryOptions(
+  client: Pick<BakeryApiClient, "listAgents">,
+  scope: ApiScope,
+) {
+  return queryOptions<
+    { items: AgentDefinitionResponse[]; truncated: boolean },
+    ApiFailure
+  >({
+    queryKey: protectedQueryKey(scope, "library.agents", {}),
+    queryFn: async ({ signal }) => {
+      const items: AgentDefinitionResponse[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < LIBRARY_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.listAgents({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) return { items, truncated: false };
+        cursor = read.nextCursor;
+      }
+      return { items, truncated: true };
+    },
+    enabled: Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
 // E05 run-output queries remain scoped to the current browser session.
 export function outputStreamsQueryOptions(
   client: Pick<BakeryApiClient, "output">,
@@ -2231,6 +2302,41 @@ export function connectionRepositoriesQueryOptions(
         }
       }
       return { connections: usable, resources };
+    },
+    enabled: enabled && Boolean(scope.organizationId),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * Every repository source of issues, collected 100 at a time up to a bound,
+ * for the Choose repositories sheet (it needs each repository's source and
+ * labels at once).
+ */
+export function ticketSourcesAllQueryOptions(
+  client: Pick<BakeryApiClient, "tickets">,
+  scope: ApiScope,
+  enabled: boolean,
+) {
+  return queryOptions<TicketSourceResponse[], ApiFailure>({
+    queryKey: protectedQueryKey(scope, "ticketSources.all", {}),
+    queryFn: async ({ signal }) => {
+      const items: TicketSourceResponse[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < PROJECTS_COLLECTION_PAGES; page += 1) {
+        const read = unwrap(
+          await client.tickets.sources({
+            organizationId: requireOrganization(scope),
+            cursor,
+            limit: 100,
+            signal,
+          }),
+        );
+        items.push(...read.items);
+        if (read.nextCursor === null) break;
+        cursor = read.nextCursor;
+      }
+      return items;
     },
     enabled: enabled && Boolean(scope.organizationId),
     retry: retryNetworkOnce,

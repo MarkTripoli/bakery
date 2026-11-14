@@ -441,6 +441,62 @@ for (
       expect(Math.round(cardHeading!.x)).toBe(Math.round(title!.x));
     });
 
+    test("an issue whose repository is off sends an administrator to Choose repositories, and tells a member to ask", async ({ page }) => {
+      const off: Seed = {
+        number: 210,
+        title: "Repository is off",
+        verdict: "rejected",
+        checks: [{
+          id: "source_live",
+          status: "reject",
+          reason: "source_disabled",
+        }],
+        body: "Needs the repository on.",
+        links: {
+          parent: null,
+          subIssuesTotal: 0,
+          blockedBy: [],
+          blockingTotal: 0,
+        },
+      };
+      await open(page, off, { open: [off] });
+      const side = card(page).first();
+      await expect(
+        side.getByText("Bakery is not taking issues from this repository."),
+      )
+        .toBeVisible();
+      await side.getByRole("button", { name: "Choose repositories" }).click();
+      await expect(page).toHaveURL(/\/issues\?choose=true$/);
+      await expect(page.getByRole("dialog", { name: "Choose repositories" }))
+        .toBeVisible();
+    });
+
+    test("a member is told to ask an administrator when the repository is off", async ({ page }) => {
+      const off: Seed = {
+        number: 211,
+        title: "Repository is off",
+        verdict: "rejected",
+        checks: [{
+          id: "source_live",
+          status: "reject",
+          reason: "source_disabled",
+        }],
+        body: "Needs the repository on.",
+        links: {
+          parent: null,
+          subIssuesTotal: 0,
+          blockedBy: [],
+          blockingTotal: 0,
+        },
+      };
+      await open(page, off, { open: [off], role: "developer" });
+      const side = card(page).first();
+      await expect(side.getByText("Ask an organization administrator."))
+        .toBeVisible();
+      await expect(side.getByRole("button", { name: "Choose repositories" }))
+        .toHaveCount(0);
+    });
+
     test("Check again asks the server to check, and is not offered while it works", async ({ page }) => {
       const seen = await open(page, WAITING);
       await card(page).first().getByRole("button", { name: "Check again" })

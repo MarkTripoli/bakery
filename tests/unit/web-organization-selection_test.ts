@@ -85,6 +85,8 @@ function fakeApi(
       request: rejecting,
       list: rejecting,
       sources: rejecting,
+      createSource: rejecting,
+      updateSource: rejecting,
       sync: rejecting,
     },
     workers: {
@@ -244,6 +246,8 @@ function fakeApi(
     getRepositoryProfileObservation: rejecting,
     listWorkflowPresets: rejecting,
     getWorkflow: rejecting,
+    listWorkflows: rejecting,
+    listAgents: rejecting,
   };
 }
 

@@ -31,6 +31,7 @@ import { TasksPage } from "./pages/TasksPage.tsx";
 import { IssuePage } from "./pages/IssuePage.tsx";
 import { ProjectsPage } from "./pages/ProjectsPage.tsx";
 import { IssuesPage } from "./pages/IssuesPage.tsx";
+import { LibraryPage } from "./pages/LibraryPage.tsx";
 import { MachinesPage } from "./pages/MachinesPage.tsx";
 import { MachineDetailPage } from "./pages/MachineDetailPage.tsx";
 import { MachineWizardPage } from "./pages/MachineWizardPage.tsx";
@@ -189,6 +190,20 @@ export const routeCoverage = [
       "forbidden",
       "conflict",
       "stale",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "library",
+    path: "/library",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
       "offline",
       "long-copy",
     ],
@@ -964,6 +979,13 @@ const taskCoordinationRoute = createRoute({
 const issuesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/issues",
+  // `?choose=true` opens the Choose repositories sheet (an issue whose
+  // repository is off sends an administrator there).
+  validateSearch: (search: Record<string, unknown>) => ({
+    choose: search.choose === true || search.choose === "true"
+      ? true
+      : undefined,
+  }),
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: IssuesPage,
@@ -976,6 +998,18 @@ const issueDetailRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => <IssuePage issueId={issueDetailRoute.useParams().issueId} />,
+  errorComponent: ProtectedRouteError,
+});
+
+const libraryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/library",
+  // `?tab=agents` opens the Agents list; Workflows is the page itself.
+  validateSearch: (search: Record<string, unknown>): { tab?: "agents" } =>
+    search.tab === "agents" ? { tab: "agents" } : {},
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: LibraryPage,
   errorComponent: ProtectedRouteError,
 });
 
@@ -1843,6 +1877,7 @@ const routeTree = rootRoute.addChildren([
   issuesRoute,
   issueDetailRoute,
   machinesRoute,
+  libraryRoute,
   machineNewRoute,
   machineDetailRoute,
   statusRoute,
