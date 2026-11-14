@@ -109,6 +109,15 @@ async function setUp(
          from bakery.automation_firings where id = $1`,
       [id],
     )).rows[0];
+  const audits = async (firingId: string) =>
+    (await fixture.pgDatabase.query<
+      { outcome: string; code: string | null }
+    >(
+      `select outcome, details ->> 'code' as code
+         from bakery.audit_events
+        where resource_id = $1 and operation = 'automationFirings.start'`,
+      [firingId],
+    )).rows;
   const counts = async () =>
     (await fixture.pgDatabase.query<{ tasks: string; runs: string }>(
       `select (select count(*) from bakery.tasks where organization_id = $1)::text as tasks,
@@ -124,6 +133,7 @@ async function setUp(
     createVersion,
     queue,
     firing,
+    audits,
     counts,
   };
 }
@@ -205,6 +215,10 @@ Deno.test("a queued firing starts one task and one run as the version's actor, o
     assertEquals(task.title, "Nightly check 2026-11-14T03:00:00.000Z");
     assertEquals(task.description, "Run the nightly check and report.");
     assertEquals(task.repositoryId, s.repository.repositoryId);
+    assertEquals(await s.audits(firingId), [{
+      outcome: "succeeded",
+      code: null,
+    }]);
     // A later start is a no-op.
     assertEquals(
       await startFiring({ database: fixture.pgDatabase, firingId }),
@@ -241,6 +255,10 @@ Deno.test("a refusal that waiting will not change fails the firing with a code a
       failed.failureCode !== null && failed.failureCode !== "",
       "a code is recorded",
     );
+    assertEquals(await s.audits(firingId), [{
+      outcome: "failed",
+      code: "budget_below_reservation",
+    }]);
     assertEquals(await s.counts(), before);
     // And it is not tried again.
     assertEquals(
@@ -378,6 +396,56 @@ Deno.test("a version's target is checked in its own organization when it is crea
           await s.createVersion({ repositoryId: crypto.randomUUID() }),
         )).includes("repository_not_found"),
       );
+      // A workflow that works on a repository cannot be pinned without one.
+      assert(
+        (await problem(await s.createVersion({ repositoryId: null })))
+          .includes("repository_required"),
+      );
+      // One that needs none can: a workflow of a single no-op step.
+      const light = await expectJson<{ id: string }>(
+        await apiCall(fixture, s.scope, "POST", "/v1/workflows", {
+          body: { slug: "light", name: "Light", description: "No repository." },
+        }),
+        201,
+      );
+      const lightDraft = await expectJson<{ id: string }>(
+        await apiCall(
+          fixture,
+          s.scope,
+          "POST",
+          `/v1/workflows/${light.id}/versions`,
+          {
+            body: {
+              definition: {
+                apiVersion: "bakery.dev/v1",
+                kind: "workflow",
+                name: "light",
+                description: "A single no-op step.",
+                inputs: {},
+                steps: [{ id: "note", uses: "workflow.noop", with: {} }],
+              },
+            },
+          },
+        ),
+        201,
+      );
+      const lightPublished = await expectJson<{ id: string }>(
+        await apiCall(
+          fixture,
+          s.scope,
+          "POST",
+          `/v1/workflows/${light.id}/versions/${lightDraft.id}/publish`,
+          { body: {}, headers: { "If-Match": '"1"' } },
+        ),
+        200,
+      );
+      const noRepository = await s.createVersion({
+        workflowVersionId: lightPublished.id,
+        repositoryId: null,
+        inputs: {},
+      });
+      assertEquals(noRepository.status, 201, await noRepository.clone().text());
+      await noRepository.body?.cancel();
       // A repository that belongs to another application of the same organization.
       const secondApplication = crypto.randomUUID();
       await fixture.pgDatabase.query(

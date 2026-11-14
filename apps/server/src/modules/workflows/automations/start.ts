@@ -199,6 +199,8 @@ export async function startFiring(options: {
         resourceVersion: marked.rows[0]!.version,
         requestId: trace.requestId,
         traceId: trace.traceId,
+        outcome: "failed",
+        details: { code },
       });
       return { kind: "failed", code } as const;
     };

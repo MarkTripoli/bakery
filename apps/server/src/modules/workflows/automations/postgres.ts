@@ -25,6 +25,7 @@ import {
 } from "../../../platform/postgres-errors.ts";
 import { canonicalJson, sha256Hex } from "../../../platform/canonical-json.ts";
 import { validateBudgetLimitUsd } from "../../work/run-command.ts";
+import { workflowRequiresRepository } from "../../work/run-steps.ts";
 import { requireWorkTransaction } from "../../work/work-transaction.ts";
 import { nextOccurrence, parseCron } from "./schedule.ts";
 import {
@@ -213,6 +214,9 @@ export async function appendFacts(
     resourceVersion: number;
     requestId: string;
     traceId: string;
+    /** `succeeded` unless said otherwise. */
+    outcome?: "succeeded" | "failed";
+    details?: Record<string, unknown>;
   },
 ): Promise<void> {
   await appendAudit(transaction, {
@@ -223,6 +227,8 @@ export async function appendFacts(
     resourceId: options.resourceId,
     requestId: options.requestId,
     traceId: options.traceId,
+    ...(options.outcome === undefined ? {} : { outcome: options.outcome }),
+    ...(options.details === undefined ? {} : { details: options.details }),
   });
   await appendDomainEvent(transaction, {
     organizationId: options.organizationId,
@@ -591,8 +597,10 @@ export async function createAutomationVersion(
   if (locked.rows.length !== 1) {
     throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   }
-  const workflow = await transaction.query<{ status: string }>(
-    `select status from bakery.workflow_versions
+  const workflow = await transaction.query<
+    { status: string; normalized_spec: unknown }
+  >(
+    `select status, normalized_spec from bakery.workflow_versions
       where organization_id = $1 and id = $2`,
     [organizationId, value.workflowVersionId],
   );
@@ -607,6 +615,14 @@ export async function createAutomationVersion(
     );
   }
   const target = await validatedTarget(transaction, organizationId, value);
+  // A workflow that works on a repository cannot start without one: refuse the
+  // version now, not every firing later.
+  if (
+    target.repositoryId === null &&
+    workflowRequiresRepository(pinned.normalized_spec)
+  ) {
+    throw unprocessable(["repositoryId"], "repository_required");
+  }
   const highest = await transaction.query<{ revision: number | null }>(
     `select max(revision) as revision from bakery.automation_versions
       where organization_id = $1 and automation_id = $2`,
