@@ -15,9 +15,7 @@ import type {
   RoleBindingResponse,
   RoleBindingUpdate,
 } from "../../api/client.ts";
-import { ApplicationSection } from "./ApplicationSection.tsx";
-import { RepositoryEditor, RepositorySection } from "./RepositorySection.tsx";
-import { ApplicationList, RepositoryList } from "./ProjectsLists.tsx";
+import { RepositoryEditor } from "./RepositorySection.tsx";
 import { RepositoryInspector } from "./RepositoryInspector.tsx";
 import { useShellViewport } from "../../app/responsive.ts";
 import { ShellFlushMain, ShellSlot } from "../../shell/shell-slots.tsx";
@@ -81,7 +79,7 @@ export type ProjectsOnboardingScreenProps = Readonly<{
   inspectionContent?: ReactNode;
 }>;
 
-type DialogName = "application" | "register" | "repository" | "bindings";
+type DialogName = "repository" | "bindings";
 
 export function ProjectsOnboardingScreen(props: ProjectsOnboardingScreenProps) {
   const { labels } = props;
@@ -99,7 +97,6 @@ export function ProjectsOnboardingScreen(props: ProjectsOnboardingScreenProps) {
     reviewedRepository !== props.selectedRepository.id
   ) setReviewedRepository(props.selectedRepository.id);
   const close = () => setDialog(null);
-  const openApplication = () => setDialog("application");
   const inspector = props.selectedApplication === null
     ? null
     : (
@@ -108,10 +105,7 @@ export function ProjectsOnboardingScreen(props: ProjectsOnboardingScreenProps) {
         inspectionContent={props.inspectionContent}
         labels={labels}
         onCreateMapping={() => setDialog("bindings")}
-        onEdit={() =>
-          setDialog(
-            props.selectedRepository === null ? "application" : "repository",
-          )}
+        onEdit={() => setDialog("repository")}
         onLoadMoreProfiles={props.onLoadMoreProfiles}
         onLoadMoreRoles={props.onLoadMoreRoles}
         onProfileSelect={(id) => {
@@ -129,23 +123,21 @@ export function ProjectsOnboardingScreen(props: ProjectsOnboardingScreenProps) {
         variant={viewport === "desktop" ? "column" : "stacked"}
       />
     );
-  const createApplication = (
-    <UI.Button onClick={openApplication}>
-      <UI.IconGlyph name="plus" size="small" />
-      {labels.applications.createHeading}
-    </UI.Button>
-  );
   return (
     <>
       <ShellFlushMain inset="page" />
       <ShellSlot name="breadcrumbs">
         <UI.Breadcrumbs
-          items={[{ label: props.workspaceLabel }, { label: labels.title }]}
+          items={[
+            { href: "/tasks", label: props.workspaceLabel },
+            { href: "/projects", label: labels.projectsList },
+            ...(props.selectedRepository === null ? [] : [{
+              label:
+                `${props.selectedRepository.owner}/${props.selectedRepository.name}`,
+            }]),
+          ]}
         />
       </ShellSlot>
-      {props.scopeAvailable && !phone
-        ? <ShellSlot name="actions">{createApplication}</ShellSlot>
-        : null}
       {props.scopeAvailable && !phone && inspector !== null
         ? (
           <ShellSlot name="inspector" size="medium">
@@ -155,9 +147,6 @@ export function ProjectsOnboardingScreen(props: ProjectsOnboardingScreenProps) {
         : null}
       <div data-testid="projects-onboarding-page">
         <UI.PageHeader
-          actions={phone && props.scopeAvailable
-            ? createApplication
-            : undefined}
           subtitle={<p>{labels.description}</p>}
           title={labels.title}
           variant="list"
@@ -172,65 +161,6 @@ export function ProjectsOnboardingScreen(props: ProjectsOnboardingScreenProps) {
           )
           : (
             <>
-              {phone
-                ? (
-                  <UI.ListSection
-                    title={labels.applications.heading}
-                    variant="list"
-                  >
-                    <ApplicationList
-                      applications={props.applications}
-                      labels={labels}
-                      onLoadMore={props.onLoadMoreApplications}
-                      onRetry={props.onRetryApplications}
-                      onRetryMore={props.onRetryMoreApplications}
-                      onSelect={props.onApplicationChange}
-                      phone
-                      selectedId={props.selectedApplicationId}
-                    />
-                  </UI.ListSection>
-                )
-                : (
-                  <ApplicationList
-                    applications={props.applications}
-                    labels={labels}
-                    onLoadMore={props.onLoadMoreApplications}
-                    onRetry={props.onRetryApplications}
-                    onRetryMore={props.onRetryMoreApplications}
-                    onSelect={props.onApplicationChange}
-                    phone={false}
-                    selectedId={props.selectedApplicationId}
-                  />
-                )}
-              <UI.ListSection
-                actions={
-                  <UI.Button
-                    onClick={() => setDialog("register")}
-                    variant={phone ? "text" : "outline"}
-                  >
-                    {labels.repositories.createHeading}
-                  </UI.Button>
-                }
-                description={phone
-                  ? undefined
-                  : labels.repositories.description}
-                title={labels.repositories.heading}
-                variant={phone ? "list" : "table"}
-              >
-                <RepositoryList
-                  labels={labels}
-                  onLoadMore={props.onLoadMoreRepositories}
-                  onRepositorySelect={(id) => {
-                    props.onRepositorySelect(id);
-                    if (phone) setSheetOpen(true);
-                  }}
-                  onRetry={props.onRetryRepositories}
-                  onRetryMore={props.onRetryMoreRepositories}
-                  phone={phone}
-                  repositories={props.repositories}
-                  selectedRepositoryId={props.selectedRepository?.id ?? null}
-                />
-              </UI.ListSection>
               {props.selectedRepository !== null &&
                   props.selectedApplication !== null &&
                   (props.selectedProfile !== null ||
@@ -263,54 +193,6 @@ export function ProjectsOnboardingScreen(props: ProjectsOnboardingScreenProps) {
       {props.scopeAvailable
         ? (
           <>
-            <UI.Dialog
-              onOpenChange={(open) => !open && close()}
-              open={dialog === "application"}
-              title={labels.applications.heading}
-              variant="form"
-            >
-              {dialog === "application"
-                ? (
-                  <UI.SettingsContent>
-                    <ApplicationSection
-                      createPending={props.pending}
-                      labels={labels}
-                      onCreate={async (input) => {
-                        await props.onCreateApplication(input);
-                        close();
-                      }}
-                      onUpdate={props.onUpdateApplication}
-                      selectedApplication={props.selectedApplication}
-                      updatePending={props.pending}
-                    />
-                  </UI.SettingsContent>
-                )
-                : null}
-            </UI.Dialog>
-            <UI.Dialog
-              onOpenChange={(open) => !open && close()}
-              open={dialog === "register"}
-              title={labels.repositories.createHeading}
-              variant="form"
-            >
-              {dialog === "register"
-                ? (
-                  <UI.SettingsContent>
-                    <RepositorySection
-                      applications={props.applications}
-                      createPending={props.pending}
-                      labels={labels}
-                      onApplicationChange={props.onApplicationChange}
-                      onCreate={async (input) => {
-                        await props.onCreateRepository(input);
-                        close();
-                      }}
-                      selectedApplicationId={props.selectedApplicationId}
-                    />
-                  </UI.SettingsContent>
-                )
-                : null}
-            </UI.Dialog>
             <UI.Dialog
               onOpenChange={(open) => !open && close()}
               open={dialog === "repository" &&
