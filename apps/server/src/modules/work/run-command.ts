@@ -18,7 +18,6 @@ import {
 import { WORKFLOW_ACTION_METADATA } from "@bakery/contracts/workflow-action-registry";
 import {
   type PinnedRepositoryRules,
-  repositoryRuleStageRequirements,
   STEP_OUTPUT_ALLOWANCE_BYTES,
 } from "@bakery/contracts/repository-rules";
 import { workflowPresetById } from "@bakery/contracts/workflow-presets";
@@ -68,7 +67,10 @@ import {
 import { admitStagePolicy } from "./stage-admission.ts";
 import { ticketRequestBlocksRun } from "./ticket-run-guard.ts";
 import { pinEffectiveRepositoryRules } from "../repository-rules/pinned.ts";
-import { assertStepsSatisfyRules } from "../workflows/rule-guard.ts";
+import {
+  assertPlanSatisfiesRules,
+  assertStepsSatisfyRules,
+} from "../workflows/rule-guard.ts";
 import { writePlanRun } from "../workflow-adapter/plan-admission.ts";
 import {
   type PlanAdmission,
@@ -1122,14 +1124,10 @@ export async function createRunCommand(
   if (pinnedRules !== null) {
     if (planAdmission === null) {
       assertStepsSatisfyRules(pinnedRules, steps);
-    } else if (repositoryRuleStageRequirements(pinnedRules).length > 0) {
-      // A plan's stages are not yet read against a `require` rule, and a
-      // definition the guard cannot read proves nothing: it is refused, as
-      // publication refuses it, never passed.
-      throw new StandardError({
-        code: "STATE_CONFLICT",
-        params: { reason: "workflow_plan_rules_unsupported" },
-      });
+    } else {
+      // A plan is read through its shape: a check counts only when it runs
+      // after the last revision on every path through the plan.
+      assertPlanSatisfiesRules(pinnedRules, planAdmission.document);
     }
   }
   // What a plan run freezes beside the sections every run has, read back the
