@@ -28,8 +28,8 @@
       "packages/ui/scripts/fontconfig/fonts.conf",
       "packages/ui/scripts/render-enterprise-references.mjs"
     ],
-    "revision": "paper:3fd8f6c2; mock:c4d0c799; rendered:2026-11-14",
-    "digest": "c4d0c79924b76add4c736ea0823d26c8fdf0cc13a9e413de203733488d2056a9"
+    "revision": "paper:246fd10e; mock:55f564e8; rendered:2026-11-15",
+    "digest": "55f564e8bbd89e371864565562d256d97ab3b406cebbff9d13e028164969f4d1"
   },
   "reference": {
     "hidden": [],
@@ -48,7 +48,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/enterprise/queue--default--light--desktop.png",
-      "imageSha256": "0f26c85d43352d35b1ea1302083e8293d17b889b87c1a9684f8da658393b4abe",
+      "imageSha256": "f0662f305f3a7f0eb22e14c1a44068fdbcf39f42c2aeee7329666f26e1006991",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -93,7 +93,7 @@
         "device": "phone"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/enterprise/queue--default--light--phone.png",
-      "imageSha256": "24ad3d25cad823f27538955149d596eea8c999535ab3cd0bc0625601efc7ba8b",
+      "imageSha256": "38d9e0d70449d72680208a51068b8d646813c175661882b1869260717469e278",
       "viewport": {
         "width": 390,
         "height": 844

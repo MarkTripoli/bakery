@@ -26,13 +26,22 @@
         </div>
         <div style={{ alignItems: 'center', borderRadius: '4px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', gap: '12px', height: '36px', paddingInline: '10px' }}>
           <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: '0' }}>
+            <circle cx="12" cy="12" r="9" fill="none" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx="12" cy="12" r="1.5" fill="#000000" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', lineHeight: '20px' }}>
+            Issues
+          </div>
+        </div>
+        <div style={{ alignItems: 'center', borderRadius: '4px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', gap: '12px', height: '36px', paddingInline: '10px' }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: '0' }}>
             <rect x="3" y="3" width="7" height="7" rx="1" fill="none" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             <rect x="14" y="3" width="7" height="7" rx="1" fill="none" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             <rect x="3" y="14" width="7" height="7" rx="1" fill="none" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
             <rect x="14" y="14" width="7" height="7" rx="1" fill="none" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', lineHeight: '20px' }}>
-            Applications
+            Projects
           </div>
         </div>
         <div style={{ alignItems: 'center', borderRadius: '4px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', gap: '12px', height: '36px', paddingInline: '10px' }}>
@@ -49,7 +58,7 @@
             <path d="M8 21h8M12 17v4" fill="none" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', lineHeight: '20px' }}>
-            Workers
+            Machines
           </div>
         </div>
         <div style={{ alignItems: 'center', borderRadius: '4px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', gap: '12px', height: '36px', paddingInline: '10px' }}>
@@ -127,7 +136,7 @@
         </div>
       </div>
       <div style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexShrink: '0', height: '900px', minWidth: '0px', width: '912px' }}>
-        <div style={{ alignItems: 'center', borderBottomColor: 'var(--color-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', gap: '12px', height: '64px', paddingInline: '24px' }}>
+        <div style={{ alignItems: 'center', borderBottomColor: 'var(--color-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', gap: '12px', height: '64px', paddingInline: '40px' }}>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', lineHeight: '20px' }}>
             Workspace
           </div>
@@ -196,7 +205,7 @@
               Status
             </div>
           </div>
-          <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', borderRadius: 'var(--radius-4)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', fontFamily: 'var(--font-sans)', gap: '8px', minHeight: '36px', paddingInline: '12px', width: '224px' }}>
+          <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-muted-foreground)', borderRadius: 'var(--radius-4)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', fontFamily: 'var(--font-sans)', gap: '8px', minHeight: '44px', paddingInline: '12px', width: '220px' }}>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', display: 'flex', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '18px' }}>
               Search titles and descriptions
             </div>
