@@ -15,6 +15,7 @@ import {
   loadPlanLanes,
   PLAN_COLUMNS,
 } from "./coordination-query.ts";
+import { releaseDependentRuns } from "./dependency-release.ts";
 
 // Persisted coordination projection and shared plan helpers. Kept apart from
 // the command module so engine and execution code can reconcile a plan without
@@ -272,11 +273,26 @@ export async function reconcileCoordinationForCommittedOutput(
   });
 }
 
-/** Terminal-hook entry for engine code that has no acting principal. */
+/**
+ * Terminal-hook entry for engine code that has no acting principal. Every path
+ * that ends a task (engine run end, worker result, cancellation lifecycle,
+ * failed attempt lifecycle) calls it in its own transaction. It first releases
+ * runs blocked on this task as a prerequisite (their runs and tasks lock before
+ * any parent or plan row), then reconciles the coordination plans.
+ */
 export async function reconcileCoordinationForTerminalTask(
   transaction: PgTransactionClient,
   input: { organizationId: string; taskId: string; traceId: string },
 ): Promise<void> {
+  await releaseDependentRuns(
+    transaction,
+    input,
+    (dependantTaskId) =>
+      reconcileCoordinationForTerminalTask(transaction, {
+        ...input,
+        taskId: dependantTaskId,
+      }),
+  );
   await reconcileCoordinationForTask(transaction, {
     organizationId: input.organizationId,
     principalId: null,
