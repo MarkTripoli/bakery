@@ -477,6 +477,8 @@ test("shows the current revision with lanes as rows", async ({ page }) => {
     }),
   ).toBeVisible();
   await expect(page.locator("[data-lane-key]")).toHaveCount(3);
+  await page.mouse.move(700, 700);
+  await shot(page, "task-split-lanes");
   const api = laneRow(page, "api");
   await expect(api).toContainText("Change the API contract");
   await expect(api).toContainText("example/api-service");
@@ -516,6 +518,10 @@ test("a declared output without an artifact stays declared", async ({ page }) =>
     await expect(api.getByText("Declared", { exact: true })).toBeVisible();
   }
   await expect(output_(page, "Committed")(api)).toHaveCount(0);
+  // O12: a lane that has not begun is "Not started"; the word "Planned"
+  // belongs to the plan document alone.
+  await expect(laneRow(page, "docs")).toContainText("Not started");
+  await expect(laneRow(page, "docs")).not.toContainText("Planned");
 });
 
 test("an older published artifact keeps the output committed past a newer unpublished one", async ({ page }) => {
@@ -588,6 +594,8 @@ test("cancel needs confirmation and sends one idempotent request", async ({ page
   const state = await open(page);
   await page.getByRole("button", { name: "Cancel split", exact: true }).click();
   await expect(page.getByText("Cancel this split?")).toBeVisible();
+  await page.mouse.move(700, 700);
+  await shot(page, "task-split-cancel-confirm");
   await page.getByRole("button", { name: "Keep the split" }).click();
   expect(state.cancels).toHaveLength(0);
   await page.getByRole("button", { name: "Cancel split", exact: true }).click();
@@ -657,6 +665,8 @@ test("a canceled plan changed elsewhere shows the conflict and the current state
 test("no plan shows the empty state", async ({ page }) => {
   await open(page, world({ plans: [] }));
   await expect(page.getByText("This task is not split")).toBeVisible();
+  await page.mouse.move(700, 700);
+  await shot(page, "task-split-empty");
 });
 
 test("a failed read shows an error with retry", async ({ page }) => {
@@ -762,6 +772,8 @@ test("the task detail links to the plan only when one exists", async ({ page }) 
   }
   const link = page.getByRole("link", { name: "View the split" });
   await expect(link).toBeVisible();
+  await page.mouse.move(700, 700);
+  await shot(page, "task-conversation-split-link");
   await link.click();
   await expect(page).toHaveURL(`/tasks/${taskId}/coordination`);
   await expect(laneRow(page, "api")).toBeVisible();
