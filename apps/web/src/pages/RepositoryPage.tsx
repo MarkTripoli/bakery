@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import type { RepositoryProfileResponse } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
@@ -25,6 +25,7 @@ import { useI18n } from "../i18n/I18nProvider.tsx";
 import { PROJECTS_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
 import { useCursorPages } from "./projects-onboarding/useCursorPages.ts";
+import { ReadinessStep } from "./projects/ReadinessStep.tsx";
 import { WorkingSettingsSheet } from "./projects/WorkingSettingsSheet.tsx";
 import {
   activeProfile,
@@ -53,6 +54,10 @@ export function RepositoryPage(
   useRestoreOrganizationScope();
   const offline = useConnectivity() === "offline";
   const phone = useShellViewport() === "phone";
+  // The check being shown is in the address, so a reload or a shared link
+  // shows the same one; no other check is known to the page.
+  const checkId = (useSearch({ strict: false }) as { check?: string }).check ??
+    null;
   const access = useQuery(effectiveAccessQueryOptions(api, scope));
   const canManage = access.data?.role === "admin";
   const repository = useQuery(repositoryQueryOptions(api, scope, repositoryId));
@@ -376,34 +381,19 @@ export function RepositoryPage(
               >
                 {active === null && phone ? choose : undefined}
               </UI.StepItem>
-              <UI.StepItem
-                data-testid="setup-check"
-                status="upcoming"
-                statusLabel={status("todo")}
-                title={translate(
-                  "projects.repository.step.check.title" as never,
-                )}
-                summary={translate(
-                  (active === null
-                    ? "projects.repository.step.check.blocked"
-                    : "projects.repository.step.check.todo") as never,
-                )}
-                action={active === null ? undefined : (
-                  <UI.Button
-                    variant="text"
-                    onClick={() =>
-                      void navigate({
-                        to: "/projects/onboarding",
-                        search: {
-                          application: current.applicationId,
-                          repository: current.id,
-                          profile: undefined,
-                        },
-                      })}
-                  >
-                    {translate("projects.repository.step.check.open" as never)}
-                  </UI.Button>
-                )}
+              <ReadinessStep
+                repository={current}
+                applicationId={current.applicationId}
+                active={active}
+                canManage={canManage}
+                checkId={checkId}
+                onStarted={(id) =>
+                  void navigate({
+                    to: "/projects/repositories/$repositoryId",
+                    params: { repositoryId: current.id },
+                    search: { check: id },
+                    replace: true,
+                  })}
               />
             </UI.StepList>
           </UI.ListSection>
