@@ -400,6 +400,16 @@ Deno.test("coding agents serve their payment methods; bindings keep to them (#68
         [binding.id],
       )).rows[0].version;
     const before = await versionOf();
+    const trail = async () =>
+      (await fixture.pgDatabase.query<{ events: number; audits: number }>(
+        `select
+           (select count(*)::int from bakery.domain_events
+             where aggregate_id = $1) as events,
+           (select count(*)::int from bakery.audit_events
+             where resource_id = $1::text) as audits`,
+        [binding.id],
+      )).rows[0];
+    const trailBefore = await trail();
     const noop = await adminRequest(
       fixture,
       `/v1/workers/${hostId}/provider-bindings/${binding.id}`,
@@ -412,6 +422,8 @@ Deno.test("coding agents serve their payment methods; bindings keep to them (#68
     );
     assertEquals(noop.status, 200, await noop.clone().text());
     assertEquals(await versionOf(), before);
+    // ...and records nothing: no event, no audit row.
+    assertEquals(await trail(), trailBefore);
 
     // A component the table does not know supports no route: refused on bind
     // (fail closed), and an older binding on it reads as needing attention.
