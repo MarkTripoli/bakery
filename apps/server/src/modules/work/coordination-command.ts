@@ -42,6 +42,7 @@ import {
   type PlanRecord,
   reconcileCoordinationPlan,
   recordFacts,
+  requestDependencyRelease,
   setLaneStatus,
 } from "./coordination-projection.ts";
 import {
@@ -967,7 +968,9 @@ async function supersedeEarlierRevisions(
 
 // --- Cancellation ----------------------------------------------------------
 
-const TERMINAL_RUN = ["completed", "failed", "canceled", "blocked"] as const;
+// A blocked run (never started) is canceled with its task, so a canceled lane
+// child never keeps a blocked current run that no release can reach.
+const TERMINAL_RUN = ["completed", "failed", "canceled"] as const;
 
 async function cancelChildTask(
   transaction: PgTransactionClient,
@@ -1109,6 +1112,19 @@ async function emitChildCanceled(
   );
   const task = scope.rows[0];
   if (!task) return;
+  // #57: a lane child canceled directly (no live worker) ends its task
+  // without the worker lifecycle's terminal hook, so request the release of
+  // the runs blocked on it the same deferred way the hook does: a durable
+  // outbox follow-up whose consumer locks the dependants in its own
+  // transaction. Plan reconciliation is left to the plan cancel that called
+  // this.
+  if (versions.taskVersion !== undefined) {
+    await requestDependencyRelease(transaction, {
+      organizationId: facts.organizationId,
+      taskId: childTaskId,
+      traceId: facts.traceId,
+    });
+  }
   const base = {
     organizationId: facts.organizationId,
     applicationId: task.application_id,

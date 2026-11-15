@@ -32,6 +32,8 @@ import type { PgTransactionClient } from "../../platform/database.ts";
 import { nextOrganizationSequence } from "../../platform/event-clock.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
+import { requestRunStart } from "./run-start.ts";
+import { resolveDependencyReadiness } from "./dependency-readiness.ts";
 import {
   appendTaskProjectionEvent,
   loadTaskScope,
@@ -299,17 +301,7 @@ type RunSnapshot = {
   planActionAgents?: unknown;
 };
 
-export function resolveDependencyReadiness(
-  dependencies: readonly RunDependencySnapshot[],
-): { status: RunStatus; reason: string | null } {
-  const ready = dependencies.every((dependency) =>
-    dependency.status === "completed"
-  );
-  return {
-    status: ready ? "queued" : "blocked",
-    reason: ready ? null : "dependency_incomplete",
-  };
-}
+export { resolveDependencyReadiness };
 
 function buildRunSnapshot(options: {
   executionMode: RunSnapshot["executionMode"];
@@ -510,53 +502,45 @@ async function appendRunFacts(
       JSON.stringify({ status: options.status, reason: options.reason }),
     ],
   );
-  const sequence = await nextOrganizationSequence(
-    transaction,
-    options.organizationId,
-  );
-  const eventType = options.status === "queued"
-    ? "run.requested"
-    : "run.blocked";
-  const event = await transaction.query<{ id: string }>(
-    `insert into bakery.domain_events (
-       organization_id, organization_sequence, event_type, schema_version,
-       application_id, repository_id, task_id, conversation_id, aggregate_id,
-       aggregate_version, payload, trace_id
-     ) values ($1, $2, $3, 1, $4, $5, $6, $7, $8, $9, $10::jsonb, $11)
-     returning id`,
-    [
+  if (options.status === "queued") {
+    await requestRunStart(transaction, {
+      organizationId: options.organizationId,
+      applicationId: options.task.application_id,
+      repositoryId: options.task.repository_id,
+      taskId: options.task.id,
+      conversationId: options.task.conversation_id,
+      runId: options.run.id,
+      runVersion: options.run.version,
+      traceId: options.traceId,
+    });
+  } else {
+    const sequence = await nextOrganizationSequence(
+      transaction,
       options.organizationId,
-      sequence,
-      eventType,
-      options.task.application_id,
-      options.task.repository_id,
-      options.task.id,
-      options.task.conversation_id,
-      options.run.id,
-      options.run.version,
-      JSON.stringify(
-        options.status === "queued" ? { runId: options.run.id } : {
+    );
+    await transaction.query(
+      `insert into bakery.domain_events (
+         organization_id, organization_sequence, event_type, schema_version,
+         application_id, repository_id, task_id, conversation_id, aggregate_id,
+         aggregate_version, payload, trace_id
+       ) values ($1, $2, 'run.blocked', 1, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)`,
+      [
+        options.organizationId,
+        sequence,
+        options.task.application_id,
+        options.task.repository_id,
+        options.task.id,
+        options.task.conversation_id,
+        options.run.id,
+        options.run.version,
+        JSON.stringify({
           resourceId: options.run.id,
           resourceVersion: options.run.version,
           taskId: options.task.id,
           status: options.status,
           reason: options.reason,
-        },
-      ),
-      options.traceId,
-    ],
-  );
-  const eventId = event.rows[0]?.id;
-  if (!eventId) throw new Error("DOMAIN_EVENT_INSERT_FAILED");
-  if (options.status === "queued") {
-    await transaction.query(
-      `insert into bakery.outbox (
-         organization_id, event_id, destination, delivery_key, status
-       ) values ($1, $2, 'inngest', $3, 'pending')`,
-      [
-        options.organizationId,
-        eventId,
-        `run:${options.run.id}:version:${options.run.version}`,
+        }),
+        options.traceId,
       ],
     );
   }

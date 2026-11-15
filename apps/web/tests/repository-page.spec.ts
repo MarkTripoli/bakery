@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import {
+  CHECK_ID,
   type Options,
   type Profile,
   REPOSITORY_ID,
@@ -154,13 +155,18 @@ test.describe("a repository with no working settings", () => {
     // the repository's version: the page reads it again and sends nothing more
     // (a PATCH with the version it held before the save would be refused).
     expect(seen.updates).toHaveLength(0);
-    // With settings in use, the readiness check is the next step, with a way to it.
+    // With settings in use, the readiness check is the step to do now: its
+    // in-progress mark and the page's one filled button.
     await expect(page.getByTestId("setup-check")).toContainText(
       "Run the check to see whether Bakery can work here.",
     );
+    await expect(page.getByTestId("setup-check")).toHaveAttribute(
+      "data-state",
+      "running",
+    );
     await expect(
       page.getByTestId("setup-check").getByRole("button", {
-        name: "Open the readiness check",
+        name: "Run the check",
       }),
     ).toBeVisible();
     await page.mouse.move(700, 700);
@@ -217,6 +223,11 @@ test.describe("a repository with working settings", () => {
       ),
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: "Versions" })).toBeVisible();
+    await expect(
+      page.getByText(
+        "A new version is saved when you save settings and each time the readiness check passes.",
+      ),
+    ).toBeVisible();
     await expect(page.getByTestId("profile-version-2")).toContainText("In use");
     await expect(page.getByTestId("profile-version-1")).toContainText(
       "Version 1",
@@ -503,5 +514,473 @@ test.describe("the two writes against how the server behaves", () => {
       page.getByText("Remove the control characters from the branch names."),
     ).toBeVisible();
     expect(seen.createdProfiles).toHaveLength(0);
+  });
+});
+
+test.describe("the readiness check", () => {
+  const WORLD: Options = { profiles: SETTINGS, active: 2 };
+  const step = (page: Page) => page.getByTestId("setup-check");
+  const run = (page: Page) =>
+    step(page).getByRole("button", { name: "Run the check" });
+  const again = (page: Page) =>
+    step(page).getByRole("button", { name: "Check again" });
+
+  test("not started: the step to do now, with the page's one filled button", async ({ page }) => {
+    await open(page, WORLD);
+    await expect(step(page)).toHaveAttribute("data-state", "running");
+    await expect(run(page)).toBeEnabled();
+    await expect(page.locator('main [data-variant="primary"]')).toHaveCount(1);
+  });
+
+  test("running the check shows its progress, then a pass, and puts the check in the address", async ({ page }) => {
+    const { seen } = await open(page, WORLD);
+    await run(page).click();
+    await expect(step(page)).toContainText(/Checking… started/);
+    await expect(step(page)).toContainText(
+      "All 3 required checks passed · checked",
+      { timeout: 15_000 },
+    );
+    await expect(step(page)).toContainText("on a Linux (x64) machine");
+    await expect(step(page)).toHaveAttribute("data-state", "done");
+    await expect(page).toHaveURL(new RegExp(`check=${CHECK_ID}`));
+    await expect(again(page)).toBeVisible();
+    await expect(page.getByTestId("check-results")).toHaveCount(0);
+    expect(seen.starts).toHaveLength(1);
+    expect(seen.starts[0]).not.toBeNull();
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-check-ready");
+    // A reload shows the same check, from the address.
+    await page.reload();
+    await expect(step(page)).toContainText("All 3 required checks passed", {
+      timeout: 15_000,
+    });
+  });
+
+  test("a required check that did not pass is listed with what to do, required first", async ({ page }) => {
+    await open(page, { ...WORLD, check: "blocked" });
+    await run(page).click();
+    await expect(step(page)).toContainText(
+      "2 of 3 required checks did not pass · checked",
+      { timeout: 15_000 },
+    );
+    await expect(step(page)).toHaveAttribute("data-state", "failed");
+    const rows = page.getByTestId("check-results").getByRole("listitem");
+    await expect(rows).toHaveCount(3);
+    const tools = page.locator('[data-check-id="tools"]');
+    await expect(tools).toContainText("The machine has the tools it needs");
+    await expect(tools).toContainText("Required");
+    await expect(tools).toContainText("Missing");
+    await expect(tools).toContainText(
+      "deno is not installed on the machine. Install it there, then check again.",
+    );
+    const node = page.locator('[data-check-id="node"]');
+    await expect(node).toContainText("Project builds (Node)");
+    await expect(node).toContainText(
+      "The check ran and failed. Fix the build in the repository, then check again.",
+    );
+    // The optional one is shown last, marked Optional.
+    const optional = page.locator('[data-check-id="deno"]');
+    await expect(optional).toContainText("Optional");
+    await expect(optional).toContainText(
+      "The check took too long and was stopped.",
+    );
+    await expect(optional).toContainText("This does not stop work.");
+    expect(await rows.last().getAttribute("data-check-id")).toBe("deno");
+    // Check again is the page's one filled button.
+    await expect(again(page)).toBeEnabled();
+    await expect(page.locator('main [data-variant="primary"]')).toHaveCount(1);
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-check-blocked");
+  });
+
+  test("an optional check that did not pass is shown and never blocks", async ({ page }) => {
+    await open(page, { ...WORLD, check: "optional" });
+    await run(page).click();
+    await expect(step(page)).toContainText("All 3 required checks passed", {
+      timeout: 15_000,
+    });
+    await expect(step(page)).toHaveAttribute("data-state", "done");
+    await expect(page.getByTestId("check-results")).toContainText(
+      "This project uses a check Bakery cannot run. It was skipped. This does not stop work.",
+    );
+  });
+
+  test("a check that failed or was cancelled says nothing was recorded", async ({ page }) => {
+    await open(page, { ...WORLD, check: "failed" });
+    await run(page).click();
+    await expect(step(page)).toContainText(
+      "The check could not be completed. Nothing was recorded.",
+      { timeout: 15_000 },
+    );
+    await expect(again(page)).toBeEnabled();
+  });
+
+  test("a cancelled check", async ({ page }) => {
+    await open(page, { ...WORLD, check: "canceled" });
+    await run(page).click();
+    await expect(step(page)).toContainText(
+      "The check was cancelled. Nothing was recorded.",
+      { timeout: 15_000 },
+    );
+  });
+
+  test("a check still waiting offers no second check", async ({ page }) => {
+    await open(page, { ...WORLD, check: "stuck" });
+    await run(page).click();
+    await expect(step(page)).toContainText("Waiting to start…");
+    await expect(run(page)).toHaveCount(0);
+    await expect(again(page)).toHaveCount(0);
+  });
+
+  test("progress that cannot be read is Not known, never a result", async ({ page }) => {
+    await open(page, { ...WORLD, check: "unreadable" });
+    await run(page).click();
+    await expect(step(page)).toContainText(
+      "The check's progress could not be loaded.",
+      { timeout: 15_000 },
+    );
+    await expect(step(page)).toHaveAttribute("data-state", "unknown");
+    await expect(step(page)).not.toContainText("passed");
+    await expect(
+      step(page).getByRole("button", { name: "Try again" }),
+    ).toBeVisible();
+  });
+
+  test("a result for another version of the settings is not shown as this one's", async ({ page }) => {
+    await repositoryFixture(page, {
+      ...WORLD,
+      check: "stale",
+      existingCheck: true,
+    });
+    await page.goto(
+      `/projects/repositories/${REPOSITORY_ID}?check=${CHECK_ID}`,
+    );
+    await expect(step(page)).toContainText(
+      "The last check was for version 1, and version 2 is in use.",
+      { timeout: 15_000 },
+    );
+    await expect(step(page)).not.toContainText("passed");
+    await expect(again(page)).toBeEnabled();
+  });
+
+  test("an address that is not a check is ignored", async ({ page }) => {
+    await repositoryFixture(page, WORLD);
+    await page.goto(`/projects/repositories/${REPOSITORY_ID}?check=nope`);
+    await expect(run(page)).toBeVisible({ timeout: 20_000 });
+  });
+
+  test("a member sees why they cannot run it", async ({ page }) => {
+    await open(page, { ...WORLD, role: "developer" });
+    await expect(step(page)).toContainText(
+      "Only administrators can run the check.",
+    );
+    await expect(run(page)).toHaveCount(0);
+  });
+
+  test("an archived repository cannot be checked", async ({ page }) => {
+    await open(page, { ...WORLD, archived: true });
+    await expect(run(page)).toBeDisabled();
+  });
+
+  test("a refused start says why; a retry after a lost answer keeps its key", async ({ page }) => {
+    const refused = await open(page, { ...WORLD, start: "forbidden" });
+    await run(page).click();
+    await expect(
+      page.getByText("Only organization administrators can run the check."),
+    ).toBeVisible();
+    expect(refused.seen.starts).toHaveLength(1);
+  });
+
+  test("a start refused as a conflict says the repository changed, not that a check is running", async ({ page }) => {
+    await open(page, { ...WORLD, start: "conflict" });
+    await run(page).click();
+    await expect(
+      page.getByText(
+        "The repository changed since this page was loaded, so the check was not started. Reload the page and try again.",
+      ),
+    ).toBeVisible();
+    await expect(page.getByText(/already running/)).toHaveCount(0);
+  });
+
+  test("a start that gets no answer is retried with the same key", async ({ page }) => {
+    const { seen } = await open(page, { ...WORLD, start: "down" });
+    await run(page).click();
+    await expect(page.getByText("The check could not be started. Try again."))
+      .toBeVisible();
+    await run(page).click();
+    await expect.poll(() => seen.starts.length).toBe(2);
+    expect(seen.starts[1]).toBe(seen.starts[0]);
+  });
+});
+
+test.describe("where the setup stands, in the header and the footnote", () => {
+  const WORLD: Options = { profiles: SETTINGS, active: 2 };
+  const standing = (page: Page) => page.getByTestId("repository-standing");
+  const run = (page: Page) =>
+    page.getByTestId("setup-check").getByRole("button", {
+      name: "Run the check",
+    });
+
+  test("before any check the header says nothing about readiness, and the footnote is the plain one", async ({ page }) => {
+    await open(page, WORLD);
+    await expect(standing(page)).toHaveCount(0);
+    await expect(page.getByText("Not set up")).toHaveCount(0);
+    await expect(
+      page.getByText("Bakery can start tasks here once all three are done."),
+    ).toBeVisible();
+    // No line under step 3's sentence when no list of checks follows (wide screen).
+    if (test.info().project.name === "desktop") {
+      await expect(
+        page.getByTestId("setup-check").locator(".ui-step-item__detail"),
+      ).toHaveCount(0);
+    }
+  });
+
+  test("a passed check is Ready in the header and the footnote says tasks can start", async ({ page }) => {
+    await open(page, WORLD);
+    await run(page).click();
+    await expect(standing(page)).toHaveText("Ready", { timeout: 15_000 });
+    await expect(
+      page.getByText("Bakery can start tasks here.", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/once all three are done/),
+    ).toHaveCount(0);
+    if (test.info().project.name === "desktop") {
+      await expect(
+        page.getByTestId("setup-check").locator(".ui-step-item__detail"),
+      ).toHaveCount(0);
+    }
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-standing-ready");
+  });
+
+  test("a check that publishes the next version of the settings is judged against it, without a reload", async ({ page }) => {
+    await open(page, { ...WORLD, completionPublishes: true });
+    await expect(page.getByTestId("setup-settings")).toContainText("version 2");
+    await run(page).click();
+    // The server put version 3 in use when the check completed: the page reads
+    // the repository again, so the result is this version's and the step,
+    // the header and the settings all agree.
+    await expect(page.getByTestId("setup-check")).toContainText(
+      "All 3 required checks passed",
+      { timeout: 15_000 },
+    );
+    await expect(page.getByTestId("setup-settings")).toContainText("version 3");
+    await expect(standing(page)).toHaveText("Ready");
+    // Who saved the new version, in the same words as when it did not pass.
+    await expect(page.getByTestId("check-saved")).toContainText(
+      "This check saved version 3, and it is now in use.",
+    );
+    await expect(page.getByText(/The last check was for version/)).toHaveCount(
+      0,
+    );
+    await expect(page.getByText("Not known")).toHaveCount(0);
+  });
+
+  test("a check that did not pass publishes a newer version and leaves the one in use: its failure is shown, not another-version", async ({ page }) => {
+    await open(page, { ...WORLD, check: "blocked", completionPublishes: true });
+    await run(page).click();
+    // The real server saves the version it checked (3) but keeps version 2 in use.
+    await expect(page.getByTestId("setup-check")).toContainText(
+      "2 of 3 required checks did not pass",
+      { timeout: 15_000 },
+    );
+    await expect(standing(page)).toHaveText("Check failed");
+    await expect(page.getByTestId("setup-settings")).toContainText("version 2");
+    await expect(page.getByTestId("check-not-in-use")).toContainText(
+      "The check did not pass, so the settings it tested are not in use. Version 2 stays in use.",
+    );
+    await expect(
+      page.locator('[data-check-id="tools"]'),
+    ).toContainText("deno is not installed on the machine");
+    await expect(page.getByText(/The last check was for version/)).toHaveCount(
+      0,
+    );
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-check-blocked-candidate");
+  });
+
+  test("a check that did not pass is Check failed in the header", async ({ page }) => {
+    await open(page, { ...WORLD, check: "blocked" });
+    await run(page).click();
+    await expect(standing(page)).toHaveText("Check failed", {
+      timeout: 15_000,
+    });
+    await expect(
+      page.getByText("Bakery can start tasks here once all three are done."),
+    ).toBeVisible();
+  });
+
+  test("a check that could not be completed is Check failed too", async ({ page }) => {
+    await open(page, { ...WORLD, check: "failed" });
+    await run(page).click();
+    await expect(standing(page)).toHaveText("Check failed", {
+      timeout: 15_000,
+    });
+  });
+
+  test("a result for another version of the settings says nothing in the header", async ({ page }) => {
+    await repositoryFixture(page, {
+      ...WORLD,
+      check: "stale",
+      existingCheck: true,
+    });
+    await page.goto(
+      `/projects/repositories/${REPOSITORY_ID}?check=${CHECK_ID}`,
+    );
+    await expect(
+      page.getByTestId("setup-check").getByText(
+        /The last check was for version 1/,
+      ),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(standing(page)).toHaveCount(0);
+  });
+
+  test("with the connection not working a passed check is not Ready", async ({ page }) => {
+    await open(page, { ...WORLD, connection: "revoked" });
+    await run(page).click();
+    await expect(
+      page.getByTestId("setup-check").getByText(/checked/),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(standing(page)).toHaveCount(0);
+  });
+});
+
+test.describe("after a check: a person's version over a check-made one, and a failed check's hidden candidate", () => {
+  const CHECKED: Options = {
+    profiles: [
+      { revision: 1, branches: ["main"] },
+      { revision: 2, branches: ["main"], checkMade: true },
+    ],
+    active: 2,
+  };
+  const standing = (page: Page) => page.getByTestId("repository-standing");
+
+  test("the sheet says a save after a check means running the check again, and the save is a person's plain version", async ({ page }) => {
+    const { seen } = await open(page, CHECKED);
+    await page.getByRole("button", { name: "Change" }).click();
+    await expect(
+      page.getByText(
+        "This saves version 3 and puts it in use. Run the readiness check again afterwards: until it passes, tasks stop at the steps where Bakery runs its checks. Tasks already running keep version 2.",
+      ),
+    ).toBeVisible();
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-settings-after-check");
+    await page.getByLabel("Branches Bakery may work from").fill(
+      "main\nrelease/*",
+    );
+    await page.getByRole("button", { name: "Save and use these settings" })
+      .click();
+    await expect(sheet(page)).toHaveCount(0);
+    // A person's version: the check's own key is not carried (the strict parser refuses it).
+    const sent = seen.createdProfiles[0] as {
+      config: Record<string, unknown>;
+    };
+    expect(sent.config.schemaVersion).toBe(1);
+    expect(sent.config.checkPolicy).toBeUndefined();
+    // The page after the save: Check needed, the step to do now, the new footnote.
+    await expect(standing(page)).toHaveText("Check needed");
+    await expect(page.getByTestId("setup-settings")).toContainText("version 3");
+    await expect(page.getByTestId("setup-check")).toContainText(
+      "The settings changed. Run the check again: until it passes, tasks stop at the steps where Bakery runs its checks.",
+    );
+    await expect(page.getByTestId("setup-check")).toHaveAttribute(
+      "data-state",
+      "running",
+    );
+    await expect(
+      page.getByText(
+        "Bakery can start tasks here. They stop at Bakery's checks until the readiness check passes again.",
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("setup-check").getByRole("button", {
+        name: "Run the check",
+      }),
+    ).toBeVisible();
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-check-needed");
+  });
+
+  test("a check-made version in use is its own evidence: Ready, not Check needed, even with no check in the address", async ({ page }) => {
+    await open(page, CHECKED);
+    await expect(standing(page)).toHaveText("Ready");
+    await expect(page.getByTestId("setup-check")).toContainText(
+      "A readiness check passed for version 2.",
+    );
+    await expect(page.getByTestId("setup-check")).toHaveAttribute(
+      "data-state",
+      "done",
+    );
+    await expect(
+      page.getByText("Bakery can start tasks here.", { exact: true }),
+    ).toBeVisible();
+    // The sheet and the page agree: the version in use came from a passed check.
+    await page.getByRole("button", { name: "Change" }).click();
+    await expect(
+      page.getByText(/Run the readiness check again afterwards/),
+    ).toBeVisible();
+    await expect(standing(page)).toHaveText("Ready");
+  });
+
+  test("a repository never checked says nothing about a check being needed", async ({ page }) => {
+    await open(page, { profiles: SETTINGS, active: 2 });
+    await expect(standing(page)).toHaveCount(0);
+  });
+
+  test("using a person's version over a check-made one adds the run-the-check sentence; using a check-made one does not", async ({ page }) => {
+    await open(page, CHECKED);
+    await page.getByRole("button", { name: "Change" }).click();
+    await page.getByRole("button", { name: "Use version 1" }).click();
+    const confirm = page.getByRole("alertdialog", { name: "Use version 1?" });
+    await expect(confirm).toContainText(
+      "Run the readiness check again afterwards; until it passes, tasks stop at the steps where Bakery runs its checks.",
+    );
+    await shot(page, "repository-use-version-after-check");
+    await confirm.getByRole("button", { name: "Cancel" }).click();
+  });
+
+  test("switching to a check-made version from a person's carries no such sentence", async ({ page }) => {
+    await open(page, {
+      profiles: [
+        { revision: 1, branches: ["main"] },
+        { revision: 2, branches: ["main"], checkMade: true },
+        { revision: 3, branches: ["main"] },
+      ],
+      active: 3,
+    });
+    await page.getByRole("button", { name: "Change" }).click();
+    await page.getByRole("button", { name: "Use version 2" }).click();
+    const confirm = page.getByRole("alertdialog", { name: "Use version 2?" });
+    await expect(confirm).toContainText("New tasks use version 2.");
+    await expect(confirm).not.toContainText("Run the readiness check again");
+  });
+
+  test("a failed check's candidate is not in the Versions list, holds a revision, and the next save takes the next free one", async ({ page }) => {
+    const { seen } = await open(page, {
+      profiles: SETTINGS,
+      active: 2,
+      check: "blocked",
+      completionPublishes: true,
+    });
+    await page.getByTestId("setup-check").getByRole("button", {
+      name: "Run the check",
+    }).click();
+    await expect(page.getByTestId("setup-check")).toContainText(
+      "2 of 3 required checks did not pass",
+      { timeout: 15_000 },
+    );
+    await page.getByRole("button", { name: "Change" }).click();
+    // Version 3 (the candidate) is stored but not listed; the next free number is 4.
+    await expect(page.getByTestId("profile-version-3")).toHaveCount(0);
+    await expect(page.getByTestId("profile-version-2")).toBeVisible();
+    await expect(page.getByText(/This saves version 4\./)).toBeVisible();
+    await page.getByRole("button", { name: "Save and use these settings" })
+      .click();
+    await expect(page.getByRole("dialog", { name: "Working settings" }))
+      .toHaveCount(0);
+    expect((seen.createdProfiles.at(-1) as { revision: number }).revision)
+      .toBe(4);
   });
 });

@@ -5,6 +5,8 @@ import {
   configDigest,
   folderOf,
   hasOwnRules,
+  isCheckMade,
+  needsCheck,
   nextRevision,
   parseBranches,
   settingsConfig,
@@ -106,4 +108,22 @@ Deno.test("a version that states rules of its own is told apart, even with no en
   assertEquals(hasOwnRules({ repositoryRules: { entries: [] } }), true);
   assertEquals(hasOwnRules({ schemaVersion: 1 }), false);
   assertEquals(hasOwnRules(null), false);
+});
+
+Deno.test("a version made by a check is told apart from a person's", () => {
+  assertEquals(isCheckMade({ schemaVersion: 2, checkPolicy: {} }), true);
+  assertEquals(isCheckMade({ schemaVersion: 1, checkPolicy: {} }), true);
+  assertEquals(isCheckMade({ schemaVersion: 1 }), false);
+  assertEquals(isCheckMade(null), false);
+});
+
+Deno.test("a check is needed only when a person's version is in use and a check made an earlier one", () => {
+  const person = { config: { schemaVersion: 1 } };
+  const check = { config: { schemaVersion: 2, checkPolicy: {} } };
+  assertEquals(needsCheck(person, [person, check]), true);
+  // The check-made version in use is its own evidence.
+  assertEquals(needsCheck(check, [person, check]), false);
+  // Never checked: nothing to be stale.
+  assertEquals(needsCheck(person, [person]), false);
+  assertEquals(needsCheck(null, [check]), false);
 });

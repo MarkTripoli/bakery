@@ -67,6 +67,29 @@ export function hasOwnRules(config: unknown): boolean {
   return record(config).repositoryRules !== undefined;
 }
 
+/**
+ * Whether a version of the settings was made by a readiness check: its config
+ * is the check's own (schema 2, with the check policy), and a check only puts
+ * its version in use when it passed. A person's version is schema 1.
+ */
+export function isCheckMade(config: unknown): boolean {
+  const kept = record(config);
+  return kept.schemaVersion === 2 || kept.checkPolicy !== undefined;
+}
+
+/**
+ * A person's version is in use although a check made an earlier one: the
+ * check's evidence no longer applies, so the steps where Bakery runs its own
+ * checks stop until the readiness check passes again (tasks still start).
+ */
+export function needsCheck(
+  active: Pick<RepositoryProfileResponse, "config"> | null,
+  profiles: readonly Pick<RepositoryProfileResponse, "config">[],
+): boolean {
+  return active !== null && !isCheckMade(active.config) &&
+    profiles.some((profile) => isCheckMade(profile.config));
+}
+
 /** The branches a run may work from, as the profile names them. */
 export function branchesOf(config: unknown): string[] {
   const patterns = record(record(config).branches).allowedPatterns;
