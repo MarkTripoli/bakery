@@ -299,6 +299,8 @@ for (
         agents: [{ ...AGENT, activeVersionId: uuid(2007) }],
         agentVersions: many,
       });
+      // The page's testid is also on its loading state: wait for the versions.
+      await expect(page.getByTestId("agent-versions")).toBeVisible();
       await page.getByRole("button", { name: /^Show all 7/ }).click();
       const sheet = page.getByRole("dialog", {
         name: "All versions of Code writer",
