@@ -426,6 +426,9 @@ export function createApp(options: {
     secret: options.config.auth.secret,
     acceptAccessTokens: true,
   });
+  // One room registry: REST publications are announced to its editors.
+  const collaborationRegistry = options.collaborationSocket?.registry ??
+    createCollaborationRegistry();
   // One isolation for REST draft edits and collaboration-socket updates.
   const draftIsolation = options.draftIsolation ??
     createDraftIsolation(draftIsolationOptionsFor(options.config));
@@ -433,9 +436,12 @@ export function createApp(options: {
     "/",
     createDraftResourceRoutes({
       database: options.pgDatabase,
-      browserSession,
+      // Agents reach drafts with access tokens (O50); every draft action runs
+      // through PostgresAuthorityRunner, which enforces token scope.
+      browserSession: tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
       isolation: draftIsolation,
+      collaboration: collaborationRegistry,
     }),
   );
   const eventsRegistry = options.eventsSocket?.registry ??
@@ -462,8 +468,7 @@ export function createApp(options: {
     store: persistence,
     secret: options.config.auth.secret,
     publicBaseUrl: options.config.publicBaseUrl,
-    registry: options.collaborationSocket?.registry ??
-      createCollaborationRegistry(),
+    registry: collaborationRegistry,
     limits: options.collaborationSocket?.limits,
     now: options.collaborationSocket?.now,
     upgradeWebSocket: options.collaborationSocket?.upgradeWebSocket,
