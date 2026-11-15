@@ -12,11 +12,11 @@ Mark manages multiple applications from desktop browsers and a phone. Additional
 
 ## Product Purpose
 
-An autonomous software factory: people plan, review, and provide guidance; agents coordinate, develop, test, independently review, repair, merge, deploy, and report results within the configured scope.
+A platform for autonomous factories: people plan, review, and provide guidance; agents do the work and report results within the configured scope. Software delivery is the first template pack (agents coordinate, develop, test, independently review, repair, merge and deploy); factories for non-code work, such as video production, use the same primitives, skills, integrations and MCP servers.
 
 ## Platform Philosophy
 
-Bakery is a platform: durable infrastructure, primitives and building blocks from which people build their own factory, by describing it in words, using the visual editor, copying a template, or writing code with the SDK. There is one system; new ways of working are plug-ins or new combinations, never a rewrite. Dogfooding rule: everything Bakery ships, including Deliver and team templates, is built only from the public primitives customers get, with no private engine paths. See [One engine](25-one-engine.md).
+Bakery is a platform: durable infrastructure, primitives and building blocks from which people build their own factory, by describing it in words, using the visual editor, copying a template, or writing code with the SDK. There is one system; new ways of working are plug-ins or new combinations, never a rewrite. Factories are not code-only; software delivery is one pack beside a domain-neutral kernel. Dogfooding rule: everything Bakery ships, including Deliver and team templates, is built only from the public primitives customers get, with no private engine paths. See [One engine](25-one-engine.md).
 
 ## Operating Context
 

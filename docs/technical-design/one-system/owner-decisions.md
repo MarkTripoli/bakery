@@ -57,7 +57,7 @@ This file records what the product owner decided in conversation with their orch
 2. Approvals offer Approve, Request changes (sent back with notes) and Reject. The workflow owner is the default approver. A wait can last up to 7 days (raising the 24-hour cap).
 3. The editor shows and edits the workflow's starts as a list at the top.
 4. "Publish and use" is the primary button, with "Publish only" as a secondary option.
-5. Two code-changing parallel lanes on one repository are blocked in v1, with a clear message.
+5. Two code-changing parallel lanes on one repository are blocked in v1, with a clear message. (Owner clarification, 14 November 2026: This counts any step allowed to write to that repository or workspace, including custom agent tasks, not only Implement: the rule is decided by what the step may write, whatever its action type.)
 6. The step picker shows step types first. Skills and saved workflows appear under "From your library".
 7. **Loops:** one ready-made loop, "Fix until it passes". Other loops are written in the code view. **Owner addition:** every loop has optional **minimum and maximum iteration counts**, set in the loop's panel. Minimum means "run at least N times even if the exit condition is already met". The engine's `repeat` has only `max` (1..8) today, so a `min` is a model gap. Reconcile the maximum with the 1..8 cap and with the deliver doc's D9 (a loop that runs out of rounds pauses for a person to allow more).
 8. "Test workflow" is dropped. To try a workflow, publish it without "Use" and run it on one task.

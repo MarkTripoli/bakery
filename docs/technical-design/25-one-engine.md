@@ -34,6 +34,13 @@ level: describe it in words, use the visual editor, copy a template, or write
 code with the SDK. All four produce the same stored definition through the same
 compiler.
 
+**Domain-neutral kernel.** Bakery is not code-only. People build factories
+for any kind of work, for example producing videos, and MCP servers, skills and
+integrations all have a place inside workflows. The kernel knows work items,
+documents, steps, sessions and rules; it does not know repositories, pull
+requests or checks. Software delivery is one module and template pack beside
+the kernel (O16), not part of it.
+
 **One system.** New ways of working become plug-ins or new combinations of
 existing pieces. They never need an architecture rewrite.
 
@@ -55,7 +62,7 @@ gap is closed for everyone.
 
 | Layer | Holds | Owner |
 | --- | --- | --- |
-| 4. Templates | Deliver (four sizes), Product team, Review pair, Triage desk, Board pipeline, the coordinator's factory skill | Bakery ships them; anyone copies them |
+| 4. Templates | Template packs. The software-delivery pack: Deliver (four sizes), Product team, Review pair, Triage desk, Board pipeline, the coordinator's factory skill | Bakery ships them; anyone copies them |
 | 3. Compositions | Workflows, teams, boards, factories | Customers |
 | 2. Primitives | The eleven primitives, one compiler, one interpreter, eight extension points | The kernel |
 | 1. Infrastructure | Durable execution, workers and worktrees, sessions, artifact store, events and outbox, budgets, grants, effect ledger, audit, integration broker | Bakery runs it |
@@ -114,7 +121,7 @@ result, effect, run end) plus compile time.
 
 | # | Primitive | Responsibility |
 | --- | --- | --- |
-| 1 | Work item (task) | Carries intent and continuity: brief, repository scope, tracker link, parent and children, priority, its named documents and its decisions ledger. Outlives runs |
+| 1 | Work item (task) | Carries intent and continuity: brief, scope (repository links in the software-delivery pack),  tracker link, parent and children, priority, its named documents and its decisions ledger. Outlives runs |
 | 2 | Definition (workflow and its immutable versions; listed or unlisted) | Steps, order rules, inputs and outputs, limits, default agents, seats and starts. A version never changes. Bounded before it runs |
 | 3 | Run | One execution of one pinned version on one work item, with snapshot, budget, status and a named outcome. Runs form a tree |
 | 4 | Step (with attempts) | One invocation of one action with a frozen input and a typed result. Exactly one completer finishes it: a worker job, a timer, a person, or child runs |
@@ -123,14 +130,17 @@ result, effect, run end) plus compile time.
 | 7 | Agent and skill | Immutable agent versions and digest-pinned skill versions. A seat is a standing role declared in a definition |
 | 8 | Artifact | The only handoff channel: named documents with immutable versions. A kind says what a document must contain and which facts the engine may read |
 | 9 | Event and start | Events record what happened; a start matches an event to a definition and creates a run through normal admission |
-| 10 | Envelope | Grants, budgets, the effect ledger, repository rules, human decisions and audit |
+| 10 | Envelope | Grants, budgets, the effect ledger, rules (repository rules come from the software-delivery pack), human decisions and audit |
 | 11 | Interpreter | Decides what happens next inside a run |
 
 Seat, team, board, Deliver, the coordinator and the review loop are not
-primitives. They are compositions or modules built on these eleven. The
-delivery module (checks, reviews, merges) is a native module beside the kernel,
-not inside it (O16): the engine core does not import it, and no engine code
-names a delivery reason.
+primitives. They are compositions or modules built on these eleven. Software
+delivery (repositories, checks, code reviews, pull requests, merges, the
+fixed-coding presets and Deliver) is a native module and template pack beside
+the kernel, not inside it (O16: "a native module beside the kernel, not part of
+it ... no engine code names a delivery reason"). The engine core does not import
+it, so incident, evaluation, content or video factories are peers of software
+delivery, not guests.
 
 The user-facing vocabulary stays small (O12). "Workflow" (or "definition") is
 what the engine runs. "Plan" means only the document an agent writes.
@@ -144,7 +154,7 @@ what the engine runs. "Plan" means only the document an agent writes.
 | E1 | Actions | What a step does | Data (an agent step preset), a workflow (`call`), or code in a package |
 | E2 | Artifact kinds | What a document must contain and which facts it yields | Data: template, rules from platform rule types, fact schema |
 | E3 | Start sources | What begins a run | Data (schedule, generic signed webhook) or a provider module |
-| E4 | Integration families and providers | Trackers, code hosts, chat, deploy, later incidents | A provider module implementing a family port |
+| E4 | Integration families and providers | Trackers, chat, and pack-specific families such as code hosts and deploy (software delivery); later incidents and others | A provider module implementing a family port |
 | E5 | Library | Agents, skills, seats, workflows, templates, step presets | Data, one lifecycle: draft, immutable version, copy with lineage, "update available", used-by |
 | E6 | Decision actions | Who supplies a choice: route, assign, plan | An action whose output fits one of three contracts |
 | E7 | Guards and counters | Limits across runs | A closed guard library; counters as data from kernel events, family projections, or values a step publishes |
@@ -165,8 +175,9 @@ Coordination plans stop being a separate system. They become the engine's
    `instructions` stay as the child's brief.
 2. The engine starts ready lanes itself, bounded by a capacity key. Nobody else
    has to start them.
-3. A parent run step owns the plan. A `parallel` whose lanes name several
-   repositories and a split decision both create one, and the step completes
+3. A parent run step owns the plan. A `parallel` whose lanes need separate
+   child items (for example lanes on several repositories, in the software
+   pack) and a split decision both create one, and the step completes
    from the plan's terminal projection.
 4. The prose mapper that flattens lane steps into instruction text is replaced
    by a lossless lowering in both directions.
@@ -253,10 +264,14 @@ refs, tear down, and report cost. Six v1 choices keep the door open:
    never a host-local socket. The usage ledger accepts a compute kind beside
    model usage.
 
+The repository, commit and candidate details above belong to the
+software-delivery pack; a non-code step's whole file contract is its context and
+output directories.
+
 An ephemeral box needs the `api_metered` route, and the provider is a
 subprocessor that an Admin enables per repository scope.
 
-There is one linear candidate per repository per run tree (O15). Named
+In the software-delivery pack there is one linear candidate per repository per run tree (O15). Named
 candidates for tournaments come later.
 
 ## 9. Watching and steering
@@ -292,7 +307,7 @@ These rules replace O18 to O21 where they differ:
   and a note. Attaching live to the agent's session or terminal comes later,
   with workspaces and remote VMs.
 - **Slack (O21).** Slack posts at milestones: started, waiting on you (with
-  Approve and Reject buttons), stuck, failed, and done (with a PR link). Each
+  Approve and Reject buttons), stuck, failed, and done (with a link to the result, for example a PR). Each
   post links to the live view. Replying in the thread steers the agent, and the
   reply is recorded under the person's linked identity. The raw stream is not
   posted to Slack.
@@ -345,8 +360,10 @@ count, set in the loop's panel.
 - The editor shows and edits the workflow's starts as a list at the top.
 - Approvals offer Approve, Request changes (sent back with notes) and Reject.
   The workflow owner is the default approver. A wait lasts up to 7 days.
-- Two code-changing parallel lanes on one repository are blocked in v1, with a
-  clear message.
+- Two parallel steps that may both write to the same repository or workspace
+  are blocked in v1, with a clear message. The rule is decided by what each
+  step is allowed to write, whatever its action type: an Implement step and a
+  custom agent task with write access both count.
 - The step picker shows step types first. Skills and saved workflows appear
   under "From your library". Step names follow the editor spec, for example
   "Implement" and "Fix problems".
@@ -375,15 +392,16 @@ Each integration is a self-contained module in `packages/integration-<slug>/`,
 with UI, backend and manifest together. Boundaries are enforced mechanically:
 import rules, no provider names in core code, a conformance suite and registry
 checks. Providers are pure adapters (O13): core owns all the neutral tables, and
-provider packages contain no SQL. Families are `tickets`, `code`, `chat` and
-`deploy`. Provider webhooks normalize into the neutral event vocabulary that the
+provider packages contain no SQL. Families are `tickets` and `chat`, plus the
+software-delivery pack's `code` and `deploy`; other packs add their own. Provider webhooks normalize into the neutral event vocabulary that the
 one start mechanism reads.
 
 The detailed design is section 12 of [Integrations](09-integrations.md).
 
 ## 13. Convergence plan
 
-In dependency order. Each step leaves everything before it working. Steps 1 to 3
+In dependency order. Each step leaves everything before it working. Steps 2, 3
+and the Deliver proof are software-delivery pack work; the rest is kernel. Steps 1 to 3
 are the keystone: they make "one engine" true and remove four private paths.
 
 1. **Declare the kernel.** Record one interpreter, the flat executor frozen and
