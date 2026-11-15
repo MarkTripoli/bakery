@@ -762,7 +762,10 @@ Deno.test("Projects Phase 1 persists tenant-safe identity and rejects manual obs
       },
     );
     assertEquals(duplicateSlugResponse.status, 409);
-    assertEquals((await duplicateSlugResponse.json()).code, "STATE_CONFLICT");
+    const duplicateSlugBody = await duplicateSlugResponse.json();
+    assertEquals(duplicateSlugBody.code, "STATE_CONFLICT");
+    // #65: the refusal names why: the short name is taken.
+    assertEquals(duplicateSlugBody.reason, "repository_slug_taken");
     const duplicateSlugRows = await owner`
       select count(*)::integer as count, min(provider_repo_id) as provider_repo_id
         from bakery.repositories

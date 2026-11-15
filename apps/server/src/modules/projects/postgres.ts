@@ -193,6 +193,24 @@ export function toProfile(row: ProfileRow) {
  * each module keeps its own so a change to one boundary's error mapping
  * never silently reaches another.
  */
+/** The reason a unique-constraint collision answers, by constraint name (#65). */
+const UNIQUE_CONFLICT_REASONS: Readonly<Record<string, string>> = Object.freeze(
+  {
+    repositories_organization_slug_unique: "repository_slug_taken",
+    repositories_provider_identity_unique: "repository_already_added",
+    applications_organization_slug_unique: "application_slug_taken",
+  },
+);
+
+/** The violated constraint's name from a Postgres error, if any. */
+function constraintOf(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null || !("constraint" in error)) {
+    return undefined;
+  }
+  const { constraint } = error as { constraint: unknown };
+  return typeof constraint === "string" ? constraint : undefined;
+}
+
 async function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
   try {
     return await work();
@@ -200,7 +218,14 @@ async function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
     if (error instanceof StandardError) throw error;
     const code = postgresErrorCode(error);
     if (code === POSTGRES_UNIQUE_VIOLATION) {
-      throw new StandardError({ code: "STATE_CONFLICT", cause: error });
+      // #65: name which uniqueness rule refused, so a client can say whether
+      // the short name is taken or the repository was already added.
+      const reason = UNIQUE_CONFLICT_REASONS[constraintOf(error) ?? ""];
+      throw new StandardError({
+        code: "STATE_CONFLICT",
+        cause: error,
+        ...(reason ? { params: { reason } } : {}),
+      });
     }
     if (["22001", "22P02", "23502", "23503", "23514"].includes(code ?? "")) {
       throw new StandardError({ code: "UNPROCESSABLE", cause: error });

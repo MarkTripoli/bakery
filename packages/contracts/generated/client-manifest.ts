@@ -53082,6 +53082,63 @@ export const clientManifest = {
           ],
           "description": "Bounded provider facts recorded at discovery, such as whether a GitHub repository is private or archived; informational, never an authorization grant."
         },
+        "defaultBranch": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The repository's default branch name as the provider last reported it (#65), or null when unknown or not a repository."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationResource.defaultBranch may be null in this transport value."
+        },
+        "latestCheckState": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Lifecycle state of the newest check run Bakery has observed on this repository (any branch; for example queued, in_progress or completed), or null when none is observed (#65)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationResource.latestCheckState may be null in this transport value."
+        },
+        "latestCheckConclusion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Conclusion of that newest check run when it has completed (for example success or failure), else null (#65)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationResource.latestCheckConclusion may be null in this transport value."
+        },
+        "latestCheckAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the provider last updated that newest check run, or null when none is observed (#65)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationResource.latestCheckAt may be null in this transport value."
+        },
         "lastDiscoveryGeneration": {
           "type": "integer",
           "minimum": -9007199254740991,
@@ -53135,6 +53192,10 @@ export const clientManifest = {
         "available",
         "enabled",
         "capabilitySnapshot",
+        "defaultBranch",
+        "latestCheckState",
+        "latestCheckConclusion",
+        "latestCheckAt",
         "lastDiscoveryGeneration",
         "archivedAt",
         "createdAt",
@@ -53378,6 +53439,63 @@ export const clientManifest = {
                 ],
                 "description": "Bounded provider facts recorded at discovery, such as whether a GitHub repository is private or archived; informational, never an authorization grant."
               },
+              "defaultBranch": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The repository's default branch name as the provider last reported it (#65), or null when unknown or not a repository."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationResource.defaultBranch may be null in this transport value."
+              },
+              "latestCheckState": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Lifecycle state of the newest check run Bakery has observed on this repository (any branch; for example queued, in_progress or completed), or null when none is observed (#65)."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationResource.latestCheckState may be null in this transport value."
+              },
+              "latestCheckConclusion": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Conclusion of that newest check run when it has completed (for example success or failure), else null (#65)."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationResource.latestCheckConclusion may be null in this transport value."
+              },
+              "latestCheckAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the provider last updated that newest check run, or null when none is observed (#65)."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationResource.latestCheckAt may be null in this transport value."
+              },
               "lastDiscoveryGeneration": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -53431,6 +53549,10 @@ export const clientManifest = {
               "available",
               "enabled",
               "capabilitySnapshot",
+              "defaultBranch",
+              "latestCheckState",
+              "latestCheckConclusion",
+              "latestCheckAt",
               "lastDiscoveryGeneration",
               "archivedAt",
               "createdAt",

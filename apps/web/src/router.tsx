@@ -65,6 +65,7 @@ import { AuditEventsPage } from "./pages/AuditEventsPage.tsx";
 import { OrganizationAccessPage } from "./pages/OrganizationAccessPage.tsx";
 import { OrganizationRepositoryRuleEditorPage } from "./pages/OrganizationRepositoryRuleEditorPage.tsx";
 import { OrganizationRepositoryRulesPage } from "./pages/OrganizationRepositoryRulesPage.tsx";
+import { RepositoryPage } from "./pages/RepositoryPage.tsx";
 import { RepositoryRulesPage } from "./pages/RepositoryRulesPage.tsx";
 import { OrganizationRolesPage } from "./pages/OrganizationRolesPage.tsx";
 import {
@@ -431,6 +432,12 @@ export const routeCoverage = [
       "long-copy",
       "unavailable",
     ],
+  },
+  {
+    id: "repository",
+    path: "/projects/repositories/$repositoryId",
+    classification: "production",
+    states: ["loading", "default", "error", "forbidden", "offline"],
   },
   {
     id: "repository-rules",
@@ -1370,6 +1377,17 @@ const organizationAccessRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const repositoryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/projects/repositories/$repositoryId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <RepositoryPage repositoryId={repositoryRoute.useParams().repositoryId} />
+  ),
+  errorComponent: ProtectedRouteError,
+});
+
 const repositoryRulesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/projects/repositories/$repositoryId/rules",
@@ -2027,6 +2045,7 @@ const routeTree = rootRoute.addChildren([
   organizationIntegrationConnectionRoute,
   organizationRolesRoute,
   organizationRepositoryRulesRoute,
+  repositoryRoute,
   repositoryRulesRoute,
   organizationRepositoryRuleEditorRoute,
   organizationSsoRoute,

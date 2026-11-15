@@ -16,6 +16,7 @@ const namespacePrefixes = [
   "problems.",
   "projects.list.",
   "projects.onboarding.",
+  "projects.repository.",
   "projects.roles.",
   "tasks.",
   "workerEnrollment.",
