@@ -1053,7 +1053,7 @@ The named stubs `InstallationLifecycle`, `ResourceDiscovery`, `HealthProbe`, `Se
 
 ### 12.3 Family ports: Tickets and Code (no Chat yet)
 
-A family is a capability more than one provider serves; generic code depends on the port only. **There is no Chat port** until a message consumer exists. Identity links (`slack-identity-links.ts`, `slack-identity-attempts.ts`) become a core store with a provider parameter; only `slack-scope.ts` and `slack-identity.ts` move to `@bakery/integration-slack`. Today's provider-coupled imports in `work` move as follows (several are core, not provider, concerns):
+A family is a capability more than one provider serves; generic code depends on the port only. **There is no Chat port** until a message consumer exists. Identity links (`slack-identity-links.ts`, `slack-identity-attempts.ts`) become a core store with a provider parameter; only `slack-scope.ts` and `slack-identity.ts` move to `@bakery/integration-slack`. Identity linking is cross-family: Tickets needs it too, for "mapped member" authority. Today's provider-coupled imports in `work` move as follows (several are core, not provider, concerns):
 
 | Today | Moves to |
 |---|---|
@@ -1089,6 +1089,16 @@ type TicketSourceHandle = { container: { kind: string; externalId: string; displ
 ```
 
 **Blockers (owner, 2026-11-14):** a blocker whose `readResolution` is `done` admits the dependent work. A merged change is not required, so trackers without code (Linear, Jira) admit on Done. `linkedChanges` stays informational.
+
+**Port obligations, per provider:**
+- `readTicket` returns the body as normalised Markdown plus `bodyTooLarge`; converting Jira's ADF to Markdown is the provider's job, and acceptance-criteria parsing stays generic.
+- Visibility is `public | restricted`, and rate limits keep today's `TicketReadFailure.retryAfterSeconds`.
+- Delegated actors are opaque `externalActorIds: string[]`, never numeric GitHub ids.
+- The tickets port also needs status vocabulary discovery (statuses and labels with stable ids), set-status by transition id (an SDK write action, like the progress comment) and count reads, so readiness rules, boards and counters stay provider-neutral ([chapter 25](25-one-engine.md), sections 4 and 7).
+
+**Into the one start mechanism.** `classify` intents and the refreshed subjects feed the neutral `work_item.*`, `change_request.*` and `check.completed` events that the engine's single start mechanism matches ([chapter 25](25-one-engine.md), section 7). Ticket admission becomes the `work_item.ready` source; a provider never decides readiness, routing or status meaning, which the tickets module's source policy owns.
+
+**Worker git credentials.** `secrets/broker.ts` and `secrets/preflight.ts` verify project secrets only against `https://api.github.com/user`. That second, GitHub-only credential path belongs to the Code family and is lifted behind `CodePort` later.
 
 **Core branches on capability, never on slug.** A missing capability is a readiness reason such as `provider_capability_missing`. The comment-marker scheme stays GitHub-only. The port shapes are frozen only after the Linear spike (12.6, slice 12′), the "rule of two".
 
@@ -1156,7 +1166,7 @@ Principle: GitHub stays where it is while seams are cut around it. Pending provi
   - rename `?githubConnection=` (`callbacks.ts` and `OrganizationIntegrationsPage.tsx`) in one PR
   - neutralise the Issues pages (`issue-state.ts` `kind: "github"`, `issues.noGithub.*`)
 
-**After that,** Linear lands as its package, two registry lines and an `OAuth2Profile`. Linear is next in the product order: GitHub, Linear, GitLab, with Jira unordered. The real cost of "Linear next" is slice 13's broker work, not the package.
+**After that,** Linear lands as its package, two registry lines and an `OAuth2Profile`. Linear is next in the product order: GitHub, then Linear, then GitLab, with Jira after that. Users set up every integration in the UI. The real cost of "Linear next" is slice 13's broker work, not the package.
 
 **PR #378:** not held. It is asked only for no new `github` identifiers in generic files, with `githubConnection` confined to the files above, and it merges before slice 1.
 
