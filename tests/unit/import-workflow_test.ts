@@ -181,3 +181,20 @@ Deno.test("the way into a nested step is named as written, with the nth step or 
   assertEquals(unknown?.detail, "nope.act");
   assertEquals(unknown?.inside?.length, 3);
 });
+
+Deno.test("a present field of a kind the checker cannot use is named like a missing one", () => {
+  const [invalid, missing] = problemsOf([
+    {
+      path: "/steps/1/with",
+      code: "field_invalid",
+      message: "A field has an invalid shape.",
+    },
+    {
+      path: "/steps/1/id",
+      code: "field_missing",
+      message: "A required field is missing.",
+    },
+  ]);
+  assertEquals(invalid?.field, "with");
+  assertEquals(missing?.field, "id");
+});

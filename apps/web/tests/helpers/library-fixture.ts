@@ -472,6 +472,16 @@ export async function libraryFixture(page: Page, options: Options = {}) {
             code: "field_missing",
             message: "A required field is missing.",
           },
+          {
+            path: "/steps/1/with",
+            code: "field_invalid",
+            message: "A field has an invalid shape.",
+          },
+          {
+            path: "/inputs/target/type",
+            code: "field_invalid",
+            message: "A field has an invalid shape.",
+          },
         ]
         : options.validation === "errors"
         ? [

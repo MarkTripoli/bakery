@@ -214,6 +214,29 @@ export function ImportDialog(
           field: problem.field,
         });
     }
+    if (
+      problem.code === "field_invalid" && problem.where.kind === "step" &&
+      problem.field !== undefined
+    ) {
+      return nested
+        ? translate("library.import.problem.stepFieldInvalidIn" as never, {
+          number: problem.where.number,
+          parts: way(problem),
+          field: problem.field,
+        })
+        : translate("library.import.problem.stepFieldInvalid" as never, {
+          number: problem.where.number,
+          field: problem.field,
+        });
+    }
+    if (
+      problem.code === "field_invalid" && problem.field !== undefined &&
+      problem.where.kind === "path" && !problem.where.path.includes(".")
+    ) {
+      return translate("library.import.problem.fieldInvalid" as never, {
+        field: problem.field,
+      });
+    }
     if (problem.code === "field_missing" && problem.where.kind === "whole") {
       return translate("library.import.problem.fieldMissing" as never);
     }

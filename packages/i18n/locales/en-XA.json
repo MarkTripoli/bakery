@@ -3511,5 +3511,8 @@
   "library.import.part.step": "⟦šŧëþ {number} ŧë⟧",
   "library.import.part.branch": "⟦ƀŕàñçĥ {number} ŧëš⟧",
   "library.import.problem.actionUnknownIn": "⟦Šŧëþ {number}, ïñ {parts}, ûšëš àñ àçŧïôñ Ɓàķëŕÿ ðôëš ñôŧ ĥàṽë: {action}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
-  "library.import.problem.stepFieldMissingIn": "⟦Šŧëþ {number}, ïñ {parts}, ïš ɱïššïñĝ à ŕëǫûïŕëð ƒïëļð: {field}. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
+  "library.import.problem.stepFieldMissingIn": "⟦Šŧëþ {number}, ïñ {parts}, ïš ɱïššïñĝ à ŕëǫûïŕëð ƒïëļð: {field}. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "library.import.problem.stepFieldInvalid": "⟦Šŧëþ {number} ĥàš à ƒïëļð ŵïŧĥ à ṽàļûë Ɓàķëŕÿ çàññôŧ ûšë: {field}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "library.import.problem.stepFieldInvalidIn": "⟦Šŧëþ {number}, ïñ {parts}, ĥàš à ƒïëļð ŵïŧĥ à ṽàļûë Ɓàķëŕÿ çàññôŧ ûšë: {field}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "library.import.problem.fieldInvalid": "⟦Ŧĥë ðëƒïñïŧïôñ ĥàš à ƒïëļð ŵïŧĥ à ṽàļûë Ɓàķëŕÿ çàññôŧ ûšë: {field}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧"
 }

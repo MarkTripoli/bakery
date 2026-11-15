@@ -117,7 +117,10 @@ export function problemsOf(
       : undefined;
     const inside = where.kind === "step" ? insideOf(issue.path) : [];
     // A missing field is reported at the field itself, so the pointer names it.
-    const field = issue.code === "field_missing" ? lastSegment(issue.path) : "";
+    const field =
+      issue.code === "field_missing" || issue.code === "field_invalid"
+        ? lastSegment(issue.path)
+        : "";
     return {
       where,
       code: issue.code ?? "",

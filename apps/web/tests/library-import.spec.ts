@@ -177,6 +177,10 @@ for (
       await checked(state(page)).toContainText(
         "Step 1, in parallel, branch 2, is missing a required field: steps.",
       );
+      // A present field of a kind the checker cannot use is not "missing".
+      await checked(state(page)).toContainText(
+        "Step 2 has a field with a value Bakery cannot use: with.",
+      );
       await expect(
         dialog(page).getByRole("button", { name: "Import as draft" }),
       )
