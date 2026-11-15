@@ -9,9 +9,9 @@ export type DependencyReadiness = {
  * completed, else blocked with `dependency_incomplete`. Admission applies it to
  * the statuses it reads; dependency release re-applies it to the current ones.
  */
-export function resolveDependencyReadiness(
-  dependencies: readonly { status: string }[],
-): DependencyReadiness {
+export function resolveDependencyReadiness<
+  Dependency extends { readonly status: string },
+>(dependencies: readonly Dependency[]): DependencyReadiness {
   const ready = dependencies.every((dependency) =>
     dependency.status === "completed"
   );
