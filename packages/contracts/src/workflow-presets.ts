@@ -111,7 +111,7 @@ export type WorkflowPresetDefinition = Readonly<{
   digest: string;
   /** Authored YAML source stored beside the normalized specification. */
   sourceYaml: string;
-  spec: WorkflowPresetSpec;
+  spec: WorkflowPresetSource;
   /**
    * Stage policy surface. Stages are not part of `spec`, so the preset digest
    * and every already-materialized workflow version stay valid. Only the plan
@@ -207,6 +207,7 @@ export const FIXED_CODING_DEFINITION: WorkflowPresetDocument = Object.freeze({
   description:
     "Freeze the task brief, then implement it as one bounded candidate.",
   inputs: Object.freeze({
+    repositoryId: Object.freeze({ type: "uuid", required: true }),
     brief: Object.freeze({ type: "TaskBrief", required: true }),
     instructions: Object.freeze({ type: "string", required: true }),
   }),
@@ -219,7 +220,7 @@ export const FIXED_CODING_DEFINITION: WorkflowPresetDocument = Object.freeze({
           uses: "task.brief",
           with: Object.freeze({
             brief: "$input.brief",
-            repositoryId: "$task.repositoryId",
+            repositoryId: "$input.repositoryId",
           }),
         }),
         Object.freeze({
@@ -227,7 +228,7 @@ export const FIXED_CODING_DEFINITION: WorkflowPresetDocument = Object.freeze({
           needs: Object.freeze(["brief"]),
           uses: "harness.implement",
           with: Object.freeze({
-            repositoryId: "$task.repositoryId",
+            repositoryId: "$input.repositoryId",
             planArtifact: "$step.flow.brief.artifact.versionId",
             instructions: "$input.instructions",
           }),
@@ -240,24 +241,33 @@ export const FIXED_CODING_DEFINITION: WorkflowPresetDocument = Object.freeze({
 /** The one fixed coding workflow: freeze the task brief, then implement it. */
 export const FIXED_CODING_PRESET: WorkflowPresetDefinition = Object.freeze({
   id: "fixed-coding",
-  revision: 2,
+  revision: 3,
   slug: "preset:fixed-coding",
   nameKey: "workflowPresets.fixedCoding.name",
   defaultBudgetLimitUsd: "5.00",
-  digest: "8d243ab0b8f9a81d16aa8f87612364d6778c65f7e7560b69342ce257a79f4091",
+  digest: "4a63e08a69d0d7f2aefaea23a85646302f886d65c21f0fb8601d8275c9e6e1be",
   sourceYaml: [
-    "kind: fixed",
-    "workflow: { kind: fixed }",
+    "apiVersion: bakery.dev/v1",
+    "kind: workflow",
+    "name: fixed-coding",
+    "description: Freeze the task brief, then implement it as one bounded candidate.",
+    "inputs:",
+    "  repositoryId: { type: uuid, required: true }",
+    "  brief: { type: TaskBrief, required: true }",
+    "  instructions: { type: string, required: true }",
     "steps:",
-    "  - id: brief",
-    "    uses: task.brief",
-    "    with: { brief: $input.brief, repositoryId: $task.repositoryId }",
-    "  - id: implement",
-    "    uses: harness.implement",
-    "    with: { repositoryId: $task.repositoryId, planArtifact: $step.brief.artifact.versionId, instructions: $input.instructions }",
+    "  - id: flow",
+    "    steps:",
+    "      - id: brief",
+    "        uses: task.brief",
+    "        with: { brief: $input.brief, repositoryId: $input.repositoryId }",
+    "      - id: implement",
+    "        needs: [brief]",
+    "        uses: harness.implement",
+    "        with: { repositoryId: $input.repositoryId, planArtifact: $step.flow.brief.artifact.versionId, instructions: $input.instructions }",
     "",
   ].join("\n"),
-  spec: FIXED_CODING_SPEC,
+  spec: FIXED_CODING_DEFINITION,
   stages: Object.freeze(
     [
       Object.freeze({

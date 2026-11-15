@@ -13,7 +13,11 @@ import {
   renderImplementInstructions,
   WORKFLOW_PRESETS,
   type WorkflowPresetDefinition,
+  type WorkflowPresetDocument,
+  type WorkflowPresetSource,
 } from "@bakery/contracts/workflow-presets";
+import { compileWorkflowDocumentDetailed } from "@bakery/contracts/workflow-compiler";
+import { defaultWorkflowCompilerCatalog } from "@bakery/contracts/workflow-compiler/default-catalog";
 import type { BudgetRuntimeConfig } from "@bakery/config";
 import { selectStepAgentVersion } from "@bakery/persistence";
 import type { PgTransactionClient } from "../../platform/database.ts";
@@ -147,6 +151,40 @@ export function fixedPolicyDeniesSteps(
 
 function conflict(reason: string): never {
   throw new StandardError({ code: "STATE_CONFLICT", params: { reason } });
+}
+
+/** True when the preset is published in the compiler grammar (a document). */
+function isPresetDocument(
+  source: WorkflowPresetSource,
+): source is WorkflowPresetDocument {
+  return Object.hasOwn(source, "apiVersion");
+}
+
+/**
+ * The action steps a preset runs, in authored order, whatever grammar it is
+ * published in. A flat spec lists them directly; a document compiles to a plan,
+ * and the plan's action sites are the same actions with the containers' ids
+ * prefixed onto their keys. A code-owned preset that no longer compiles is a
+ * fault in the preset, not in the caller, so it fails as one.
+ */
+export async function presetActionSteps(
+  source: WorkflowPresetSource,
+): Promise<readonly FixedWorkflowStep[]> {
+  if (!isPresetDocument(source)) return extractFixedWorkflowSteps(source);
+  const { result, actionSites } = await compileWorkflowDocumentDetailed(
+    source,
+    { catalog: defaultWorkflowCompilerCatalog() },
+  );
+  if (!result.ok) throw new Error("PRESET_DEFINITION_NOT_COMPILABLE");
+  return actionSites.map((site, position) => ({
+    key: site.qualifiedId,
+    action: site.action,
+    input: undefined,
+    position,
+    workflowAgentVersionId: null,
+    stepAgentVersionId: null,
+    ...(site.requires.length > 0 ? { requires: site.requires } : {}),
+  }));
 }
 
 /**
@@ -297,7 +335,7 @@ export async function presetAvailability(
   if (config === null) {
     reasons.add("no_active_profile");
   } else {
-    const steps = extractFixedWorkflowSteps(preset.spec);
+    const steps = await presetActionSteps(preset.spec);
     if (fixedPolicyDeniesSteps(config, steps)) {
       reasons.add("profile_effect_denied");
     }
@@ -388,7 +426,9 @@ export async function presetAvailability(
       let minimum = 0n;
       for (const reservation of reservations.values()) minimum += reservation;
       // The mandatory path reviews once; one repair cycle reviews again.
-      if (isReviewLoopSpec(preset.spec)) {
+      if (
+        isPresetDocument(preset.spec) || isReviewLoopSpec(preset.spec)
+      ) {
         const review = modelSteps.find((step) =>
           step.action === "review.independent"
         );
@@ -410,6 +450,7 @@ export async function presetAvailability(
 
 function presetOutput(
   preset: WorkflowPresetDefinition,
+  steps: readonly FixedWorkflowStep[],
   availability: AvailabilityOutput | null,
 ): WorkflowPresetOutput {
   return {
@@ -417,7 +458,7 @@ function presetOutput(
     revision: preset.revision,
     digest: preset.digest,
     nameKey: preset.nameKey,
-    steps: preset.spec.steps.map((step) => ({ id: step.id, uses: step.uses })),
+    steps: steps.map((step) => ({ id: step.key, uses: step.action })),
     defaultBudgetLimitUsd: preset.defaultBudgetLimitUsd,
     availability,
   };
@@ -478,9 +519,15 @@ export function boundBriefPlan(
 
 /** Frozen brief the server builds from the task row; clients never supply it. */
 export function presetBriefInputs(
-  task: { title: string; description: string; task_type: string },
+  task: {
+    title: string;
+    description: string;
+    task_type: string;
+    repository_id?: string | null;
+  },
   approvedPlan?: ApprovedPlanForInstructions | null,
 ): {
+  repositoryId: string | null;
   brief: {
     title: string;
     description: string;
@@ -506,6 +553,7 @@ export function presetBriefInputs(
     )
     : null;
   return {
+    repositoryId: task.repository_id ?? null,
     brief: { ...base, ...(bounded ? { approvedPlan: bounded } : {}) },
     instructions,
   };
@@ -526,6 +574,7 @@ export function createWorkflowPresetHandlers(
       for (const preset of WORKFLOW_PRESETS) {
         items.push(presetOutput(
           preset,
+          await presetActionSteps(preset.spec),
           repositoryId === undefined ? null : await presetAvailability(
             transaction,
             organizationId,

@@ -6,7 +6,6 @@ import { assert, assertEquals } from "@std/assert";
 import { compileWorkflowDocumentDetailed } from "../../packages/contracts/src/workflow-compiler/mod.ts";
 import {
   FIXED_CODING_DEFINITION,
-  FIXED_CODING_PRESET,
   type WorkflowPresetDocument,
 } from "../../packages/contracts/src/workflow-presets.ts";
 import {
@@ -163,7 +162,11 @@ for (
 }
 
 Deno.test("fixed-coding runs the same actions in the same order as the flat preset it replaces", async () => {
-  const flat = extractFixedWorkflowSteps(FIXED_CODING_PRESET.spec);
+  // The list revision 2 published: the same two actions, unprefixed.
+  const flat = [
+    { key: "brief", action: "task.brief" },
+    { key: "implement", action: "harness.implement" },
+  ];
   const { result, actionSites } = await compileWorkflowDocumentDetailed(
     FIXED_CODING,
   );

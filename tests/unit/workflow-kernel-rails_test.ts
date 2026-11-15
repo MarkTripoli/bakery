@@ -128,8 +128,9 @@ function assertOnlyAllowed(
  * Built-ins that are still flat preset specs (`kind: fixed`, no `apiVersion`).
  * #399 republishes both as compiled definitions; #400 deletes the flat path.
  */
+// #399 republished `fixed-coding` as a compiled definition; the reviewed
+// preset is the last flat built-in until its own republication lands.
 const FLAT_BUILT_INS: Readonly<Record<string, string>> = Object.freeze({
-  "fixed-coding": "#399",
   "fixed-coding-reviewed": "#399",
 });
 

@@ -7,10 +7,10 @@ import {
 import {
   contractSchemas,
   findMissingDescriptions,
-  workerActionCapabilities,
   workerActionOutputCarriesSession,
 } from "../../packages/contracts/src/contracts.ts";
 import {
+  FIXED_CODING_DEFINITION,
   FIXED_CODING_PRESET,
   IMPLEMENT_INSTRUCTIONS_MAX_LENGTH,
   renderImplementInstructions,
@@ -23,13 +23,17 @@ import {
   workflowActionCapabilities,
 } from "../../packages/persistence/src/action-admission.ts";
 import { actionAndInputFromSnapshot } from "../../packages/persistence/src/repository-admission.ts";
-import { extractFixedWorkflowSteps } from "../../apps/server/src/modules/work/run-steps.ts";
+import {
+  extractFixedWorkflowSteps,
+  WorkflowNotExecutableError,
+} from "../../apps/server/src/modules/work/run-steps.ts";
 import {
   canonicalJson,
   sha256Hex,
 } from "../../apps/server/src/platform/canonical-json.ts";
 import {
   boundBriefPlan,
+  presetActionSteps,
   presetBriefInputs,
 } from "../../apps/server/src/modules/work/workflow-presets.ts";
 
@@ -41,7 +45,29 @@ const artifact = {
 };
 const runId = "00000000-0000-4000-8000-0000000000c1";
 
-function snapshot(inputs: unknown) {
+/** Revision 2's flat spec: the form the claim-time flat path still reads. */
+const RETIRED_FLAT_SPEC = {
+  kind: "fixed" as const,
+  workflow: { kind: "fixed" as const },
+  steps: [
+    {
+      id: "brief",
+      uses: "task.brief",
+      with: { brief: "$input.brief", repositoryId: "$task.repositoryId" },
+    },
+    {
+      id: "implement",
+      uses: "harness.implement",
+      with: {
+        repositoryId: "$task.repositoryId",
+        planArtifact: "$step.brief.artifact.versionId",
+        instructions: "$input.instructions",
+      },
+    },
+  ],
+};
+
+function snapshot(inputs: unknown, spec: unknown = FIXED_CODING_PRESET.spec) {
   return {
     schemaVersion: 1,
     executionMode: "repository",
@@ -50,15 +76,16 @@ function snapshot(inputs: unknown) {
       id: runId,
       revision: FIXED_CODING_PRESET.revision,
       digest: FIXED_CODING_PRESET.digest,
-      normalizedSpec: FIXED_CODING_PRESET.spec,
+      normalizedSpec: spec,
     },
     repositoryProfile: null,
     stepAgents: {},
-    stepActions: Object.fromEntries(
-      FIXED_CODING_PRESET.spec.steps.map((
-        step,
-      ) => [step.id, workflowActionBinding(step.uses)]),
-    ),
+    stepActions: {
+      "flow.brief": workflowActionBinding("task.brief"),
+      "flow.implement": workflowActionBinding("harness.implement"),
+      brief: workflowActionBinding("task.brief"),
+      implement: workflowActionBinding("harness.implement"),
+    },
     admission: { dependencies: [], status: "queued", reason: null },
   };
 }
@@ -72,33 +99,32 @@ Deno.test("the fixed coding preset digest pins its canonical specification", asy
   assertEquals(workflowPresetById("fixed-coding"), FIXED_CODING_PRESET);
   assertEquals(workflowPresetById("unknown"), undefined);
   assertEquals(FIXED_CODING_PRESET.defaultBudgetLimitUsd, "5.00");
-  const changed = {
-    ...FIXED_CODING_PRESET.spec,
-    steps: FIXED_CODING_PRESET.spec.steps.slice(0, 1),
-  };
+  const changed = { ...FIXED_CODING_PRESET.spec, steps: [] };
   assertNotEquals(
     await sha256Hex(canonicalJson(changed)),
     FIXED_CODING_PRESET.digest,
   );
 });
 
-Deno.test("the preset spec is a fixed workflow whose steps run in array order", () => {
-  const steps = extractFixedWorkflowSteps(FIXED_CODING_PRESET.spec);
+Deno.test("the preset is a compiled plan whose actions run in authored order", async () => {
+  const steps = await presetActionSteps(FIXED_CODING_PRESET.spec);
   assertEquals(steps.map((step) => [step.key, step.action]), [
-    ["brief", "task.brief"],
-    ["implement", "harness.implement"],
+    ["flow.brief", "task.brief"],
+    ["flow.implement", "harness.implement"],
   ]);
   for (const step of steps) {
-    assertEquals(step.requires, undefined);
+    // A compiled site records the capabilities its node requests; asserting the
+    // registry accepts them is what keeps a preset from claiming an unknown one.
     workflowActionCapabilities(step.action, step.requires);
   }
-  assertEquals(workerActionCapabilities("task.brief"), []);
-  assertEquals(workerActionCapabilities("harness.implement"), [
-    "git",
-    "shell",
-    "web",
-    "model",
-  ]);
+  // The flat executor refuses it: the container is what makes a run a plan.
+  let thrown: unknown;
+  try {
+    extractFixedWorkflowSteps(FIXED_CODING_PRESET.spec, "fixed");
+  } catch (error) {
+    thrown = error;
+  }
+  assert(thrown instanceof WorkflowNotExecutableError, String(thrown));
 });
 
 Deno.test("preset references resolve to inputs accepted by the registered action schemas", () => {
@@ -107,7 +133,7 @@ Deno.test("preset references resolve to inputs accepted by the registered action
     description: "Retry the upload.",
     task_type: "feature",
   });
-  const run = snapshot(brief);
+  const run = snapshot(brief, RETIRED_FLAT_SPEC);
   const briefInput = actionAndInputFromSnapshot({
     runSnapshot: run,
     stepKey: "brief",
@@ -273,12 +299,15 @@ const approvedPlan = {
   ],
 };
 
-Deno.test("the fixed coding preset is revision 2 and its implement step takes instructions", () => {
-  assertEquals(FIXED_CODING_PRESET.revision, 2);
-  const implement = FIXED_CODING_PRESET.spec.steps.find((step) =>
-    step.id === "implement"
+Deno.test("the fixed coding preset is revision 3 and its implement step takes instructions", () => {
+  assertEquals(FIXED_CODING_PRESET.revision, 3);
+  const implement = FIXED_CODING_DEFINITION.steps.find((step) =>
+    step.id === "flow"
+  ) as { steps: { id: string; with: Record<string, string> }[] };
+  assertEquals(
+    implement.steps.find((step) => step.id === "implement")?.with.instructions,
+    "$input.instructions",
   );
-  assertEquals(implement?.with.instructions, "$input.instructions");
   assert(
     FIXED_CODING_PRESET.sourceYaml.includes(
       "instructions: $input.instructions",
