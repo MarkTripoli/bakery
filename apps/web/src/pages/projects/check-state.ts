@@ -131,13 +131,18 @@ export type CheckStanding = "ready" | "failed" | null;
 
 export function standingOf(
   view: CheckView,
-  observedProfileId: string | null,
-  activeProfileId: string | null,
+  observedRevision: number | null,
+  activeRevision: number | null,
 ): CheckStanding {
-  if (activeProfileId === null) return null;
+  if (activeRevision === null) return null;
   if (view.kind === "failed" || view.kind === "canceled") return "failed";
-  if (view.kind !== "result") return null;
-  // A result for another version of the settings is not this version's.
-  if (observedProfileId !== activeProfileId) return null;
-  return view.outcome.ready ? "ready" : "failed";
+  if (view.kind !== "result" || observedRevision === null) return null;
+  // The result of an older version says nothing about the one in use now.
+  if (observedRevision < activeRevision) return null;
+  // A check that did not pass publishes the version it checked but leaves the
+  // one in use alone, so a newer, unused version's failed result still counts;
+  // only the version in use can be Ready.
+  return view.outcome.ready
+    ? observedRevision === activeRevision ? "ready" : null
+    : "failed";
 }

@@ -162,7 +162,7 @@ Deno.test("the tools a machine lacks are named in the order it listed them", () 
   );
 });
 
-Deno.test("the header stands Ready only for a passed check of the version in use, Check failed for a failed one, and says nothing otherwise", () => {
+Deno.test("the header stands Ready only for a passed check of the version in use, Check failed for a failed one (also of a newer version that was not put in use), and says nothing otherwise", () => {
   const result = (blocking: boolean) =>
     ({
       kind: "result",
@@ -176,17 +176,19 @@ Deno.test("the header stands Ready only for a passed check of the version in use
         ),
       ),
     }) as never;
-  assertEquals(standingOf(result(false), "p2", "p2"), "ready");
-  assertEquals(standingOf(result(true), "p2", "p2"), "failed");
-  // A result for another version, or no version in use, is not a standing.
-  assertEquals(standingOf(result(false), "p1", "p2"), null);
-  assertEquals(standingOf(result(false), "p2", null), null);
-  assertEquals(standingOf({ kind: "failed" }, null, "p2"), "failed");
-  assertEquals(standingOf({ kind: "canceled" }, null, "p2"), "failed");
-  assertEquals(standingOf({ kind: "none" }, null, "p2"), null);
-  assertEquals(
-    standingOf({ kind: "running", startedAt: "x" }, null, "p2"),
-    null,
-  );
-  assertEquals(standingOf({ kind: "unreadable" }, null, "p2"), null);
+  assertEquals(standingOf(result(false), 2, 2), "ready");
+  assertEquals(standingOf(result(true), 2, 2), "failed");
+  // A check that did not pass publishes a newer version and leaves the one in use: still a failure.
+  assertEquals(standingOf(result(true), 4, 3), "failed");
+  // A passed result of a version that is not the one in use is not Ready.
+  assertEquals(standingOf(result(false), 4, 3), null);
+  // An older version's result, or no version in use, is not a standing.
+  assertEquals(standingOf(result(false), 1, 2), null);
+  assertEquals(standingOf(result(true), 1, 2), null);
+  assertEquals(standingOf(result(false), 2, null), null);
+  assertEquals(standingOf({ kind: "failed" }, null, 2), "failed");
+  assertEquals(standingOf({ kind: "canceled" }, null, 2), "failed");
+  assertEquals(standingOf({ kind: "none" }, null, 2), null);
+  assertEquals(standingOf({ kind: "running", startedAt: "x" }, null, 2), null);
+  assertEquals(standingOf({ kind: "unreadable" }, null, 2), null);
 });

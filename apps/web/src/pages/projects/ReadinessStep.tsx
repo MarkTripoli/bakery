@@ -214,9 +214,9 @@ export function ReadinessStep(
     );
     next = run(again, true);
   } else if (
-    info.observedProfileId !== null && info.observedProfileId !== active.id
+    info.observedRevision !== null && info.observedRevision < active.revision
   ) {
-    // The result is for another version of the settings than the one in use.
+    // The result is for an older version of the settings than the one in use.
     stepStatus = "unknown";
     label = status("unknown");
     summary = translate("projects.repository.check.otherVersion" as never, {
@@ -245,7 +245,26 @@ export function ReadinessStep(
       });
       next = run(again, true);
     }
-    detail = failedList(outcome);
+    const list = failedList(outcome);
+    // A check that did not pass publishes the version it checked and leaves the
+    // one in use alone; say so, so a newer version number is not a surprise.
+    const notInUse = info.observedRevision !== null &&
+        info.observedRevision > active.revision
+      ? (
+        <UI.Text variant="muted" data-testid="check-not-in-use">
+          {translate("projects.repository.check.notInUse" as never, {
+            checked: info.observedRevision,
+            current: active.revision,
+          })}
+        </UI.Text>
+      )
+      : null;
+    detail = notInUse === null ? list : (
+      <UI.Stack gap="compact">
+        {notInUse}
+        {list}
+      </UI.Stack>
+    );
   }
 
   const body = [phone ? next : undefined, notice, detail].filter((part) =>

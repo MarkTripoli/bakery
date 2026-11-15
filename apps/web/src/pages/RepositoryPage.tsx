@@ -235,7 +235,7 @@ export function RepositoryPage(
   // check known for that version it says nothing, never a guess.
   const setup = setupBadge(current);
   const standing = connectionWorks
-    ? standingOf(info.view, info.observedProfileId, active?.id ?? null)
+    ? standingOf(info.view, info.observedRevision, active?.revision ?? null)
     : null;
 
   // On a wide screen the page's actions are in the top bar; on a phone they

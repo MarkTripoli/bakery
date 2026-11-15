@@ -3697,5 +3697,6 @@
   "projects.repository.setup.footnoteReady": "⟦Ɓàķëŕÿ çàñ šŧàŕŧ ŧàšķš ĥëŕë. ŧëšŧ çô⟧",
   "projects.repository.badge.ready": "⟦Ŕëàðÿ⟧",
   "projects.repository.badge.checkFailed": "⟦Çĥëçķ ƒàïļëð ŧë⟧",
-  "projects.repository.check.reason.optionalSuffix": "⟦Ŧĥïš ðôëš ñôŧ šŧôþ ŵôŕķ. ŧëšŧ ç⟧"
+  "projects.repository.check.reason.optionalSuffix": "⟦Ŧĥïš ðôëš ñôŧ šŧôþ ŵôŕķ. ŧëšŧ ç⟧",
+  "projects.repository.check.notInUse": "⟦Ṽëŕšïôñ {checked} ŵàš šàṽëð ƀûŧ ïš ñôŧ ïñ ûšë, ƀëçàûšë ŧĥë çĥëçķ ðïð ñôŧ þàšš. Ṽëŕšïôñ {current} šŧàÿš ïñ ûšë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧"
 }

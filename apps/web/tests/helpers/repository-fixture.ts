@@ -178,7 +178,10 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
     started: options.existingCheck === true,
     polls: 0,
     published: false,
+    /** The version the check was for, once it published one (else the one in use). */
+    observed: null as number | null,
   };
+  const observedRevision = () => checkState.observed ?? state.active ?? 1;
   const seen = {
     starts: [] as (string | null)[],
     createdProfiles: [] as Record<string, unknown>[],
@@ -354,7 +357,7 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
     profileId: withResult
       ? (options.check === "stale"
         ? profileId(0)
-        : profileId(state.active ?? 1))
+        : profileId(observedRevision()))
       : null,
     observationId: withResult ? OBSERVATION_ID : null,
     createdAt: "2026-01-02T10:00:00.000Z",
@@ -411,8 +414,13 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
           folder: from?.folder,
         };
         profiles.push(next);
-        state.active = next.revision;
-        state.version += 1;
+        checkState.observed = next.revision;
+        // A check that passes puts the version it published in use; one that
+        // does not pass leaves the version in use as it was (the real server).
+        if (mode !== "blocked") {
+          state.active = next.revision;
+          state.version += 1;
+        }
       }
       return route.fulfill(json(onboardingBody("completed", true)));
     },
@@ -423,14 +431,12 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
     (route) => {
       const mode = options.check ?? "ready";
       const rows = rowsFor(mode);
-      const observedRevision = mode === "stale" ? 1 : state.active ?? 1;
+      const observed = mode === "stale" ? 1 : observedRevision();
       return route.fulfill(json({
         id: OBSERVATION_ID,
         repositoryId: REPOSITORY_ID,
-        profileId: mode === "stale"
-          ? profileId(0)
-          : profileId(state.active ?? 1),
-        profileRevision: observedRevision,
+        profileId: mode === "stale" ? profileId(0) : profileId(observed),
+        profileRevision: observed,
         profileDigest: "a".repeat(64),
         observationDigest: "b".repeat(64),
         baseSha: "c".repeat(40),
@@ -441,10 +447,8 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
           organizationId: MOCK_ORGANIZATION_ID,
           applicationId: APPLICATION_ID,
           repositoryId: REPOSITORY_ID,
-          profileId: mode === "stale"
-            ? profileId(0)
-            : profileId(state.active ?? 1),
-          profileRevision: observedRevision,
+          profileId: mode === "stale" ? profileId(0) : profileId(observed),
+          profileRevision: observed,
           profileDigest: "a".repeat(64),
           source: SOURCE,
           receipt: {

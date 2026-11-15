@@ -769,6 +769,29 @@ test.describe("where the setup stands, in the header and the footnote", () => {
     await expect(page.getByText("Not known")).toHaveCount(0);
   });
 
+  test("a check that did not pass publishes a newer version and leaves the one in use: its failure is shown, not another-version", async ({ page }) => {
+    await open(page, { ...WORLD, check: "blocked", completionPublishes: true });
+    await run(page).click();
+    // The real server saves the version it checked (3) but keeps version 2 in use.
+    await expect(page.getByTestId("setup-check")).toContainText(
+      "2 of 3 required checks did not pass",
+      { timeout: 15_000 },
+    );
+    await expect(standing(page)).toHaveText("Check failed");
+    await expect(page.getByTestId("setup-settings")).toContainText("version 2");
+    await expect(page.getByTestId("check-not-in-use")).toContainText(
+      "Version 3 was saved but is not in use, because the check did not pass. Version 2 stays in use.",
+    );
+    await expect(
+      page.locator('[data-check-id="tools"]'),
+    ).toContainText("deno is not installed on the machine");
+    await expect(page.getByText(/The last check was for version/)).toHaveCount(
+      0,
+    );
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-check-blocked-candidate");
+  });
+
   test("a check that did not pass is Check failed in the header", async ({ page }) => {
     await open(page, { ...WORLD, check: "blocked" });
     await run(page).click();
