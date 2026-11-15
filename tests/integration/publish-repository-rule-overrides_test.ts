@@ -2275,8 +2275,11 @@ Deno.test("#65: keepRepositoryRules saves branches and carries the active overri
         issues: { code: string; message: string }[];
       }).issues[0];
       assertEquals(issue.code, "repository_rules_must_retain_config");
-      assert(issue.message.includes("worktree"), issue.message);
-      assert(!issue.message.includes("branches"), issue.message);
+      // Only the worktree is named: branches may change under the flag.
+      assertEquals(
+        issue.message,
+        "A branches-only save changed retained fields: worktree.",
+      );
       assertEquals(
         await repositoryVersion(retained.repositoryId),
         versionBefore,
