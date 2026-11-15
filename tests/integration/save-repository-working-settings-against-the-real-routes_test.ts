@@ -1,4 +1,10 @@
 import { assert, assertEquals } from "@std/assert";
+import { deriveRepositoryInspectionConfig } from "../../apps/server/src/modules/projects/repository-inspect.ts";
+import { RepositoryProfileConfigSchema } from "../../packages/contracts/src/repository-profile-config.ts";
+import {
+  canonicalJson,
+  sha256Hex,
+} from "../../apps/server/src/platform/canonical-json.ts";
 import { openCoordinationFixture } from "../helpers/coordination-fixture.ts";
 import {
   type SaveApi,
@@ -290,6 +296,59 @@ Deno.test("the page's save sequence against the real routes", async () => {
       (refused.json as { issues: { code: string }[] }).issues[0].code,
       "profile_check_not_passed",
     );
+    // #65 with a REAL check-made config (schema 2, carrying checkPolicy, as
+    // deriveRepositoryInspectionConfig produces it): the page's branches save
+    // drops the check-only evidence and publishes a person's version.
+    const observedRepo = await makeRepo("observed", { profile: null });
+    const observedConfig = deriveRepositoryInspectionConfig(
+      RepositoryProfileConfigSchema.parse(config()),
+      {
+        organizationId: fx.organizationId,
+        applicationId: fx.applicationId,
+        repositoryId: observedRepo,
+        source: {
+          mappingRevision: "rev-1",
+          mappingDigest: "a".repeat(64),
+          baseSha: "b".repeat(40),
+          manifestDigest: await sha256Hex(canonicalJson([])),
+        },
+        entries: [],
+      },
+    );
+    assertEquals(observedConfig.schemaVersion, 2);
+    assert(
+      "checkPolicy" in observedConfig,
+      "a check-made config carries checkPolicy",
+    );
+    const observedId = crypto.randomUUID();
+    const observedDigest = await configDigest(observedConfig);
+    await owner`
+      insert into bakery.repository_profiles (
+        id, organization_id, application_id, repository_id, revision, config,
+        digest, created_by, version
+      ) values (${observedId}, ${fx.organizationId}, ${fx.applicationId},
+        ${observedRepo}, 1, ${owner.json(observedConfig as never)},
+        ${observedDigest}, ${fx.admin.principalId}, 1)`;
+    await owner`
+      insert into bakery.repository_profile_observations (
+        organization_id, application_id, repository_id, profile_id,
+        profile_revision, profile_digest, observation_digest, observed_at,
+        source_mapping_revision, source_mapping_digest, base_sha, payload,
+        readiness
+      ) values (${fx.organizationId}, ${fx.applicationId}, ${observedRepo},
+        ${observedId}, 1, ${observedDigest}, ${"c".repeat(64)}, now(), 'rev-1',
+        ${"a".repeat(64)}, ${"b".repeat(40)}, ${owner.json({} as never)},
+        'eligible')`;
+    await owner`
+      update bakery.repositories set active_profile_id = ${observedId},
+        version = version + 1
+       where organization_id = ${fx.organizationId} and id = ${observedRepo}`;
+    const observedSave = await save(observedRepo, ["feature/*", "after/*"]);
+    assert(observedSave.ok, JSON.stringify(observedSave));
+    assertEquals(await activeOf(observedRepo), observedSave.profile.id);
+    const savedConfig = observedSave.profile.config as Record<string, unknown>;
+    assertEquals(savedConfig.schemaVersion, 1);
+    assertEquals("checkPolicy" in savedConfig, false);
     // It is still stored, for audit and the check result.
     assertEquals(
       (await owner`select count(*)::int as n from bakery.repository_profiles
