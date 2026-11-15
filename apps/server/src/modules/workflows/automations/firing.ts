@@ -1,4 +1,5 @@
 import type { PgTransactionClient } from "../../../platform/database.ts";
+import { AUTOMATION_ROUTE_PURPOSE } from "../../integrations/intake-events.ts";
 
 /** What a firing is created from. */
 export type FiringInsert = Readonly<{
@@ -34,7 +35,9 @@ export type FiringInsertResult = "inserted" | "duplicate" | "event_not_routed";
  * automation's organization by a foreign key. The organization's own record of
  * having received an event is a route (`inbound_event_routes`, one per event,
  * connection and purpose, carrying the organization). A firing may therefore
- * name an event only if that event is routed to the firing's organization;
+ * name an event only if that event is routed to the firing's organization for
+ * an automation (the `automation` purpose, which the receipt creates only for
+ * an event an enabled automation is bound to hear);
  * otherwise an automation of one organization could be made to fire, and to
  * record, an event that belongs to another. Every writer of firings goes
  * through here (the clock, and the event matcher that comes next).
@@ -44,12 +47,16 @@ export async function insertFiring(
   firing: FiringInsert,
 ): Promise<FiringInsertResult> {
   if (firing.triggerEventId !== undefined) {
+    // The route of this consumer's own purpose: a route the integration
+    // processor holds for the event (a fact refresh, a discovery) says the
+    // organization received it, not that an automation was meant to hear it.
     const routed = await transaction.query(
       `select 1
          from bakery.inbound_event_routes route
         where route.inbound_event_id = $1 and route.organization_id = $2
+          and route.purpose = $3
         limit 1`,
-      [firing.triggerEventId, firing.organizationId],
+      [firing.triggerEventId, firing.organizationId, AUTOMATION_ROUTE_PURPOSE],
     );
     if (routed.rows.length === 0) return "event_not_routed";
   }

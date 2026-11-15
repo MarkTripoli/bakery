@@ -23,6 +23,7 @@ import {
 import { DEFAULT_RATE_LIMIT_SECONDS, GitHubReadFailure } from "./github-app.ts";
 import { InstallationStatus } from "./installation-fan-out.ts";
 import {
+  AUTOMATION_ROUTE_PURPOSE,
   type IntakeProjection,
   IntakeProjectionSchema,
   type IntakeRoutePurpose,
@@ -97,7 +98,8 @@ export type SkipReason =
   | "terminal"
   | "not_due"
   | "in_progress"
-  | "superseded";
+  | "superseded"
+  | "foreign_purpose";
 
 /** Fact writes one route made; check routes write several. */
 export type FactTally = {
@@ -211,6 +213,12 @@ async function claimRoute(
     const row = found.rows[0];
     if (row === undefined) {
       return ended({ kind: "skipped", reason: "not_found" });
+    }
+    // A route another consumer owns is left exactly as it is: not claimed, not
+    // counted as an attempt, not settled. Settling it as `ignored` here would
+    // end the route before its owner has read it.
+    if (row.purpose === AUTOMATION_ROUTE_PURPOSE) {
+      return ended({ kind: "skipped", reason: "foreign_purpose" });
     }
     switch (row.status) {
       case RouteStatus.Pending:

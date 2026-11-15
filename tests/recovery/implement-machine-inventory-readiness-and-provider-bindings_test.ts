@@ -28,7 +28,7 @@ function inventoryBody(
     hostGeneration,
     expectedInventoryRevision,
     components: [{
-      componentKey: "harness.bakery",
+      componentKey: "harness.claude",
       kind: "harness",
       actualVersion: "1.0",
       installOwner: "bakery",
@@ -200,7 +200,7 @@ Deno.test("provider auth report replays re-deliver the active challenge and stor
       fixture,
       `/v1/workers/${worker.registration.workerHostId}/provider-bindings`,
       {
-        componentKey: "harness.bakery",
+        componentKey: "harness.claude",
         provider: "anthropic",
         billingRoute: "subscription",
         authMode: "host_native",
@@ -371,7 +371,7 @@ Deno.test("challenge replay after a terminal state returns the attempt without a
       fixture,
       `/v1/workers/${worker.registration.workerHostId}/provider-bindings`,
       {
-        componentKey: "harness.bakery",
+        componentKey: "harness.claude",
         provider: "anthropic",
         billingRoute: "subscription",
         authMode: "host_native",
@@ -591,7 +591,7 @@ Deno.test("terminal-only fallback records an explicit handoff and never fabricat
       fixture,
       `/v1/workers/${worker.registration.workerHostId}/provider-bindings`,
       {
-        componentKey: "harness.bakery",
+        componentKey: "harness.claude",
         provider: "anthropic",
         billingRoute: "subscription",
         authMode: "host_native",

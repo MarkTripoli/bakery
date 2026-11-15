@@ -1557,8 +1557,10 @@ export function createMachineReadinessWorkflows(
         id: string;
         version: number;
         enabled: boolean;
+        billing_route: string;
       }>(
-        `select id, version, enabled from bakery.worker_provider_bindings
+        `select id, version, enabled, billing_route
+         from bakery.worker_provider_bindings
          where organization_id = $1 and worker_host_id = $2 and id = $3
          for update`,
         [organizationId, workerHostId, bindingId],
@@ -1587,7 +1589,12 @@ export function createMachineReadinessWorkflows(
           [organizationId, bindingId, input.modelProviderAccountId],
         );
       }
-      if (input.billingRoute !== undefined) {
+      // An unchanged route is no change (#68): no version bump, so a full-body
+      // save does not make another editor's If-Match stale.
+      if (
+        input.billingRoute !== undefined &&
+        input.billingRoute !== binding.billing_route
+      ) {
         await transaction.query(
           `update bakery.worker_provider_bindings
            set billing_route = $3, updated_at = current_timestamp,
@@ -1620,33 +1627,39 @@ export function createMachineReadinessWorkflows(
         `select version from bakery.worker_provider_bindings where id = $1`,
         [bindingId],
       );
-      const bindingEventVersionValue = await bindingEventVersion(
-        transaction,
-        organizationId,
-        bindingId,
-      );
-      await appendDomainEvent(transaction, {
-        organizationId,
-        eventType: "worker.provider_binding_changed",
-        aggregateId: bindingId,
-        aggregateVersion: bindingEventVersionValue,
-        workerHostId,
-        payload: {
+      // Nothing changed (every field re-sent with its stored value): no event
+      // and no audit row, the same rule as the version (#68).
+      const changed = (versionRow.rows[0]?.version ?? binding.version) !==
+        binding.version;
+      if (changed) {
+        const bindingEventVersionValue = await bindingEventVersion(
+          transaction,
+          organizationId,
+          bindingId,
+        );
+        await appendDomainEvent(transaction, {
+          organizationId,
+          eventType: "worker.provider_binding_changed",
+          aggregateId: bindingId,
+          aggregateVersion: bindingEventVersionValue,
+          workerHostId,
+          payload: {
+            resourceId: bindingId,
+            resourceVersion: versionRow.rows[0]?.version ?? 1,
+          },
+          traceId: metadata.traceId,
+        });
+        await appendAudit(transaction, {
+          organizationId,
+          principalId,
+          operation: "workerProviderBindings.update",
+          resourceType: "worker_provider_binding",
           resourceId: bindingId,
-          resourceVersion: versionRow.rows[0]?.version ?? 1,
-        },
-        traceId: metadata.traceId,
-      });
-      await appendAudit(transaction, {
-        organizationId,
-        principalId,
-        operation: "workerProviderBindings.update",
-        resourceType: "worker_provider_binding",
-        resourceId: bindingId,
-        requestId: metadata.requestId,
-        traceId: metadata.traceId,
-        details: { enabled: input.enabled ?? null },
-      });
+          requestId: metadata.requestId,
+          traceId: metadata.traceId,
+          details: { enabled: input.enabled ?? null },
+        });
+      }
       return { response: { bindingId }, replayed: false };
     },
 
