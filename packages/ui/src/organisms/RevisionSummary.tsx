@@ -60,7 +60,7 @@ export function RevisionSummary(
               : null}
           </div>
         )}
-      <p className="ui-run-card__meta">{disclaimer}</p>
+      {nothingKnown ? null : <p className="ui-run-card__meta">{disclaimer}</p>}
       {action
         ? <div className="ui-run-card__actions">{action}</div>
         : diffLink

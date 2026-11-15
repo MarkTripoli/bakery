@@ -314,13 +314,13 @@ test(
     await expect(
       page.getByText("first durable line [REDACTED]", { exact: true }),
     ).toBeVisible();
+    // With no commit and no change count known the card is that one sentence:
+    // no "Unknown" badges and no line about badges that are not there.
     await expect(
       page.getByText(
         "Observed repository state. No review or merge decision recorded.",
       ),
-    ).toBeVisible();
-    // With no commit and no change count known the card says so, with no
-    // "Unknown" badges.
+    ).toHaveCount(0);
     await expect(
       page.getByText("Bakery has not recorded any changes for this run yet."),
     ).toBeVisible();
@@ -822,10 +822,9 @@ for (
     }
     await expect(page.getByText("Provider usage: unknown", { exact: true }))
       .toBeVisible();
+    // Nothing is known of the changes: the card says so in its one sentence.
     await expect(
-      page.getByText(
-        "Observed repository state. No review or merge decision recorded.",
-      ),
+      page.getByText("Bakery has not recorded any changes for this run yet."),
     ).toBeVisible();
   });
 }

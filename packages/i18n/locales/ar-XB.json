@@ -960,7 +960,7 @@
   "tasks.live.notFound": "‮Task not found or no longer accessible. توسيع توسيع توسيع ‬",
   "tasks.live.back": "‮Back to task inbox توسيع توسيع ‬",
   "tasks.live.artifacts": "‮Task artifacts توسيع ‬",
-  "tasks.live.noArtifacts": "‮No accessible artifacts. توسيع توسيع ‬",
+  "tasks.live.noArtifacts": "⟪No artifacts to show.⟫",
   "tasks.live.status.draft": "‮Draft توسيع ‬",
   "tasks.live.status.queued": "‮Queued توسيع ‬",
   "tasks.live.status.active": "‮Active توسيع ‬",
