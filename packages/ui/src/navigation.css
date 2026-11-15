@@ -2104,7 +2104,7 @@ a.bakery-application-rail__link:hover {
   color: var(--color-fg-muted);
   font: var(--type-body);
   margin: var(--space-0);
-  max-inline-size: 72ch;
+  max-inline-size: var(--layout-measure-prose);
 }
 .bakery-page-header__subtitle {
   align-items: center;
