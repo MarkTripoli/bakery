@@ -37,8 +37,8 @@ function registry() {
   });
 }
 
-Deno.test("issue 82 ops contract: all eleven operations are implemented, registered and described", async () => {
-  assertEquals(ticketImplementedActions.length, 11);
+Deno.test("issue 82 ops contract: all twelve operations are implemented, registered and described", async () => {
+  assertEquals(ticketImplementedActions.length, 12);
   assertEquals(
     [...ticketImplementedActions].sort(),
     Object.values(TicketImplementedAction).sort(),

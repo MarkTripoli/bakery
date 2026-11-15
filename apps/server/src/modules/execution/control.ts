@@ -53,6 +53,7 @@ import {
 } from "./adapter-capabilities.ts";
 import {
   activeAttempt,
+  cancelQueuedJobsOfRun,
   cancelRunWithoutAttempt,
   enqueueWorkerControlCommand,
   resolveCanceledAttemptCleanup,
@@ -128,57 +129,79 @@ type RunControlCapabilityRead =
     }
   );
 
+/**
+ * What may be requested of the run, from its live attempts. A control reaches
+ * every live attempt (a plan run in a parallel group has one per lane), so an
+ * action can be requested only if it can be requested of each of them: the
+ * answer is the first refusal, in attempt order, or `allowed`. One attempt (or
+ * a single object) is the case of a run with one live attempt.
+ */
 export function evaluateRunControlCapabilities(
   runId: string,
   runStatus: string,
-  attempt?: RunControlCapabilityAttempt,
+  attempts?:
+    | RunControlCapabilityAttempt
+    | readonly RunControlCapabilityAttempt[],
   waitingCancelable = false,
 ): RunControlCapabilitiesOutput {
-  let reason: RunControlCapabilityReason;
+  const live: readonly RunControlCapabilityAttempt[] = attempts === undefined
+    ? []
+    : "attemptStatus" in attempts
+    ? [attempts]
+    : attempts;
   const terminalRun = ["completed", "failed", "canceled", "blocked"].includes(
     runStatus,
   );
-  if (!attempt) {
-    reason = terminalRun ? "already_terminal" : "no_active_attempt";
-  } else {
-    reason = "authority_unavailable";
-  }
-  const actions = RUN_CONTROL_ACTIONS.map((action) => {
-    if (!attempt) {
+  if (live.length === 0) {
+    const reason: RunControlCapabilityReason = terminalRun
+      ? "already_terminal"
+      : "no_active_attempt";
+    const actions = RUN_CONTROL_ACTIONS.map((action) =>
       // A run waiting for a retry or for admission has no worker to command,
       // but the server can cancel it directly.
-      return action === "cancel" && waitingCancelable && !terminalRun
+      action === "cancel" && waitingCancelable && !terminalRun
         ? { action, canRequest: true, reason: "allowed" as const }
-        : { action, canRequest: false, reason };
-    }
-    const currentFence = BigInt(attempt.fence) === BigInt(attempt.currentFence);
-    const workerScopeResume = action === "resume" &&
-      attempt.hostSessionId !== null;
-    const terminal = ["completed", "failed", "canceled"].includes(
-      attempt.jobStatus,
+        : { action, canRequest: false, reason }
     );
-    const admitted = action === "resume"
-      ? workerScopeResume
-      : !terminal && attempt.workerSessionId !== null &&
-        activeAttempt(attempt.attemptStatus) && attempt.leaseLive &&
-        attempt.sessionCurrent && currentFence;
-    const supported = adapterSupportsControl(
-      action,
-      attempt.adapterCapabilities ?? [],
-    );
-    const canRequest = admitted && supported;
-    return {
-      action,
-      canRequest,
-      reason: admitted && !supported
-        ? "unsupported" as const
-        : canRequest
-        ? "allowed" as const
-        : terminal && !workerScopeResume
-        ? "already_terminal" as const
-        : "authority_unavailable" as const,
-    };
-  });
+    return { runId, actions };
+  }
+  const perAttempt = live.map((attempt) =>
+    RUN_CONTROL_ACTIONS.map((action) => {
+      const currentFence =
+        BigInt(attempt.fence) === BigInt(attempt.currentFence);
+      const workerScopeResume = action === "resume" &&
+        attempt.hostSessionId !== null;
+      const terminal = ["completed", "failed", "canceled"].includes(
+        attempt.jobStatus,
+      );
+      const admitted = action === "resume"
+        ? workerScopeResume
+        : !terminal && attempt.workerSessionId !== null &&
+          activeAttempt(attempt.attemptStatus) && attempt.leaseLive &&
+          attempt.sessionCurrent && currentFence;
+      const supported = adapterSupportsControl(
+        action,
+        attempt.adapterCapabilities ?? [],
+      );
+      const canRequest = admitted && supported;
+      return {
+        action,
+        canRequest,
+        reason: admitted && !supported
+          ? "unsupported" as const
+          : canRequest
+          ? "allowed" as const
+          : terminal && !workerScopeResume
+          ? "already_terminal" as const
+          : "authority_unavailable" as const,
+      };
+    })
+  );
+  const actions = perAttempt[0].map((first, index) =>
+    perAttempt.map((entries) => entries[index]).find((entry) =>
+      !entry.canRequest
+    ) ?? first
+  );
   return { runId, actions };
 }
 
@@ -239,11 +262,12 @@ export async function readRunControlCapabilities(
             and job.current_fence = attempt.fence
           order by step.position asc, step.iteration asc,
             attempt.attempt_no desc, attempt.id desc
-          limit 1
        ) as selected on true
       where run.organization_id = $1 and run.id = $2`,
     [organizationId, runId],
   );
+  // One row per live attempt (one row with null attempt columns when none is
+  // live), all from this one statement's snapshot.
   const row = result.rows[0];
   if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   // Capability discovery must reject the same run kinds as command admission.
@@ -253,16 +277,17 @@ export async function readRunControlCapabilities(
       params: { reason: "run_kind_unsupported" },
     });
   }
-  const attempt = row.attemptStatus === null ? undefined : {
-    ...row,
-    adapterCapabilities: readAdapterCapabilities(
-      (row as { adapterCapabilities?: unknown }).adapterCapabilities,
-    ),
-  };
+  const attempts = result.rows.filter((entry) => entry.attemptStatus !== null)
+    .map((entry) => ({
+      ...entry,
+      adapterCapabilities: readAdapterCapabilities(
+        (entry as { adapterCapabilities?: unknown }).adapterCapabilities,
+      ),
+    })) as RunControlCapabilityAttempt[];
   return evaluateRunControlCapabilities(
     runId,
     row.status,
-    attempt,
+    attempts,
     row.waitingCancelable === true,
   );
 }
@@ -334,12 +359,13 @@ async function runControlAction(
         and attempt.status in ('leased', 'running', 'canceling')
         and job.current_fence = attempt.fence
       order by step.position asc, step.iteration asc,
-        attempt.attempt_no desc, attempt.id desc
-      limit 1`,
+        attempt.attempt_no desc, attempt.id desc`,
     [organizationId, runId],
   );
-  const attempt = attemptResult.rows[0];
-  if (!attempt) {
+  // A run may have several live attempts (the lanes of a parallel group): a
+  // control reaches every one of them, not only the first.
+  const attempts = attemptResult.rows;
+  if (attempts.length === 0) {
     if (["completed", "failed", "canceled", "blocked"].includes(run.status)) {
       throw new StandardError({ code: "ALREADY_TERMINAL" });
     }
@@ -353,32 +379,46 @@ async function runControlAction(
       traceId: context.traceId,
     });
   } else {
-    if (
-      !adapterSupportsControl(
-        input.action,
-        readAdapterCapabilities(attempt.adapterCapabilities),
-      )
-    ) {
-      // No command row, run revision or event: the worker never advertised it.
-      throw new StandardError({
-        code: "STATE_CONFLICT",
-        params: { reason: "unsupported", action: input.action },
-      });
+    // Every worker must be able to take the command before any is given it:
+    // no command row, run revision or event if one never advertised it.
+    for (const attempt of attempts) {
+      if (
+        !adapterSupportsControl(
+          input.action,
+          readAdapterCapabilities(attempt.adapterCapabilities),
+        )
+      ) {
+        throw new StandardError({
+          code: "STATE_CONFLICT",
+          params: { reason: "unsupported", action: input.action },
+        });
+      }
     }
     const metadata = requireCommandMetadata(context);
-    await enqueueWorkerControlCommand(transaction, {
-      organizationId,
-      attemptId: attempt.id,
+    const requestDigest = await sha256Hex(canonicalJson({
+      runId,
       action: input.action,
       ...(input.reason === undefined ? {} : { reason: input.reason }),
-      idempotencyKey: metadata.idempotencyKey,
-      requestDigest: await sha256Hex(canonicalJson({
-        runId,
+    }));
+    for (const attempt of attempts) {
+      await enqueueWorkerControlCommand(transaction, {
+        organizationId,
+        attemptId: attempt.id,
         action: input.action,
         ...(input.reason === undefined ? {} : { reason: input.reason }),
-      })),
-      traceId: context.traceId,
-    });
+        idempotencyKey: metadata.idempotencyKey,
+        requestDigest,
+        traceId: context.traceId,
+      });
+    }
+    if (input.action === "cancel") {
+      // Whatever no worker holds ends with the run: jobs still queued.
+      await cancelQueuedJobsOfRun(transaction, {
+        organizationId,
+        runId,
+        traceId: context.traceId,
+      });
+    }
   }
   // Each admitted request is its own run revision. A second request on the
   // same run (pause, then resume) would otherwise repeat the aggregate version
