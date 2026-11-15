@@ -43,6 +43,7 @@ const glyphs: readonly IconGlyphName[] = [
   "book",
   "plus",
   "chevron-right",
+  "close",
 ];
 
 const BaseContract: StoryObj = {

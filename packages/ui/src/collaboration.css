@@ -267,6 +267,46 @@
   gap: var(--space-3);
   padding: var(--space-4) var(--space-task-inset);
 }
+.ui-task-inbox__filters .ui-search-field {
+  flex: 0 1 18rem;
+}
+/* An applied search on a phone (Search: term, then Clear): one row, always. The
+   button takes the space that is left and the term ends in an ellipsis. */
+.ui-task-inbox__filters > .ui-inline {
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  min-inline-size: 0;
+}
+.ui-task-inbox__filters > .ui-inline > .ui-popover,
+.ui-task-inbox__filters > .ui-inline .ui-popover__trigger {
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+/* Only the Search button gives way: Clear keeps its whole touch target. */
+.ui-task-inbox__filters > .ui-inline > .ui-icon-button {
+  flex: 0 0 auto;
+  min-inline-size: var(--target-min);
+}
+.ui-popover__trigger--toolbar .ui-data-text {
+  color: inherit;
+  font: inherit;
+}
+.ui-task-inbox__filters .ui-popover__trigger .ui-icon {
+  flex: 0 0 auto;
+}
+/* With a search applied, the narrowest phones keep the applications filter as
+   its icon alone; its name stays for assistive technology (and its tooltip). */
+@media (max-width: 360px) {
+  .ui-popover__trigger--toolbar [data-collapse-narrow] {
+    block-size: 1px;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    inline-size: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+  }
+}
 .ui-task-inbox__results {
   padding-inline: var(--space-task-inset);
 }
@@ -312,7 +352,11 @@
   color: var(--color-selection);
 }
 .ui-task-inbox--sheet .ui-task-inbox__filters {
+  flex-wrap: nowrap;
   padding-inline: var(--space-5);
+}
+.ui-task-inbox--sheet .ui-task-inbox__filters > .ui-popover {
+  flex: 0 0 auto;
 }
 .ui-task-inbox--sheet .ui-task-inbox__results {
   padding-inline: var(--space-0);
