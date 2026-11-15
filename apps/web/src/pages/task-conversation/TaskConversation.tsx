@@ -663,17 +663,24 @@ export function TaskConversation(
         >
           <UI.PaneSection ruled>
             {
-              /* The hint is shown under the stage strip on the wider layouts
-                only, so this switch points at no description. */
+              /* The switch says what it does here too (design-ux, #57 item 14):
+                the stage strip's hint is shown on the wider layouts, so this
+                sheet carries the same line under its switch. */
             }
-            <UI.Switch
-              checked={planningPending ?? task.planningOnly ?? false}
-              disabled={planningPending !== null || !online}
-              onChange={(event) =>
-                void setPlanningOnly(event.currentTarget.checked)}
-            >
-              {t("tasks.conversation.stage.planningOnly")}
-            </UI.Switch>
+            <UI.Stack gap="tight">
+              <UI.Switch
+                aria-describedby="stage-planning-only-hint-phone"
+                checked={planningPending ?? task.planningOnly ?? false}
+                disabled={planningPending !== null || !online}
+                onChange={(event) =>
+                  void setPlanningOnly(event.currentTarget.checked)}
+              >
+                {t("tasks.conversation.stage.planningOnly")}
+              </UI.Switch>
+              <UI.Text id="stage-planning-only-hint-phone" variant="hint">
+                {t("tasks.conversation.stage.planningOnlyHint")}
+              </UI.Text>
+            </UI.Stack>
           </UI.PaneSection>
           {paneContent}
           {coordinationLink && (

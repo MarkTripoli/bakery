@@ -2347,11 +2347,9 @@ test("a part of the page that did not load is a warning notice with an outline T
 });
 
 test("the Planning only hint is visible under the switch", async ({ page }) => {
-  test.skip(
-    (page.viewportSize()?.width ?? 1280) <= 743,
-    "the switch is on the wider layouts",
-  );
   await open(page);
+  // On a phone the switch is in the plan sheet, so the hint goes there.
+  if ((page.viewportSize()?.width ?? 1280) <= 743) await showPlan(page);
   await expect(
     page.getByText("Stop after the plan. No run starts from this task."),
   ).toBeVisible();
@@ -2363,12 +2361,8 @@ test("the Planning only switch never points at a description that is not there",
   const toggle = page.getByRole("switch", { name: "Planning only" });
   await expect(toggle).toBeVisible();
   const id = await toggle.getAttribute("aria-describedby");
-  if ((page.viewportSize()?.width ?? 1280) <= 743) {
-    // The phone shows no hint, so the switch names no description.
-    expect(id).toBeNull();
-    return;
-  }
-  // Wider layouts: the description is in the page and says what the switch does.
+  // Both layouts name their description now (design-ux, #57 item 14): the phone
+  // carries the same line under its switch in the plan sheet.
   expect(id).toBeTruthy();
   await expect(page.locator(`[id="${id}"]`)).toHaveCount(1);
   await expect(toggle).toHaveAccessibleDescription(
