@@ -337,7 +337,8 @@ export function TaskCoordinationPage(
                 /* The phone header keeps Paper's height, so origin and digest
                   follow the lanes (frame 2JQJ-0 has blank space there). */
               }
-              {provenance && hasProvenance(plan) && (
+              {provenance && hasProvenance(plan) &&
+                origin?.kind !== "saved_workflow" && (
                 <UI.StackedRow
                   data-ui-region="plan-provenance-phone"
                   title={
@@ -497,6 +498,22 @@ export function TaskCoordinationPage(
                         revision: String(plan.revision),
                       }),
                     ].filter((part) => part !== undefined).join(" · ")}
+                    {
+                      /* A saved workflow's link, badge and tip are line 2 here too,
+                      under the revision and above the status. */
+                    }
+                    {origin?.kind === "saved_workflow" && provenance &&
+                      hasProvenance(plan) && (
+                      <>
+                        <br />
+                        <PlanProvenance
+                          plan={plan}
+                          workflowName={workflow.data?.name}
+                          workflowVersion={workflowVersion}
+                          olderVersion={olderVersion}
+                        />
+                      </>
+                    )}
                   </span>
                 )
                 : (

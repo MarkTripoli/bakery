@@ -996,6 +996,16 @@ test("a saved workflow whose newer version is in use says this run's version is 
     expect(link!.y).toBeGreaterThan(title!.y + title!.height - 2);
     expect(Math.abs(link!.x - title!.x)).toBeLessThanOrEqual(2);
   }
+  // On a phone the workflow line is line 2 of the header, under the revision and
+  // above the status, not after the lanes.
+  if (test.info().project.name === "mobile") {
+    const status = await page.getByText("In progress").first().boundingBox();
+    const link = await origin.getByRole("link").boundingBox();
+    const lane = await page.getByText("example/api-service").first()
+      .boundingBox();
+    expect(link!.y).toBeLessThan(lane!.y);
+    expect(link!.y).toBeLessThan(status!.y);
+  }
   // On a phone the tip closes when the page scrolls, and this line is at the
   // end of the page: bring the button into view first so opening it does not.
   const tip = origin.getByRole("button", { name: "Older version" });
