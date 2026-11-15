@@ -3797,5 +3797,20 @@
   "projects.repository.settings.branchesFixed": "Your organization's rules fix the branches for this repository. An organization administrator can change that in {organizationRules}.",
   "projects.repository.settings.organizationRules": "Organization rules",
   "projects.repository.use.rulesStop": "Version {version} does not include this repository's own rules, so they stop applying.",
-  "projects.repository.use.otherRules": "Version {version} has other rules of its own, so the ones in force now stop applying."
+  "projects.repository.use.otherRules": "Version {version} has other rules of its own, so the ones in force now stop applying.",
+  "library.workflow.edit": "Edit",
+  "library.editor.title": "Editing workflow",
+  "library.editor.back": "Back to the workflow",
+  "library.editor.version": "Editing version {version}",
+  "library.editor.readOnly": "Read only",
+  "library.editor.tabs.label": "Editor views",
+  "library.editor.tab.steps": "Steps",
+  "library.editor.tab.code": "Code",
+  "library.editor.steps.label": "Steps being edited",
+  "library.editor.code.label": "The version's code",
+  "library.editor.code.description": "The version as Bakery stores it. Editing the code arrives in a later slice.",
+  "library.editor.empty.title": "This workflow has no version to edit",
+  "library.editor.empty.description": "A workflow is edited from its newest version; this one has none yet.",
+  "library.editor.offline.title": "You are offline",
+  "library.editor.offline.description": "Bakery will load the workflow when you are back online."
 }

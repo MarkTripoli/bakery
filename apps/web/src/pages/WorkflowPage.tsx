@@ -30,6 +30,7 @@ import { focusAfterPaint } from "../app/focus.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useShellViewport } from "../app/responsive.ts";
+import { RouterLink } from "../app/router-link.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
@@ -506,6 +507,13 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
   const menuItems = [
     ...(canManage
       ? [{
+        id: "edit",
+        label: translate("library.workflow.edit" as never),
+        disabled: offline || shown === null,
+      }]
+      : []),
+    ...(canManage
+      ? [{
         id: "rename",
         label: translate("library.workflow.rename" as never),
         disabled: offline || pending,
@@ -569,6 +577,11 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
             setMenuOpen(false);
             if (id === "export" && shown !== null) {
               exportVersion(shown);
+            } else if (id === "edit" && shown !== null) {
+              void navigate({
+                to: "/library/workflows/$workflowId/edit",
+                params: { workflowId },
+              });
             } else if (id === "rename") {
               setName(current.name);
               open({ kind: "rename" });
@@ -596,7 +609,26 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
   return (
     <>
       {breadcrumbs}
-      {!phone ? <ShellSlot name="actions">{moreMenu}</ShellSlot> : null}
+      {!phone
+        ? (
+          <ShellSlot name="actions">
+            <UI.Inline gap="compact">
+              {canManage && shown !== null
+                ? (
+                  <RouterLink
+                    to="/library/workflows/$workflowId/edit"
+                    params={{ workflowId }}
+                    variant="button"
+                  >
+                    {translate("library.workflow.edit" as never)}
+                  </RouterLink>
+                )
+                : null}
+              {moreMenu}
+            </UI.Inline>
+          </ShellSlot>
+        )
+        : null}
       <UI.SettingsContent data-testid="workflow-page" variant="wide">
         <UI.PageHeader
           variant="list"

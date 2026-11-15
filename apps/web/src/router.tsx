@@ -39,6 +39,7 @@ import { MachinesPage } from "./pages/MachinesPage.tsx";
 import { MachineDetailPage } from "./pages/MachineDetailPage.tsx";
 import { MachineWizardPage } from "./pages/MachineWizardPage.tsx";
 import { TaskCoordinationPage } from "./pages/task-coordination/TaskCoordinationPage.tsx";
+import { WorkflowEditorPage } from "./pages/library/WorkflowEditorPage.tsx";
 import { AppearancePage } from "./pages/AppearancePage.tsx";
 import { HealthPage } from "./pages/HealthPage.tsx";
 import { SetupPage } from "./pages/SetupPage.tsx";
@@ -225,6 +226,19 @@ export const routeCoverage = [
       "forbidden",
       "offline",
       "long-copy",
+    ],
+  },
+  {
+    id: "library-workflow-editor",
+    path: "/library/workflows/$workflowId/edit",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
     ],
   },
   {
@@ -1019,6 +1033,19 @@ const taskDetailRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => <TasksPage taskId={taskDetailRoute.useParams().taskId} />,
+  errorComponent: ProtectedRouteError,
+});
+
+const workflowEditorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/library/workflows/$workflowId/edit",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <WorkflowEditorPage
+      workflowId={workflowEditorRoute.useParams().workflowId}
+    />
+  ),
   errorComponent: ProtectedRouteError,
 });
 
@@ -2025,6 +2052,7 @@ const routeTree = rootRoute.addChildren([
   machinesRoute,
   libraryRoute,
   workflowRoute,
+  workflowEditorRoute,
   builtInWorkflowRoute,
   agentRoute,
   machineNewRoute,
