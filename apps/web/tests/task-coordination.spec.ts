@@ -874,7 +874,7 @@ const ticketOrigin = {
 test("an ad hoc plan shows its origin and revision, and the digest behind a fingerprint row", async ({ page }) => {
   await open(page);
   const provenance = page.locator('[data-ui-region="plan-provenance"]');
-  await expect(provenance).toContainText("Planned for this task");
+  await expect(provenance).toContainText("Made for this task");
   await expect(provenance).not.toContainText("Digest");
   await expect(provenance).not.toContainText("eeeeeeeeeeee");
   const fingerprint = page.getByTestId("fingerprint-row");

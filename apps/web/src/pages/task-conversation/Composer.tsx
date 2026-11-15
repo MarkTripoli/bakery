@@ -14,6 +14,8 @@ export type ComposerProps = Readonly<{
   offline: boolean;
   /** A run is in progress: messages are saved and routed by run capabilities. */
   runActive: boolean;
+  /** The run waits for another task: the notice says so instead. */
+  runBlocked?: boolean;
   /** Prompt to discuss results after a finished run. */
   resultsHint: boolean;
   onBody: (value: string) => void;
@@ -34,6 +36,7 @@ export function Composer(
     phase,
     offline,
     runActive,
+    runBlocked = false,
     resultsHint,
     onBody,
     onIntent,
@@ -74,6 +77,11 @@ export function Composer(
           {runActive && (
             <UI.InlineNotice layout="bar" tone="information">
               {t("tasks.conversation.steering.saved")}
+            </UI.InlineNotice>
+          )}
+          {runBlocked && (
+            <UI.InlineNotice layout="bar" tone="warning">
+              {t("tasks.conversation.steering.blocked")}
             </UI.InlineNotice>
           )}
           {resultsHint && (

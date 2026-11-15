@@ -8,12 +8,20 @@ import {
   artifactVersionsQueryOptions,
   runOutputStepIdsQueryOptions,
   runQueryOptions,
+  runStepsListQueryOptions,
 } from "../api/query.ts";
 import type { ApiFailure } from "../api/client.ts";
 import type { DurableSyncConnectivity } from "../api/durable-sync.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
+import { protectedQueryKey } from "../app/query-scope.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
-import { isExtractableMediaType } from "./artifact-media.ts";
+import {
+  isDiffMediaType,
+  isExtractableMediaType,
+  MAX_TEXT_PREVIEW_BYTES,
+} from "./artifact-media.ts";
+import { FingerprintRow } from "./FingerprintRow.tsx";
+import { stepTitle } from "./task-timeline.ts";
 
 /** Preview window: bounded text, far below the 64 KiB extraction cap. */
 const PREVIEW_BYTES = 8_192;
@@ -59,6 +67,15 @@ export function TaskArtifactPane(
   const enabled = scoped && run.data !== undefined && !runMismatch;
   const steps = useQuery({
     ...runOutputStepIdsQueryOptions(api, scope, runId),
+    enabled,
+  });
+  // The first page of steps, the same read (and cache entry) the run section
+  // makes, names the step that made the selected version.
+  const stepNames = useQuery({
+    ...runStepsListQueryOptions(api, scope, runId, {
+      cursor: undefined,
+      limit: 25,
+    }),
     enabled,
   });
   // The server can only filter by type over the whole task, so page the task's
@@ -156,19 +173,58 @@ export function TaskArtifactPane(
       item.id === picked.versionId
     ) ?? list.find((item) => item.id === artifact?.currentVersionId) ??
       list[0];
+  // A patch or diff is text too: its verified bytes are read the way the
+  // revision card reads them (the server's extract does not serve diffs).
+  const isDiff = selected !== undefined &&
+    isDiffMediaType(selected.mediaType) &&
+    selected.sizeBytes <= MAX_TEXT_PREVIEW_BYTES;
   const extractable = selected !== undefined &&
-    isExtractableMediaType(selected.mediaType);
+    (isExtractableMediaType(selected.mediaType) || isDiff);
   const extract = useQuery({
     ...artifactExtractionQueryOptions(api, scope, selected?.id ?? "", {
       startByte: 0,
       maxBytes: PREVIEW_BYTES,
     }),
-    enabled: scope.organizationId !== null && extractable,
+    enabled: scope.organizationId !== null && extractable && !isDiff,
   });
-  const extraction = extract.data !== undefined && selected !== undefined &&
-      extract.data.versionId === selected.id &&
-      extract.data.sha256.toLowerCase() === selected.sha256.toLowerCase()
-    ? extract.data
+  const diff = useQuery({
+    queryKey: protectedQueryKey(scope, "taskArtifact.diff", {
+      versionId: selected?.id ?? "",
+      digest: selected?.sha256 ?? "",
+    }),
+    enabled: scope.organizationId !== null && isDiff,
+    retry: false,
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId || selected === undefined) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      const result = await api.getArtifactContent({
+        organizationId: scope.organizationId,
+        versionId: selected.id,
+        expectedSha256: selected.sha256.toLowerCase(),
+        signal,
+      });
+      if (!result.ok) throw result.error;
+      if (
+        result.data.status !== 200 ||
+        result.data.content.byteLength !== selected.sizeBytes
+      ) throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      const text = new TextDecoder("utf-8", { fatal: true }).decode(
+        result.data.content,
+      );
+      return {
+        versionId: selected.id,
+        sha256: selected.sha256,
+        text: text.slice(0, PREVIEW_BYTES),
+        hasMore: text.length > PREVIEW_BYTES,
+      };
+    },
+  });
+  const read = isDiff ? diff : extract;
+  const extraction = read.data !== undefined && selected !== undefined &&
+      read.data.versionId === selected.id &&
+      read.data.sha256.toLowerCase() === selected.sha256.toLowerCase()
+    ? read.data
     : undefined;
 
   // A failing candidate that is not this run's artifact must not hide a readable
@@ -183,13 +239,13 @@ export function TaskArtifactPane(
     steps.error ?? artifacts.error ??
     pages.find((page) => page.error)?.error ??
     candidateError ??
-    extract.error;
+    read.error;
   const state: UI.ArtifactPaneState = failure
     ? (isForbidden(failure) ? "forbidden" : "error")
     : artifacts.isPending ||
         ((candidates.length > 0 || !pageSettled || nextCursor !== null) &&
           resolving) ||
-        (extractable && extract.isPending)
+        (extractable && read.isPending)
     ? "loading"
     : artifact === undefined || selected === undefined
     ? "empty"
@@ -219,12 +275,44 @@ export function TaskArtifactPane(
     reconnecting: t("tasks.artifactPane.reconnecting"),
     download: t("tasks.artifactPane.download"),
     open: t("tasks.artifactPane.open"),
+    details: t("tasks.artifactPane.details"),
   };
+  // Who made the selected version: the name of the step that published it,
+  // the raw step id only when that step is not among the ones read.
+  const madeByStep = selected?.runStepId
+    ? stepNames.data?.items.find((item) => item.id === selected.runStepId)
+    : undefined;
+  const madeBy = selected === undefined
+    ? undefined
+    : madeByStep
+    ? stepTitle(t, madeByStep.stepKey)
+    : selected.runStepId ?? t("tasks.artifact.unknown");
   const openHref = artifact
     ? `/tasks/${taskId}/artifacts/${artifact.id}`
     : undefined;
   return (
     <UI.ArtifactPane
+      details={artifact && selected
+        ? (
+          <UI.Stack gap="compact">
+            <FingerprintRow
+              copyFailedText={t("tasks.artifact.idCopyFailed")}
+              display={artifact.id.slice(0, 8)}
+              fingerprint={artifact.id}
+              label={t("tasks.artifact.id")}
+              noHelp
+              testId="artifact-id-row"
+            />
+            <FingerprintRow fingerprint={selected.sha256} />
+            <UI.DetailRow label={t("tasks.artifact.size")}>
+              {t("artifact.retrieval.sizeValue", { size: selected.sizeBytes })}
+            </UI.DetailRow>
+            <UI.DetailRow label={t("tasks.artifact.madeBy")}>
+              {madeBy}
+            </UI.DetailRow>
+          </UI.Stack>
+        )
+        : undefined}
       descriptor={artifact && selected
         ? {
           artifactId: artifact.id,

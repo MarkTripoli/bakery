@@ -59,6 +59,18 @@ export function QuestionAnswer(
   const showText = allowFreeText || options.length === 0;
   const locked = phase === "sending" || phase === "unknown";
   const ready = optionId !== undefined || text.trim() !== "";
+  // A disabled Send answer says why, under itself.
+  const disabledReason = locked
+    ? null
+    : offline
+    ? t("tasks.conversation.question.offline")
+    : !ready
+    ? t(
+      options.length === 0
+        ? "tasks.conversation.question.writeFirst"
+        : "tasks.conversation.question.chooseFirst",
+    )
+    : null;
   const serverStatus = status === "answered"
     ? "answered"
     : status === "open"
@@ -104,19 +116,29 @@ export function QuestionAnswer(
               </UI.Button>
             )
             : (
-              <UI.Button
-                disabled={!ready || locked || offline}
-                loading={phase === "sending"}
-                onClick={() =>
-                  onAnswer({
-                    ...(optionId === undefined ? {} : { optionId }),
-                    ...(text.trim() === "" ? {} : { text: text.trim() }),
-                  })}
-              >
-                {phase === "sending"
-                  ? t("tasks.conversation.question.sending")
-                  : t("tasks.conversation.question.answer")}
-              </UI.Button>
+              <UI.Stack gap="compact">
+                <UI.Button
+                  aria-describedby={disabledReason === null
+                    ? undefined
+                    : `${group}-why`}
+                  disabled={!ready || locked || offline}
+                  loading={phase === "sending"}
+                  onClick={() =>
+                    onAnswer({
+                      ...(optionId === undefined ? {} : { optionId }),
+                      ...(text.trim() === "" ? {} : { text: text.trim() }),
+                    })}
+                >
+                  {phase === "sending"
+                    ? t("tasks.conversation.question.sending")
+                    : t("tasks.conversation.question.answer")}
+                </UI.Button>
+                {disabledReason !== null && (
+                  <UI.Text id={`${group}-why`} variant="hint">
+                    {disabledReason}
+                  </UI.Text>
+                )}
+              </UI.Stack>
             )
         )
         : undefined}
