@@ -119,7 +119,7 @@
             Northwind storefront · northwind/web · Fixed coding workflow
           </div>
         </div>
-        <div id="2IU4-0" style={{ borderBottomColor: 'var(--color-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', gap: '8px', paddingBottom: '16px', paddingInline: '32px' }}>
+        <div id="2IU4-0" style={{ borderBottomColor: 'var(--color-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', flexWrap: 'wrap', gap: '8px', paddingBottom: '16px', paddingInline: '32px' }}>
           <div id="2IUJ-0" style={{ backgroundColor: 'var(--color-accent)', borderColor: 'var(--color-selection)', borderRadius: '6px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '120px', paddingBlock: '8px', paddingInline: '12px', width: 'fit-content' }}>
             <div id="2IUL-0" style={{ boxSizing: 'border-box', color: 'var(--color-selection)', flexShrink: '0', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600, lineHeight: '20px', width: 'max-content' }}>
               1 · Discuss · Current stage
@@ -161,7 +161,10 @@
               Planning only
             </div>
           </div>
-        </div>
+          <div id="2IS5-0-hint" style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px', width: '100%' }}>
+              Stop after the plan. No run starts from this task.
+            </div>
+          </div>
         <div id="2J31-0" style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexGrow: '1', gap: '12px', justifyContent: 'center', paddingBlock: '24px', paddingInline: '32px' }}>
           <svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" id="2J32-0" style={{ display: 'inline-block', flexShrink: '0' }}>
             <path d="M4 5h16v11H9l-5 4z" fill="none" stroke="var(--color-muted-foreground)" strokeWidth="1.5" strokeLinejoin="round" />
@@ -170,7 +173,7 @@
             No messages yet. Say what you want done, or ask the agent to plan it.
           </div>
         </div>
-        <div id="2ISY-0" style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '24px', paddingInline: '32px' }}>
+        <div id="2ISY-0" style={{ borderTopColor: 'var(--color-border)', borderTopStyle: 'solid', borderTopWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '24px', paddingInline: '32px', paddingTop: '12px' }}>
           <div id="2IT0-0" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: '8px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '12px', paddingBlock: '12px', paddingInline: '16px' }}>
             <div id="2ITC-0" style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '22px' }}>
               Message this task…
