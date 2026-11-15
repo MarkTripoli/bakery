@@ -3767,5 +3767,8 @@
   "library.editor.dirty": "⟦Ûñšàṽëð çĥàñĝëš ŧëš⟧",
   "library.editor.moveUp": "⟦Ṁôṽë {name} ûþ ŧë⟧",
   "library.editor.moveDown": "⟦Ṁôṽë {name} ðôŵñ ŧëš⟧",
-  "library.editor.removeStep": "⟦Ŕëɱôṽë {name} ŧë⟧"
+  "library.editor.removeStep": "⟦Ŕëɱôṽë {name} ŧë⟧",
+  "library.editor.check": "⟦Çĥëçķ ŧĥë šŧëþš ŧëš⟧",
+  "library.editor.check.ok": "⟦Ñôŧĥïñĝ ŧô ƒïẋ ïñ ŧĥëšë šŧëþš. ŧëšŧ çôþ⟧",
+  "library.editor.check.problems": "⟦Šŧëþš ñëëð àŧŧëñŧïôñ: {count}. ŧëšŧ çôþ⟧"
 }

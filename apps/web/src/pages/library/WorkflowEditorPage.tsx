@@ -11,7 +11,9 @@ import { useBakeryApi } from "../../api/context.tsx";
 import { asyncKindForError, failureStatus } from "../../app/async-state.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
+import { useMutation } from "@tanstack/react-query";
 import { versionSource } from "./copy-workflow.ts";
+import { problemsOf, stepProblemLine } from "./editor-validation.ts";
 import { stepSummary } from "./step-summary.tsx";
 import { ACTION_LINES, ACTION_TITLES, stepsOf } from "./workflow-state.ts";
 import {
@@ -67,6 +69,45 @@ export function WorkflowEditorPage(
     dispatch({ kind: "reset", steps: versionSteps });
   }, [current?.id, versionSteps]);
   const steps = editor.steps;
+  // "Check the steps" asks the server, which answers pointers into the
+  // definition it was given; editor-validation puts each one on its step.
+  const [checked, setChecked] = useState<
+    {
+      readonly valid: boolean;
+      readonly problems: ReturnType<typeof problemsOf>;
+    } | null
+  >(null);
+  const check = useMutation({
+    mutationFn: () =>
+      api.validateWorkflow({
+        organizationId: scope.organizationId as string,
+        input: {
+          definition: {
+            steps: editor.steps.map((step) => ({
+              id: step.id,
+              uses: step.uses,
+              ...(step.agentVersionId === null
+                ? {}
+                : { agentVersionId: step.agentVersionId }),
+            })),
+          } as never,
+        } as never,
+      }),
+    onSuccess: (result) => {
+      if (!result.ok) {
+        setChecked(null);
+        return;
+      }
+      const report = result.data;
+      setChecked({
+        valid: report.valid,
+        problems: problemsOf([
+          ...(report.errors ?? []),
+          ...(report.warnings ?? []),
+        ]),
+      });
+    },
+  });
   // A step is named by what it does; an action without a sentence shows its key.
   const stepTitle = (uses: string) => {
     const key = ACTION_TITLES[uses];
@@ -186,7 +227,28 @@ export function WorkflowEditorPage(
                 >
                   {translate("library.editor.addStep" as never)}
                 </UI.Button>
+                <UI.Button
+                  variant="secondary"
+                  loading={check.isPending}
+                  disabled={check.isPending || steps.length === 0}
+                  onClick={() => check.mutate()}
+                >
+                  {translate("library.editor.check" as never)}
+                </UI.Button>
               </UI.Inline>
+              {checked === null ? null : (
+                <UI.InlineNotice
+                  role="status"
+                  tone={checked.valid ? "success" : "error"}
+                  data-testid="editor-check"
+                >
+                  {checked.valid
+                    ? translate("library.editor.check.ok" as never)
+                    : translate("library.editor.check.problems" as never, {
+                      count: String(checked.problems.byStep.size),
+                    })}
+                </UI.InlineNotice>
+              )}
               {steps.length === 0
                 ? (
                   <UI.Text variant="muted">
@@ -197,105 +259,115 @@ export function WorkflowEditorPage(
                   <UI.StepList
                     label={translate("library.editor.steps.label" as never)}
                   >
-                    {steps.map((step, index) => (
-                      /* The row owns the keyboard: Alt+Arrow moves the step it
+                    {steps.map((step, index) => {
+                      const problemLine = stepProblemLine(
+                        checked?.problems.byStep.get(index) ?? [],
+                      );
+                      return (
+                        /* The row owns the keyboard: Alt+Arrow moves the step it
                          is pressed on, which is how a keyboard reorders a row
                          in the design (#67). The buttons do the same move for
                          anyone using a pointer. */
-                      <div
-                        key={step.id}
-                        role="group"
-                        data-step-row={step.id}
-                        onKeyDown={(event) => {
-                          if (!event.altKey || !canManage) return;
-                          if (event.key === "ArrowUp" && index > 0) {
-                            event.preventDefault();
-                            dispatch({
-                              kind: "move",
-                              id: step.id,
-                              index: index - 1,
-                            });
-                          } else if (
-                            event.key === "ArrowDown" &&
-                            index < steps.length - 1
-                          ) {
-                            event.preventDefault();
-                            dispatch({
-                              kind: "move",
-                              id: step.id,
-                              index: index + 1,
-                            });
-                          }
-                        }}
-                      >
-                        <UI.StepItem
-                          data-step-id={step.id}
-                          number={index + 1}
-                          status="upcoming"
-                          statusLabel={translate(
-                            "library.workflow.steps.number" as never,
-                            { n: index + 1 },
-                          )}
-                          title={stepTitle(step.uses)}
-                          summary={stepSummary(stepLine(step.uses), undefined)}
-                          action={canManage
-                            ? (
-                              <UI.Inline gap="compact">
-                                <UI.IconButton
-                                  label={translate(
-                                    "library.editor.moveUp" as never,
-                                    { name: stepTitle(step.uses) },
-                                  )}
-                                  variant="compact"
-                                  disabled={index === 0}
-                                  onClick={() =>
-                                    dispatch({
-                                      kind: "move",
-                                      id: step.id,
-                                      index: index - 1,
-                                    })}
-                                >
-                                  <UI.IconGlyph
-                                    name="chevron-up"
-                                    size="small"
-                                  />
-                                </UI.IconButton>
-                                <UI.IconButton
-                                  label={translate(
-                                    "library.editor.moveDown" as never,
-                                    { name: stepTitle(step.uses) },
-                                  )}
-                                  variant="compact"
-                                  disabled={index === steps.length - 1}
-                                  onClick={() =>
-                                    dispatch({
-                                      kind: "move",
-                                      id: step.id,
-                                      index: index + 1,
-                                    })}
-                                >
-                                  <UI.IconGlyph
-                                    name="chevron-down"
-                                    size="small"
-                                  />
-                                </UI.IconButton>
-                                <UI.IconButton
-                                  label={translate(
-                                    "library.editor.removeStep" as never,
-                                    { name: stepTitle(step.uses) },
-                                  )}
-                                  variant="destructive"
-                                  onClick={() =>
-                                    dispatch({ kind: "remove", id: step.id })}
-                                >
-                                  <UI.IconGlyph name="close" size="small" />
-                                </UI.IconButton>
-                              </UI.Inline>
-                            )
-                            : undefined}
-                        />
-                      </div>
-                    ))}
+                        <div
+                          key={step.id}
+                          role="group"
+                          data-step-row={step.id}
+                          onKeyDown={(event) => {
+                            if (!event.altKey || !canManage) return;
+                            if (event.key === "ArrowUp" && index > 0) {
+                              event.preventDefault();
+                              dispatch({
+                                kind: "move",
+                                id: step.id,
+                                index: index - 1,
+                              });
+                            } else if (
+                              event.key === "ArrowDown" &&
+                              index < steps.length - 1
+                            ) {
+                              event.preventDefault();
+                              dispatch({
+                                kind: "move",
+                                id: step.id,
+                                index: index + 1,
+                              });
+                            }
+                          }}
+                        >
+                          <UI.StepItem
+                            data-step-id={step.id}
+                            number={index + 1}
+                            title={stepTitle(step.uses)}
+                            status={problemLine === null
+                              ? "upcoming"
+                              : "failed"}
+                            statusLabel={problemLine ?? translate(
+                              "library.workflow.steps.number" as never,
+                              { n: index + 1 },
+                            )}
+                            summary={stepSummary(
+                              problemLine ?? stepLine(step.uses),
+                              undefined,
+                            )}
+                            action={canManage
+                              ? (
+                                <UI.Inline gap="compact">
+                                  <UI.IconButton
+                                    label={translate(
+                                      "library.editor.moveUp" as never,
+                                      { name: stepTitle(step.uses) },
+                                    )}
+                                    variant="compact"
+                                    disabled={index === 0}
+                                    onClick={() =>
+                                      dispatch({
+                                        kind: "move",
+                                        id: step.id,
+                                        index: index - 1,
+                                      })}
+                                  >
+                                    <UI.IconGlyph
+                                      name="chevron-up"
+                                      size="small"
+                                    />
+                                  </UI.IconButton>
+                                  <UI.IconButton
+                                    label={translate(
+                                      "library.editor.moveDown" as never,
+                                      { name: stepTitle(step.uses) },
+                                    )}
+                                    variant="compact"
+                                    disabled={index === steps.length - 1}
+                                    onClick={() =>
+                                      dispatch({
+                                        kind: "move",
+                                        id: step.id,
+                                        index: index + 1,
+                                      })}
+                                  >
+                                    <UI.IconGlyph
+                                      name="chevron-down"
+                                      size="small"
+                                    />
+                                  </UI.IconButton>
+                                  <UI.IconButton
+                                    label={translate(
+                                      "library.editor.removeStep" as never,
+                                      { name: stepTitle(step.uses) },
+                                    )}
+                                    variant="destructive"
+                                    onClick={() =>
+                                      dispatch({ kind: "remove", id: step.id })}
+                                  >
+                                    <UI.IconGlyph name="close" size="small" />
+                                  </UI.IconButton>
+                                </UI.Inline>
+                              )
+                              : undefined}
+                          />
+                        </div>
+                      );
+                    })}
                   </UI.StepList>
                 )}
             </>

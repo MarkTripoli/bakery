@@ -3819,5 +3819,8 @@
   "library.editor.dirty": "Unsaved changes",
   "library.editor.moveUp": "Move {name} up",
   "library.editor.moveDown": "Move {name} down",
-  "library.editor.removeStep": "Remove {name}"
+  "library.editor.removeStep": "Remove {name}",
+  "library.editor.check": "Check the steps",
+  "library.editor.check.ok": "Nothing to fix in these steps.",
+  "library.editor.check.problems": "Steps need attention: {count}."
 }

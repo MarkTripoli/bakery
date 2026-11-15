@@ -601,6 +601,34 @@ for (
       await shot(page, "workflow-editor-editing");
     });
 
+    test("Check the steps puts the server's problems on the steps they belong to", async ({ page }) => {
+      await openEditor(page, {
+        ...WORLD,
+        validation: "errors",
+      });
+      await page.getByRole("button", { name: "Check the steps" }).click();
+      // The report's "/steps/1/uses" is the second step's problem, and its
+      // workflow-level problem is not pinned on any step.
+      const second = page.locator("[data-step-row]").nth(1);
+      await expect(second).toContainText("The action is not registered.");
+      await expect(page.getByTestId("editor-check")).toContainText(
+        "Steps need attention: 1.",
+      );
+      const first = page.locator("[data-step-row]").first();
+      await expect(first).not.toContainText("The action is not registered.");
+      await shot(page, "workflow-editor-check");
+    });
+
+    test("a definition the checker likes says so, and marks no step", async ({ page }) => {
+      await openEditor(page);
+      await page.getByRole("button", { name: "Check the steps" }).click();
+      await expect(page.getByTestId("editor-check")).toContainText(
+        "Nothing to fix in these steps.",
+      );
+      await expect(page.locator('[data-step-row] [data-step-status="failed"]'))
+        .toHaveCount(0);
+    });
+
     test("a member who may not change workflows sees the editor read only", async ({ page }) => {
       await libraryFixture(page, { ...WORLD, role: "member" });
       await page.goto(`/library/workflows/${WORKFLOW.id}`);
