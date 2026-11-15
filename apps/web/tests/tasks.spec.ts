@@ -417,7 +417,7 @@ test("queue inspector answers the selected task's open question and the page has
 // Evidence stills of the Work list (BAKERY_STILLS_DIR): the list with tasks,
 // a search with a term, and the empty list; skipped in a normal run.
 // The reference under a title is the first eight characters of the id, and the
-// age is read from `updatedAt`, so the fixtures carry readable ids and recent times.
+// age is read from `createdAt`, so the fixtures carry readable ids and recent times.
 const stillTasks = [
   ["Add repository onboarding", "waiting_input", "a104b3c1", 2],
   ["Confirm error tracking provider", "waiting_input", "e041d7f2", 15],
@@ -431,14 +431,22 @@ const stillTasks = [
   id: `${prefix}-0000-4000-8000-000000000700`,
   title,
   status,
+  createdAt: new Date(Date.now() - Number(minutes) * 60_000).toISOString(),
   updatedAt: new Date(Date.now() - Number(minutes) * 60_000).toISOString(),
 }));
 
 async function stillQueue(page: Page, items: unknown[]) {
-  await page.route(
-    "**/v1/tasks?*",
-    (route) => route.fulfill({ json: { items, nextCursor: null } }),
-  );
+  await page.route("**/v1/tasks?*", (route) => {
+    // The list answers a search the way the server does: by title or description.
+    const term = new URL(route.request().url()).searchParams.get("search")
+      ?.toLowerCase();
+    const shown = term
+      ? (items as { title: string; description: string }[]).filter((item) =>
+        `${item.title} ${item.description}`.toLowerCase().includes(term)
+      )
+      : items;
+    return route.fulfill({ json: { items: shown, nextCursor: null } });
+  });
   await page.route(
     "**/v1/artifacts?*",
     (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
