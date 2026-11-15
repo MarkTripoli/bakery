@@ -230,7 +230,19 @@ export type LoopWorld = {
   steps(): Promise<StepRow[]>;
   /** A plan run: the key the plan asks for next, or undefined once it is over. */
   nextKey(): Promise<string | undefined>;
-  /** A plan run: the input the engine recorded for one step's dispatch. */
+  /**
+   * A plan run: asks the plan for its next step and admits it through the
+   * production engine, as the engine function does. A step the engine
+   * completes itself comes back terminal with no job.
+   */
+  admitNext(): Promise<
+    { stepKey: string; terminal: boolean; jobId: string | null }
+  >;
+  /** Admits one plan step by key through the production engine, as a replay would. */
+  admitKey(
+    stepKey: string,
+  ): Promise<{ terminal: boolean; jobId: string | null }>;
+  /** The input the engine recorded for one step's dispatch. */
   dispatchInput(stepKey: string): Promise<Record<string, unknown>>;
   runStatus(): Promise<string>;
   taskStatus(): Promise<string>;
@@ -754,6 +766,28 @@ export async function openLoopWorld(
     steps: stepRows,
     async nextKey() {
       return (await engine.findNext(run.id, owner))?.stepKey;
+    },
+    async admitNext() {
+      const next = await engine.findNext(run.id, owner);
+      assertExists(next, "the plan asks for nothing");
+      const admitted = await engine.admit(next, owner);
+      return {
+        stepKey: next.stepKey,
+        terminal: admitted.terminal === true,
+        jobId: admitted.jobId ?? null,
+      };
+    },
+    async admitKey(stepKey) {
+      const admitted = await engine.admit({
+        runId: run.id,
+        stepKey,
+        iteration: 0,
+        actionVersion: run.workflowVersionId,
+      }, owner);
+      return {
+        terminal: admitted.terminal === true,
+        jobId: admitted.jobId ?? null,
+      };
     },
     async dispatchInput(stepKey) {
       const row = await database.query<{ input: Record<string, unknown> }>(

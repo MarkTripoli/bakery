@@ -6,6 +6,7 @@ export {
   executionActionCapabilities,
   type FrozenActionBinding,
   isAgentVersionSelector,
+  projectionOutputOf,
   selectStepAgentVersion,
   workflowActionBinding,
   workflowActionCapabilities,

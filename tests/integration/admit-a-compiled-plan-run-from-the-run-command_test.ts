@@ -775,3 +775,60 @@ Deno.test("a plan that reviews freezes its review loop from its own repeat bound
       false,
     );
   }));
+
+Deno.test("a workflow that names a projection action is admitted as a compiled plan, even as a bare list the fixed executor would take", () =>
+  withWorkerFixture(async (fixture) => {
+    const { repository } = await repositoryWithAgent(fixture, "projection");
+    const evidence = {
+      headSha: "1".repeat(40),
+      baseSha: "2".repeat(40),
+      policyDigest: "c".repeat(64),
+      checksPassed: true,
+      checkRunIds: ["00000000-0000-4000-8000-0000000000c1"],
+      failedCheckIds: [],
+      blockingFindings: 0,
+      reviewId: "00000000-0000-4000-8000-0000000000b1",
+      findings: [],
+    };
+    const projection = {
+      id: "project",
+      uses: "delivery.candidate_evidence",
+      with: evidence,
+    };
+    const document = (steps: unknown[]) => ({
+      apiVersion: "bakery.dev/v1",
+      kind: "workflow",
+      name: "projection-admission",
+      description: "A step the engine completes itself.",
+      inputs: {
+        repositoryId: { type: "uuid", required: true },
+        brief: { type: "TaskBrief", required: true },
+        instructions: { type: "string", required: true },
+      },
+      steps,
+    });
+    // Both forms hold a step with no job: the engine runs them, not the fixed
+    // executor, so each is admitted as a plan (a runtime section, no step rows).
+    for (
+      const [name, steps] of [
+        ["projection-bare", [projection]],
+        ["projection-container", [{ id: "flow", steps: [projection] }]],
+      ] as const
+    ) {
+      const published = await publishWorkflow(
+        fixture,
+        fixture,
+        name,
+        document([...steps]),
+      );
+      const { response } = await start(
+        fixture,
+        repository,
+        published.versionId,
+      );
+      const run = await expectJson<RunBody>(response, 201);
+      const snapshot = await snapshotOf(fixture, run.id);
+      assert(Object.hasOwn(snapshot, "runtime"), name);
+      assertEquals(await stepRows(fixture, run.id), [], name);
+    }
+  }));

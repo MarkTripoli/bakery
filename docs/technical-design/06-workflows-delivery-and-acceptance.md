@@ -1974,6 +1974,20 @@ the loop reads the run and what a decision does to it.
   run.
 - **The gate.** `evaluateDeliveryCandidate` reads the plan run's candidate
   through the same view, so a plan run is merge-eligible by the same rules.
+- **Projection steps.** An action the registry declares `projection_only` has no
+  worker. The engine completes such a plan step itself, in the transaction that
+  admits it: no job, no agent, no budget hold; the output is the step's resolved
+  input, validated against the action's input and output shapes, and a shape that
+  does not validate ends the run failed with `PROJECTION_INPUT_INVALID` and
+  writes no output. The step leaves one `workflow.projection.complete` audit
+  entry and moves a queued run to running with `run.updated`, like any finished
+  step, and a replay finds the finished row and does nothing more. The set of
+  actions that may complete this way is named (`ENGINE_PROJECTION_ACTIONS`), and
+  a unit test requires it to equal the registry's `projection_only` entries, so a
+  new entry does not start completing silently. Today that set is exactly one
+  action, `delivery.candidate_evidence`, which is what lets the plan's `repeat`
+  read the candidate of its latest round (`$repeat.currentCandidate`) and stop
+  when nothing blocks.
 
 ### The delivery gate
 
