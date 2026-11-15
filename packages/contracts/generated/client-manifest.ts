@@ -6405,6 +6405,110 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Drafts",
+      "method": "POST",
+      "path": "/v1/drafts/{id}/suggestions",
+      "action": "draftSuggestions.create",
+      "access": "Developer",
+      "permission": "draft:write",
+      "input": "DraftSuggestionCreate",
+      "output": "DraftSuggestion",
+      "event": "draft.suggestion_created",
+      "mcp": "bakery_draftSuggestions_create",
+      "idempotency": "Natural idempotency by mutationId: an exact retry answers with the same suggestion and a changed payload fails",
+      "idempotencyKeyOptional": true,
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "BODY_TOO_LARGE",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Drafts",
+      "method": "GET",
+      "path": "/v1/drafts/{id}/suggestions",
+      "action": "draftSuggestions.list",
+      "access": "Developer",
+      "permission": "draft:read",
+      "input": "DraftSuggestionQuery",
+      "output": "Page<DraftSuggestion>",
+      "event": "",
+      "mcp": "bakery_draftSuggestions_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Drafts",
+      "method": "POST",
+      "path": "/v1/drafts/{id}/suggestions/{suggestionId}/accept",
+      "action": "draftSuggestions.accept",
+      "access": "Developer",
+      "permission": "draft:write",
+      "input": "DraftSuggestionPath",
+      "output": "DraftSuggestion",
+      "event": "draft.suggestion_decided",
+      "mcp": "bakery_draftSuggestions_accept",
+      "idempotency": "Natural idempotency by suggestion: accepting an accepted suggestion answers with it unchanged; a suggestion decided otherwise cannot change state",
+      "idempotencyKeyOptional": true,
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "DEPENDENCY_UNAVAILABLE",
+        "DEPENDENCY_TIMEOUT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Drafts",
+      "method": "POST",
+      "path": "/v1/drafts/{id}/suggestions/{suggestionId}/reject",
+      "action": "draftSuggestions.reject",
+      "access": "Developer",
+      "permission": "draft:write",
+      "input": "DraftSuggestionPath",
+      "output": "DraftSuggestion",
+      "event": "draft.suggestion_decided",
+      "mcp": "bakery_draftSuggestions_reject",
+      "idempotency": "Natural idempotency by suggestion: rejecting a rejected suggestion answers with it unchanged; a suggestion decided otherwise cannot change state",
+      "idempotencyKeyOptional": true,
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "STATE_CONFLICT"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Artifacts",
       "method": "GET",
       "path": "/v1/artifact-storage",
@@ -11208,6 +11312,10 @@ export const clientManifest = {
             "drafts.edit",
             "draftPublications.create",
             "draftPublications.get",
+            "draftSuggestions.create",
+            "draftSuggestions.list",
+            "draftSuggestions.accept",
+            "draftSuggestions.reject",
             "artifactStorage.get",
             "coordinationPlans.create",
             "coordinationPlans.createFromWorkflow",
@@ -17700,6 +17808,123 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Publishes one exact committed draft checkpoint as the artifact's next immutable version through the shared artifact-version service. No content, actor, artifact, parent version or organization can be supplied by the caller."
+    },
+    "DraftSuggestionCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "epoch": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2147483647,
+          "description": "DraftSuggestionCreate.epoch must be at most 2147483647."
+        },
+        "sourceCheckpointId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Retained checkpoint whose full Loro history must contain both submitted cursors; the anchor is checked against it and against the current checkpoint before the suggestion is recorded."
+        },
+        "startCursor": {
+          "type": "string",
+          "description": "DraftSuggestionCreate.startCursor must contain at most 1024 UTF-8 bytes.",
+          "x-utf8-max-bytes": 1024
+        },
+        "endCursor": {
+          "type": "string",
+          "description": "DraftSuggestionCreate.endCursor must contain at most 1024 UTF-8 bytes.",
+          "x-utf8-max-bytes": 1024
+        },
+        "expectedText": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "DraftSuggestionCreate.expectedText must contain at most 65536 UTF-8 bytes.",
+          "x-utf8-max-bytes": 65536
+        },
+        "expectedDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Lowercase SHA-256 of expectedText UTF-8 bytes, preventing alternate expected-text encodings from passing the guard."
+        },
+        "replacement": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "DraftSuggestionCreate.replacement must contain at most 65536 UTF-8 bytes.",
+          "x-utf8-max-bytes": 65536
+        },
+        "mutationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Caller-generated idempotency identifier; an exact retry answers with the same suggestion and a changed payload fails."
+        }
+      },
+      "required": [
+        "epoch",
+        "sourceCheckpointId",
+        "startCursor",
+        "endCursor",
+        "expectedText",
+        "expectedDigest",
+        "replacement",
+        "mutationId"
+      ],
+      "additionalProperties": false,
+      "description": "Proposes one guarded text replacement in a collaborative draft as a waiting suggestion instead of editing it. This is how an agent changes a shared draft (chapter 25, O50): the requester, agent and request are taken from the authenticated call, never from the caller's input."
+    },
+    "DraftSuggestionQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "description": "DraftSuggestionQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "DraftSuggestionQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "state": {
+          "description": "Lists only suggestions in this state, for example waiting for the review list; omitted lists every state.",
+          "type": "string",
+          "enum": [
+            "waiting",
+            "accepted",
+            "rejected",
+            "no_longer_fits"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "Lists the suggestions proposed for one collaborative draft, oldest first, with keyset pagination."
+    },
+    "DraftSuggestionPath": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Authorized active draft identifier from the route."
+        },
+        "suggestionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Suggestion of the same draft to decide."
+        }
+      },
+      "required": [
+        "id",
+        "suggestionId"
+      ],
+      "additionalProperties": false,
+      "description": "Route identifiers naming one suggestion of an authorized active draft."
     },
     "UserPreferences": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -29327,6 +29552,10 @@ export const clientManifest = {
                   "drafts.edit",
                   "draftPublications.create",
                   "draftPublications.get",
+                  "draftSuggestions.create",
+                  "draftSuggestions.list",
+                  "draftSuggestions.accept",
+                  "draftSuggestions.reject",
                   "artifactStorage.get",
                   "coordinationPlans.create",
                   "coordinationPlans.createFromWorkflow",
@@ -44708,6 +44937,10 @@ export const clientManifest = {
             "drafts.edit",
             "draftPublications.create",
             "draftPublications.get",
+            "draftSuggestions.create",
+            "draftSuggestions.list",
+            "draftSuggestions.accept",
+            "draftSuggestions.reject",
             "artifactStorage.get",
             "coordinationPlans.create",
             "coordinationPlans.createFromWorkflow",
@@ -47087,7 +47320,7 @@ export const clientManifest = {
                   "type": "boolean"
                 },
                 "reason": {
-                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; absent when the conflict has no named rule.",
+                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule.",
                   "type": "string",
                   "maxLength": 65536
                 }
@@ -50108,7 +50341,7 @@ export const clientManifest = {
           "type": "boolean"
         },
         "reason": {
-          "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; absent when the conflict has no named rule.",
+          "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule.",
           "type": "string",
           "maxLength": 65536
         }
@@ -50464,7 +50697,7 @@ export const clientManifest = {
                   "type": "boolean"
                 },
                 "reason": {
-                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; absent when the conflict has no named rule.",
+                  "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule.",
                   "type": "string",
                   "maxLength": 65536
                 }
@@ -50868,7 +51101,7 @@ export const clientManifest = {
                         "type": "boolean"
                       },
                       "reason": {
-                        "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; absent when the conflict has no named rule.",
+                        "description": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule.",
                         "type": "string",
                         "maxLength": 65536
                       }
@@ -62496,6 +62729,480 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Durable record that one draft checkpoint became one immutable artifact version: which version resulted, from which frozen cutoff, and who published it. Replayed exactly for a retry of the same checkpoint."
+    },
+    "DraftSuggestion": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Server-assigned suggestion identifier."
+        },
+        "draftId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Draft the suggestion proposes to change."
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Draft epoch the suggestion was made in; a later epoch means the draft moved on."
+        },
+        "sourceCheckpointId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Checkpoint the requester read the anchored text from."
+        },
+        "startCursor": {
+          "type": "string",
+          "description": "Opaque Loro cursor for the inclusive start of the replaced range; editors resolve it to highlight the range."
+        },
+        "endCursor": {
+          "type": "string",
+          "description": "Opaque Loro cursor for the exclusive end of the replaced range."
+        },
+        "expectedText": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "DraftSuggestion.expectedText must contain at most 65536 UTF-8 bytes.",
+          "x-utf8-max-bytes": 65536
+        },
+        "replacement": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "DraftSuggestion.replacement must contain at most 65536 UTF-8 bytes.",
+          "x-utf8-max-bytes": 65536
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "waiting",
+            "accepted",
+            "rejected",
+            "no_longer_fits",
+            "unknown"
+          ],
+          "description": "waiting until someone decides; accepted when it was applied through the normal edit path; rejected when a person declined it; no_longer_fits when, at accept time, the anchored text had changed or the draft had moved on, and nothing was applied; unknown for a stored state this server version does not recognise."
+        },
+        "refusalReason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "text_changed",
+                "draft_moved_on"
+              ],
+              "description": "Why a no_longer_fits suggestion could not be applied: text_changed when the anchored text no longer matches, draft_moved_on when the draft is in a later epoch or its source checkpoint is gone; null in every other state."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DraftSuggestion.refusalReason may be null in this transport value."
+        },
+        "requestedById": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Principal the suggestion is attributed to: the person, or the principal an agent acted for (O50)."
+        },
+        "requestedByName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "DraftSuggestion.requestedByName must contain at most 1024 UTF-8 bytes.",
+          "x-utf8-max-bytes": 1024
+        },
+        "actorKind": {
+          "type": "string",
+          "enum": [
+            "person",
+            "agent"
+          ],
+          "description": "agent when an agent proposed it through an access token or under its own service or worker identity; person when a person proposed it through a signed-in session."
+        },
+        "agentName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "DraftSuggestion.agentName must contain at most 1024 UTF-8 bytes.",
+              "x-utf8-max-bytes": 1024
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DraftSuggestion.agentName may be null in this transport value."
+        },
+        "requestId": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Server request identifier of the call that proposed the suggestion, for tracing it to its request."
+        },
+        "decidedById": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Person who accepted or rejected the suggestion, or tried to accept it when it no longer fit; null while waiting."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DraftSuggestion.decidedById may be null in this transport value."
+        },
+        "decidedByName": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "DraftSuggestion.decidedByName must contain at most 1024 UTF-8 bytes.",
+              "x-utf8-max-bytes": 1024
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DraftSuggestion.decidedByName may be null in this transport value."
+        },
+        "decidedAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC time of the decision; null while waiting."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DraftSuggestion.decidedAt may be null in this transport value."
+        },
+        "appliedServerSequence": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Draft server sequence of the edit an accepted suggestion committed; null in every other state."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "DraftSuggestion.appliedServerSequence may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time the suggestion was recorded."
+        }
+      },
+      "required": [
+        "id",
+        "draftId",
+        "epoch",
+        "sourceCheckpointId",
+        "startCursor",
+        "endCursor",
+        "expectedText",
+        "replacement",
+        "state",
+        "refusalReason",
+        "requestedById",
+        "requestedByName",
+        "actorKind",
+        "agentName",
+        "requestId",
+        "decidedById",
+        "decidedByName",
+        "decidedAt",
+        "appliedServerSequence",
+        "createdAt"
+      ],
+      "additionalProperties": false,
+      "description": "One proposed replacement in a collaborative draft: what it replaces, the proposed text, who asked and from which request, and whether it is waiting, accepted, rejected or no longer fits. Accepting applies it through the same guarded edit as drafts.edit."
+    },
+    "Page<DraftSuggestion>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Server-assigned suggestion identifier."
+              },
+              "draftId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Draft the suggestion proposes to change."
+              },
+              "epoch": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Draft epoch the suggestion was made in; a later epoch means the draft moved on."
+              },
+              "sourceCheckpointId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Checkpoint the requester read the anchored text from."
+              },
+              "startCursor": {
+                "type": "string",
+                "description": "Opaque Loro cursor for the inclusive start of the replaced range; editors resolve it to highlight the range."
+              },
+              "endCursor": {
+                "type": "string",
+                "description": "Opaque Loro cursor for the exclusive end of the replaced range."
+              },
+              "expectedText": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "DraftSuggestion.expectedText must contain at most 65536 UTF-8 bytes.",
+                "x-utf8-max-bytes": 65536
+              },
+              "replacement": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "DraftSuggestion.replacement must contain at most 65536 UTF-8 bytes.",
+                "x-utf8-max-bytes": 65536
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "waiting",
+                  "accepted",
+                  "rejected",
+                  "no_longer_fits",
+                  "unknown"
+                ],
+                "description": "waiting until someone decides; accepted when it was applied through the normal edit path; rejected when a person declined it; no_longer_fits when, at accept time, the anchored text had changed or the draft had moved on, and nothing was applied; unknown for a stored state this server version does not recognise."
+              },
+              "refusalReason": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "text_changed",
+                      "draft_moved_on"
+                    ],
+                    "description": "Why a no_longer_fits suggestion could not be applied: text_changed when the anchored text no longer matches, draft_moved_on when the draft is in a later epoch or its source checkpoint is gone; null in every other state."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "DraftSuggestion.refusalReason may be null in this transport value."
+              },
+              "requestedById": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Principal the suggestion is attributed to: the person, or the principal an agent acted for (O50)."
+              },
+              "requestedByName": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "DraftSuggestion.requestedByName must contain at most 1024 UTF-8 bytes.",
+                "x-utf8-max-bytes": 1024
+              },
+              "actorKind": {
+                "type": "string",
+                "enum": [
+                  "person",
+                  "agent"
+                ],
+                "description": "agent when an agent proposed it through an access token or under its own service or worker identity; person when a person proposed it through a signed-in session."
+              },
+              "agentName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "DraftSuggestion.agentName must contain at most 1024 UTF-8 bytes.",
+                    "x-utf8-max-bytes": 1024
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "DraftSuggestion.agentName may be null in this transport value."
+              },
+              "requestId": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Server request identifier of the call that proposed the suggestion, for tracing it to its request."
+              },
+              "decidedById": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Person who accepted or rejected the suggestion, or tried to accept it when it no longer fit; null while waiting."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "DraftSuggestion.decidedById may be null in this transport value."
+              },
+              "decidedByName": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "DraftSuggestion.decidedByName must contain at most 1024 UTF-8 bytes.",
+                    "x-utf8-max-bytes": 1024
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "DraftSuggestion.decidedByName may be null in this transport value."
+              },
+              "decidedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC time of the decision; null while waiting."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "DraftSuggestion.decidedAt may be null in this transport value."
+              },
+              "appliedServerSequence": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^(?:0|[1-9][0-9]*)$",
+                    "description": "Draft server sequence of the edit an accepted suggestion committed; null in every other state."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "DraftSuggestion.appliedServerSequence may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC time the suggestion was recorded."
+              }
+            },
+            "required": [
+              "id",
+              "draftId",
+              "epoch",
+              "sourceCheckpointId",
+              "startCursor",
+              "endCursor",
+              "expectedText",
+              "replacement",
+              "state",
+              "refusalReason",
+              "requestedById",
+              "requestedByName",
+              "actorKind",
+              "agentName",
+              "requestId",
+              "decidedById",
+              "decidedByName",
+              "decidedAt",
+              "appliedServerSequence",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "One proposed replacement in a collaborative draft: what it replaces, the proposed text, who asked and from which request, and whether it is waiting, accepted, rejected or no longer fits. Accepting applies it through the same guarded edit as drafts.edit."
+          },
+          "description": "Page<DraftSuggestion>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<DraftSuggestion>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Page<DraftSuggestion>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<DraftSuggestion>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<DraftSuggestion>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of DraftSuggestion."
     }
   }
 } as const;

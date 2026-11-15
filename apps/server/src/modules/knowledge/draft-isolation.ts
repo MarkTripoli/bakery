@@ -193,6 +193,19 @@ export type DraftIsolation = {
     signal?: AbortSignal,
     organizationId?: string,
   ): Promise<IsolatedDraftSlice>;
+  /**
+   * Checks a guarded edit's anchor without applying it (#71): the range must
+   * resolve to exactly the expected text in the source and current states. A
+   * failure is a `precondition` refusal, so a suggestion is recorded only
+   * when accepting it could later apply.
+   */
+  verify(
+    currentState: Uint8Array,
+    sourceState: Uint8Array,
+    input: IsolatedDraftEdit,
+    signal?: AbortSignal,
+    organizationId?: string,
+  ): Promise<void>;
   /** Imports one untrusted collaboration update into the committed state. */
   importUpdate(
     currentState: Uint8Array,
@@ -1506,6 +1519,32 @@ export function createDraftIsolation(
           organizationId,
         ),
       );
+    },
+    async verify(currentState, sourceState, input, signal, organizationId) {
+      const frames = await run(
+        [
+          encoder.encode(JSON.stringify({
+            operation: "verify",
+            mutationId: input.mutationId,
+            startCursor: input.startCursor,
+            endCursor: input.endCursor,
+            expectedDigest: input.expectedDigest,
+          })),
+          sourceState,
+          currentState,
+          encoder.encode(input.expectedText),
+        ],
+        signal,
+        organizationId,
+      );
+      if (frames.length !== 1) {
+        throw new DraftIsolationError(
+          "unavailable",
+          "WORKER_FRAME_COUNT_INVALID",
+        );
+      }
+      const metadata = objectMetadata(frames[0]);
+      if (metadata.ok !== true) throwWorkerFailure(metadata);
     },
     async importUpdate(currentState, update, signal, organizationId) {
       return parseCandidate(

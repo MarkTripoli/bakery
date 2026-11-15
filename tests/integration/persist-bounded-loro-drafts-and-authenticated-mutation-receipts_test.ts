@@ -292,6 +292,7 @@ function racingIsolation(
   return {
     initialize: real.initialize,
     slice: real.slice,
+    verify: real.verify,
     importUpdate: real.importUpdate,
     async edit(current, source, input, signal) {
       const candidate = await real.edit(current, source, input, signal);
@@ -435,6 +436,7 @@ Deno.test("open, slice and edit each count toward the caller's organization shar
   const seen: [string, string | undefined][] = [];
   const isolation: DraftIsolation = {
     importUpdate: real.importUpdate,
+    verify: real.verify,
     initialize(text, signal, organizationId) {
       seen.push(["initialize", organizationId]);
       return real.initialize(text, signal, organizationId);
@@ -479,6 +481,7 @@ Deno.test("a duplicate whose original commits during its last stale attempt repl
   const isolation: DraftIsolation = {
     initialize: real.initialize,
     slice: real.slice,
+    verify: real.verify,
     importUpdate: real.importUpdate,
     async edit(current, source, input, signal) {
       const candidate = await real.edit(current, source, input, signal);

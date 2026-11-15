@@ -240,11 +240,23 @@ export async function createInitialDraftCandidate(
   };
 }
 
-export async function applyDraftEditCandidate(
+/**
+ * The checks a guarded edit must pass before it changes anything: bounded
+ * text, the expected digest, and an anchored range that resolves to exactly
+ * the expected text in both the source and the current document. Shared by
+ * `applyDraftEditCandidate` and `verifyDraftEditTarget`, so a suggestion is
+ * admitted on precisely the terms its later acceptance is applied on.
+ */
+async function resolveGuardedEditTarget(
   currentState: Uint8Array,
   sourceState: Uint8Array,
   input: DraftEditCandidateInput,
-): Promise<DraftCandidate> {
+): Promise<{
+  document: LoroDoc;
+  body: ReturnType<LoroDoc["getText"]>;
+  start: number;
+  end: number;
+}> {
   assertBoundedText(
     input.expectedText,
     DRAFT_LIMITS.replacementBytes,
@@ -278,6 +290,33 @@ export async function applyDraftEditCandidate(
   if (body.toString().slice(start, end) !== input.expectedText) {
     throw new DraftCandidateError("precondition", "CURRENT_TARGET_CHANGED");
   }
+  return { document, body, start, end };
+}
+
+/**
+ * Checks a guarded edit without applying it (#71): an agent's suggestion is
+ * recorded only when its anchor resolves to the text it claims to replace, in
+ * the checkpoint it was read from and in the current draft. Nothing is
+ * written.
+ */
+export async function verifyDraftEditTarget(
+  currentState: Uint8Array,
+  sourceState: Uint8Array,
+  input: DraftEditCandidateInput,
+): Promise<void> {
+  await resolveGuardedEditTarget(currentState, sourceState, input);
+}
+
+export async function applyDraftEditCandidate(
+  currentState: Uint8Array,
+  sourceState: Uint8Array,
+  input: DraftEditCandidateInput,
+): Promise<DraftCandidate> {
+  const { document, body, start, end } = await resolveGuardedEditTarget(
+    currentState,
+    sourceState,
+    input,
+  );
   const from = document.version();
   document.setPeerId(peerId(input.mutationId));
   if (end > start) body.delete(start, end - start);

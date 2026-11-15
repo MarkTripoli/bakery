@@ -333,25 +333,36 @@ export async function commitDraftOpen(
   return await readDraft(transaction, organizationId, draftId);
 }
 
-export async function prepareDraftEdit(
+/** Why a guarded draft edit was refused (#71): carried as the problem reason. */
+export type DraftEditRefusalReason = "text_changed" | "draft_moved_on";
+
+/** A 412 naming why the edit cannot apply to the current draft. */
+export function refusedDraftEdit(
+  reason: DraftEditRefusalReason,
+  cause?: unknown,
+): StandardError {
+  return new StandardError({
+    code: "PRECONDITION_FAILED",
+    params: { reason },
+    cause,
+  });
+}
+
+/**
+ * Loads the current and source checkpoints a guarded edit is computed from.
+ * A different epoch or a source checkpoint that is gone means the draft moved
+ * on. Shared by drafts.edit and the suggestion actions, so a suggestion is
+ * checked and applied exactly as a direct edit is.
+ */
+export async function prepareDraftEditStates(
   transaction: PgTransactionClient,
   organizationId: string,
-  principalId: string,
   draftId: string,
-  input: DraftEditInput,
-): Promise<DraftReceipt | PreparedDraftEdit> {
+  input: Pick<DraftEditInput, "epoch" | "sourceCheckpointId">,
+  digest: string,
+): Promise<PreparedDraftEdit> {
   const scope = await loadDraftScope(transaction, organizationId, draftId);
-  const digest = await requestDigest(draftId, principalId, input);
-  const existing = await loadReceipt(
-    transaction,
-    organizationId,
-    draftId,
-    input.mutationId,
-  );
-  if (existing) return assertReceiptDigest(existing, digest);
-  if (scope.epoch !== input.epoch) {
-    throw new StandardError({ code: "PRECONDITION_FAILED" });
-  }
+  if (scope.epoch !== input.epoch) throw refusedDraftEdit("draft_moved_on");
   const checkpoints = await transaction.query<{
     id: string;
     state: Uint8Array;
@@ -369,9 +380,7 @@ export async function prepareDraftEdit(
   const states = new Map(checkpoints.rows.map((row) => [row.id, row.state]));
   const current = states.get(scope.current_checkpoint_id);
   const source = states.get(input.sourceCheckpointId);
-  if (!current || !source) {
-    throw new StandardError({ code: "PRECONDITION_FAILED" });
-  }
+  if (!current || !source) throw refusedDraftEdit("draft_moved_on");
   return {
     kind: "candidate",
     draftId,
@@ -381,6 +390,40 @@ export async function prepareDraftEdit(
     currentState: stateBytes(current),
     sourceState: stateBytes(source),
   };
+}
+
+/** Digest binding one guarded edit to its principal, for exact retries. */
+export async function draftEditDigest(
+  draftId: string,
+  principalId: string,
+  input: DraftEditInput,
+): Promise<string> {
+  return await requestDigest(draftId, principalId, input);
+}
+
+export async function prepareDraftEdit(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  principalId: string,
+  draftId: string,
+  input: DraftEditInput,
+): Promise<DraftReceipt | PreparedDraftEdit> {
+  await loadDraftScope(transaction, organizationId, draftId);
+  const digest = await requestDigest(draftId, principalId, input);
+  const existing = await loadReceipt(
+    transaction,
+    organizationId,
+    draftId,
+    input.mutationId,
+  );
+  if (existing) return assertReceiptDigest(existing, digest);
+  return await prepareDraftEditStates(
+    transaction,
+    organizationId,
+    draftId,
+    input,
+    digest,
+  );
 }
 
 async function commitDraftCandidate(
