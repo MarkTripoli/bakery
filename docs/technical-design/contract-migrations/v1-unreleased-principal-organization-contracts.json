@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "a7a6736492a9361c0a9fdf86bcf538122c5abc1b"
+    "4cc2a9e564c6d68b5ddec38b2493d56e58d45b20"
   ],
   "status": "approved",
   "allowBreaking": true,
   "targetCompatibilityDigest": "sha256:7193056cd3ceb07167095877072462a674c0c3c0d5d59f378fdf4107bafc34d2",
-  "reason": "#68 contract re-bind by dev-server on 2026-11-15 under owner's standing breaking-change authorization (2026-10-09), main a7a6736492a9361c0a9fdf86bcf538122c5abc1b: ExternalEffect gains failureCode; WorkerComponent gains paymentMethods; WorkerProviderBinding gains paymentMethodSupported.",
+  "reason": "#68 contract re-bind by dev-server on 2026-11-15 under owner's standing breaking-change authorization (2026-10-09), main 4cc2a9e564c6d68b5ddec38b2493d56e58d45b20: ExternalEffect gains failureCode; WorkerComponent gains paymentMethods; WorkerProviderBinding gains paymentMethodSupported.",
   "priorApprovals": [
     {
       "allowBreaking": true,
