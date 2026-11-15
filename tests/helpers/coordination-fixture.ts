@@ -597,7 +597,7 @@ export function fourLaneSpec() {
         repositoryAlias: "api",
         title: "contract",
         instructions:
-          "Workflow lane contract, steps in order:\n- define: agent.implement",
+          "Workflow lane contract, steps in order:\n- define: workflow.noop",
         prerequisites: [],
         outputs: [{ key: "contract", kind: "artifact", artifactType: "patch" }],
         inputs: [],
@@ -607,7 +607,7 @@ export function fourLaneSpec() {
         repositoryAlias: "web",
         title: "web",
         instructions:
-          "Workflow lane web, steps in order:\n- build: agent.implement",
+          "Workflow lane web, steps in order:\n- build: workflow.noop",
         prerequisites: ["contract"],
         outputs: [patch],
         inputs: [{ fromLane: "contract", outputKey: "contract" }],
@@ -617,7 +617,7 @@ export function fourLaneSpec() {
         repositoryAlias: "mobile",
         title: "mobile",
         instructions:
-          "Workflow lane mobile, steps in order:\n- build: agent.implement",
+          "Workflow lane mobile, steps in order:\n- build: workflow.noop",
         prerequisites: ["contract"],
         outputs: [patch],
         inputs: [{ fromLane: "contract", outputKey: "contract" }],
@@ -627,12 +627,13 @@ export function fourLaneSpec() {
         repositoryAlias: "integration",
         title: "integration",
         instructions:
-          "Workflow lane integration, steps in order:\n- verify: agent.implement",
-        prerequisites: ["web", "mobile"],
+          "Workflow lane integration, steps in order:\n- verify: workflow.noop",
+        // The compiler orders a lane's needs by name.
+        prerequisites: ["mobile", "web"],
         outputs: [],
         inputs: [
-          { fromLane: "web", outputKey: "patch" },
           { fromLane: "mobile", outputKey: "patch" },
+          { fromLane: "web", outputKey: "patch" },
         ],
       },
     ],
