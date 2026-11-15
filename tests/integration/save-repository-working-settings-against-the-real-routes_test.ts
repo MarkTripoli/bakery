@@ -267,6 +267,50 @@ Deno.test("the page's save sequence against the real routes", async () => {
     assertEquals(noEntriesResult.putInUseBy, "page");
     assertEquals(await activeOf(noEntries), noEntriesResult.profile.id);
 
+    // A fixed policy fixes what a *publication* may change, not which recorded
+    // version a person may put in use: the server allows switching to a version
+    // with other branches, so the page keeps "Use version" on those rows
+    // (design-ux, #475 review). A policy that also carried rules still refuses
+    // to publish new branches (the sheet's fixed-branches view).
+    const policyFixed = await makeRepo("policy-fixed", {
+      profile: config({
+        fixedPolicy: {
+          lockedConfiguration: {
+            branches: true,
+            worktree: true,
+            checker: true,
+          },
+        },
+      }),
+    });
+    const otherBranches = crypto.randomUUID();
+    const otherConfig = config();
+    (otherConfig.branches as { allowedPatterns: string[] }).allowedPatterns = [
+      "recorded/*",
+    ];
+    await owner`
+      insert into bakery.repository_profiles (
+        id, organization_id, application_id, repository_id, revision, config,
+        digest, created_by, version
+      ) values (${otherBranches}, ${fx.organizationId}, ${fx.applicationId},
+        ${policyFixed}, 2, ${owner.json(otherConfig as never)},
+        ${await configDigest(otherConfig)}, ${fx.admin.principalId}, 1)`;
+    const fixedNow = (await request("GET", `/v1/repositories/${policyFixed}`))
+      .json as { version: number };
+    const usedUnderPolicy = await request(
+      "PATCH",
+      `/v1/repositories/${policyFixed}`,
+      {
+        body: { activeProfileId: otherBranches },
+        ifMatch: `"${fixedNow.version}"`,
+      },
+    );
+    assertEquals(
+      usedUnderPolicy.status,
+      200,
+      JSON.stringify(usedUnderPolicy.json),
+    );
+    assertEquals(await activeOf(policyFixed), otherBranches);
     // A control character in a branch is a 400, and the page refuses it first.
     assertEquals(settingsProblem(["main\u0000x"], ""), "characters");
     const control = await makeRepo("control", { profile: config() });
