@@ -11,7 +11,13 @@ const STAMP = "2026-01-01T00:00:00.000Z";
 export const REPOSITORY_ID = uuid(250);
 export const APPLICATION_ID = uuid(150);
 
-export type Profile = { revision: number; branches: string[]; folder?: string };
+export type Profile = {
+  revision: number;
+  branches: string[];
+  folder?: string;
+  /** The version states rules of its own (the Rules page publishes such versions). */
+  rules?: boolean;
+};
 
 export type Options = {
   role?: "admin" | "developer";
@@ -23,9 +29,9 @@ export type Options = {
   defaultBranch?: string;
   /** The connection's state; "missing" answers 404. */
   connection?: "enabled" | "revoked" | "missing";
-  /** What creating a version answers: ok, or a 409 (the number is taken). */
-  save?: "ok" | "conflict" | "down";
-  /** What putting a version in use answers. */
+  /** What creating a version answers: ok, a 409 (the number is taken), a server fault, a 428 (rules of its own) or a 400. */
+  save?: "ok" | "conflict" | "down" | "rules" | "rejected";
+  /** What putting a version in use answers: ok, a 412 whatever the version, or a server fault. */
   use?: "ok" | "conflict" | "down";
   /** The repository read answers this status instead of the repository. */
   repositoryStatus?: 403 | 404 | 500;
@@ -60,6 +66,7 @@ const configOf = (profile: Profile, base: string) => ({
   workflow: { kind: "fixed" },
   branches: { base, allowedPatterns: profile.branches },
   worktree: { root: profile.folder ?? "." },
+  ...(profile.rules ? { repositoryRules: { entries: [] } } : {}),
 });
 
 /** Stubs the session, role and every read and write of the repository page; returns what it saw. */
@@ -128,7 +135,13 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
         ifMatch: request.headers()["if-match"] ?? null,
         body,
       });
-      if (options.use === "conflict") {
+      // The server answers 412 to a stale version: the page must hold the
+      // repository's current one (a first version is put in use by the server
+      // itself, which moves the version).
+      if (
+        options.use === "conflict" ||
+        request.headers()["if-match"] !== `"v${state.version}"`
+      ) {
         return route.fulfill(problem(412, "PRECONDITION_FAILED"));
       }
       if (options.use === "down") {
@@ -199,6 +212,12 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
         if (options.save === "down") {
           return route.fulfill(problem(500, "INTERNAL"));
         }
+        if (options.save === "rules") {
+          return route.fulfill(problem(428, "PRECONDITION_REQUIRED"));
+        }
+        if (options.save === "rejected") {
+          return route.fulfill(problem(400, "MALFORMED_REQUEST"));
+        }
         const created = {
           revision: body.revision,
           branches: body.config.branches.allowedPatterns,
@@ -207,6 +226,11 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
             : body.config.worktree.root,
         };
         profiles.push(created);
+        // The server puts the first version of a repository in use itself.
+        if (state.active === null) {
+          state.active = created.revision;
+          state.version += 1;
+        }
         return route.fulfill(json(profileBody(created), 201));
       }
       seen.profileReads += 1;

@@ -8,6 +8,7 @@ import {
 import { useBakeryApi } from "../../api/context.tsx";
 import { asyncKindForError, failureStatus } from "../../app/async-state.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
+import { saveWorkingSettings } from "./repository-save.ts";
 import { configDigest, settingsConfig } from "./repository-state.ts";
 
 /**
@@ -20,6 +21,8 @@ export type SettingsFailure =
   | "conflict"
   | "offline"
   | "failed"
+  | "rules"
+  | "rejected"
   | "savedNotUsed"
   | "useFailed";
 
@@ -31,6 +34,13 @@ export function failureOf(error: unknown): SettingsFailure {
     case 409:
     case 412:
       return "conflict";
+    // The repository has rules of its own, which a save from here cannot carry.
+    case 428:
+      return "rules";
+    // The server did not accept the values.
+    case 400:
+    case 422:
+      return "rejected";
     default:
       return "failed";
   }
@@ -70,16 +80,16 @@ export function useRepositorySettings(repository: RepositoryResponse) {
   const refresh = () =>
     void queryClient.invalidateQueries({ queryKey: ["protected"] });
 
-  const putInUse = async (profile: RepositoryProfileResponse) => {
+  const putInUse = async (
+    profile: RepositoryProfileResponse,
+    version: number,
+  ) => {
     const result = await api.updateRepository({
       organizationId,
       id: repository.id,
       input: { activeProfileId: profile.id },
-      ifMatch: versionEtag(repository.version),
-      idempotencyKey: keyFor(
-        useIntent,
-        `${profile.id}:${repository.version}`,
-      ),
+      ifMatch: versionEtag(version),
+      idempotencyKey: keyFor(useIntent, `${profile.id}:${version}`),
     });
     if (!result.ok) {
       if (!outcomeUnknown(result.error)) useIntent.current = null;
@@ -99,38 +109,41 @@ export function useRepositorySettings(repository: RepositoryResponse) {
       },
     ) => {
       setFailure(null);
-      const config = settingsConfig(input.previous?.config ?? null, {
-        base: repository.defaultBranch,
+      const signature = `${input.revision}:${await configDigest(
+        settingsConfig(input.previous?.config ?? null, {
+          base: repository.defaultBranch,
+          branches: input.branches,
+          folder: input.folder,
+        }),
+      )}`;
+      const result = await saveWorkingSettings(api, {
+        organizationId,
+        repository,
+        previous: input.previous,
+        revision: input.revision,
         branches: input.branches,
         folder: input.folder,
+        createKey: keyFor(saveIntent, signature),
+        useKey: (profileId, version) =>
+          keyFor(useIntent, `${profileId}:${version}`),
       });
-      const digest = await configDigest(config);
-      const created = await api.createRepositoryProfile({
-        organizationId,
-        repositoryId: repository.id,
-        input: { revision: input.revision, config, digest },
-        idempotencyKey: keyFor(
-          saveIntent,
-          `${input.revision}:${digest}`,
-        ),
-      });
-      if (!created.ok) {
-        if (!outcomeUnknown(created.error)) saveIntent.current = null;
-        setFailure({ kind: failureOf(created.error) });
-        throw created.error;
-      }
-      saveIntent.current = null;
-      try {
-        await putInUse(created.data);
-      } catch (error) {
-        setFailure({
-          kind: failureOf(error) === "conflict" ? "conflict" : "savedNotUsed",
-          version: created.data.revision,
-        });
+      if (result.ok) {
+        saveIntent.current = null;
+        useIntent.current = null;
         refresh();
-        throw error;
+        return;
       }
+      if (result.step === "create") {
+        if (!outcomeUnknown(result.error)) saveIntent.current = null;
+        setFailure({ kind: failureOf(result.error) });
+        throw result.error;
+      }
+      // A version was saved, whatever went wrong after it: never "nothing was applied".
+      saveIntent.current = null;
+      if (!outcomeUnknown(result.error)) useIntent.current = null;
+      setFailure({ kind: "savedNotUsed", version: result.profile.revision });
       refresh();
+      throw result.error;
     },
   });
 
@@ -139,7 +152,7 @@ export function useRepositorySettings(repository: RepositoryResponse) {
     mutationFn: async (profile: RepositoryProfileResponse) => {
       setFailure(null);
       try {
-        await putInUse(profile);
+        await putInUse(profile, repository.version);
       } catch (error) {
         const kind = failureOf(error);
         setFailure({ kind: kind === "failed" ? "useFailed" : kind });

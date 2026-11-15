@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import type {
   RepositoryProfileResponse,
@@ -8,6 +9,7 @@ import { useI18n } from "../../i18n/I18nProvider.tsx";
 import {
   branchesOf,
   folderOf,
+  hasOwnRules,
   newestFirst,
   nextRevision,
   parseBranches,
@@ -34,6 +36,7 @@ export function WorkingSettingsSheet(
   const { translate, locale, timeZone } = useI18n();
   const id = useId();
   const settings = useRepositorySettings(repository);
+  const navigate = useNavigate();
   const [branchText, setBranchText] = useState(
     () =>
       (active === null ? [repository.defaultBranch] : branchesOf(active.config))
@@ -53,7 +56,11 @@ export function WorkingSettingsSheet(
   const problem = settingsProblem(branches, folder);
   const next = nextRevision(profiles);
   const archived = repository.archivedAt !== null;
-  const disabled = !canManage || offline || archived || settings.pending;
+  // Rules of the repository's own are carried by the Rules page: a save from
+  // here cannot keep them, so nothing here is offered that could not succeed.
+  const rules = active !== null && hasOwnRules(active.config);
+  const disabled = !canManage || offline || archived || settings.pending ||
+    rules;
   const earlier = newestFirst(profiles);
   const date = (value: string) =>
     new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone }).format(
@@ -68,6 +75,8 @@ export function WorkingSettingsSheet(
     ? translate("projects.repository.settings.branchesTooMany" as never)
     : problem === "tooLong"
     ? translate("projects.repository.settings.branchesTooLong" as never)
+    : problem === "characters"
+    ? translate("projects.repository.settings.branchesControl" as never)
     : undefined;
   const folderError = tried && problem === "folder"
     ? translate("projects.repository.settings.folderInvalid" as never)
@@ -109,6 +118,31 @@ export function WorkingSettingsSheet(
             ? (
               <UI.InlineNotice tone="information">
                 {translate("projects.repository.archivedNotice" as never)}
+              </UI.InlineNotice>
+            )
+            : null}
+          {rules
+            ? (
+              <UI.InlineNotice tone="information" data-testid="rules-in-force">
+                <UI.Stack gap="compact">
+                  <span>
+                    {translate(
+                      "projects.repository.settings.rulesInForce" as never,
+                    )}
+                  </span>
+                  <UI.Button
+                    variant="text"
+                    onClick={() =>
+                      void navigate({
+                        to: "/projects/repositories/$repositoryId/rules",
+                        params: { repositoryId: repository.id },
+                      })}
+                  >
+                    {translate(
+                      "projects.repository.settings.openRules" as never,
+                    )}
+                  </UI.Button>
+                </UI.Stack>
               </UI.InlineNotice>
             )
             : null}

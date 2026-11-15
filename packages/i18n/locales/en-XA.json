@@ -3575,5 +3575,10 @@
   "projects.repository.use.title": "⟦Ûšë ṽëŕšïôñ {version}? ŧëšŧŧ⟧",
   "projects.repository.use.body": "⟦Ñëŵ ŧàšķš ûšë ṽëŕšïôñ {version}. Ŧàšķš àļŕëàðÿ ŕûññïñĝ ķëëþ ṽëŕšïôñ {current}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "projects.repository.use.bodyFirst": "⟦Ñëŵ ŧàšķš ûšë ṽëŕšïôñ {version}. ŧëšŧ çôþÿ⟧",
-  "projects.repository.settings.intro": "⟦Ɓàķëŕÿ šŧàŕŧš ŵôŕķ ôñļÿ ƒŕôɱ ŧĥë ƀŕàñçĥëš ÿôû ļïšŧ ĥëŕë. ŧëšŧ çôþÿ ŧëšŧ çô⟧"
+  "projects.repository.settings.intro": "⟦Ɓàķëŕÿ šŧàŕŧš ŵôŕķ ôñļÿ ƒŕôɱ ŧĥë ƀŕàñçĥëš ÿôû ļïšŧ ĥëŕë. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "projects.repository.settings.branchesControl": "⟦Ŕëɱôṽë ŧĥë çôñŧŕôļ çĥàŕàçŧëŕš ƒŕôɱ ŧĥë ƀŕàñçĥ ñàɱëš. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "projects.repository.settings.rulesInForce": "⟦Ŧĥïš ŕëþôšïŧôŕÿ ĥàš ŕûļëš ôƒ ïŧš ôŵñ, šô ïŧš ŵôŕķïñĝ šëŧŧïñĝš çàññôŧ ƀë çĥàñĝëð ƒŕôɱ ŧĥïš þàĝë ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "projects.repository.settings.openRules": "⟦Ôþëñ Ŕûļëš ŧ⟧",
+  "projects.repository.failure.rules": "⟦Ŧĥïš ŕëþôšïŧôŕÿ ĥàš ŕûļëš ôƒ ïŧš ôŵñ, šô ïŧš ŵôŕķïñĝ šëŧŧïñĝš çàññôŧ ƀë çĥàñĝëð ƒŕôɱ ŧĥïš þàĝë ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "projects.repository.failure.rejected": "⟦Ŧĥë šëŕṽëŕ ðïð ñôŧ àççëþŧ ŧĥëšë šëŧŧïñĝš. Çĥëçķ ŧĥë ƀŕàñçĥëš àñð ŧĥë ƒôļðëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧"
 }

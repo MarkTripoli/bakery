@@ -4,6 +4,7 @@ import {
   canonicalJson,
   configDigest,
   folderOf,
+  hasOwnRules,
   nextRevision,
   parseBranches,
   settingsConfig,
@@ -92,4 +93,17 @@ Deno.test("the digest is the server's canonical-JSON SHA-256", async () => {
     await configDigest(config),
     await sha256Hex(serverCanonical(config)),
   );
+});
+
+Deno.test("a control character in a branch or a folder is refused before anything is sent", () => {
+  assertEquals(settingsProblem(["main\u0000x"], ""), "characters");
+  assertEquals(settingsProblem(["a\u007fb"], ""), "characters");
+  assertEquals(settingsProblem(["main"], "sub\u0000dir"), "folder");
+  assertEquals(settingsProblem(["main", "release/*"], "sub/dir"), null);
+});
+
+Deno.test("a version that states rules of its own is told apart, even with no entries", () => {
+  assertEquals(hasOwnRules({ repositoryRules: { entries: [] } }), true);
+  assertEquals(hasOwnRules({ schemaVersion: 1 }), false);
+  assertEquals(hasOwnRules(null), false);
 });

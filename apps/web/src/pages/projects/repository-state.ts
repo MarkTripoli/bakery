@@ -50,6 +50,15 @@ export function nextRevision(
   return Math.max(0, ...profiles.map((profile) => profile.revision)) + 1;
 }
 
+/**
+ * Whether a version of the settings states rules of its own (the Rules page
+ * publishes such versions). A save from this page cannot carry them: the
+ * server asks for the rules revision and a precondition the page does not hold.
+ */
+export function hasOwnRules(config: unknown): boolean {
+  return record(config).repositoryRules !== undefined;
+}
+
 /** The branches a run may work from, as the profile names them. */
 export function branchesOf(config: unknown): string[] {
   const patterns = record(record(config).branches).allowedPatterns;
@@ -79,7 +88,19 @@ export function parseBranches(text: string): string[] {
 }
 
 /** What is wrong with the working settings the person entered, or null. */
-export type SettingsProblem = "branches" | "tooMany" | "tooLong" | "folder";
+export type SettingsProblem =
+  | "branches"
+  | "tooMany"
+  | "tooLong"
+  | "characters"
+  | "folder";
+
+/** A control character (a NUL, a newline inside a name) is never part of a branch name or a folder. */
+const hasControl = (text: string): boolean =>
+  Array.from(text).some((character) => {
+    const code = character.codePointAt(0) ?? 0;
+    return code < 0x20 || code === 0x7f;
+  });
 
 export function settingsProblem(
   branches: readonly string[],
@@ -88,10 +109,11 @@ export function settingsProblem(
   if (branches.length === 0) return "branches";
   if (branches.length > BRANCH_LIMIT) return "tooMany";
   if (branches.some((branch) => branch.length > NAME_LIMIT)) return "tooLong";
+  if (branches.some(hasControl)) return "characters";
   const trimmed = folder.trim();
   if (
     trimmed.length > NAME_LIMIT || trimmed.startsWith("/") ||
-    /(^|\/)\.\.(\/|$)/.test(trimmed)
+    /(^|\/)\.\.(\/|$)/.test(trimmed) || hasControl(trimmed)
   ) return "folder";
   return null;
 }

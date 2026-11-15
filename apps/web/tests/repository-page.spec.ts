@@ -150,11 +150,10 @@ test.describe("a repository with no working settings", () => {
       branches: { base: "main", allowedPatterns: ["main"] },
       worktree: { root: "." },
     });
-    expect(seen.updates).toHaveLength(1);
-    expect(seen.updates[0].ifMatch).toBe('"v1"');
-    expect(seen.updates[0].body).toMatchObject({
-      activeProfileId: expect.any(String),
-    });
+    // The server puts a repository's first version in use itself, which moves
+    // the repository's version: the page reads it again and sends nothing more
+    // (a PATCH with the version it held before the save would be refused).
+    expect(seen.updates).toHaveLength(0);
     // With settings in use, the readiness check is the next step, with a way to it.
     await expect(page.getByTestId("setup-check")).toContainText(
       "Run the check to see whether Bakery can work here.",
@@ -393,5 +392,96 @@ test.describe("who may change it, and what the page cannot know", () => {
     await expect(page.getByText("The repository could not be loaded."))
       .toBeVisible();
     await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+  });
+});
+
+test.describe("the two writes against how the server behaves", () => {
+  const WORLD: Options = { profiles: SETTINGS, active: 2 };
+
+  test("a later save puts the new version in use with the repository's current version", async ({ page }) => {
+    const { seen } = await open(page, WORLD);
+    await page.getByRole("button", { name: "Change" }).click();
+    await page.getByLabel("Branches Bakery may work from").fill(
+      "main\nhotfix/*",
+    );
+    await page.getByRole("button", { name: "Save and use these settings" })
+      .click();
+    await expect(sheet(page)).toHaveCount(0);
+    expect(seen.updates).toHaveLength(1);
+    expect(seen.updates[0].ifMatch).toBe('"v1"');
+    await expect(page.getByTestId("setup-settings")).toContainText(
+      "Works from main, hotfix/* · version 3",
+    );
+  });
+
+  test("a put-in-use that is refused after the save says the version was saved, not that nothing was applied", async ({ page }) => {
+    await open(page, { ...WORLD, use: "conflict" });
+    await page.getByRole("button", { name: "Change" }).click();
+    await page.getByRole("button", { name: "Save and use these settings" })
+      .click();
+    await expect(page.getByText(/Version 3 was saved but is not in use yet/))
+      .toBeVisible();
+    await expect(page.getByText(/nothing was applied/i)).toHaveCount(0);
+    await expect(page.getByTestId("profile-version-3")).toBeVisible();
+  });
+
+  test("a repository with rules of its own offers no save that cannot succeed, and says where its rules are", async ({ page }) => {
+    await open(page, {
+      profiles: [
+        { revision: 1, branches: ["main"] },
+        { revision: 2, branches: ["main"], rules: true },
+      ],
+      active: 2,
+    });
+    await page.getByRole("button", { name: "Change" }).click();
+    await expect(page.getByTestId("rules-in-force")).toContainText(
+      "This repository has rules of its own, so its working settings cannot be changed from this page yet.",
+    );
+    await expect(
+      page.getByRole("button", { name: "Save and use these settings" }),
+    ).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Use version 1" }))
+      .toBeDisabled();
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-settings-rules-in-force");
+    await page.getByRole("button", { name: "Open Rules" }).click();
+    await expect(page).toHaveURL(
+      new RegExp(`/projects/repositories/${REPOSITORY_ID}/rules$`),
+    );
+  });
+
+  test("a save the server answers with a 428 says the repository has rules of its own, never Try again", async ({ page }) => {
+    await open(page, { ...WORLD, save: "rules" });
+    await page.getByRole("button", { name: "Change" }).click();
+    await page.getByRole("button", { name: "Save and use these settings" })
+      .click();
+    await expect(
+      sheet(page).getByText(/has rules of its own/),
+    ).toBeVisible();
+    await expect(sheet(page).getByText(/Try again/)).toHaveCount(0);
+  });
+
+  test("values the server does not accept are named as such", async ({ page }) => {
+    await open(page, { ...WORLD, save: "rejected" });
+    await page.getByRole("button", { name: "Change" }).click();
+    await page.getByRole("button", { name: "Save and use these settings" })
+      .click();
+    await expect(
+      sheet(page).getByText(
+        "The server did not accept these settings. Check the branches and the folder.",
+      ),
+    ).toBeVisible();
+  });
+
+  test("a control character in a branch is refused in words, with nothing sent", async ({ page }) => {
+    const { seen } = await open(page, WORLD);
+    await page.getByRole("button", { name: "Change" }).click();
+    await page.getByLabel("Branches Bakery may work from").fill("main\u0000x");
+    await page.getByRole("button", { name: "Save and use these settings" })
+      .click();
+    await expect(
+      page.getByText("Remove the control characters from the branch names."),
+    ).toBeVisible();
+    expect(seen.createdProfiles).toHaveLength(0);
   });
 });
