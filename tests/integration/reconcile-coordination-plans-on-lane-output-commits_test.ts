@@ -133,7 +133,9 @@ Deno.test("#57: canceling a plan releases runs blocked on its lane children", as
       (await planOf(await createPlan(fx, parent, fourLaneSpec()))).id,
     );
     // An ordinary task outside the plan waits on the contract lane's child.
-    const outside = await fx.insertTask("waits on a lane child");
+    const outside = await fx.insertTask("waits on a lane child", {
+      repo: "api",
+    });
     const laneChild = childOf(plan, "contract");
     await fx.owner`
       insert into bakery.task_dependencies (
