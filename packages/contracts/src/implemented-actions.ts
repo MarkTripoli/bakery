@@ -396,6 +396,8 @@ export const DraftImplementedAction = Object.freeze(
     CheckpointGet: "draftCheckpoints.get",
     Slice: "draftSlices.get",
     Edit: "drafts.edit",
+    PublicationCreate: "draftPublications.create",
+    PublicationGet: "draftPublications.get",
   } as const satisfies Record<string, CatalogActionName>,
 );
 

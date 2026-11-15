@@ -118,7 +118,7 @@ export async function openDraftFixture(
     await fixture.pgDatabase.query(
       `insert into bakery.artifacts (
          id,organization_id,task_id,artifact_type,name,revision,version
-       ) values ($1,$2,$3,'plan','draft source',1,1)`,
+       ) values ($1,$2,$3,'plan','draft source',2,1)`,
       [ids.artifactId, ids.organizationId, ids.taskId],
     );
     await fixture.pgDatabase.query(

@@ -8155,6 +8155,53 @@
       "organizationContext": "required_authenticated_context"
     },
     {
+      "group": "Drafts",
+      "method": "POST",
+      "path": "/v1/drafts/{id}/publications",
+      "action": "draftPublications.create",
+      "access": "Developer",
+      "permission": "artifactVersion:write",
+      "input": "DraftPublicationCreate",
+      "output": "DraftPublication",
+      "event": "draft.published",
+      "mcp": "bakery_draftPublications_create",
+      "idempotency": "Natural idempotency by checkpointId: one artifact version per draft checkpoint; an optional Idempotency-Key is bound to that checkpoint and a reused key naming another checkpoint fails",
+      "idempotencyKeyOptional": true,
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Drafts",
+      "method": "GET",
+      "path": "/v1/drafts/{id}/publications/{checkpointId}",
+      "action": "draftPublications.get",
+      "access": "Developer",
+      "permission": "draft:read",
+      "input": "DraftCheckpointPath",
+      "output": "DraftPublication",
+      "event": "",
+      "mcp": "bakery_draftPublications_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
       "group": "Artifacts",
       "method": "GET",
       "path": "/v1/artifact-storage",
