@@ -41,7 +41,7 @@ export const Contract: StoryObj = {
             }]}
           />
         }
-        actions={<Button variant="secondary">Open session</Button>}
+        actions={<Button variant="secondary">Open task</Button>}
       />
       <TaskInspector state="loading" title="Loading task">
         <Text>Loading…</Text>

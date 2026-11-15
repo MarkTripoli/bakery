@@ -465,7 +465,7 @@ export function RepositoryRulesPage(
                 <UI.Heading level="section">
                   {translate("repository.rules.checks.title")}
                 </UI.Heading>
-                <UI.DescriptionList>
+                <UI.DescriptionList labels="quiet">
                   <UI.DescriptionItem
                     action={checks?.state === "unavailable"
                       ? (
@@ -525,7 +525,7 @@ export function RepositoryRulesPage(
                 <UI.Heading level="section">
                   {translate("repository.rules.details.title")}
                 </UI.Heading>
-                <UI.DescriptionList>
+                <UI.DescriptionList labels="quiet">
                   <UI.DescriptionItem
                     action={
                       <UI.Text>{version(data.organizationRevision)}</UI.Text>

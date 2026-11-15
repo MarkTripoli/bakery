@@ -350,6 +350,7 @@ export function NewTaskComposer(
           id: item.id,
           title: copy.title,
           description: copy.description,
+          line: copy.line,
         };
       })}
       repositories={(repositories.data?.items ?? []).map((item) => ({

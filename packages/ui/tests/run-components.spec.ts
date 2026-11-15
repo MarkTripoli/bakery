@@ -40,12 +40,11 @@ test("missing trusted identity stays unknown and revisions remain candidates", a
   const unknown = page.locator(
     '[data-ui-component="runIdentity"][data-state="unknown"]',
   );
-  await expect(unknown).toContainText("No trusted worker record is available.");
-  await expect(unknown.locator(".ui-run-card__badge")).toHaveText([
-    "Unknown",
-    "Unknown",
-    "Unknown",
-  ]);
+  await expect(unknown).toContainText(
+    "Bakery cannot tell which machine ran this.",
+  );
+  // With no try to name there is nothing to badge: the sentence is the content.
+  await expect(unknown.locator(".ui-run-card__badge")).toHaveCount(0);
   await openByTitle(page, "Bakery/Organisms/RevisionSummary");
   const revision = page.locator(
     '[data-ui-component="revisionSummary"][data-state="candidate"]',
