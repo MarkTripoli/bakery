@@ -1,7 +1,9 @@
 import { assert, assertEquals, assertNotEquals } from "@std/assert";
 import {
+  evaluateDeliveryCandidate,
   REVIEW_RECORD_OPERATION,
 } from "../../../apps/server/src/modules/delivery/index.ts";
+import { withPgTransaction } from "../../../apps/server/src/platform/database.ts";
 import { PLAN_DELIVERY_STOPPED_CODE } from "../../../apps/server/src/modules/delivery/plan-host.ts";
 import { finding, fingerprintOf } from "./fixtures.ts";
 import {
@@ -37,6 +39,18 @@ const blocker = (line = 12) =>
     path: "src/upload.ts",
     line,
   });
+
+/** The delivery gate, read with the application role like a merge consumer. */
+function gate(world: LoopWorld) {
+  return withPgTransaction(
+    world.fixture.runtimePgDatabase,
+    (transaction) =>
+      evaluateDeliveryCandidate(transaction, {
+        organizationId: world.fixture.organizationId,
+        runId: world.runId,
+      }),
+  );
+}
 
 /** What a gate-failed audit of the engine says, for the run. */
 async function planFailures(world: LoopWorld): Promise<string[]> {
@@ -88,6 +102,12 @@ export function registerPlanCases(): void {
           (await world.audits(REVIEW_RECORD_OPERATION, "succeeded")).length,
           1,
         );
+        // The delivery gate reads the plan run's candidate like a flat run's.
+        const evaluation = await gate(world);
+        assertEquals(evaluation.reasons, []);
+        assertEquals(evaluation.mergeBlocked, false);
+        assertEquals(evaluation.decision?.decision, "proceed");
+        assertEquals(evaluation.review?.id, report.reviewId);
       }, { plan: PLAN }),
   );
 
@@ -100,7 +120,7 @@ export function registerPlanCases(): void {
 
         const decisions = await world.decisions();
         assertEquals(decisions.map((d) => [d.decision, d.reason]), [
-          ["repair", "blocking_findings"],
+          ["repair", "repair_selected"],
         ]);
         assertEquals(decisions[0].blocking_fingerprints, [fingerprintOf(1)]);
         // The finalizer appended nothing: only the plan's own rows exist, and
@@ -170,13 +190,16 @@ export function registerPlanCases(): void {
 
         const decisions = await world.decisions();
         assertEquals(decisions.map((d) => [d.decision, d.reason]), [
-          ["repair", "blocking_findings"],
+          ["repair", "repair_selected"],
           ["stop", "repeated_blocker"],
         ]);
         // The plan would run a third round (repeat max 3); the recorded stop ends it.
         assertEquals(await world.nextKey(), undefined);
         assertEquals(await world.runStatus(), "failed");
         assertEquals(await planFailures(world), [PLAN_DELIVERY_STOPPED_CODE]);
+        assertEquals((await gate(world)).reasons, [
+          "decision_stop:repeated_blocker",
+        ]);
         const steps = await world.steps();
         assert(
           !steps.some((step) => step.step_key === "delivery_gate"),

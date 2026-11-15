@@ -90,24 +90,20 @@ const repairLoop = (max: number) => ({
           evidence: "$step.repair.repair_test.checkRunIds",
         },
       },
-      {
-        id: "candidate_evidence",
-        needs: ["repair_review"],
-        uses: "delivery.candidate_evidence",
-        with: {
-          headSha: "$step.repair.repair_implement.headSha",
-          baseSha: "$step.repair.repair_test.baseSha",
-          policyDigest: "$step.repair.repair_test.policyDigest",
-          checksPassed: "$step.repair.repair_test.allRequired",
-          blockingFindings: "$step.repair.repair_review.blockingFindings",
-          reviewId: "$step.repair.repair_review.reviewId",
-          findings: "$step.repair.repair_review.findings",
-          checkRunIds: "$step.repair.repair_test.checkRunIds",
-          failedCheckIds: "$step.repair.repair_test.failedCheckIds",
-        },
-      },
     ],
-    outputs: { currentCandidate: "$step.repair.candidate_evidence" },
+    outputs: {
+      currentCandidate: {
+        headSha: "$step.repair.repair_implement.headSha",
+        baseSha: "$step.repair.repair_test.baseSha",
+        policyDigest: "$step.repair.repair_test.policyDigest",
+        checksPassed: "$step.repair.repair_test.allRequired",
+        blockingFindings: "$step.repair.repair_review.blockingFindings",
+        reviewId: "$step.repair.repair_review.reviewId",
+        findings: "$step.repair.repair_review.findings",
+        checkRunIds: "$step.repair.repair_test.checkRunIds",
+        failedCheckIds: "$step.repair.repair_test.failedCheckIds",
+      },
+    },
   },
 });
 

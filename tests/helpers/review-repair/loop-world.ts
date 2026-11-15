@@ -3,6 +3,7 @@ import {
   deriveReviewPins,
   type ReviewPins,
 } from "../../../apps/server/src/modules/delivery/index.ts";
+import { readPlanHost } from "../../../apps/server/src/modules/delivery/plan-host.ts";
 import { createBakeryPostgresWorkflowRepository } from "../../../apps/server/src/modules/workflow-adapter/bakery-postgres-store.ts";
 import type { PgDatabase } from "../../../apps/server/src/platform/database.ts";
 import {
@@ -449,6 +450,8 @@ export async function openLoopWorld(
     database,
     maxAttempts: 3,
     budgetPolicy: presetBudgetPolicy,
+    // The host's view of a plan run, composed here as the server composes it.
+    planHost: readPlanHost,
   });
   const owner = await engine.acquireEngineOwner(
     run.id,
