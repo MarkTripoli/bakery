@@ -75,7 +75,10 @@ export function WorkingSettingsSheet(
   );
   const organizationRulesLink: ReactNode = canManage
     ? (
-      <RouterLink to="/settings/organization/repository-rules">
+      <RouterLink
+        variant="sentence"
+        to="/settings/organization/repository-rules"
+      >
         {organizationRulesWords}
       </RouterLink>
     )
@@ -83,6 +86,7 @@ export function WorkingSettingsSheet(
   const rulesLink: ReactNode = canManage
     ? (
       <RouterLink
+        variant="sentence"
         to="/projects/repositories/$repositoryId/rules"
         params={{ repositoryId: repository.id }}
       >
