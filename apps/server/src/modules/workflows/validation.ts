@@ -662,12 +662,22 @@ async function bindingTargets(
     if (!compiled.result.ok) return [];
     const agents: Readonly<Record<string, string>> =
       compiled.result.document.agents;
+    // A compiled step may bind its own agent; the plan carries that binding by
+    // qualified id, and reporting it is what makes `source` read `step` for a
+    // document exactly as it does for a flat workflow.
+    const stepAgents = new Map(
+      compiled.result.plan.steps.flatMap((step) =>
+        step.kind === "action" && step.agentVersionId !== undefined
+          ? [[step.qualifiedId, step.agentVersionId] as const]
+          : []
+      ),
+    );
     return compiled.actionSites.map((site, position) => ({
       key: site.qualifiedId,
       action: site.action,
       position,
       requires: site.requires,
-      stepAgentVersionId: null,
+      stepAgentVersionId: stepAgents.get(site.qualifiedId) ?? null,
       workflowAgentVersionId: agents[site.action] ?? null,
       path: site.path,
     }));
