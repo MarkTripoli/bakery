@@ -906,7 +906,11 @@ for (const width of [390, 1024]) {
       await expect(form(page)).toBeVisible();
       expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches))
         .toBe(true);
-      const action = page.getByRole("link", { name: "New task", exact: true });
+      // The top bar's action; the empty list offers its own New task link too.
+      const action = page.getByRole("banner").getByRole("link", {
+        name: "New task",
+        exact: true,
+      });
       await expect(action).toHaveAttribute("aria-current", "page");
       await expect(action).toHaveClass(/ui-link--primary(?:Button|Icon)/);
       const box = await action.boundingBox();

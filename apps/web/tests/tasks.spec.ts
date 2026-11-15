@@ -416,20 +416,22 @@ test("queue inspector answers the selected task's open question and the page has
 
 // Evidence stills of the Work list (BAKERY_STILLS_DIR): the list with tasks,
 // a search with a term, and the empty list; skipped in a normal run.
+// The reference under a title is the first eight characters of the id, and the
+// age is read from `updatedAt`, so the fixtures carry readable ids and recent times.
 const stillTasks = [
-  ["Add repository onboarding", "waiting_input"],
-  ["Confirm error tracking provider", "waiting_input"],
-  ["Refine activity filters", "active"],
-  ["Preserve worker checkpoints", "active"],
-  ["Improve empty state copy", "active"],
-  ["Add notification preferences", "queued"],
-  ["Add webhook intake", "queued"],
-].map(([title, status], index) => ({
+  ["Add repository onboarding", "waiting_input", "a104b3c1", 2],
+  ["Confirm error tracking provider", "waiting_input", "e041d7f2", 15],
+  ["Refine activity filters", "active", "c038a9e4", 4],
+  ["Preserve worker checkpoints", "active", "d102f5b6", 12],
+  ["Improve empty state copy", "active", "b037c8a0", 19],
+  ["Add notification preferences", "queued", "f027e1d3", 8],
+  ["Add webhook intake", "queued", "a101b9c7", 32],
+].map(([title, status, prefix, minutes]) => ({
   ...task,
-  id: `00000000-0000-4000-8000-0000000007${String(index).padStart(2, "0")}`,
+  id: `${prefix}-0000-4000-8000-000000000700`,
   title,
   status,
-  updatedAt: `2026-01-01T00:0${index}:00.000Z`,
+  updatedAt: new Date(Date.now() - Number(minutes) * 60_000).toISOString(),
 }));
 
 async function stillQueue(page: Page, items: unknown[]) {
