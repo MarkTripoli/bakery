@@ -55,11 +55,12 @@ export function WorkingSettingsSheet(
   const problem = settingsProblem(branches, folder);
   const next = nextRevision(profiles, repository.nextProfileRevision);
   const archived = repository.archivedAt !== null;
-  // Rules of the repository's own are carried by the Rules page: a save from
-  // here cannot keep them, so nothing here is offered that could not succeed.
-  const rules = active !== null && hasOwnRules(active.config);
-  const disabled = !canManage || offline || archived || settings.pending ||
-    rules;
+  // A repository with rules of its own is changed the same way as any other
+  // (design-ux, #65): the branches are saved and the rules stay exactly as they
+  // are, which the server does (`keepRepositoryRules`). It lets a save change
+  // the branches and nothing else, so the folder is shown but not editable.
+  const keepsRules = active !== null && hasOwnRules(active.config);
+  const disabled = !canManage || offline || archived || settings.pending;
   const earlier = newestFirst(profiles);
   const date = (value: string) =>
     new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone }).format(
@@ -92,83 +93,6 @@ export function WorkingSettingsSheet(
     });
     if (saved) onClose();
   };
-
-  // Rules of the repository's own: a save from here cannot carry them, and the
-  // Rules page does not change branches, so the sheet is plainly read-only: the
-  // branches as text, the versions with the one in use, nothing to save.
-  if (rules && active !== null) {
-    const folderText = folderOf(active.config);
-    return (
-      <UI.Sheet
-        open
-        onOpenChange={(open) => !open && onClose()}
-        state="open"
-        title={translate("projects.repository.settings.title" as never)}
-        variant="side"
-      >
-        <UI.Stack gap="standard">
-          <UI.InlineNotice tone="information" data-testid="rules-in-force">
-            {translate("projects.repository.settings.rulesInForce" as never)}
-          </UI.InlineNotice>
-          <UI.Stack gap="compact">
-            <UI.Text variant="strong">
-              {translate("projects.repository.settings.worksFrom" as never)}
-            </UI.Text>
-            <UI.Stack gap="tight" role="list" data-testid="branches-read-only">
-              {branchesOf(active.config).map((branch) => (
-                <div key={branch} role="listitem">
-                  <UI.DataText>{branch}</UI.DataText>
-                </div>
-              ))}
-            </UI.Stack>
-          </UI.Stack>
-          {folderText === "" ? null : (
-            <UI.Stack gap="compact">
-              <UI.Text variant="strong">
-                {translate("projects.repository.settings.folderRow" as never)}
-              </UI.Text>
-              <UI.DataText>{folderText}</UI.DataText>
-            </UI.Stack>
-          )}
-          {earlier.length === 0 ? null : (
-            <>
-              <UI.Heading level="subsection">
-                {translate("projects.repository.versions.title" as never)}
-              </UI.Heading>
-              <UI.Text variant="muted">
-                {translate("projects.repository.versions.note" as never)}
-              </UI.Text>
-              <UI.Stack gap="compact">
-                {earlier.map((profile) => (
-                  <UI.StackedRow
-                    flush
-                    key={profile.id}
-                    data-testid={`profile-version-${profile.revision}`}
-                    title={translate(
-                      "projects.repository.earlier.row" as never,
-                      {
-                        version: profile.revision,
-                        date: date(profile.createdAt),
-                      },
-                    )}
-                    status={profile.id === active.id
-                      ? (
-                        <UI.Badge tone="success">
-                          {translate(
-                            "projects.repository.earlier.inUse" as never,
-                          )}
-                        </UI.Badge>
-                      )
-                      : undefined}
-                  />
-                ))}
-              </UI.Stack>
-            </>
-          )}
-        </UI.Stack>
-      </UI.Sheet>
-    );
-  }
 
   return (
     <>
@@ -244,7 +168,9 @@ export function WorkingSettingsSheet(
               label={translate("projects.repository.settings.folder" as never)}
               htmlFor={`${id}-folder`}
               hint={translate(
-                "projects.repository.settings.folderHelp" as never,
+                (keepsRules
+                  ? "projects.repository.settings.folderFixed"
+                  : "projects.repository.settings.folderHelp") as never,
               )}
               error={folderError}
             >
@@ -254,7 +180,7 @@ export function WorkingSettingsSheet(
                 name="folder"
                 invalid={folderError !== undefined}
                 autoComplete="off"
-                disabled={disabled}
+                disabled={disabled || keepsRules}
                 value={folder}
                 onChange={setFolder}
               />

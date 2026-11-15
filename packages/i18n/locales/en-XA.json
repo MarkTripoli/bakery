@@ -3644,11 +3644,6 @@
   "projects.repository.use.bodyFirst": "⟦Ñëŵ ŧàšķš ûšë ṽëŕšïôñ {version}. ŧëšŧ çôþÿ⟧",
   "projects.repository.settings.branchesControl": "⟦Ŕëɱôṽë ŧĥë çôñŧŕôļ çĥàŕàçŧëŕš ƒŕôɱ ŧĥë ƀŕàñçĥ ñàɱëš. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "projects.repository.failure.rejected": "⟦Ŧĥë šëŕṽëŕ ðïð ñôŧ àççëþŧ ŧĥëšë šëŧŧïñĝš. Çĥëçķ ŧĥë ƀŕàñçĥëš àñð ŧĥë ƒôļðëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
-  "projects.repository.settings.rulesInForce": "⟦Ŧĥïš ŕëþôšïŧôŕÿ ĥàš ŕûļëš ôƒ ïŧš ôŵñ. Ïŧš ƀŕàñçĥëš çàññôŧ ƀë çĥàñĝëð ïñ Ɓàķëŕÿ ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
-  "projects.repository.failure.rules": "⟦Ŧĥïš ŕëþôšïŧôŕÿ ĥàš ŕûļëš ôƒ ïŧš ôŵñ. Ïŧš ƀŕàñçĥëš çàññôŧ ƀë çĥàñĝëð ïñ Ɓàķëŕÿ ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
-  "projects.repository.settings.worksFrom": "⟦Ŵôŕķš ƒŕôɱ ŧ⟧",
-  "projects.repository.settings.folderRow": "⟦Ŵôŕķïñĝ ƒôļðëŕ ŧë⟧",
-  "projects.repository.step.settings.view": "⟦Ṽïëŵ⟧",
   "tasks.inbox.emptyNone": "⟦Ŧĥëŕë àŕë ñô ŧàšķš ÿëŧ. ŧëšŧ ç⟧",
   "tasks.queue.searchTasks": "⟦Šëàŕçĥ ŧàšķš ŧë⟧",
   "tasks.queue.inspector.details": "⟦Ðëŧàïļš…⟧",
@@ -3716,5 +3711,7 @@
   "projects.repository.check.settingsChanged": "⟦Ŧĥë šëŧŧïñĝš çĥàñĝëð. Ŕûñ ŧĥë çĥëçķ àĝàïñ: ûñŧïļ ïŧ þàššëš, ŧàšķš šŧôþ àŧ ŧĥë šŧëþš ŵĥëŕë Ɓàķëŕÿ ŕûñš ïŧš çĥëçķš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "projects.repository.check.notInUseHidden": "⟦Ŧĥë çĥëçķ ðïð ñôŧ þàšš, šô ŧĥë šëŧŧïñĝš ïŧ ŧëšŧëð àŕë ñôŧ ïñ ûšë. Ṽëŕšïôñ {current} šŧàÿš ïñ ûšë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "projects.repository.versions.note": "⟦À ñëŵ ṽëŕšïôñ ïš šàṽëð ŵĥëñ ÿôû šàṽë šëŧŧïñĝš àñð ëàçĥ ŧïɱë ŧĥë ŕëàðïñëšš çĥëçķ þàššëš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
-  "projects.repository.check.passedEarlier": "⟦À ŕëàðïñëšš çĥëçķ þàššëð ƒôŕ ṽëŕšïôñ {version}. ŧëšŧ çôþÿ ŧëšŧ⟧"
+  "projects.repository.check.passedEarlier": "⟦À ŕëàðïñëšš çĥëçķ þàššëð ƒôŕ ṽëŕšïôñ {version}. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "projects.repository.failure.branchesLocked": "⟦Ŧĥïš ŕëþôšïŧôŕÿ'š þôļïçÿ ƒïẋëš ïŧš ƀŕàñçĥëš, šô ŧĥëÿ çàññôŧ ƀë çĥàñĝëð ĥëŕë. Ñôŧĥïñĝ ŵàš šàṽëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "projects.repository.settings.folderFixed": "⟦Ŧĥë ŵôŕķïñĝ ƒôļðëŕ çàññôŧ ƀë çĥàñĝëð ĥëŕë. ŧëšŧ çôþÿ ŧë⟧"
 }

@@ -33,8 +33,10 @@ export type Options = {
   defaultBranch?: string;
   /** The connection's state; "missing" answers 404. */
   connection?: "enabled" | "revoked" | "missing";
-  /** What creating a version answers: ok, a 409 (the number is taken), a server fault, a 428 (rules of its own) or a 400. */
-  save?: "ok" | "conflict" | "down" | "rules" | "rejected";
+  /** What creating a version answers: ok, a 409 (the number is taken), a server fault or a 400. */
+  save?: "ok" | "conflict" | "down" | "rejected";
+  /** The policy of the version in use fixes its branches: a save that changes them is a 422 (`repository_branches_locked`). */
+  branchesLocked?: boolean;
   /** What putting a version in use answers: ok, a 412 whatever the version, or a server fault. */
   use?: "ok" | "conflict" | "down";
   /** The repository read answers this status instead of the repository. */
@@ -143,7 +145,7 @@ const json = (body: unknown, status = 200) => ({
   contentType: "application/json",
   body: JSON.stringify(body),
 });
-const problem = (status: number, code: string) => ({
+const problem = (status: number, code: string, issueCode?: string) => ({
   status,
   contentType: "application/problem+json",
   body: JSON.stringify({
@@ -152,6 +154,9 @@ const problem = (status: number, code: string) => ({
     detail: "Problem.",
     status,
     code,
+    ...(issueCode === undefined ? {} : {
+      issues: [{ path: ["config"], code: issueCode, message: "Refused." }],
+    }),
     retryable: status >= 500,
     requestId: crypto.randomUUID(),
     traceId: crypto.randomUUID(),
@@ -165,7 +170,9 @@ const configOf = (profile: Profile, base: string) => ({
   workflow: { kind: "fixed" },
   branches: { base, allowedPatterns: profile.branches },
   worktree: { root: profile.folder ?? "." },
-  ...(profile.rules ? { repositoryRules: { entries: [] } } : {}),
+  ...(profile.rules
+    ? { repositoryRules: { entries: [{ ruleKey: "commits.format" }] } }
+    : {}),
   ...(profile.checkMade ? { schemaVersion: 2, checkPolicy: {} } : {}),
 });
 
@@ -191,6 +198,8 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
     starts: [] as (string | null)[],
     createdProfiles: [] as Record<string, unknown>[],
     createKeys: [] as (string | null)[],
+    /** The If-Match each save over a version that carries rules was sent with. */
+    createIfMatch: [] as (string | null)[],
     updates: [] as { ifMatch: string | null; body: Record<string, unknown> }[],
     profileReads: 0,
   };
@@ -311,6 +320,7 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
       if (request.method() === "POST") {
         const body = request.postDataJSON() as {
           revision: number;
+          keepRepositoryRules?: boolean;
           config: {
             branches: { allowedPatterns: string[] };
             worktree: { root: string };
@@ -324,9 +334,6 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
         if (options.save === "down") {
           return route.fulfill(problem(500, "INTERNAL"));
         }
-        if (options.save === "rules") {
-          return route.fulfill(problem(428, "PRECONDITION_REQUIRED"));
-        }
         if (options.save === "rejected") {
           return route.fulfill(problem(400, "MALFORMED_REQUEST"));
         }
@@ -336,16 +343,65 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
         ) {
           return route.fulfill(problem(422, "UNPROCESSABLE"));
         }
-        const created = {
+        const inUse = profiles.find((item) => item.revision === state.active);
+        const carries = inUse?.rules === true;
+        // The server refuses a save that both keeps the rules and states some.
+        if (
+          body.keepRepositoryRules === true &&
+          (body.config as Record<string, unknown>).repositoryRules !== undefined
+        ) {
+          return route.fulfill(
+            problem(422, "UNPROCESSABLE", "repository_rules_keep_conflict"),
+          );
+        }
+        let keeps = false;
+        if (carries) {
+          // Replacing a version that carries rules activates the new one under If-Match.
+          const ifMatch = request.headers()["if-match"];
+          seen.createIfMatch.push(ifMatch ?? null);
+          if (ifMatch === undefined) {
+            return route.fulfill(problem(428, "PRECONDITION_REQUIRED"));
+          }
+          if (ifMatch !== `"v${state.version}"`) {
+            return route.fulfill(problem(412, "PRECONDITION_FAILED"));
+          }
+          if (body.keepRepositoryRules === true) {
+            // A branches-only save: nothing else of the version in use may change.
+            const retainedFolder = inUse?.folder ?? ".";
+            if (body.config.worktree.root !== retainedFolder) {
+              return route.fulfill(
+                problem(
+                  422,
+                  "UNPROCESSABLE",
+                  "repository_rules_must_retain_config",
+                ),
+              );
+            }
+            if (
+              options.branchesLocked &&
+              JSON.stringify(body.config.branches.allowedPatterns) !==
+                JSON.stringify(inUse?.branches)
+            ) {
+              return route.fulfill(
+                problem(422, "UNPROCESSABLE", "repository_branches_locked"),
+              );
+            }
+            keeps = true;
+          }
+        }
+        const created: Profile = {
           revision: body.revision,
           branches: body.config.branches.allowedPatterns,
           folder: body.config.worktree.root === "."
             ? undefined
             : body.config.worktree.root,
+          // The rules in force are copied into the new version, as the server does.
+          ...(keeps ? { rules: true } : {}),
         };
         profiles.push(created);
-        // The server puts the first version of a repository in use itself.
-        if (state.active === null) {
+        // The server puts the first version of a repository in use itself, and
+        // one that keeps the rules in force.
+        if (state.active === null || keeps) {
           state.active = created.revision;
           state.version += 1;
         }

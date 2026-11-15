@@ -3643,12 +3643,7 @@
   "projects.repository.use.body": "New tasks use version {version}. Tasks already running keep version {current}.",
   "projects.repository.use.bodyFirst": "New tasks use version {version}.",
   "projects.repository.settings.branchesControl": "Remove the control characters from the branch names.",
-  "projects.repository.settings.rulesInForce": "This repository has rules of its own. Its branches cannot be changed in Bakery yet.",
-  "projects.repository.failure.rules": "This repository has rules of its own. Its branches cannot be changed in Bakery yet.",
   "projects.repository.failure.rejected": "The server did not accept these settings. Check the branches and the folder.",
-  "projects.repository.settings.worksFrom": "Works from",
-  "projects.repository.settings.folderRow": "Working folder",
-  "projects.repository.step.settings.view": "View",
   "tasks.inbox.emptyNone": "There are no tasks yet.",
   "tasks.queue.searchTasks": "Search tasks",
   "tasks.queue.inspector.details": "Details",
@@ -3716,5 +3711,7 @@
   "projects.repository.setup.footnoteCheckNeeded": "Bakery can start tasks here. They stop at Bakery's checks until the readiness check passes again.",
   "projects.repository.check.settingsChanged": "The settings changed. Run the check again: until it passes, tasks stop at the steps where Bakery runs its checks.",
   "projects.repository.check.notInUseHidden": "The check did not pass, so the settings it tested are not in use. Version {current} stays in use.",
-  "projects.repository.check.passedEarlier": "A readiness check passed for version {version}."
+  "projects.repository.check.passedEarlier": "A readiness check passed for version {version}.",
+  "projects.repository.failure.branchesLocked": "This repository's policy fixes its branches, so they cannot be changed here. Nothing was saved.",
+  "projects.repository.settings.folderFixed": "The working folder cannot be changed here."
 }

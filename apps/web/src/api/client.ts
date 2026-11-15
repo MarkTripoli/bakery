@@ -1298,6 +1298,8 @@ export type BakeryApiClient = {
     readonly organizationId: string;
     readonly repositoryId: string;
     readonly input: RepositoryProfileCreate;
+    /** The repository's version, for a save that puts its version in use itself (one that keeps the version in use's rules). */
+    readonly ifMatch?: string;
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<RepositoryProfileResponse>>;
@@ -4606,7 +4608,11 @@ export function createBakeryApiClient({
       try {
         const data = await client.actions["repositoryProfiles.create"](
           { id: options.repositoryId, ...options.input },
-          { idempotencyKey: options.idempotencyKey, signal: options.signal },
+          {
+            ifMatch: options.ifMatch,
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
         );
         return { ok: true, data };
       } catch (error) {

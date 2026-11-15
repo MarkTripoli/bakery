@@ -60,8 +60,8 @@ export function nextRevision(
 
 /**
  * Whether a version of the settings states rules of its own (the Rules page
- * publishes such versions). A save from this page cannot carry them: the
- * server asks for the rules revision and a precondition the page does not hold.
+ * publishes such versions). A save from this page does not state rules: it
+ * asks the server to keep the ones in force, exactly as they are (#461).
  */
 export function hasOwnRules(config: unknown): boolean {
   return record(config).repositoryRules !== undefined;
@@ -166,7 +166,14 @@ export function settingsConfig(
   // carries `checkPolicy`, the check's own evidence; it is dropped, because a
   // person-saved version has no check behind it (#65). The check evidence then
   // no longer applies until the check runs again.
-  const { checkPolicy: _checkEvidence, ...kept } = record(previous);
+  // Rules of the repository's own are never stated by a save from here: the
+  // server carries the ones in force forward (`keepRepositoryRules`), and
+  // refuses a save that states them as well.
+  const {
+    checkPolicy: _checkEvidence,
+    repositoryRules: _rulesInForce,
+    ...kept
+  } = record(previous);
   return {
     ...kept,
     schemaVersion: 1,

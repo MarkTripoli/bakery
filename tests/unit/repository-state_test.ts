@@ -127,3 +127,18 @@ Deno.test("a check is needed only when a person's version is in use and a check 
   assertEquals(needsCheck(person, [person]), false);
   assertEquals(needsCheck(null, [check]), false);
 });
+
+Deno.test("a saved config never states the rules in force: the server keeps them", () => {
+  const next = settingsConfig({
+    schemaVersion: 1,
+    workflow: { kind: "fixed" },
+    branches: { base: "main", allowedPatterns: ["main"] },
+    worktree: { root: "." },
+    repositoryRules: { entries: [{ ruleKey: "commits.format" }] },
+  }, { base: "main", branches: ["main", "dev"], folder: "" });
+  assertEquals("repositoryRules" in next, false);
+  assertEquals(
+    (next.branches as { allowedPatterns: string[] }).allowedPatterns,
+    ["main", "dev"],
+  );
+});
