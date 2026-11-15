@@ -1,11 +1,13 @@
 import {
   type AgentVersionCreateConfig,
+  contractSchemas,
   registeredWorkerActionInputSchema,
   workerActionCapabilities,
   workerActionCapabilityNames,
 } from "@bakery/contracts/contracts";
 import { StandardError } from "@bakery/contracts/http";
 import {
+  isEngineProjectionAction,
   WORKFLOW_ACTION_METADATA,
   WORKFLOW_ACTION_REGISTRY_VERSION,
   type WorkflowActionMetadata,
@@ -67,10 +69,23 @@ export function executionActionCapabilities(
   declared: unknown = undefined,
 ): readonly string[] {
   let registered: readonly string[];
-  try {
-    registered = workerActionCapabilities(action);
-  } catch {
-    return unavailable("workflow_action_unavailable");
+  if (isEngineProjectionAction(action)) {
+    // No host runs it: the engine completes it, so it needs no capability and
+    // takes no declared one.
+    registered = WORKFLOW_ACTION_METADATA[
+      action as keyof typeof WORKFLOW_ACTION_METADATA
+    ].capabilities;
+    if (
+      Array.isArray(declared) ? declared.length > 0 : declared !== undefined
+    ) {
+      return unavailable("workflow_action_requirements_invalid");
+    }
+  } else {
+    try {
+      registered = workerActionCapabilities(action);
+    } catch {
+      return unavailable("workflow_action_unavailable");
+    }
   }
   const additional = declared ?? [];
   if (
@@ -136,6 +151,37 @@ export function assertActionAgentPolicy(
   ) {
     unavailable("agent_action_capability_denied");
   }
+}
+
+/**
+ * The output the engine records for a projection action: its input, once it
+ * validates as the action's own input and output shape. Any other action has no
+ * projection, and an input that is not the action's shape is refused, so the
+ * engine never writes an output nobody checked.
+ */
+export function projectionOutputOf(action: string, input: unknown): unknown {
+  if (!isEngineProjectionAction(action)) {
+    return unavailable("workflow_action_unavailable");
+  }
+  const { input: inputName, output: outputName } = WORKFLOW_ACTION_METADATA[
+    action as keyof typeof WORKFLOW_ACTION_METADATA
+  ];
+  const schemas = contractSchemas as unknown as Record<
+    string,
+    { safeParse(value: unknown): { success: boolean } } | undefined
+  >;
+  const inputSchema = schemas[inputName];
+  const outputSchema = schemas[outputName];
+  if (inputSchema === undefined || outputSchema === undefined) {
+    return unavailable("workflow_action_unavailable");
+  }
+  if (!inputSchema.safeParse(input).success) {
+    return unavailable("workflow_action_input_invalid");
+  }
+  if (!outputSchema.safeParse(input).success) {
+    return unavailable("workflow_action_input_invalid");
+  }
+  return input;
 }
 
 /** Validate resolved action input before server context is attached or a hold is acquired. */

@@ -9,6 +9,7 @@ import {
   planDispatchFromRow,
   repositoryExecutionRequirements,
 } from "@bakery/persistence/repository-admission";
+import { isEngineProjectionAction } from "@bakery/contracts/workflow-action-registry";
 import { StandardError } from "@bakery/contracts/http";
 import { workerActionOutputCarriesSession } from "@bakery/contracts/contracts";
 import {
@@ -19,6 +20,7 @@ import {
   carriesPlanRuntime,
   type PgDatabase,
   type PgTransactionClient,
+  projectionOutputOf,
   withPgTransaction,
   workflowActionCapabilities,
 } from "@bakery/persistence";
@@ -1037,6 +1039,74 @@ async function appendPlanStep(
   return keyOf(planned.key);
 }
 
+/** Audit operation recorded when the engine completes a projection step itself. */
+export const WORKFLOW_PROJECTION_OPERATION = "workflow.projection.complete";
+
+/**
+ * Completes a plan step whose action is a projection (no worker runs it): its
+ * output is its validated input, written in the engine's own transaction with
+ * no job, so a replay finds the finished row and does nothing more. An input
+ * that is not the action's shape ends the run failed with a stable code and
+ * writes no output. Like any finished step it moves a queued run to running,
+ * emits `run.updated`, and leaves one audit entry.
+ */
+async function completeProjectionStep(
+  transaction: PgTransactionClient,
+  row: AdmissionStepRow,
+  key: LogicalInvocationKey,
+  action: string,
+  input: unknown,
+  owner: EngineOwner | undefined,
+): Promise<AdmissionRecord> {
+  let output: unknown;
+  try {
+    output = projectionOutputOf(action, input);
+  } catch (error) {
+    if (!(error instanceof StandardError)) throw error;
+    await projectFailure(
+      transaction,
+      row,
+      "PROJECTION_INPUT_INVALID:The projection input is not the shape of its action.",
+      owner,
+    );
+    return { key, terminal: true };
+  }
+  const completed = await transaction.query<{ version: number }>(
+    `update bakery.run_steps
+        set status = 'completed', output = $3::jsonb,
+            started_at = coalesce(started_at, clock_timestamp()),
+            finished_at = clock_timestamp(), updated_at = clock_timestamp(),
+            version = version + 1
+      where organization_id = $1 and id = $2 and status = 'pending'
+      returning version`,
+    [row.organizationId, row.runStepId, JSON.stringify(output)],
+  );
+  if (completed.rows[0] === undefined) return { key, terminal: true };
+  const runUpdate = await transaction.query<{ version: number }>(
+    `update bakery.workflow_runs
+        set status = 'running', started_at = coalesce(started_at, now()),
+            updated_at = now(), version = version + 1
+      where organization_id = $1 and id = $2 and status = 'queued'
+      returning version`,
+    [row.organizationId, row.runId],
+  );
+  if (runUpdate.rows[0]) {
+    await appendRunUpdated(transaction, row, runUpdate.rows[0].version);
+  }
+  const audited = await appendAudit(transaction, {
+    organizationId: row.organizationId,
+    principalId: row.requestedBy,
+    operation: WORKFLOW_PROJECTION_OPERATION,
+    resourceType: "run_step",
+    resourceId: row.runStepId,
+    requestId: `projection:${row.runStepId}`,
+    traceId: originalTraceId(row),
+    details: { runId: row.runId, stepKey: key.stepKey, action },
+  });
+  if (audited !== 1) throw new Error("WORKFLOW_PROJECTION_AUDIT_INSERT_FAILED");
+  return { key, terminal: true };
+}
+
 async function projectFailure(
   transaction: PgTransactionClient,
   row: AdmissionStepRow,
@@ -1708,6 +1778,18 @@ export function createBakeryPostgresWorkflowRepository(options: {
           agent,
           requiredCapabilities,
         } = actionAndInputFromSnapshot(row);
+        // A projection has no worker: the engine completes it here, in this
+        // transaction, and never builds a job or reserves budget for it.
+        if (planDispatch !== null && isEngineProjectionAction(action)) {
+          return await completeProjectionStep(
+            transaction,
+            row,
+            key,
+            action,
+            resolvedInput,
+            owner,
+          );
+        }
         workflowActionCapabilities(action, requiredCapabilities);
         assertActionAgentPolicy(requiredCapabilities, agent?.config ?? null);
         const value = jsonRecord(resolvedInput);

@@ -4,6 +4,7 @@ import {
   REVIEW_RECORD_OPERATION,
 } from "../../../apps/server/src/modules/delivery/index.ts";
 import { withPgTransaction } from "../../../apps/server/src/platform/database.ts";
+import { WORKFLOW_PROJECTION_OPERATION } from "../../../apps/server/src/modules/workflow-adapter/bakery-postgres-store.ts";
 import { PLAN_DELIVERY_STOPPED_CODE } from "../../../apps/server/src/modules/delivery/plan-host.ts";
 import { finding, fingerprintOf } from "./fixtures.ts";
 import {
@@ -63,7 +64,143 @@ async function planFailures(world: LoopWorld): Promise<string[]> {
   return rows.rows.map(({ code }) => code);
 }
 
+/** The projection audit entries of a run, oldest first. */
+async function projectionAudits(world: LoopWorld) {
+  const rows = await world.fixture.pgDatabase.query<
+    { details: Record<string, unknown> }
+  >(
+    `select details from bakery.audit_events
+      where organization_id = $1 and operation = $2
+        and details ->> 'runId' = $3
+      order by created_at, id`,
+    [world.fixture.organizationId, WORKFLOW_PROJECTION_OPERATION, world.runId],
+  );
+  return rows.rows.map(({ details }) => details);
+}
+
+const PROJECTED = "repair@1.candidate_evidence";
+
+/** Drives a plan run through a blocking review, a repair and a clean second review. */
+async function repairedOnce(world: LoopWorld) {
+  const first = await world.review(0);
+  await accept(first, first.report([blocker()]));
+  await world.repair(1, HEADS[1]);
+  await world.check(1, HEADS[1]);
+  const second = await world.review(1);
+  const report = second.report([]);
+  await accept(second, report);
+  return report;
+}
+
 export function registerPlanCases(): void {
+  registerProjectionCases();
+  registerReviewCases();
+}
+
+function registerProjectionCases(): void {
+  loopTest(
+    "the engine completes the candidate projection itself, with no job, and the repaired plan run finishes",
+    () =>
+      withReviewedRun(async (world) => {
+        const report = await repairedOnce(world);
+        assertEquals(await world.nextKey(), PROJECTED);
+
+        const projected = await world.admitNext();
+        assertEquals(projected, {
+          stepKey: PROJECTED,
+          terminal: true,
+          jobId: null,
+        });
+        const row = (await world.steps()).find((step) =>
+          step.step_key === PROJECTED
+        )!;
+        assertEquals(row.status, "completed");
+        // The output is exactly the input the plan resolved, which is the
+        // candidate the second review judged.
+        const input = await world.dispatchInput(PROJECTED);
+        assertEquals(row.output, input);
+        const output = row.output as Record<string, unknown>;
+        assertEquals(output.headSha, HEADS[1]);
+        assertEquals(output.reviewId, report.reviewId);
+        assertEquals(output.blockingFindings, 0);
+        assertEquals(output.checksPassed, true);
+        const jobs = await world.fixture.pgDatabase.query<{ count: string }>(
+          `select count(*)::text as count from bakery.jobs
+            where organization_id = $1 and run_step_id = $2`,
+          [world.fixture.organizationId, row.id],
+        );
+        assertEquals(jobs.rows[0].count, "0");
+        assertEquals(await projectionAudits(world), [{
+          runId: world.runId,
+          stepKey: PROJECTED,
+          action: "delivery.candidate_evidence",
+        }]);
+
+        // The repeat's `until` now reads the projected candidate: it holds, the
+        // plan is over, the run and its task complete, and the candidate may merge.
+        assertEquals(await world.nextKey(), undefined);
+        assertEquals(await world.runStatus(), "completed");
+        assertEquals(await world.taskStatus(), "completed");
+        const evaluation = await gate(world);
+        assertEquals(evaluation.reasons, []);
+        assertEquals(evaluation.mergeBlocked, false);
+        assertEquals(evaluation.decision?.decision, "proceed");
+        assertEquals(evaluation.review?.id, report.reviewId);
+      }, { plan: PLAN }),
+  );
+
+  loopTest(
+    "admitting a completed projection again changes nothing and audits nothing more",
+    () =>
+      withReviewedRun(async (world) => {
+        await repairedOnce(world);
+        await world.admitNext();
+        const before = (await world.steps()).find((step) =>
+          step.step_key === PROJECTED
+        )!;
+        assertEquals(await world.admitKey(PROJECTED), {
+          terminal: true,
+          jobId: null,
+        });
+        const after = (await world.steps()).find((step) =>
+          step.step_key === PROJECTED
+        )!;
+        assertEquals(after, before);
+        assertEquals((await projectionAudits(world)).length, 1);
+      }, { plan: PLAN }),
+  );
+
+  loopTest(
+    "a projection whose input is not the candidate's shape fails the run with a stable reason and completes nothing",
+    () =>
+      withReviewedRun(async (world) => {
+        await repairedOnce(world);
+        // Nothing the real route accepts can leave this, so corrupt the stored check.
+        await world.fixture.pgDatabase.query(
+          `update bakery.run_steps
+              set output = jsonb_set(output, '{checkRunIds}', '[]'::jsonb)
+            where organization_id = $1 and run_id = $2
+              and step_key = 'repair@1.repair_check'`,
+          [world.fixture.organizationId, world.runId],
+        );
+        const projected = await world.admitNext();
+        assertEquals(projected.terminal, true);
+        const row = (await world.steps()).find((step) =>
+          step.step_key === PROJECTED
+        )!;
+        assertEquals(row.status, "failed");
+        assertEquals(row.output, null);
+        assertEquals(
+          (row.error as { code: string }).code,
+          "PROJECTION_INPUT_INVALID",
+        );
+        assertEquals(await world.runStatus(), "failed");
+        assertEquals(await projectionAudits(world), []);
+      }, { plan: PLAN }),
+  );
+}
+
+function registerReviewCases(): void {
   loopTest(
     "a clean review of a plan run records its cycle and decision, appends nothing, and the plan finishes",
     () =>

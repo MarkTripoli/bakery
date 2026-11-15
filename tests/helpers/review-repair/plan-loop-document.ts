@@ -7,9 +7,9 @@
  *
  * Step keys of a run of this plan: `brief`, `implement`, `check`, `review`,
  * then, per repair round N, `repair@N.repair_implement`,
- * `repair@N.repair_check` and `repair@N.repair_review`; every row is stored at
- * iteration 0. The repeat's outputs name the candidate directly: the
- * `delivery.candidate_evidence` projection step has no executor yet.
+ * `repair@N.repair_check`, `repair@N.repair_review` and
+ * `repair@N.candidate_evidence` (a projection the engine completes itself);
+ * every row is stored at iteration 0.
  */
 
 /** The stored key of a loop step in a plan run, for the flat world's names. */
@@ -132,20 +132,24 @@ export function reviewedPlanDocument(options: {
                 evidence: "$step.repair.repair_check.checkRunIds",
               },
             },
-          ],
-          outputs: {
-            currentCandidate: {
-              headSha: "$step.repair.repair_implement.headSha",
-              baseSha: "$step.repair.repair_check.baseSha",
-              policyDigest: "$step.repair.repair_check.policyDigest",
-              checksPassed: "$step.repair.repair_check.allRequired",
-              blockingFindings: "$step.repair.repair_review.blockingFindings",
-              reviewId: "$step.repair.repair_review.reviewId",
-              findings: "$step.repair.repair_review.findings",
-              checkRunIds: "$step.repair.repair_check.checkRunIds",
-              failedCheckIds: "$step.repair.repair_check.failedCheckIds",
+            {
+              id: "candidate_evidence",
+              needs: ["repair_review"],
+              uses: "delivery.candidate_evidence",
+              with: {
+                headSha: "$step.repair.repair_implement.headSha",
+                baseSha: "$step.repair.repair_check.baseSha",
+                policyDigest: "$step.repair.repair_check.policyDigest",
+                checksPassed: "$step.repair.repair_check.allRequired",
+                blockingFindings: "$step.repair.repair_review.blockingFindings",
+                reviewId: "$step.repair.repair_review.reviewId",
+                findings: "$step.repair.repair_review.findings",
+                checkRunIds: "$step.repair.repair_check.checkRunIds",
+                failedCheckIds: "$step.repair.repair_check.failedCheckIds",
+              },
             },
-          },
+          ],
+          outputs: { currentCandidate: "$step.repair.candidate_evidence" },
         },
       },
     ],
