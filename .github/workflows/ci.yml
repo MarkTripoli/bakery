@@ -802,9 +802,9 @@ jobs:
       - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
         with: { deno-version: v2.9.1 }
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
-        # One runner's own pnpm install and store: runners that share a host
+        # One runner's own pnpm and package store: runners that share a host
         # (and so a home directory) must not share ~/setup-pnpm, which another
-        # job rewrites while this one installs.
+        # job rewrites while this one is using it.
         with: { version: "${{ env.PNPM_VERSION }}", dest: "${{ runner.tool_cache }}/setup-pnpm" }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
@@ -1333,9 +1333,9 @@ jobs:
       - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
         with: { deno-version: v2.9.1 }
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
-        # One runner's own pnpm install and store: runners that share a host
+        # One runner's own pnpm and package store: runners that share a host
         # (and so a home directory) must not share ~/setup-pnpm, which another
-        # job rewrites while this one installs.
+        # job rewrites while this one is using it.
         with: { version: "${{ env.PNPM_VERSION }}", dest: "${{ runner.tool_cache }}/setup-pnpm" }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
@@ -1426,9 +1426,9 @@ jobs:
       - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
         with: { deno-version: v2.9.1 }
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
-        # One runner's own pnpm install and store: runners that share a host
+        # One runner's own pnpm and package store: runners that share a host
         # (and so a home directory) must not share ~/setup-pnpm, which another
-        # job rewrites while this one installs.
+        # job rewrites while this one is using it.
         with: { version: "${{ env.PNPM_VERSION }}", dest: "${{ runner.tool_cache }}/setup-pnpm" }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
@@ -1583,9 +1583,9 @@ jobs:
       - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
         with: { deno-version: v2.9.1 }
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
-        # One runner's own pnpm install and store: runners that share a host
+        # One runner's own pnpm and package store: runners that share a host
         # (and so a home directory) must not share ~/setup-pnpm, which another
-        # job rewrites while this one installs.
+        # job rewrites while this one is using it.
         with: { version: "${{ env.PNPM_VERSION }}", dest: "${{ runner.tool_cache }}/setup-pnpm" }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
@@ -1740,9 +1740,9 @@ jobs:
       - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
         with: { deno-version: v2.9.1 }
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
-        # One runner's own pnpm install and store: runners that share a host
+        # One runner's own pnpm and package store: runners that share a host
         # (and so a home directory) must not share ~/setup-pnpm, which another
-        # job rewrites while this one installs.
+        # job rewrites while this one is using it.
         with: { version: "${{ env.PNPM_VERSION }}", dest: "${{ runner.tool_cache }}/setup-pnpm" }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
@@ -1897,9 +1897,9 @@ jobs:
       - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
         with: { deno-version: v2.9.1 }
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
-        # One runner's own pnpm install and store: runners that share a host
+        # One runner's own pnpm and package store: runners that share a host
         # (and so a home directory) must not share ~/setup-pnpm, which another
-        # job rewrites while this one installs.
+        # job rewrites while this one is using it.
         with: { version: "${{ env.PNPM_VERSION }}", dest: "${{ runner.tool_cache }}/setup-pnpm" }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
@@ -2035,9 +2035,9 @@ jobs:
       - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
         with: { deno-version: v2.9.1 }
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
-        # One runner's own pnpm install and store: runners that share a host
+        # One runner's own pnpm and package store: runners that share a host
         # (and so a home directory) must not share ~/setup-pnpm, which another
-        # job rewrites while this one installs.
+        # job rewrites while this one is using it.
         with: { version: "${{ env.PNPM_VERSION }}", dest: "${{ runner.tool_cache }}/setup-pnpm" }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
@@ -2169,9 +2169,9 @@ jobs:
       - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
         with: { deno-version: v2.9.1 }
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
-        # One runner's own pnpm install and store: runners that share a host
+        # One runner's own pnpm and package store: runners that share a host
         # (and so a home directory) must not share ~/setup-pnpm, which another
-        # job rewrites while this one installs.
+        # job rewrites while this one is using it.
         with: { version: "${{ env.PNPM_VERSION }}", dest: "${{ runner.tool_cache }}/setup-pnpm" }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
@@ -2311,9 +2311,9 @@ jobs:
       - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
         with: { deno-version: v2.9.1 }
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
-        # One runner's own pnpm install and store: runners that share a host
+        # One runner's own pnpm and package store: runners that share a host
         # (and so a home directory) must not share ~/setup-pnpm, which another
-        # job rewrites while this one installs.
+        # job rewrites while this one is using it.
         with: { version: "${{ env.PNPM_VERSION }}", dest: "${{ runner.tool_cache }}/setup-pnpm" }
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: "${{ env.NODE_VERSION }}", cache: pnpm }
