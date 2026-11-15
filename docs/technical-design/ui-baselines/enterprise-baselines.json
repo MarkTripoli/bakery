@@ -28,8 +28,8 @@
       "packages/ui/scripts/fontconfig/fonts.conf",
       "packages/ui/scripts/render-enterprise-references.mjs"
     ],
-    "revision": "paper:246fd10e; mock:55f564e8; rendered:2026-11-15",
-    "digest": "55f564e8bbd89e371864565562d256d97ab3b406cebbff9d13e028164969f4d1"
+    "revision": "paper:b9b4d5d8; mock:76cd34eb; rendered:2026-11-15",
+    "digest": "76cd34eb71a9efdd6ac50c048d0d9b9ea1598d4d5c0e53016a979b068c6a8e4a"
   },
   "reference": {
     "hidden": [],
@@ -48,7 +48,7 @@
         "device": "desktop"
       },
       "imagePath": "docs/technical-design/ui-baselines/paper/enterprise/queue--default--light--desktop.png",
-      "imageSha256": "f0662f305f3a7f0eb22e14c1a44068fdbcf39f42c2aeee7329666f26e1006991",
+      "imageSha256": "9cdf1a9fc54f63b230093bdeccfa9510eac0413216d2be5e581ff59d91e2cc68",
       "viewport": {
         "width": 1440,
         "height": 900
