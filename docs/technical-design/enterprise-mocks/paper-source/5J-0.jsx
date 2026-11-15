@@ -205,7 +205,7 @@
               Status
             </div>
           </div>
-          <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-muted-foreground)', borderRadius: 'var(--radius-4)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', fontFamily: 'var(--font-sans)', gap: '8px', minHeight: '44px', paddingInline: '12px', width: '220px' }}>
+          <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-muted-foreground)', borderRadius: 'var(--radius-4)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', fontFamily: 'var(--font-sans)', gap: '8px', minHeight: '44px', paddingInline: '12px', width: '288px' }}>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', display: 'flex', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '18px' }}>
               Search titles and descriptions
             </div>
@@ -220,7 +220,7 @@
               Application
             </div>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', flexShrink: '0', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px', width: '134px' }}>
-              Stage
+              Status
             </div>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', flexShrink: '0', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px', width: '88px' }}>
               Coding agent
@@ -589,9 +589,6 @@
             </div>
           </div>
           <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', borderRadius: 'var(--radius-4)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', fontFamily: 'var(--font-sans)', gap: '8px', justifyContent: 'center', minHeight: '36px', paddingInline: '12px' }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: '0' }}>
-              <path d="m5 6 6 6-6 6M14 18h6" fill="none" stroke="#000000" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
             <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', display: 'inline-block', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '18px' }}>
               Open task
             </div>

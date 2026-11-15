@@ -267,6 +267,9 @@
   gap: var(--space-3);
   padding: var(--space-4) var(--space-task-inset);
 }
+.ui-task-inbox__filters .ui-search-field {
+  flex: 0 1 18rem;
+}
 .ui-task-inbox__results {
   padding-inline: var(--space-task-inset);
 }

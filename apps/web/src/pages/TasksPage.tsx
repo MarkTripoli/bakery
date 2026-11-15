@@ -1160,7 +1160,6 @@ function WorkQueueInspectorActions(
         params={{ taskId: task.id }}
         variant="button"
       >
-        <UI.IconGlyph name="terminal" />
         {t("tasks.queue.inspector.open")}
       </RouterLink>
     </>

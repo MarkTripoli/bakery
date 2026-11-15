@@ -296,12 +296,17 @@ function ListGroup(
                   {row.reference} · {row.application} · {row.stage} · {row.age}
                 </RowDetails>
                 <span className="ui-task-queue__line">
-                  {columns?.application !== false && (
-                    <span className="ui-task-queue__application">
-                      {row.application}
-                    </span>
-                  )}
-                  {row.stage}
+                  {columns?.application !== false
+                    ? (
+                      <>
+                        <span className="ui-task-queue__application">
+                          {row.application}
+                        </span>
+                        {row.stage}
+                      </>
+                    )
+                    // Alone, the badge would take the line's growing first slot.
+                    : <span>{row.stage}</span>}
                 </span>
               </RowLink>
             </li>

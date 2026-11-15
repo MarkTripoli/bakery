@@ -980,7 +980,7 @@
   "tasks.queue.caption": "‮Work queue توسيع ‬",
   "tasks.queue.column.task": "‮Task توسيع ‬",
   "tasks.queue.column.application": "‮Application توسيع ‬",
-  "tasks.queue.column.stage": "‮Stage توسيع ‬",
+  "tasks.queue.column.stage": "⟪Status⟫",
   "tasks.queue.column.harness": "⟪Coding agent⟫",
   "tasks.queue.column.age": "‮Age توسيع ‬",
   "tasks.queue.stage.draft": "‮Draft توسيع ‬",

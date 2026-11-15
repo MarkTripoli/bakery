@@ -1025,7 +1025,7 @@
   "tasks.queue.caption": "Work queue",
   "tasks.queue.column.task": "Task",
   "tasks.queue.column.application": "Application",
-  "tasks.queue.column.stage": "Stage",
+  "tasks.queue.column.stage": "Status",
   "tasks.queue.column.harness": "Coding agent",
   "tasks.queue.column.age": "Age",
   "tasks.queue.stage.draft": "Draft",
