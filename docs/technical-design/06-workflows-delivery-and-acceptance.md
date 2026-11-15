@@ -12,7 +12,7 @@ the flat preset executor is retired (O1): the presets are republished as
 compiled definitions and existing flat runs drain. Deliver is a workflow built
 only from public primitives, with no private engine path. In the editor,
 Publish is never disabled: pressed with problems, it lists them with "Show me".
-This replaces the earlier disabled-with-reason Publish.
+This replaces the earlier disabled-with-reason Publish. Bakery is agent-first: agents draft, edit, publish and use workflows through the same operations as people, under the same grants.
 
 The [8 September requirements](#workflow-ownership-and-multi-repository-work) below
 extend the earlier single-repository examples. Multi-repository work is a task and

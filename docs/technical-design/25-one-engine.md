@@ -41,6 +41,14 @@ documents, steps, sessions and rules; it does not know repositories, pull
 requests or checks. Software delivery is one module and template pack beside
 the kernel (O16), not part of it.
 
+**Agent-first.** Everything in Bakery is agent-first. Anything a person can do,
+an agent can do through the same operations (API, CLI or MCP), under the same
+grants, budgets and audit. There are no person-only operations; where a rule
+below names a person, it names a default holder of a grant, which an agent can
+hold too. Where an action needs a human by policy (for example a decision a
+workflow has not granted to agents, section 9), that is a grant setting, not a
+missing operation.
+
 **One system.** New ways of working become plug-ins or new combinations of
 existing pieces. They never need an architecture rewrite.
 
@@ -297,7 +305,8 @@ These rules replace O18 to O21 where they differ:
   permission, budget, count and depth, and it records every steer and spawn
   exactly like a person's. This overrides the earlier O19 ("agents only message
   and interrupt").
-- **Agents and decisions.** Agents may make decisions (approve, raise a limit,
+- **Agents and decisions.** Agents use the same steering operations as people.
+  Agents may make decisions (approve, raise a limit,
   redirect, take over) only where a workflow explicitly grants it. Otherwise
   decisions are human-only.
 - **Reviewer messaging (O18).** Messaging a reviewer is off by default. If a
@@ -357,6 +366,8 @@ count, set in the loop's panel.
   diagram. The layout runs top to bottom, which replaces the approved
   left-to-right Paper reference; #67's visual check needs a new approved
   reference.
+- Agents author through the same operations as people: drafts, edits,
+  validation, publish and "Use this version", within the same grants.
 - Publish is never disabled. Pressed with problems, it lists them with "Show me"
   beside each. "Publish and use" is the primary button, with "Publish only" as a
   secondary option.
@@ -559,7 +570,7 @@ mapping from port verbs to tools.
 
 | Concern | Rule |
 | --- | --- |
-| Registering | A server definition and connections. Global catalog of known servers (no credentials); Organization connections registered by an Admin; Personal connections usable in a member's own runs. A personal connection on a shared workflow needs the owner's explicit use grant, is labelled as acting for that person, and is refused for unattended starts (O27) |
+| Registering | A server definition and connections. An agent with the grant registers and configures them through the same operations as an Admin. Global catalog of known servers (no credentials); Organization connections registered by an Admin; Personal connections usable in a member's own runs. A personal connection on a shared workflow needs the owner's explicit use grant, is labelled as acting for that person, and is refused for unattended starts (O27) |
 | Pinning | Server definition revision, capability snapshot digest (names, schemas, descriptions) and, for local servers, the launch artifact digest. A workflow version pins the snapshot. Drift on a used tool refuses admission and shows "update available"; nothing updates on its own |
 | Credentials | Only through the broker; no credential enters the session |
 | Grants | Exact tool names against the pinned schema, never wildcards: tools an Admin enabled, the subset a workflow, agent, seat or step binds, and what the run principal may invoke. A grant may fix arguments. Reviewer-role sessions get read tools only unless the definition says otherwise |
@@ -647,7 +658,8 @@ Approved by the owner on 14 November 2026, as recommended.
 Bakery's storage looks and navigates like a file system, though it is not
 literally one: a virtual, hierarchical tree over the object store, with folders,
 paths and sensible default top-level areas. Users, agents, the API and CLI, and
-the UI navigate the same tree. Underneath, bytes stay immutable and
+the UI navigate the same tree. Agents browse by default within their grants,
+and can upload and write files (O39). Underneath, bytes stay immutable and
 content-addressed, runs pin versions and never paths, and every area has a
 policy for who writes, what is kept and what may be deleted. This is the owner's
 callout on O28, designed in section 11 of `one-system.md`.
@@ -734,9 +746,10 @@ somewhere to attach.
 - `/library` follows the catalog's Global, Organization and My scopes. A private
   skill attached to a shared workflow is usable by its runs but stays a
   placeholder in the tree for everyone but its owner.
-- A session never browses with a person's authority. Its view is a mount of the
-  versions pinned at admission, where the run principal's read and write rights
-  are checked. Kind rules (writer-private kinds) still bind reviewer steps.
+- A session's declared inputs are a mount of the versions pinned at admission,
+  where the run principal's read and write rights are checked. Beyond the mount,
+  an agent browses and writes within its own grants (O39), never with a
+  person's authority unless it acts for them under a recorded grant. Kind rules (writer-private kinds) still bind reviewer steps.
 - Secrets and credentials are never in the tree. No public links in the first
   version; previews use the separate preview origin.
 
@@ -747,7 +760,7 @@ somewhere to attach.
 | File browser | Navigate, preview (video and audio by byte range), version history, "Produced by" (run, step, session), "Used by" (every pinned reference), kind, validator verdict and facts, comments on a version |
 | API and CLI | `ls`, `stat`, `cat`, `get`, `put`, `cp`, `mv`, `rm`, `history`, `pin`. A path reads the current version; `path@<version>` or a digest reads an immutable one. `put` uses `If-Match`, `cp` is by reference, `mv` changes only the entry, `rm` trashes in working areas and is refused in record areas |
 | Agent sessions | The context directory is a read-only mounted subtree of pinned versions and snapshots, with an index of kind, size, digest and headings. A workspace is a mounted snapshot of its folder. Outputs become new versions at the step's declared destinations. Large files are fetched lazily by range; nothing outside the mount is visible |
-| MCP inward | An optional built-in connection, "Bakery Files", through the tool gateway (section 15.4): list, stat, read by range, search, write to granted destinations. Off by default (O39); every file read is recorded on the step with its version and digest |
+| MCP inward | A built-in connection, "Bakery Files", through the tool gateway (section 15.4): list, stat, read by range, search, upload and write within the agent's grants. On by default (O39); every read and write is recorded on the step with its version and digest. Agents also use the CLI, the API and step outputs; writes are versioned and stay within grants and quotas |
 | MCP outward | Bakery's own MCP server exposes the tree under its OAuth scopes |
 | Integrations | A `storage` family: list, stat, read by range, write, change events. Connections mount under `/connections`, read through. Using an outside file ingests it into a version; one-way sync is a workflow; writing out is a keyed effect; no two-way sync in the first version (O38) |
 
@@ -801,8 +814,10 @@ what the video factory needs.
 - **O37:** the library appears as a read-only mirror.
 - **O38:** outside storage is mounted read-through and ingested on use; one-way
   sync as a workflow; no two-way sync in the first version.
-- **O39:** agents browsing the tree is off by default; granted reads are
-  recorded on the step.
+- **O39 (changed by the owner):** agents browse and read the tree by default
+  within their grants, not only their step's mounts, and can upload and write
+  files through Bakery Files, the CLI or API, and step outputs. Every read and
+  write is recorded; writes are versioned and stay within grants and quotas.
 - **O40:** large transfers go through Bakery first.
 - **O41:** personal folders are owner only.
 - **O42:** default limits as in 17.5, all organization settings.
