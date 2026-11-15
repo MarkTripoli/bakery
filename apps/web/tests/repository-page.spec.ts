@@ -56,6 +56,23 @@ test.describe("a repository with no working settings", () => {
     await expect(
       page.getByText("Bakery can start tasks here once all three are done."),
     ).toBeVisible();
+    // The open step is in progress (not a warning), and its action is label-wide
+    // at the end of the step's line on desktop, full width only on a phone.
+    await expect(page.getByTestId("setup-settings")).toHaveAttribute(
+      "data-state",
+      "running",
+    );
+    const choose = await page.getByRole("button", { name: "Choose settings" })
+      .boundingBox();
+    const step = await page.getByTestId("setup-settings").boundingBox();
+    if (test.info().project.name === "mobile") {
+      expect(choose!.width).toBeGreaterThan(step!.width * 0.7);
+    } else {
+      expect(choose!.width).toBeLessThan(step!.width * 0.3);
+      expect(choose!.x + choose!.width).toBeGreaterThan(
+        step!.x + step!.width * 0.7,
+      );
+    }
     // One primary button on the page: the next setup action.
     await expect(
       page.getByRole("button", { name: "Choose settings" }),
@@ -81,6 +98,15 @@ test.describe("a repository with no working settings", () => {
       "main",
     );
     await expect(page.getByText("This saves version 1.")).toBeVisible();
+    await expect(
+      page.getByText(
+        "Bakery starts work only from the branches you list here.",
+      ),
+    ).toBeVisible();
+    // There are no versions yet, so there is no Versions section.
+    await expect(page.getByRole("heading", { name: "Versions" })).toHaveCount(
+      0,
+    );
     await shot(page, "repository-settings-first");
     await page.getByRole("button", { name: "Save and use these settings" })
       .click();
@@ -107,10 +133,17 @@ test.describe("a repository with no working settings", () => {
     expect(seen.updates[0].body).toMatchObject({
       activeProfileId: expect.any(String),
     });
-    // With settings in use, the readiness check is the next step.
+    // With settings in use, the readiness check is the next step, with a way to it.
     await expect(page.getByTestId("setup-check")).toContainText(
       "Run the check to see whether Bakery can work here.",
     );
+    await expect(
+      page.getByTestId("setup-check").getByRole("button", {
+        name: "Open the readiness check",
+      }),
+    ).toBeVisible();
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-page-set-up");
     await expect(page.getByText("Not set up")).toHaveCount(0);
   });
 
@@ -162,6 +195,7 @@ test.describe("a repository with working settings", () => {
         "This saves version 3. Tasks already running keep version 2.",
       ),
     ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Versions" })).toBeVisible();
     await expect(page.getByTestId("profile-version-2")).toContainText("In use");
     await expect(page.getByTestId("profile-version-1")).toContainText(
       "Version 1",
@@ -185,10 +219,22 @@ test.describe("a repository with working settings", () => {
     );
   });
 
-  test("Use version puts an earlier version in use without saving a new one", async ({ page }) => {
+  test("Use version asks first, says what changes, and only then acts", async ({ page }) => {
     const { seen } = await open(page, WORLD);
     await page.getByRole("button", { name: "Change" }).click();
     await page.getByRole("button", { name: "Use version 1" }).click();
+    const confirm = page.getByRole("alertdialog", { name: "Use version 1?" });
+    await expect(confirm).toContainText(
+      "New tasks use version 1. Tasks already running keep version 2.",
+    );
+    await shot(page, "repository-use-version");
+    // Cancel changes nothing.
+    await confirm.getByRole("button", { name: "Cancel" }).click();
+    await expect(confirm).toHaveCount(0);
+    expect(seen.updates).toHaveLength(0);
+    await page.getByRole("button", { name: "Use version 1" }).click();
+    await confirm.getByRole("button", { name: "Use version 1" }).click();
+    await expect(confirm).toHaveCount(0);
     await expect(page.getByTestId("profile-version-1")).toContainText("In use");
     expect(seen.createdProfiles).toHaveLength(0);
     expect(seen.updates).toHaveLength(1);
@@ -255,10 +301,12 @@ test.describe("when a change does not go through", () => {
     await open(page, { profiles: SETTINGS, active: 2, use: "down" });
     await page.getByRole("button", { name: "Change" }).click();
     await page.getByRole("button", { name: "Use version 1" }).click();
+    const confirm = page.getByRole("alertdialog", { name: "Use version 1?" });
+    await confirm.getByRole("button", { name: "Use version 1" }).click();
     await expect(
-      page.getByText("The version could not be put in use. Try again."),
-    )
-      .toBeVisible();
+      confirm.getByText("The version could not be put in use. Try again."),
+    ).toBeVisible();
+    await confirm.getByRole("button", { name: "Cancel" }).click();
     await expect(page.getByTestId("profile-version-2")).toContainText("In use");
   });
 });

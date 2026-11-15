@@ -20,6 +20,7 @@ import { useConnectivity } from "../app/connectivity.ts";
 import { focusAfterPaint } from "../app/focus.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
+import { useShellViewport } from "../app/responsive.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { PROJECTS_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
@@ -50,6 +51,7 @@ export function RepositoryPage(
   const { translate } = useI18n();
   useRestoreOrganizationScope();
   const offline = useConnectivity() === "offline";
+  const phone = useShellViewport() === "phone";
   const access = useQuery(effectiveAccessQueryOptions(api, scope));
   const canManage = access.data?.role === "admin";
   const repository = useQuery(repositoryQueryOptions(api, scope, repositoryId));
@@ -216,6 +218,17 @@ export function RepositoryPage(
   const account = connection.data?.label ?? "";
   const connectionWorks = connection.data?.status === "enabled";
 
+  // The next action of the setup: at the end of the step's line, label-wide;
+  // full width in the step's detail only on a phone.
+  const choose = (
+    <UI.Button
+      variant="primary"
+      disabled={profiles.state !== "ready" || archived}
+      onClick={openSheet}
+    >
+      {translate("projects.repository.step.settings.choose" as never)}
+    </UI.Button>
+  );
   return (
     <>
       {breadcrumbs}
@@ -326,7 +339,7 @@ export function RepositoryPage(
               />
               <UI.StepItem
                 data-testid="setup-settings"
-                status={active === null ? "waiting" : "done"}
+                status={active === null ? "running" : "done"}
                 statusLabel={status(active === null ? "todo" : "done")}
                 title={translate(
                   "projects.repository.step.settings.title" as never,
@@ -340,31 +353,21 @@ export function RepositoryPage(
                       version: active.revision,
                     },
                   )}
-                action={active === null ? undefined : (
-                  <UI.Button
-                    variant="text"
-                    disabled={profiles.state !== "ready" || archived}
-                    onClick={openSheet}
-                  >
-                    {translate(
-                      "projects.repository.step.settings.change" as never,
-                    )}
-                  </UI.Button>
-                )}
-              >
-                {active === null
-                  ? (
+                action={active === null
+                  ? phone ? undefined : choose
+                  : (
                     <UI.Button
-                      variant="primary"
+                      variant="text"
                       disabled={profiles.state !== "ready" || archived}
                       onClick={openSheet}
                     >
                       {translate(
-                        "projects.repository.step.settings.choose" as never,
+                        "projects.repository.step.settings.change" as never,
                       )}
                     </UI.Button>
-                  )
-                  : undefined}
+                  )}
+              >
+                {active === null && phone ? choose : undefined}
               </UI.StepItem>
               <UI.StepItem
                 data-testid="setup-check"
