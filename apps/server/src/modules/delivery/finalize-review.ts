@@ -15,6 +15,7 @@ import type {
 import { appendIteration, appendStopGate } from "./append-iteration.ts";
 import { requestRunStageApproval } from "../conversation/approvals.ts";
 import { evaluateReviewedChecks } from "./candidate.ts";
+import { isPlanRunSnapshot } from "./plan-run-view.ts";
 import {
   assertIndependentReviewer,
   REVIEW_NOT_INDEPENDENT_REASON,
@@ -390,9 +391,15 @@ async function applyDecision(
   },
 ): Promise<void> {
   const { outcome } = input;
+  // A plan run decides its own shape: its `repeat` runs the next repair and its
+  // bound ends the loop, and the engine halts the run on a recorded stop (see
+  // `planHostFacts`). Nothing is appended to its rows, which also keeps the
+  // rows the interpreter reads free of any iteration other than 0.
+  const plan = isPlanRunSnapshot(input.snapshot);
   if (outcome.decision === "repair") {
-    await appendIteration(transaction, input);
+    if (!plan) await appendIteration(transaction, input);
   } else if (outcome.decision === "stop") {
+    if (plan) return;
     await appendStopGate(transaction, {
       organizationId: input.organizationId,
       runId: input.runId,
@@ -555,13 +562,15 @@ export async function recordReviewJobFailure(
       blockingFingerprints: [],
       limits,
     });
-    await appendStopGate(transaction, {
-      organizationId,
-      runId: job.runId,
-      ordinal,
-      reason,
-      decisionId,
-    });
+    if (!isPlanRunSnapshot(facts.snapshot)) {
+      await appendStopGate(transaction, {
+        organizationId,
+        runId: job.runId,
+        ordinal,
+        reason,
+        decisionId,
+      });
+    }
     const audited = await appendAudit(transaction, {
       organizationId,
       principalId: identity.host.principal_id,

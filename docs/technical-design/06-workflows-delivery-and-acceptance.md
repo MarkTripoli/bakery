@@ -1939,6 +1939,42 @@ repair appends three rows (`repair`, `check`, `review`) at `iteration = ordinal 
 and positions above the run's highest, so the engine, which takes the lowest open
 `(position, iteration, id)` row, runs them next.
 
+### On a compiled plan
+
+A run of a compiled plan (`apiVersion`, with a `repeat` or another container)
+takes the same hook, verification and evidence rows (#397). What differs is how
+the loop reads the run and what a decision does to it.
+
+- **Bounds.** A plan that holds a `review.independent` step freezes `reviewLoop`
+  at admission, as a flat spec does. `maxRepairCycles` is the largest
+  `repeat.max` of a repeat that review sits in (the plan's own bound), capped at
+  the contract ceiling; the duration and findings bounds are the server
+  defaults. A plan with no review step freezes none, and its reviews, if any,
+  are plain steps.
+- **Reading the run.** A plan run freezes no list of steps, so the loop reads it
+  through the steps the engine dispatched, in the order it appended them: each
+  entry is the qualified step key (`repair@2.repair_review`) and the action its
+  dispatch recorded (`plan-run-view`). The one set of helpers that finds the
+  candidate (the last harness step with a head), the implementing steps and each
+  `$delivery` reference answers for flat and plan runs alike.
+- **`$delivery`.** The engine asks an injected `PlanHostReader` before each
+  pass. Its `delivery` is the four references (`headSha`, `checkIds`,
+  `failedChecks`, `blockingFindings`), present once the run has a candidate; a
+  field whose evidence does not exist yet is absent and reads as null. A plan
+  that reads `$delivery` before any candidate fails with `delivery_unresolved`.
+  The kernel imports nothing from the delivery module; the host composes the two
+  where it builds the engine.
+- **Decisions.** `repair` appends nothing: the plan's `repeat` runs the next
+  round and its `max` bounds it. `proceed` opens the run-stage approval exactly
+  as for a flat run. `stop` appends no `delivery_gate` row (a plan's rows are
+  all stored at iteration 0); the engine halts the run with
+  `delivery_loop_stopped` on its next pass, whatever the plan would have run
+  next, and the gate reports `decision_stop:<reason>`. A terminal reviewer
+  failure records the stop with no cycle, and the failed review step ends the
+  run.
+- **The gate.** `evaluateDeliveryCandidate` reads the plan run's candidate
+  through the same view, so a plan run is merge-eligible by the same rules.
+
 ### The delivery gate
 
 `evaluateDeliveryCandidate(transaction, {organizationId, runId})` answers, from
