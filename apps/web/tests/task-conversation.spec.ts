@@ -2349,7 +2349,11 @@ test("a part of the page that did not load is a warning notice with an outline T
 test("the Planning only hint is visible under the switch", async ({ page }) => {
   await open(page);
   // On a phone the switch is in the plan sheet, so the hint goes there.
-  if ((page.viewportSize()?.width ?? 1280) <= 743) await showPlan(page);
+  if ((page.viewportSize()?.width ?? 1280) <= 743) {
+    await showPlan(page);
+    await page.mouse.move(200, 700);
+    await shot(page, "task-plan-sheet-planning-only", [], { only: "mobile" });
+  }
   await expect(
     page.getByText("Stop after the plan. No run starts from this task."),
   ).toBeVisible();
