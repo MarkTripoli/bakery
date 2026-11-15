@@ -6166,11 +6166,16 @@ Deno.test("Data migration 0049 preserves frozen v1 execution, replay bytes and c
         cloudMetadata: "retained",
       })
     }, 'completed')`;
-    const cloudBefore = await owner`
+    // Rows, not postgres.js Result objects: a Result also carries the statement and
+    // connection metadata of the query that produced it, which differs between the
+    // before and after reads even for the same SQL.
+    const cloudBefore = Array.from(
+      await owner`
       select run.snapshot, (to_jsonb(job) - 'conversation_turn_id') as job from bakery.workflow_runs run
       join bakery.run_steps step on step.organization_id = run.organization_id and step.run_id = run.id
       join bakery.jobs job on job.organization_id = step.organization_id and job.run_step_id = step.id
-      where run.id = ${cloudRunId}`;
+      where run.id = ${cloudRunId}`,
+    );
 
     const workerPrincipalId = crypto.randomUUID();
     const workerHostId = crypto.randomUUID();
@@ -6228,10 +6233,12 @@ Deno.test("Data migration 0049 preserves frozen v1 execution, replay bytes and c
         request_digest, response_status, response_ciphertext, expires_at)
       values (${legacyJob.organizationId}, ${workerHostId}, ${attemptId}, ${claimKey},
         ${"d".repeat(64)}, 200, ${ciphertext}, ${expiresAt})`;
-    const attemptsBefore =
-      await owner`select * from bakery.job_attempts where id = ${attemptId}`;
-    const replaysBefore =
-      await owner`select * from bakery.worker_claim_replays where attempt_id = ${attemptId}`;
+    const attemptsBefore = Array.from(
+      await owner`select * from bakery.job_attempts where id = ${attemptId}`,
+    );
+    const replaysBefore = Array.from(
+      await owner`select * from bakery.worker_claim_replays where attempt_id = ${attemptId}`,
+    );
     await assertRejects(() =>
       withPgTransaction(
         appPg,
@@ -6598,19 +6605,25 @@ Deno.test("Data migration 0049 preserves frozen v1 execution, replay bytes and c
       { capabilities: ["git", "shell", "browser", "operator.approved"] },
     );
     assertEquals(
-      await owner`select * from bakery.job_attempts where id = ${attemptId}`,
+      Array.from(
+        await owner`select * from bakery.job_attempts where id = ${attemptId}`,
+      ),
       attemptsBefore,
     );
     assertEquals(
-      await owner`select * from bakery.worker_claim_replays where attempt_id = ${attemptId}`,
+      Array.from(
+        await owner`select * from bakery.worker_claim_replays where attempt_id = ${attemptId}`,
+      ),
       replaysBefore,
     );
     assertEquals(
-      await owner`
+      Array.from(
+        await owner`
       select run.snapshot, (to_jsonb(job) - 'conversation_turn_id') as job from bakery.workflow_runs run
       join bakery.run_steps step on step.organization_id = run.organization_id and step.run_id = run.id
       join bakery.jobs job on job.organization_id = step.organization_id and job.run_step_id = step.id
       where run.id = ${cloudRunId}`,
+      ),
       cloudBefore,
     );
     assertEquals(
