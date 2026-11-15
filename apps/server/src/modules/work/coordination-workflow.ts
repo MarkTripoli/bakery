@@ -13,7 +13,9 @@ import {
 export type WorkflowMappingCode =
   | "workflow_node_not_parallel"
   | "workflow_lane_key_unmappable"
-  | "workflow_node_exceeds_coordination_limits";
+  | "workflow_node_exceeds_coordination_limits"
+  /** The published definition no longer compiles, so no node can be read. */
+  | "workflow_not_compilable";
 
 /** Typed refusal of a workflow node the coordination boundary cannot take. */
 export class WorkflowMappingError extends Error {
