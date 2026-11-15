@@ -1124,7 +1124,7 @@ test("unsupported steering is explicit in the run controls while a run is active
   await expect(page.locator('[data-ui-region="steering-unsupported"]'))
     .toContainText("You cannot redirect this run while it works");
   await expect(
-    page.getByText("This worker's adapter does not support this control.")
+    page.getByText("This machine cannot pause a run.")
       .first(),
   ).toBeVisible();
   // Questions to the agent are still accepted and saved to the conversation.

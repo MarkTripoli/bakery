@@ -19,6 +19,13 @@ type Receipt =
   | "rejected";
 type Intent = { key: string; input: RunControl };
 const actions = ["pause", "resume", "cancel", "interrupt"] as const;
+/** What a machine that cannot do one control says, in that control's own words. */
+const unsupportedReasons = {
+  pause: "tasks.controls.reason.unsupportedPause",
+  resume: "tasks.controls.reason.unsupportedResume",
+  cancel: "tasks.controls.reason.unsupportedCancel",
+  interrupt: "tasks.controls.reason.unsupportedInterrupt",
+} as const;
 const receiptLabels = {
   pending: "tasks.controls.requestPending",
   accepted: "tasks.controls.accepted",
@@ -202,7 +209,11 @@ export function TaskRunControls(
               {!unavailable && capability && !capability.canRequest &&
                 (
                   <UI.Text>
-                    {t(`tasks.controls.reason.${capability.reason}`)}
+                    {t(
+                      capability.reason === "unsupported"
+                        ? unsupportedReasons[action]
+                        : `tasks.controls.reason.${capability.reason}`,
+                    )}
                   </UI.Text>
                 )}
             </UI.Stack>

@@ -354,7 +354,6 @@ async function pauseResume(page, input) {
     no_active_attempt: "Nothing is running that this can be sent to.",
     already_terminal: "This run is already terminal.",
     authority_unavailable: "Request authority is unavailable.",
-    unsupported: "This worker's adapter does not support this control.",
   };
   const observed = [];
   async function assertCapabilities() {
@@ -373,7 +372,12 @@ async function pauseResume(page, input) {
       } else {
         await expect(button).toBeDisabled({ timeout: 30_000 });
         await expect(
-          page.getByText(REASON[capability.reason], { exact: true })
+          page.getByText(
+            capability.reason === "unsupported"
+              ? `This machine cannot ${action} a run.`
+              : REASON[capability.reason],
+            { exact: true },
+          )
             .first(),
         ).toBeVisible();
       }

@@ -107,7 +107,7 @@ for (
       await organizationsFixture(page, { failCursor: "p2" });
       await page.goto("/organizations");
       await page.getByRole("button", { name: "Load more" }).click();
-      const retry = page.getByRole("button", { name: "Retry" });
+      const retry = page.getByRole("button", { name: "Try again" });
       await expect(retry).toBeVisible();
       await expect(retry).toBeFocused();
       await shot(page, "organizations-retry-focus");
@@ -234,7 +234,7 @@ for (
       const firstRead = { failing: true };
       await machinesFixture(page, { firstRead });
       await page.goto("/machines");
-      const retry = page.getByRole("button", { name: "Retry" });
+      const retry = page.getByRole("button", { name: "Try again" });
       await expect(retry).toBeVisible();
       // The server recovers; the person retries with the keyboard only.
       firstRead.failing = false;
@@ -251,7 +251,7 @@ for (
       const firstRead = { failing: true, delayMs: 600 };
       await machinesFixture(page, { firstRead });
       await page.goto("/machines");
-      const retry = page.getByRole("button", { name: "Retry" });
+      const retry = page.getByRole("button", { name: "Try again" });
       const heading = page.getByRole("heading", { name: "Machines", level: 1 });
       await expect(retry).toBeVisible();
       await retry.focus();
@@ -280,7 +280,7 @@ for (
       await expect(page.getByText("More machines could not be loaded."))
         .toBeVisible();
       // The same failure gets the same button everywhere: it says Retry.
-      const retry = page.getByRole("button", { name: "Retry" });
+      const retry = page.getByRole("button", { name: "Try again" });
       await expect(retry).toBeFocused();
       // Window-only at each size, scrolled to the notice after the resize (the
       // helper's own resize resets the scroll, and a full-page capture of this

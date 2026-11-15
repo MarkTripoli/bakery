@@ -471,13 +471,13 @@ test("shows the current revision with lanes as rows", async ({ page }) => {
     "Shared budget ceiling: $12.50",
   );
   await expect(
-    page.getByRole(onPhone(page) ? "list" : "table", { name: "Plan lanes" }),
+    page.getByRole(onPhone(page) ? "list" : "table", { name: "Lanes" }),
   ).toBeVisible();
   await expect(page.locator("[data-lane-key]")).toHaveCount(3);
   const api = laneRow(page, "api");
   await expect(api).toContainText("Change the API contract");
   await expect(api).toContainText("example/api-service");
-  await expect(api).toContainText("alias api");
+  await expect(api).toContainText("Short name: api");
   await expect(api).toContainText("Completed");
   // A phone row that lists a committed output drops this line (2JQJ-0).
   if (!onPhone(page)) await expect(api).toContainText("No prerequisites");
@@ -874,7 +874,7 @@ const ticketOrigin = {
 test("an ad hoc plan shows its origin and revision, and the digest behind a fingerprint row", async ({ page }) => {
   await open(page);
   const provenance = page.locator('[data-ui-region="plan-provenance"]');
-  await expect(provenance).toContainText("Ad hoc");
+  await expect(provenance).toContainText("Planned for this task");
   await expect(provenance).not.toContainText("Digest");
   await expect(provenance).not.toContainText("eeeeeeeeeeee");
   const fingerprint = page.getByTestId("fingerprint-row");

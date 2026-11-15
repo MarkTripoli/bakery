@@ -769,7 +769,7 @@ test("cursor controls stay disabled after a cached-page refetch fails", async ({
 
   rejectRefetch = false;
   recovered = true;
-  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
   await expect(page.getByRole("link", { name: "Second page" })).toBeVisible();
   await expect(previous).toBeEnabled();
   await expect(next).toBeEnabled();
@@ -822,7 +822,7 @@ test("inbox distinguishes empty, forbidden, retryable error, and offline", async
   await expect(inbox).toHaveAttribute("data-state", "error");
   state = "empty";
   await dismissFilters(page);
-  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
   await expect(inbox).toHaveAttribute("data-state", "empty");
   // A search is typed, so "no tasks" means none match it.
   await expect(inbox).toContainText("No tasks match this filter.");
@@ -1378,7 +1378,7 @@ test("intercepted wrong-run response suppresses child reads and controls", async
   await page.getByRole("link", { name: task.title }).click();
   await expect(
     page.getByRole("heading", {
-      name: "Tasks could not be loaded. Retry this page.",
+      name: "Tasks could not be loaded. Try again.",
     }),
   ).toBeVisible();
   await expect(page.getByText(step.stepKey, { exact: true })).toHaveCount(0);
@@ -1724,7 +1724,7 @@ test("controls preserve uncertain receipt through a failed parent task refresh",
     page.getByRole("button", { name: "Retry same request", exact: true }),
   ).toBeDisabled();
   failedTask = false;
-  await page.getByRole("button", { name: "Retry", exact: true })
+  await page.getByRole("button", { name: "Try again", exact: true })
     .click();
   await expect(
     page.getByRole("button", { name: "Retry same request", exact: true }),
