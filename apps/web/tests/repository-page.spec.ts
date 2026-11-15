@@ -90,6 +90,28 @@ test.describe("a repository with no working settings", () => {
     await shot(page, "repository-page-not-set-up");
   });
 
+  test("Rules is visible on both viewports, in the top bar on a wide screen, and opens the rules page", async ({ page }) => {
+    await open(page);
+    const rules = page.getByRole("button", { name: "Rules" });
+    await expect(rules).toBeVisible();
+    const box = (await rules.boundingBox())!;
+    const title = (await page.getByRole("heading", { name: "acme/api-service" })
+      .boundingBox())!;
+    if (test.info().project.name === "mobile") {
+      // On a phone it follows the title.
+      expect(box.y).toBeGreaterThan(title.y);
+    } else {
+      // On a wide screen it is in the shell's top bar, above the page's title.
+      expect(box.y + box.height).toBeLessThan(title.y);
+    }
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-page-rules-action");
+    await rules.click();
+    await expect(page).toHaveURL(
+      new RegExp(`/projects/repositories/${REPOSITORY_ID}/rules$`),
+    );
+  });
+
   test("Choose settings saves version 1 and puts it in use", async ({ page }) => {
     const { seen } = await open(page);
     await page.getByRole("button", { name: "Choose settings" }).click();

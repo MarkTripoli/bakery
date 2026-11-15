@@ -218,6 +218,20 @@ export function RepositoryPage(
   const account = connection.data?.label ?? "";
   const connectionWorks = connection.data?.status === "enabled";
 
+  // On a wide screen the page's actions are in the top bar; on a phone they
+  // follow the title (the header's own actions row is for the phone only).
+  const rulesButton = (
+    <UI.Button
+      variant="secondary"
+      onClick={() =>
+        void navigate({
+          to: "/projects/repositories/$repositoryId/rules",
+          params: { repositoryId: current.id },
+        })}
+    >
+      {translate("projects.repository.rules" as never)}
+    </UI.Button>
+  );
   // The next action of the setup: at the end of the step's line, label-wide;
   // full width in the step's detail only on a phone.
   const choose = (
@@ -232,6 +246,7 @@ export function RepositoryPage(
   return (
     <>
       {breadcrumbs}
+      {!phone ? <ShellSlot name="actions">{rulesButton}</ShellSlot> : null}
       <UI.SettingsContent data-testid="repository-page" variant="wide">
         <UI.PageHeader
           variant="list"
@@ -254,18 +269,7 @@ export function RepositoryPage(
               )}
             </UI.Stack>
           }
-          actions={
-            <UI.Button
-              variant="secondary"
-              onClick={() =>
-                void navigate({
-                  to: "/projects/repositories/$repositoryId/rules",
-                  params: { repositoryId: current.id },
-                })}
-            >
-              {translate("projects.repository.rules" as never)}
-            </UI.Button>
-          }
+          actions={phone ? rulesButton : null}
         />
         <UI.Stack gap="spacious">
           {access.isSuccess && !canManage
