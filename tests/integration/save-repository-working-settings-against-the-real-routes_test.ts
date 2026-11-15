@@ -208,6 +208,56 @@ Deno.test("the page's save sequence against the real routes", async () => {
         (controlResult.error as { problem: { status: number } }).problem.status,
       400,
     );
+
+    // #65: the Versions list shows what a person saved or what a passing
+    // check put in use; a failed check's candidate is stored but not listed.
+    const checked = await makeRepo("checked", { profile: config() });
+    const candidate = async (
+      revision: number,
+      readiness: "eligible" | "blocked",
+    ) => {
+      const profileId = crypto.randomUUID();
+      const candidateConfig = config({}, "main");
+      (candidateConfig.branches as { allowedPatterns: string[] })
+        .allowedPatterns = [`check-${revision}/*`];
+      const digest = await configDigest(candidateConfig);
+      await owner`
+        insert into bakery.repository_profiles (
+          id, organization_id, application_id, repository_id, revision, config,
+          digest, created_by, version
+        ) values (${profileId}, ${fx.organizationId}, ${fx.applicationId},
+          ${checked}, ${revision}, ${owner.json(candidateConfig as never)},
+          ${digest}, ${fx.admin.principalId}, 1)`;
+      await owner`
+        insert into bakery.repository_profile_observations (
+          organization_id, application_id, repository_id, profile_id,
+          profile_revision, profile_digest, observation_digest, observed_at,
+          source_mapping_revision, source_mapping_digest, base_sha, payload,
+          readiness
+        ) values (${fx.organizationId}, ${fx.applicationId}, ${checked},
+          ${profileId}, ${revision}, ${digest}, ${"c".repeat(64)}, now(), '1',
+          ${"d".repeat(64)}, ${"e".repeat(40)}, ${owner.json({} as never)},
+          ${readiness})`;
+      return profileId;
+    };
+    const failed = await candidate(2, "blocked");
+    const passed = await candidate(3, "eligible");
+    const versions = (await request(
+      "GET",
+      `/v1/repositories/${checked}/profiles?limit=100`,
+    )).json as { items: { id: string; revision: number }[] };
+    assertEquals(versions.items.map((item) => item.revision), [3, 1]);
+    assertEquals(versions.items[0].id, passed);
+    assert(
+      !versions.items.some((item) => item.id === failed),
+      "a failed check's candidate is not a listed version",
+    );
+    // It is still stored, for audit and the check result.
+    assertEquals(
+      (await owner`select count(*)::int as n from bakery.repository_profiles
+        where id = ${failed}`)[0].n,
+      1,
+    );
   } finally {
     await fx.close();
   }

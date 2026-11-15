@@ -953,8 +953,25 @@ export function createProfilesListHandler(secret: string) {
             created_at at time zone 'UTC',
             'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
           ) as cursor_created_at
-         from bakery.repository_profiles
+         from bakery.repository_profiles as profile
          where repository_id = $1
+           -- #65: the Versions list shows what a person saved (no readiness
+           -- check created it) or what a passing check put in use. A failed
+           -- check's candidate stays out of the list; it is still stored and
+           -- reachable from its check result and by id.
+           and (
+             not exists (
+               select 1 from bakery.repository_profile_observations o
+                where o.organization_id = profile.organization_id
+                  and o.profile_id = profile.id
+             )
+             or exists (
+               select 1 from bakery.repository_profile_observations o
+                where o.organization_id = profile.organization_id
+                  and o.profile_id = profile.id
+                  and o.readiness = 'eligible'
+             )
+           )
            and ($2::timestamptz is null or (created_at, id) < ($2, $3::uuid))
          order by created_at desc, id desc
          limit $4`,
