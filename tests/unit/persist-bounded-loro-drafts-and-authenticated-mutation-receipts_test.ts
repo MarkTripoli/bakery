@@ -6,6 +6,7 @@ import {
   createInitialDraftCandidate,
   DRAFT_LIMITS,
   DraftCandidateError,
+  verifyDraftEditTarget,
 } from "../../apps/server/src/modules/knowledge/drafts.ts";
 
 async function edit(
@@ -202,5 +203,48 @@ Deno.test("body, replacement, update, state, and metadata budgets remain fixed",
     () => createInitialDraftCandidate("x".repeat(DRAFT_LIMITS.bodyBytes + 1)),
     DraftCandidateError,
     "BODY_TOO_LARGE",
+  );
+});
+
+Deno.test("verifying a guarded target changes nothing and admits only matching anchors", async () => {
+  const initial = await createInitialDraftCandidate("alpha target omega");
+  const range = await createDraftSliceCandidate(initial.state, 6, 12);
+  assertEquals(range.text, "target");
+  const input = {
+    mutationId: crypto.randomUUID(),
+    startCursor: range.startCursor,
+    endCursor: range.endCursor,
+    expectedText: range.text,
+    expectedDigest: range.textDigest,
+    replacement: "replacement",
+  };
+  await verifyDraftEditTarget(initial.state, initial.state, input);
+  // The same state again: a verification is a read, never an edit.
+  await verifyDraftEditTarget(initial.state, initial.state, input);
+
+  const edited = await applyDraftEditCandidate(
+    initial.state,
+    initial.state,
+    input,
+  );
+  assertEquals(edited.text, "alpha replacement omega");
+  // The anchor no longer resolves to the text it names in the current draft.
+  await assertRejects(
+    () => verifyDraftEditTarget(edited.state, initial.state, input),
+    DraftCandidateError,
+    "CURRENT_TARGET_CHANGED",
+  );
+  // Nor does a source checkpoint that never held that range.
+  const other = await createDraftSliceCandidate(edited.state, 6, 17);
+  assertEquals(other.text, "replacement");
+  await assertRejects(
+    () =>
+      verifyDraftEditTarget(edited.state, initial.state, {
+        ...input,
+        expectedText: other.text,
+        expectedDigest: other.textDigest,
+      }),
+    DraftCandidateError,
+    "SOURCE_TARGET_CHANGED",
   );
 });

@@ -5,6 +5,7 @@ import {
   DRAFT_LIMITS,
   DraftCandidateError,
   importDraftUpdateCandidate,
+  verifyDraftEditTarget,
 } from "./drafts.ts";
 
 const encoder = new TextEncoder();
@@ -162,6 +163,25 @@ async function execute(frames: readonly Frame[]): Promise<Uint8Array[]> {
         candidate.frontiers,
         encoder.encode(candidate.text),
       ];
+    }
+    case "verify": {
+      if (frames.length !== 4) throw new Error("PROTOCOL_FRAME_COUNT_INVALID");
+      await verifyDraftEditTarget(frames[2], frames[1], {
+        mutationId: stringField(meta, "mutationId"),
+        startCursor: stringField(meta, "startCursor"),
+        endCursor: stringField(meta, "endCursor"),
+        expectedText: text(
+          frames[3],
+          DRAFT_LIMITS.replacementBytes,
+          "EXPECTED_TEXT",
+        ),
+        expectedDigest: stringField(meta, "expectedDigest"),
+        replacement: "",
+      });
+      return [encoder.encode(JSON.stringify({
+        ok: true,
+        operation: "verify",
+      }))];
     }
     case "import": {
       if (frames.length !== 3) throw new Error("PROTOCOL_FRAME_COUNT_INVALID");
