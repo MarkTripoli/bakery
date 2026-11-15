@@ -1351,6 +1351,12 @@ const organizationAccessRoute = createRoute({
 const repositoryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/projects/repositories/$repositoryId",
+  // The readiness check the page shows; a value that is not an identifier is dropped.
+  validateSearch: (search: Record<string, unknown>) => ({
+    check: typeof search.check === "string" && isUuid(search.check)
+      ? search.check
+      : undefined,
+  }),
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: () => (

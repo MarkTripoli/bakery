@@ -1,5 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 import {
+  CHECK_ID,
   type Options,
   type Profile,
   REPOSITORY_ID,
@@ -155,13 +156,18 @@ test.describe("a repository with no working settings", () => {
     expect(seen.updates[0].body).toMatchObject({
       activeProfileId: expect.any(String),
     });
-    // With settings in use, the readiness check is the next step, with a way to it.
+    // With settings in use, the readiness check is the step to do now: its
+    // in-progress mark and the page's one filled button.
     await expect(page.getByTestId("setup-check")).toContainText(
       "Run the check to see whether Bakery can work here.",
     );
+    await expect(page.getByTestId("setup-check")).toHaveAttribute(
+      "data-state",
+      "running",
+    );
     await expect(
       page.getByTestId("setup-check").getByRole("button", {
-        name: "Open the readiness check",
+        name: "Run the check",
       }),
     ).toBeVisible();
     await page.mouse.move(700, 700);
@@ -393,5 +399,187 @@ test.describe("who may change it, and what the page cannot know", () => {
     await expect(page.getByText("The repository could not be loaded."))
       .toBeVisible();
     await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+  });
+});
+
+test.describe("the readiness check", () => {
+  const WORLD: Options = { profiles: SETTINGS, active: 2 };
+  const step = (page: Page) => page.getByTestId("setup-check");
+  const run = (page: Page) =>
+    step(page).getByRole("button", { name: "Run the check" });
+  const again = (page: Page) =>
+    step(page).getByRole("button", { name: "Check again" });
+
+  test("not started: the step to do now, with the page's one filled button", async ({ page }) => {
+    await open(page, WORLD);
+    await expect(step(page)).toHaveAttribute("data-state", "running");
+    await expect(run(page)).toBeEnabled();
+    await expect(page.locator('main [data-variant="primary"]')).toHaveCount(1);
+  });
+
+  test("running the check shows its progress, then a pass, and puts the check in the address", async ({ page }) => {
+    const { seen } = await open(page, WORLD);
+    await run(page).click();
+    await expect(step(page)).toContainText(/Checking… started/);
+    await expect(step(page)).toContainText(
+      "All 3 required checks passed · checked",
+      { timeout: 15_000 },
+    );
+    await expect(step(page)).toContainText("on Linux (x64)");
+    await expect(step(page)).toHaveAttribute("data-state", "done");
+    await expect(page).toHaveURL(new RegExp(`check=${CHECK_ID}`));
+    await expect(again(page)).toBeVisible();
+    await expect(page.getByTestId("check-results")).toHaveCount(0);
+    expect(seen.starts).toHaveLength(1);
+    expect(seen.starts[0]).not.toBeNull();
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-check-ready");
+    // A reload shows the same check, from the address.
+    await page.reload();
+    await expect(step(page)).toContainText("All 3 required checks passed", {
+      timeout: 15_000,
+    });
+  });
+
+  test("a required check that did not pass is listed with what to do, required first", async ({ page }) => {
+    await open(page, { ...WORLD, check: "blocked" });
+    await run(page).click();
+    await expect(step(page)).toContainText(
+      "2 of 3 required checks did not pass · checked",
+      { timeout: 15_000 },
+    );
+    await expect(step(page)).toHaveAttribute("data-state", "failed");
+    const rows = page.getByTestId("check-results").getByRole("listitem");
+    await expect(rows).toHaveCount(3);
+    const tools = page.locator('[data-check-id="tools"]');
+    await expect(tools).toContainText("The machine has the tools it needs");
+    await expect(tools).toContainText("Required");
+    await expect(tools).toContainText("Missing");
+    await expect(tools).toContainText(
+      "deno is not installed on the machine. Install it there, then check again.",
+    );
+    const node = page.locator('[data-check-id="node"]');
+    await expect(node).toContainText("Project builds (Node)");
+    await expect(node).toContainText("The check ran and failed.");
+    // The optional one is shown last, marked Optional.
+    const optional = page.locator('[data-check-id="deno"]');
+    await expect(optional).toContainText("Optional");
+    await expect(optional).toContainText(
+      "The check took too long and was stopped.",
+    );
+    expect(await rows.last().getAttribute("data-check-id")).toBe("deno");
+    // Check again is the page's one filled button.
+    await expect(again(page)).toBeEnabled();
+    await expect(page.locator('main [data-variant="primary"]')).toHaveCount(1);
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-check-blocked");
+  });
+
+  test("an optional check that did not pass is shown and never blocks", async ({ page }) => {
+    await open(page, { ...WORLD, check: "optional" });
+    await run(page).click();
+    await expect(step(page)).toContainText("All 3 required checks passed", {
+      timeout: 15_000,
+    });
+    await expect(step(page)).toHaveAttribute("data-state", "done");
+    await expect(page.getByTestId("check-results")).toContainText(
+      "This project uses a check Bakery cannot run. It was skipped. This does not stop work.",
+    );
+  });
+
+  test("a check that failed or was cancelled says nothing was recorded", async ({ page }) => {
+    await open(page, { ...WORLD, check: "failed" });
+    await run(page).click();
+    await expect(step(page)).toContainText(
+      "The check could not be completed. Nothing was recorded.",
+      { timeout: 15_000 },
+    );
+    await expect(again(page)).toBeEnabled();
+  });
+
+  test("a cancelled check", async ({ page }) => {
+    await open(page, { ...WORLD, check: "canceled" });
+    await run(page).click();
+    await expect(step(page)).toContainText(
+      "The check was cancelled. Nothing was recorded.",
+      { timeout: 15_000 },
+    );
+  });
+
+  test("a check still waiting offers no second check", async ({ page }) => {
+    await open(page, { ...WORLD, check: "stuck" });
+    await run(page).click();
+    await expect(step(page)).toContainText("Waiting to start…");
+    await expect(run(page)).toHaveCount(0);
+    await expect(again(page)).toHaveCount(0);
+  });
+
+  test("progress that cannot be read is Not known, never a result", async ({ page }) => {
+    await open(page, { ...WORLD, check: "unreadable" });
+    await run(page).click();
+    await expect(step(page)).toContainText(
+      "The check's progress could not be loaded.",
+      { timeout: 15_000 },
+    );
+    await expect(step(page)).toHaveAttribute("data-state", "unknown");
+    await expect(step(page)).not.toContainText("passed");
+    await expect(
+      step(page).getByRole("button", { name: "Try again" }),
+    ).toBeVisible();
+  });
+
+  test("a result for another version of the settings is not shown as this one's", async ({ page }) => {
+    await repositoryFixture(page, {
+      ...WORLD,
+      check: "stale",
+      existingCheck: true,
+    });
+    await page.goto(
+      `/projects/repositories/${REPOSITORY_ID}?check=${CHECK_ID}`,
+    );
+    await expect(step(page)).toContainText(
+      "The last check was for version 1, and version 2 is in use.",
+      { timeout: 15_000 },
+    );
+    await expect(step(page)).not.toContainText("passed");
+    await expect(again(page)).toBeEnabled();
+  });
+
+  test("an address that is not a check is ignored", async ({ page }) => {
+    await repositoryFixture(page, WORLD);
+    await page.goto(`/projects/repositories/${REPOSITORY_ID}?check=nope`);
+    await expect(run(page)).toBeVisible({ timeout: 20_000 });
+  });
+
+  test("a member sees why they cannot run it", async ({ page }) => {
+    await open(page, { ...WORLD, role: "developer" });
+    await expect(step(page)).toContainText(
+      "Only administrators can run the check.",
+    );
+    await expect(run(page)).toHaveCount(0);
+  });
+
+  test("an archived repository cannot be checked", async ({ page }) => {
+    await open(page, { ...WORLD, archived: true });
+    await expect(run(page)).toBeDisabled();
+  });
+
+  test("a refused start says why; a retry after a lost answer keeps its key", async ({ page }) => {
+    const refused = await open(page, { ...WORLD, start: "forbidden" });
+    await run(page).click();
+    await expect(
+      page.getByText("Only organization administrators can run the check."),
+    ).toBeVisible();
+    expect(refused.seen.starts).toHaveLength(1);
+  });
+
+  test("a start that gets no answer is retried with the same key", async ({ page }) => {
+    const { seen } = await open(page, { ...WORLD, start: "down" });
+    await run(page).click();
+    await expect(page.getByText("The check could not be started. Try again."))
+      .toBeVisible();
+    await run(page).click();
+    await expect.poll(() => seen.starts.length).toBe(2);
+    expect(seen.starts[1]).toBe(seen.starts[0]);
   });
 });

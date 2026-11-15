@@ -31,7 +31,96 @@ export type Options = {
   repositoryStatus?: 403 | 404 | 500;
   /** Versions per page, to prove every page is read. */
   pageSize?: number;
+  /**
+   * What the readiness check does once started: the check passes, a required
+   * check fails, optional checks fail, the check fails or is cancelled as a
+   * whole, it never leaves the queue, or its progress cannot be read.
+   */
+  check?:
+    | "ready"
+    | "blocked"
+    | "optional"
+    | "failed"
+    | "canceled"
+    | "stuck"
+    | "unreadable"
+    | "stale";
+  /** What starting a check answers instead of the check. */
+  start?: "forbidden" | "conflict" | "down";
+  /** A check that already exists, named by the address (`?check=`). */
+  existingCheck?: boolean;
 };
+
+export const CHECK_ID = uuid(700);
+export const JOB_ID = uuid(701);
+const OBSERVATION_ID = uuid(702);
+
+const SOURCE = {
+  mappingRevision: "1",
+  mappingDigest: "e".repeat(64),
+  baseSha: "c".repeat(40),
+  manifestDigest: "f".repeat(64),
+  envelopeDigest: "9".repeat(64),
+  envelopeBytes: 100,
+  decodedBytes: 200,
+  entryCount: 3,
+};
+type CheckRow = {
+  id: string;
+  template: string;
+  required: boolean;
+  status: string;
+  reason: string;
+};
+const PASSING: CheckRow[] = [
+  {
+    id: "source",
+    template: "source.integrity.v1",
+    required: true,
+    status: "passed",
+    reason: "verified",
+  },
+  {
+    id: "tools",
+    template: "tool.version.v1",
+    required: true,
+    status: "passed",
+    reason: "verified",
+  },
+  {
+    id: "node",
+    template: "node.syntax.v1",
+    required: true,
+    status: "passed",
+    reason: "verified",
+  },
+];
+const rowsFor = (mode: string): CheckRow[] =>
+  mode === "blocked"
+    ? [
+      PASSING[0],
+      { ...PASSING[1], status: "missing", reason: "tool_missing" },
+      { ...PASSING[2], status: "failed", reason: "exit_nonzero" },
+      {
+        id: "deno",
+        template: "deno.check.v1",
+        required: false,
+        status: "failed",
+        reason: "deadline",
+      },
+    ]
+    : mode === "optional"
+    ? [
+      ...PASSING,
+      {
+        id: "deno",
+        template: "deno.check.v1",
+        required: false,
+        status: "unsupported",
+        reason: "unsupported_command",
+      },
+    ]
+    : PASSING;
 
 const json = (body: unknown, status = 200) => ({
   status,
@@ -72,7 +161,9 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
     version: 1,
     archived: options.archived ?? false,
   };
+  const checkState = { started: options.existingCheck === true, polls: 0 };
   const seen = {
+    starts: [] as (string | null)[],
     createdProfiles: [] as Record<string, unknown>[],
     createKeys: [] as (string | null)[],
     updates: [] as { ifMatch: string | null; body: Record<string, unknown> }[],
@@ -218,6 +309,146 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
         nextCursor: offset + size < profiles.length
           ? `c${offset + size}`
           : null,
+      }));
+    },
+  );
+  const onboardingBody = (status: string, withResult: boolean) => ({
+    id: CHECK_ID,
+    repositoryId: REPOSITORY_ID,
+    jobId: JOB_ID,
+    status,
+    profileId: withResult
+      ? (options.check === "stale"
+        ? profileId(0)
+        : profileId(state.active ?? 1))
+      : null,
+    observationId: withResult ? OBSERVATION_ID : null,
+    createdAt: "2026-01-02T10:00:00.000Z",
+    updatedAt: STAMP,
+  });
+  await page.route(
+    (url) =>
+      url.pathname === `/v1/repositories/${REPOSITORY_ID}/onboarding-runs`,
+    (route) => {
+      seen.starts.push(route.request().headers()["idempotency-key"] ?? null);
+      if (options.start === "forbidden") {
+        return route.fulfill(problem(403, "AUTH_FORBIDDEN"));
+      }
+      if (options.start === "conflict") {
+        return route.fulfill(problem(409, "STATE_CONFLICT"));
+      }
+      if (options.start === "down") {
+        return route.fulfill(problem(500, "INTERNAL"));
+      }
+      checkState.started = true;
+      checkState.polls = 0;
+      return route.fulfill(json(onboardingBody("queued", false), 202));
+    },
+  );
+  await page.route(
+    (url) => url.pathname === `/v1/repository-onboardings/${CHECK_ID}`,
+    (route) => {
+      if (!checkState.started) return route.fulfill(problem(404, "NOT_FOUND"));
+      if (options.check === "unreadable") {
+        return route.fulfill(problem(500, "INTERNAL"));
+      }
+      checkState.polls += 1;
+      const mode = options.check ?? "ready";
+      if (mode === "stuck") {
+        return route.fulfill(json(onboardingBody("queued", false)));
+      }
+      // Queued, then running, then done.
+      if (checkState.polls === 1 && !options.existingCheck) {
+        return route.fulfill(json(onboardingBody("running", false)));
+      }
+      if (mode === "failed") {
+        return route.fulfill(json(onboardingBody("failed", false)));
+      }
+      if (mode === "canceled") {
+        return route.fulfill(json(onboardingBody("canceled", false)));
+      }
+      return route.fulfill(json(onboardingBody("completed", true)));
+    },
+  );
+  await page.route(
+    (url) =>
+      url.pathname === `/v1/repository-profile-observations/${OBSERVATION_ID}`,
+    (route) => {
+      const mode = options.check ?? "ready";
+      const rows = rowsFor(mode);
+      const observedRevision = mode === "stale" ? 1 : state.active ?? 1;
+      return route.fulfill(json({
+        id: OBSERVATION_ID,
+        repositoryId: REPOSITORY_ID,
+        profileId: mode === "stale"
+          ? profileId(0)
+          : profileId(state.active ?? 1),
+        profileRevision: observedRevision,
+        profileDigest: "a".repeat(64),
+        observationDigest: "b".repeat(64),
+        baseSha: "c".repeat(40),
+        payload: {
+          schemaVersion: 1,
+          inspectionId: CHECK_ID,
+          jobId: JOB_ID,
+          organizationId: MOCK_ORGANIZATION_ID,
+          applicationId: APPLICATION_ID,
+          repositoryId: REPOSITORY_ID,
+          profileId: mode === "stale"
+            ? profileId(0)
+            : profileId(state.active ?? 1),
+          profileRevision: observedRevision,
+          profileDigest: "a".repeat(64),
+          source: SOURCE,
+          receipt: {
+            inspectionId: CHECK_ID,
+            jobId: JOB_ID,
+            organizationId: MOCK_ORGANIZATION_ID,
+            applicationId: APPLICATION_ID,
+            repositoryId: REPOSITORY_ID,
+            inputDigest: "d".repeat(64),
+            source: SOURCE,
+            attemptId: uuid(703),
+            fence: "1",
+            workerHostId: uuid(900),
+            workerSessionId: uuid(704),
+            workerSessionGeneration: "1",
+            expiresAt: "2026-01-02T11:00:00.000Z",
+          },
+          host: {
+            workerHostId: uuid(900),
+            os: "linux",
+            architecture: "x64",
+            tools: [
+              {
+                tool: "git",
+                status: "available",
+                version: "2.40",
+                outputDigest: null,
+              },
+              {
+                tool: "deno",
+                status: mode === "blocked" ? "missing" : "available",
+                version: null,
+                outputDigest: null,
+              },
+              {
+                tool: "node",
+                status: "available",
+                version: "22.0",
+                outputDigest: null,
+              },
+            ],
+          },
+          checks: rows.map((row) => ({
+            ...row,
+            exitCode: null,
+            outputDigest: null,
+            durationMs: 12,
+          })),
+          readiness: mode === "blocked" ? "blocked" : "eligible",
+          observedAt: "2026-01-02T10:05:00.000Z",
+        },
       }));
     },
   );
