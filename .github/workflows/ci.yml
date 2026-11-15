@@ -762,10 +762,13 @@ jobs:
     name: full / integration
     needs: [changes, format, typecheck, contract, unit]
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'integration_tests'))) && needs.format.result == 'success' && needs.typecheck.result == 'success' && needs.contract.result == 'success' && needs.unit.result == 'success' }}
-    # `amd` is the heavy-lane pool label, not a CPU guarantee: all four runners
-    # carry it and two are Intel, so heavy lanes budget for the slower hosts
-    # (learnings/heavy-lane-label-is-pool-not-cpu.xml).
-    runs-on: [self-hosted, hetzner, amd, linux, x64]
+    # `bakery-heavy` is the heavy-lane pool label, not a CPU or architecture
+    # guarantee: the pool mixes AMD and Intel x64 hosts with ARM64 runners, so
+    # heavy lanes budget for the slowest host and stay arch-neutral
+    # (learnings/heavy-lane-label-is-pool-not-cpu.xml). A lane whose reference
+    # data is architecture-specific adds the `X64` label (the paper parity
+    # lanes below: their K-0 baselines are `linux-x64` rasters).
+    runs-on: [self-hosted, linux, bakery-heavy]
     env:
       BAKERY_TEST_DATABASE_RESET_CONFIRMATION: RESET_BAKERY_TEST_DATABASE
       BAKERY_TEST_DATABASE_ALLOW_REMOTE_RESET: "1"
@@ -1308,7 +1311,7 @@ jobs:
     name: ui / storybook browser
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_storybook_browser'))) }}
     needs: [changes]
-    runs-on: [self-hosted, hetzner, amd, linux, x64]
+    runs-on: [self-hosted, linux, bakery-heavy]
     steps:
       - name: Select per-runner handoff directories
         shell: bash
@@ -1376,7 +1379,7 @@ jobs:
     name: full / web shell browser
     needs: [changes, format, typecheck, contract, unit]
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_web_browser'))) && needs.format.result == 'success' && needs.typecheck.result == 'success' && needs.contract.result == 'success' && needs.unit.result == 'success' }}
-    runs-on: [self-hosted, hetzner, amd, linux, x64]
+    runs-on: [self-hosted, linux, bakery-heavy]
     env:
       BAKERY_ENV: test
       BAKERY_SERVER_HOST: 127.0.0.1
@@ -1528,7 +1531,7 @@ jobs:
     name: full / web shell browser b
     needs: [changes, format, typecheck, contract, unit]
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_web_browser_b'))) && needs.format.result == 'success' && needs.typecheck.result == 'success' && needs.contract.result == 'success' && needs.unit.result == 'success' }}
-    runs-on: [self-hosted, hetzner, amd, linux, x64]
+    runs-on: [self-hosted, linux, bakery-heavy]
     env:
       BAKERY_ENV: test
       BAKERY_SERVER_HOST: 127.0.0.1
@@ -1680,7 +1683,7 @@ jobs:
     name: full / web shell browser c
     needs: [changes, format, typecheck, contract, unit]
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_web_browser_c'))) && needs.format.result == 'success' && needs.typecheck.result == 'success' && needs.contract.result == 'success' && needs.unit.result == 'success' }}
-    runs-on: [self-hosted, hetzner, amd, linux, x64]
+    runs-on: [self-hosted, linux, bakery-heavy]
     env:
       BAKERY_ENV: test
       BAKERY_SERVER_HOST: 127.0.0.1
@@ -1832,7 +1835,7 @@ jobs:
     name: full / web shell browser d
     needs: [changes, format, typecheck, contract, unit]
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_web_browser_d'))) && needs.format.result == 'success' && needs.typecheck.result == 'success' && needs.contract.result == 'success' && needs.unit.result == 'success' }}
-    runs-on: [self-hosted, hetzner, amd, linux, x64]
+    runs-on: [self-hosted, linux, bakery-heavy]
     env:
       BAKERY_ENV: test
       BAKERY_SERVER_HOST: 127.0.0.1
@@ -1984,7 +1987,8 @@ jobs:
     name: ui / paper parity runtime
     needs: [changes, ui_catalog, ui_quality, ui_storybook_browser]
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_paper_runtime'))) && needs.ui_catalog.result == 'success' && needs.ui_quality.result == 'success' && needs.ui_storybook_browser.result == 'success' }}
-    runs-on: [self-hosted, hetzner, amd, linux, x64]
+    # K-0 reference rasters are `linux-x64` (assertK0Environment): x64 only.
+    runs-on: [self-hosted, linux, bakery-heavy, X64]
     steps:
       - name: Select per-runner handoff directories
         shell: bash
@@ -2114,7 +2118,8 @@ jobs:
     name: ui / paper parity entitlements
     needs: [changes, ui_catalog, ui_quality, ui_storybook_browser]
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_paper_entitlements'))) && needs.ui_catalog.result == 'success' && needs.ui_quality.result == 'success' && needs.ui_storybook_browser.result == 'success' }}
-    runs-on: [self-hosted, hetzner, amd, linux, x64]
+    # K-0 reference rasters are `linux-x64` (assertK0Environment): x64 only.
+    runs-on: [self-hosted, linux, bakery-heavy, X64]
     steps:
       - name: Select per-runner handoff directories
         shell: bash
@@ -2252,7 +2257,8 @@ jobs:
     name: ui / paper parity artifacts
     needs: [changes, ui_catalog, ui_quality, ui_storybook_browser]
     if: ${{ needs.changes.result == 'success' && (needs.changes.outputs.route == 'full' || (needs.changes.outputs.route == 'affected' && contains(fromJSON(needs.changes.outputs.lanes), 'ui_paper_artifacts'))) && needs.ui_catalog.result == 'success' && needs.ui_quality.result == 'success' && needs.ui_storybook_browser.result == 'success' }}
-    runs-on: [self-hosted, hetzner, amd, linux, x64]
+    # K-0 reference rasters are `linux-x64` (assertK0Environment): x64 only.
+    runs-on: [self-hosted, linux, bakery-heavy, X64]
     steps:
       - name: Select per-runner handoff directories
         shell: bash
