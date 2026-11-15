@@ -736,3 +736,123 @@ Deno.test("a flat workflow is admitted exactly as before: its rows, its agents, 
       true,
     );
   }));
+
+/** A plan that implements, checks, reviews and repairs under a `repeat` of `max` rounds. */
+const reviewedPlan = (agent: string, max: number) => ({
+  apiVersion: "bakery.dev/v1",
+  kind: "workflow",
+  name: "plan-review",
+  description: "A compiled plan that reviews and repairs.",
+  agents: {
+    "harness.implement": agent,
+    "harness.repair": agent,
+    "review.independent": agent,
+  },
+  inputs: {
+    repositoryId: { type: "uuid", required: true },
+    brief: { type: "TaskBrief", required: true },
+    instructions: { type: "string", required: true },
+  },
+  steps: [{
+    id: "flow",
+    steps: [
+      {
+        id: "brief",
+        uses: "task.brief",
+        with: { brief: "$input.brief", repositoryId: "$input.repositoryId" },
+      },
+      {
+        id: "implement",
+        needs: ["brief"],
+        uses: "harness.implement",
+        with: {
+          repositoryId: "$input.repositoryId",
+          planArtifact: "$step.flow.brief.artifact.versionId",
+          instructions: "$input.instructions",
+        },
+      },
+      {
+        id: "test",
+        needs: ["implement"],
+        uses: "quality.check",
+        with: {
+          repositoryId: "$input.repositoryId",
+          revision: "$step.flow.implement.headSha",
+        },
+        checks: ["lint"],
+      },
+      {
+        id: "review",
+        needs: ["test"],
+        uses: "review.independent",
+        with: {
+          revision: "$step.flow.implement.headSha",
+          evidence: "$step.flow.test.checkRunIds",
+        },
+      },
+      {
+        id: "repair",
+        needs: ["review"],
+        repeat: {
+          max,
+          seed: {
+            currentCandidate: {
+              headSha: "$step.flow.implement.headSha",
+              baseSha: "$step.flow.test.baseSha",
+              policyDigest: "$step.flow.test.policyDigest",
+              checksPassed: "$step.flow.test.allRequired",
+              blockingFindings: "$step.flow.review.blockingFindings",
+              reviewId: "$step.flow.review.reviewId",
+              findings: "$step.flow.review.findings",
+              checkRunIds: "$step.flow.test.checkRunIds",
+              failedCheckIds: "$step.flow.test.failedCheckIds",
+            },
+          },
+          until:
+            "$repeat.currentCandidate.blockingFindings == 0 && $repeat.currentCandidate.checksPassed == true",
+          steps: [{
+            id: "repair_implement",
+            uses: "harness.repair",
+            with: {
+              repositoryId: "$input.repositoryId",
+              currentCandidate: "$repeat.currentCandidate",
+              findings: "$repeat.currentCandidate.findings",
+              failedCheckIds: "$repeat.currentCandidate.failedCheckIds",
+            },
+          }],
+          outputs: { currentCandidate: "$step.flow.repair.repair_implement" },
+        },
+      },
+    ],
+  }],
+});
+
+Deno.test("a plan that reviews freezes its review loop from its own repeat bound; a plan that does not freezes none", () =>
+  withWorkerFixture(async (fixture) => {
+    const { agent, repository } = await repositoryWithAgent(fixture, "loop");
+    const reviewed = await publishWorkflow(
+      fixture,
+      fixture,
+      "plan-reviewed",
+      reviewedPlan(agent, 3),
+    );
+    const first = await start(fixture, repository, reviewed.versionId);
+    const run = await expectJson<RunBody>(first.response, 201);
+    const snapshot = await snapshotOf(fixture, run.id);
+    assertEquals(snapshot.reviewLoop, {
+      maxRepairCycles: 3,
+      maxLoopDurationMs: 24 * 60 * 60 * 1000,
+      maxFindings: 25,
+    });
+    // The plan sections are as for any plan run: nothing flat is written.
+    assertEquals(snapshot.stepActions, {});
+    assertEquals(await stepRows(fixture, run.id), []);
+
+    const plain = await publishWorkflow(fixture, fixture, "plan-plain", plan());
+    const second = await start(fixture, repository, plain.versionId);
+    const other = await expectJson<RunBody>(second.response, 201);
+    assertEquals(
+      Object.hasOwn(await snapshotOf(fixture, other.id), "reviewLoop"),
+      false,
+    );
+  }));

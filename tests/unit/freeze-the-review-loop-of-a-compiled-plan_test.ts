@@ -1,0 +1,114 @@
+import { assertEquals } from "@std/assert";
+import { REVIEW_LOOP_LIMITS } from "../../packages/contracts/src/review-evidence.ts";
+import { planReviewLoopLimits } from "../../apps/server/src/modules/delivery/plan-review-loop.ts";
+import { compiled } from "../helpers/workflow-interpreter.ts";
+
+// #397. A compiled plan freezes the review loop's bounds at admission when it
+// holds a `review.independent` step: the repair count is the plan's own
+// `repeat.max` (capped at the contract ceiling), the other bounds are the
+// server defaults, and a plan with no review freezes nothing.
+
+const INPUTS = { repo: { type: "uuid", required: true } };
+const implement = {
+  id: "implement",
+  uses: "harness.implement",
+  with: {
+    repositoryId: "$input.repo",
+    planArtifact: "00000000-0000-4000-8000-0000000000b1",
+  },
+};
+const test = {
+  id: "test",
+  needs: ["implement"],
+  uses: "quality.check",
+  with: { repositoryId: "$input.repo", revision: "$step.implement.headSha" },
+  checks: ["lint"],
+};
+const review = {
+  id: "review",
+  needs: ["test"],
+  uses: "review.independent",
+  with: {
+    revision: "$step.implement.headSha",
+    evidence: "$step.test.checkRunIds",
+  },
+};
+
+const repairLoop = (max: number) => ({
+  id: "repair",
+  needs: ["review"],
+  repeat: {
+    max,
+    seed: {
+      currentCandidate: {
+        headSha: "$step.implement.headSha",
+        baseSha: "$step.test.baseSha",
+        policyDigest: "$step.test.policyDigest",
+        checksPassed: "$step.test.allRequired",
+        blockingFindings: "$step.review.blockingFindings",
+        reviewId: "$step.review.reviewId",
+        findings: "$step.review.findings",
+        checkRunIds: "$step.test.checkRunIds",
+        failedCheckIds: "$step.test.failedCheckIds",
+      },
+    },
+    until:
+      "$repeat.currentCandidate.blockingFindings == 0 && $repeat.currentCandidate.checksPassed == true",
+    steps: [
+      {
+        id: "repair_implement",
+        uses: "harness.repair",
+        with: {
+          repositoryId: "$input.repo",
+          currentCandidate: "$repeat.currentCandidate",
+          findings: "$repeat.currentCandidate.findings",
+          failedCheckIds: "$repeat.currentCandidate.failedCheckIds",
+        },
+      },
+      {
+        id: "repair_test",
+        needs: ["repair_implement"],
+        uses: "quality.check",
+        with: {
+          repositoryId: "$input.repo",
+          revision: "$step.repair.repair_implement.headSha",
+        },
+        checks: ["lint"],
+      },
+      {
+        id: "repair_review",
+        needs: ["repair_test"],
+        uses: "review.independent",
+        with: {
+          revision: "$step.repair.repair_implement.headSha",
+          evidence: "$step.repair.repair_test.checkRunIds",
+        },
+      },
+    ],
+    outputs: { currentCandidate: "$step.repair.repair_review" },
+  },
+});
+
+Deno.test("a plan without a review step freezes no loop", async () => {
+  const document = await compiled([implement, test], INPUTS);
+  assertEquals(planReviewLoopLimits(document), null);
+});
+
+Deno.test("a plan with a review and no repeat freezes a loop that allows no repair", async () => {
+  const document = await compiled([implement, test, review], INPUTS);
+  assertEquals(planReviewLoopLimits(document), {
+    maxRepairCycles: 0,
+    maxLoopDurationMs: REVIEW_LOOP_LIMITS.maxLoopDurationMs,
+    maxFindings: REVIEW_LOOP_LIMITS.maxFindings,
+  });
+});
+
+Deno.test("the repair count is the plan's own repeat bound, capped at the ceiling", async () => {
+  for (const [max, expected] of [[1, 1], [2, 2], [8, 8]] as const) {
+    const document = await compiled(
+      [implement, test, review, repairLoop(max)],
+      INPUTS,
+    );
+    assertEquals(planReviewLoopLimits(document)?.maxRepairCycles, expected);
+  }
+});
