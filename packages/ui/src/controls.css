@@ -707,3 +707,29 @@ input.ui-password-input__field {
   min-inline-size: var(--target-min);
   padding: var(--space-0);
 }
+
+/* Disclosure: a text control with a chevron, and its facts beneath when open. */
+.ui-disclosure__summary {
+  align-items: center;
+  border-radius: var(--radius-control);
+  color: var(--color-selection);
+  cursor: pointer;
+  display: inline-flex;
+  font: var(--type-control);
+  gap: var(--space-2);
+  list-style: none;
+  min-block-size: max(var(--size-control), var(--target-min));
+}
+.ui-disclosure__summary::-webkit-details-marker {
+  display: none;
+}
+.ui-disclosure__summary:focus-visible {
+  outline: var(--focus-width) solid var(--color-focus);
+  outline-offset: var(--focus-offset);
+}
+.ui-disclosure[open] > .ui-disclosure__summary .ui-icon {
+  transform: rotate(180deg);
+}
+.ui-disclosure__body {
+  padding-block-start: var(--space-2);
+}

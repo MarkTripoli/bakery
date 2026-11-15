@@ -136,7 +136,7 @@ test.describe("machines touch targets on a coarse phone", () => {
     // A retired machine has one action, in its banner.
     await expect(detail.getByRole("button", { name: "Set up again" }))
       .toBeVisible();
-    await expect(detail.getByRole("button", { name: "Retry" }).first())
+    await expect(detail.getByRole("button", { name: "Try again" }).first())
       .toBeVisible();
 
     expect(undersized(await measureTargets(page))).toEqual([]);

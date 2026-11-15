@@ -8,6 +8,12 @@ const EXTRACTABLE_MEDIA_TYPES: Record<string, true> = {
   "text/xml": true,
 };
 
+/** A diff or patch: text the server stores as is, read as the verified bytes. */
+export function isDiffMediaType(mediaType: string): boolean {
+  const baseType = mediaType.split(";", 1)[0].trim().toLowerCase();
+  return baseType === "text/x-diff" || baseType === "text/x-patch";
+}
+
 export function isExtractableMediaType(mediaType: string): boolean {
   const baseType = mediaType.split(";", 1)[0].trim().toLowerCase();
   return Object.hasOwn(EXTRACTABLE_MEDIA_TYPES, baseType);

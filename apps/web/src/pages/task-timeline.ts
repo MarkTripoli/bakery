@@ -22,6 +22,12 @@ const KNOWN_STEPS = {
   implement: "tasks.timeline.step.implement",
 } as const;
 
+/** A step's name for people: the known title, else the step's own key. */
+export function stepTitle(t: Translator, stepKey: string): string {
+  const known = KNOWN_STEPS[stepKey as keyof typeof KNOWN_STEPS];
+  return known ? t(known) : stepKey;
+}
+
 /** True when the server recorded the missing-harness fault on this step. */
 export function hasHarnessFault(step: Pick<RunStep, "error">): boolean {
   return step.error !== null && step.error !== undefined &&

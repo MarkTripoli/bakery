@@ -482,7 +482,7 @@ test("shows the current revision with lanes as rows", async ({ page }) => {
   const api = laneRow(page, "api");
   await expect(api).toContainText("Change the API contract");
   await expect(api).toContainText("example/api-service");
-  await expect(api).toContainText("alias api");
+  await expect(api).toContainText("Short name: api");
   await expect(api).toContainText("Completed");
   // A phone row that lists a committed output drops this line (2JQJ-0).
   if (!onPhone(page)) await expect(api).toContainText("No prerequisites");
@@ -494,7 +494,7 @@ test("shows the current revision with lanes as rows", async ({ page }) => {
   await expect(laneRow(page, "docs")).toContainText("Running");
   // Declared output is committed only when the child task holds the artifact.
   await expect(output_(page, "Committed")(api)).toBeVisible();
-  await expect(api.getByRole("link", { name: "Open child task" }))
+  await expect(api.getByRole("link", { name: "Open task" }))
     .toHaveAttribute(
       "href",
       `/tasks/${child(1)}`,
@@ -793,7 +793,7 @@ test("the task detail links to the plan only when one exists", async ({ page }) 
 test("keyboard reaches the cancel flow and the child links in order", async ({ page }) => {
   await open(page);
   const link = laneRow(page, "api").getByRole("link", {
-    name: "Open child task",
+    name: "Open task",
   });
   await link.focus();
   await expect(link).toBeFocused();
@@ -903,7 +903,7 @@ const ticketOrigin = {
 test("an ad hoc plan shows its origin and revision, and the digest behind a fingerprint row", async ({ page }) => {
   await open(page);
   const provenance = page.locator('[data-ui-region="plan-provenance"]');
-  await expect(provenance).toContainText("Ad hoc");
+  await expect(provenance).toContainText("Made for this task");
   await expect(provenance).not.toContainText("Digest");
   await expect(provenance).not.toContainText("eeeeeeeeeeee");
   const fingerprint = page.getByTestId("fingerprint-row");
@@ -948,6 +948,26 @@ test("an ad hoc plan shows its origin and revision, and the digest behind a fing
       .toBeLessThan(2);
   }
   await still(page, "plan-coordination");
+});
+
+test("a lane's child task link is the task's title, never an id", async ({ page }) => {
+  await page.route(
+    /\/v1\/tasks\/00000000-0000-4000-8000-0000000008\d0$/,
+    (route) => {
+      const id = route.request().url().split("/").at(-1)!;
+      return route.fulfill({
+        json: { ...task, id, title: `Update lane ${id.at(-2)}` },
+      });
+    },
+  );
+  await open(page);
+  const link = laneRow(page, "api").getByRole("link", {
+    name: /^Open Update lane/,
+  });
+  await expect(link).toBeVisible();
+  await expect(link).toHaveText(/^Update lane \d$/);
+  await expect(laneRow(page, "api")).not.toContainText("00000000");
+  await still(page, "plan-coordination-child-links");
 });
 
 test("a saved workflow origin names the workflow and version", async ({ page }) => {

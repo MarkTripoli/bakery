@@ -92,9 +92,11 @@ export function StageStrip(
           </UI.Switch>
         )}
       />
-      <UI.Text id="stage-planning-only-hint" variant="hint" hidden>
-        {t("tasks.conversation.stage.planningOnlyHint")}
-      </UI.Text>
+      {!compact && (
+        <UI.Text id="stage-planning-only-hint" variant="hint">
+          {t("tasks.conversation.stage.planningOnlyHint")}
+        </UI.Text>
+      )}
       {planningOnlyFailed && (
         <UI.InlineNotice tone="warning">
           {t("tasks.conversation.stage.planningOnlyFailed")}

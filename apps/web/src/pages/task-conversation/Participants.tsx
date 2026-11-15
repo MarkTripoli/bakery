@@ -40,7 +40,9 @@ export function Participants({ people }: ParticipantsProps) {
               data-you={person.you ? "true" : undefined}
             />
             <UI.Text>
-              {person.you
+              {person.you && !person.named
+                ? t("tasks.conversation.author.you")
+                : person.you
                 ? t("tasks.conversation.participants.you", {
                   name: person.name,
                 })

@@ -119,7 +119,7 @@
             Northwind storefront · northwind/web · Fixed coding workflow
           </div>
         </div>
-        <div id="2IQ2-0" style={{ borderBottomColor: 'var(--color-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', gap: '8px', paddingBottom: '16px', paddingInline: '32px' }}>
+        <div id="2IQ2-0" style={{ borderBottomColor: 'var(--color-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', flexWrap: 'wrap', gap: '8px', paddingBottom: '16px', paddingInline: '32px' }}>
           <div id="2IQH-0" style={{ borderColor: 'var(--color-border)', borderRadius: '6px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '120px', paddingBlock: '8px', paddingInline: '12px', width: 'fit-content' }}>
             <div id="2IQJ-0" style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 500, lineHeight: '20px' }}>
               1 · Discuss
@@ -161,7 +161,10 @@
               Planning only
             </div>
           </div>
-        </div>
+          <div id="2IO3-0-hint" style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px', width: '100%' }}>
+              Stop after the plan. No run starts from this task.
+            </div>
+          </div>
         <div id="2IPH-0" style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexGrow: '1', gap: '20px', overflow: 'clip', paddingBlock: '24px', paddingInline: '32px' }}>
           <div id="2IPX-0" style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '4px', maxWidth: '640px' }}>
             <div id="2IPZ-0" style={{ alignItems: 'baseline', boxSizing: 'border-box', display: 'flex', gap: '8px' }}>
@@ -216,7 +219,7 @@
             </div>
           </div>
         </div>
-        <div id="2IOW-0" style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '24px', paddingInline: '32px' }}>
+        <div id="2IOW-0" style={{ borderTopColor: 'var(--color-border)', borderTopStyle: 'solid', borderTopWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '24px', paddingInline: '32px', paddingTop: '12px' }}>
           <div id="2IOY-0" style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-control-border)', borderRadius: '8px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '12px', paddingBlock: '12px', paddingInline: '16px' }}>
             <div id="2IPA-0" style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '14px', lineHeight: '22px' }}>
               Message this task…

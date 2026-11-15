@@ -168,6 +168,24 @@ export function TaskCoordinationPage(
       ? "committed"
       : "waiting";
   };
+  // The link to a lane's child task is that task's title. A design fixture
+  // supplies Paper's own text instead (it has no tasks to read).
+  const childTasks = useQueries({
+    queries: lanes.map((lane) => ({
+      ...taskQueryOptions(api, scope, lane.childTaskId ?? ""),
+      enabled: enabled && lane.childTaskId !== null &&
+        references === undefined,
+    })),
+  });
+  const childTitles = new Map<string, string>();
+  lanes.forEach((lane, index) => {
+    const title = childTasks[index]?.data?.title;
+    if (lane.childTaskId !== null && title) {
+      childTitles.set(lane.childTaskId, title);
+    }
+  });
+  const childTitle = (id: string): string | undefined =>
+    references === undefined ? childTitles.get(id) : references[id];
   const laneColumns = useLaneColumns({
     handoff,
     titles: new Map(lanes.map((lane) => [lane.key, lane.title])),
@@ -175,7 +193,7 @@ export function TaskCoordinationPage(
       const index = lanes.indexOf(lane);
       return artifactReads[index]?.data?.items;
     },
-    reference: (id) => references?.[id] ?? id.slice(0, 8),
+    childTitle,
   });
 
   // ---- cancel ------------------------------------------------------------
@@ -330,7 +348,7 @@ export function TaskCoordinationPage(
                 titles={new Map(lanes.map((lane) => [lane.key, lane.title]))}
                 artifacts={(lane) =>
                   artifactReads[lanes.indexOf(lane)]?.data?.items}
-                reference={reference}
+                childTitle={childTitle}
                 handoff={handoff}
               />
               {

@@ -66,7 +66,7 @@
             </div>
           </div>
           <div id="2JRH-0" style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)', fontSize: '12px', lineHeight: '18px' }}>
-            alias contract · webhook-schema committed
+            Short name: contract · webhook-schema committed
           </div>
           <div id="2JRI-0" style={{ boxSizing: 'border-box', color: 'var(--color-selection)', fontFamily: 'var(--font-mono)', fontSize: '13px', lineHeight: '20px' }}>
             BKRY-213

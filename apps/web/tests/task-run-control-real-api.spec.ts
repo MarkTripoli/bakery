@@ -305,7 +305,7 @@ test("a message during a run is kept and live steering is stated unsupported", a
   await expect(controlButton(page, "Request pause")).toBeDisabled();
   await expect(
     page.getByText(
-      "This worker's adapter does not support this control.",
+      "This machine cannot pause a run.",
     ).first(),
   ).toBeVisible();
 

@@ -119,7 +119,7 @@
             Northwind storefront · northwind/web · Fixed coding workflow
           </div>
         </div>
-        <div id="2IHY-0" style={{ borderBottomColor: 'var(--color-dark-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', gap: '8px', paddingBottom: '16px', paddingInline: '32px' }}>
+        <div id="2IHY-0" style={{ borderBottomColor: 'var(--color-dark-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', flexWrap: 'wrap', gap: '8px', paddingBottom: '16px', paddingInline: '32px' }}>
           <div id="2IID-0" style={{ borderColor: 'var(--color-dark-border)', borderRadius: '6px', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '120px', paddingBlock: '8px', paddingInline: '12px', width: 'fit-content' }}>
             <div id="2IIF-0" style={{ boxSizing: 'border-box', color: 'var(--color-dark-fg)', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 500, lineHeight: '20px' }}>
               1 · Discuss
@@ -161,7 +161,10 @@
               Planning only
             </div>
           </div>
-        </div>
+          <div id="2IFZ-0-hint" style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px', width: '100%' }}>
+              Stop after the plan. No run starts from this task.
+            </div>
+          </div>
         <div id="2IHD-0" style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', flexGrow: '1', gap: '20px', overflow: 'clip', paddingBlock: '24px', paddingInline: '32px' }}>
           <div id="2IHT-0" style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '4px', maxWidth: '640px' }}>
             <div id="2IHV-0" style={{ alignItems: 'baseline', boxSizing: 'border-box', display: 'flex', gap: '8px' }}>
@@ -216,7 +219,7 @@
             </div>
           </div>
         </div>
-        <div id="2IGS-0" style={{ boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '24px', paddingInline: '32px' }}>
+        <div id="2IGS-0" style={{ borderTopColor: 'var(--color-dark-border)', borderTopStyle: 'solid', borderTopWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '24px', paddingInline: '32px', paddingTop: '12px' }}>
           <div id="2IH7-0" style={{ alignItems: 'center', backgroundColor: 'var(--color-dark-subtle)', borderRadius: '6px', boxSizing: 'border-box', display: 'flex', gap: '12px', paddingBlock: '8px', paddingInline: '12px' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" id="2J14-0" style={{ flexShrink: '0', display: 'inline-block' }}>
               <circle cx="12" cy="12" r="9" fill="none" stroke="var(--color-dark-fg-secondary)" strokeWidth="1.5" />

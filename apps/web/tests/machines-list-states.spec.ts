@@ -451,7 +451,7 @@ test.describe("machines list states", () => {
     await expect(page.getByRole("heading", { name: "Machines", level: 2 }))
       .toBeVisible();
     // The failed load keeps what is there and offers Retry where Load more was.
-    const more = page.getByRole("button", { name: /Load more|Retry/ });
+    const more = page.getByRole("button", { name: /Load more|Try again/ });
     await expect(more).toBeVisible();
     await more.click();
     await expect(group).toContainText("waiting-box");

@@ -13,6 +13,7 @@ import {
 } from "./helpers/mock-session.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { firstRender } from "./helpers/first-render.ts";
+import { createHash } from "node:crypto";
 import { shot } from "./helpers/real-api.ts";
 import { still } from "./helpers/stills.ts";
 
@@ -563,7 +564,7 @@ test("renders the transcript with attribution, plan, question and stage strip", 
   await expect(transcript.locator('[data-variant="agent"]')).toContainText(
     "Agent",
   );
-  await expect(transcript.getByText("Teammate 00000000")).toBeVisible();
+  await expect(transcript.getByText("A teammate")).toBeVisible();
   // Oldest first.
   const bodies = await transcript.locator("article").allTextContents();
   expect(bodies[0]).toContain("Let's make onboarding");
@@ -1015,7 +1016,10 @@ test("answering a question sends the option to questions.answer", async ({ page 
   await showPlan(page);
   const send = page.getByRole("button", { name: "Send answer" });
   await expect(send).toBeDisabled();
+  // A disabled Send answer says why, under itself.
+  await expect(page.getByText("Choose an answer first.")).toBeVisible();
   await page.getByLabel("Bakery only").check({ force: true });
+  await expect(page.getByText("Choose an answer first.")).toHaveCount(0);
   await send.click();
   await expect.poll(() => state.answers.length).toBe(1);
   expect(state.answers[0].id).toBe(question().id);
@@ -1126,7 +1130,7 @@ test("unsupported steering is explicit in the run controls while a run is active
   await expect(page.locator('[data-ui-region="steering-unsupported"]'))
     .toContainText("You cannot redirect this run while it works");
   await expect(
-    page.getByText("This worker's adapter does not support this control.")
+    page.getByText("This machine cannot pause a run.")
       .first(),
   ).toBeVisible();
   // Questions to the agent are still accepted and saved to the conversation.
@@ -1364,7 +1368,7 @@ test.describe("route states", () => {
     await page.getByRole("textbox", { name: "Message this task" }).fill("x");
     await context.setOffline(true);
     await page.evaluate(() => globalThis.dispatchEvent(new Event("offline")));
-    await expect(page.getByText("You are offline.")).toBeVisible();
+    await expect(page.getByText(/^You are offline\. Your draft/)).toBeVisible();
     await expect(page.getByRole("button", { name: "Send", exact: true }))
       .toBeDisabled();
     await showPlan(page);
@@ -1372,7 +1376,9 @@ test.describe("route states", () => {
     await hidePlan(page);
     await context.setOffline(false);
     await page.evaluate(() => globalThis.dispatchEvent(new Event("online")));
-    await expect(page.getByText("You are offline.")).toHaveCount(0);
+    await expect(page.getByText(/^You are offline\. Your draft/)).toHaveCount(
+      0,
+    );
     await expect(page.getByRole("button", { name: "Send", exact: true }))
       .toBeEnabled();
   });
@@ -1903,7 +1909,10 @@ test.describe("participants and live updates", () => {
       name: "Conversation transcript",
     });
     await expect(transcript.getByText("Dana Teammate")).toBeVisible();
-    await expect(transcript.getByText("Teammate 00000000")).toHaveCount(0);
+    await expect(transcript.getByText("A teammate", { exact: true }))
+      .toHaveCount(
+        0,
+      );
     await expect(transcript.locator('[data-variant="person"]').first())
       .toContainText("You");
     await expect(transcript.locator('[data-variant="agent"]')).toContainText(
@@ -1920,14 +1929,14 @@ test.describe("participants and live updates", () => {
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   });
 
-  test("an unnamed teammate keeps a short id and the page still works", async ({ page }) => {
+  test("an unnamed teammate is 'A teammate', never part of an id, and the page still works", async ({ page }) => {
     await open(page, world());
     await showPlan(page);
-    await expect(
-      page.locator('[data-ui-region="participants"]').getByText(
-        "Teammate 00000000",
-      ),
-    ).toBeVisible();
+    const people = page.locator('[data-ui-region="participants"]');
+    await expect(people.getByText("A teammate")).toBeVisible();
+    // The reader, with no name in the projection, is "You": not "You (you)".
+    await expect(people.getByText("You", { exact: true })).toBeVisible();
+    await expect(people).not.toContainText("00000000");
   });
 
   test("a second participant's message, decision and answer appear without reload", async ({ page }) => {
@@ -2072,3 +2081,503 @@ test("the trail leads back to Workspace and Work and names the task as the curre
     only: "desktop",
   });
 });
+
+// ---- #57 task page: the run leads the notice and the badge, plain failures,
+// ---- Details, answer reasons, and the item 10 frame (stills below) ----
+
+const runStepId = "00000000-0000-4000-8000-000000000021";
+const patchBody =
+  "diff --git a/file b/file\n--- a/file\n+++ b/file\n@@ -1 +1 @@\n-old\n+new\n";
+const patchDigest = createHash("sha256").update(patchBody).digest("hex");
+const runFixture = (status: string) => ({
+  id: runId,
+  taskId,
+  workflowVersionId: "00000000-0000-4000-8000-000000000022",
+  repositoryProfileId: null,
+  repositoryProfileRevision: null,
+  repositoryProfileDigest: null,
+  observationId: null,
+  observationDigest: null,
+  baseSha: null,
+  workspaceBaseSha: null,
+  requestedBy: principalId,
+  inngestRunId: null,
+  status,
+  budgetLimitUsd: "10.00",
+  startedAt: "2026-01-01T00:00:01.000Z",
+  finishedAt: ["completed", "failed", "canceled"].includes(status)
+    ? "2026-01-01T00:02:00.000Z"
+    : null,
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:02:00.000Z",
+  version: 1,
+  budgetSummary: {
+    installation: null,
+    run: {
+      scope: "run",
+      runId,
+      periodStart: null,
+      periodEnd: null,
+      limitUsd: "10",
+      reservedUsd: "0",
+      settledUsd: "1",
+      availableUsd: "9",
+      unknownCount: 0,
+    },
+  },
+});
+const stepFixture = {
+  id: runStepId,
+  runId,
+  stepKey: "publish",
+  iteration: 1,
+  status: "completed",
+  input: {},
+  output: null,
+  error: null,
+  startedAt: "2026-01-01T00:00:02.000Z",
+  finishedAt: "2026-01-01T00:02:00.000Z",
+  createdAt: "2026-01-01T00:00:02.000Z",
+  updatedAt: "2026-01-01T00:02:00.000Z",
+  version: 1,
+};
+const patchArtifact = {
+  id: "00000000-0000-4000-8000-000000000050",
+  taskId,
+  artifactType: "patch",
+  name: "candidate.patch",
+  currentVersionId: "00000000-0000-4000-8000-000000000052",
+  createdAt: "2026-01-01T00:01:00.000Z",
+  updatedAt: "2026-01-01T00:01:00.000Z",
+  version: 1,
+};
+const notesArtifact = {
+  id: "00000000-0000-4000-8000-000000000053",
+  taskId,
+  artifactType: "plan",
+  name: "plan-notes.md",
+  currentVersionId: "00000000-0000-4000-8000-000000000055",
+  createdAt: "2026-01-01T00:01:10.000Z",
+  updatedAt: "2026-01-01T00:01:10.000Z",
+  version: 1,
+};
+const versionFixture = (
+  artifact: typeof patchArtifact,
+  id: string,
+  revision: number,
+  mediaType: string,
+  sizeBytes: number,
+) => ({
+  id,
+  artifactId: artifact.id,
+  revision,
+  runStepId,
+  authorId: principalId,
+  mediaType,
+  sizeBytes,
+  sha256: patchDigest,
+  subjectHeadSha: null,
+  subjectBaseSha: null,
+  metadata: {},
+  createdAt: artifact.createdAt,
+  updatedAt: artifact.updatedAt,
+  version: 1,
+});
+
+/** An active task whose current run has the given status, with two artifacts. */
+async function openRun(
+  page: Page,
+  status: string,
+  overrides: Partial<World> = {},
+  steps: unknown[] = [stepFixture],
+) {
+  const state = world({
+    task: {
+      ...baseTask,
+      status: "active",
+      currentRunId: runId,
+      approvalPolicy: { plan: "automatic" },
+    },
+    revisions: [],
+    approvals: [],
+    questions: [],
+    ...overrides,
+  });
+  await mockWorld(page, state);
+  await page.route(
+    `**/v1/runs/${runId}`,
+    (route) => route.fulfill({ json: runFixture(status) }),
+  );
+  await page.route(
+    `**/v1/runs/${runId}/steps*`,
+    (route) => route.fulfill({ json: page_(steps) }),
+  );
+  await page.route(
+    "**/v1/artifacts?*",
+    (route) => route.fulfill({ json: page_([patchArtifact, notesArtifact]) }),
+  );
+  await page.route(
+    `**/v1/artifacts/${patchArtifact.id}/versions*`,
+    (route) =>
+      route.fulfill({
+        json: page_([
+          versionFixture(
+            patchArtifact,
+            patchArtifact.currentVersionId,
+            2,
+            "text/x-diff",
+            Buffer.byteLength(patchBody),
+          ),
+          versionFixture(
+            patchArtifact,
+            "00000000-0000-4000-8000-000000000060",
+            1,
+            "text/x-diff",
+            Buffer.byteLength(patchBody),
+          ),
+        ]),
+      }),
+  );
+  await page.route(
+    `**/v1/artifacts/${notesArtifact.id}/versions*`,
+    (route) =>
+      route.fulfill({
+        json: page_([
+          versionFixture(
+            notesArtifact,
+            notesArtifact.currentVersionId,
+            1,
+            "text/markdown",
+            40,
+          ),
+        ]),
+      }),
+  );
+  await page.route(
+    "**/v1/artifact-versions/*/content*",
+    (route) =>
+      route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/x-diff",
+          "content-length": String(Buffer.byteLength(patchBody)),
+          etag: `"${patchDigest}"`,
+        },
+        body: patchBody,
+      }),
+  );
+  await firstRender(
+    () => page.goto(`/tasks/${taskId}`),
+    (timeout) => expect(conversation(page)).toBeVisible({ timeout }),
+  );
+  return state;
+}
+
+for (
+  const [status, notice] of [
+    [
+      "running",
+      "A run is in progress. Your message is saved and the agent reads it at its next step.",
+    ],
+    [
+      "blocked",
+      "This run is blocked. Your message is saved and the agent reads it when the run continues.",
+    ],
+    ["failed", null],
+    ["completed", null],
+  ] as const
+) {
+  test(`the message notice follows the run: ${status}`, async ({ page }) => {
+    await openRun(page, status);
+    const composer = page.locator('[data-ui-region="composer"]');
+    await expect(composer.getByRole("textbox")).toBeVisible();
+    if (notice === null) {
+      await expect(composer.getByText("A run is in progress.")).toHaveCount(0);
+      await expect(composer.getByText(/^This run is blocked\./)).toHaveCount(0);
+    } else {
+      await expect(composer.getByText(notice, { exact: true })).toBeVisible();
+    }
+  });
+}
+
+test("a blocked run has one status, the reason, and no 'no steps' text", async ({ page }) => {
+  await openRun(page, "blocked", {}, []);
+  const section = page.locator("body");
+  await expect(
+    section.getByText("This run is waiting for another task to finish.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(section.getByText("No steps have been recorded.")).toHaveCount(
+    0,
+  );
+  await expect(section.getByText("Blocked", { exact: true }).first())
+    .toBeVisible();
+  if ((page.viewportSize()?.width ?? 1280) >= 744) {
+    // The page's own status badge reads the same.
+    await expect(page.getByText("Implementing", { exact: true })).toHaveCount(
+      0,
+    );
+  }
+});
+
+test("Current run has one status badge, and the run id sits under Details", async ({ page }) => {
+  await openRun(page, "running");
+  const heading = page.getByRole("heading", { name: "Current run" });
+  await expect(heading).toBeVisible();
+  await expect(page.getByText("Running", { exact: true }).first())
+    .toBeVisible();
+  // The id is not on the page until Details is opened, and then it is short.
+  const row = page.getByTestId("run-id-row");
+  await expect(row).toBeHidden();
+  await page.getByText("Details", { exact: true }).first().click();
+  await expect(row).toBeVisible();
+  await expect(row).toContainText("Run ID");
+  await expect(row).toContainText(runId.slice(0, 8));
+  await expect(row).not.toContainText(runId.slice(0, 9));
+});
+
+test("a part of the page that did not load is a warning notice with an outline Try again", async ({ page }) => {
+  await open(page, world({ messagesStatus: 500, sectionsStatus: 500 }));
+  await expect(page.getByText("The conversation could not be loaded."))
+    .toBeVisible();
+  const retries = page.getByRole("button", { name: "Try again", exact: true });
+  await expect(retries.first()).toBeVisible();
+  for (const retry of await retries.all()) {
+    await expect(retry).toHaveAttribute("data-variant", "outline");
+  }
+});
+
+test("the Planning only hint is visible under the switch", async ({ page }) => {
+  await open(page);
+  // On a phone the switch is in the plan sheet, so the hint goes there.
+  if ((page.viewportSize()?.width ?? 1280) <= 743) {
+    await showPlan(page);
+    await page.mouse.move(200, 700);
+    await shot(page, "task-plan-sheet-planning-only", [], { only: "mobile" });
+  }
+  await expect(
+    page.getByText("Stop after the plan. No run starts from this task."),
+  ).toBeVisible();
+});
+
+test("the Planning only switch never points at a description that is not there", async ({ page }) => {
+  await open(page);
+  await showPlan(page);
+  const toggle = page.getByRole("switch", { name: "Planning only" });
+  await expect(toggle).toBeVisible();
+  const id = await toggle.getAttribute("aria-describedby");
+  // Both layouts name their description now (design-ux, #57 item 14): the phone
+  // carries the same line under its switch in the plan sheet.
+  expect(id).toBeTruthy();
+  await expect(page.locator(`[id="${id}"]`)).toHaveCount(1);
+  await expect(toggle).toHaveAccessibleDescription(
+    "Stop after the plan. No run starts from this task.",
+  );
+});
+
+test("the artifact panel keeps its facts under Details and reads a patch as text", async ({ page }) => {
+  await openRun(page, "completed");
+  const pane = page.getByRole("complementary", { name: "Artifact" });
+  const aside = (await pane.count()) > 0 ? pane : page.locator("body");
+  await expect(aside.getByText("candidate.patch").first()).toBeVisible();
+  await expect(aside.getByText("+new").first()).toBeVisible();
+  await expect(aside.getByText("Preview unavailable")).toHaveCount(0);
+  // Closed by default: no raw id, digest or step id on the page.
+  await expect(aside.getByTestId("artifact-id-row")).toBeHidden();
+  await aside.getByText("Details", { exact: true }).last().click();
+  await expect(aside.getByTestId("artifact-id-row")).toContainText("ID");
+  await expect(aside.getByTestId("artifact-fingerprint-row")).toContainText(
+    "Fingerprint",
+  );
+  await expect(aside.getByText("Made by", { exact: true })).toBeVisible();
+  // The step's name, not its id.
+  await expect(aside.getByText(runStepId)).toHaveCount(0);
+  await expect(aside.getByRole("link", { name: "Open" })).toHaveAttribute(
+    "href",
+    new RegExp(`/tasks/${taskId}/artifacts/`),
+  );
+});
+
+// ---- stills for the #57 review (BAKERY_STILLS_DIR; nothing is written otherwise)
+
+test("still: the task page with a failed run and two artifacts", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  await openRun(page, "failed");
+  await expect(page.getByText("candidate.patch").first()).toBeVisible();
+  await still(page, "task-page-failed");
+});
+
+/** Scroll every scroller to its end; what is left over is the page scrolling as a whole. */
+async function scrollEverythingToItsEnd(page: Page) {
+  return await page.evaluate(() => {
+    for (const node of Array.from(document.querySelectorAll("*"))) {
+      if (!(node instanceof HTMLElement)) continue;
+      if (
+        /(auto|scroll)/.test(getComputedStyle(node).overflowY) &&
+        node.scrollHeight > node.clientHeight + 1
+      ) node.scrollTop = node.scrollHeight;
+    }
+    const root = document.scrollingElement as HTMLElement;
+    const composer = document.querySelector('[data-ui-region="composer"]');
+    return {
+      overflow: root.scrollHeight - root.clientHeight,
+      scrollTop: root.scrollTop,
+      composerBottom: composer?.getBoundingClientRect().bottom ?? 0,
+      windowHeight: globalThis.innerHeight,
+    };
+  });
+}
+
+for (
+  const [label, width, height] of [["1440", 1440, 900], [
+    "390",
+    390,
+    844,
+  ]] as const
+) {
+  for (const status of ["running", "blocked", "failed", "completed"] as const) {
+    test(`the task page is the window: it never scrolls as a whole (${label}, ${status})`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await openRun(page, status);
+      await expect(page.getByRole("textbox", { name: "Message this task" }))
+        .toBeVisible();
+      await page.waitForTimeout(500);
+      const result = await scrollEverythingToItsEnd(page);
+      // The frame is exactly the window: the document has nothing to scroll,
+      // and the message area ends inside it.
+      expect(result.overflow).toBeLessThanOrEqual(0);
+      expect(result.scrollTop).toBe(0);
+      expect(result.composerBottom).toBeLessThanOrEqual(
+        result.windowHeight + 1,
+      );
+    });
+  }
+}
+
+test("still: the task page at the window top and the very bottom", async ({ page }) => {
+  const directory = process.env.BAKERY_STILLS_DIR;
+  test.skip(!directory, "BAKERY_STILLS_DIR is not set");
+  await openRun(page, "failed");
+  await expect(page.getByText("candidate.patch").first()).toBeVisible();
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    for (
+      const [label, width, height] of [["1440", 1440, 900], [
+        "390",
+        390,
+        844,
+      ]] as const
+    ) {
+      await page.setViewportSize({ width, height });
+      await page.goto(`/tasks/${taskId}`);
+      await expect(page.getByRole("textbox", { name: "Message this task" }))
+        .toBeVisible();
+      await page.waitForTimeout(800);
+      await scrollEverythingToItsEnd(page);
+      await page.screenshot({
+        path: `${directory}/task-page-window-${label}-${scheme}-bottom.png`,
+      });
+      await page.evaluate(() => {
+        for (const node of Array.from(document.querySelectorAll("*"))) {
+          if (node instanceof HTMLElement && node.scrollTop > 0) {
+            node.scrollTop = 0;
+          }
+        }
+      });
+      await page.screenshot({
+        path: `${directory}/task-page-window-${label}-${scheme}-top.png`,
+      });
+    }
+  }
+});
+
+test("still: a blocked run", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  await openRun(page, "blocked", {}, []);
+  await expect(
+    page.getByText("This run is waiting for another task to finish."),
+  ).toBeVisible();
+  await still(page, "task-page-blocked");
+});
+
+test("still: the two load failures together", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  await open(page, world({ messagesStatus: 500, sectionsStatus: 500 }));
+  await expect(page.getByText("The conversation could not be loaded."))
+    .toBeVisible();
+  await still(page, "task-page-load-failures");
+});
+
+test("still: the Current run line with Details open", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  await openRun(page, "running");
+  await page.getByText("Details", { exact: true }).first().click();
+  await expect(page.getByTestId("run-id-row")).toBeVisible();
+  await still(page, "task-page-run-details");
+});
+
+test("still: the artifact panel with Details open and a patch preview", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  await openRun(page, "completed");
+  await expect(page.getByText("+new").first()).toBeVisible();
+  await page.getByText("Details", { exact: true }).last().click();
+  await expect(page.getByTestId("artifact-id-row")).toBeVisible();
+  await still(page, "task-page-artifact-details");
+});
+
+test("still: the people with an unnamed teammate, and a disabled Send answer", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  await open(page);
+  await showPlan(page);
+  await expect(page.getByText("Choose an answer first.")).toBeVisible();
+  await still(page, "task-page-people-and-answer");
+});
+
+for (
+  const [name, availability] of [
+    ["enabled", { status: "ready", reasons: [] }],
+    [
+      "disabled",
+      { status: "setup_required", reasons: ["coding_agent_unbound"] },
+    ],
+  ] as const
+) {
+  test(`still: Start run ${name}`, async ({ page }) => {
+    test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+    const state = world();
+    await mockWorld(page, state);
+    await page.route("**/v1/workflow-presets*", (route) =>
+      route.fulfill({
+        json: page_([{
+          id: "fixed-coding",
+          revision: 1,
+          digest: "a".repeat(64),
+          nameKey: "workflowPresets.fixedCoding.name",
+          steps: [{ id: "implement", uses: "harness.implement" }],
+          defaultBudgetLimitUsd: "5.00",
+          availability: { minimumBudgetLimitUsd: null, ...availability },
+        }]),
+      }));
+    await firstRender(
+      () => page.goto(`/tasks/${taskId}`),
+      (timeout) => expect(conversation(page)).toBeVisible({ timeout }),
+    );
+    await showPlan(page);
+    await approve(page, 3).click();
+    await expect(page.getByText("You approved plan, version 3")).toBeVisible();
+    const sheet = page.locator('[data-ui-region="plan-sheet"]');
+    if (await sheet.isVisible()) {
+      await page.keyboard.press("Escape");
+      await expect(sheet).toBeHidden();
+    }
+    const start = page.getByRole("button", { name: "Start run", exact: true });
+    await expect(start).toBeVisible();
+    await expect(start)[name === "enabled" ? "toBeEnabled" : "toBeDisabled"]();
+    await expect(start).toHaveAttribute(
+      "data-variant",
+      name === "enabled" ? "primary" : "outline",
+    );
+    await still(page, `task-page-start-run-${name}`);
+  });
+}
