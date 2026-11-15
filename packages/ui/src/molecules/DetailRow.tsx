@@ -9,16 +9,24 @@ export type DetailRowProps =
     label: ReactNode;
     /** `code` sets the value in the data face; `positive` in the success tone. */
     tone?: "default" | "code" | "positive";
+    /**
+     * `wide` gives the label column room for a long label with a help button
+     * beside it, so the button stays on the label's line. Opt-in; the default
+     * column is unchanged.
+     */
+    labelWidth?: "default" | "wide";
   };
 
 /** A label and its value on one line, such as "Role  payments-api". */
 export function DetailRow(
-  { children, label, tone = "default", ...props }: DetailRowProps,
+  { children, label, labelWidth = "default", tone = "default", ...props }:
+    DetailRowProps,
 ) {
   return (
     <div
       className="ui-detail-row"
       {...props}
+      data-label-width={labelWidth === "wide" ? "wide" : undefined}
       data-state="default"
       data-ui-component="detailRow"
       data-variant={tone}

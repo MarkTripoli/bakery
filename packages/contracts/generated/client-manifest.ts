@@ -5957,6 +5957,29 @@ export const clientManifest = {
     },
     {
       "group": "Tickets",
+      "method": "GET",
+      "path": "/v1/ticket-sources/{id}/people/{login}",
+      "action": "ticketSources.lookupPerson",
+      "access": "Admin",
+      "permission": "ticketSource:manage",
+      "input": "TicketSourcePersonPath",
+      "output": "TicketSourcePerson",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
       "method": "POST",
       "path": "/v1/ticket-sources/{id}/syncs",
       "action": "ticketSources.sync",
@@ -11082,6 +11105,7 @@ export const clientManifest = {
             "ticketSources.get",
             "ticketSources.update",
             "ticketSources.preview",
+            "ticketSources.lookupPerson",
             "ticketSources.sync",
             "externalTickets.list",
             "externalTickets.get",
@@ -17513,6 +17537,30 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Saves the R2 account, bucket and credentials that hold skill bundle objects for this installation. Credentials are write-only and never appear in a response, error, log, trace, event or audit record."
+    },
+    "TicketSourcePersonPath": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Ticket source whose repository the person is looked up on; supplied via the request's {id} path segment."
+        },
+        "login": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 39,
+          "description": "TicketSourcePersonPath.login must contain at most 39 characters."
+        }
+      },
+      "required": [
+        "id",
+        "login"
+      ],
+      "additionalProperties": false,
+      "description": "Path parameters naming one ticket source and a provider username to look up on its repository (#69)."
     },
     "UserPreferences": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -29046,6 +29094,7 @@ export const clientManifest = {
                   "ticketSources.get",
                   "ticketSources.update",
                   "ticketSources.preview",
+                  "ticketSources.lookupPerson",
                   "ticketSources.sync",
                   "externalTickets.list",
                   "externalTickets.get",
@@ -44183,6 +44232,7 @@ export const clientManifest = {
             "ticketSources.get",
             "ticketSources.update",
             "ticketSources.preview",
+            "ticketSources.lookupPerson",
             "ticketSources.sync",
             "externalTickets.list",
             "externalTickets.get",
@@ -61700,6 +61750,44 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Whether this deployment can serve isolated artifact previews."
+    },
+    "TicketSourcePerson": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "login": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The username as it was looked up."
+        },
+        "externalUserId": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The provider's stable numeric user id; the value a ticket source's trigger list stores."
+        },
+        "permission": {
+          "type": "string",
+          "enum": [
+            "admin",
+            "write",
+            "read",
+            "none"
+          ],
+          "description": "The person's permission on the source's repository as the provider reports it now."
+        },
+        "canTrigger": {
+          "type": "boolean",
+          "description": "Whether the person may be added to the trigger list: true only for write or admin on the repository."
+        }
+      },
+      "required": [
+        "login",
+        "externalUserId",
+        "permission",
+        "canTrigger"
+      ],
+      "additionalProperties": false,
+      "description": "One provider user found on a ticket source's repository, for the automatic-start trigger list (#69). A username the provider does not know answers 404."
     }
   }
 } as const;

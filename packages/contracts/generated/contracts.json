@@ -7796,6 +7796,29 @@
     },
     {
       "group": "Tickets",
+      "method": "GET",
+      "path": "/v1/ticket-sources/{id}/people/{login}",
+      "action": "ticketSources.lookupPerson",
+      "access": "Admin",
+      "permission": "ticketSource:manage",
+      "input": "TicketSourcePersonPath",
+      "output": "TicketSourcePerson",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
       "method": "POST",
       "path": "/v1/ticket-sources/{id}/syncs",
       "action": "ticketSources.sync",
@@ -9048,6 +9071,7 @@
     "ticketSources.get",
     "ticketSources.update",
     "ticketSources.preview",
+    "ticketSources.lookupPerson",
     "ticketSources.sync",
     "externalTickets.list",
     "externalTickets.get",
@@ -28641,6 +28665,71 @@
           }
         }
       },
+      "/v1/ticket-sources/{id}/people/{login}": {
+        "get": {
+          "operationId": "ticketSources.lookupPerson",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Ticket source whose repository the person is looked up on; supplied via the request's {id} path segment."
+              }
+            },
+            {
+              "name": "login",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 39,
+                "description": "TicketSourcePersonPath.login must contain at most 39 characters."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/TicketSourcePerson"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
       "/v1/ticket-sources/{id}/syncs": {
         "post": {
           "operationId": "ticketSources.sync",
@@ -38516,6 +38605,7 @@
                 "ticketSources.get",
                 "ticketSources.update",
                 "ticketSources.preview",
+                "ticketSources.lookupPerson",
                 "ticketSources.sync",
                 "externalTickets.list",
                 "externalTickets.get",
@@ -55152,6 +55242,30 @@
           ],
           "additionalProperties": false,
           "description": "Saves the R2 account, bucket and credentials that hold skill bundle objects for this installation. Credentials are write-only and never appear in a response, error, log, trace, event or audit record."
+        },
+        "TicketSourcePersonPath": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Ticket source whose repository the person is looked up on; supplied via the request's {id} path segment."
+            },
+            "login": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 39,
+              "description": "TicketSourcePersonPath.login must contain at most 39 characters."
+            }
+          },
+          "required": [
+            "id",
+            "login"
+          ],
+          "additionalProperties": false,
+          "description": "Path parameters naming one ticket source and a provider username to look up on its repository (#69)."
         },
         "applications": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -80937,6 +81051,7 @@
                 "ticketSources.get",
                 "ticketSources.update",
                 "ticketSources.preview",
+                "ticketSources.lookupPerson",
                 "ticketSources.sync",
                 "externalTickets.list",
                 "externalTickets.get",
@@ -81399,6 +81514,7 @@
                 "ticketSources.get",
                 "ticketSources.update",
                 "ticketSources.preview",
+                "ticketSources.lookupPerson",
                 "ticketSources.sync",
                 "externalTickets.list",
                 "externalTickets.get",
@@ -81861,6 +81977,7 @@
                 "ticketSources.get",
                 "ticketSources.update",
                 "ticketSources.preview",
+                "ticketSources.lookupPerson",
                 "ticketSources.sync",
                 "externalTickets.list",
                 "externalTickets.get",
@@ -124782,6 +124899,7 @@
                       "ticketSources.get",
                       "ticketSources.update",
                       "ticketSources.preview",
+                      "ticketSources.lookupPerson",
                       "ticketSources.sync",
                       "externalTickets.list",
                       "externalTickets.get",
@@ -196686,6 +196804,44 @@
           "additionalProperties": false,
           "description": "Whether this deployment can serve isolated artifact previews."
         },
+        "TicketSourcePerson": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "login": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The username as it was looked up."
+            },
+            "externalUserId": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The provider's stable numeric user id; the value a ticket source's trigger list stores."
+            },
+            "permission": {
+              "type": "string",
+              "enum": [
+                "admin",
+                "write",
+                "read",
+                "none"
+              ],
+              "description": "The person's permission on the source's repository as the provider reports it now."
+            },
+            "canTrigger": {
+              "type": "boolean",
+              "description": "Whether the person may be added to the trigger list: true only for write or admin on the repository."
+            }
+          },
+          "required": [
+            "login",
+            "externalUserId",
+            "permission",
+            "canTrigger"
+          ],
+          "additionalProperties": false,
+          "description": "One provider user found on a ticket source's repository, for the automatic-start trigger list (#69). A username the provider does not know answers 404."
+        },
         "ArtifactOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -198171,7 +198327,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:7193056cd3ceb07167095877072462a674c0c3c0d5d59f378fdf4107bafc34d2",
+  "compatibilityDigest": "sha256:ac1b07766e7d05e33254a0a07747af2b9112920fd1d540bd544d78c379eaa281",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -205462,6 +205618,7 @@
             "ticketSources.get",
             "ticketSources.update",
             "ticketSources.preview",
+            "ticketSources.lookupPerson",
             "ticketSources.sync",
             "externalTickets.list",
             "externalTickets.get",
@@ -222152,6 +222309,30 @@
       ],
       "additionalProperties": false,
       "description": "Saves the R2 account, bucket and credentials that hold skill bundle objects for this installation. Credentials are write-only and never appear in a response, error, log, trace, event or audit record."
+    },
+    "TicketSourcePersonPath": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Ticket source whose repository the person is looked up on; supplied via the request's {id} path segment."
+        },
+        "login": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 39,
+          "description": "TicketSourcePersonPath.login must contain at most 39 characters."
+        }
+      },
+      "required": [
+        "id",
+        "login"
+      ],
+      "additionalProperties": false,
+      "description": "Path parameters naming one ticket source and a provider username to look up on its repository (#69)."
     },
     "applications": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -248031,6 +248212,7 @@
             "ticketSources.get",
             "ticketSources.update",
             "ticketSources.preview",
+            "ticketSources.lookupPerson",
             "ticketSources.sync",
             "externalTickets.list",
             "externalTickets.get",
@@ -248493,6 +248675,7 @@
             "ticketSources.get",
             "ticketSources.update",
             "ticketSources.preview",
+            "ticketSources.lookupPerson",
             "ticketSources.sync",
             "externalTickets.list",
             "externalTickets.get",
@@ -248955,6 +249138,7 @@
             "ticketSources.get",
             "ticketSources.update",
             "ticketSources.preview",
+            "ticketSources.lookupPerson",
             "ticketSources.sync",
             "externalTickets.list",
             "externalTickets.get",
@@ -292018,6 +292202,7 @@
                   "ticketSources.get",
                   "ticketSources.update",
                   "ticketSources.preview",
+                  "ticketSources.lookupPerson",
                   "ticketSources.sync",
                   "externalTickets.list",
                   "externalTickets.get",
@@ -364027,6 +364212,44 @@
       ],
       "additionalProperties": false,
       "description": "Whether this deployment can serve isolated artifact previews."
+    },
+    "TicketSourcePerson": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "login": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The username as it was looked up."
+        },
+        "externalUserId": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The provider's stable numeric user id; the value a ticket source's trigger list stores."
+        },
+        "permission": {
+          "type": "string",
+          "enum": [
+            "admin",
+            "write",
+            "read",
+            "none"
+          ],
+          "description": "The person's permission on the source's repository as the provider reports it now."
+        },
+        "canTrigger": {
+          "type": "boolean",
+          "description": "Whether the person may be added to the trigger list: true only for write or admin on the repository."
+        }
+      },
+      "required": [
+        "login",
+        "externalUserId",
+        "permission",
+        "canTrigger"
+      ],
+      "additionalProperties": false,
+      "description": "One provider user found on a ticket source's repository, for the automatic-start trigger list (#69). A username the provider does not know answers 404."
     },
     "ArtifactOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

@@ -6,6 +6,14 @@ workflow language, repository profile, scheduled execution, delivery policy,
 and proving backlog. It does not implement a workflow engine or alter a
 managed application repository.
 
+**One engine (14 November 2026).** [Chapter 25](25-one-engine.md) supersedes
+this chapter where they differ. The compiled interpreter is the only engine and
+the flat preset executor is retired (O1): the presets are republished as
+compiled definitions and existing flat runs drain. Deliver is a workflow built
+only from public primitives, with no private engine path. In the editor,
+Publish is never disabled: pressed with problems, it lists them with "Show me".
+This replaces the earlier disabled-with-reason Publish. Bakery is agent-first: agents draft, edit and validate workflows through the same operations as people; publishing and "Use this version" are off by default for agents and granted per workflow or seat (chapter 25, O52).
+
 The [8 September requirements](#workflow-ownership-and-multi-repository-work) below
 extend the earlier single-repository examples. Multi-repository work is a task and
 agent capability, available with or without a saved workflow. The structured
@@ -1070,7 +1078,9 @@ starts under policy; it does not erase versions referenced by runs.
 
 Use one shared draft per workflow initially, with optimistic concurrency.
 Saving a structurally valid but incomplete graph retains its semantic errors;
-publishing requires all errors resolved. Invalid JSON/YAML text stays in the
+publishing requires all errors resolved. The editor's Publish button is never
+disabled: pressed with problems, it lists them with "Show me" beside each
+([chapter 25](25-one-engine.md), section 11). Invalid JSON/YAML text stays in the
 local editor buffer until parseable. Conflicts retain local edits and compare
 the base draft ETag/version that was opened, the current server draft, and the local
 draft. The latest published version is not necessarily the merge base.
@@ -1200,6 +1210,17 @@ publishing, forbidden, unsupported-version, offline and run-wait states.
 The [Workflow studio Paper designs and local prototype](workflow-studio/README.md)
 demonstrate these authoring states. Production components, server validation and
 runtime execution remain unimplemented.
+
+### Owner decisions, prototype pass 5 (14 November 2026)
+
+Recorded in [owner decisions](one-system/owner-decisions.md); they win over earlier text in this chapter.
+
+1. **Request changes** on an approval sends the work back to the step just before the approval. A picker under Advanced, to choose another step, comes later.
+2. **Default steering permissions:** developers on the task can message and pause; the task owner and Admins make decisions. A workflow may narrow these.
+3. **Phone:** all six steer controls are shown on a phone.
+4. **Agents acting on other agents' work** is off by default in new workflows, on in Bakery templates that need it, and always labelled "Agent's action".
+5. **Team live view:** when a seat is running a workflow, that run opens nested in place, the same as a called workflow.
+6. **"Describe it" runs** that were never saved stay findable from the conversation for as long as the run record exists.
 
 ### Skills and models are explicit step bindings
 
@@ -1548,6 +1569,10 @@ updates from `WS /v1/events`; all mutations use REST idempotency keys and
 preconditions.
 
 ## Fixed coding preset
+
+> Superseded direction: under [chapter 25](25-one-engine.md) (O1) this preset
+> and `fixed-coding-reviewed` become ordinary compiled definitions and the flat
+> executor described below is retired once its runs drain.
 
 One code-owned preset, `fixed-coding@1`, lets a user run one coding task from
 the web app before the general workflow studio and the planning conversation
