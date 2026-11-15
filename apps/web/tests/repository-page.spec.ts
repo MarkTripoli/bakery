@@ -683,6 +683,17 @@ test.describe("the readiness check", () => {
     expect(refused.seen.starts).toHaveLength(1);
   });
 
+  test("a start refused as a conflict says the repository changed, not that a check is running", async ({ page }) => {
+    await open(page, { ...WORLD, start: "conflict" });
+    await run(page).click();
+    await expect(
+      page.getByText(
+        "The repository changed since this page was loaded, so the check was not started. Reload the page and try again.",
+      ),
+    ).toBeVisible();
+    await expect(page.getByText(/already running/)).toHaveCount(0);
+  });
+
   test("a start that gets no answer is retried with the same key", async ({ page }) => {
     const { seen } = await open(page, { ...WORLD, start: "down" });
     await run(page).click();

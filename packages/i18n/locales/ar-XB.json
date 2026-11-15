@@ -3691,7 +3691,7 @@
   "projects.repository.check.reason.platformMismatch": "⟪The machine's system does not match what this repository needs. Use a machine with a different system.⟫",
   "projects.repository.check.reason.sourceInvalid": "⟪The code on the machine does not match GitHub. Check again.⟫",
   "projects.repository.check.startFailure.forbidden": "⟪Only organization administrators can run the check.⟫",
-  "projects.repository.check.startFailure.conflict": "⟪A check for this repository is already running.⟫",
   "projects.repository.check.startFailure.offline": "⟪You are offline. The check was not started.⟫",
-  "projects.repository.check.startFailure.failed": "⟪The check could not be started. Try again.⟫"
+  "projects.repository.check.startFailure.failed": "⟪The check could not be started. Try again.⟫",
+  "projects.repository.check.startFailure.conflict": "⟪The repository changed since this page was loaded, so the check was not started. Reload the page and try again.⟫"
 }

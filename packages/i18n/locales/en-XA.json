@@ -3691,7 +3691,7 @@
   "projects.repository.check.reason.platformMismatch": "⟦Ŧĥë ɱàçĥïñë'š šÿšŧëɱ ðôëš ñôŧ ɱàŧçĥ ŵĥàŧ ŧĥïš ŕëþôšïŧôŕÿ ñëëðš. Ûšë à ɱàçĥïñë ŵïŧĥ à ðïƒƒëŕëñŧ šÿšŧëɱ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "projects.repository.check.reason.sourceInvalid": "⟦Ŧĥë çôðë ôñ ŧĥë ɱàçĥïñë ðôëš ñôŧ ɱàŧçĥ ĜïŧĤûƀ. Çĥëçķ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "projects.repository.check.startFailure.forbidden": "⟦Ôñļÿ ôŕĝàñïžàŧïôñ àðɱïñïšŧŕàŧôŕš çàñ ŕûñ ŧĥë çĥëçķ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "projects.repository.check.startFailure.conflict": "⟦À çĥëçķ ƒôŕ ŧĥïš ŕëþôšïŧôŕÿ ïš àļŕëàðÿ ŕûññïñĝ. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "projects.repository.check.startFailure.offline": "⟦Ÿôû àŕë ôƒƒļïñë. Ŧĥë çĥëçķ ŵàš ñôŧ šŧàŕŧëð. ŧëšŧ çôþÿ ŧëš⟧",
-  "projects.repository.check.startFailure.failed": "⟦Ŧĥë çĥëçķ çôûļð ñôŧ ƀë šŧàŕŧëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧë⟧"
+  "projects.repository.check.startFailure.failed": "⟦Ŧĥë çĥëçķ çôûļð ñôŧ ƀë šŧàŕŧëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧë⟧",
+  "projects.repository.check.startFailure.conflict": "⟦Ŧĥë ŕëþôšïŧôŕÿ çĥàñĝëð šïñçë ŧĥïš þàĝë ŵàš ļôàðëð, šô ŧĥë çĥëçķ ŵàš ñôŧ šŧàŕŧëð. Ŕëļôàð ŧĥë þàĝë àñð ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧"
 }
