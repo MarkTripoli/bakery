@@ -2106,7 +2106,6 @@
   "tasks.coordination.lane.openTask": "⟪Open child task⟫",
   "tasks.coordination.lane.noTask": "⟪No child task yet⟫",
   "tasks.coordination.cancel.action": "⟪Cancel split⟫",
-  "tasks.coordination.cancel.confirm": "⟪Cancel this split? Unfinished lanes stop. Completed lanes keep their results.⟫",
   "tasks.coordination.cancel.confirmAction": "⟪Cancel the split⟫",
   "tasks.coordination.cancel.retry": "⟪Try again⟫",
   "tasks.coordination.cancel.keep": "⟪Keep the split⟫",
@@ -3740,5 +3739,7 @@
   "library.workflow.actionLine.agentFreeform": "⟪An agent follows instructions written for this step.⟫",
   "library.workflow.actionLine.qualityCheck": "⟪Runs the repository's lint, tests and build.⟫",
   "library.workflow.actionLine.deliveryMerge": "⟪Merges the changes when checks and review allow it.⟫",
-  "tasks.coordination.description": "⟪The work for this task is divided into lanes, one per repository. Lanes run side by side unless one waits for another.⟫"
+  "tasks.coordination.description": "⟪The work for this task is divided into lanes, one per repository. Lanes run side by side unless one waits for another.⟫",
+  "tasks.coordination.cancel.title": "⟪Cancel this split?⟫",
+  "tasks.coordination.cancel.confirm": "⟪Unfinished lanes stop. Completed lanes keep their results.⟫"
 }

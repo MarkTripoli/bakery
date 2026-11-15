@@ -2106,7 +2106,6 @@
   "tasks.coordination.lane.openTask": "⟦Ôþëñ çĥïļð ŧàšķ ŧëš⟧",
   "tasks.coordination.lane.noTask": "⟦Ñô çĥïļð ŧàšķ ÿëŧ ŧëš⟧",
   "tasks.coordination.cancel.action": "⟦Çàñçëļ šþļïŧ ŧë⟧",
-  "tasks.coordination.cancel.confirm": "⟦Çàñçëļ ŧĥïš šþļïŧ? Ûñƒïñïšĥëð ļàñëš šŧôþ. Çôɱþļëŧëð ļàñëš ķëëþ ŧĥëïŕ ŕëšûļŧš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "tasks.coordination.cancel.confirmAction": "⟦Çàñçëļ ŧĥë šþļïŧ ŧëš⟧",
   "tasks.coordination.cancel.retry": "⟦Ŧŕÿ àĝàïñ ŧ⟧",
   "tasks.coordination.cancel.keep": "⟦Ķëëþ ŧĥë šþļïŧ ŧë⟧",
@@ -3740,5 +3739,7 @@
   "library.workflow.actionLine.agentFreeform": "⟦Àñ àĝëñŧ ƒôļļôŵš ïñšŧŕûçŧïôñš ŵŕïŧŧëñ ƒôŕ ŧĥïš šŧëþ. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "library.workflow.actionLine.qualityCheck": "⟦Ŕûñš ŧĥë ŕëþôšïŧôŕÿ'š ļïñŧ, ŧëšŧš àñð ƀûïļð. ŧëšŧ çôþÿ ŧëš⟧",
   "library.workflow.actionLine.deliveryMerge": "⟦Ṁëŕĝëš ŧĥë çĥàñĝëš ŵĥëñ çĥëçķš àñð ŕëṽïëŵ àļļôŵ ïŧ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "tasks.coordination.description": "⟦Ŧĥë ŵôŕķ ƒôŕ ŧĥïš ŧàšķ ïš ðïṽïðëð ïñŧô ļàñëš, ôñë þëŕ ŕëþôšïŧôŕÿ. Ļàñëš ŕûñ šïðë ƀÿ šïðë ûñļëšš ôñë ŵàïŧš ƒôŕ àñôŧĥëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧"
+  "tasks.coordination.description": "⟦Ŧĥë ŵôŕķ ƒôŕ ŧĥïš ŧàšķ ïš ðïṽïðëð ïñŧô ļàñëš, ôñë þëŕ ŕëþôšïŧôŕÿ. Ļàñëš ŕûñ šïðë ƀÿ šïðë ûñļëšš ôñë ŵàïŧš ƒôŕ àñôŧĥëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
+  "tasks.coordination.cancel.title": "⟦Çàñçëļ ŧĥïš šþļïŧ? ŧëšŧ⟧",
+  "tasks.coordination.cancel.confirm": "⟦Ûñƒïñïšĥëð ļàñëš šŧôþ. Çôɱþļëŧëð ļàñëš ķëëþ ŧĥëïŕ ŕëšûļŧš. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧"
 }

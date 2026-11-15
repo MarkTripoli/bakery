@@ -593,7 +593,18 @@ test("partial delivery is explained and stopped lanes say why", async ({ page })
 test("cancel needs confirmation and sends one idempotent request", async ({ page }) => {
   const state = await open(page);
   await page.getByRole("button", { name: "Cancel split", exact: true }).click();
-  await expect(page.getByText("Cancel this split?")).toBeVisible();
+  // The shared alert dialog: the question is its name, what stopping costs is
+  // its body, "Keep the split" comes first and the danger action last
+  // (design-ux, #396).
+  const dialog = page.getByRole("alertdialog", { name: "Cancel this split?" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText(
+    "Unfinished lanes stop. Completed lanes keep their results.",
+  );
+  const actions = dialog.getByRole("button");
+  await expect(actions.first()).toHaveText("Keep the split");
+  await expect(actions.last()).toHaveText("Cancel the split");
+  await expect(actions.last()).toHaveAttribute("data-variant", "destructive");
   await page.mouse.move(700, 700);
   await shot(page, "task-split-cancel-confirm");
   await page.getByRole("button", { name: "Keep the split" }).click();
