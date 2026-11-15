@@ -33,6 +33,7 @@ import {
   activeProfile,
   branchesOf,
   hasOwnRules,
+  isCheckMade,
   needsCheck as needsCheckOf,
   setupBadge,
 } from "./projects/repository-state.ts";
@@ -235,8 +236,14 @@ export function RepositoryPage(
   // for the version in use (and only when the connection works too); with no
   // check known for that version it says nothing, never a guess.
   const setup = setupBadge(current);
+  // No check named in the address: a check-made version in use is itself the
+  // evidence that a check passed for it (the server puts a version made by a
+  // check in use only when the check passed, and a person's save replaces it),
+  // so the page agrees with the sheet instead of saying nothing.
+  const madeByCheck = active !== null && isCheckMade(active.config);
   const standing = connectionWorks
-    ? standingOf(info.view, info.observedRevision, active?.revision ?? null)
+    ? standingOf(info.view, info.observedRevision, active?.revision ?? null) ??
+      (info.view.kind === "none" && madeByCheck ? "ready" : null)
     : null;
   // A person's version is in use over one a check made: tasks start, and stop at
   // the steps where Bakery runs its checks until the check passes again.

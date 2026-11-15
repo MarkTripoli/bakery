@@ -225,7 +225,7 @@ test.describe("a repository with working settings", () => {
     await expect(page.getByRole("heading", { name: "Versions" })).toBeVisible();
     await expect(
       page.getByText(
-        "A new version is saved when you save settings and each time the readiness check runs.",
+        "A new version is saved when you save settings and each time the readiness check passes.",
       ),
     ).toBeVisible();
     await expect(page.getByTestId("profile-version-2")).toContainText("In use");
@@ -903,12 +903,25 @@ test.describe("after a check: a person's version over a check-made one, and a fa
     await shot(page, "repository-check-needed");
   });
 
-  test("a check-made version in use is not 'Check needed' (it is its own evidence)", async ({ page }) => {
+  test("a check-made version in use is its own evidence: Ready, not Check needed, even with no check in the address", async ({ page }) => {
     await open(page, CHECKED);
-    await expect(standing(page)).toHaveCount(0);
+    await expect(standing(page)).toHaveText("Ready");
+    await expect(page.getByTestId("setup-check")).toContainText(
+      "A readiness check passed for version 2.",
+    );
+    await expect(page.getByTestId("setup-check")).toHaveAttribute(
+      "data-state",
+      "done",
+    );
     await expect(
-      page.getByText("Bakery can start tasks here once all three are done."),
+      page.getByText("Bakery can start tasks here.", { exact: true }),
     ).toBeVisible();
+    // The sheet and the page agree: the version in use came from a passed check.
+    await page.getByRole("button", { name: "Change" }).click();
+    await expect(
+      page.getByText(/Run the readiness check again afterwards/),
+    ).toBeVisible();
+    await expect(standing(page)).toHaveText("Ready");
   });
 
   test("a repository never checked says nothing about a check being needed", async ({ page }) => {

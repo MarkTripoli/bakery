@@ -15,6 +15,7 @@ import {
   isBlocking,
   missingTools,
 } from "./check-state.ts";
+import { isCheckMade } from "./repository-state.ts";
 import type { CheckInfo } from "./use-check-view.ts";
 import { useStartCheck } from "./use-readiness-check.ts";
 
@@ -179,6 +180,15 @@ export function ReadinessStep(
 
   if (active === null) {
     summary = translate("projects.repository.step.check.blocked" as never);
+  } else if (view.kind === "none" && isCheckMade(active.config)) {
+    // A version a check made is in use: that check passed. Its time and machine
+    // are not on the version, so only that is said.
+    stepStatus = "done";
+    label = status("done");
+    summary = translate("projects.repository.check.passedEarlier" as never, {
+      version: active.revision,
+    });
+    quiet = run(again, false);
   } else if (view.kind === "none") {
     stepStatus = "running";
     // A person's version is in use over one a check made: say so, not "run the check to see".
