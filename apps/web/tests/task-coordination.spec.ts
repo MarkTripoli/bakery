@@ -224,6 +224,8 @@ type World = {
   workflowStatus?: number;
   /** The version the saved workflow has in use now (the plan's own by default). */
   workflowActiveVersionId?: string;
+  /** The saved workflow's name (a long one, to see it wrap). */
+  workflowName?: string;
   /** Answer for the saved workflow's versions; 404 when unreadable. */
   versionsStatus?: number;
 };
@@ -329,7 +331,7 @@ async function mockWorld(page: Page, state: World) {
           json: {
             id: workflowId,
             slug: "checkout-fan-out",
-            name: "Checkout fan-out",
+            name: state.workflowName ?? "Checkout fan-out",
             description: null,
             activeVersionId: state.workflowActiveVersionId ?? workflowVersionId,
             enabled: true,
@@ -957,12 +959,18 @@ test("a saved workflow whose newer version is in use says this run's version is 
   const origin = page.locator("[data-plan-origin]");
   await expect(origin).toContainText("Workflow: Checkout fan-out, version 3");
   await expect(origin).toContainText("Older version");
-  // In the wide header the workflow's link starts its own line, under the plan's.
+  await shot(page, "task-origin-older");
+  // In the wide header the workflow's link is line 2, under the title.
   if (test.info().project.name === "desktop") {
-    const firstLine = await page.getByText("Ship the contract change").first()
-      .boundingBox();
     const link = await origin.getByRole("link").boundingBox();
-    expect(link!.y).toBeGreaterThan(firstLine!.y + firstLine!.height - 2);
+    const title = await page.getByText("Ship the contract change").first()
+      .boundingBox();
+    const plan = await page.getByText("Plan, version 2").first().boundingBox();
+    // Line 1: the title, then the plan's revision beside it.
+    expect(Math.abs(plan!.y - title!.y)).toBeLessThanOrEqual(4);
+    // Line 2: starts at the title's left edge, under it.
+    expect(link!.y).toBeGreaterThan(title!.y + title!.height - 2);
+    expect(Math.abs(link!.x - title!.x)).toBeLessThanOrEqual(2);
   }
   // On a phone the tip closes when the page scrolls, and this line is at the
   // end of the page: bring the button into view first so opening it does not.
@@ -977,7 +985,7 @@ test("a saved workflow whose newer version is in use says this run's version is 
     ),
   });
   await expect(panel).toBeVisible();
-  await shot(page, "task-origin-older");
+  await shot(page, "task-origin-tip");
 });
 
 test("when the versions cannot be read the version shows its short identifier", async ({ page }) => {
@@ -994,8 +1002,35 @@ test("when the versions cannot be read the version shows its short identifier", 
     }),
   );
   await expect(page.locator("[data-plan-origin]")).toContainText(
-    "Workflow: Checkout fan-out, version aaaaaaaa",
+    "Workflow: Checkout fan-out",
   );
+  // The version's identifier is internal: never shown in place of its number.
+  await expect(page.locator("[data-plan-origin]")).not.toContainText(
+    "aaaaaaaa",
+  );
+  await expect(page.locator("[data-plan-origin]")).not.toContainText(
+    ", version",
+  );
+});
+
+test("a long unbroken workflow name wraps on its line and never widens the page", async ({ page }) => {
+  await open(
+    page,
+    world({
+      workflowName: "n".repeat(200),
+      plans: [withOrigin({
+        kind: "saved_workflow",
+        workflowId,
+        workflowVersionId,
+        nodeId: "fan-out",
+      })],
+    }),
+  );
+  await expect(page.locator("[data-plan-origin]")).toContainText("version 3");
+  const overflow = await page.evaluate(() =>
+    document.documentElement.scrollWidth - document.documentElement.clientWidth
+  );
+  expect(overflow).toBeLessThanOrEqual(1);
 });
 
 test("an unreadable saved workflow falls back to its identifier", async ({ page }) => {
@@ -1013,7 +1048,7 @@ test("an unreadable saved workflow falls back to its identifier", async ({ page 
     }),
   );
   await expect(page.locator("[data-plan-origin]")).toContainText(
-    "Workflow: 00000000, version aaaaaaaa",
+    "Workflow: 00000000",
   );
   await expect(laneRow(page, "api")).toBeVisible();
 });

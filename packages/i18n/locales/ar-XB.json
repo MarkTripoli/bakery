@@ -3504,5 +3504,8 @@
   "library.agent.prompts.help": "⟪The instructions this agent starts with. Bakery does not show their text here yet.⟫",
   "library.agent.skills.help": "⟪Extra instructions the agent can load for a kind of work.⟫",
   "library.import.problem.stepFieldMissingNamed": "⟪Step {number} is missing a required field: {field}.⟫",
-  "library.import.problem.fieldMissingNamed": "⟪The definition is missing a required field: {field}.⟫"
+  "library.import.problem.fieldMissingNamed": "⟪The definition is missing a required field: {field}.⟫",
+  "tasks.coordination.origin.workflowNoVersion": "⟪Workflow: {name}⟫",
+  "library.workflow.versions.unknownInUse": "⟪That version does not exist. This is the version in use.⟫",
+  "library.workflow.versions.unknownNewest": "⟪That version does not exist. This is the newest version.⟫"
 }

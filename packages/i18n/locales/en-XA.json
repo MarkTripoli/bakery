@@ -3504,5 +3504,8 @@
   "library.agent.prompts.help": "⟦Ŧĥë ïñšŧŕûçŧïôñš ŧĥïš àĝëñŧ šŧàŕŧš ŵïŧĥ. Ɓàķëŕÿ ðôëš ñôŧ šĥôŵ ŧĥëïŕ ŧëẋŧ ĥëŕë ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "library.agent.skills.help": "⟦Ëẋŧŕà ïñšŧŕûçŧïôñš ŧĥë àĝëñŧ çàñ ļôàð ƒôŕ à ķïñð ôƒ ŵôŕķ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "library.import.problem.stepFieldMissingNamed": "⟦Šŧëþ {number} ïš ɱïššïñĝ à ŕëǫûïŕëð ƒïëļð: {field}. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "library.import.problem.fieldMissingNamed": "⟦Ŧĥë ðëƒïñïŧïôñ ïš ɱïššïñĝ à ŕëǫûïŕëð ƒïëļð: {field}. ŧëšŧ çôþÿ ŧëšŧ ç⟧"
+  "library.import.problem.fieldMissingNamed": "⟦Ŧĥë ðëƒïñïŧïôñ ïš ɱïššïñĝ à ŕëǫûïŕëð ƒïëļð: {field}. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "tasks.coordination.origin.workflowNoVersion": "⟦Ŵôŕķƒļôŵ: {name} ŧëš⟧",
+  "library.workflow.versions.unknownInUse": "⟦Ŧĥàŧ ṽëŕšïôñ ðôëš ñôŧ ëẋïšŧ. Ŧĥïš ïš ŧĥë ṽëŕšïôñ ïñ ûšë. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "library.workflow.versions.unknownNewest": "⟦Ŧĥàŧ ṽëŕšïôñ ðôëš ñôŧ ëẋïšŧ. Ŧĥïš ïš ŧĥë ñëŵëšŧ ṽëŕšïôñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧"
 }

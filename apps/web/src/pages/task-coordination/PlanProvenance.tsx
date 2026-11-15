@@ -1,8 +1,19 @@
+import type { ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import type { CoordinationPlanResponse } from "../../api/client.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { planOrigin, shortId } from "./model.ts";
+
+/**
+ * The text with a break opportunity every few characters of an unbroken run,
+ * so a long name wraps inside its line instead of widening the page.
+ */
+function breakable(text: string): ReactNode[] {
+  return text.split(/(\S{24})/).flatMap((part, index) =>
+    index % 2 === 1 ? [part, <wbr key={index} />] : [part]
+  );
+}
 
 /**
  * Where the plan came from: origin (ad hoc, saved workflow, or a ticket the
@@ -38,12 +49,16 @@ export function PlanProvenance(
   const label = origin.kind === "ad_hoc"
     ? t("tasks.coordination.origin.adHoc")
     : origin.kind === "saved_workflow"
-    ? t("tasks.coordination.origin.workflow", {
-      name: workflowName ?? shortId(origin.workflowId),
-      version: workflowVersion === undefined
-        ? shortId(origin.workflowVersionId)
-        : String(workflowVersion),
-    })
+    // The version's number, once it is known; its identifier is internal and
+    // is never shown in its place.
+    ? workflowVersion === undefined
+      ? t("tasks.coordination.origin.workflowNoVersion", {
+        name: workflowName ?? shortId(origin.workflowId),
+      })
+      : t("tasks.coordination.origin.workflow", {
+        name: workflowName ?? shortId(origin.workflowId),
+        version: String(workflowVersion),
+      })
     : t("tasks.coordination.origin.ticket", {
       provider: origin.provider,
       reference: origin.reference,
@@ -64,7 +79,7 @@ export function PlanProvenance(
               void navigate({ to: href });
             }}
           >
-            {label}
+            {breakable(label)}
           </UI.Link>
         )}
         {olderVersion && (

@@ -613,6 +613,17 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
               </UI.InlineNotice>
             )
             : null}
+          {viewing !== null && !all.some((version) => version.id === viewing)
+            ? (
+              <UI.InlineNotice tone="information">
+                {translate(
+                  (activeId === null
+                    ? "library.workflow.versions.unknownNewest"
+                    : "library.workflow.versions.unknownInUse") as never,
+                )}
+              </UI.InlineNotice>
+            )
+            : null}
           {dialog === null ? failureNotice : null}
           {noneInUse
             ? (

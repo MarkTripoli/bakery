@@ -114,6 +114,20 @@ for (
       await expect(versionRow(page, 1)).toContainText("Shown above");
     });
 
+    test("an address with a version the agent does not have shows the version in use, and says so", async ({ page }) => {
+      await open(
+        page,
+        WORLD,
+        `/library/agents/${AGENT.id}?version=${uuid(9999)}`,
+      );
+      await expect(page.getByTestId("agent-page")).toContainText(
+        "That version does not exist. This is the version in use.",
+      );
+      await expect(page.getByTestId("agent-details")).toContainText(
+        "Version 2",
+      );
+    });
+
     test("a version with nothing configured says so rather than guessing", async ({ page }) => {
       await open(page, {
         agents: [AGENT],

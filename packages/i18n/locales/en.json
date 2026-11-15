@@ -2342,6 +2342,7 @@
   "tasks.coordination.revision": "Plan, version {revision}",
   "tasks.coordination.origin.adHoc": "Ad hoc",
   "tasks.coordination.origin.workflow": "Workflow: {name}, version {version}",
+  "tasks.coordination.origin.workflowNoVersion": "Workflow: {name}",
   "tasks.coordination.origin.older": "Older version",
   "tasks.coordination.origin.olderHelp": "A newer version is in use for new tasks. This task keeps the one it started with.",
   "tasks.coordination.origin.ticket": "{provider} ticket {reference}",
@@ -3504,5 +3505,7 @@
   "tasks.fingerprint.copy": "Copy",
   "tasks.fingerprint.copied": "Copied",
   "tasks.fingerprint.copyFailed": "Could not copy the fingerprint. Select it and copy it yourself.",
-  "tasks.composer.budgetMinimum": "The smallest budget that works is {amount}."
+  "tasks.composer.budgetMinimum": "The smallest budget that works is {amount}.",
+  "library.workflow.versions.unknownInUse": "That version does not exist. This is the version in use.",
+  "library.workflow.versions.unknownNewest": "That version does not exist. This is the newest version."
 }
