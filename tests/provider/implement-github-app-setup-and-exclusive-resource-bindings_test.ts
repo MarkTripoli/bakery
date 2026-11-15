@@ -668,6 +668,8 @@ Deno.test("repository listing refuses unsafe names, bad pages and provider next 
     fullName: "bakery-org/ok.repo_1",
     private: true,
     archived: false,
+    // The fake page names no default branch: unknown (#65).
+    defaultBranch: null,
     admin: true,
   }]);
   assertEquals(urls, [

@@ -252,7 +252,10 @@ async function scan(
   dependencies: ReconcileDependencies,
   installationId: number,
   signal: AbortSignal,
-): Promise<{ listed: Set<number> } | { incomplete: DiscoveryOutcome }> {
+): Promise<
+  | { listed: Map<number, string | null> }
+  | { incomplete: DiscoveryOutcome }
+> {
   let minted: Awaited<
     ReturnType<ReconcileDependencies["github"]["mintDiscoveryToken"]>
   >;
@@ -281,7 +284,8 @@ async function scan(
   if (minted.kind === "refused") {
     return { incomplete: DiscoveryOutcome.TokenRefused };
   }
-  const listed = new Set<number>();
+  // Each listed repository's default branch (null when GitHub gave none).
+  const listed = new Map<number, string | null>();
   try {
     for (let page = 1; page <= MAX_DISCOVERY_PAGES; page++) {
       const result = await dependencies.github.listInstallationRepositories(
@@ -289,7 +293,9 @@ async function scan(
         page,
         signal,
       );
-      for (const id of result.repositoryIds) listed.add(id);
+      for (const id of result.repositoryIds) {
+        listed.set(id, result.defaultBranches.get(id) ?? null);
+      }
       if (!result.hasNext) return { listed };
     }
     return { incomplete: DiscoveryOutcome.ScanTruncated };
@@ -414,7 +420,7 @@ export async function executeDiscovery(
 async function applyScan(
   transaction: PgTransactionClient,
   claimed: ClaimedDiscovery,
-  listed: ReadonlySet<number>,
+  listed: ReadonlyMap<number, string | null>,
   expectedVersion: number,
   isCurrent: () => boolean,
 ): Promise<{ unavailable: number; restored: number } | null> {
@@ -446,10 +452,12 @@ async function applyScan(
       externalId: string;
       available: boolean;
       generation: number;
+      defaultBranch: string | null;
     }
   >(
     `select id, external_id as "externalId", available,
-       last_discovery_generation as generation
+       last_discovery_generation as generation,
+       capability_snapshot->>'defaultBranch' as "defaultBranch"
        from bakery.integration_resources
       where organization_id = $1 and connection_id = $2
         and kind = 'repository' and archived_at is null
@@ -466,14 +474,29 @@ async function applyScan(
   for (const resource of resources) {
     const present = listed.has(Number(resource.externalId));
     if (present) matched += 1;
-    if (present === resource.available) continue;
+    // #65: the default branch GitHub lists now; an unknown one keeps the old.
+    const branch = present
+      ? listed.get(Number(resource.externalId)) ?? null
+      : null;
+    const branchChanged = branch !== null && branch !== resource.defaultBranch;
+    if (present === resource.available && !branchChanged) continue;
     const updated = await transaction.query<{ version: number }>(
       `update bakery.integration_resources
           set available = $3, last_discovery_generation = $4,
+              capability_snapshot = case when $5::text is null
+                then capability_snapshot
+                else capability_snapshot
+                  || jsonb_build_object('defaultBranch', $5::text) end,
               version = version + 1, updated_at = now()
         where organization_id = $1 and id = $2
         returning version`,
-      [claimed.organizationId, resource.id, present, generation],
+      [
+        claimed.organizationId,
+        resource.id,
+        present,
+        generation,
+        branchChanged ? branch : null,
+      ],
     );
     const version = updated.rows[0]?.version;
     if (version === undefined) throw new StandardError({ code: "INTERNAL" });
