@@ -2357,6 +2357,25 @@ test("the Planning only hint is visible under the switch", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("the Planning only switch never points at a description that is not there", async ({ page }) => {
+  await open(page);
+  await showPlan(page);
+  const toggle = page.getByRole("switch", { name: "Planning only" });
+  await expect(toggle).toBeVisible();
+  const id = await toggle.getAttribute("aria-describedby");
+  if ((page.viewportSize()?.width ?? 1280) <= 743) {
+    // The phone shows no hint, so the switch names no description.
+    expect(id).toBeNull();
+    return;
+  }
+  // Wider layouts: the description is in the page and says what the switch does.
+  expect(id).toBeTruthy();
+  await expect(page.locator(`[id="${id}"]`)).toHaveCount(1);
+  await expect(toggle).toHaveAccessibleDescription(
+    "Stop after the plan. No run starts from this task.",
+  );
+});
+
 test("the artifact panel keeps its facts under Details and reads a patch as text", async ({ page }) => {
   await openRun(page, "completed");
   const pane = page.getByRole("complementary", { name: "Artifact" });
@@ -2389,6 +2408,53 @@ test("still: the task page with a failed run and two artifacts", async ({ page }
   await still(page, "task-page-failed");
 });
 
+/** Scroll every scroller to its end; what is left over is the page scrolling as a whole. */
+async function scrollEverythingToItsEnd(page: Page) {
+  return await page.evaluate(() => {
+    for (const node of Array.from(document.querySelectorAll("*"))) {
+      if (!(node instanceof HTMLElement)) continue;
+      if (
+        /(auto|scroll)/.test(getComputedStyle(node).overflowY) &&
+        node.scrollHeight > node.clientHeight + 1
+      ) node.scrollTop = node.scrollHeight;
+    }
+    const root = document.scrollingElement as HTMLElement;
+    const composer = document.querySelector('[data-ui-region="composer"]');
+    return {
+      overflow: root.scrollHeight - root.clientHeight,
+      scrollTop: root.scrollTop,
+      composerBottom: composer?.getBoundingClientRect().bottom ?? 0,
+      windowHeight: globalThis.innerHeight,
+    };
+  });
+}
+
+for (
+  const [label, width, height] of [["1440", 1440, 900], [
+    "390",
+    390,
+    844,
+  ]] as const
+) {
+  for (const status of ["running", "blocked", "failed", "completed"] as const) {
+    test(`the task page is the window: it never scrolls as a whole (${label}, ${status})`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await openRun(page, status);
+      await expect(page.getByRole("textbox", { name: "Message this task" }))
+        .toBeVisible();
+      await page.waitForTimeout(500);
+      const result = await scrollEverythingToItsEnd(page);
+      // The frame is exactly the window: the document has nothing to scroll,
+      // and the message area ends inside it.
+      expect(result.overflow).toBeLessThanOrEqual(0);
+      expect(result.scrollTop).toBe(0);
+      expect(result.composerBottom).toBeLessThanOrEqual(
+        result.windowHeight + 1,
+      );
+    });
+  }
+}
+
 test("still: the task page at the window top and the very bottom", async ({ page }) => {
   const directory = process.env.BAKERY_STILLS_DIR;
   test.skip(!directory, "BAKERY_STILLS_DIR is not set");
@@ -2408,19 +2474,7 @@ test("still: the task page at the window top and the very bottom", async ({ page
       await expect(page.getByRole("textbox", { name: "Message this task" }))
         .toBeVisible();
       await page.waitForTimeout(800);
-      const scrolled = await page.evaluate(() => {
-        for (const node of Array.from(document.querySelectorAll("*"))) {
-          if (!(node instanceof HTMLElement)) continue;
-          if (
-            /(auto|scroll)/.test(getComputedStyle(node).overflowY) &&
-            node.scrollHeight > node.clientHeight + 1
-          ) node.scrollTop = node.scrollHeight;
-        }
-        const root = document.scrollingElement as HTMLElement;
-        return root.scrollHeight - root.clientHeight;
-      });
-      // The page itself never scrolls: the frame is the window.
-      expect(scrolled).toBeLessThanOrEqual(0);
+      await scrollEverythingToItsEnd(page);
       await page.screenshot({
         path: `${directory}/task-page-window-${label}-${scheme}-bottom.png`,
       });

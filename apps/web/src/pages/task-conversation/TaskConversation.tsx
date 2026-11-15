@@ -662,8 +662,11 @@ export function TaskConversation(
           data-ui-region="plan-sheet"
         >
           <UI.PaneSection ruled>
+            {
+              /* The hint is shown under the stage strip on the wider layouts
+                only, so this switch points at no description. */
+            }
             <UI.Switch
-              aria-describedby="stage-planning-only-hint"
               checked={planningPending ?? task.planningOnly ?? false}
               disabled={planningPending !== null || !online}
               onChange={(event) =>
