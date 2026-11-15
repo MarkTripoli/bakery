@@ -289,6 +289,24 @@ export const WORKFLOW_ACTION_METADATA = Object.freeze(
   } satisfies Record<WorkflowActionName, WorkflowActionMetadata>,
 );
 
+/**
+ * The actions the engine completes itself, in its own pass: no job, no worker,
+ * no agent. Their output is their validated input. An action may only complete
+ * this way when it is named here AND the registry declares it `projection_only`,
+ * so a later registry entry that declares the policy does not start completing
+ * silently: a unit test fails until the entry is added here on purpose.
+ */
+export const ENGINE_PROJECTION_ACTIONS: readonly WorkflowActionName[] = Object
+  .freeze(["delivery.candidate_evidence"] as const);
+
+/** True for an action the engine completes itself. */
+export function isEngineProjectionAction(name: string): boolean {
+  return (ENGINE_PROJECTION_ACTIONS as readonly string[]).includes(name) &&
+    Object.hasOwn(WORKFLOW_ACTION_METADATA, name) &&
+    WORKFLOW_ACTION_METADATA[name as WorkflowActionName].effectPolicy ===
+      "projection_only";
+}
+
 export type WorkflowActionHandler = (
   input: unknown,
 ) => unknown | Promise<unknown>;

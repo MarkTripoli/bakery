@@ -24,6 +24,7 @@ import {
   validateArtifactUpload,
 } from "./bytes.ts";
 import { assertParentVersion } from "./authority.ts";
+import { DRAFT_SOURCE_METADATA_KEYS } from "./draft-source-metadata.ts";
 import { reconcileCoordinationForCommittedOutput } from "../work/coordination-projection.ts";
 
 function assertPublicationAuthority(
@@ -259,7 +260,11 @@ export async function publishArtifact(
     (
       Object.hasOwn(input.metadata, "sourceRepositoryId") ||
       Object.hasOwn(input.metadata, "path") ||
-      Object.hasOwn(input.metadata, "commitSha")
+      Object.hasOwn(input.metadata, "commitSha") ||
+      // Draft provenance is server-derived by draft publication only.
+      DRAFT_SOURCE_METADATA_KEYS.some((key) =>
+        Object.hasOwn(input.metadata as object, key)
+      )
     )
   ) {
     throw new StandardError({ code: "UNPROCESSABLE" });

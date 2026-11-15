@@ -394,6 +394,44 @@ function resolveDeliveryReference(
   }
 }
 
+/**
+ * The `$delivery` references a run's recorded evidence can answer now, keyed by
+ * the field name after `$delivery.` (`headSha`, `checkIds`, `failedChecks`,
+ * `blockingFindings`). A reference whose evidence does not exist yet is left
+ * out, never guessed: a compiled plan reads the object, and a field that is
+ * absent reads as null there. Every value comes from the same resolvers a flat
+ * step input uses, so the two kinds of run agree on what each reference means.
+ */
+export function deliveryFactsFrom(
+  snapshot: unknown,
+  stepOutputs: unknown,
+): Record<string, unknown> {
+  const frozen = recordOf(snapshot);
+  if (frozen === undefined) return {};
+  const resolution: Resolution = {
+    inputs: {},
+    stepOutputs,
+    taskRepositoryId: null,
+    snapshot: frozen,
+  };
+  const prefix = "$delivery.";
+  const facts: Record<string, unknown> = {};
+  for (const reference of Object.values(DELIVERY_REFERENCES)) {
+    try {
+      facts[reference.slice(prefix.length)] = resolveDeliveryReference(
+        reference,
+        resolution,
+      );
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        error.message !== "WORKFLOW_INPUT_UNRESOLVED"
+      ) throw error;
+    }
+  }
+  return facts;
+}
+
 function resolveSnapshotValue(
   value: unknown,
   resolution: Resolution,
