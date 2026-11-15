@@ -3812,5 +3812,12 @@
   "library.editor.empty.title": "This workflow has no version to edit",
   "library.editor.empty.description": "A workflow is edited from its newest version; this one has none yet.",
   "library.editor.offline.title": "You are offline",
-  "library.editor.offline.description": "Bakery will load the workflow when you are back online."
+  "library.editor.offline.description": "Bakery will load the workflow when you are back online.",
+  "library.editor.undo": "Undo",
+  "library.editor.redo": "Redo",
+  "library.editor.addStep": "Add a step",
+  "library.editor.dirty": "Unsaved changes",
+  "library.editor.moveUp": "Move {name} up",
+  "library.editor.moveDown": "Move {name} down",
+  "library.editor.removeStep": "Remove {name}"
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { RouterLink } from "../../app/router-link.tsx";
 import * as UI from "@bakery/ui";
@@ -14,6 +14,14 @@ import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { versionSource } from "./copy-workflow.ts";
 import { stepSummary } from "./step-summary.tsx";
 import { ACTION_LINES, ACTION_TITLES, stepsOf } from "./workflow-state.ts";
+import {
+  canRedo,
+  canUndo,
+  editorReducer,
+  editorStateOf,
+  freeStepId,
+  isDirty,
+} from "./editor-state.ts";
 
 /**
  * The workflow editor (#67, slice 1), the page "Edit" on a workflow opens.
@@ -44,7 +52,21 @@ export function WorkflowEditorPage(
       items[0] ?? null;
   }, [versions.data, workflow.data]);
 
-  const steps = current === null ? [] : stepsOf(current);
+  const versionSteps = useMemo(
+    () => current === null ? [] : stepsOf(current),
+    [current],
+  );
+  const [editor, dispatch] = useReducer(
+    editorReducer,
+    versionSteps,
+    editorStateOf,
+  );
+  // The version being edited changed (another workflow, or the read arrived):
+  // the editor starts from that version's steps again.
+  useEffect(() => {
+    dispatch({ kind: "reset", steps: versionSteps });
+  }, [current?.id, versionSteps]);
+  const steps = editor.steps;
   // A step is named by what it does; an action without a sentence shows its key.
   const stepTitle = (uses: string) => {
     const key = ACTION_TITLES[uses];
@@ -134,32 +156,149 @@ export function WorkflowEditorPage(
         />
         {tab === "steps"
           ? (
-            steps.length === 0
-              ? (
-                <UI.Text variant="muted">
-                  {translate("library.workflow.steps.none" as never)}
-                </UI.Text>
-              )
-              : (
-                <UI.StepList
-                  label={translate("library.editor.steps.label" as never)}
+            <>
+              <UI.Inline gap="compact">
+                <UI.Button
+                  variant="text"
+                  disabled={!canUndo(editor)}
+                  onClick={() => dispatch({ kind: "undo" })}
                 >
-                  {steps.map((step, index) => (
-                    <UI.StepItem
-                      key={step.id}
-                      data-step-id={step.id}
-                      number={index + 1}
-                      status="upcoming"
-                      statusLabel={translate(
-                        "library.workflow.steps.number" as never,
-                        { n: index + 1 },
-                      )}
-                      title={stepTitle(step.uses)}
-                      summary={stepSummary(stepLine(step.uses), undefined)}
-                    />
-                  ))}
-                </UI.StepList>
-              )
+                  {translate("library.editor.undo" as never)}
+                </UI.Button>
+                <UI.Button
+                  variant="text"
+                  disabled={!canRedo(editor)}
+                  onClick={() => dispatch({ kind: "redo" })}
+                >
+                  {translate("library.editor.redo" as never)}
+                </UI.Button>
+                <UI.Button
+                  variant="secondary"
+                  onClick={() =>
+                    dispatch({
+                      kind: "add",
+                      step: {
+                        id: freeStepId(editor, "step"),
+                        uses: "task.brief",
+                        agentVersionId: null,
+                      },
+                    })}
+                >
+                  {translate("library.editor.addStep" as never)}
+                </UI.Button>
+              </UI.Inline>
+              {steps.length === 0
+                ? (
+                  <UI.Text variant="muted">
+                    {translate("library.workflow.steps.none" as never)}
+                  </UI.Text>
+                )
+                : (
+                  <UI.StepList
+                    label={translate("library.editor.steps.label" as never)}
+                  >
+                    {steps.map((step, index) => (
+                      /* The row owns the keyboard: Alt+Arrow moves the step it
+                         is pressed on, which is how a keyboard reorders a row
+                         in the design (#67). The buttons do the same move for
+                         anyone using a pointer. */
+                      <div
+                        key={step.id}
+                        role="group"
+                        data-step-row={step.id}
+                        onKeyDown={(event) => {
+                          if (!event.altKey || !canManage) return;
+                          if (event.key === "ArrowUp" && index > 0) {
+                            event.preventDefault();
+                            dispatch({
+                              kind: "move",
+                              id: step.id,
+                              index: index - 1,
+                            });
+                          } else if (
+                            event.key === "ArrowDown" &&
+                            index < steps.length - 1
+                          ) {
+                            event.preventDefault();
+                            dispatch({
+                              kind: "move",
+                              id: step.id,
+                              index: index + 1,
+                            });
+                          }
+                        }}
+                      >
+                        <UI.StepItem
+                          data-step-id={step.id}
+                          number={index + 1}
+                          status="upcoming"
+                          statusLabel={translate(
+                            "library.workflow.steps.number" as never,
+                            { n: index + 1 },
+                          )}
+                          title={stepTitle(step.uses)}
+                          summary={stepSummary(stepLine(step.uses), undefined)}
+                          action={canManage
+                            ? (
+                              <UI.Inline gap="compact">
+                                <UI.IconButton
+                                  label={translate(
+                                    "library.editor.moveUp" as never,
+                                    { name: stepTitle(step.uses) },
+                                  )}
+                                  variant="compact"
+                                  disabled={index === 0}
+                                  onClick={() =>
+                                    dispatch({
+                                      kind: "move",
+                                      id: step.id,
+                                      index: index - 1,
+                                    })}
+                                >
+                                  <UI.IconGlyph
+                                    name="chevron-up"
+                                    size="small"
+                                  />
+                                </UI.IconButton>
+                                <UI.IconButton
+                                  label={translate(
+                                    "library.editor.moveDown" as never,
+                                    { name: stepTitle(step.uses) },
+                                  )}
+                                  variant="compact"
+                                  disabled={index === steps.length - 1}
+                                  onClick={() =>
+                                    dispatch({
+                                      kind: "move",
+                                      id: step.id,
+                                      index: index + 1,
+                                    })}
+                                >
+                                  <UI.IconGlyph
+                                    name="chevron-down"
+                                    size="small"
+                                  />
+                                </UI.IconButton>
+                                <UI.IconButton
+                                  label={translate(
+                                    "library.editor.removeStep" as never,
+                                    { name: stepTitle(step.uses) },
+                                  )}
+                                  variant="destructive"
+                                  onClick={() =>
+                                    dispatch({ kind: "remove", id: step.id })}
+                                >
+                                  <UI.IconGlyph name="close" size="small" />
+                                </UI.IconButton>
+                              </UI.Inline>
+                            )
+                            : undefined}
+                        />
+                      </div>
+                    ))}
+                  </UI.StepList>
+                )}
+            </>
           )
           : (
             <UI.Stack gap="compact" data-testid="editor-code">
@@ -190,11 +329,19 @@ export function WorkflowEditorPage(
           "library.editor.version" as never,
           { version: current.revision },
         )}
-        summary={canManage ? undefined : (
-          <UI.Badge tone="neutral">
-            {translate("library.editor.readOnly" as never)}
-          </UI.Badge>
-        )}
+        summary={canManage
+          ? (isDirty(editor)
+            ? (
+              <UI.Badge tone="warning">
+                {translate("library.editor.dirty" as never)}
+              </UI.Badge>
+            )
+            : undefined)
+          : (
+            <UI.Badge tone="neutral">
+              {translate("library.editor.readOnly" as never)}
+            </UI.Badge>
+          )}
       />
       {back}
       {body}

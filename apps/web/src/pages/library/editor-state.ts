@@ -25,6 +25,8 @@ export type EditorAction =
   | { readonly kind: "remove"; readonly id: string }
   /** Move the step to `index` in the list it ends up in; clamped, never lost. */
   | { readonly kind: "move"; readonly id: string; readonly index: number }
+  /** Start again from these steps: a different version is being edited. */
+  | { readonly kind: "reset"; readonly steps: readonly EditorStep[] }
   | { readonly kind: "undo" }
   | { readonly kind: "redo" };
 
@@ -108,6 +110,12 @@ export function editorReducer(
       }
       return changed(state, steps);
     }
+    case "reset":
+      return {
+        steps: [...action.steps],
+        past: [],
+        future: [],
+      };
     case "undo": {
       if (state.past.length === 0) return state;
       const previous = state.past[state.past.length - 1];

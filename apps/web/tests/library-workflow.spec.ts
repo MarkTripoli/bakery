@@ -560,6 +560,47 @@ for (
       await shot(page, "workflow-editor-steps-and-code");
     });
 
+    test("the steps can be moved, removed and added, and undone", async ({ page }) => {
+      await openEditor(page);
+      const rows = () => page.locator("[data-step-row]");
+      const order = async () =>
+        await page.locator("[data-step-row] [data-step-id]").evaluateAll(
+          (nodes) => nodes.map((node) => node.getAttribute("data-step-id")),
+        );
+      expect(await order()).toEqual(["brief", "implement", "review"]);
+
+      // Down moves the first step one place, and the editor says it is unsaved.
+      await page
+        .getByRole("button", { name: "Move Write the task brief down" })
+        .click();
+      expect(await order()).toEqual(["implement", "brief", "review"]);
+      await expect(page.getByText("Unsaved changes")).toBeVisible();
+
+      // Alt+Arrow does the same move from the keyboard.
+      await page.locator("[data-step-row]").nth(1).press("Alt+ArrowDown");
+      expect(await order()).toEqual(["implement", "review", "brief"]);
+
+      // Removing a step takes it out.
+      await page.getByRole("button", { name: "Remove Review" }).click();
+      expect(await order()).toEqual(["implement", "brief"]);
+      await expect(rows()).toHaveCount(2);
+
+      // Undo walks back one change at a time, all the way to the version.
+      await page.getByRole("button", { name: "Undo" }).click();
+      expect(await order()).toEqual(["implement", "review", "brief"]);
+      await page.getByRole("button", { name: "Undo" }).click();
+      await page.getByRole("button", { name: "Undo" }).click();
+      expect(await order()).toEqual(["brief", "implement", "review"]);
+      await expect(page.getByText("Unsaved changes")).toHaveCount(0);
+
+      // Redo puts the last change back.
+      await page.getByRole("button", { name: "Redo" }).click();
+      expect(await order()).toEqual(["implement", "brief", "review"]);
+      await page.getByRole("button", { name: "Add a step" }).click();
+      await expect(rows()).toHaveCount(4);
+      await shot(page, "workflow-editor-editing");
+    });
+
     test("a member who may not change workflows sees the editor read only", async ({ page }) => {
       await libraryFixture(page, { ...WORLD, role: "member" });
       await page.goto(`/library/workflows/${WORKFLOW.id}`);

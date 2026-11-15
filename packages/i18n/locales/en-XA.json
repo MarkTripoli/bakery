@@ -3760,5 +3760,12 @@
   "library.editor.empty.title": "⟦Ŧĥïš ŵôŕķƒļôŵ ĥàš ñô ṽëŕšïôñ ŧô ëðïŧ ŧëšŧ çôþÿŧ⟧",
   "library.editor.empty.description": "⟦À ŵôŕķƒļôŵ ïš ëðïŧëð ƒŕôɱ ïŧš ñëŵëšŧ ṽëŕšïôñ; ŧĥïš ôñë ĥàš ñôñë ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "library.editor.offline.title": "⟦Ÿôû àŕë ôƒƒļïñë ŧëš⟧",
-  "library.editor.offline.description": "⟦Ɓàķëŕÿ ŵïļļ ļôàð ŧĥë ŵôŕķƒļôŵ ŵĥëñ ÿôû àŕë ƀàçķ ôñļïñë. ŧëšŧ çôþÿ ŧëšŧ çô⟧"
+  "library.editor.offline.description": "⟦Ɓàķëŕÿ ŵïļļ ļôàð ŧĥë ŵôŕķƒļôŵ ŵĥëñ ÿôû àŕë ƀàçķ ôñļïñë. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "library.editor.undo": "⟦Ûñðô⟧",
+  "library.editor.redo": "⟦Ŕëðô⟧",
+  "library.editor.addStep": "⟦Àðð à šŧëþ ŧ⟧",
+  "library.editor.dirty": "⟦Ûñšàṽëð çĥàñĝëš ŧëš⟧",
+  "library.editor.moveUp": "⟦Ṁôṽë {name} ûþ ŧë⟧",
+  "library.editor.moveDown": "⟦Ṁôṽë {name} ðôŵñ ŧëš⟧",
+  "library.editor.removeStep": "⟦Ŕëɱôṽë {name} ŧë⟧"
 }
