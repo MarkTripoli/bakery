@@ -41,13 +41,19 @@ documents, steps, sessions and rules; it does not know repositories, pull
 requests or checks. Software delivery is one module and template pack beside
 the kernel (O16), not part of it.
 
-**Agent-first.** Everything in Bakery is agent-first. Anything a person can do,
-an agent can do through the same operations (API, CLI or MCP), under the same
-grants, budgets and audit. There are no person-only operations; where a rule
-below names a person, it names a default holder of a grant, which an agent can
-hold too. Where an action needs a human by policy (for example a decision a
-workflow has not granted to agents, section 9), that is a grant setting, not a
-missing operation.
+**Agent-first parity.** Everything a person can do in Bakery, an agent can do
+through the same operations (API, CLI or MCP), subject to the same grants,
+budgets and audit. There is one operation registry, and the web app is one
+client of it among several. An agent's action is attributed to the principal it
+acts for (the person or start that began the run, or the seat's own identity) and
+is always labelled as an agent's action (O50). Four things stay with people on
+purpose (O51): entering secrets and giving consent, administering who holds
+authority, irreversible destruction (an agent prepares, a person confirms), and
+nothing for oneself. Some agent powers are off by default and switched on per
+workflow or seat (O52): decisions, publishing, "Use this version", switching on
+a start, widening its own file scope, and steering other agents. Where a rule
+below names a person, read it as the default holder of a grant an agent can also
+hold, unless it is one of the four exceptions. Section 18 has the audit.
 
 **One system.** New ways of working become plug-ins or new combinations of
 existing pieces. They never need an architecture rewrite.
@@ -366,8 +372,9 @@ count, set in the loop's panel.
   diagram. The layout runs top to bottom, which replaces the approved
   left-to-right Paper reference; #67's visual check needs a new approved
   reference.
-- Agents author through the same operations as people: drafts, edits,
-  validation, publish and "Use this version", within the same grants.
+- Agents author through the editor's own operations: drafts, edits and
+  validation by default; publish and "Use this version" only where a workflow
+  or seat grants them (O52).
 - Publish is never disabled. Pressed with problems, it lists them with "Show me"
   beside each. "Publish and use" is the primary button, with "Publish only" as a
   secondary option.
@@ -570,7 +577,7 @@ mapping from port verbs to tools.
 
 | Concern | Rule |
 | --- | --- |
-| Registering | A server definition and connections. An agent with the grant registers and configures them through the same operations as an Admin. Global catalog of known servers (no credentials); Organization connections registered by an Admin; Personal connections usable in a member's own runs. A personal connection on a shared workflow needs the owner's explicit use grant, is labelled as acting for that person, and is refused for unattended starts (O27) |
+| Registering | A server definition and connections. An agent with the grant registers a server, drafts a connection and requests tools; entering the secret and the consent step stay with a person (O51). Global catalog of known servers (no credentials); Organization connections registered by an Admin; Personal connections usable in a member's own runs. A personal connection on a shared workflow needs the owner's explicit use grant, is labelled as acting for that person, and is refused for unattended starts (O27) |
 | Pinning | Server definition revision, capability snapshot digest (names, schemas, descriptions) and, for local servers, the launch artifact digest. A workflow version pins the snapshot. Drift on a used tool refuses admission and shows "update available"; nothing updates on its own |
 | Credentials | Only through the broker; no credential enters the session |
 | Grants | Exact tool names against the pinned schema, never wildcards: tools an Admin enabled, the subset a workflow, agent, seat or step binds, and what the run principal may invoke. A grant may fix arguments. Reviewer-role sessions get read tools only unless the definition says otherwise |
@@ -659,7 +666,7 @@ Bakery's storage looks and navigates like a file system, though it is not
 literally one: a virtual, hierarchical tree over the object store, with folders,
 paths and sensible default top-level areas. Users, agents, the API and CLI, and
 the UI navigate the same tree. Agents browse by default within their grants,
-and can upload and write files (O39). Underneath, bytes stay immutable and
+and can upload and write files (O39, section 17.6). Underneath, bytes stay immutable and
 content-addressed, runs pin versions and never paths, and every area has a
 policy for who writes, what is kept and what may be deleted. This is the owner's
 callout on O28, designed in section 11 of `one-system.md`.
@@ -787,7 +794,66 @@ somewhere to attach.
 - **Defaults** (O42): 20 versions kept in working areas, 30 days in trash, 30
   days for scratch, 5 GiB maximum file size; all are organization settings.
 
-### 17.6 Slices
+### 17.6 Agents in the tree (O39, O44 to O49, O53)
+
+An agent is not limited to its step's mount. By default it can browse and write
+as a person in its position could, cut down by the grants of the principal it
+acts for.
+
+| Area | Read by default | Write by default |
+| --- | --- | --- |
+| Declared inputs and context directory | Yes, pinned | No |
+| The step's outputs and writable workspace | Yes | Yes |
+| The work item's folder | Yes | Free-form files under `runs/<run>/<step>/`, and `attachments`. Named documents only through a declared output |
+| The rest of the project (other items' artifacts, `assets`, `workspaces`) | Yes | `assets` and `workspaces`, under the one-writer rule |
+| `/shared` | Yes | Only with a grant |
+| `/library` | Published items the principal may read | Not by file write; drafts through the library's own operations |
+| `/connections/<connection>` | Only connections the definition binds | Only as a keyed external effect |
+| `/users/<member>`, including the starter's own | No, unless that member grants it | No |
+| `/trash`, `/system` | No | No |
+
+These defaults are O44 (read) and O45 (write). A definition, seat or step may
+carry a `files` section to change them:
+
+- **Narrow freely.** `read: [inputs]` makes a **sealed step** that sees only its
+  pinned inputs. Sealed steps are available to any definition and are the
+  default for evaluation runs (O53). `write: [outputs]` stops side-writes.
+- **Widen only with a grant** from someone who manages the target folder,
+  recorded, pinned with the version and revocable. Widening its own file scope
+  is off by default (O52).
+- **Never beyond the principal.** Widening adds scope, not authority.
+
+**Reads (O46).** Each file an agent opens joins the step's **read set** (entry,
+version, digest, feed position). A read returns the version current when the
+step was admitted, so a retry sees the same tree; the agent's own writes are
+visible to it. The latest version is available on request and recorded as such.
+
+**Writes.** Three ways, all producing ordinary versions: declared outputs (the
+only writes the engine can branch on, K3), the workspace captured at step end,
+and Bakery Files (the gateway's tools, the `bakery` CLI and the API: make a
+folder, upload, write, copy, move, rename, delete to trash).
+
+| Topic | Rule |
+| --- | --- |
+| Versioning | `If-Match` on the version read; a conflict returns to the agent. Identical bytes change nothing, so a retried step is idempotent |
+| Limits (O49) | 2 GiB and 2,000 files per step by default, as organization settings, counted with the step's bounds; quotas apply; exceeding one is a typed fault, never truncation |
+| Large binaries | Staged, digest-checked, probed, then current. A step cannot complete while a declared output is staged or invalid |
+| Recording (O48) | The step's **write set** (entry, operation, previous and new version), feed items, provenance and audit. Writes inside Bakery are not external effects; writes to outside storage are, keyed and reconciled |
+| Undo | "Revert this step's writes" restores previous versions and trashes created files; a failed attempt's stray writes are reverted the same way |
+| Kinds | A file written by path has a kind only when its folder or the write names one; then the validator runs before it becomes current |
+
+A later step pins a written version either as a wired declared output or by
+opening it, which records it in that step's read set. Only declared outputs with
+a kind yield facts for control flow.
+
+**Reviewer isolation (O47).** A reviewer-role session never receives, in a read,
+listing or search result, a writer-private kind, a transcript, or any version
+written by a writer step of the same run tree, unless it is a declared output of
+a kind readable by anyone or the workspace revision under review. A reviewer
+writes only its declared outputs. These filters use version provenance, not
+folder location or name.
+
+### 17.7 Slices
 
 | Slice | Delivers |
 | --- | --- |
@@ -805,7 +871,7 @@ somewhere to attach.
 F2 and F3 are useful without large files and can ship before F1. F1 to F4 are
 what the video factory needs.
 
-### 17.7 Decisions O34 to O43
+### 17.8 Decisions O34 to O43
 
 - **O34:** a path is a name, not an identity.
 - **O35:** project-first layout with `/shared`, `/library`, `/users`,
@@ -822,3 +888,102 @@ what the video factory needs.
 - **O41:** personal folders are owner only.
 - **O42:** default limits as in 17.5, all organization settings.
 - **O43:** deduplication within one organization only.
+
+## 18. Agent-first parity audit (O44 to O53)
+
+### 18.1 The mechanism
+
+Bakery has one typed operation registry shared by REST and its MCP server, and a
+scope never promotes the principal. What is missing is a way for an agent
+**inside a session** to use it: an outside MCP client acts as a person, and the
+worker's credential authenticates only the enrolled host and its protocol
+operations. The fix is one credential and one connection:
+
+- **A session operation credential**, bound to the attempt's lease and fence, to
+  the principal the agent acts for (O50) and to the definition's scopes. It dies
+  with the lease. Every call is audited with both identities: the principal and
+  the session that made the call.
+- **Bakery as a connection to itself.** The tool gateway (section 15.4) offers
+  Bakery's own operations as tools beside outside connections. The `bakery` CLI
+  and the API inside the session use the same credential. Nothing new is
+  exposed: these are the operations the web app already calls.
+
+Budgets apply as to a person's actions. A call that starts work reserves from the
+parent run or the principal's allowance, and the engine checks permission,
+budget, count and depth before it acts.
+
+### 18.2 The audit
+
+| Capability | An agent today | With this design |
+| --- | --- | --- |
+| Browse and read files | Cannot read any artifact | On by default within its scope; every read recorded (17.6) |
+| Upload, create and edit files and folders | Publishes its own attempt's artifacts only | Outputs, workspace and Bakery Files (17.6) |
+| Search | Not available to anyone | The same search, same permission filter |
+| Create and edit workflows | The coordinator cannot | Drafts with the editor's own operations; publish and "Use this version" where granted |
+| Create and edit skills, agents and document kinds | None from a session | Drafts by default; publishing where granted. A run is pinned, so an agent cannot change itself mid-run |
+| Start runs and spawn work | None | Where authorized, with permission, budget, count and depth checks |
+| Steer a session; pause, cancel, retry runs | None | Where authorized, recorded exactly like a person's |
+| Approve and decide | Human-only in code | Only where a workflow grants it, and never on its own output |
+| Ask a person a question | Coordinator only, to all participants | Any step, addressed to a role or audience the definition names |
+| Create and update work items; comment on documents | Child tasks only through split | The same operations as people |
+| Manage connections | None | Register a server, draft a connection, request tools; secret and consent stay with a person |
+| Manage starts | Automation subjects are refused grants | Where granted; off by default |
+| Watch a session, read a transcript | None | With `session:observe` (for example a watchdog or PM seat); never for a reviewer-role step |
+| Raise a limit or budget | n/a | Only for another role's work, where granted; never its own |
+| Members, roles, organization, billing | None | Stays with people |
+| Purge bytes, delete a project or organization, revoke a machine | None | An agent prepares; a person confirms |
+
+### 18.3 The deliberate exceptions (O51)
+
+| Exception | Why |
+| --- | --- |
+| Secrets and consent. An agent prepares the connection and asks; a person completes it | A secret must never enter model context, and consent binds a person's or an organization's legal identity |
+| Who holds authority: members, roles, organizations, billing | These define every other grant |
+| Irreversible destruction: purge, deleting a project or organization, revoking a machine. An agent prepares; a person confirms | It cannot be undone, and the write-set undo does not cover it |
+| Nothing for oneself: an agent cannot grant itself access, raise its own limit or budget, approve its own output, or steer its own reviewer | Separation of duties. It binds people too |
+
+Everything else is a matter of grants. The off-by-default powers (O52) are on in
+Bakery templates that need them and always labelled as an agent's action.
+
+### 18.4 Earlier wording, read through parity
+
+| Where | Read it as |
+| --- | --- |
+| "A person accepts a proposal, presses Run and saves" (describe it, E6 plan decisions) | A person by default; an agent with the grant may accept, run and save. Publishing and switching on a start are off by default |
+| "Decision rows carrying authority come only from people" | From people, or from an agent the workflow explicitly authorized, labelled as such |
+| "A human can reorder an inbox; agents cannot" (factory modes) | A seat with the grant can |
+
+### 18.5 Slices
+
+| Slice | Adds |
+| --- | --- |
+| P1 | Session operation credential; Bakery as a connection in the gateway, read operations first: browse, search, read work items, runs and library items from inside a session |
+| P2 | Write operations for agents: files, folders, comments, work items, connection drafts |
+| P3 | Library drafts by agents: workflows, skills, agents and document kinds through the editor's own operations |
+| P4 | Spawn, steer, run control and granted decisions, with count, depth and budget checks and the "agent's action" label |
+| P5 | The `bakery` CLI in the session image |
+
+### 18.6 Decisions O44 to O53
+
+- **O44:** default read scope is the project tree, `/shared`, `/library` and the
+  connections the definition binds; never a personal folder without that
+  member's grant.
+- **O45:** default write scope is outputs, workspace, the step's own run folder,
+  `attachments`, and the project's `assets` and `workspaces`; `/shared` with a
+  grant; the library only through library operations.
+- **O46:** a browsing read returns the version current at step admission; the
+  latest on request; both recorded.
+- **O47:** reviewers never see side-writes of the work under review and write
+  only their declared outputs, enforced from provenance.
+- **O48:** writes inside Bakery go to the step's write set, with undo; the effect
+  ledger is for writes that leave Bakery.
+- **O49:** 2 GiB and 2,000 files per step by default, as organization settings.
+- **O50:** an agent acts with the run's principal or the seat's own identity,
+  always labelled as an agent's action.
+- **O51:** exactly four exceptions: secrets and consent, who holds authority,
+  irreversible destruction, nothing for oneself.
+- **O52:** off by default, granted per workflow or seat: decisions, publishing,
+  "Use this version", switching on a start, widening one's own file scope,
+  steering other agents.
+- **O53:** sealed steps are available to any definition and the default for
+  evaluation runs.

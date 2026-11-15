@@ -105,4 +105,16 @@ This file records what the product owner decided in conversation with their orch
 
 **Principle: EVERYTHING in Bakery is agent-first.** Anything a person can do, an agent can do through the same operations (API, CLI or MCP), under the same grants, budgets and audit. The architect is adding a parity audit.
 
+**Agent-first parity (one-system.md §0.5, §11.6, §12): O44–O53 all approved as recommended.**
+- O44: default read scope is the project tree, /shared, /library and bound connections. Personal folders (including the starter's own) need that member's grant.
+- O45: default write scope is outputs, workspace, the step's own run folder, attachments, and the project's assets and workspaces. /shared needs a grant.
+- O46: a browsing read returns the version current at step admission. The latest is available on request. Both are recorded.
+- O47: reviewers never see side-writes of the work under review, and write only their declared outputs.
+- O48: internal writes go to a write set with undo. The effect ledger is only for writes that leave Bakery.
+- O49: each step may write up to 2 GiB and 2,000 files by default.
+- O50: an agent acts with the run's principal or the seat's own identity, always labelled as an agent's action.
+- O51: parity has exactly four exceptions: secrets and consent, who holds authority, irreversible destruction (an agent prepares, a person confirms), and nothing for oneself.
+- O52: these powers are off by default and can be granted per workflow or seat: decisions, publishing, "Use this version", switching on a start, widening one's own file scope, and steering other agents.
+- O53: sealed steps are available to any definition and are the default for evaluation runs.
+
 There are no pending owner decisions as of 14 November 2026.
