@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { expect, test, type WebSocketRoute } from "@playwright/test";
 import {
   ARTIFACT,
@@ -13,6 +14,22 @@ import {
 } from "./artifact-page-fixture.ts";
 
 const NEWEST_VERSION_ID = "00000000-0000-4000-8000-000000000109";
+
+/**
+ * The line the page shows while its event socket is down, read from the English
+ * catalog so a rewording of it cannot leave this test asserting a stale copy.
+ */
+const RECONNECTING_DESCRIPTION = (() => {
+  const catalog = JSON.parse(
+    readFileSync(
+      new URL("../../../../packages/i18n/locales/en.json", import.meta.url),
+      "utf8",
+    ),
+  ) as Record<string, string>;
+  const line = catalog["artifact.live.reconnectingDescription"];
+  if (!line) throw new Error("artifact.live.reconnectingDescription is gone");
+  return line;
+})();
 
 type Stream = {
   readonly subscribes: Record<string, unknown>[];
@@ -170,9 +187,7 @@ test("a dropped event socket shows the reconnecting notice until the stream resu
 
   stream.drop();
   await expect(page.getByText("Reconnecting", { exact: true })).toBeVisible();
-  await expect(
-    page.getByText(/Showing the last durable state\. Live updates resume/),
-  ).toBeVisible();
+  await expect(page.getByText(RECONNECTING_DESCRIPTION)).toBeVisible();
   await expect(page.getByRole("button", { name: "Retry connection" }))
     .toBeVisible();
   // The page keeps serving the last verified revision while it reconnects.

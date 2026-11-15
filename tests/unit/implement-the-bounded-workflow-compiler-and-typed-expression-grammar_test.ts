@@ -829,7 +829,7 @@ Deno.test("root and structural diagnostics carry exact paths", async () => {
     [
       "missing steps",
       { apiVersion: "bakery.dev/v1", kind: "workflow" },
-      [{ path: "", code: "field_missing" }],
+      [{ path: "/steps", code: "field_missing" }],
     ],
     [
       "steps not an array",
@@ -869,7 +869,7 @@ Deno.test("root and structural diagnostics carry exact paths", async () => {
     [
       "missing node id",
       workflow([{ uses: "workflow.noop" }]),
-      [{ path: "/steps/0", code: "field_missing" }],
+      [{ path: "/steps/0/id", code: "field_missing" }],
     ],
     [
       "cancel policy",
@@ -1045,7 +1045,22 @@ Deno.test("workflow inputs reject bad names, types and secrets at the container"
     [
       "required must be explicit",
       withInputs({ target: { type: "string" } }),
-      [{ path: "/inputs/target", code: "field_missing" }],
+      [{ path: "/inputs/target/required", code: "field_missing" }],
+    ],
+    [
+      "a missing type is missing",
+      withInputs({ target: { required: true } }),
+      [{ path: "/inputs/target/type", code: "field_missing" }],
+    ],
+    [
+      "a present type of the wrong kind is invalid, not missing",
+      withInputs({ target: { type: 5, required: true } }),
+      [{ path: "/inputs/target/type", code: "field_invalid" }],
+    ],
+    [
+      "a present required of the wrong kind is invalid, not missing",
+      withInputs({ target: { type: "string", required: "yes" } }),
+      [{ path: "/inputs/target/required", code: "field_invalid" }],
     ],
     [
       "inputs not an object",
@@ -1492,7 +1507,7 @@ Deno.test("conditions compile to data nodes and report parser codes", async () =
         delete branch["when"];
         return { ...node, branch };
       })),
-      [{ path: "/steps/0/branch", code: "field_missing" }],
+      [{ path: "/steps/0/branch/when", code: "field_missing" }],
     ],
     [
       "repeat until syntax",
@@ -1656,7 +1671,7 @@ Deno.test("branch outputs and export-name conflicts", async () => {
         id: "choose",
         branch: { when: "$input.target == 1", else: [noop("x1")] },
       }]),
-      [{ path: "/steps/0/branch", code: "field_missing" }],
+      [{ path: "/steps/0/branch/then", code: "field_missing" }],
     ],
     [
       "branch output named like an arm child",
@@ -1897,7 +1912,7 @@ Deno.test("wait and parallel shapes", async () => {
           branches: [lane("lane_a", { steps: undefined }), lane("lane_b")],
         }),
       ]),
-      [{ path: "/steps/0/parallel/branches/0", code: "field_missing" }],
+      [{ path: "/steps/0/parallel/branches/0/steps", code: "field_missing" }],
     ],
     [
       "lane needs not a list",

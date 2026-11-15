@@ -447,6 +447,9 @@ export const DiscoveredRepositorySchema = z.object({
   fullName: RepositoryFullNameSchema,
   private: z.boolean().describe("Whether the repository is private."),
   archived: z.boolean().describe("Whether the repository is archived."),
+  defaultBranch: z.string().min(1).max(255).nullable().default(null).describe(
+    "The repository's default branch name when GitHub reported it (#65), else null.",
+  ),
 }).describe(
   "Identity of one administered repository; unknown fields are dropped, and no token or provider URL is kept.",
 );
@@ -774,12 +777,13 @@ export async function bindConnection(
        select resource.id, $1, $2, $3, 'repository', resource.external_id,
          resource.display_name, resource.safe_url,
          jsonb_build_object('private', resource.private,
-           'archived', resource.archived),
+           'archived', resource.archived,
+           'defaultBranch', resource.default_branch),
          1
          from unnest($4::uuid[], $5::text[], $6::text[], $7::text[],
-           $8::boolean[], $9::boolean[])
+           $8::boolean[], $9::boolean[], $10::text[])
            as resource(id, external_id, display_name, safe_url, private,
-             archived)`,
+             archived, default_branch)`,
       [
         attempt.organizationId,
         created.id,
@@ -790,6 +794,7 @@ export async function bindConnection(
         repositories.map((repository) => gitHubRepositoryUrl(repository)),
         repositories.map((repository) => repository.private),
         repositories.map((repository) => repository.archived),
+        repositories.map((repository) => repository.defaultBranch ?? null),
       ],
     );
   }
@@ -1033,6 +1038,7 @@ async function discoverRepositories(
       fullName: repository.fullName,
       private: repository.private,
       archived: repository.archived,
+      defaultBranch: repository.defaultBranch,
     }));
   }
   return discovered;

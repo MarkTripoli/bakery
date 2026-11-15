@@ -28,6 +28,10 @@
     "path": "/library/built-in/$presetId"
   },
   {
+    "id": "library-agent",
+    "path": "/library/agents/$agentId"
+  },
+  {
     "id": "issues",
     "path": "/issues"
   },
@@ -78,6 +82,10 @@
   {
     "id": "projects-onboarding",
     "path": "/projects/onboarding"
+  },
+  {
+    "id": "repository",
+    "path": "/projects/repositories/$repositoryId"
   },
   {
     "id": "repository-rules",

@@ -1,4 +1,6 @@
 import { assert, assertEquals, assertThrows } from "@std/assert";
+import { compileWorkflowDocumentDetailed } from "../../packages/contracts/src/workflow-compiler/compile.ts";
+import { defaultWorkflowCompilerCatalog } from "../../packages/contracts/src/workflow-compiler/default-catalog.ts";
 import {
   coordinationOriginKey,
   CoordinationPlanOriginSchema,
@@ -26,10 +28,18 @@ import {
 
 // --- Saved-workflow mapper ---------------------------------------------------
 
-const node = () => findParallelNode(fourLaneWorkflowDocument(), "delivery");
+/** The authored fixture compiled as from-workflow compiles it (#66), then its node. */
+const node = async () => {
+  const { result } = await compileWorkflowDocumentDetailed(
+    fourLaneWorkflowDocument(),
+    { catalog: defaultWorkflowCompilerCatalog() },
+  );
+  assert(result.ok, result.ok ? "" : JSON.stringify(result.diagnostics));
+  return findParallelNode(result.document, "delivery");
+};
 
-Deno.test("the mapper turns a parallel node into the spec an ad hoc request would send", () => {
-  const mapped = mapParallelNodeToPlanSpec(node());
+Deno.test("the mapper turns a parallel node into the spec an ad hoc request would send", async () => {
+  const mapped = mapParallelNodeToPlanSpec(await node());
   assertEquals(mapped, fourLaneSpec());
   assertEquals(
     validateCoordinationStructure(CoordinationPlanSpecSchema.parse(mapped)),

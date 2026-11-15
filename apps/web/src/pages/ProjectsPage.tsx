@@ -119,12 +119,8 @@ export function ProjectsPage() {
   };
   const openRepository = (repository: RepositoryResponse) =>
     void navigate({
-      to: "/projects/onboarding",
-      search: {
-        application: repository.applicationId,
-        repository: repository.id,
-        profile: undefined,
-      },
+      to: "/projects/repositories/$repositoryId",
+      params: { repositoryId: repository.id },
     });
 
   const addRepository = async (draft: AddRepositoryDraft) => {

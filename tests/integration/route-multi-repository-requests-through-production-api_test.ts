@@ -1,9 +1,11 @@
 import { assert, assertEquals } from "@std/assert";
 import {
   type CoordinationFixture,
+  fourLaneWorkflowDocument,
   openCoordinationFixture,
   threeLaneSpec,
 } from "../helpers/coordination-fixture.ts";
+import { createFromWorkflow, planOf } from "../helpers/coordination-lanes.ts";
 
 type Lane = { laneKey: string; childTaskId: string; status: string };
 
@@ -164,3 +166,74 @@ async function startRun(
   assertEquals(response.status, 201, await response.clone().text());
   return await response.json();
 }
+
+Deno.test("#66: a workflow authored, versioned and published through the API becomes a plan", async () => {
+  const fx = await openCoordinationFixture();
+  try {
+    await fx.seedAliases();
+    const cookie = await fx.cookieFor(fx.admin);
+    const api = async (
+      method: string,
+      path: string,
+      body: unknown,
+      headers: Record<string, string> = {},
+    ) => {
+      const response = await fx.productionApp.fetch(
+        new Request(`${fx.publicBaseUrl}${path}`, {
+          method,
+          headers: {
+            "Bakery-Organization-Id": fx.organizationId,
+            cookie,
+            origin: fx.publicBaseUrl,
+            "content-type": "application/json",
+            "Idempotency-Key": crypto.randomUUID(),
+            ...headers,
+          },
+          body: JSON.stringify(body),
+        }),
+      );
+      const text = await response.text();
+      return { status: response.status, text, json: () => JSON.parse(text) };
+    };
+
+    // The real authoring path: no spec inserted with SQL.
+    const workflow = await api("POST", "/v1/workflows", {
+      slug: "four-lane",
+      name: "Four lanes",
+      description: "Authored parallel delivery.",
+    });
+    assertEquals(workflow.status, 201, workflow.text);
+    const workflowId = workflow.json().id;
+    const draft = await api("POST", `/v1/workflows/${workflowId}/versions`, {
+      definition: fourLaneWorkflowDocument(),
+    });
+    assertEquals(draft.status, 201, draft.text);
+    const published = await api(
+      "POST",
+      `/v1/workflows/${workflowId}/versions/${draft.json().id}/publish`,
+      {},
+      { "If-Match": '"1"' },
+    );
+    assertEquals(published.status, 200, published.text);
+
+    const plan = await planOf(
+      await createFromWorkflow(fx, {
+        parentTaskId: await fx.insertTask("authored parent"),
+        workflowVersionId: published.json().id,
+        nodeId: "delivery",
+      }),
+    );
+    assertEquals(
+      plan.lanes.map((lane) => lane.laneKey).sort(),
+      ["contract", "integration", "mobile", "web"],
+    );
+    assertEquals(plan.origin, {
+      kind: "saved_workflow",
+      workflowId,
+      workflowVersionId: published.json().id,
+      nodeId: "delivery",
+    });
+  } finally {
+    await fx.close();
+  }
+});

@@ -32,6 +32,7 @@ import { IssuePage } from "./pages/IssuePage.tsx";
 import { ProjectsPage } from "./pages/ProjectsPage.tsx";
 import { IssuesPage } from "./pages/IssuesPage.tsx";
 import { LibraryPage } from "./pages/LibraryPage.tsx";
+import { AgentPage } from "./pages/AgentPage.tsx";
 import { BuiltInWorkflowPage } from "./pages/BuiltInWorkflowPage.tsx";
 import { WorkflowPage } from "./pages/WorkflowPage.tsx";
 import { MachinesPage } from "./pages/MachinesPage.tsx";
@@ -64,6 +65,7 @@ import { AuditEventsPage } from "./pages/AuditEventsPage.tsx";
 import { OrganizationAccessPage } from "./pages/OrganizationAccessPage.tsx";
 import { OrganizationRepositoryRuleEditorPage } from "./pages/OrganizationRepositoryRuleEditorPage.tsx";
 import { OrganizationRepositoryRulesPage } from "./pages/OrganizationRepositoryRulesPage.tsx";
+import { RepositoryPage } from "./pages/RepositoryPage.tsx";
 import { RepositoryRulesPage } from "./pages/RepositoryRulesPage.tsx";
 import { OrganizationRolesPage } from "./pages/OrganizationRolesPage.tsx";
 import {
@@ -228,6 +230,20 @@ export const routeCoverage = [
   {
     id: "library-builtin",
     path: "/library/built-in/$presetId",
+    classification: "production",
+    states: [
+      "loading",
+      "ready",
+      "empty",
+      "error",
+      "forbidden",
+      "offline",
+      "long-copy",
+    ],
+  },
+  {
+    id: "library-agent",
+    path: "/library/agents/$agentId",
     classification: "production",
     states: [
       "loading",
@@ -416,6 +432,12 @@ export const routeCoverage = [
       "long-copy",
       "unavailable",
     ],
+  },
+  {
+    id: "repository",
+    path: "/projects/repositories/$repositoryId",
+    classification: "production",
+    states: ["loading", "default", "error", "forbidden", "offline"],
   },
   {
     id: "repository-rules",
@@ -1079,6 +1101,20 @@ const builtInWorkflowRoute = createRoute({
   errorComponent: ProtectedRouteError,
 });
 
+const agentRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/library/agents/$agentId",
+  // `?version=` is the version being viewed.
+  validateSearch: (search: Record<string, unknown>): { version?: string } =>
+    typeof search.version === "string" && isUuid(search.version)
+      ? { version: search.version }
+      : {},
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <AgentPage agentId={agentRoute.useParams().agentId} />,
+  errorComponent: ProtectedRouteError,
+});
+
 const machinesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/machines",
@@ -1338,6 +1374,17 @@ const organizationAccessRoute = createRoute({
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
   component: OrganizationAccessPage,
+  errorComponent: ProtectedRouteError,
+});
+
+const repositoryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/projects/repositories/$repositoryId",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => (
+    <RepositoryPage repositoryId={repositoryRoute.useParams().repositoryId} />
+  ),
   errorComponent: ProtectedRouteError,
 });
 
@@ -1973,6 +2020,7 @@ const routeTree = rootRoute.addChildren([
   libraryRoute,
   workflowRoute,
   builtInWorkflowRoute,
+  agentRoute,
   machineNewRoute,
   machineDetailRoute,
   statusRoute,
@@ -1997,6 +2045,7 @@ const routeTree = rootRoute.addChildren([
   organizationIntegrationConnectionRoute,
   organizationRolesRoute,
   organizationRepositoryRulesRoute,
+  repositoryRoute,
   repositoryRulesRoute,
   organizationRepositoryRuleEditorRoute,
   organizationSsoRoute,

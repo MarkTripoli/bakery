@@ -51,11 +51,24 @@ export type IconGlyphName =
   | "chevron-left"
   | "lanes"
   | "info"
-  | "issue";
+  | "issue"
+  | "close";
 
 // Additional shell glyphs: approved K-0 9VJ-0/9ZB-0 exports; listening bars:
 // AR1-0. Exact paths and viewports, theme-aware ink; never a font substitute.
 const GLYPH_PATHS: Record<IconGlyphName, ReactNode> = {
+  close: (
+    <>
+      <path
+        d="M6 6l12 12M18 6 6 18"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </>
+  ),
   "chevron-down": (
     <>
       <path

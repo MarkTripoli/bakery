@@ -1,8 +1,10 @@
-# `amd` names the heavy-lane pool, not a CPU: two of the four runners are Intel.
-# See learnings/heavy-lane-label-is-pool-not-cpu.xml.
+# `bakery-heavy` names the heavy-lane pool (x64 and ARM64 hosts), not a CPU:
+# see learnings/heavy-lane-label-is-pool-not-cpu.xml. `amd` is the older name of
+# the same pool and stays declared for runners still carrying it.
 self-hosted-runner:
   labels:
     - ovh
     - hetzner
     - amd
+    - bakery-heavy
     - trusted-verifier

@@ -7,24 +7,34 @@ import {
 import { revealShellNavigation } from "./helpers/shell-navigation.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { firstRender } from "./helpers/first-render.ts";
+import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
 
 /**
- * Paper filter bar (5J-0 desktop, E8-0 phone): free-text search sits behind
- * "Filter", repository scope behind "All applications"; status is a toolbar
- * select on desktop and joins the "Filter" popover on phones. Open the owning
- * popover before touching a field; values persist while it is closed.
+ * Work list filter bar: on desktop the search is a field in the toolbar row
+ * ("Search tasks"); on a phone it sits behind the "Search" popover, which also
+ * holds the status select. Repository scope is behind "All applications".
+ * Open the owning popover before touching a field; values persist while it is
+ * closed.
  */
-async function openFilter(page: Page, name: "Filter" | "All applications") {
-  const trigger = page.getByRole("button", { name, exact: true });
+async function openFilter(page: Page, name: "Search" | "All applications") {
+  // Once a term is applied the Search trigger reads "Search: <term>".
+  const trigger = page.getByRole(
+    "button",
+    name === "Search" ? { name: /^Search(: .*)?$/ } : { name, exact: true },
+  );
   if (await trigger.getAttribute("aria-expanded") !== "true") {
     await trigger.click();
   }
 }
 
 async function searchField(page: Page) {
-  await openFilter(page, "Filter");
+  // 743px and below is a phone (the shell's own rule).
+  if ((page.viewportSize()?.width ?? 1280) > 743) {
+    return page.getByRole("searchbox", { name: "Search tasks" });
+  }
+  await openFilter(page, "Search");
   return page.getByLabel("Search titles and descriptions");
 }
 
@@ -48,7 +58,7 @@ async function statusField(page: Page) {
     name: "Task status",
     exact: true,
   });
-  if (!(await status.isVisible())) await openFilter(page, "Filter");
+  if (!(await status.isVisible())) await openFilter(page, "Search");
   return status;
 }
 
@@ -247,10 +257,11 @@ test("task filters reset cursors, preserve focus, and navigate real routes", asy
   await expect.poll(() => requests.at(-1)?.searchParams.get("repositoryId"))
     .toBe(task.repositoryId);
   expect(requests.at(-1)?.searchParams.get("status")).toBe("draft");
-  await expect(page.getByRole("link", { name: "New task" })).toHaveAttribute(
-    "href",
-    "/tasks/new",
-  );
+  await expect(page.getByRole("banner").getByRole("link", { name: "New task" }))
+    .toHaveAttribute(
+      "href",
+      "/tasks/new",
+    );
   await dismissFilters(page);
   await page.getByRole("link", { name: task.title }).click();
   await expect(page).toHaveURL(new RegExp(`/tasks/${id}$`));
@@ -329,7 +340,7 @@ test("queue inspector asks the server for open questions so an open one past the
   expect(statuses).toContain("open");
 });
 
-test("queue inspector answers the selected task's open question and the top bar opens search", async ({ page }) => {
+test("queue inspector answers the selected task's open question and the page has one search", async ({ page }) => {
   // Phones have no inspector rail; the question shows on the task page.
   test.skip(
     page.viewportSize()!.width <= 900,
@@ -396,9 +407,224 @@ test("queue inspector answers the selected task's open question and the top bar 
   }]);
   await expect(inspector.getByRole("heading", { name: open.prompt }))
     .toHaveCount(0);
-  await page.getByRole("button", { name: "Search work" }).click();
-  await expect(page.getByLabel("Search titles and descriptions"))
+  // One search on the page: the field in the toolbar row, no second entry in
+  // the top bar.
+  await expect(page.getByRole("button", { name: "Search work" })).toHaveCount(
+    0,
+  );
+  await expect(page.getByRole("searchbox", { name: "Search tasks" }))
     .toBeVisible();
+  await expect(page.getByPlaceholder("Search titles and descriptions"))
+    .toBeVisible();
+});
+
+test("queue inspector Details shows the short task id and copies the whole one", async ({ page, context }) => {
+  test.skip(
+    page.viewportSize()!.width <= 900,
+    "inspector rail is desktop only",
+  );
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await stillQueue(page, stillTasks);
+  const inspector = page.getByRole("complementary");
+  await inspector.getByRole("tab", { name: "Details" }).click();
+  const row = inspector.getByTestId("task-id-row");
+  await expect(row).toContainText("Task ID");
+  // Eight characters on screen, the whole id on the clipboard.
+  await expect(row).toContainText(stillTasks[0].id.slice(0, 8));
+  await expect(row).not.toContainText(stillTasks[0].id.slice(0, 9));
+  await row.getByRole("button", { name: "Copy" }).click();
+  await expect(row.getByRole("button", { name: "Copied" })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    stillTasks[0].id,
+  );
+});
+
+test("on a phone an applied search shows the icon and the term on one row, with Clear beside it", async ({ page }) => {
+  test.skip(
+    (page.viewportSize()?.width ?? 1280) > 743,
+    "on a wider screen the field itself is in the toolbar",
+  );
+  await page.route(
+    "**/v1/tasks?*",
+    (route) => route.fulfill({ json: { items: stillTasks, nextCursor: null } }),
+  );
+  await page.route(
+    "**/v1/artifacts?*",
+    (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
+  );
+  await page.goto("/tasks");
+  const searchButton = (name: string | RegExp) =>
+    page.getByRole("button", { name, exact: typeof name === "string" });
+  const clear = page.getByRole("button", { name: "Clear search", exact: true });
+  await expect(searchButton("Search")).toBeVisible();
+  await expect(clear).toHaveCount(0);
+  const applications = page.getByRole("button", {
+    name: "All applications",
+    exact: true,
+  });
+  // With no term the applications filter keeps its label, even at 320.
+  await page.setViewportSize({ width: 320, height: 800 });
+  expect((await applications.boundingBox())!.width).toBeGreaterThan(100);
+  const terms = [
+    "repository",
+    "a very long search term \u{1F9C1} indeed, and then some more words",
+    "x".repeat(120),
+  ];
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 800 });
+    for (const term of terms) {
+      await (await searchField(page)).fill(term);
+      await dismissFilters(page);
+      // The button's name is "Search: <term>"; what is drawn is the search icon
+      // and the term, which shrinks (ellipsis) only when it is itself too long.
+      const trigger = searchButton(`Search: ${term}`);
+      await expect(trigger).toBeVisible();
+      const drawn = trigger.locator('[data-ui-component="dataText"]');
+      await expect(drawn).toHaveText(term);
+      if (term === terms[0]) {
+        expect(
+          await drawn.evaluate((node) => node.scrollWidth <= node.clientWidth),
+        ).toBe(true);
+      }
+      // At 360 px and below the applications filter is its icon alone while a
+      // term is applied (name and tooltip kept); wider it keeps its label.
+      await expect(applications).toBeVisible();
+      const icon = (await applications.boundingBox())!;
+      if (width <= 360) {
+        expect(icon.width).toBeLessThan(60);
+        await expect(applications).toHaveAttribute("title", "All applications");
+      } else {
+        expect(icon.width).toBeGreaterThan(100);
+      }
+      await expect(clear).toBeVisible();
+      const [a, b] = [await trigger.boundingBox(), await clear.boundingBox()];
+      // One row: Clear is beside the button, never under it, inside the screen.
+      expect(Math.abs((a!.y + a!.height / 2) - (b!.y + b!.height / 2)))
+        .toBeLessThan(4);
+      expect(b!.x).toBeGreaterThanOrEqual(a!.x + a!.width - 1);
+      expect(b!.x + b!.width).toBeLessThanOrEqual(width);
+      expect(Math.min(b!.width, b!.height)).toBeGreaterThanOrEqual(44);
+      expect(
+        await page.evaluate(() =>
+          document.documentElement.scrollWidth <= globalThis.innerWidth
+        ),
+      ).toBe(true);
+    }
+  }
+  await clear.click();
+  await expect(searchButton("Search")).toBeFocused();
+  await expect(clear).toHaveCount(0);
+  // The applications filter has its label back (the width is still 320).
+  expect((await applications.boundingBox())!.width).toBeGreaterThan(100);
+  // What a person sees: the whole list is back and the field is empty again.
+  await expect(page.getByRole("link", { name: stillTasks[0].title }))
+    .toBeVisible();
+  await expect(await searchField(page)).toHaveValue("");
+});
+
+// Evidence stills of the Work list (BAKERY_STILLS_DIR): the list with tasks,
+// a search with a term, and the empty list; skipped in a normal run.
+// The reference under a title is the first eight characters of the id, and the
+// age is read from `createdAt`, so the fixtures carry readable ids and recent times.
+const stillTasks = [
+  ["Add repository onboarding", "waiting_input", "a104b3c1", 2],
+  ["Confirm error tracking provider", "waiting_input", "e041d7f2", 15],
+  ["Refine activity filters", "active", "c038a9e4", 4],
+  ["Preserve worker checkpoints", "active", "d102f5b6", 12],
+  ["Improve empty state copy", "active", "b037c8a0", 19],
+  ["Add notification preferences", "queued", "f027e1d3", 8],
+  ["Add webhook intake", "queued", "a101b9c7", 32],
+].map(([title, status, prefix, minutes]) => ({
+  ...task,
+  id: `${prefix}-0000-4000-8000-000000000700`,
+  title,
+  status,
+  createdAt: new Date(Date.now() - Number(minutes) * 60_000).toISOString(),
+  updatedAt: new Date(Date.now() - Number(minutes) * 60_000).toISOString(),
+}));
+
+async function stillQueue(page: Page, items: unknown[]) {
+  await page.route("**/v1/tasks?*", (route) => {
+    // The list answers a search the way the server does: by title or description.
+    const term = new URL(route.request().url()).searchParams.get("search")
+      ?.toLowerCase();
+    const shown = term
+      ? (items as { title: string; description: string }[]).filter((item) =>
+        `${item.title} ${item.description}`.toLowerCase().includes(term)
+      )
+      : items;
+    return route.fulfill({ json: { items: shown, nextCursor: null } });
+  });
+  await page.route(
+    "**/v1/artifacts?*",
+    (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
+  );
+  await page.goto("/tasks");
+}
+
+test("still: the Work list with tasks", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  await stillQueue(page, stillTasks);
+  await expect(page.getByRole("link", { name: stillTasks[0].title }))
+    .toBeVisible();
+  await still(page, "work-list");
+});
+
+test("still: the Work list with a search term", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  await stillQueue(page, stillTasks);
+  await expect(page.getByRole("link", { name: stillTasks[0].title }))
+    .toBeVisible();
+  const search = await searchField(page);
+  await search.fill("repository");
+  await dismissFilters(page);
+  await still(page, "work-list-search");
+});
+
+test("still: the Details tab with the task id and Copy", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  test.skip(
+    page.viewportSize()!.width <= 900,
+    "inspector rail is desktop only",
+  );
+  await stillQueue(page, stillTasks);
+  const inspector = page.getByRole("complementary");
+  await inspector.getByRole("tab", { name: "Details" }).click();
+  await expect(inspector.getByTestId("task-id-row")).toBeVisible();
+  await still(page, "work-list-details");
+});
+
+test("still: the phone with a search term applied", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  test.skip(
+    (page.viewportSize()?.width ?? 1280) > 743,
+    "the phone's Search button only",
+  );
+  await stillQueue(page, stillTasks);
+  await expect(page.getByRole("link", { name: stillTasks[0].title }))
+    .toBeVisible();
+  const search = await searchField(page);
+  await search.fill("repository");
+  await dismissFilters(page);
+  await expect(page.getByRole("button", { name: "Clear search", exact: true }))
+    .toBeVisible();
+  await still(page, "work-list-search-applied");
+  // The narrowest phone keeps the same single row.
+  await page.setViewportSize({ width: 320, height: 800 });
+  await expect(page.getByRole("button", { name: "Clear search", exact: true }))
+    .toBeVisible();
+  await still(page, "work-list-search-applied-narrow");
+  await page.getByRole("button", { name: "Clear search", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Search", exact: true }))
+    .toBeFocused();
+  await still(page, "work-list-narrow");
+});
+
+test("still: the empty Work list", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  await stillQueue(page, []);
+  await expect(page.getByText("There are no tasks yet.")).toBeVisible();
+  await still(page, "work-list-empty");
 });
 
 test("trailing slash task entry renders the canonical inbox", async ({ page }) => {
@@ -408,10 +634,11 @@ test("trailing slash task entry renders the canonical inbox", async ({ page }) =
   );
   await page.goto("/tasks/");
   await expect(page.locator('[data-ui-component="taskInbox"]')).toBeVisible();
-  await expect(page.getByRole("link", { name: "New task" })).toHaveAttribute(
-    "href",
-    "/tasks/new",
-  );
+  await expect(page.getByRole("banner").getByRole("link", { name: "New task" }))
+    .toHaveAttribute(
+      "href",
+      "/tasks/new",
+    );
 });
 
 test("cursor controls reject stale continuation during a changed-filter fetch", async ({ page }) => {
@@ -583,6 +810,10 @@ test("inbox distinguishes empty, forbidden, retryable error, and offline", async
   await page.goto("/tasks");
   const inbox = page.locator('[data-ui-component="taskInbox"]');
   await expect(inbox).toHaveAttribute("data-state", "empty");
+  // Nothing is filtered: there are no tasks yet, and the way forward is offered.
+  await expect(inbox).toContainText("There are no tasks yet.");
+  await expect(inbox).not.toContainText("No tasks match this filter.");
+  await expect(inbox.getByRole("link", { name: "New task" })).toBeVisible();
   state = "forbidden";
   await (await searchField(page)).fill("restricted");
   await expect(inbox).toHaveAttribute("data-state", "forbidden");
@@ -593,6 +824,9 @@ test("inbox distinguishes empty, forbidden, retryable error, and offline", async
   await dismissFilters(page);
   await page.getByRole("button", { name: "Retry", exact: true }).click();
   await expect(inbox).toHaveAttribute("data-state", "empty");
+  // A search is typed, so "no tasks" means none match it.
+  await expect(inbox).toContainText("No tasks match this filter.");
+  await expect(inbox).not.toContainText("There are no tasks yet.");
   await context.setOffline(true);
   await expect(inbox).toHaveAttribute("data-state", "offline");
   await context.setOffline(false);

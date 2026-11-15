@@ -5957,6 +5957,29 @@ export const clientManifest = {
     },
     {
       "group": "Tickets",
+      "method": "GET",
+      "path": "/v1/ticket-sources/{id}/people/{login}",
+      "action": "ticketSources.lookupPerson",
+      "access": "Admin",
+      "permission": "ticketSource:manage",
+      "input": "TicketSourcePersonPath",
+      "output": "TicketSourcePerson",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Tickets",
       "method": "POST",
       "path": "/v1/ticket-sources/{id}/syncs",
       "action": "ticketSources.sync",
@@ -11082,6 +11105,7 @@ export const clientManifest = {
             "ticketSources.get",
             "ticketSources.update",
             "ticketSources.preview",
+            "ticketSources.lookupPerson",
             "ticketSources.sync",
             "externalTickets.list",
             "externalTickets.get",
@@ -11582,6 +11606,10 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "keepRepositoryRules": {
+          "description": "When true, copies the active profile's `repositoryRules` overrides unchanged into the published config (a branches-only save that neither restates nor restores the organization rules), so `expectedOrganizationRulesRevision` is not needed; `digest` still covers the submitted `config` and the stored digest is re-derived over the config with the carried overrides. With overrides on the active profile the save replaces it and activates under the repository `If-Match` version and `repository:manage`; with none it behaves like omitting the flag. Combining it with `config.repositoryRules` is refused with UNPROCESSABLE `repository_rules_keep_conflict`. Omitted or false keeps the default behaviour.",
+          "type": "boolean"
         }
       },
       "required": [
@@ -17513,6 +17541,30 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Saves the R2 account, bucket and credentials that hold skill bundle objects for this installation. Credentials are write-only and never appear in a response, error, log, trace, event or audit record."
+    },
+    "TicketSourcePersonPath": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Ticket source whose repository the person is looked up on; supplied via the request's {id} path segment."
+        },
+        "login": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 39,
+          "description": "TicketSourcePersonPath.login must contain at most 39 characters."
+        }
+      },
+      "required": [
+        "id",
+        "login"
+      ],
+      "additionalProperties": false,
+      "description": "Path parameters naming one ticket source and a provider username to look up on its repository (#69)."
     },
     "UserPreferences": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -29046,6 +29098,7 @@ export const clientManifest = {
                   "ticketSources.get",
                   "ticketSources.update",
                   "ticketSources.preview",
+                  "ticketSources.lookupPerson",
                   "ticketSources.sync",
                   "externalTickets.list",
                   "externalTickets.get",
@@ -30622,6 +30675,19 @@ export const clientManifest = {
                 "maxLength": 65536,
                 "description": "Stable adapter/component key, unique per host."
               },
+              "paymentMethods": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "subscription",
+                    "api_metered",
+                    "local"
+                  ],
+                  "description": "Billing routes this component accepts when it is a coding agent (#68; the v1 rule from 05-runtime: Claude Code and Codex take subscription or api_metered, Pi takes api_metered or local); empty for any other component. Each array item follows this format."
+                },
+                "description": "Billing routes this component accepts when it is a coding agent (#68; the v1 rule from 05-runtime: Claude Code and Codex take subscription or api_metered, Pi takes api_metered or local); empty for any other component."
+              },
               "kind": {
                 "type": "string",
                 "enum": [
@@ -30740,6 +30806,7 @@ export const clientManifest = {
             "required": [
               "id",
               "componentKey",
+              "paymentMethods",
               "kind",
               "actualVersion",
               "actualDigest",
@@ -31149,6 +31216,10 @@ export const clientManifest = {
                 ],
                 "description": "Billing route the work on this binding follows."
               },
+              "paymentMethodSupported": {
+                "type": "boolean",
+                "description": "Whether the binding's billing route is one its coding agent accepts (#68). False marks a binding saved before the rule that needs attention; new and changed bindings are refused instead."
+              },
               "enabled": {
                 "type": "boolean",
                 "description": "Whether the binding may be used; disabling blocks new use immediately."
@@ -31226,6 +31297,7 @@ export const clientManifest = {
               "componentKey",
               "provider",
               "billingRoute",
+              "paymentMethodSupported",
               "enabled",
               "authMode",
               "credentialLocation",
@@ -32497,6 +32569,20 @@ export const clientManifest = {
                 ],
                 "description": "Current lifecycle status of the record."
               },
+              "failureCode": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Machine-readable reason the effect failed: a refusal the provider sent, or why Bakery abandoned it before sending (for example authorization_denied or adapter_changed). Null unless the status is failed (#68)."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "ExternalEffect.failureCode may be null in this transport value."
+              },
               "remoteId": {
                 "anyOf": [
                   {
@@ -32623,6 +32709,7 @@ export const clientManifest = {
               "target",
               "idempotencyKey",
               "status",
+              "failureCode",
               "remoteId",
               "lastCheckedAt",
               "requestingPrincipalId",
@@ -44149,6 +44236,7 @@ export const clientManifest = {
             "ticketSources.get",
             "ticketSources.update",
             "ticketSources.preview",
+            "ticketSources.lookupPerson",
             "ticketSources.sync",
             "externalTickets.list",
             "externalTickets.get",
@@ -45422,6 +45510,20 @@ export const clientManifest = {
           ],
           "description": "Current lifecycle status of the record."
         },
+        "failureCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Machine-readable reason the effect failed: a refusal the provider sent, or why Bakery abandoned it before sending (for example authorization_denied or adapter_changed). Null unless the status is failed (#68)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ExternalEffect.failureCode may be null in this transport value."
+        },
         "remoteId": {
           "anyOf": [
             {
@@ -45548,6 +45650,7 @@ export const clientManifest = {
         "target",
         "idempotencyKey",
         "status",
+        "failureCode",
         "remoteId",
         "lastCheckedAt",
         "requestingPrincipalId",
@@ -47891,6 +47994,10 @@ export const clientManifest = {
           ],
           "description": "Billing route the work on this binding follows."
         },
+        "paymentMethodSupported": {
+          "type": "boolean",
+          "description": "Whether the binding's billing route is one its coding agent accepts (#68). False marks a binding saved before the rule that needs attention; new and changed bindings are refused instead."
+        },
         "enabled": {
           "type": "boolean",
           "description": "Whether the binding may be used; disabling blocks new use immediately."
@@ -47968,6 +48075,7 @@ export const clientManifest = {
         "componentKey",
         "provider",
         "billingRoute",
+        "paymentMethodSupported",
         "enabled",
         "authMode",
         "credentialLocation",
@@ -52978,6 +53086,63 @@ export const clientManifest = {
           ],
           "description": "Bounded provider facts recorded at discovery, such as whether a GitHub repository is private or archived; informational, never an authorization grant."
         },
+        "defaultBranch": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The repository's default branch name as the provider last reported it (#65), or null when unknown or not a repository."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationResource.defaultBranch may be null in this transport value."
+        },
+        "latestCheckState": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Lifecycle state of the newest check run Bakery has observed on this repository (any branch; for example queued, in_progress or completed), or null when none is observed (#65)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationResource.latestCheckState may be null in this transport value."
+        },
+        "latestCheckConclusion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Conclusion of that newest check run when it has completed (for example success or failure), else null (#65)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationResource.latestCheckConclusion may be null in this transport value."
+        },
+        "latestCheckAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the provider last updated that newest check run, or null when none is observed (#65)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationResource.latestCheckAt may be null in this transport value."
+        },
         "lastDiscoveryGeneration": {
           "type": "integer",
           "minimum": -9007199254740991,
@@ -53031,6 +53196,10 @@ export const clientManifest = {
         "available",
         "enabled",
         "capabilitySnapshot",
+        "defaultBranch",
+        "latestCheckState",
+        "latestCheckConclusion",
+        "latestCheckAt",
         "lastDiscoveryGeneration",
         "archivedAt",
         "createdAt",
@@ -53274,6 +53443,63 @@ export const clientManifest = {
                 ],
                 "description": "Bounded provider facts recorded at discovery, such as whether a GitHub repository is private or archived; informational, never an authorization grant."
               },
+              "defaultBranch": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The repository's default branch name as the provider last reported it (#65), or null when unknown or not a repository."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationResource.defaultBranch may be null in this transport value."
+              },
+              "latestCheckState": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Lifecycle state of the newest check run Bakery has observed on this repository (any branch; for example queued, in_progress or completed), or null when none is observed (#65)."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationResource.latestCheckState may be null in this transport value."
+              },
+              "latestCheckConclusion": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Conclusion of that newest check run when it has completed (for example success or failure), else null (#65)."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationResource.latestCheckConclusion may be null in this transport value."
+              },
+              "latestCheckAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the provider last updated that newest check run, or null when none is observed (#65)."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationResource.latestCheckAt may be null in this transport value."
+              },
               "lastDiscoveryGeneration": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -53327,6 +53553,10 @@ export const clientManifest = {
               "available",
               "enabled",
               "capabilitySnapshot",
+              "defaultBranch",
+              "latestCheckState",
+              "latestCheckConclusion",
+              "latestCheckAt",
               "lastDiscoveryGeneration",
               "archivedAt",
               "createdAt",
@@ -61646,6 +61876,44 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Whether this deployment can serve isolated artifact previews."
+    },
+    "TicketSourcePerson": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "login": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The username as it was looked up."
+        },
+        "externalUserId": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "The provider's stable numeric user id; the value a ticket source's trigger list stores."
+        },
+        "permission": {
+          "type": "string",
+          "enum": [
+            "admin",
+            "write",
+            "read",
+            "none"
+          ],
+          "description": "The person's permission on the source's repository as the provider reports it now."
+        },
+        "canTrigger": {
+          "type": "boolean",
+          "description": "Whether the person may be added to the trigger list: true only for write or admin on the repository."
+        }
+      },
+      "required": [
+        "login",
+        "externalUserId",
+        "permission",
+        "canTrigger"
+      ],
+      "additionalProperties": false,
+      "description": "One provider user found on a ticket source's repository, for the automatic-start trigger list (#69). A username the provider does not know answers 404."
     }
   }
 } as const;

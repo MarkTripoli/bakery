@@ -3149,7 +3149,7 @@
     },
     {
      "name": "purpose",
-     "type": "enum(installation_reconcile,discovery,fact_refresh)",
+     "type": "enum(installation_reconcile,discovery,fact_refresh,automation)",
      "nullable": false,
      "references": null
     },

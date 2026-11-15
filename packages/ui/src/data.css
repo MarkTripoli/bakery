@@ -306,6 +306,11 @@
   text-align: start;
   vertical-align: top;
 }
+/* A header row that holds a help button is taller than its plain headers, which
+   sat at the top of it: centre every header of such a row on one line. */
+.ui-data-table thead tr:has(.ui-help-tip) th {
+  vertical-align: middle;
+}
 .ui-code-block {
   background: var(--color-syntax-surface);
   border-radius: var(--radius-control);
@@ -442,6 +447,10 @@
 .ui-description-item__title {
   color: var(--color-fg);
   font: var(--type-heading-subsection);
+}
+/* Opt-in (`labels="quiet"`): each row's title in the body weight, not the heavy subsection weight. */
+.ui-description-list[data-labels="quiet"] .ui-description-item__title {
+  font: var(--type-body);
 }
 .ui-description-item__description {
   color: var(--color-fg-muted);
@@ -1451,6 +1460,15 @@
   font: var(--type-hint);
   min-inline-size: var(--space-0);
   overflow-wrap: anywhere;
+}
+/* Opt-in: room for a long label and a help button on one line. */
+.ui-detail-row[data-label-width="wide"] .ui-detail-row__label {
+  flex-basis: calc(var(--space-6) * 8);
+}
+/* ...and every row of such a list keeps the control height, so a row with a
+   help button is no taller than one without. */
+.ui-detail-row[data-label-width="wide"] {
+  min-block-size: var(--target-min);
 }
 .ui-detail-row__value {
   color: var(--color-fg);

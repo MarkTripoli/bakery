@@ -150,7 +150,7 @@ Deno.test("mintInstallationToken refuses an empty, oversized or invalid selectio
   assertEquals(github.calls.length, 0);
 });
 
-Deno.test("listInstallationRepositories pages the token's repositories and keeps only their ids", async () => {
+Deno.test("listInstallationRepositories pages the token's repositories and keeps only their ids and default branches", async () => {
   const { github, app, installed } = installation(5);
   github.repositoryListing.pageSize = 2;
   const ids = installed.repositories.slice(0, 3).map(({ id }) => id);
@@ -166,13 +166,23 @@ Deno.test("listInstallationRepositories pages the token's repositories and keeps
     1,
     signal(),
   );
-  assertEquals(first, { repositoryIds: ids.slice(0, 2), hasNext: true });
+  const branches = (list: number[]) =>
+    new Map(list.map((id) => [id, "main" as string | null]));
+  assertEquals(first, {
+    repositoryIds: ids.slice(0, 2),
+    defaultBranches: branches(ids.slice(0, 2)),
+    hasNext: true,
+  });
   const second = await github.client.listInstallationRepositories(
     minted.token,
     2,
     signal(),
   );
-  assertEquals(second, { repositoryIds: ids.slice(2), hasNext: false });
+  assertEquals(second, {
+    repositoryIds: ids.slice(2),
+    defaultBranches: branches(ids.slice(2)),
+    hasNext: false,
+  });
   const [listing] = github.tokenListings();
   assertEquals(listing.method, "GET");
   assertEquals(
