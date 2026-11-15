@@ -199,13 +199,18 @@ export function TaskRunControls(
           );
           return (
             <UI.Stack key={action}>
-              <UI.Button
-                disabled={!online || unavailable || capabilities.isFetching ||
-                  receipt !== "idle" || !capability?.canRequest}
-                onClick={() => void submit(action)}
-              >
-                {t(`tasks.controls.action.${action}`)}
-              </UI.Button>
+              <UI.Inline gap="compact">
+                <UI.Button
+                  disabled={!online || unavailable || capabilities.isFetching ||
+                    receipt !== "idle" || !capability?.canRequest}
+                  onClick={() => void submit(action)}
+                  variant={action === "cancel"
+                    ? "destructive-outline"
+                    : "outline"}
+                >
+                  {t(`tasks.controls.action.${action}`)}
+                </UI.Button>
+              </UI.Inline>
               {!unavailable && capability && !capability.canRequest &&
                 (
                   <UI.Text>
@@ -257,12 +262,15 @@ export function TaskRunControls(
           {t("tasks.controls.newRequest")}
         </UI.Button>
       )}
-      <UI.Button
-        disabled={!online || receipt === "pending" || capabilities.isFetching}
-        onClick={() => void refreshWinner()}
-      >
-        {t("tasks.controls.refresh")}
-      </UI.Button>
+      <UI.Inline gap="compact">
+        <UI.Button
+          disabled={!online || receipt === "pending" || capabilities.isFetching}
+          onClick={() => void refreshWinner()}
+          variant="outline"
+        >
+          {t("tasks.controls.refresh")}
+        </UI.Button>
+      </UI.Inline>
     </UI.Stack>
   );
 }

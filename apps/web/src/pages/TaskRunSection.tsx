@@ -17,6 +17,7 @@ import { useI18n } from "../i18n/I18nProvider.tsx";
 import { TaskRunRevision } from "./TaskRunRevision.tsx";
 import { TaskRunOutput } from "./TaskRunOutput.tsx";
 import { TaskRunControls } from "./TaskRunControls.tsx";
+import { FingerprintRow } from "./FingerprintRow.tsx";
 import { runTimelineEvents } from "./task-timeline.ts";
 import { TaskRunSectionView } from "./task-run-section-view.tsx";
 import { DeliverySection } from "./task-delivery/DeliverySection.tsx";
@@ -54,6 +55,20 @@ function stepFaultCode(error: unknown): string | null {
   const code = (error as { code?: unknown }).code;
   return typeof code === "string" ? code : null;
 }
+
+/** The tone of the one status badge beside the "Current run" heading. */
+const RUN_TONES = {
+  queued: "neutral",
+  running: "information",
+  waiting_input: "warning",
+  waiting_capacity: "warning",
+  paused: "neutral",
+  canceling: "warning",
+  canceled: "neutral",
+  completed: "success",
+  failed: "danger",
+  blocked: "warning",
+} as const;
 
 /** Read the task's authoritative current run, never infer one from list order. */
 export function TaskRunSection(
@@ -162,8 +177,20 @@ export function TaskRunSection(
       title={t("tasks.run.heading")}
       overview={
         <>
-          <UI.Heading level="section">{t("tasks.run.heading")}</UI.Heading>
-          <UI.Text
+          <UI.Inline gap="standard">
+            <UI.Heading level="section">{t("tasks.run.heading")}</UI.Heading>
+            {validRun && run.data
+              ? (
+                <UI.Badge tone={RUN_TONES[run.data.status]}>
+                  {t(`tasks.run.status.${run.data.status}`)}
+                </UI.Badge>
+              )
+              : null}
+          </UI.Inline>
+          {validRun && run.data?.status === "blocked"
+            ? <UI.Text>{t("tasks.run.blockedWaiting")}</UI.Text>
+            : null}
+          <UI.VisuallyHidden
             role="status"
             aria-live="polite"
             aria-atomic="true"
@@ -185,13 +212,19 @@ export function TaskRunSection(
                 </>
               )
               : null}
-          </UI.Text>
+          </UI.VisuallyHidden>
           {validRun && run.data
             ? (
-              <>
-                <UI.Text>{run.data.id}</UI.Text>
-                <UI.Badge>{t(`tasks.run.status.${run.data.status}`)}</UI.Badge>
-              </>
+              <UI.Disclosure summary={t("tasks.run.details")}>
+                <FingerprintRow
+                  copyFailedText={t("tasks.run.idCopyFailed")}
+                  display={run.data.id.slice(0, 8)}
+                  fingerprint={run.data.id}
+                  label={t("tasks.run.id")}
+                  noHelp
+                  testId="run-id-row"
+                />
+              </UI.Disclosure>
             )
             : null}
         </>
@@ -326,20 +359,28 @@ export function TaskRunSection(
               ? <UI.Text>{t("tasks.inbox.loading")}</UI.Text>
               : steps.isError || invalidSteps
               ? (
-                <UI.ErrorState
-                  title={t(
-                    forbidden ? "tasks.live.forbidden" : "tasks.live.error",
-                  )}
-                  action={!forbidden && (
-                    <UI.Button onClick={() => void steps.refetch()}>
-                      {t("tasks.live.retry")}
-                    </UI.Button>
-                  )}
-                />
+                <UI.InlineNotice tone={forbidden ? "error" : "warning"}>
+                  <UI.Stack gap="compact">
+                    <UI.Text>
+                      {t(
+                        forbidden ? "tasks.live.forbidden" : "tasks.live.error",
+                      )}
+                    </UI.Text>
+                    {!forbidden && (
+                      <UI.Button
+                        variant="outline"
+                        onClick={() => void steps.refetch()}
+                      >
+                        {t("tasks.live.retry")}
+                      </UI.Button>
+                    )}
+                  </UI.Stack>
+                </UI.InlineNotice>
               )
               : (
                 <>
-                  {steps.data.items.length === 0 && (
+                  {steps.data.items.length === 0 &&
+                    run.data.status !== "blocked" && (
                     <UI.Text>{t("tasks.run.noSteps")}</UI.Text>
                   )}
                   {steps.data.items.length > 0 && (
