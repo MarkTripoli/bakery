@@ -197,6 +197,25 @@ export const resourceColumns = `resource.id,
   resource.display_name as "displayName", resource.safe_url as "safeUrl",
   resource.selected, resource.available, resource.enabled,
   resource.capability_snapshot as "capabilitySnapshot",
+  -- #65: the default branch the provider reported, and the newest observed
+  -- check run on the repository (any branch).
+  nullif(resource.capability_snapshot->>'defaultBranch', '') as "defaultBranch",
+  (select fact.state
+       from bakery.integration_remote_facts as fact
+      where fact.organization_id = resource.organization_id
+        and fact.resource_id = resource.id and fact.kind = 'check_run'
+      order by fact.provider_updated_at desc, fact.id desc limit 1) as "latestCheckState",
+  (select fact.conclusion
+       from bakery.integration_remote_facts as fact
+      where fact.organization_id = resource.organization_id
+        and fact.resource_id = resource.id and fact.kind = 'check_run'
+      order by fact.provider_updated_at desc, fact.id desc limit 1) as "latestCheckConclusion",
+  to_char((select fact.provider_updated_at
+       from bakery.integration_remote_facts as fact
+      where fact.organization_id = resource.organization_id
+        and fact.resource_id = resource.id and fact.kind = 'check_run'
+      order by fact.provider_updated_at desc, fact.id desc limit 1) at time zone 'UTC', ${TIMESTAMP})
+    as "latestCheckAt",
   resource.last_discovery_generation as "lastDiscoveryGeneration",
   to_char(resource.archived_at at time zone 'UTC', ${TIMESTAMP})
     as "archivedAt",
