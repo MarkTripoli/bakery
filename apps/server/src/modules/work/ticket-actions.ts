@@ -21,6 +21,7 @@ import type { PgDatabase } from "../../platform/database.ts";
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
 import {
   createTicketOperationRunner,
+  lookupTicketSourcePerson,
   readsProvider,
   type TicketOperationDependencies,
 } from "./ticket-operation-runner.ts";
@@ -126,6 +127,18 @@ export function createTicketActionRegistry(
     output: contractSchemas.TicketOperationReceipt,
     policy: admin,
     handler: createTicketSourcePreviewHandler(dependencies),
+  }).register({
+    name: TicketImplementedAction.TicketSourcesLookupPerson,
+    method: HttpMethod.Get,
+    path: "/v1/ticket-sources/:id/people/:login",
+    input: contractSchemas.TicketSourcePersonPath,
+    output: contractSchemas.TicketSourcePerson,
+    policy: {
+      type: ActionKind.Query,
+      access: ActionAccess.Admin,
+      organizationContext,
+    },
+    handler: lookupTicketSourcePerson,
   }).register({
     name: TicketImplementedAction.TicketSourcesSync,
     method: HttpMethod.Post,
