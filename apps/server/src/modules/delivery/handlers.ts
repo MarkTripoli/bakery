@@ -1,6 +1,7 @@
 import type { DeliveryActionHandlers } from "./actions.ts";
 import {
   createChecksListHandler,
+  createPullRequestsListHandler,
   createReviewFindingsListHandler,
   createRunDeliveryDecisionsListHandler,
   createRunReviewsListHandler,
@@ -12,5 +13,6 @@ export function createDeliveryHandlers(secret: string): DeliveryActionHandlers {
     runReviewsList: createRunReviewsListHandler(secret),
     reviewFindingsList: createReviewFindingsListHandler(secret),
     runDeliveryDecisionsList: createRunDeliveryDecisionsListHandler(secret),
+    pullRequestsList: createPullRequestsListHandler(secret),
   };
 }

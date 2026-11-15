@@ -34,7 +34,7 @@ const taskStatuses: Record<
   canceled: true,
 };
 type TaskStatus = keyof typeof taskStatuses;
-function isTaskStatus(value: string): value is TaskStatus {
+export function isTaskStatus(value: string): value is TaskStatus {
   return Object.hasOwn(taskStatuses, value);
 }
 const taskTypes: Record<"feature" | "bug" | "epic" | "maintenance", true> = {

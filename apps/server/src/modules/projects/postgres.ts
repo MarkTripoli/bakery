@@ -126,6 +126,7 @@ type RepositoryProfileCreateInput = {
   budgetCaps?: unknown;
   digest: string;
   expectedOrganizationRulesRevision?: number;
+  keepRepositoryRules?: boolean;
 };
 
 function toIso(value: Date | string): string {
@@ -652,7 +653,19 @@ export async function getRepository(context: ActionContext) {
   );
   const row = result.rows[0];
   if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  return toRepository(row);
+  // #65: the Versions list hides a failed check's candidate, so the page
+  // can't derive the next revision from what it lists. The server's rule
+  // (assertNextRevision) counts every stored profile.
+  const next = await transaction.query<{ next: number }>(
+    `select coalesce(max(revision), 0) + 1 as next
+       from bakery.repository_profiles
+      where organization_id = $1 and repository_id = $2`,
+    [organizationId, repositoryId],
+  );
+  return {
+    ...toRepository(row),
+    nextProfileRevision: Number(next.rows[0]?.next ?? 1),
+  };
 }
 
 export const createRepository = async (
@@ -788,6 +801,7 @@ export const updateRepository = async (
       config: unknown;
       digest: string;
       has_observation: boolean;
+      check_passed: boolean;
     }>(
       `select p.config, p.digest,
           exists (
@@ -795,7 +809,14 @@ export const updateRepository = async (
               from bakery.repository_profile_observations o
              where o.organization_id = p.organization_id
                and o.profile_id = p.id
-          ) as has_observation
+          ) as has_observation,
+          exists (
+            select 1
+              from bakery.repository_profile_observations o
+             where o.organization_id = p.organization_id
+               and o.profile_id = p.id
+               and o.readiness = 'eligible'
+          ) as check_passed
          from bakery.repository_profiles p
         where p.organization_id = $1
           and p.repository_id = $2
@@ -826,32 +847,24 @@ export const updateRepository = async (
     }
   }
   if (value.activeProfileId !== undefined) {
-    if (
-      repository.active_profile_id !== null &&
-      repository.active_profile_id !== value.activeProfileId
-    ) {
-      const currentProfile = await readProfileForActivation(
-        repository.active_profile_id,
-      );
-      if (currentProfile?.has_observation) {
-        throw unprocessable(
-          ["activeProfileId"],
-          "legacy_v1_config_only_required",
-        );
-      }
-    }
+    // #65 (PM decision): a person can always switch versions after a check.
+    // Leaving a check-made version in use is allowed; its inspection evidence
+    // is superseded until onboarding runs again (the same accepted
+    // consequence as a publication that replaces it). A check-made version
+    // may be put in use only if its check passed; a failed check's candidate
+    // never becomes the version in use.
     const profileRow = await readProfileForActivation(value.activeProfileId);
     if (!profileRow) {
       throw unprocessable(["activeProfileId"], "profile_not_in_repository");
     }
-    const parsedConfig = RepositoryProfileConfigSchema.safeParse(
-      profileRow.config,
-    );
-    if (!parsedConfig.success || profileRow.has_observation) {
-      throw unprocessable(
-        ["activeProfileId"],
-        "legacy_v1_config_only_required",
-      );
+    if (profileRow.has_observation && !profileRow.check_passed) {
+      throw unprocessable(["activeProfileId"], "profile_check_not_passed");
+    }
+    const parsedConfig = profileRow.has_observation
+      ? RepositoryVersionedProfileConfigSchema.safeParse(profileRow.config)
+      : RepositoryProfileConfigSchema.safeParse(profileRow.config);
+    if (!parsedConfig.success) {
+      throw unprocessable(["activeProfileId"], "profile_config_invalid");
     }
     if ((await profileDigest(parsedConfig.data)) !== profileRow.digest) {
       throw unprocessable(["activeProfileId"], "profile_digest_mismatch");
@@ -953,8 +966,25 @@ export function createProfilesListHandler(secret: string) {
             created_at at time zone 'UTC',
             'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
           ) as cursor_created_at
-         from bakery.repository_profiles
+         from bakery.repository_profiles as profile
          where repository_id = $1
+           -- #65: the Versions list shows what a person saved (no readiness
+           -- check created it) or what a passing check put in use. A failed
+           -- check's candidate stays out of the list; it is still stored, and
+           -- its check result (the observation) references it.
+           and (
+             not exists (
+               select 1 from bakery.repository_profile_observations o
+                where o.organization_id = profile.organization_id
+                  and o.profile_id = profile.id
+             )
+             or exists (
+               select 1 from bakery.repository_profile_observations o
+                where o.organization_id = profile.organization_id
+                  and o.profile_id = profile.id
+                  and o.readiness = 'eligible'
+             )
+           )
            and ($2::timestamptz is null or (created_at, id) < ($2, $3::uuid))
          order by created_at desc, id desc
          limit $4`,
@@ -1012,6 +1042,16 @@ export const createProfile = async (
     });
   }
   const publishesFixedPolicy = parsedConfig.data.fixedPolicy !== undefined;
+  // `keepRepositoryRules` carries the ACTIVE profile's overrides forward
+  // verbatim (a branches-only save from the repository page). It is not a
+  // statement about overrides, so stating them as well is contradictory.
+  const keepsRepositoryRules = value.keepRepositoryRules === true;
+  if (keepsRepositoryRules && parsedConfig.data.repositoryRules !== undefined) {
+    throw unprocessable(
+      ["config", "repositoryRules"],
+      "repository_rules_keep_conflict",
+    );
+  }
   // An explicit `repositoryRules` key (even `entries: []`, an explicit "no
   // overrides") is a statement about overrides and activates the profile.
   const statesRepositoryRules = parsedConfig.data.repositoryRules !== undefined;
@@ -1108,6 +1148,20 @@ export const createProfile = async (
   // An unparsable active config is never treated as carrying overrides.
   const activeCarriesRepositoryRules = parsedActiveConfig.success &&
     (parsedActiveConfig.data.repositoryRules?.entries.length ?? 0) > 0;
+  // With `keepRepositoryRules` the active overrides are copied unchanged, so
+  // the save is neither a rules statement nor a restore of the organization
+  // rules: no organization lock, no organization revision, no retention
+  // check. It still replaces an active profile carrying overrides, which must
+  // take effect for the carried overrides to stay effective, so it activates
+  // under the same If-Match and `repository:manage` as any replacing
+  // activation. No organization lock is needed: the carried overrides are
+  // read under the repository row lock, and any rules publication for this
+  // repository bumps the repository version, so a stale If-Match is refused.
+  const carriedRepositoryRules =
+    keepsRepositoryRules && activeCarriesRepositoryRules &&
+      parsedActiveConfig.success
+      ? parsedActiveConfig.data.repositoryRules
+      : undefined;
   const activatesOnPublish = publishesFixedPolicy || statesRepositoryRules ||
     activeCarriesRepositoryRules;
   // A strict-v1 active profile whose base branch no longer matches the
@@ -1162,6 +1216,7 @@ export const createProfile = async (
   //    onboarding is re-run, which is an accepted consequence.
   // 3. It fails closed on an active config that does not parse.
   const rulesCausedActivation = !publishesFixedPolicy && activatesOnPublish &&
+    carriedRepositoryRules === undefined &&
     repository.active_profile_id !== null;
   if (rulesCausedActivation) {
     if (!parsedActiveConfig.success) {
@@ -1189,6 +1244,42 @@ export const createProfile = async (
       });
     }
   }
+  // A branches-only save that carries the active overrides (#65) is still a
+  // retention save: only `branches` may change. Workflow, worktree and agent
+  // bindings are kept, and the active fixedPolicy must be carried; a fixed
+  // policy locks the branch boundary for its revision, so a branches change
+  // under one goes through a new policy revision instead.
+  if (carriedRepositoryRules !== undefined && parsedActiveConfig.success) {
+    const changed = changedRetainedFields(
+      parsedActiveConfig.data,
+      parsedConfig.data,
+    ).filter((field) => field !== "branches");
+    if (changed.length > 0) {
+      throw new StandardError({
+        code: "UNPROCESSABLE",
+        params: {
+          issues: [{
+            path: ["config"],
+            code: "repository_rules_must_retain_config",
+            message: `A branches-only save changed retained fields: ${
+              changed.join(", ")
+            }.`,
+          }],
+        },
+      });
+    }
+    const activeFixedPolicy = parsedActiveConfig.data.fixedPolicy;
+    if (
+      activeFixedPolicy?.lockedConfiguration.branches === true &&
+      canonicalJson(parsedActiveConfig.data.branches) !==
+        canonicalJson(parsedConfig.data.branches)
+    ) {
+      throw unprocessable(
+        ["config", "branches"],
+        "repository_branches_locked",
+      );
+    }
+  }
   if (repository.archived_at !== null) {
     throw new StandardError({
       code: "STATE_CONFLICT",
@@ -1211,10 +1302,33 @@ export const createProfile = async (
     );
   }
 
-  const digest = value.digest.toLowerCase();
-  if ((await profileDigest(parsedConfig.data)) !== digest) {
+  const submittedDigest = value.digest.toLowerCase();
+  if ((await profileDigest(parsedConfig.data)) !== submittedDigest) {
     throw unprocessable(["digest"], "digest_mismatch");
   }
+  // The digest verifies the submitted config in transit; a stored profile's
+  // digest always covers its stored config, so carrying overrides forward
+  // re-derives it over the config that is actually published.
+  const storedConfig = carriedRepositoryRules === undefined
+    ? parsedConfig.data
+    : RepositoryProfileConfigSchema.parse({
+      ...parsedConfig.data,
+      repositoryRules: carriedRepositoryRules,
+    });
+  if (
+    carriedRepositoryRules !== undefined &&
+    !profileConfigFitsInspectionBudget(
+      encodedByteLength(canonicalJson(storedConfig)),
+    )
+  ) {
+    throw unprocessable(
+      ["config", "repositoryRules"],
+      "repository_rules_too_large",
+    );
+  }
+  const digest = carriedRepositoryRules === undefined
+    ? submittedDigest
+    : await profileDigest(storedConfig);
 
   if (
     overrides !== undefined && expectedOrganizationRulesRevision !== undefined
@@ -1241,7 +1355,7 @@ export const createProfile = async (
         repository.application_id,
         repositoryId,
         value.revision,
-        JSON.stringify(parsedConfig.data),
+        JSON.stringify(storedConfig),
         value.budgetCaps === undefined
           ? null
           : JSON.stringify(value.budgetCaps),

@@ -1731,6 +1731,16 @@ Deno.test("automation.tick: due automations are admitted once, catch-ups are one
       assertEquals(await count(versionBId), 1);
     });
   } finally {
-    await fixture.close();
+    try {
+      await fixture.close();
+    } finally {
+      // The lane runs every integration file against one database, and this
+      // file leaves more behind than its fixture removes (a bootstrapped
+      // installation, registrations, organizations): the next file that
+      // creates a superuser without resetting would meet it
+      // (`AUTH_BOOTSTRAP_CONFLICT`, 88 tests in the hosted lane). Leave the
+      // database as a fresh one, even when the fixture fails to close.
+      await resetDatabase();
+    }
   }
 });

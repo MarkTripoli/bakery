@@ -22,6 +22,7 @@ import { createPostgresCommandRunner } from "../../platform/command-replay.ts";
 import type { PgDatabase } from "../../platform/database.ts";
 
 type CursorQuery = z.output<typeof contractSchemas.CursorQuery>;
+type PullRequestQuery = z.output<typeof contractSchemas.PullRequestQuery>;
 
 export type DeliveryActionHandlers = {
   checksList: (
@@ -40,6 +41,10 @@ export type DeliveryActionHandlers = {
     context: ActionContext,
     input: CursorQuery,
   ) => Promise<z.output<typeof contractSchemas["Page<DeliveryDecision>"]>>;
+  pullRequestsList: (
+    context: ActionContext,
+    input: PullRequestQuery,
+  ) => Promise<z.output<typeof contractSchemas["Page<PullRequest>"]>>;
 };
 
 export function createDeliveryActionRegistry(
@@ -96,6 +101,17 @@ export function createDeliveryActionRegistry(
     policy: queryPolicy,
     transactionIsolation: TransactionIsolation.RepeatableRead,
     handler: handlers.runDeliveryDecisionsList,
+  });
+
+  registry.register({
+    name: DeliveryImplementedAction.PullRequestsList,
+    method: HttpMethod.Get,
+    path: "/v1/pull-requests",
+    input: contractSchemas.PullRequestQuery,
+    output: contractSchemas["Page<PullRequest>"],
+    policy: queryPolicy,
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: handlers.pullRequestsList,
   });
 
   assertRegisteredActions(registry);

@@ -43,11 +43,19 @@ export function newestFirst(
   );
 }
 
-/** The number the next saved version takes; the person never types it. */
+/**
+ * The number the next saved version takes; the person never types it. The
+ * server's `nextProfileRevision` wins when the repository read carries it: the
+ * Versions list hides a failed check's candidate, which still holds a
+ * revision (#65).
+ */
 export function nextRevision(
   profiles: readonly RepositoryProfileResponse[],
+  serverNext?: number,
 ): number {
-  return Math.max(0, ...profiles.map((profile) => profile.revision)) + 1;
+  const listed = Math.max(0, ...profiles.map((profile) => profile.revision)) +
+    1;
+  return serverNext === undefined ? listed : Math.max(serverNext, listed);
 }
 
 /**
@@ -131,7 +139,11 @@ export function settingsConfig(
     readonly folder: string;
   },
 ): Record<string, unknown> {
-  const kept = record(previous);
+  // A person's save is a schema-1 version. A check-made (schema 2) version
+  // carries `checkPolicy`, the check's own evidence; it is dropped, because a
+  // person-saved version has no check behind it (#65). The check evidence then
+  // no longer applies until the check runs again.
+  const { checkPolicy: _checkEvidence, ...kept } = record(previous);
   return {
     ...kept,
     schemaVersion: 1,

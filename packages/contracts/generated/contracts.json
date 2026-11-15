@@ -5632,7 +5632,7 @@
       "action": "pullRequests.list",
       "access": "Developer",
       "permission": "pullRequest:read",
-      "input": "RepositoryQuery",
+      "input": "PullRequestQuery",
       "output": "Page<PullRequest>",
       "event": "",
       "mcp": "bakery_pullRequests_list",
@@ -5640,12 +5640,13 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Delivery",
@@ -9066,6 +9067,7 @@
     "runReviews.list",
     "reviewFindings.list",
     "runDeliveryDecisions.list",
+    "pullRequests.list",
     "ticketSources.list",
     "ticketSources.create",
     "ticketSources.get",
@@ -22997,24 +22999,32 @@
               "in": "query",
               "required": false,
               "schema": {
-                "description": "Restrict results to this repository's pull requests, merge entries, deployments, or evaluation cases.",
+                "description": "Restrict results to pull requests opened in this Bakery repository.",
                 "type": "string",
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               }
             },
             {
-              "name": "environment",
+              "name": "taskId",
               "in": "query",
               "required": false,
               "schema": {
-                "description": "Restrict deployment results to one environment: `preview`, `staging`, or `production`.",
+                "description": "Restrict results to pull requests registered for this task.",
                 "type": "string",
-                "enum": [
-                  "preview",
-                  "staging",
-                  "production"
-                ]
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              }
+            },
+            {
+              "name": "runId",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Restrict results to pull requests opened by this workflow run; pull requests registered without a run never match.",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               }
             },
             {
@@ -23022,7 +23032,7 @@
               "in": "query",
               "required": false,
               "schema": {
-                "description": "RepositoryQuery.cursor must contain at most 512 UTF-8 bytes.",
+                "description": "PullRequestQuery.cursor must contain at most 512 UTF-8 bytes.",
                 "type": "string",
                 "maxLength": 65536,
                 "x-utf8-max-bytes": 512
@@ -23033,10 +23043,22 @@
               "in": "query",
               "required": false,
               "schema": {
-                "description": "RepositoryQuery.limit must be at most 100.",
+                "description": "PullRequestQuery.limit must be at most 100.",
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 100
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
               }
             }
           ],
@@ -31449,7 +31471,7 @@
             "spec"
           ],
           "additionalProperties": false,
-          "description": "Stores a new immutable, versioned coordination plan revision for a parent task after validating aliases, scope, dependencies and typed handoffs."
+          "description": "Stores a new immutable, versioned split revision for a parent task after validating aliases, scope, dependencies and typed handoffs."
         },
         "CoordinationPlanCreate____schema0": {
           "description": "JSON value node.",
@@ -31707,7 +31729,7 @@
             "nodeId"
           ],
           "additionalProperties": false,
-          "description": "Stores a coordination plan revision mapped from one parallel node of a published workflow version, through the same boundary as ad hoc and ticket plans."
+          "description": "Stores a split revision mapped from one parallel node of a published workflow version, through the same boundary as ad hoc and ticket splits."
         },
         "CoordinationPlanListQuery": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -31733,7 +31755,7 @@
             }
           },
           "additionalProperties": false,
-          "description": "Lists coordination plan revisions newest-first, optionally for one parent task."
+          "description": "Lists split revisions newest-first, optionally for one parent task."
         },
         "TaskRepositorySet": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -40330,6 +40352,10 @@
               "type": "integer",
               "minimum": 0,
               "maximum": 9007199254740991
+            },
+            "keepRepositoryRules": {
+              "description": "When true, copies the active profile's `repositoryRules` overrides unchanged into the published config (a branches-only save that neither restates nor restores the organization rules), so `expectedOrganizationRulesRevision` is not needed; `digest` still covers the submitted `config` and the stored digest is re-derived over the config with the carried overrides. With overrides on the active profile the save replaces it and activates under the repository `If-Match` version and `repository:manage`; with none it behaves like omitting the flag. Combining it with `config.repositoryRules` is refused with UNPROCESSABLE `repository_rules_keep_conflict`. Omitted or false keeps the default behaviour.",
+              "type": "boolean"
             }
           },
           "required": [
@@ -40596,6 +40622,44 @@
           },
           "additionalProperties": false,
           "description": "Filters for listing pull requests, merge entries, deployments, or evaluation cases scoped to a repository."
+        },
+        "PullRequestQuery": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "repositoryId": {
+              "description": "Restrict results to pull requests opened in this Bakery repository.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "taskId": {
+              "description": "Restrict results to pull requests registered for this task.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "runId": {
+              "description": "Restrict results to pull requests opened by this workflow run; pull requests registered without a run never match.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "cursor": {
+              "description": "PullRequestQuery.cursor must contain at most 512 UTF-8 bytes.",
+              "type": "string",
+              "maxLength": 65536,
+              "x-utf8-max-bytes": 512
+            },
+            "limit": {
+              "description": "PullRequestQuery.limit must be at most 100.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          "additionalProperties": false,
+          "description": "Filters for listing the organization's tracked pull requests, oldest registration first; every filter given must match."
         },
         "RepositoryUpdate": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -53553,6 +53617,45 @@
           ],
           "additionalProperties": false,
           "description": "One required check that did not pass on a candidate, as handed to a repair step. It names the recorded check run and the machine-readable outcome, never the command output, so a repair prompt carries facts the server verified and no text a command could have forged."
+        },
+        "RunBlockingTask": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Id of the dependency task; use it to link to the task's page."
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "description": "RunBlockingTask.title must contain at most 500 characters."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "queued",
+                "active",
+                "waiting_input",
+                "blocked",
+                "completed",
+                "failed",
+                "canceled"
+              ],
+              "description": "Current status of the dependency task; never completed, because a completed dependency no longer blocks the run."
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "status"
+          ],
+          "additionalProperties": false,
+          "description": "One task a blocked run waits on: a dependency of the run's task, in the run's organization, that has not completed. Read live at request time, so it disappears once the task completes."
         },
         "ReviewInput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -90486,6 +90589,21 @@
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "description": "Stable UUID linking this pull request record to the related repository entity."
             },
+            "runId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Workflow run that opened the pull request; its check runs and review cycles at the pull request's head name this pull request. Null when the pull request was registered without a run."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "pull_requests.runId may be null in this transport value."
+            },
             "providerNumber": {
               "type": "integer",
               "minimum": -9007199254740991,
@@ -90553,6 +90671,7 @@
             "id",
             "taskId",
             "repositoryId",
+            "runId",
             "providerNumber",
             "url",
             "headSha",
@@ -90588,6 +90707,21 @@
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "description": "Stable UUID linking this pull request record to the related repository entity."
             },
+            "runId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Workflow run that opened the pull request; its check runs and review cycles at the pull request's head name this pull request. Null when the pull request was registered without a run."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "pull_requests.runId may be null in this transport value."
+            },
             "providerNumber": {
               "type": "integer",
               "minimum": -9007199254740991,
@@ -90655,6 +90789,7 @@
             "id",
             "taskId",
             "repositoryId",
+            "runId",
             "providerNumber",
             "url",
             "headSha",
@@ -90689,6 +90824,21 @@
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
               "description": "Stable UUID linking this record to the related repository entity."
+            },
+            "runId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Workflow run that opened the pull request; its check runs and review cycles at the pull request's head name this pull request. Null when the pull request was registered without a run."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "PullRequest.runId may be null in this transport value."
             },
             "providerNumber": {
               "type": "integer",
@@ -90757,6 +90907,7 @@
             "id",
             "taskId",
             "repositoryId",
+            "runId",
             "providerNumber",
             "url",
             "headSha",
@@ -90781,10 +90932,19 @@
               "description": "Stable UUID identifying the review cycle record."
             },
             "pullRequestId": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Stable UUID linking this review cycle record to the related pull request entity."
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Pull request this review judged: the tracked pull request whose run is this review's run and whose current head SHA equals this review's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "review_cycles.pullRequestId may be null in this transport value."
             },
             "runId": {
               "type": "string",
@@ -90885,10 +91045,19 @@
               "description": "Stable UUID identifying the review cycle record."
             },
             "pullRequestId": {
-              "type": "string",
-              "format": "uuid",
-              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Stable UUID linking this review cycle record to the related pull request entity."
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Pull request this review judged: the tracked pull request whose run is this review's run and whose current head SHA equals this review's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "review_cycles.pullRequestId may be null in this transport value."
             },
             "runId": {
               "type": "string",
@@ -91012,7 +91181,7 @@
                   "type": "string",
                   "format": "uuid",
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                  "description": "Stable UUID linking this record to the related pull request entity; always null until pull requests have a table."
+                  "description": "Pull request this review judged: the tracked pull request whose run is this review's run and whose current head SHA equals this review's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on."
                 },
                 {
                   "type": "null",
@@ -91570,7 +91739,7 @@
                   "type": "string",
                   "format": "uuid",
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                  "description": "Stable UUID linking this record to the related pull request entity; always null until pull requests have a table."
+                  "description": "Pull request this check judged: the tracked pull request whose run is this check's run and whose current head SHA equals this check's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on."
                 },
                 {
                   "type": "null",
@@ -91932,7 +92101,7 @@
                   "type": "string",
                   "format": "uuid",
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                  "description": "Stable UUID linking this record to the related pull request entity; always null until pull requests have a table."
+                  "description": "Pull request this check judged: the tracked pull request whose run is this check's run and whose current head SHA equals this check's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on."
                 },
                 {
                   "type": "null",
@@ -92294,7 +92463,7 @@
                   "type": "string",
                   "format": "uuid",
                   "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                  "description": "Stable UUID linking this record to the related pull request entity; always null until pull requests have a table."
+                  "description": "Pull request this check judged: the tracked pull request whose run is this check's run and whose current head SHA equals this check's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on."
                 },
                 {
                   "type": "null",
@@ -104547,6 +104716,23 @@
                 }
               ]
             },
+            "linkedTaskIds": {
+              "description": "ExternalTicket.linkedTaskIds must contain at most 25 items.",
+              "maxItems": 25,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Bakery tasks linked to this ticket through ticket_task_links (primary and reference links), most recently linked first, at most 25; linkedTaskCount tells whether more exist. Empty when no task is linked. Omitted by servers that predate it. Each array item follows this format."
+              }
+            },
+            "linkedTaskCount": {
+              "description": "ExternalTicket.linkedTaskCount must be at least 0.",
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
             "createdAt": {
               "type": "string",
               "format": "date-time",
@@ -110759,7 +110945,7 @@
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Stable UUID identifying the coordination plan revision."
+              "description": "Stable UUID identifying the split revision."
             },
             "applicationId": {
               "type": "string",
@@ -110970,7 +111156,7 @@
             "version"
           ],
           "additionalProperties": false,
-          "description": "Coordination plan revision with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings."
+          "description": "Split revision (a `coordination-plans` resource) with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings."
         },
         "CoordinationPlan____schema0": {
           "anyOf": [
@@ -111343,7 +111529,7 @@
                 "coordinator",
                 "plan"
               ],
-              "description": "Who selected the link: user, coordinator or a coordination plan."
+              "description": "Who selected the link: user, coordinator or a split."
             },
             "createdBy": {
               "type": "string",
@@ -111437,7 +111623,7 @@
             "alias": {
               "type": "string",
               "maxLength": 65536,
-              "description": "Alias coordination plans use to name the repository."
+              "description": "Alias a split's lanes use to name the repository."
             },
             "role": {
               "type": "string",
@@ -111496,7 +111682,7 @@
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Stable UUID identifying the coordination plan revision."
+                    "description": "Stable UUID identifying the split revision."
                   },
                   "applicationId": {
                     "type": "string",
@@ -111707,7 +111893,7 @@
                   "version"
                 ],
                 "additionalProperties": false,
-                "description": "Coordination plan revision with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings."
+                "description": "Split revision (a `coordination-plans` resource) with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings."
               },
               "description": "Page<CoordinationPlan>.items must contain at most 100 items."
             },
@@ -112140,7 +112326,7 @@
                       "coordinator",
                       "plan"
                     ],
-                    "description": "Who selected the link: user, coordinator or a coordination plan."
+                    "description": "Who selected the link: user, coordinator or a split."
                   },
                   "createdBy": {
                     "type": "string",
@@ -112354,7 +112540,7 @@
                   "alias": {
                     "type": "string",
                     "maxLength": 65536,
-                    "description": "Alias coordination plans use to name the repository."
+                    "description": "Alias a split's lanes use to name the repository."
                   },
                   "role": {
                     "type": "string",
@@ -113649,6 +113835,12 @@
                     "format": "date-time",
                     "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
                     "description": "UTC timestamp when the record was last updated."
+                  },
+                  "nextProfileRevision": {
+                    "description": "The revision the next saved version of the working settings must use (#65): the highest stored revision plus one, counting check candidates the Versions list hides. Served by repositories.get; other repository responses omit it.",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
                   },
                   "version": {
                     "type": "integer",
@@ -116678,6 +116870,63 @@
                     ],
                     "additionalProperties": false,
                     "description": "Aggregated budget usage and reservation summary."
+                  },
+                  "blockedReason": {
+                    "description": "Run.blockedReason may be null in this transport value.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Why the run is blocked, as admission recorded it (for example dependency_incomplete); null unless status is blocked. Served by runs.get and runs.list; omitted by other run responses."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ]
+                  },
+                  "blockingTasks": {
+                    "description": "Run.blockingTasks must contain at most 25 items.",
+                    "maxItems": 25,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                          "description": "Id of the dependency task; use it to link to the task's page."
+                        },
+                        "title": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500,
+                          "description": "RunBlockingTask.title must contain at most 500 characters."
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "draft",
+                            "queued",
+                            "active",
+                            "waiting_input",
+                            "blocked",
+                            "completed",
+                            "failed",
+                            "canceled"
+                          ],
+                          "description": "Current status of the dependency task; never completed, because a completed dependency no longer blocks the run."
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "title",
+                        "status"
+                      ],
+                      "additionalProperties": false,
+                      "description": "For a run blocked with dependency_incomplete, the dependency tasks of the run's task that have not completed, read live and limited to the run's organization, oldest dependency first, at most 25; empty otherwise. Served by runs.get and runs.list; omitted by other run responses. Each array item follows this format."
+                    }
                   }
                 },
                 "required": [
@@ -128541,6 +128790,21 @@
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                     "description": "Stable UUID linking this record to the related repository entity."
                   },
+                  "runId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Workflow run that opened the pull request; its check runs and review cycles at the pull request's head name this pull request. Null when the pull request was registered without a run."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "PullRequest.runId may be null in this transport value."
+                  },
                   "providerNumber": {
                     "type": "integer",
                     "minimum": -9007199254740991,
@@ -128608,6 +128872,7 @@
                   "id",
                   "taskId",
                   "repositoryId",
+                  "runId",
                   "providerNumber",
                   "url",
                   "headSha",
@@ -128715,7 +128980,7 @@
                         "type": "string",
                         "format": "uuid",
                         "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                        "description": "Stable UUID linking this record to the related pull request entity; always null until pull requests have a table."
+                        "description": "Pull request this review judged: the tracked pull request whose run is this review's run and whose current head SHA equals this review's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on."
                       },
                       {
                         "type": "null",
@@ -129445,7 +129710,7 @@
                         "type": "string",
                         "format": "uuid",
                         "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                        "description": "Stable UUID linking this record to the related pull request entity; always null until pull requests have a table."
+                        "description": "Pull request this check judged: the tracked pull request whose run is this check's run and whose current head SHA equals this check's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on."
                       },
                       {
                         "type": "null",
@@ -132912,6 +133177,12 @@
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
               "description": "UTC timestamp when the record was last updated."
             },
+            "nextProfileRevision": {
+              "description": "The revision the next saved version of the working settings must use (#65): the highest stored revision plus one, counting check candidates the Versions list hides. Served by repositories.get; other repository responses omit it.",
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
             "version": {
               "type": "integer",
               "minimum": -9007199254740991,
@@ -136313,6 +136584,63 @@
               ],
               "additionalProperties": false,
               "description": "Aggregated budget usage and reservation summary."
+            },
+            "blockedReason": {
+              "description": "Run.blockedReason may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Why the run is blocked, as admission recorded it (for example dependency_incomplete); null unless status is blocked. Served by runs.get and runs.list; omitted by other run responses."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            },
+            "blockingTasks": {
+              "description": "Run.blockingTasks must contain at most 25 items.",
+              "maxItems": 25,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Id of the dependency task; use it to link to the task's page."
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "description": "RunBlockingTask.title must contain at most 500 characters."
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "queued",
+                      "active",
+                      "waiting_input",
+                      "blocked",
+                      "completed",
+                      "failed",
+                      "canceled"
+                    ],
+                    "description": "Current status of the dependency task; never completed, because a completed dependency no longer blocks the run."
+                  }
+                },
+                "required": [
+                  "id",
+                  "title",
+                  "status"
+                ],
+                "additionalProperties": false,
+                "description": "For a run blocked with dependency_incomplete, the dependency tasks of the run's task that have not completed, read live and limited to the run's organization, oldest dependency first, at most 25; empty otherwise. Served by runs.get and runs.list; omitted by other run responses. Each array item follows this format."
+              }
             }
           },
           "required": [
@@ -185038,6 +185366,23 @@
                       }
                     ]
                   },
+                  "linkedTaskIds": {
+                    "description": "ExternalTicket.linkedTaskIds must contain at most 25 items.",
+                    "maxItems": 25,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Bakery tasks linked to this ticket through ticket_task_links (primary and reference links), most recently linked first, at most 25; linkedTaskCount tells whether more exist. Empty when no task is linked. Omitted by servers that predate it. Each array item follows this format."
+                    }
+                  },
+                  "linkedTaskCount": {
+                    "description": "ExternalTicket.linkedTaskCount must be at least 0.",
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
                   "createdAt": {
                     "type": "string",
                     "format": "date-time",
@@ -198449,7 +198794,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:2b7163b6c9e8c02d65232fdf104fec24f063107b9f4411a737cc3cbf2bae388c",
+  "compatibilityDigest": "sha256:6bfc1442f25c54b84101fd9cfac91715878bc3d6e4517147188cfa920f92ca58",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -198552,7 +198897,7 @@
         "spec"
       ],
       "additionalProperties": false,
-      "description": "Stores a new immutable, versioned coordination plan revision for a parent task after validating aliases, scope, dependencies and typed handoffs.",
+      "description": "Stores a new immutable, versioned split revision for a parent task after validating aliases, scope, dependencies and typed handoffs.",
       "$defs": {
         "__schema0": {
           "description": "JSON value node.",
@@ -198812,7 +199157,7 @@
         "nodeId"
       ],
       "additionalProperties": false,
-      "description": "Stores a coordination plan revision mapped from one parallel node of a published workflow version, through the same boundary as ad hoc and ticket plans."
+      "description": "Stores a split revision mapped from one parallel node of a published workflow version, through the same boundary as ad hoc and ticket splits."
     },
     "CoordinationPlanListQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -198838,7 +199183,7 @@
         }
       },
       "additionalProperties": false,
-      "description": "Lists coordination plan revisions newest-first, optionally for one parent task."
+      "description": "Lists split revisions newest-first, optionally for one parent task."
     },
     "TaskRepositorySet": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -207467,6 +207812,10 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "keepRepositoryRules": {
+          "description": "When true, copies the active profile's `repositoryRules` overrides unchanged into the published config (a branches-only save that neither restates nor restores the organization rules), so `expectedOrganizationRulesRevision` is not needed; `digest` still covers the submitted `config` and the stored digest is re-derived over the config with the carried overrides. With overrides on the active profile the save replaces it and activates under the repository `If-Match` version and `repository:manage`; with none it behaves like omitting the flag. Combining it with `config.repositoryRules` is refused with UNPROCESSABLE `repository_rules_keep_conflict`. Omitted or false keeps the default behaviour.",
+          "type": "boolean"
         }
       },
       "required": [
@@ -207735,6 +208084,44 @@
       },
       "additionalProperties": false,
       "description": "Filters for listing pull requests, merge entries, deployments, or evaluation cases scoped to a repository."
+    },
+    "PullRequestQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "description": "Restrict results to pull requests opened in this Bakery repository.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "taskId": {
+          "description": "Restrict results to pull requests registered for this task.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "runId": {
+          "description": "Restrict results to pull requests opened by this workflow run; pull requests registered without a run never match.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "cursor": {
+          "description": "PullRequestQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "PullRequestQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Filters for listing the organization's tracked pull requests, oldest registration first; every filter given must match."
     },
     "RepositoryUpdate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -220742,6 +221129,45 @@
       ],
       "additionalProperties": false,
       "description": "One required check that did not pass on a candidate, as handed to a repair step. It names the recorded check run and the machine-readable outcome, never the command output, so a repair prompt carries facts the server verified and no text a command could have forged."
+    },
+    "RunBlockingTask": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Id of the dependency task; use it to link to the task's page."
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "RunBlockingTask.title must contain at most 500 characters."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "queued",
+            "active",
+            "waiting_input",
+            "blocked",
+            "completed",
+            "failed",
+            "canceled"
+          ],
+          "description": "Current status of the dependency task; never completed, because a completed dependency no longer blocks the run."
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "status"
+      ],
+      "additionalProperties": false,
+      "description": "One task a blocked run waits on: a dependency of the run's task, in the run's organization, that has not completed. Read live at request time, so it disappears once the task completes."
     },
     "ReviewInput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -257799,6 +258225,21 @@
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "Stable UUID linking this pull request record to the related repository entity."
         },
+        "runId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Workflow run that opened the pull request; its check runs and review cycles at the pull request's head name this pull request. Null when the pull request was registered without a run."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "pull_requests.runId may be null in this transport value."
+        },
         "providerNumber": {
           "type": "integer",
           "minimum": -9007199254740991,
@@ -257866,6 +258307,7 @@
         "id",
         "taskId",
         "repositoryId",
+        "runId",
         "providerNumber",
         "url",
         "headSha",
@@ -257901,6 +258343,21 @@
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "Stable UUID linking this pull request record to the related repository entity."
         },
+        "runId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Workflow run that opened the pull request; its check runs and review cycles at the pull request's head name this pull request. Null when the pull request was registered without a run."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "pull_requests.runId may be null in this transport value."
+        },
         "providerNumber": {
           "type": "integer",
           "minimum": -9007199254740991,
@@ -257968,6 +258425,7 @@
         "id",
         "taskId",
         "repositoryId",
+        "runId",
         "providerNumber",
         "url",
         "headSha",
@@ -258002,6 +258460,21 @@
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
           "description": "Stable UUID linking this record to the related repository entity."
+        },
+        "runId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Workflow run that opened the pull request; its check runs and review cycles at the pull request's head name this pull request. Null when the pull request was registered without a run."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "PullRequest.runId may be null in this transport value."
         },
         "providerNumber": {
           "type": "integer",
@@ -258070,6 +258543,7 @@
         "id",
         "taskId",
         "repositoryId",
+        "runId",
         "providerNumber",
         "url",
         "headSha",
@@ -258094,10 +258568,19 @@
           "description": "Stable UUID identifying the review cycle record."
         },
         "pullRequestId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID linking this review cycle record to the related pull request entity."
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Pull request this review judged: the tracked pull request whose run is this review's run and whose current head SHA equals this review's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "review_cycles.pullRequestId may be null in this transport value."
         },
         "runId": {
           "type": "string",
@@ -258198,10 +258681,19 @@
           "description": "Stable UUID identifying the review cycle record."
         },
         "pullRequestId": {
-          "type": "string",
-          "format": "uuid",
-          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID linking this review cycle record to the related pull request entity."
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Pull request this review judged: the tracked pull request whose run is this review's run and whose current head SHA equals this review's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "review_cycles.pullRequestId may be null in this transport value."
         },
         "runId": {
           "type": "string",
@@ -258325,7 +258817,7 @@
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Stable UUID linking this record to the related pull request entity; always null until pull requests have a table."
+              "description": "Pull request this review judged: the tracked pull request whose run is this review's run and whose current head SHA equals this review's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on."
             },
             {
               "type": "null",
@@ -258883,7 +259375,7 @@
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Stable UUID linking this record to the related pull request entity; always null until pull requests have a table."
+              "description": "Pull request this check judged: the tracked pull request whose run is this check's run and whose current head SHA equals this check's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on."
             },
             {
               "type": "null",
@@ -259245,7 +259737,7 @@
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Stable UUID linking this record to the related pull request entity; always null until pull requests have a table."
+              "description": "Pull request this check judged: the tracked pull request whose run is this check's run and whose current head SHA equals this check's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on."
             },
             {
               "type": "null",
@@ -259607,7 +260099,7 @@
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-              "description": "Stable UUID linking this record to the related pull request entity; always null until pull requests have a table."
+              "description": "Pull request this check judged: the tracked pull request whose run is this check's run and whose current head SHA equals this check's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on."
             },
             {
               "type": "null",
@@ -271918,6 +272410,23 @@
             }
           ]
         },
+        "linkedTaskIds": {
+          "description": "ExternalTicket.linkedTaskIds must contain at most 25 items.",
+          "maxItems": 25,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Bakery tasks linked to this ticket through ticket_task_links (primary and reference links), most recently linked first, at most 25; linkedTaskCount tells whether more exist. Empty when no task is linked. Omitted by servers that predate it. Each array item follows this format."
+          }
+        },
+        "linkedTaskCount": {
+          "description": "ExternalTicket.linkedTaskCount must be at least 0.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -278152,7 +278661,7 @@
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID identifying the coordination plan revision."
+          "description": "Stable UUID identifying the split revision."
         },
         "applicationId": {
           "type": "string",
@@ -278363,7 +278872,7 @@
         "version"
       ],
       "additionalProperties": false,
-      "description": "Coordination plan revision with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings.",
+      "description": "Split revision (a `coordination-plans` resource) with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings.",
       "$defs": {
         "__schema0": {
           "anyOf": [
@@ -278738,7 +279247,7 @@
             "coordinator",
             "plan"
           ],
-          "description": "Who selected the link: user, coordinator or a coordination plan."
+          "description": "Who selected the link: user, coordinator or a split."
         },
         "createdBy": {
           "type": "string",
@@ -278832,7 +279341,7 @@
         "alias": {
           "type": "string",
           "maxLength": 65536,
-          "description": "Alias coordination plans use to name the repository."
+          "description": "Alias a split's lanes use to name the repository."
         },
         "role": {
           "type": "string",
@@ -278891,7 +279400,7 @@
                 "type": "string",
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID identifying the coordination plan revision."
+                "description": "Stable UUID identifying the split revision."
               },
               "applicationId": {
                 "type": "string",
@@ -279102,7 +279611,7 @@
               "version"
             ],
             "additionalProperties": false,
-            "description": "Coordination plan revision with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings."
+            "description": "Split revision (a `coordination-plans` resource) with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings."
           },
           "description": "Page<CoordinationPlan>.items must contain at most 100 items."
         },
@@ -279537,7 +280046,7 @@
                   "coordinator",
                   "plan"
                 ],
-                "description": "Who selected the link: user, coordinator or a coordination plan."
+                "description": "Who selected the link: user, coordinator or a split."
               },
               "createdBy": {
                 "type": "string",
@@ -279751,7 +280260,7 @@
               "alias": {
                 "type": "string",
                 "maxLength": 65536,
-                "description": "Alias coordination plans use to name the repository."
+                "description": "Alias a split's lanes use to name the repository."
               },
               "role": {
                 "type": "string",
@@ -281046,6 +281555,12 @@
                 "format": "date-time",
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
                 "description": "UTC timestamp when the record was last updated."
+              },
+              "nextProfileRevision": {
+                "description": "The revision the next saved version of the working settings must use (#65): the highest stored revision plus one, counting check candidates the Versions list hides. Served by repositories.get; other repository responses omit it.",
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
               },
               "version": {
                 "type": "integer",
@@ -284081,6 +284596,63 @@
                 ],
                 "additionalProperties": false,
                 "description": "Aggregated budget usage and reservation summary."
+              },
+              "blockedReason": {
+                "description": "Run.blockedReason may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Why the run is blocked, as admission recorded it (for example dependency_incomplete); null unless status is blocked. Served by runs.get and runs.list; omitted by other run responses."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "blockingTasks": {
+                "description": "Run.blockingTasks must contain at most 25 items.",
+                "maxItems": 25,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Id of the dependency task; use it to link to the task's page."
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500,
+                      "description": "RunBlockingTask.title must contain at most 500 characters."
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "queued",
+                        "active",
+                        "waiting_input",
+                        "blocked",
+                        "completed",
+                        "failed",
+                        "canceled"
+                      ],
+                      "description": "Current status of the dependency task; never completed, because a completed dependency no longer blocks the run."
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "status"
+                  ],
+                  "additionalProperties": false,
+                  "description": "For a run blocked with dependency_incomplete, the dependency tasks of the run's task that have not completed, read live and limited to the run's organization, oldest dependency first, at most 25; empty otherwise. Served by runs.get and runs.list; omitted by other run responses. Each array item follows this format."
+                }
               }
             },
             "required": [
@@ -295978,6 +296550,21 @@
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
                 "description": "Stable UUID linking this record to the related repository entity."
               },
+              "runId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Workflow run that opened the pull request; its check runs and review cycles at the pull request's head name this pull request. Null when the pull request was registered without a run."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PullRequest.runId may be null in this transport value."
+              },
               "providerNumber": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -296045,6 +296632,7 @@
               "id",
               "taskId",
               "repositoryId",
+              "runId",
               "providerNumber",
               "url",
               "headSha",
@@ -296152,7 +296740,7 @@
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Stable UUID linking this record to the related pull request entity; always null until pull requests have a table."
+                    "description": "Pull request this review judged: the tracked pull request whose run is this review's run and whose current head SHA equals this review's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on."
                   },
                   {
                     "type": "null",
@@ -296882,7 +297470,7 @@
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Stable UUID linking this record to the related pull request entity; always null until pull requests have a table."
+                    "description": "Pull request this check judged: the tracked pull request whose run is this check's run and whose current head SHA equals this check's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on."
                   },
                   {
                     "type": "null",
@@ -300359,6 +300947,12 @@
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
           "description": "UTC timestamp when the record was last updated."
         },
+        "nextProfileRevision": {
+          "description": "The revision the next saved version of the working settings must use (#65): the highest stored revision plus one, counting check candidates the Versions list hides. Served by repositories.get; other repository responses omit it.",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
         "version": {
           "type": "integer",
           "minimum": -9007199254740991,
@@ -303760,6 +304354,63 @@
           ],
           "additionalProperties": false,
           "description": "Aggregated budget usage and reservation summary."
+        },
+        "blockedReason": {
+          "description": "Run.blockedReason may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Why the run is blocked, as admission recorded it (for example dependency_incomplete); null unless status is blocked. Served by runs.get and runs.list; omitted by other run responses."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "blockingTasks": {
+          "description": "Run.blockingTasks must contain at most 25 items.",
+          "maxItems": 25,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Id of the dependency task; use it to link to the task's page."
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+                "description": "RunBlockingTask.title must contain at most 500 characters."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "queued",
+                  "active",
+                  "waiting_input",
+                  "blocked",
+                  "completed",
+                  "failed",
+                  "canceled"
+                ],
+                "description": "Current status of the dependency task; never completed, because a completed dependency no longer blocks the run."
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "status"
+            ],
+            "additionalProperties": false,
+            "description": "For a run blocked with dependency_incomplete, the dependency tasks of the run's task that have not completed, read live and limited to the run's organization, oldest dependency first, at most 25; empty otherwise. Served by runs.get and runs.list; omitted by other run responses. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -352542,6 +353193,23 @@
                     "description": "Null indicates that the value is unavailable."
                   }
                 ]
+              },
+              "linkedTaskIds": {
+                "description": "ExternalTicket.linkedTaskIds must contain at most 25 items.",
+                "maxItems": 25,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Bakery tasks linked to this ticket through ticket_task_links (primary and reference links), most recently linked first, at most 25; linkedTaskCount tells whether more exist. Empty when no task is linked. Omitted by servers that predate it. Each array item follows this format."
+                }
+              },
+              "linkedTaskCount": {
+                "description": "ExternalTicket.linkedTaskCount must be at least 0.",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
               },
               "createdAt": {
                 "type": "string",

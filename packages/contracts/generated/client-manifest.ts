@@ -4680,6 +4680,29 @@ export const clientManifest = {
     {
       "group": "Delivery",
       "method": "GET",
+      "path": "/v1/pull-requests",
+      "action": "pullRequests.list",
+      "access": "Developer",
+      "permission": "pullRequest:read",
+      "input": "PullRequestQuery",
+      "output": "Page<PullRequest>",
+      "event": "",
+      "mcp": "bakery_pullRequests_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Delivery",
+      "method": "GET",
       "path": "/v1/reviews/{id}/findings",
       "action": "reviewFindings.list",
       "access": "Developer",
@@ -6732,7 +6755,7 @@ export const clientManifest = {
         "spec"
       ],
       "additionalProperties": false,
-      "description": "Stores a new immutable, versioned coordination plan revision for a parent task after validating aliases, scope, dependencies and typed handoffs.",
+      "description": "Stores a new immutable, versioned split revision for a parent task after validating aliases, scope, dependencies and typed handoffs.",
       "$defs": {
         "__schema0": {
           "description": "JSON value node.",
@@ -6992,7 +7015,7 @@ export const clientManifest = {
         "nodeId"
       ],
       "additionalProperties": false,
-      "description": "Stores a coordination plan revision mapped from one parallel node of a published workflow version, through the same boundary as ad hoc and ticket plans."
+      "description": "Stores a split revision mapped from one parallel node of a published workflow version, through the same boundary as ad hoc and ticket splits."
     },
     "CoordinationPlanListQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7018,7 +7041,7 @@ export const clientManifest = {
         }
       },
       "additionalProperties": false,
-      "description": "Lists coordination plan revisions newest-first, optionally for one parent task."
+      "description": "Lists split revisions newest-first, optionally for one parent task."
     },
     "TaskRepositorySet": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -11606,6 +11629,10 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "keepRepositoryRules": {
+          "description": "When true, copies the active profile's `repositoryRules` overrides unchanged into the published config (a branches-only save that neither restates nor restores the organization rules), so `expectedOrganizationRulesRevision` is not needed; `digest` still covers the submitted `config` and the stored digest is re-derived over the config with the carried overrides. With overrides on the active profile the save replaces it and activates under the repository `If-Match` version and `repository:manage`; with none it behaves like omitting the flag. Combining it with `config.repositoryRules` is refused with UNPROCESSABLE `repository_rules_keep_conflict`. Omitted or false keeps the default behaviour.",
+          "type": "boolean"
         }
       },
       "required": [
@@ -11839,6 +11866,44 @@ export const clientManifest = {
           ]
         }
       }
+    },
+    "PullRequestQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "description": "Restrict results to pull requests opened in this Bakery repository.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "taskId": {
+          "description": "Restrict results to pull requests registered for this task.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "runId": {
+          "description": "Restrict results to pull requests opened by this workflow run; pull requests registered without a run never match.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "cursor": {
+          "description": "PullRequestQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "PullRequestQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Filters for listing the organization's tracked pull requests, oldest registration first; every filter given must match."
     },
     "RepositoryUpdate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -17715,7 +17780,7 @@ export const clientManifest = {
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID identifying the coordination plan revision."
+          "description": "Stable UUID identifying the split revision."
         },
         "applicationId": {
           "type": "string",
@@ -17926,7 +17991,7 @@ export const clientManifest = {
         "version"
       ],
       "additionalProperties": false,
-      "description": "Coordination plan revision with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings.",
+      "description": "Split revision (a `coordination-plans` resource) with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings.",
       "$defs": {
         "__schema0": {
           "anyOf": [
@@ -18301,7 +18366,7 @@ export const clientManifest = {
             "coordinator",
             "plan"
           ],
-          "description": "Who selected the link: user, coordinator or a coordination plan."
+          "description": "Who selected the link: user, coordinator or a split."
         },
         "createdBy": {
           "type": "string",
@@ -18362,7 +18427,7 @@ export const clientManifest = {
         "alias": {
           "type": "string",
           "maxLength": 65536,
-          "description": "Alias coordination plans use to name the repository."
+          "description": "Alias a split's lanes use to name the repository."
         },
         "role": {
           "type": "string",
@@ -18421,7 +18486,7 @@ export const clientManifest = {
                 "type": "string",
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID identifying the coordination plan revision."
+                "description": "Stable UUID identifying the split revision."
               },
               "applicationId": {
                 "type": "string",
@@ -18632,7 +18697,7 @@ export const clientManifest = {
               "version"
             ],
             "additionalProperties": false,
-            "description": "Coordination plan revision with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings."
+            "description": "Split revision (a `coordination-plans` resource) with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings."
           },
           "description": "Page<CoordinationPlan>.items must contain at most 100 items."
         },
@@ -19067,7 +19132,7 @@ export const clientManifest = {
                   "coordinator",
                   "plan"
                 ],
-                "description": "Who selected the link: user, coordinator or a coordination plan."
+                "description": "Who selected the link: user, coordinator or a split."
               },
               "createdBy": {
                 "type": "string",
@@ -19281,7 +19346,7 @@ export const clientManifest = {
               "alias": {
                 "type": "string",
                 "maxLength": 65536,
-                "description": "Alias coordination plans use to name the repository."
+                "description": "Alias a split's lanes use to name the repository."
               },
               "role": {
                 "type": "string",
@@ -20123,6 +20188,12 @@ export const clientManifest = {
                 "format": "date-time",
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
                 "description": "UTC timestamp when the record was last updated."
+              },
+              "nextProfileRevision": {
+                "description": "The revision the next saved version of the working settings must use (#65): the highest stored revision plus one, counting check candidates the Versions list hides. Served by repositories.get; other repository responses omit it.",
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
               },
               "version": {
                 "type": "integer",
@@ -23158,6 +23229,63 @@ export const clientManifest = {
                 ],
                 "additionalProperties": false,
                 "description": "Aggregated budget usage and reservation summary."
+              },
+              "blockedReason": {
+                "description": "Run.blockedReason may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Why the run is blocked, as admission recorded it (for example dependency_incomplete); null unless status is blocked. Served by runs.get and runs.list; omitted by other run responses."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "blockingTasks": {
+                "description": "Run.blockingTasks must contain at most 25 items.",
+                "maxItems": 25,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Id of the dependency task; use it to link to the task's page."
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500,
+                      "description": "RunBlockingTask.title must contain at most 500 characters."
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "queued",
+                        "active",
+                        "waiting_input",
+                        "blocked",
+                        "completed",
+                        "failed",
+                        "canceled"
+                      ],
+                      "description": "Current status of the dependency task; never completed, because a completed dependency no longer blocks the run."
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "status"
+                  ],
+                  "additionalProperties": false,
+                  "description": "For a run blocked with dependency_incomplete, the dependency tasks of the run's task that have not completed, read live and limited to the run's organization, oldest dependency first, at most 25; empty otherwise. Served by runs.get and runs.list; omitted by other run responses. Each array item follows this format."
+                }
               }
             },
             "required": [
@@ -31359,6 +31487,184 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Cursor page of WorkerProviderBinding."
     },
+    "Page<PullRequest>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the pull request record."
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID linking this record to the related task entity."
+              },
+              "repositoryId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID linking this record to the related repository entity."
+              },
+              "runId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Workflow run that opened the pull request; its check runs and review cycles at the pull request's head name this pull request. Null when the pull request was registered without a run."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PullRequest.runId may be null in this transport value."
+              },
+              "providerNumber": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Provider-assigned pull request number."
+              },
+              "url": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Canonical provider URL for the pull request."
+              },
+              "headSha": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Head commit SHA associated with the record."
+              },
+              "baseSha": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Base commit SHA associated with the record."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "merged",
+                  "closed"
+                ],
+                "description": "Current lifecycle status of the record."
+              },
+              "mergedSha": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Merge commit SHA created by the provider."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PullRequest.mergedSha may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was last updated."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version used when updating the record."
+              }
+            },
+            "required": [
+              "id",
+              "taskId",
+              "repositoryId",
+              "runId",
+              "providerNumber",
+              "url",
+              "headSha",
+              "baseSha",
+              "status",
+              "mergedSha",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "Bakery's mirror of a provider pull request's identity and latest known SHAs for a task's repository; provider webhooks reconcile status, mergedSha and the head/base SHAs against the provider's current state, so this record can lag briefly behind Git history."
+          },
+          "description": "Page<PullRequest>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<PullRequest>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Page<PullRequest>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<PullRequest>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<PullRequest>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of PullRequest."
+    },
     "Page<ReviewCycle>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -31399,7 +31705,7 @@ export const clientManifest = {
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Stable UUID linking this record to the related pull request entity; always null until pull requests have a table."
+                    "description": "Pull request this review judged: the tracked pull request whose run is this review's run and whose current head SHA equals this review's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on."
                   },
                   {
                     "type": "null",
@@ -32129,7 +32435,7 @@ export const clientManifest = {
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Stable UUID linking this record to the related pull request entity; always null until pull requests have a table."
+                    "description": "Pull request this check judged: the tracked pull request whose run is this check's run and whose current head SHA equals this check's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on."
                   },
                   {
                     "type": "null",
@@ -34381,6 +34687,12 @@ export const clientManifest = {
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
           "description": "UTC timestamp when the record was last updated."
         },
+        "nextProfileRevision": {
+          "description": "The revision the next saved version of the working settings must use (#65): the highest stored revision plus one, counting check candidates the Versions list hides. Served by repositories.get; other repository responses omit it.",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
+        },
         "version": {
           "type": "integer",
           "minimum": -9007199254740991,
@@ -36286,6 +36598,63 @@ export const clientManifest = {
           ],
           "additionalProperties": false,
           "description": "Aggregated budget usage and reservation summary."
+        },
+        "blockedReason": {
+          "description": "Run.blockedReason may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Why the run is blocked, as admission recorded it (for example dependency_incomplete); null unless status is blocked. Served by runs.get and runs.list; omitted by other run responses."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "blockingTasks": {
+          "description": "Run.blockingTasks must contain at most 25 items.",
+          "maxItems": 25,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Id of the dependency task; use it to link to the task's page."
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+                "description": "RunBlockingTask.title must contain at most 500 characters."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "queued",
+                  "active",
+                  "waiting_input",
+                  "blocked",
+                  "completed",
+                  "failed",
+                  "canceled"
+                ],
+                "description": "Current status of the dependency task; never completed, because a completed dependency no longer blocks the run."
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "status"
+            ],
+            "additionalProperties": false,
+            "description": "For a run blocked with dependency_incomplete, the dependency tasks of the run's task that have not completed, read live and limited to the run's organization, oldest dependency first, at most 25; empty otherwise. Served by runs.get and runs.list; omitted by other run responses. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -54594,6 +54963,23 @@ export const clientManifest = {
             }
           ]
         },
+        "linkedTaskIds": {
+          "description": "ExternalTicket.linkedTaskIds must contain at most 25 items.",
+          "maxItems": 25,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Bakery tasks linked to this ticket through ticket_task_links (primary and reference links), most recently linked first, at most 25; linkedTaskCount tells whether more exist. Empty when no task is linked. Omitted by servers that predate it. Each array item follows this format."
+          }
+        },
+        "linkedTaskCount": {
+          "description": "ExternalTicket.linkedTaskCount must be at least 0.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -55189,6 +55575,23 @@ export const clientManifest = {
                     "description": "Null indicates that the value is unavailable."
                   }
                 ]
+              },
+              "linkedTaskIds": {
+                "description": "ExternalTicket.linkedTaskIds must contain at most 25 items.",
+                "maxItems": 25,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Bakery tasks linked to this ticket through ticket_task_links (primary and reference links), most recently linked first, at most 25; linkedTaskCount tells whether more exist. Empty when no task is linked. Omitted by servers that predate it. Each array item follows this format."
+                }
+              },
+              "linkedTaskCount": {
+                "description": "ExternalTicket.linkedTaskCount must be at least 0.",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
               },
               "createdAt": {
                 "type": "string",
