@@ -15,6 +15,7 @@ import {
   loadPlanLanes,
   PLAN_COLUMNS,
 } from "./coordination-query.ts";
+import { releaseDependentRuns } from "./dependency-release.ts";
 
 // Persisted coordination projection and shared plan helpers. Kept apart from
 // the command module so engine and execution code can reconcile a plan without
@@ -272,16 +273,122 @@ export async function reconcileCoordinationForCommittedOutput(
   });
 }
 
-/** Terminal-hook entry for engine code that has no acting principal. */
+/**
+ * Terminal-hook entry for engine code that has no acting principal. Every path
+ * that ends a task (engine run end, worker result, cancellation lifecycle,
+ * failed attempt lifecycle) calls it in its own transaction, after it has
+ * locked the ending task's run (and its job and attempt).
+ *
+ * The runs blocked on this task are NOT released here: an id-ordered pass over
+ * the dependants' runs cannot run after the ending run's lock is already held
+ * without a lower-id dependant run following it, which deadlocks against a
+ * plan cancel that takes its runs in one id-ordered pass (#466 review). The
+ * hook only records a durable `task.dependency_release_requested` follow-up
+ * through the transactional outbox, and `releaseDependantsOfEndedTask` does
+ * the release in its own transaction holding nothing first. Then it
+ * reconciles this task's coordination plans (parent task, then plan rows).
+ */
 export async function reconcileCoordinationForTerminalTask(
   transaction: PgTransactionClient,
   input: { organizationId: string; taskId: string; traceId: string },
 ): Promise<void> {
+  await requestDependencyRelease(transaction, input);
   await reconcileCoordinationForTask(transaction, {
     organizationId: input.organizationId,
     principalId: null,
     traceId: input.traceId,
   }, input.taskId);
+}
+
+/**
+ * Records the deferred dependency release for a task that ended: a
+ * `task.dependency_release_requested` domain event with its pending Inngest
+ * outbox row, written in the caller's transaction so it commits exactly when
+ * the task's terminal status does. Nothing is written for a task that is not
+ * terminal or that no task depends on, or when this terminal version already
+ * requested it (a duplicate signal). The ending task's row is locked after
+ * the caller's run lock (runs -> tasks) so two signals for the same version
+ * write one request.
+ */
+export async function requestDependencyRelease(
+  transaction: PgTransactionClient,
+  input: { organizationId: string; taskId: string; traceId: string },
+): Promise<void> {
+  const eventType = "task.dependency_release_requested";
+  const task = await transaction.query<
+    {
+      version: number;
+      application_id: string;
+      repository_id: string | null;
+      conversation_id: string | null;
+    }
+  >(
+    `select task.version, task.application_id, task.repository_id,
+            task.conversation_id
+       from bakery.tasks task
+      where task.organization_id = $1 and task.id = $2
+        and task.status in ('completed', 'failed', 'canceled')
+        and exists (
+          select 1 from bakery.task_dependencies dependency
+           where dependency.organization_id = task.organization_id
+             and dependency.depends_on_task_id = task.id
+        )
+      for no key update of task`,
+    [input.organizationId, input.taskId],
+  );
+  const row = task.rows[0];
+  if (!row) return;
+  const requested = await transaction.query(
+    `select 1 from bakery.domain_events
+      where organization_id = $1 and aggregate_id = $2
+        and event_type = $3 and aggregate_version = $4`,
+    [input.organizationId, input.taskId, eventType, row.version],
+  );
+  if (requested.rows.length > 0) return;
+  await appendDomainEvent(transaction, {
+    organizationId: input.organizationId,
+    applicationId: row.application_id,
+    repositoryId: row.repository_id,
+    taskId: input.taskId,
+    conversationId: row.conversation_id,
+    eventType,
+    aggregateId: input.taskId,
+    aggregateVersion: row.version,
+    payload: { taskId: input.taskId },
+    traceId: input.traceId,
+    outboxDeliveryKey: `task:${input.taskId}:dependency-release:${row.version}`,
+  });
+}
+
+/**
+ * The deferred dependency release, the consumer of
+ * `task.dependency_release_requested`. Runs in its own transaction holding no
+ * lock first: `releaseDependentRuns` takes the whole closure of runs blocked
+ * on the task (runs by id, then their tasks by id) in one pass, queues or
+ * cancels each, and cascades a cancel through rows that pass already holds.
+ * Only then are the coordination plans of the tasks the cascade ended
+ * reconciled (parent task, then plan rows), so the lock order is runs ->
+ * tasks -> parent -> plans. Idempotent: a run already released, or blocked
+ * for another reason, is left alone under its lock.
+ */
+export async function releaseDependantsOfEndedTask(
+  transaction: PgTransactionClient,
+  input: { organizationId: string; taskId: string; traceId: string },
+): Promise<void> {
+  const ended: string[] = [];
+  const release = (taskId: string): Promise<void> => {
+    ended.push(taskId);
+    return releaseDependentRuns(transaction, { ...input, taskId }, release);
+  };
+  await releaseDependentRuns(transaction, input, release);
+  const facts = {
+    organizationId: input.organizationId,
+    principalId: null,
+    traceId: input.traceId,
+  };
+  for (const taskId of ended) {
+    await reconcileCoordinationForTask(transaction, facts, taskId);
+  }
 }
 
 /**
