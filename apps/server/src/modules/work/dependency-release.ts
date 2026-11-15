@@ -79,6 +79,9 @@ export async function releaseDependentRuns(
     status === undefined ||
     !(TERMINAL_TASK_STATUSES as readonly string[]).includes(status)
   ) return;
+  await lockBlockedDependants(transaction, input.organizationId, [
+    input.taskId,
+  ]);
   const candidates = await transaction.query<{ run_id: string }>(
     `select distinct run.id as run_id
        from bakery.task_dependencies dependency
@@ -97,6 +100,85 @@ export async function releaseDependentRuns(
   for (const { run_id } of candidates.rows) {
     await releaseRun(transaction, input, run_id, onCanceled);
   }
+}
+
+/**
+ * The runs still blocked on `taskIds`, directly or through a chain of blocked
+ * dependants, and their tasks, each list sorted by id. A plan cancel adds them
+ * to its scope locks (`lockCoordinationScope`) before its plan lock.
+ */
+export async function findBlockedDependants(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  taskIds: readonly string[],
+): Promise<{ runIds: string[]; taskIds: string[] }> {
+  if (taskIds.length === 0) return { runIds: [], taskIds: [] };
+  const closure = await transaction.query<{ task_id: string; run_id: string }>(
+    `with recursive blocked(task_id, run_id) as (
+       select dependant.id, run.id
+         from bakery.task_dependencies dependency
+         join bakery.tasks dependant
+           on dependant.organization_id = dependency.organization_id
+          and dependant.id = dependency.task_id
+         join bakery.workflow_runs run
+           on run.organization_id = dependant.organization_id
+          and run.id = dependant.current_run_id
+        where dependency.organization_id = $1
+          and dependency.depends_on_task_id = any($2::uuid[])
+          and run.status = 'blocked'
+       union
+       select dependant.id, run.id
+         from blocked
+         join bakery.task_dependencies dependency
+           on dependency.organization_id = $1
+          and dependency.depends_on_task_id = blocked.task_id
+         join bakery.tasks dependant
+           on dependant.organization_id = dependency.organization_id
+          and dependant.id = dependency.task_id
+         join bakery.workflow_runs run
+           on run.organization_id = dependant.organization_id
+          and run.id = dependant.current_run_id
+        where run.status = 'blocked'
+     )
+     select task_id, run_id from blocked`,
+    [organizationId, taskIds],
+  );
+  return {
+    runIds: [...new Set(closure.rows.map((row) => row.run_id))].sort(),
+    taskIds: [...new Set(closure.rows.map((row) => row.task_id))].sort(),
+  };
+}
+
+/**
+ * Row-locks, in the coordination lock order (runs by id, then tasks by id),
+ * every run still blocked on `taskIds` directly or through a chain of blocked
+ * dependants, and those runs' tasks. A release and its cancel cascade then
+ * touch only rows already held, so a run lock never follows a task, parent or
+ * plan lock taken by the cascade.
+ */
+export async function lockBlockedDependants(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  taskIds: readonly string[],
+): Promise<void> {
+  const { runIds, taskIds: dependantTaskIds } = await findBlockedDependants(
+    transaction,
+    organizationId,
+    taskIds,
+  );
+  if (runIds.length === 0) return;
+  await transaction.query(
+    `select id from bakery.workflow_runs
+      where organization_id = $1 and id = any($2::uuid[])
+      order by id for update`,
+    [organizationId, runIds],
+  );
+  await transaction.query(
+    `select id from bakery.tasks
+      where organization_id = $1 and id = any($2::uuid[])
+      order by id for update`,
+    [organizationId, dependantTaskIds],
+  );
 }
 
 async function releaseRun(

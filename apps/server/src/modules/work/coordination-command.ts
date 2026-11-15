@@ -49,7 +49,10 @@ import {
   loadTaskScope,
   lockApplication,
 } from "./postgres.ts";
-import { releaseDependentRuns } from "./dependency-release.ts";
+import {
+  findBlockedDependants,
+  releaseDependentRuns,
+} from "./dependency-release.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 
 type PlanCreateInput = z.output<typeof contractSchemas.CoordinationPlanCreate>;
@@ -714,9 +717,24 @@ async function lockCoordinationScope(
         and l.child_task_id is not null`,
     [organizationId, parentTaskId],
   );
-  const children = scope.rows.map((row) => row.child_id).sort();
-  const runs = scope.rows.flatMap((row) => row.run_id ? [row.run_id] : [])
+  const laneChildren = [...new Set(scope.rows.map((row) => row.child_id))];
+  // #57: a cancel or supersede of these children releases the runs blocked
+  // on them, cascading. Find those blocked dependants now so their runs and
+  // tasks join the id-ordered run and task locks below, before any plan row:
+  // after the plan lock the cascade only touches rows this scope holds.
+  const dependants = await findBlockedDependants(
+    transaction,
+    organizationId,
+    laneChildren,
+  );
+  const children = [...new Set([...laneChildren, ...dependants.taskIds])]
     .sort();
+  const runs = [
+    ...new Set([
+      ...scope.rows.flatMap((row) => row.run_id ? [row.run_id] : []),
+      ...dependants.runIds,
+    ]),
+  ].sort();
   if (runs.length > 0) {
     const live = `from bakery.run_steps step
          join bakery.jobs job
@@ -968,7 +986,9 @@ async function supersedeEarlierRevisions(
 
 // --- Cancellation ----------------------------------------------------------
 
-const TERMINAL_RUN = ["completed", "failed", "canceled", "blocked"] as const;
+// A blocked run (never started) is canceled with its task, so a canceled lane
+// child never keeps a blocked current run that no release can reach.
+const TERMINAL_RUN = ["completed", "failed", "canceled"] as const;
 
 async function cancelChildTask(
   transaction: PgTransactionClient,

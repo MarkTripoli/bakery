@@ -284,20 +284,24 @@ export async function reconcileCoordinationForTerminalTask(
   transaction: PgTransactionClient,
   input: { organizationId: string; taskId: string; traceId: string },
 ): Promise<void> {
-  await releaseDependentRuns(
-    transaction,
-    input,
-    (dependantTaskId) =>
-      reconcileCoordinationForTerminalTask(transaction, {
-        ...input,
-        taskId: dependantTaskId,
-      }),
-  );
-  await reconcileCoordinationForTask(transaction, {
+  // Release first, reconcile last: the whole cancel cascade locks only runs
+  // and tasks (pre-locked by id in releaseDependentRuns), and the parent and
+  // plan rows of every task it ended are taken after it, so no run lock ever
+  // follows a plan lock in this transaction.
+  const ended = [input.taskId];
+  const release = (taskId: string): Promise<void> => {
+    ended.push(taskId);
+    return releaseDependentRuns(transaction, { ...input, taskId }, release);
+  };
+  await releaseDependentRuns(transaction, input, release);
+  const facts = {
     organizationId: input.organizationId,
     principalId: null,
     traceId: input.traceId,
-  }, input.taskId);
+  };
+  for (const taskId of ended) {
+    await reconcileCoordinationForTask(transaction, facts, taskId);
+  }
 }
 
 /**

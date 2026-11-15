@@ -1,4 +1,6 @@
 import { assert, assertEquals } from "@std/assert";
+import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
+import { reconcileCoordinationForTerminalTask } from "../../apps/server/src/modules/work/coordination-projection.ts";
 import {
   fourLaneSpec,
   openCoordinationFixture,
@@ -166,6 +168,102 @@ Deno.test("#57: canceling a plan releases runs blocked on its lane children", as
     const details = audit[0].details as Record<string, unknown>;
     assertEquals(details.reason, "dependency_canceled");
     assertEquals(details.dependencyTaskId, laneChild);
+  } finally {
+    await fx.close();
+  }
+});
+
+Deno.test("#57: a prerequisite ending races its dependant's plan cancel without deadlock", async () => {
+  const fx = await openCoordinationFixture();
+  try {
+    await fx.seedAliases();
+    for (let round = 0; round < 5; round++) {
+      const parent = await fx.insertTask(`race parent ${round}`);
+      const plan = await materialize(
+        fx,
+        (await planOf(await createPlan(fx, parent, fourLaneSpec()))).id,
+      );
+      // The contract lane's child waits on a task outside the plan.
+      const prerequisite = await fx.insertTask(`race prerequisite ${round}`, {
+        repo: "api",
+      });
+      const laneChild = childOf(plan, "contract");
+      await fx.owner`
+        insert into bakery.task_dependencies (
+          organization_id, task_id, depends_on_task_id, condition
+        ) values (${fx.organizationId}, ${laneChild}, ${prerequisite},
+                  'completed')`;
+      const started = await startRun(fx, laneChild);
+      assertEquals(started.status, 201, await started.clone().text());
+      const run = await started.json() as { id: string; status: string };
+      assertEquals(run.status, "blocked");
+      const before = (await fx.owner`
+        select version from bakery.workflow_runs
+         where organization_id = ${fx.organizationId} and id = ${run.id}`)[0];
+
+      // (a) the prerequisite fails and its terminal hook runs, against (b) a
+      // cancel of the plan that owns the dependant, each in its own
+      // transaction, released together.
+      const results = await Promise.allSettled([
+        withPgTransaction(fx.ownerPg, async (transaction) => {
+          await transaction.query(
+            `update bakery.tasks set status = 'failed', version = version + 1
+              where organization_id = $1 and id = $2`,
+            [fx.organizationId, prerequisite],
+          );
+          await reconcileCoordinationForTerminalTask(transaction, {
+            organizationId: fx.organizationId,
+            taskId: prerequisite,
+            traceId: `dependency-race-${round}`,
+          });
+        }),
+        fx.send(
+          fx.developer,
+          "POST",
+          `/v1/coordination-plans/${plan.id}/cancel`,
+          { body: {} },
+        ),
+      ]);
+      for (const result of results) {
+        assertEquals(
+          result.status,
+          "fulfilled",
+          result.status === "rejected" ? String(result.reason) : "",
+        );
+      }
+      const response = (results[1] as PromiseFulfilledResult<Response>).value;
+      const text = await response.text();
+      assert(!text.includes("40P01"), text);
+      assertEquals(response.status, 201, text);
+
+      // The dependant run ended exactly once: one blocked -> canceled
+      // transition, by the release (one dependency_cancel audit) or by the
+      // plan cancel (none), never both and never left blocked.
+      const ended = (await fx.owner`
+        select run.status, run.version, task.status as task_status
+          from bakery.workflow_runs run
+          join bakery.tasks task
+            on task.organization_id = run.organization_id
+           and task.id = run.task_id
+         where run.organization_id = ${fx.organizationId}
+           and run.id = ${run.id}`)[0];
+      assertEquals(ended.status, "canceled", `round ${round}`);
+      assertEquals(ended.task_status, "canceled", `round ${round}`);
+      assertEquals(ended.version, before.version + 1, `round ${round}`);
+      const audits = await fx.owner`
+        select details from bakery.audit_events
+         where organization_id = ${fx.organizationId}
+           and operation = 'runs.dependency_cancel'
+           and resource_id = ${run.id}`;
+      assert(audits.length <= 1, `round ${round}: ${audits.length} audits`);
+      if (audits.length === 1) {
+        assertEquals(
+          (audits[0].details as Record<string, unknown>).dependencyTaskId,
+          prerequisite,
+        );
+      }
+      assertEquals((await getPlan(fx, plan.id)).status, "canceled");
+    }
   } finally {
     await fx.close();
   }
