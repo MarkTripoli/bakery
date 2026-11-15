@@ -235,6 +235,61 @@ Deno.test("a plan that never changes a revision is not bound, and a check after 
   ]);
 });
 
+Deno.test("a lane that cannot revise does not undo the check a revising lane runs after its own revision", () => {
+  const parallel = (...lanes: WorkflowNode[][]) =>
+    ({
+      kind: "parallel",
+      ...base(),
+      maxConcurrency: 2,
+      join: "all-required",
+      failurePolicy: "stop-dependent",
+      lanes: lanes.map((steps, index) => ({
+        id: `lane_${index}`,
+        needs: [],
+        repository: "main",
+        steps,
+      })),
+      outputs: {},
+    }) as unknown as WorkflowNode;
+  // Every interleaving runs the check after the only revision (qa3, #476).
+  assertEquals(
+    reasons([parallel([node("R"), node("C*")], [node("N")])]),
+    [],
+  );
+  // A check in a lane beside the revision still covers nothing.
+  assertEquals(
+    reasons([parallel([node("R")], [node("C*"), node("N")])]),
+    ["x:stage_before_revision", "y:stage_before_revision"],
+  );
+});
+
+Deno.test("a check on both arms of a branch always runs, so a revision after it is the reason, not a missing stage", () => {
+  const branch = (then: WorkflowNode[], other: WorkflowNode[]) =>
+    ({
+      kind: "branch",
+      ...base(),
+      when: GUARD,
+      then,
+      else: other,
+      outputs: {},
+    }) as unknown as WorkflowNode;
+  // qa3, #476: a check on both arms runs on every path.
+  assertEquals(
+    reasons([branch([node("C*")], [node("C*")]), node("R")]),
+    ["x:stage_before_revision", "y:stage_before_revision"],
+  );
+  // On one arm only, no always-running check covers it.
+  assertEquals(
+    reasons([branch([node("C*")], []), node("R")]),
+    ["x:stage_missing", "y:stage_missing"],
+  );
+  // Both arms covering different commands: only the command both run is always covered.
+  assertEquals(
+    reasons([branch([node("Cx"), node("Cy")], [node("Cx")]), node("R")]),
+    ["x:stage_before_revision", "y:stage_missing"],
+  );
+});
+
 Deno.test("the all-checks marker is never taken from a literal list, where it would only forge coverage", () => {
   const forged = (checks: unknown) =>
     ({

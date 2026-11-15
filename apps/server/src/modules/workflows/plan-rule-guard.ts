@@ -152,12 +152,23 @@ function visit(
     case "sequence":
       after = fold(node.steps, state, certain, walk);
       break;
-    case "branch":
-      after = intersect(
-        fold(node.then, state, false, walk),
-        fold(node.else, state, false, walk),
-      );
+    case "branch": {
+      // Each arm keeps its own record of what always runs inside it; only what
+      // BOTH arms always run is an always-running check of the branch.
+      const thenWalk: Walk = { everCovered: NONE, revision: false };
+      const elseWalk: Walk = { everCovered: NONE, revision: false };
+      const thenAfter = fold(node.then, state, true, thenWalk);
+      const elseAfter = fold(node.else, state, true, elseWalk);
+      walk.revision = walk.revision || thenWalk.revision || elseWalk.revision;
+      if (certain) {
+        walk.everCovered = union(
+          walk.everCovered,
+          intersect(thenWalk.everCovered, elseWalk.everCovered),
+        );
+      }
+      after = intersect(thenAfter, elseAfter);
       break;
+    }
     case "repeat": {
       // The seed steps run once; the body runs zero to `max` times.
       const start = node.seed.form === "sequence"
@@ -178,8 +189,13 @@ function visit(
       const lanes = node.lanes.map((lane) =>
         fold(lane.steps, state, certain, walk)
       );
-      after = node.lanes.some((lane) => containsRevision(lane.steps))
-        ? lanes.reduce(intersect)
+      // A lane that cannot revise cannot undo another lane's checks after its
+      // own revision: only the lanes that can revise bound the coverage.
+      const revising = lanes.filter((_, index) =>
+        containsRevision(node.lanes[index].steps)
+      );
+      after = revising.length > 0
+        ? revising.reduce(intersect)
         : lanes.reduce(union, state);
       break;
     }

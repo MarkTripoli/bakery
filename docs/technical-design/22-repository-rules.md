@@ -170,7 +170,13 @@ only what both cover counts; a `repeat` body runs zero or more times, so a check
 inside it counts only for the revisions of the same pass (the reviewed shape,
 implement then check then a repair-and-check loop, is satisfied, and a repair with
 no check after it is not); the lanes of a parallel group have no order, so a check
-beside a revision covers nothing and checks beside other checks add up. A plan
+beside a revision covers nothing, checks beside other checks add up, and a lane
+that cannot revise does not undo the check a revising lane runs after its own
+revision. The guard never admits a plan with a path that leaves a required check
+uncovered (a reference model that enumerates every path, including every parallel
+interleaving, is a unit test); it is conservative in one place, a parallel group
+whose covering check lives in another lane than a revising repeat that may run
+zero times, which it refuses. A plan
 that is a plain list gets exactly the flat answer, and the refusals and their
 words are the same (`repository_rule_stage_missing`,
 `repository_rule_stage_before_revision`), at publication, activation and
