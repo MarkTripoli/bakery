@@ -13,7 +13,7 @@ import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { versionSource } from "./copy-workflow.ts";
 import { stepSummary } from "./step-summary.tsx";
-import { stepsOf } from "./workflow-state.ts";
+import { ACTION_LINES, ACTION_TITLES, stepsOf } from "./workflow-state.ts";
 
 /**
  * The workflow editor (#67, slice 1), the page "Edit" on a workflow opens.
@@ -45,6 +45,15 @@ export function WorkflowEditorPage(
   }, [versions.data, workflow.data]);
 
   const steps = current === null ? [] : stepsOf(current);
+  // A step is named by what it does; an action without a sentence shows its key.
+  const stepTitle = (uses: string) => {
+    const key = ACTION_TITLES[uses];
+    return key === undefined ? uses : translate(key as never);
+  };
+  const stepLine = (uses: string) => {
+    const key = ACTION_LINES[uses];
+    return key === undefined ? undefined : translate(key as never);
+  };
   const failure = workflow.error ?? versions.error;
   const status = failureStatus(failure);
   const forbidden = status === 403;
@@ -145,10 +154,8 @@ export function WorkflowEditorPage(
                         "library.workflow.steps.number" as never,
                         { n: index + 1 },
                       )}
-                      title={translate(
-                        `library.workflow.action.${step.uses}` as never,
-                      )}
-                      summary={stepSummary(undefined, undefined)}
+                      title={stepTitle(step.uses)}
+                      summary={stepSummary(stepLine(step.uses), undefined)}
                     />
                   ))}
                 </UI.StepList>

@@ -514,3 +514,61 @@ for (
     });
   });
 }
+
+for (
+  const viewport of [
+    { name: "desktop", width: 1280, height: 800 },
+    { name: "phone", width: 390, height: 844 },
+  ]
+) {
+  test.describe(`${viewport.name}: the workflow editor`, () => {
+    test.use({ viewport: { width: viewport.width, height: viewport.height } });
+
+    const openEditor = async (page: Page, options: Options = WORLD) => {
+      await libraryFixture(page, options);
+      await page.goto(`/library/workflows/${WORKFLOW.id}`);
+      await expect(page.getByTestId("workflow-page")).toBeVisible();
+      if (viewport.width < 744) {
+        await page
+          .getByRole("button", { name: "More actions for Release train" })
+          .click();
+        await page.getByRole("button", { name: "Edit", exact: true }).click();
+      } else {
+        await page.getByRole("link", { name: "Edit" }).click();
+      }
+      await expect(page).toHaveURL(
+        `/library/workflows/${WORKFLOW.id}/edit`,
+      );
+    };
+
+    test("Edit opens the editor on the version in use: its steps and its code", async ({ page }) => {
+      await openEditor(page);
+      // The version in use is the one an edit starts from.
+      await expect(page.getByText("Editing version 3")).toBeVisible();
+      // Steps is the default view, and it shows the version's steps in order.
+      const steps = page.getByRole("list", { name: "Steps being edited" });
+      await expect(steps.getByText("Write the task brief")).toBeVisible();
+      await expect(steps.getByText("Implement")).toBeVisible();
+      await expect(steps.getByText("Review", { exact: true })).toBeVisible();
+      // Code is the other view the design allows, and only those two exist.
+      await expect(page.getByRole("tab", { name: "Code" })).toBeVisible();
+      await expect(page.getByRole("tab", { name: "Diagram" })).toHaveCount(0);
+      await expect(page.getByRole("tab", { name: "Schedule" }))
+        .toHaveCount(0);
+      await page.getByRole("tab", { name: "Code" }).click();
+      await expect(page.getByTestId("editor-code")).toBeVisible();
+      await shot(page, "workflow-editor-steps-and-code");
+    });
+
+    test("a member who may not change workflows sees the editor read only", async ({ page }) => {
+      await libraryFixture(page, { ...WORLD, role: "member" });
+      await page.goto(`/library/workflows/${WORKFLOW.id}`);
+      // No Edit action for someone who cannot change workflows...
+      await expect(page.getByRole("link", { name: "Edit" })).toHaveCount(0);
+      // ...and the address itself still answers, read only rather than refused.
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      await expect(page.getByText("Read only")).toBeVisible();
+      await expect(page.getByText("Editing version 3")).toBeVisible();
+    });
+  });
+}
