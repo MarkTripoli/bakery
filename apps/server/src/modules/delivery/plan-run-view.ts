@@ -110,6 +110,15 @@ export async function loopSnapshotOf(
  * reservations of the plan's repair and review agents, in micro-USD. A step's
  * own agent wins over the fallback bound to its action; an action the plan does
  * not use, or an agent that is unbilled, reserves nothing.
+ *
+ * A further cycle runs the body of a repeat (the reviewed preset's repair and
+ * review iterations), not its seed and not the steps that ran once before the
+ * loop, so an action that sits in a body reserves the body's steps and nothing
+ * else. A step bound to its own agent can carry a different reservation from
+ * the action's fallback, which is why the cycle is summed over steps rather
+ * than read from the first step that names the action. When an action has no
+ * body step the plan runs it once outside a loop, so its steps are reserved as
+ * they were before; reserving too much stops a loop early, never mid-round.
  */
 export function planNextCycleReservation(snapshot: unknown): bigint {
   const frozen = recordOf(snapshot);
@@ -118,11 +127,10 @@ export function planNextCycleReservation(snapshot: unknown): bigint {
   const plan = buildWorkflowPlan(document as WorkflowSemanticDocument);
   const fallbacks = recordOf(frozen.planActionAgents) ?? {};
   const agents = recordOf(frozen.planAgents) ?? {};
-  const reservation = (action: string): bigint => {
-    const step = plan.steps.find((candidate) =>
-      candidate.kind === "action" && candidate.action === action
-    );
-    if (step === undefined) return 0n;
+  const reservation = (
+    step: (typeof plan.steps)[number],
+  ): bigint => {
+    const action = step.action ?? "";
     const own = step.agentVersionId;
     const fallback = fallbacks[action];
     const agentId = own ?? (typeof fallback === "string" ? fallback : null);
@@ -135,7 +143,22 @@ export function planNextCycleReservation(snapshot: unknown): bigint {
       ? 0n
       : parseMicroUsd(amount, "max_usd_reservation");
   };
-  return reservation("harness.repair") + reservation("review.independent");
+  // The steps one more cycle runs for an action: every body step of a repeat
+  // (no seed iteration, so it runs again), else every step of the action.
+  const cycleSteps = (action: string) => {
+    const matching = plan.steps.filter((candidate) =>
+      candidate.kind === "action" && candidate.action === action
+    );
+    const body = matching.filter((candidate) =>
+      candidate.loops.length > 0 &&
+      candidate.loops.every((loop) => !loop.seed)
+    );
+    return body.length > 0 ? body : matching;
+  };
+  return [
+    ...cycleSteps("harness.repair"),
+    ...cycleSteps("review.independent"),
+  ].reduce((total, step) => total + reservation(step), 0n);
 }
 
 /** Decimal USD of {@link planNextCycleReservation}, as the budget headroom reads it. */
