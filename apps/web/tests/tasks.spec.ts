@@ -1727,11 +1727,10 @@ test("controls preserve uncertain receipt through a failed parent task refresh",
     page.getByRole("button", { name: "Retry same request", exact: true }),
   ).toBeDisabled();
   failedTask = false;
-  // The task itself failed to load: its own error state has the retry.
-  await page.locator('[data-ui-component="errorState"]').getByRole("button", {
-    name: "Try again",
-    exact: true,
-  }).click();
+  // The refresh of the task failed: the warning notice about it has the retry.
+  await page.locator('[data-ui-component="inlineNotice"]', {
+    hasText: "The task could not be loaded.",
+  }).getByRole("button", { name: "Try again", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Retry same request", exact: true }),
   ).toBeEnabled();

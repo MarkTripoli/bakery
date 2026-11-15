@@ -2368,7 +2368,9 @@ test("the artifact panel keeps its facts under Details and reads a patch as text
   await expect(aside.getByTestId("artifact-id-row")).toBeHidden();
   await aside.getByText("Details", { exact: true }).last().click();
   await expect(aside.getByTestId("artifact-id-row")).toContainText("ID");
-  await expect(aside.getByText("Fingerprint", { exact: true })).toBeVisible();
+  await expect(aside.getByTestId("artifact-fingerprint-row")).toContainText(
+    "Fingerprint",
+  );
   await expect(aside.getByText("Made by", { exact: true })).toBeVisible();
   // The step's name, not its id.
   await expect(aside.getByText(runStepId)).toHaveCount(0);
