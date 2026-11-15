@@ -575,6 +575,10 @@ Deno.test("repository listing pages every result with the user token and reports
       fullName: `${installation.account.login}/${repository.name}`,
       private: repository.private,
       archived: repository.archived,
+      // The fake lists "main" unless a repository names another (#65).
+      defaultBranch: repository.defaultBranch === undefined
+        ? "main"
+        : repository.defaultBranch,
       admin: repository.permissions?.admin === true,
     })),
   );
