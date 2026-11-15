@@ -1,13 +1,22 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "22ef728a1fbeadb0778d5c6a407e98dfe6a2c1ac"
+    "66a6dc83b847f44eab37893e4743ff5d03ff2062"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:327037841118e612c748e122ee1e39a636943ff6e4167c2f50875f8a2d96adae",
-  "reason": "#65 contract re-bind by dev-server on 2026-11-15 under owner's standing breaking-change authorization (2026-10-09), main 22ef728a1fbeadb0778d5c6a407e98dfe6a2c1ac: IntegrationResource gains defaultBranch, latestCheckState, latestCheckConclusion and latestCheckAt for the Projects page.",
+  "targetCompatibilityDigest": "sha256:2b7163b6c9e8c02d65232fdf104fec24f063107b9f4411a737cc3cbf2bae388c",
+  "reason": "#65 contract re-bind by dev-server on 2026-11-15 under owner's standing breaking-change authorization (2026-10-09), main 66a6dc83b847f44eab37893e4743ff5d03ff2062: IntegrationResource gains defaultBranch, latestCheckState, latestCheckConclusion and latestCheckAt for the Projects page.",
   "priorApprovals": [
+    {
+      "allowBreaking": true,
+      "fromBaseRefs": [
+        "e8f2f9e674610ab1f1302445ebb048e5377cb39f"
+      ],
+      "reason": "#68 contract re-bind by dev-server on 2026-11-15 under owner's standing breaking-change authorization (2026-10-09), main e8f2f9e674610ab1f1302445ebb048e5377cb39f: ExternalEffect gains failureCode; WorkerComponent gains paymentMethods; WorkerProviderBinding gains paymentMethodSupported.",
+      "status": "approved",
+      "targetCompatibilityDigest": "sha256:ac1b07766e7d05e33254a0a07747af2b9112920fd1d540bd544d78c379eaa281"
+    },
     {
       "allowBreaking": true,
       "fromBaseRefs": [

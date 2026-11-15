@@ -934,7 +934,7 @@ Per-organization authorized processing of a host receipt.
 | `connection_id` | `uuid` | no | `integration_connections` |
 | `installation_id` | `uuid` | no | `integration_installations` |
 | `resource_id` | `uuid?` | yes | `integration_resources` |
-| `purpose` | `enum(installation_reconcile,discovery,fact_refresh)` | no | none |
+| `purpose` | `enum(installation_reconcile,discovery,fact_refresh,automation)` | no | none |
 | `status` | `enum(pending,processing,deferred,completed,ignored,failed)` | no | none |
 | `outcome_code` | `text?` | yes | none |
 | `attempts` | `int` | no | none |

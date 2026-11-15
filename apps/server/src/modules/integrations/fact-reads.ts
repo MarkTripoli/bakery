@@ -10,6 +10,7 @@ import {
 } from "./github-app.ts";
 import { InstallationStatus } from "./installation-fan-out.ts";
 import {
+  AUTOMATION_ROUTE_PURPOSE,
   type IntakeRoutePurpose,
   isSupportedEvent,
   type SupportedEvent,
@@ -125,7 +126,7 @@ export function installationNotEnabled(status: string): RouteOutcomeCode {
 
 /** What the verdict reads of a route, or of a sweep checkpoint dressed as one. */
 export type VerdictRoute = {
-  purpose: IntakeRoutePurpose;
+  purpose: IntakeRoutePurpose | typeof AUTOMATION_ROUTE_PURPOSE;
   installationId: string;
   resourceId: string | null;
   eventKind: string;

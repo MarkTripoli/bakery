@@ -45,7 +45,8 @@ type EffectQuery = z.output<typeof contractSchemas.IntegrationEffectQuery>;
 // internal; `status` is the outcome (`uncertain` means unknown).
 const effectColumns = `effect.id, effect.run_step_id as "runStepId",
   effect.operation, effect.target, effect.idempotency_key as "idempotencyKey",
-  effect.status, effect.remote_id as "remoteId",
+  effect.status, effect.failure_code as "failureCode",
+  effect.remote_id as "remoteId",
   to_char(effect.last_checked_at at time zone 'UTC', ${TIMESTAMP})
     as "lastCheckedAt",
   effect.requesting_principal_id as "requestingPrincipalId",

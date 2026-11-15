@@ -36,6 +36,15 @@ export const INTAKE_EVENT_FAMILIES = Object.freeze(
 export type IntakeEventFamily = (typeof INTAKE_EVENT_FAMILIES)[number];
 export type IntakeRoutePurpose = Exclude<IntakeEventFamily, "ping">;
 
+/**
+ * The purpose of a route an automation's event trigger earns (issue #36). It is
+ * not an `IntakeRoutePurpose`: the integration processor does not own it, and
+ * leaves a route of this purpose, whatever its status, to the automation
+ * consumer. The receipt creates it only for an event some enabled automation of
+ * the organization is bound to listen for.
+ */
+export const AUTOMATION_ROUTE_PURPOSE = "automation";
+
 /** Longest string the stored projection keeps, in UTF-16 code units. */
 export const PROJECTION_MAX_STRING = 256;
 

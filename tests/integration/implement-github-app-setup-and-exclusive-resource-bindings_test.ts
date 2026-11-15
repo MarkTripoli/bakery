@@ -3503,6 +3503,7 @@ async function seedConnectionEffect(
   connectionId: string,
   resourceId: string,
   status: "confirmed" | "failed" | "uncertain",
+  failureCode: string | null = null,
 ): Promise<string> {
   const id = crypto.randomUUID();
   await f.pgDatabase.query(
@@ -3512,13 +3513,14 @@ async function seedConnectionEffect(
        integration_install_id, requesting_principal_id, actor_ref,
        idempotency_key, request_digest, external_account_id,
        external_resource_id, adapter_version, authorization_revision, status,
-       safe_arguments
+       safe_arguments, failure_code
      )
      select $1, connection.organization_id, 'github.issue.comment.create', 1,
        'resource:' || resource.id, connection.id, resource.id, 'inst-1', $4,
        $7, $5, repeat('a', 64), connection.external_account_id,
        resource.external_id, 'github@2026-03-10',
-       connection.authorization_revision, $6, '{"body":"secret-ish"}'::jsonb
+       connection.authorization_revision, $6, '{"body":"secret-ish"}'::jsonb,
+       $8
        from bakery.integration_connections connection
        join bakery.integration_resources resource
          on resource.connection_id = connection.id
@@ -3531,6 +3533,7 @@ async function seedConnectionEffect(
       `activity-${id}`,
       status,
       f.adminId,
+      failureCode,
     ],
   );
   return id;
@@ -3552,6 +3555,13 @@ Deno.test("a connection's recent activity lists its effects with their outcome, 
       resource.id,
       "uncertain",
     );
+    const failed = await seedConnectionEffect(
+      f,
+      connectionId,
+      resource.id,
+      "failed",
+      "authorization_denied",
+    );
     const path = `${connectionsPath}/${connectionId}/effects`;
     const headers = { "Bakery-Organization-Id": f.organizationId };
 
@@ -3561,8 +3571,17 @@ Deno.test("a connection's recent activity lists its effects with their outcome, 
     const page = JSON.parse(body);
     assertEquals(
       page.items.map((item: { id: string }) => item.id).sort(),
-      [confirmed, unknown].sort(),
+      [confirmed, unknown, failed].sort(),
     );
+    // #68: a failed effect says why; any other outcome carries no reason.
+    const reasons = Object.fromEntries(
+      page.items.map((item: { id: string; failureCode: string | null }) => [
+        item.id,
+        item.failureCode,
+      ]),
+    );
+    assertEquals(reasons[failed], "authorization_denied");
+    assertEquals(reasons[confirmed], null);
     assert(!body.includes("secret-ish"), "arguments stay internal");
 
     const uncertain = await call(
