@@ -57,7 +57,7 @@ This file records what the product owner decided in conversation with their orch
 2. Approvals offer Approve, Request changes (sent back with notes) and Reject. The workflow owner is the default approver. A wait can last up to 7 days (raising the 24-hour cap).
 3. The editor shows and edits the workflow's starts as a list at the top.
 4. "Publish and use" is the primary button, with "Publish only" as a secondary option.
-5. Two code-changing parallel lanes on one repository are blocked in v1, with a clear message. (Owner clarification, 14 November 2026: This counts any step allowed to write to that repository or workspace, including custom agent tasks, not only Implement: the rule is decided by what the step may write, whatever its action type.)
+5. Two code-changing parallel lanes on one repository are blocked in v1, with a clear message.
 6. The step picker shows step types first. Skills and saved workflows appear under "From your library".
 7. **Loops:** one ready-made loop, "Fix until it passes". Other loops are written in the code view. **Owner addition:** every loop has optional **minimum and maximum iteration counts**, set in the loop's panel. Minimum means "run at least N times even if the exit condition is already met". The engine's `repeat` has only `max` (1..8) today, so a `min` is a model gap. Reconcile the maximum with the 1..8 cap and with the deliver doc's D9 (a loop that runs out of rounds pauses for a person to allow more).
 8. "Test workflow" is dropped. To try a workflow, publish it without "Use" and run it on one task.
@@ -73,5 +73,15 @@ This file records what the product owner decided in conversation with their orch
 - **O14:** evaluations run on the kernel with an offline environment.
 - **O15:** one linear candidate per repository per run tree. Named candidates come later.
 - **O16:** the delivery module (checks, reviews, merges) is native and sits beside the kernel, not inside it.
+
+**Prototype pass 5 (approved as recommended)**
+1. Request changes on an approval sends the work back to the step just before the approval. A picker under Advanced comes later.
+2. Default steering permissions: developers on the task can message and pause; the task owner and admins make decisions. A workflow may narrow these.
+3. On a phone, all six steer controls are shown.
+4. Agents acting on other agents' work is off by default in new workflows, on in Bakery templates that need it, and always labelled "Agent's action".
+5. Team live view: when a seat is running a workflow, that run opens nested in place, the same as a called workflow.
+6. "Describe it" runs that were never saved stay findable from the conversation for as long as the run record exists.
+- Design note: the "no two code-changing parallel steps on one repository" rule counts ANY step allowed to write to that repository or workspace, including custom agent tasks.
+- Framing: Bakery is not code-only. The kernel is domain-neutral. Software delivery is one template pack beside it. MCP servers, skills and integrations are all building blocks inside workflows (architect addendum pending).
 
 There are no pending decisions as of 14 November 2026.

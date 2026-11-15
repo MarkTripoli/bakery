@@ -77,7 +77,7 @@ Inserting "At the same time" adds a group with two empty lanes side by side, eac
 
 ### Approvals
 
-"Wait for approval" pauses until a person approves. Fields: who can approve, and how long to wait before giving up. Approve continues. Reject stops the run. In a live run the card reads "Waiting", the run banner offers "Approve the plan", and the step panel shows who was asked and when.
+"Wait for approval" pauses until a person decides. Fields: who can approve (default: the workflow owner), and how long to wait, up to 7 days. Approve continues. Request changes sends the work, with the notes, back to the step just before the approval (a picker under Advanced comes later). Reject stops the run. In a live run the card reads "Waiting", the run banner offers "Approve the plan", and the step panel shows who was asked and when.
 
 This is the largest gap between what the brief asks for and what the model has. See G1.
 
@@ -587,6 +587,17 @@ Not in the prototype.
 | 16 | Turn a skill into a workflow | Slices 13 and 14 |
 
 ---
+
+## 14. Owner decisions, prototype pass 5 (14 November 2026)
+
+These win over anything above that differs.
+
+1. **Request changes** on an approval sends the work back to the step just before the approval. A picker under Advanced, to choose another step, comes later.
+2. **Default steering permissions:** developers on the task can message and pause; the task owner and Admins make decisions. A workflow may narrow these.
+3. **Phone:** all six steer controls are shown on a phone.
+4. **Agents acting on other agents' work** is off by default in new workflows, on in Bakery templates that need it, and always labelled "Agent's action".
+5. **Team live view:** when a seat is running a workflow, that run opens nested in place, the same as a called workflow.
+6. **"Describe it" runs** that were never saved stay findable from the conversation for as long as the run record exists.
 
 ## Appendix: what the prototype does and does not show
 

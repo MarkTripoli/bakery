@@ -1211,6 +1211,17 @@ The [Workflow studio Paper designs and local prototype](workflow-studio/README.m
 demonstrate these authoring states. Production components, server validation and
 runtime execution remain unimplemented.
 
+### Owner decisions, prototype pass 5 (14 November 2026)
+
+Recorded in [owner decisions](one-system/owner-decisions.md); they win over earlier text in this chapter.
+
+1. **Request changes** on an approval sends the work back to the step just before the approval. A picker under Advanced, to choose another step, comes later.
+2. **Default steering permissions:** developers on the task can message and pause; the task owner and Admins make decisions. A workflow may narrow these.
+3. **Phone:** all six steer controls are shown on a phone.
+4. **Agents acting on other agents' work** is off by default in new workflows, on in Bakery templates that need it, and always labelled "Agent's action".
+5. **Team live view:** when a seat is running a workflow, that run opens nested in place, the same as a called workflow.
+6. **"Describe it" runs** that were never saved stay findable from the conversation for as long as the run record exists.
+
 ### Skills and models are explicit step bindings
 
 Start with an eligible published skill from the library, then resolve its

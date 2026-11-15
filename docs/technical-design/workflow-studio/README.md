@@ -14,6 +14,15 @@ The editor direction is now the [workflow editor UX spec](../one-system/workflow
 - Sub-workflows ("Run a workflow") are built after the core editor slices. A called workflow uses its own agents and may contain approvals and waits.
 - A step may add skills on top of the ones its agent already has.
 
+### Owner decisions, prototype pass 5 (14 November 2026)
+
+1. **Request changes** on an approval sends the work back to the step just before the approval. A picker under Advanced, to choose another step, comes later.
+2. **Default steering permissions:** developers on the task can message and pause; the task owner and Admins make decisions. A workflow may narrow these.
+3. **Phone:** all six steer controls are shown on a phone.
+4. **Agents acting on other agents' work** is off by default in new workflows, on in Bakery templates that need it, and always labelled "Agent's action".
+5. **Team live view:** when a seat is running a workflow, that run opens nested in place, the same as a called workflow.
+6. **"Describe it" runs** that were never saved stay findable from the conversation for as long as the run record exists.
+
 ## Try the prototype
 
 The existing server at port 8846 serves this folder. If it is not running, start it from the repository root:
