@@ -5,7 +5,9 @@
 import { assert, assertEquals } from "@std/assert";
 import { compileWorkflowDocumentDetailed } from "../../packages/contracts/src/workflow-compiler/mod.ts";
 import {
+  FIXED_CODING_DEFINITION,
   FIXED_CODING_PRESET,
+  type WorkflowPresetDocument,
 } from "../../packages/contracts/src/workflow-presets.ts";
 import {
   extractFixedWorkflowSteps,
@@ -34,17 +36,7 @@ const implementStep = (prefix: string) => ({
   },
 });
 
-const FIXED_CODING = {
-  apiVersion: "bakery.dev/v1",
-  kind: "workflow",
-  name: "fixed-coding",
-  description: "The fixed coding workflow as an ordinary definition.",
-  inputs: INPUTS,
-  steps: [{
-    id: "flow",
-    steps: [briefStep(), implementStep("flow.")],
-  }],
-};
+const FIXED_CODING: WorkflowPresetDocument = FIXED_CODING_DEFINITION;
 
 const FIXED_CODING_REVIEWED = {
   apiVersion: "bakery.dev/v1",
