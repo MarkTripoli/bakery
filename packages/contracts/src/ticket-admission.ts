@@ -393,7 +393,7 @@ const policyLabelsShape = {
 
 const policyApprovalShape = {
   plan: z.enum(["automatic", "human_approval"]).describe(
-    "How a start intent clears the plan checkpoint. automatic creates the fixed-coding run at admission; human_approval leaves the request waiting until an approved plan revision exists.",
+    "How a start intent clears the plan checkpoint. automatic creates the run at admission; human_approval leaves the request waiting until an approved plan revision exists.",
   ),
 };
 
