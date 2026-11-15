@@ -55,6 +55,12 @@ export type Options = {
   start?: "forbidden" | "conflict" | "down";
   /** A check that already exists, named by the address (`?check=`). */
   existingCheck?: boolean;
+  /**
+   * The real server publishes the next version of the settings and puts it in
+   * use when a check completes: the same here, so the page must read the
+   * repository and its versions again to judge the result against it.
+   */
+  completionPublishes?: boolean;
 };
 
 export const CHECK_ID = uuid(700);
@@ -168,7 +174,11 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
     version: 1,
     archived: options.archived ?? false,
   };
-  const checkState = { started: options.existingCheck === true, polls: 0 };
+  const checkState = {
+    started: options.existingCheck === true,
+    polls: 0,
+    published: false,
+  };
   const seen = {
     starts: [] as (string | null)[],
     createdProfiles: [] as Record<string, unknown>[],
@@ -390,6 +400,19 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
       }
       if (mode === "canceled") {
         return route.fulfill(json(onboardingBody("canceled", false)));
+      }
+      if (options.completionPublishes && !checkState.published) {
+        checkState.published = true;
+        const from = profiles.find((item) => item.revision === state.active) ??
+          profiles[profiles.length - 1];
+        const next: Profile = {
+          revision: Math.max(0, ...profiles.map((item) => item.revision)) + 1,
+          branches: from?.branches ?? ["main"],
+          folder: from?.folder,
+        };
+        profiles.push(next);
+        state.active = next.revision;
+        state.version += 1;
       }
       return route.fulfill(json(onboardingBody("completed", true)));
     },

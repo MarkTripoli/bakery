@@ -1,9 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { RepositoryResponse } from "../../api/client.ts";
 import { useBakeryApi } from "../../api/context.tsx";
 import {
+  repositoriesListQueryOptions,
   repositoryCheckQueryOptions,
   repositoryProfileObservationQueryOptions,
+  repositoryProfilesListQueryOptions,
+  repositoryQueryOptions,
 } from "../../api/query.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { type CheckView, checkView } from "./check-state.ts";
@@ -22,6 +26,7 @@ export function useCheckView(
 ) {
   const api = useBakeryApi();
   const scope = useProtectedScope();
+  const queryClient = useQueryClient();
   const check = useQuery({
     ...repositoryCheckQueryOptions(api, scope, repository.id, checkId ?? ""),
     enabled: ready && scope.organizationId !== null && checkId !== null,
@@ -39,6 +44,32 @@ export function useCheckView(
     enabled: ready && scope.organizationId !== null &&
       finished?.observationId != null && finished.profileId !== null,
   });
+  // A finished check can publish the next version of the settings and put it in
+  // use (the server does both when a check completes): read the repository and
+  // its versions again, so the page never judges the result against the old one.
+  const status = check.data?.status ?? null;
+  const checkRecordId = check.data?.id ?? null;
+  useEffect(() => {
+    if (
+      !ready || checkRecordId === null ||
+      (status !== "completed" && status !== "failed" && status !== "canceled")
+    ) return;
+    void Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: repositoryQueryOptions(api, scope, repository.id).queryKey,
+      }),
+      queryClient.invalidateQueries({
+        queryKey: repositoryProfilesListQueryOptions(api, scope, repository.id)
+          .queryKey.slice(0, -1),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: repositoriesListQueryOptions(api, scope).queryKey.slice(
+          0,
+          -1,
+        ),
+      }),
+    ]);
+  }, [api, queryClient, ready, repository.id, scope, status, checkRecordId]);
   const view: CheckView = checkView({
     known: checkId !== null,
     onboarding: check.data ?? null,

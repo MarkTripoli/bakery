@@ -750,6 +750,25 @@ test.describe("where the setup stands, in the header and the footnote", () => {
     await shot(page, "repository-standing-ready");
   });
 
+  test("a check that publishes the next version of the settings is judged against it, without a reload", async ({ page }) => {
+    await open(page, { ...WORLD, completionPublishes: true });
+    await expect(page.getByTestId("setup-settings")).toContainText("version 2");
+    await run(page).click();
+    // The server put version 3 in use when the check completed: the page reads
+    // the repository again, so the result is this version's and the step,
+    // the header and the settings all agree.
+    await expect(page.getByTestId("setup-check")).toContainText(
+      "All 3 required checks passed",
+      { timeout: 15_000 },
+    );
+    await expect(page.getByTestId("setup-settings")).toContainText("version 3");
+    await expect(standing(page)).toHaveText("Ready");
+    await expect(page.getByText(/The last check was for version/)).toHaveCount(
+      0,
+    );
+    await expect(page.getByText("Not known")).toHaveCount(0);
+  });
+
   test("a check that did not pass is Check failed in the header", async ({ page }) => {
     await open(page, { ...WORLD, check: "blocked" });
     await run(page).click();
