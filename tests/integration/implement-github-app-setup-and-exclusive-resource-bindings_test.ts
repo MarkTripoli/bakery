@@ -1738,7 +1738,12 @@ async function assertAdministeredResources(
       selected: false,
       available: true,
       enabled: false,
-      snapshot: { private: repository.private, archived: repository.archived },
+      snapshot: {
+        private: repository.private,
+        archived: repository.archived,
+        // #65: the default branch GitHub reported (the fake reports "main").
+        defaultBranch: "main",
+      },
       generation: 1,
       archivedAt: null,
     })),
