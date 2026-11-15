@@ -1738,7 +1738,12 @@ async function assertAdministeredResources(
       selected: false,
       available: true,
       enabled: false,
-      snapshot: { private: repository.private, archived: repository.archived },
+      snapshot: {
+        private: repository.private,
+        archived: repository.archived,
+        // #65: the default branch GitHub reported (the fake reports "main").
+        defaultBranch: "main",
+      },
       generation: 1,
       archivedAt: null,
     })),
@@ -2022,6 +2027,7 @@ Deno.test("integrationResources.list pages only the connection's resources to me
       "capabilitySnapshot",
       "connectionId",
       "createdAt",
+      "defaultBranch",
       "displayName",
       "enabled",
       "externalId",
@@ -2029,6 +2035,9 @@ Deno.test("integrationResources.list pages only the connection's resources to me
       "installationId",
       "kind",
       "lastDiscoveryGeneration",
+      "latestCheckAt",
+      "latestCheckConclusion",
+      "latestCheckState",
       "organizationId",
       "safeUrl",
       "selected",
@@ -2036,6 +2045,46 @@ Deno.test("integrationResources.list pages only the connection's resources to me
       "version",
     ]);
     assertEquals(first.organizationId, f.organizationId);
+    // #65: the default branch GitHub reported; no check observed yet.
+    assertEquals(first.defaultBranch, "main");
+    assertEquals(first.latestCheckState, null);
+    assertEquals(first.latestCheckConclusion, null);
+    assertEquals(first.latestCheckAt, null);
+    // The newest observed check run on the repository is listed with it.
+    for (
+      const [state, conclusion, at] of [
+        ["completed", "failure", "2026-11-01T10:00:00Z"],
+        ["completed", "success", "2026-11-02T10:00:00Z"],
+      ]
+    ) {
+      await f.pgDatabase.query(
+        `insert into bakery.integration_remote_facts (
+           id, organization_id, connection_id, installation_id, resource_id,
+           kind, external_id, number, head_sha, state, conclusion,
+           provider_updated_at, observed_started_at, observed_at, digest,
+           summary, version
+         ) values (
+           gen_random_uuid(), $1, $2, $3, $4, 'check_run', $5, null,
+           repeat('a', 40), $6, $7, $8::timestamptz, now(), now(),
+           repeat('b', 64), '{}'::jsonb, 1
+         )`,
+        [
+          f.organizationId,
+          connectionId,
+          row.installation_id,
+          first.id,
+          crypto.randomUUID(),
+          state,
+          conclusion,
+          at,
+        ],
+      );
+    }
+    const [checked] = (await listJson(f, `${path}?limit=1`)).items;
+    assertEquals(checked.id, first.id);
+    assertEquals(checked.latestCheckState, "completed");
+    assertEquals(checked.latestCheckConclusion, "success");
+    assertEquals(checked.latestCheckAt, "2026-11-02T10:00:00.000000Z");
     assertEquals(first.connectionId, connectionId);
     assertEquals(first.installationId, row.installation_id);
     assertEquals(first.externalId, row.external_id);
