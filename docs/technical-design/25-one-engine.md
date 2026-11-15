@@ -1,0 +1,460 @@
+# One engine: the Bakery kernel and its extension points
+
+Status: design accepted by the product owner on 14 November 2026. Nothing here is
+implemented yet. This chapter is the canonical statement of the one-system design.
+Where another chapter disagrees with it, this chapter wins and the other chapter
+should be corrected.
+
+Companion documents, kept for their detail, live in [one-system/](one-system/):
+
+- [Owner decisions](one-system/owner-decisions.md): the decision record. It wins
+  over every companion where they differ.
+- [Deliver as a workflow](one-system/deliver-as-workflow.md): artifacts, context
+  and the Deliver templates (gaps A1 to A18).
+- [Factory modes](one-system/factory-modes.md): teams and "describe it" (gaps F1
+  to F22).
+- [Integrations architecture review](one-system/integrations-architecture-review.md):
+  provider packages, ports and guardrails.
+- [Workflow editor UX spec](one-system/workflow-editor-ux-spec.md): the editor
+  (gaps G1 to G17).
+
+The full kernel proposal, with code citations against `origin/main` at
+`d11fb5205`, was written as `one-system.md` in the same design handoff. This
+chapter keeps its decisions and drops the evidence tables.
+
+Decision numbers (O1 to O22) are the owner's. Each rule below cites the decision
+it comes from.
+
+## 1. Philosophy
+
+**Bakery is a platform.** It runs durable infrastructure and provides primitives
+and building blocks. People build their own factory from them. Bakery cannot
+build every workflow for everyone, so extending it has to be easy at every skill
+level: describe it in words, use the visual editor, copy a template, or write
+code with the SDK. All four produce the same stored definition through the same
+compiler.
+
+**One system.** New ways of working become plug-ins or new combinations of
+existing pieces. They never need an architecture rewrite.
+
+**The dogfooding rule.** Everything Bakery ships, including Deliver and an
+OpenRig-style team template, is built only from the same public primitives
+customers get. There are no private engine paths. Three mechanical tests make
+this checkable:
+
+1. Every template passes the public validation endpoint, opens in the code view
+   and copies into an organization with no field a customer cannot write.
+2. The engine never branches on a template, kind, seat or provider name.
+3. A built-in action or provider registers through the same contract a package
+   would.
+
+A built-in that needs something a customer cannot use is a platform gap, and the
+gap is closed for everyone.
+
+### Layers
+
+| Layer | Holds | Owner |
+| --- | --- | --- |
+| 4. Templates | Deliver (four sizes), Product team, Review pair, Triage desk, Board pipeline, the coordinator's factory skill | Bakery ships them; anyone copies them |
+| 3. Compositions | Workflows, teams, boards, factories | Customers |
+| 2. Primitives | The eleven primitives, one compiler, one interpreter, eight extension points | The kernel |
+| 1. Infrastructure | Durable execution, workers and worktrees, sessions, artifact store, events and outbox, budgets, grants, effect ledger, audit, integration broker | Bakery runs it |
+
+### How a run works
+
+1. A start creates a run. The run pins everything it will use: workflow version,
+   agents, skills, document kinds, rules and budget.
+2. The engine picks the next step from the pinned workflow and the recorded
+   results. Each step runs in a fresh, bounded session that sees only its
+   declared inputs. Its outputs are validated documents.
+3. Agents, people and plugins never drive the engine. They return typed results
+   (a document, a fact, a handoff, a proposal). The engine checks each one
+   against the pinned workflow and the rules before it acts.
+4. Anyone with permission can watch any session live and steer it, with or
+   without a workflow. Every steer is recorded before it is delivered.
+
+## 2. One engine (O1)
+
+The compiled interpreter is the only thing that decides what runs next. Today
+three things decide: the flat preset executor, the plan interpreter and the
+coordination lane gate. After convergence there is one.
+
+- The **flat preset executor is retired**. The two presets (`fixed-coding`,
+  `fixed-coding-reviewed`) are republished as ordinary compiled definitions.
+  Ticket admission and the stage policy point at them. Existing flat runs drain
+  on the flat loop, then that code is deleted. No live run is migrated.
+- The **plan interpreter becomes the engine**. Its revisions stay append-only
+  and pinned per run: revision 3 adds delivery facts and `forEach`, revision 4
+  adds `route`.
+- The **coordination lane gate becomes the split primitive** (section 5).
+
+The interpreter is a pure function `(document, recorded results) -> next`. It
+has no clock, no database and no model. Cross-run rules (capacity, counters) are
+checked at step admission, never inside the interpreter.
+
+"What runs next" is not pluggable (O3). There is no scheduler plugin or strategy
+interface. Customers express strategy through decision actions (route, assign,
+plan; extension point E6), whose output the engine validates before acting.
+
+### Kernel rules
+
+| Rule | Meaning |
+| --- | --- |
+| K1 Pin at admission | A run freezes every version it uses. Nothing resolves "latest" later |
+| K2 Record, then act | The step row exists before dispatch; an effect is prepared in the ledger before it is sent; a firing is recorded before its run |
+| K3 Results are data | Conditions read only typed action outputs and validated facts. No branch asks a model, reads free text or runs supplied code |
+| K4 Nothing ambient | Every artifact, skill, capability, secret and dollar a step uses is declared and checked at admission and again at the effect |
+| K5 Everything bounded | Steps, loops, hops, fan-out, time, money, context and artifact size have ceilings known before the run starts |
+| K6 No silent influence | Every session can be watched, and every change to its course by a person or an agent is a recorded input |
+
+Extensions attach only at five checkpoints (run admission, step admission,
+result, effect, run end) plus compile time.
+
+## 3. The eleven primitives
+
+| # | Primitive | Responsibility |
+| --- | --- | --- |
+| 1 | Work item (task) | Carries intent and continuity: brief, repository scope, tracker link, parent and children, priority, its named documents and its decisions ledger. Outlives runs |
+| 2 | Definition (workflow and its immutable versions; listed or unlisted) | Steps, order rules, inputs and outputs, limits, default agents, seats and starts. A version never changes. Bounded before it runs |
+| 3 | Run | One execution of one pinned version on one work item, with snapshot, budget, status and a named outcome. Runs form a tree |
+| 4 | Step (with attempts) | One invocation of one action with a frozen input and a typed result. Exactly one completer finishes it: a worker job, a timer, a person, or child runs |
+| 5 | Session | One sitting of an agent. Every session has a live feed and accepts recorded steering (section 9) |
+| 6 | Action | The contract of a step type: schemas, capabilities, effect policy, cancellation, retries, timeout, cost ceiling |
+| 7 | Agent and skill | Immutable agent versions and digest-pinned skill versions. A seat is a standing role declared in a definition |
+| 8 | Artifact | The only handoff channel: named documents with immutable versions. A kind says what a document must contain and which facts the engine may read |
+| 9 | Event and start | Events record what happened; a start matches an event to a definition and creates a run through normal admission |
+| 10 | Envelope | Grants, budgets, the effect ledger, repository rules, human decisions and audit |
+| 11 | Interpreter | Decides what happens next inside a run |
+
+Seat, team, board, Deliver, the coordinator and the review loop are not
+primitives. They are compositions or modules built on these eleven. The
+delivery module (checks, reviews, merges) is a native module beside the kernel,
+not inside it (O16): the engine core does not import it, and no engine code
+names a delivery reason.
+
+The user-facing vocabulary stays small (O12). "Workflow" (or "definition") is
+what the engine runs. "Plan" means only the document an agent writes.
+"Proposal" is what the coordinator suggests. "Split" and "lanes" replace
+"coordination plan". "Execution plan" stays internal.
+
+## 4. The eight extension points
+
+| # | Extension point | What plugs in | Authored as |
+| --- | --- | --- | --- |
+| E1 | Actions | What a step does | Data (an agent step preset), a workflow (`call`), or code in a package |
+| E2 | Artifact kinds | What a document must contain and which facts it yields | Data: template, rules from platform rule types, fact schema |
+| E3 | Start sources | What begins a run | Data (schedule, generic signed webhook) or a provider module |
+| E4 | Integration families and providers | Trackers, code hosts, chat, deploy, later incidents | A provider module implementing a family port |
+| E5 | Library | Agents, skills, seats, workflows, templates, step presets | Data, one lifecycle: draft, immutable version, copy with lineage, "update available", used-by |
+| E6 | Decision actions | Who supplies a choice: route, assign, plan | An action whose output fits one of three contracts |
+| E7 | Guards and counters | Limits across runs | A closed guard library; counters as data from kernel events, family projections, or values a step publishes |
+| E8 | Execution environments | Where a session executes | A provider module of a `compute` family (section 8) |
+
+Closed on purpose, extended only by a platform release: node forms and the
+interpreter, step completers, guard types, validator rule types, feed item
+kinds, steer kinds, the effect ledger and the checkpoints.
+
+Extensions are data only for now (O6/O7, section 6).
+
+## 5. Coordination plans become split (O2)
+
+Coordination plans stop being a separate system. They become the engine's
+**split** primitive: child work items joined by typed artifacts. Five changes:
+
+1. A lane names what it runs (`run: {workflow}` plus inputs). Its
+   `instructions` stay as the child's brief.
+2. The engine starts ready lanes itself, bounded by a capacity key. Nobody else
+   has to start them.
+3. A parent run step owns the plan. A `parallel` whose lanes name several
+   repositories and a split decision both create one, and the step completes
+   from the plan's terminal projection.
+4. The prose mapper that flattens lane steps into instruction text is replaced
+   by a lossless lowering in both directions.
+5. The plan spec becomes the fact schema of the `bakery.split` kind, so an
+   agent's split and an author's lanes are one structure.
+
+Kept as the implementation of split: the tables, lane digests that fold in
+upstream digests, reuse of completed lanes across revisions, stale detection,
+the shared budget and cancel that reaches every lane. People see lanes on the
+diagram and child items in the run view; the term "coordination plan" goes away.
+
+`forEach` and split stay distinct. `forEach` iterates inside one run. Split
+creates child work items.
+
+`call` has one contract with two bindings (O10): it is defined by the child-run
+contract (declared inputs and outputs, own limits counted in the parent's worst
+case, a named outcome, shared budget and cancel). The compiler inlines it first;
+a child-run binding follows when workflow seats and split need it. An author
+cannot tell the two apart. A parent pins a published child version, so
+recursion is impossible by construction; nesting is limited to two levels.
+
+## 6. Extensions are data only for now (O6, O7)
+
+| Tier | Contents | Where it runs | Status |
+| --- | --- | --- | --- |
+| T0 Data | Definitions, kinds, skills, agents, step presets, start templates, generic webhook sources | Nowhere: it is validated data | Buildable now |
+| T1 Sandboxed code | Code actions and checks, decision actions in code | Only in a worker sandbox, one step at a time | After the isolation tests pass |
+| T2 Native | Platform modules and native providers | In the server process | Bakery, or the operator of a self-hosted installation |
+
+- Customers may not supply validator code in the publication path (O6). A
+  kind's validator is a composition of platform rule types. Custom logic is a
+  sandboxed check action whose typed output drives control flow. Pure
+  WebAssembly validators may come later if demand is real.
+- Customer code arrives as T1 only once worker isolation is proven by
+  hostile-fixture tests (O7). A self-hosted operator may enable T1 and deploy T2
+  earlier, because operator and tenant are the same party.
+- What never travels in a package: grants, credentials, connections, repository
+  bindings, run history and active starts.
+
+## 7. Starts live with the workflow (O8)
+
+- A workflow's starts (triggers) are authored and exported with the workflow, in
+  a `starts` list outside the digest. They are switched on only by "Use this
+  version". Nothing standing switches on from a conversation.
+- There is one start mechanism: an event matcher over provider-neutral events
+  that targets a workflow. Ticket admission becomes the `work_item.ready`
+  source, and the source policy names a workflow instead of the literal
+  `fixed-coding` preset.
+- **Readiness** is a generic rule that each provider declares: an item is ready
+  when it carries a configured label **and** sits in a configured workflow
+  status, matched by stable provider ids. A provider declares which trigger
+  kinds it supports (`triggers: label | status`). The existing provenance checks
+  (who applied the signal, when, with what role) apply to a status move exactly
+  as to a label.
+- When work depends on another ticket in a tracker without code, the blocker
+  being Done is enough to start.
+- A board runs one run per column visit (O9). Documents and decisions belong to
+  the work item, not the run. Kanban-style building, where moving cards drives
+  the work, comes after V2; only its seams are designed now.
+
+## 8. The execution-environment seam (O22)
+
+Remote VMs (E2B, Daytona, Modal, Fly Machines and similar) get the seam now as
+extension point E8. No provider is built in v1.
+
+The engine knows only the worker protocol. An environment provider's whole job
+is to make a worker exist somewhere for one attempt: provision, prepare the
+repository at the pinned commit, mount the context directory read-only, run the
+worker with an attempt-scoped credential, collect outputs as artifacts and run
+refs, tear down, and report cost. Six v1 choices keep the door open:
+
+1. No engine code assumes a persistent host, a local path or a warm clone.
+2. Placement is data: a step's requirements and an affinity key on the run. Host
+   affinity for v1 is that recorded constraint, not an assumption in the
+   harness.
+3. Writers check out at the pinned candidate, end with a clean commit and name
+   `{baseSha, headSha}`.
+4. The context directory and the output directory are a step's only file
+   contract.
+5. Credentials are attempt-scoped and brokered; an agent can use the
+   `api_metered` route, so no step depends on a host login unless its agent
+   says so.
+6. The session feed and steers travel over the lease-protected attempt routes,
+   never a host-local socket. The usage ledger accepts a compute kind beside
+   model usage.
+
+An ephemeral box needs the `api_metered` route, and the provider is a
+subprocessor that an Admin enables per repository scope.
+
+There is one linear candidate per repository per run tree (O15). Named
+candidates for tournaments come later.
+
+## 9. Watching and steering
+
+Every session, in a workflow or not, has a live feed and a steering inbox (O17).
+They are the same for a workflow step, a team seat visit, a plain task and the
+coordinator. The shipped output envelope and steering are extended, not
+replaced by a separate console.
+
+**Live watch.** You can watch any running work live in the browser or elsewhere.
+Click a running node to see its agent output streaming, like Claude Code, and
+steer it from there. The feed is a typed, ordered, redacted log (message,
+terminal, status, tool, file change, artifact, usage, delivered input). The
+diagram is drawn from lifecycle events; the session panel reads the feed.
+
+These rules replace O18 to O21 where they differ:
+
+- **Agents steer and spawn.** Agents can steer other agents and spawn other
+  agents or sub-work when they are authorized. Before it acts, the engine checks
+  permission, budget, count and depth, and it records every steer and spawn
+  exactly like a person's. This overrides the earlier O19 ("agents only message
+  and interrupt").
+- **Agents and decisions.** Agents may make decisions (approve, raise a limit,
+  redirect, take over) only where a workflow explicitly grants it. Otherwise
+  decisions are human-only.
+- **Reviewer messaging (O18).** Messaging a reviewer is off by default. If a
+  workflow turns it on, the review is labelled "steered" and does not count
+  where an independent review is required. To overrule a reviewer, the owner
+  records an "accept, with reason" decision in the open. A reviewer can still be
+  paused or cancelled, and its questions answered.
+- **Take over in v1 (O20).** The person becomes the step's completer. They
+  provide the step's result themselves, or restart the step with a fresh agent
+  and a note. Attaching live to the agent's session or terminal comes later,
+  with workspaces and remote VMs.
+- **Slack (O21).** Slack posts at milestones: started, waiting on you (with
+  Approve and Reject buttons), stuck, failed, and done (with a PR link). Each
+  post links to the live view. Replying in the thread steers the agent, and the
+  reply is recorded under the person's linked identity. The raw stream is not
+  posted to Slack.
+
+Every steer is recorded before delivery, in the session's inputs and in the work
+item's decisions ledger. The interpreter never reads a message steer; it reads
+only decisions. A steer adds text and readable artifact references; it cannot
+add tools, grants, skills or a role.
+
+## 10. Shapes built from the same parts
+
+| Shape | Built from |
+| --- | --- |
+| Scripted workflow | Steps, if/otherwise, repeat, `forEach`, at the same time, `call` |
+| Team (O4) | Seats plus a `route` node in the same definition format; fresh sessions per visit; no `mode` key and no long-lived seat sessions. No warm rework in the first version (O5) |
+| Board (O9) | Starts bound to tracker statuses, steps per status, a set-status step |
+| Described pipeline | An unlisted definition the coordinator proposed through the same edit operations as the editor |
+| Deliver | Four templates (`deliver-oneshot`, `-lean`, `-full`, `-prd`) sharing two called workflows, built only from public primitives |
+| Evaluations (O14) | Kernel runs with an `offline` environment, not a separate durable workflow |
+
+### Loops
+
+Every loop (`repeat`, the editor's prepared "Fix until it passes", and the
+loops inside Deliver) has an optional **minimum** and **maximum** iteration
+count, set in the loop's panel.
+
+- **Minimum** means "run at least N times even if the exit condition is already
+  met". The engine's `repeat` has no minimum today; `repeat.min` is a model gap.
+- **Maximum** is `repeat.max`. It is bounded by the compiler's iteration cap,
+  which is 1 to 8 today, and by the workflow's `limits.maxRepairCycles`. So
+  `1 <= min <= max <= 8`. The compiler counts the worst case from `max`; `min`
+  rounds count toward `max`.
+- **Pausing for more rounds** (deliver-as-workflow D9) happens only below the
+  maximum. A loop may start with a smaller allowance (`repeat.allow`). When it
+  uses that allowance without meeting its exit condition, the run pauses for a
+  person, who can allow more rounds, accept as is, or stop. More rounds can
+  never go past `max`. When `max` is reached, the loop ends as exhausted and the
+  run ends `needs_human` with `limit_reached`. Raising the cap of 8 is not part
+  of this decision.
+
+## 11. Workflow editor decisions
+
+- The editor is as simple to edit as HubSpot and shows an n8n-style visual
+  diagram. The layout runs top to bottom, which replaces the approved
+  left-to-right Paper reference; #67's visual check needs a new approved
+  reference.
+- Publish is never disabled. Pressed with problems, it lists them with "Show me"
+  beside each. "Publish and use" is the primary button, with "Publish only" as a
+  secondary option.
+- The editor shows and edits the workflow's starts as a list at the top.
+- Approvals offer Approve, Request changes (sent back with notes) and Reject.
+  The workflow owner is the default approver. A wait lasts up to 7 days.
+- Two code-changing parallel lanes on one repository are blocked in v1, with a
+  clear message.
+- The step picker shows step types first. Skills and saved workflows appear
+  under "From your library". Step names follow the editor spec, for example
+  "Implement" and "Fix problems".
+- One ready-made loop, "Fix until it passes". Other loops are written in the
+  code view.
+- "Test workflow" is dropped. To try a workflow, publish it without "Use" and
+  run it on one task.
+- A step may add skills on top of the ones its agent already has.
+- Sub-workflows ("Run a workflow") are built after the core editor slices. A
+  called workflow uses its own agents and may contain approvals and waits.
+- Private skills can be attached to shared workflows. Attaching one asks for
+  confirmation and grants use to everyone who can see or run the workflow. This
+  reverses the earlier rule in [chapter 23](23-skills-and-evaluations.md). The
+  skill's bytes are never browsable by others; a run's transcript may quote
+  them, and the owner is told so at attach time.
+
+## 12. Integration seams
+
+Issue handling is provider-neutral. Providers come in this order: GitHub, then
+Linear, then GitLab, then Jira. Users set up integrations in the UI.
+Self-hosted providers (GitLab self-managed, GitHub Enterprise Server, Jira Data
+Center) are in scope, but not for v1. API tokens are allowed as well as OAuth
+and app installs.
+
+Each integration is a self-contained module in `packages/integration-<slug>/`,
+with UI, backend and manifest together. Boundaries are enforced mechanically:
+import rules, no provider names in core code, a conformance suite and registry
+checks. Providers are pure adapters (O13): core owns all the neutral tables, and
+provider packages contain no SQL. Families are `tickets`, `code`, `chat` and
+`deploy`. Provider webhooks normalize into the neutral event vocabulary that the
+one start mechanism reads.
+
+The detailed design is section 12 of [Integrations](09-integrations.md).
+
+## 13. Convergence plan
+
+In dependency order. Each step leaves everything before it working. Steps 1 to 3
+are the keystone: they make "one engine" true and remove four private paths.
+
+1. **Declare the kernel.** Record one interpreter, the flat executor frozen and
+   coordination plans as split. Add rails tests: every built-in definition
+   compiles with `apiVersion`; engine modules never compare a template slug or
+   import the presets; ticket admission names no preset. Fix the vocabulary
+   (O1, O2, O12).
+2. **Review decision in compiled workflows.** Resolve `$delivery` for plan runs;
+   run the review hook and independence check for every reviewer step; let the
+   plan's `repeat` drive repair (#62) (O1, O16).
+3. **Presets become compiled templates.** Repository rules read compiled plans;
+   republish `fixed-coding` and `fixed-coding-reviewed` as ordinary
+   definitions; point ticket admission and the stage policy at them; drain and
+   delete the flat path (O1).
+4. **Artifacts reach sessions.** A read-only context directory, named input and
+   output slots, step skills, step roles, and a real `agent.freeform` on the
+   harness adapters.
+5. **Watch any session.** Typed feed items, feeds addressed by session, a
+   server-sent-events stream for the CLI, the session panel and the live overlay
+   (O17).
+6. **One start mechanism.** The event matcher over neutral events; `starts` in
+   the definition and the editor (O8).
+7. **Tickets on the start mechanism.** The source policy names a workflow;
+   readiness by label and status with stable ids; Done-blocker admission for
+   trackers without code; outbound comment and status through family actions
+   (O8).
+8. **Family ports and provider modules.** `tickets` and `code` ports; GitHub
+   lifted behind them; Linear next (O13).
+9. **People and endings.** `human.approval`, the decisions ledger on the work
+   item, waits up to 7 days outside the active clock, named outcomes and
+   `workflow.stop`.
+10. **Steer any session.** Steering keyed on the session; steers recorded as
+    step inputs and decisions; notes for steps not yet started; take over as
+    completer; the reviewer rule; agent steering and spawning under permission,
+    budget, count and depth checks; Slack milestones with linked identities
+    (O18 to O21, as replaced in section 9).
+11. **Kinds and facts.** The kind definition API for organizations, rule types,
+    facts and validation at publication (O6).
+12. **`forEach`, `call` and loop bounds.** Interpreter revision 3; `call`
+    inlined with workflow outputs; `repeat.min` (O10).
+13. **Unlisted definitions and proposals.** `origin` and visibility on
+    definitions; run a frozen conversation draft; the `definitionProposal`
+    coordinator effect; coordinator skills; save as workflow.
+14. **Split: lanes run definitions.** The five changes in section 5, capacity
+    keys and the dispatcher (O2).
+15. **Teams.** `route` (revision 4), seats, the handoff kind, guards and
+    counters, person and workflow seats, stuck signals, seat memory (O4, O5).
+16. **Boards.** Status starts, overlap per work item, event provenance, the board
+    view (O9). After V2.
+17. **Packages.** T0 export and import with lineage now; T1 after the sandbox is
+    proven (O7).
+18. **Evaluations on the kernel.** Offline run environment enforced by the
+    effect ledger and broker (O14).
+19. **Execution-environment seam.** Placement as data and the `compute` family
+    contract; no provider in v1 (O22).
+
+The first customer-visible proof is Deliver shipped as a template after steps 1
+to 12.
+
+## 14. What not to build
+
+- A second engine for teams, an agent message bus or long-lived seat sessions.
+- A pluggable scheduler, customer code in the server process, or dynamic import
+  of providers.
+- A free graph editor with hand-drawn wires, or unbounded cycles.
+- A condition that asks a model or reads free text.
+- A separate durable evaluation workflow or a separate board engine.
+- Engine code that names a kind, template, seat or provider.
+- Session resume across steps, or any transcript handoff.
+- Provider-owned tables that the engine reads.
+- An exposed terminal as the way to watch or steer, or any steering path that is
+  not recorded.
+- Raw token streams relayed into chat.
+- A cloud VM provider in v1.

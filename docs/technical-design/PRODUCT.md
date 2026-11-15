@@ -14,6 +14,10 @@ Mark manages multiple applications from desktop browsers and a phone. Additional
 
 An autonomous software factory: people plan, review, and provide guidance; agents coordinate, develop, test, independently review, repair, merge, deploy, and report results within the configured scope.
 
+## Platform Philosophy
+
+Bakery is a platform: durable infrastructure, primitives and building blocks from which people build their own factory, by describing it in words, using the visual editor, copying a template, or writing code with the SDK. There is one system; new ways of working are plug-ins or new combinations, never a rewrite. Dogfooding rule: everything Bakery ships, including Deliver and team templates, is built only from the public primitives customers get, with no private engine paths. See [One engine](25-one-engine.md).
+
 ## Operating Context
 
 Deno, TypeScript, Mastra, Inngest, Postgres; responsive React/shadcn UI; Turborepo. Pi/OpenRouter, Claude Code, and subscription-authenticated Codex execute on self-hosted Linux workers and a spare MacBook for iOS. The complete factory also runs on one local machine.

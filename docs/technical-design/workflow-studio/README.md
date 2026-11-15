@@ -6,6 +6,14 @@
 
 The official Zapier Copilot screenshot was opened in the browser and inspected on 8 September; the gallery links it and the current primary guide. The six supplied reference screenshots are preserved unchanged in `references/` and linked in the gallery. They informed the node shapes, named ports, curved branches, dashed skill links and execution drawer. These are UI and interaction references, not evidence that Bakery's execution runtime exists.
 
+## Superseded decisions (14 November 2026)
+
+The editor direction is now the [workflow editor UX spec](../one-system/workflow-editor-ux-spec.md), summarised in [chapter 25](../25-one-engine.md) section 11. Where this prototype differs:
+
+- Publish is never disabled. Pressed with problems, it lists them with "Show me". This replaces the disabled-with-reason Publish.
+- Sub-workflows ("Run a workflow") are built after the core editor slices. A called workflow uses its own agents and may contain approvals and waits.
+- A step may add skills on top of the ones its agent already has.
+
 ## Try the prototype
 
 The existing server at port 8846 serves this folder. If it is not running, start it from the repository root:
