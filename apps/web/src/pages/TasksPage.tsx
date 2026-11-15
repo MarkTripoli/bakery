@@ -1,11 +1,4 @@
-import {
-  createContext,
-  type MouseEvent,
-  type ReactNode,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+import { type MouseEvent, type ReactNode, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createLink, useNavigate } from "@tanstack/react-router";
 import { isUuid } from "@bakery/contracts/contracts";
@@ -249,6 +242,8 @@ function InboxResults(
     : query.data.items.length === 0
     ? "empty"
     : "ready";
+  // Nothing is filtered, so "no tasks" means none exist yet, not "none match".
+  const noFilters = !filters.search && !filters.repositoryId && !filters.status;
   const message = !valid
     ? t("tasks.live.invalidRepository")
     : state === "forbidden"
@@ -262,7 +257,7 @@ function InboxResults(
     : state === "loading"
     ? t("tasks.inbox.loading")
     : state === "empty"
-    ? t("tasks.inbox.empty")
+    ? t(noFilters ? "tasks.inbox.emptyNone" : "tasks.inbox.empty")
     : null;
   const items = valid && !query.isError ? query.data?.items ?? [] : [];
   const rows = items.map((task) => ({
@@ -364,6 +359,11 @@ function InboxResults(
       stateContent={message && (
         <UI.Stack gap="compact">
           <UI.Text>{message}</UI.Text>
+          {state === "empty" && noFilters && (
+            <RouterLink to="/tasks/new" activeProps={{}} inactiveProps={{}}>
+              {t("tasks.queue.newTask")}
+            </RouterLink>
+          )}
           {(state === "error" || (scopeFailure !== null &&
             scopeFailure !== "forbidden")) && (
             <UI.Button
@@ -794,14 +794,6 @@ export type WorkQueueViewProps = {
   views?: readonly UI.TaskInboxView[];
 };
 
-/**
- * Lets the top-bar search button open the filter bar's search field, which
- * lives in a popover owned by the page body.
- */
-const QueueSearchContext = createContext<
-  { open: boolean; setOpen: (open: boolean) => void } | null
->(null);
-
 /** Presentational Work queue shared by `/tasks` and its design fixture. */
 export function WorkQueueView(
   {
@@ -825,28 +817,15 @@ export function WorkQueueView(
   }: WorkQueueViewProps,
 ) {
   const { translate: t } = useI18n();
-  const [searchOpen, setSearchOpen] = useState(false);
   const unknown = t("tasks.queue.unknown");
   const selected = groups.flatMap((group) => group.rows).find((row) =>
     row.id === selectedId
   );
   return (
-    <QueueSearchContext.Provider
-      value={{ open: searchOpen, setOpen: setSearchOpen }}
-    >
+    <>
       <ShellFlushMain />
       <ShellSlot name="actions">
         <UI.Inline gap="compact">
-          {layout === "rail" && (
-            <UI.IconButton
-              aria-expanded={searchOpen}
-              aria-haspopup="dialog"
-              label={t("tasks.queue.search")}
-              onClick={() => setSearchOpen(!searchOpen)}
-            >
-              <UI.IconGlyph name="search" />
-            </UI.IconButton>
-          )}
           <RouterLink
             to="/tasks/new"
             activeProps={{}}
@@ -909,6 +888,14 @@ export function WorkQueueView(
       >
         {groups.length > 0 && (
           <UI.TaskQueue
+            columns={{
+              application: groups.some((group) =>
+                group.rows.some((row) => row.application != null)
+              ),
+              harness: groups.some((group) =>
+                group.rows.some((row) => row.harness != null)
+              ),
+            }}
             variant={layout === "sheet" ? "list" : "table"}
             labels={{
               caption: t("tasks.queue.caption"),
@@ -949,7 +936,7 @@ export function WorkQueueView(
           />
         )}
       </UI.TaskInbox>
-    </QueueSearchContext.Provider>
+    </>
   );
 }
 
@@ -966,7 +953,6 @@ function WorkQueueInspector(
   return (
     <UI.TaskInspector
       title={task.title}
-      reference={task.reference}
       status={
         <UI.StatusDot tone={task.stage.tone}>{task.stage.label}</UI.StatusDot>
       }
@@ -997,6 +983,20 @@ function WorkQueueInspector(
               id: "evidence",
               label: t("tasks.queue.inspector.evidence"),
               content: <UI.Text>{t("tasks.live.noArtifacts")}</UI.Text>,
+            },
+            {
+              id: "details",
+              label: t("tasks.queue.inspector.details"),
+              content: (
+                <UI.DescriptionList>
+                  <UI.DescriptionItem
+                    action={
+                      <UI.DataText variant="code">{task.reference}</UI.DataText>
+                    }
+                    title={t("tasks.queue.inspector.taskId")}
+                  />
+                </UI.DescriptionList>
+              ),
             },
           ]}
         />
@@ -1055,7 +1055,6 @@ export function WorkQueueFilters(
   }: WorkQueueFiltersProps,
 ) {
   const { translate: t } = useI18n();
-  const searchControl = useContext(QueueSearchContext);
   const statusFilter = (
     <UI.Combobox
       appearance={layout === "rail" ? "filter" : "field"}
@@ -1109,26 +1108,37 @@ export function WorkQueueFilters(
         </UI.Field>
       </UI.Popover>
       {layout === "rail" && statusFilter}
-      <UI.Popover
-        label={t("tasks.queue.filter.search")}
-        open={searchControl?.open}
-        onOpenChange={searchControl?.setOpen}
-        variant="interactive"
-        triggerAppearance="toolbar"
-        trigger={t("tasks.queue.filter.more")}
-      >
-        <UI.Stack gap="compact">
-          <UI.Field label={t("tasks.live.search")} htmlFor="tasks-search">
-            <UI.SearchField
-              id="tasks-search"
-              value={search}
-              maxLength={200}
-              onChange={(event) => onSearch(event.target.value)}
-            />
-          </UI.Field>
-          {layout === "sheet" && statusFilter}
-        </UI.Stack>
-      </UI.Popover>
+      {layout === "rail"
+        ? (
+          <UI.SearchField
+            aria-label={t("tasks.queue.searchTasks")}
+            id="tasks-search"
+            maxLength={200}
+            onChange={(event) => onSearch(event.target.value)}
+            placeholder={t("tasks.live.search")}
+            value={search}
+          />
+        )
+        : (
+          <UI.Popover
+            label={t("tasks.queue.filter.search")}
+            variant="interactive"
+            triggerAppearance="toolbar"
+            trigger={t("tasks.queue.filter.more")}
+          >
+            <UI.Stack gap="compact">
+              <UI.Field label={t("tasks.live.search")} htmlFor="tasks-search">
+                <UI.SearchField
+                  id="tasks-search"
+                  value={search}
+                  maxLength={200}
+                  onChange={(event) => onSearch(event.target.value)}
+                />
+              </UI.Field>
+              {statusFilter}
+            </UI.Stack>
+          </UI.Popover>
+        )}
     </>
   );
 }

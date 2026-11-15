@@ -998,7 +998,7 @@
   "tasks.queue.unknown": "‮— توسيع ‬",
   "tasks.queue.filter.applications": "‮All applications توسيع ‬",
   "tasks.queue.filter.repository": "‮Repository filter توسيع ‬",
-  "tasks.queue.filter.more": "‮Filter توسيع ‬",
+  "tasks.queue.filter.more": "⟪Search⟫",
   "tasks.queue.filter.search": "‮Search filter توسيع ‬",
   "tasks.queue.filter.status": "‮Status توسيع ‬",
   "tasks.queue.newTask": "‮New task توسيع ‬",
@@ -1006,7 +1006,7 @@
   "tasks.queue.inspector.participants": "‮Participants توسيع ‬",
   "tasks.queue.inspector.activity": "‮Activity توسيع ‬",
   "tasks.queue.inspector.evidence": "⟪Results⟫",
-  "tasks.queue.inspector.open": "‮Open session توسيع ‬",
+  "tasks.queue.inspector.open": "⟪Open task⟫",
   "tasks.queue.inspector.model": "‮Model · {model} توسيع ‬",
   "tasks.queue.inspector.empty": "‮Select a task to see its details. توسيع توسيع ‬",
   "tasks.queue.inspector.noActivity": "‮No recorded activity yet. توسيع توسيع ‬",
@@ -2130,7 +2130,6 @@
   "projects.onboarding.bindings.aliasShort": "⟪Alias⟫",
   "tasks.conversation.sheet.close": "⟪Close plan⟫",
   "tasks.conversation.plan.none": "⟪No plan yet⟫",
-  "tasks.queue.search": "⟪Search work⟫",
   "machines.title": "⟪Machines⟫",
   "machines.table": "⟪Machines⟫",
   "machines.name": "⟪Name⟫",
@@ -3452,5 +3451,11 @@
   "library.builtIn.page.badge": "⟪Built in⟫",
   "library.builtIn.page.notice": "⟪Built-in workflows cannot be changed. Make a copy to edit it.⟫",
   "library.builtIn.page.memberNotice": "⟪Built-in workflows cannot be changed. An organization administrator can make a copy to edit.⟫",
-  "library.builtIn.page.notFoundTitle": "⟪This built-in workflow was not found⟫"
+  "library.builtIn.page.notFoundTitle": "⟪This built-in workflow was not found⟫",
+  "tasks.inbox.emptyNone": "⟪There are no tasks yet.⟫",
+  "tasks.queue.searchTasks": "⟪Search tasks⟫",
+  "tasks.queue.inspector.details": "⟪Details⟫",
+  "tasks.queue.inspector.taskId": "⟪Task ID⟫",
+  "tasks.preset.fixedCoding.line": "⟪Workflow: write the brief, then run the coding agent once.⟫",
+  "tasks.preset.fixedCodingReviewed.line": "⟪Workflow: write the brief and run the coding agent, then check and independently review the result, repairing it a bounded number of times.⟫"
 }

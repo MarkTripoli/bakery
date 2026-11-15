@@ -11,12 +11,13 @@ import { firstRender } from "./helpers/first-render.ts";
 registerPageHealth(test);
 
 /**
- * Paper filter bar (5J-0 desktop, E8-0 phone): free-text search sits behind
- * "Filter", repository scope behind "All applications"; status is a toolbar
- * select on desktop and joins the "Filter" popover on phones. Open the owning
- * popover before touching a field; values persist while it is closed.
+ * Work list filter bar: on desktop the search is a field in the toolbar row
+ * ("Search tasks"); on a phone it sits behind the "Search" popover, which also
+ * holds the status select. Repository scope is behind "All applications".
+ * Open the owning popover before touching a field; values persist while it is
+ * closed.
  */
-async function openFilter(page: Page, name: "Filter" | "All applications") {
+async function openFilter(page: Page, name: "Search" | "All applications") {
   const trigger = page.getByRole("button", { name, exact: true });
   if (await trigger.getAttribute("aria-expanded") !== "true") {
     await trigger.click();
@@ -24,7 +25,11 @@ async function openFilter(page: Page, name: "Filter" | "All applications") {
 }
 
 async function searchField(page: Page) {
-  await openFilter(page, "Filter");
+  // 743px and below is a phone (the shell's own rule).
+  if ((page.viewportSize()?.width ?? 1280) > 743) {
+    return page.getByRole("searchbox", { name: "Search tasks" });
+  }
+  await openFilter(page, "Search");
   return page.getByLabel("Search titles and descriptions");
 }
 
@@ -48,7 +53,7 @@ async function statusField(page: Page) {
     name: "Task status",
     exact: true,
   });
-  if (!(await status.isVisible())) await openFilter(page, "Filter");
+  if (!(await status.isVisible())) await openFilter(page, "Search");
   return status;
 }
 
@@ -247,10 +252,11 @@ test("task filters reset cursors, preserve focus, and navigate real routes", asy
   await expect.poll(() => requests.at(-1)?.searchParams.get("repositoryId"))
     .toBe(task.repositoryId);
   expect(requests.at(-1)?.searchParams.get("status")).toBe("draft");
-  await expect(page.getByRole("link", { name: "New task" })).toHaveAttribute(
-    "href",
-    "/tasks/new",
-  );
+  await expect(page.getByRole("banner").getByRole("link", { name: "New task" }))
+    .toHaveAttribute(
+      "href",
+      "/tasks/new",
+    );
   await dismissFilters(page);
   await page.getByRole("link", { name: task.title }).click();
   await expect(page).toHaveURL(new RegExp(`/tasks/${id}$`));
@@ -329,7 +335,7 @@ test("queue inspector asks the server for open questions so an open one past the
   expect(statuses).toContain("open");
 });
 
-test("queue inspector answers the selected task's open question and the top bar opens search", async ({ page }) => {
+test("queue inspector answers the selected task's open question and the page has one search", async ({ page }) => {
   // Phones have no inspector rail; the question shows on the task page.
   test.skip(
     page.viewportSize()!.width <= 900,
@@ -396,8 +402,14 @@ test("queue inspector answers the selected task's open question and the top bar 
   }]);
   await expect(inspector.getByRole("heading", { name: open.prompt }))
     .toHaveCount(0);
-  await page.getByRole("button", { name: "Search work" }).click();
-  await expect(page.getByLabel("Search titles and descriptions"))
+  // One search on the page: the field in the toolbar row, no second entry in
+  // the top bar.
+  await expect(page.getByRole("button", { name: "Search work" })).toHaveCount(
+    0,
+  );
+  await expect(page.getByRole("searchbox", { name: "Search tasks" }))
+    .toBeVisible();
+  await expect(page.getByPlaceholder("Search titles and descriptions"))
     .toBeVisible();
 });
 
@@ -408,10 +420,11 @@ test("trailing slash task entry renders the canonical inbox", async ({ page }) =
   );
   await page.goto("/tasks/");
   await expect(page.locator('[data-ui-component="taskInbox"]')).toBeVisible();
-  await expect(page.getByRole("link", { name: "New task" })).toHaveAttribute(
-    "href",
-    "/tasks/new",
-  );
+  await expect(page.getByRole("banner").getByRole("link", { name: "New task" }))
+    .toHaveAttribute(
+      "href",
+      "/tasks/new",
+    );
 });
 
 test("cursor controls reject stale continuation during a changed-filter fetch", async ({ page }) => {
@@ -583,6 +596,10 @@ test("inbox distinguishes empty, forbidden, retryable error, and offline", async
   await page.goto("/tasks");
   const inbox = page.locator('[data-ui-component="taskInbox"]');
   await expect(inbox).toHaveAttribute("data-state", "empty");
+  // Nothing is filtered: there are no tasks yet, and the way forward is offered.
+  await expect(inbox).toContainText("There are no tasks yet.");
+  await expect(inbox).not.toContainText("No tasks match this filter.");
+  await expect(inbox.getByRole("link", { name: "New task" })).toBeVisible();
   state = "forbidden";
   await (await searchField(page)).fill("restricted");
   await expect(inbox).toHaveAttribute("data-state", "forbidden");
@@ -593,6 +610,9 @@ test("inbox distinguishes empty, forbidden, retryable error, and offline", async
   await dismissFilters(page);
   await page.getByRole("button", { name: "Retry", exact: true }).click();
   await expect(inbox).toHaveAttribute("data-state", "empty");
+  // A search is typed, so "no tasks" means none match it.
+  await expect(inbox).toContainText("No tasks match this filter.");
+  await expect(inbox).not.toContainText("There are no tasks yet.");
   await context.setOffline(true);
   await expect(inbox).toHaveAttribute("data-state", "offline");
   await context.setOffline(false);

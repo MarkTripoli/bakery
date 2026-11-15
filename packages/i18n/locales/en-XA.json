@@ -996,7 +996,7 @@
   "tasks.queue.unknown": "⟦— expansion ⟧",
   "tasks.queue.filter.applications": "⟦All applications expansion ⟧",
   "tasks.queue.filter.repository": "⟦Repository filter expansion ⟧",
-  "tasks.queue.filter.more": "⟦Filter expansion ⟧",
+  "tasks.queue.filter.more": "⟦Šëàŕçĥ…⟧",
   "tasks.queue.filter.search": "⟦Search filter expansion ⟧",
   "tasks.queue.filter.status": "⟦Status expansion ⟧",
   "tasks.queue.newTask": "⟦New task expansion ⟧",
@@ -1004,7 +1004,7 @@
   "tasks.queue.inspector.participants": "⟦Participants expansion ⟧",
   "tasks.queue.inspector.activity": "⟦Activity expansion ⟧",
   "tasks.queue.inspector.evidence": "⟦Ŕëšûļŧš…⟧",
-  "tasks.queue.inspector.open": "⟦Open session expansion ⟧",
+  "tasks.queue.inspector.open": "⟦Ôþëñ ŧàšķ ŧ⟧",
   "tasks.queue.inspector.model": "⟦Model · {model} expansion ⟧",
   "tasks.queue.inspector.empty": "⟦Select a task to see its details. expansion expansion ⟧",
   "tasks.queue.inspector.noActivity": "⟦No recorded activity yet. expansion expansion ⟧",
@@ -2130,7 +2130,6 @@
   "projects.onboarding.bindings.aliasShort": "⟦Àļïàš⟧",
   "tasks.conversation.sheet.close": "⟦Çļôšë þļàñ ŧ⟧",
   "tasks.conversation.plan.none": "⟦Ñô þļàñ ÿëŧ ŧ⟧",
-  "tasks.queue.search": "⟦Šëàŕçĥ ŵôŕķ ŧ⟧",
   "machines.title": "⟦Ṁàçĥïñëš…⟧",
   "machines.table": "⟦Ṁàçĥïñëš…⟧",
   "machines.name": "⟦Ñàɱë⟧",
@@ -3452,5 +3451,11 @@
   "library.builtIn.page.badge": "⟦Ɓûïļŧ ïñ…⟧",
   "library.builtIn.page.notice": "⟦Ɓûïļŧ-ïñ ŵôŕķƒļôŵš çàññôŧ ƀë çĥàñĝëð. Ṁàķë à çôþÿ ŧô ëðïŧ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",
   "library.builtIn.page.memberNotice": "⟦Ɓûïļŧ-ïñ ŵôŕķƒļôŵš çàññôŧ ƀë çĥàñĝëð. Àñ ôŕĝàñïžàŧïôñ àðɱïñïšŧŕàŧôŕ çàñ ɱàķë à çôþÿ ŧô ëðïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
-  "library.builtIn.page.notFoundTitle": "⟦Ŧĥïš ƀûïļŧ-ïñ ŵôŕķƒļôŵ ŵàš ñôŧ ƒôûñð ŧëšŧ çôþÿŧ⟧"
+  "library.builtIn.page.notFoundTitle": "⟦Ŧĥïš ƀûïļŧ-ïñ ŵôŕķƒļôŵ ŵàš ñôŧ ƒôûñð ŧëšŧ çôþÿŧ⟧",
+  "tasks.inbox.emptyNone": "⟦Ŧĥëŕë àŕë ñô ŧàšķš ÿëŧ. ŧëšŧ ç⟧",
+  "tasks.queue.searchTasks": "⟦Šëàŕçĥ ŧàšķš ŧë⟧",
+  "tasks.queue.inspector.details": "⟦Ðëŧàïļš…⟧",
+  "tasks.queue.inspector.taskId": "⟦Ŧàšķ ÏÐ…⟧",
+  "tasks.preset.fixedCoding.line": "⟦Ŵôŕķƒļôŵ: ŵŕïŧë ŧĥë ƀŕïëƒ, ŧĥëñ ŕûñ ŧĥë çôðïñĝ àĝëñŧ ôñçë. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "tasks.preset.fixedCodingReviewed.line": "⟦Ŵôŕķƒļôŵ: ŵŕïŧë ŧĥë ƀŕïëƒ àñð ŕûñ ŧĥë çôðïñĝ àĝëñŧ, ŧĥëñ çĥëçķ àñð ïñðëþëñðëñŧļÿ ŕëṽïëŵ ŧĥë ŕëšûļŧ, ŕëþàïŕïñĝ ïŧ à ƀôûñðëð ñûɱƀëŕ ôƒ ŧïɱëš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧"
 }
