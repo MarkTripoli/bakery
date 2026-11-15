@@ -465,7 +465,7 @@ test.describe("the two writes against how the server behaves", () => {
       .toHaveCount(0);
     await page.mouse.move(700, 700);
     await shot(page, "repository-settings-rules-in-force");
-    await page.getByRole("button", { name: "Close dialog" }).click();
+    await page.getByRole("button", { name: "Close sheet" }).click();
     await expect(page.getByRole("dialog", { name: "Working settings" }))
       .toHaveCount(0);
   });
