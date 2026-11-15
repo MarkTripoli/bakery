@@ -1,7 +1,7 @@
 /**
  * The receipt-time gate of an event trigger (issue #36): whether an enabled
  * automation of one organization is bound to hear this kind of event for one
- * Bakery repository. It is the coarse half of matching, and it is read-only:
+ * Bakery repository (the provider has already said the kind is one it routes). It is the coarse half of matching, and it is read-only:
  * the receipt creates an `automation` route only when it says yes, so a
  * delivery nobody listens for costs no route and wakes nothing. The exact half
  * (action and filter) is `eventMatches`, applied by the consumer against the

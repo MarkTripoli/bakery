@@ -386,40 +386,71 @@ Deno.test("overlap: an event while the automation is busy is skipped under `skip
     );
   }));
 
-Deno.test("the loop guard records the event firings beyond an hour's allowance as skipped", () =>
+/** An hour's worth of event firings of one status, each on its own inbound event. */
+async function seedHourOfFirings(
+  f: GitHubAppFixture,
+  receiver: Receiver,
+  organizationId: string,
+  versionId: string,
+  status: "failed" | "skipped",
+): Promise<void> {
+  await f.pgDatabase.query(
+    `with events as (
+       insert into bakery.inbound_events (
+         id, provider, registration_id, external_delivery_id, payload_digest,
+         event_kind, status, expires_at
+       )
+       select gen_random_uuid(), 'github', $2, 'loop-' || $4 || '-' || n,
+              'digest-' || n, 'issues', 'routed', now() + interval '1 day'
+         from generate_series(1, $3::int) n
+       returning id
+     )
+     insert into bakery.automation_firings (
+       organization_id, automation_version_id, scheduled_at, trigger_event_id,
+       status, pending, skipped_count
+     )
+     select $1, $4::uuid, now() - interval '30 minutes'
+                    + (row_number() over () * interval '1 second'),
+            id, $5, false, case when $5 = 'skipped' then 1 else 0 end
+       from events`,
+    [
+      organizationId,
+      receiver.registrationId,
+      EVENT_FIRINGS_PER_HOUR,
+      versionId,
+      status,
+    ],
+  );
+}
+
+Deno.test("the loop guard counts the firings an automation admitted in the hour, not the ones it skipped", () =>
   withFixture(async (f) => {
     const r = await enabledReceiver(f);
     const task = await seedTaskAndRepository(f, r.resource);
-    const automation = await seedAutomation(f, task, {
+    const spent = await seedAutomation(f, task, {
       trigger: issuesOpened(),
       overlapPolicy: "queue_one",
     });
-    // The hour's allowance, already spent by earlier events.
-    await f.pgDatabase.query(
-      `with events as (
-         insert into bakery.inbound_events (
-           id, provider, registration_id, external_delivery_id, payload_digest,
-           event_kind, status, expires_at
-         )
-         select gen_random_uuid(), 'github', $2, 'loop-' || n, 'digest-' || n,
-                'issues', 'routed', now() + interval '1 day'
-           from generate_series(1, $3::int) n
-         returning id
-       )
-       insert into bakery.automation_firings (
-         organization_id, automation_version_id, scheduled_at, trigger_event_id,
-         status, pending, skipped_count
-       )
-       select $1, $4, now() - interval '30 minutes'
-                      + (row_number() over () * interval '1 second'),
-              id, 'skipped', false, 1
-         from events`,
-      [
-        task.organizationId,
-        r.registrationId,
-        EVENT_FIRINGS_PER_HOUR,
-        await firingsVersion(f, automation.definitionId),
-      ],
+    const declined = await seedAutomation(f, task, {
+      trigger: issuesOpened(),
+      overlapPolicy: "queue_one",
+    });
+    // One automation has already admitted its hour's allowance (the firings
+    // ended, so nothing holds it); the other skipped a whole hour's worth of
+    // events and admitted none.
+    await seedHourOfFirings(
+      f,
+      r,
+      task.organizationId,
+      spent.versionId,
+      "failed",
+    );
+    await seedHourOfFirings(
+      f,
+      r,
+      task.organizationId,
+      declined.versionId,
+      "skipped",
     );
     const { route } = await issueRoute(r, 5);
     const outcome = await processAutomationRoute(
@@ -427,26 +458,29 @@ Deno.test("the loop guard records the event firings beyond an hour's allowance a
       route.id,
     );
     assert(outcome.kind === "settled");
-    assertEquals(outcome.firings.map((firing) => firing.result), [
-      "skipped_rate",
-    ]);
+    const resultOf = (automationId: string) =>
+      outcome.firings.find((firing) => firing.automationId === automationId)
+        ?.result;
+    // The spent one records the event as skipped: nothing more is admitted.
+    assertEquals(resultOf(spent.definitionId), "skipped_rate");
+    // The one that only skipped is not locked out: the next event is admitted.
+    assertEquals(resultOf(declined.definitionId), "admitted");
     const rows = await firingRows(f, task.organizationId);
-    const last = rows.at(-1)!;
+    const latest = (versionId: string) =>
+      rows.filter((row) => row.versionId === versionId).at(-1)!;
     assertEquals(
-      [rows.length, last.status, last.pending, last.skippedCount],
-      [EVENT_FIRINGS_PER_HOUR + 1, "skipped", false, 1],
+      [latest(spent.versionId).status, latest(spent.versionId).pending],
+      ["skipped", false],
+    );
+    assertEquals(
+      [latest(declined.versionId).status, latest(declined.versionId).pending],
+      ["queued", true],
+    );
+    assertEquals(
+      rows.filter((row) => row.versionId === spent.versionId).length,
+      EVENT_FIRINGS_PER_HOUR + 1,
     );
   }));
-
-async function firingsVersion(
-  f: GitHubAppFixture,
-  definitionId: string,
-): Promise<string> {
-  return (await f.pgDatabase.query<{ id: string }>(
-    `select active_version_id as id from bakery.automation_definitions where id = $1`,
-    [definitionId],
-  )).rows[0].id;
-}
 
 Deno.test("authority is read again: a connection or repository that lost it by the time the route runs earns no firing", () =>
   withFixture(async (f) => {

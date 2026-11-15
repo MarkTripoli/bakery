@@ -1,7 +1,7 @@
 /**
  * `bakery-automation-intake`: the consumer of the `automation` routes (issue
- * #36). A verified GitHub delivery that some enabled automation is bound to hear
- * earns a route of its own at receipt (see `event-gate.ts`); this reads it and
+ * #36). A verified provider delivery that some enabled automation is bound to
+ * hear earns a route of its own at receipt (see `event-gate.ts`); this reads it and
  * admits the firings it earns.
  *
  * The route is the only input, and everything else is read again from Bakery's
@@ -20,8 +20,9 @@
  * for a schedule's firing. The overlap policy applies as for a schedule: an
  * event that arrives while the automation is busy is skipped, or queued behind
  * the run, by the version's policy. A loop guard bounds a runaway: an
- * automation admits at most `EVENT_FIRINGS_PER_HOUR` event firings an hour, and
- * the rest are recorded as skipped.
+ * automation admits at most `EVENT_FIRINGS_PER_HOUR` event firings an hour (the
+ * ones it skips are not counted, so a burst it declined cannot lock out the next
+ * event), and the rest are recorded as skipped.
  */
 import type { Inngest } from "inngest";
 import { INNGEST_EVENT_DEFINITIONS } from "@bakery/contracts/events";
@@ -291,6 +292,7 @@ async function admitFiring(
         and version.id = firing.automation_version_id
       where firing.organization_id = $1 and version.automation_id = $2
         and firing.trigger_event_id is not null
+        and firing.status <> 'skipped'
         and firing.created_at > now() - interval '1 hour'`,
     [route.organizationId, candidate.id],
   );

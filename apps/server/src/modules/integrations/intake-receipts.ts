@@ -19,6 +19,7 @@ import {
   SecretCipherSchema,
 } from "../secrets/crypto.ts";
 import { automationListens } from "../workflows/automations/event-gate.ts";
+import { automationEventsOf } from "./automation-events.ts";
 import { InstallationStatus, liveConnections } from "./installation-fan-out.ts";
 import {
   AUTOMATION_ROUTE_PURPOSE,
@@ -397,20 +398,16 @@ async function planRoutes(
   return routes.length === 0 ? ignore(reason) : { routes, reason: null };
 }
 
-const AUTOMATION_EVENT_KINDS: ReadonlySet<string> = new Set([
-  "issues",
-  "pull_request",
-  "check_run",
-  "check_suite",
-]);
-
 /** Whether an automation of the resource's organization listens for the event on its repository. */
 async function listensForAutomation(
   transaction: PgTransactionClient,
   eventName: string,
   resource: SelectedRepository,
 ): Promise<boolean> {
-  if (!AUTOMATION_EVENT_KINDS.has(eventName)) return false;
+  // The provider's own declaration of what it routes to automations.
+  if (!automationEventsOf(GITHUB_PROVIDER)?.kinds.includes(eventName)) {
+    return false;
+  }
   const repositoryId = await resolveRepositoryId(transaction, {
     organizationId: resource.organizationId,
     connectionId: resource.connectionId,

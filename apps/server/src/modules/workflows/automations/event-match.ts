@@ -1,27 +1,17 @@
 /**
  * Which verified inbound events an automation's event trigger answers (issue
  * #36). Matching is exact and small, and it reads only what the receipt keeps:
- * the provider and event kind, the action, and the three scalar fields of the
- * stored projection (`number`, `headSha`, `repositoryId`). There is no
- * expression, pattern or nesting, and nothing from the event's payload.
+ * the event kind, the action, and the scalar fields of the stored, normalized
+ * projection. There is no expression, pattern or nesting, and nothing from the
+ * event's payload.
  *
- * What a trigger may name is closed here, so a version that could never fire is
- * refused when it is created, not left to sit silent: only the kinds Bakery
- * routes to the processors (`issues`, `pull_request`, `check_run`,
- * `check_suite`), and only the filter keys the projection holds. Labels and the
- * sender are not in the projection; a later change may add them.
+ * What a trigger may name is closed by the provider's own declaration of what
+ * its receipt routes (`automationEventsOf`): the matcher reads that list and
+ * names no provider's events, so a version that could never fire is refused
+ * when it is created, not left to sit silent.
  */
+import { automationEventsOf } from "../../integrations/automation-events.ts";
 import { type EventTrigger, TriggerError } from "./trigger.ts";
-
-/** The event kinds an event trigger can name. */
-export const EVENT_TRIGGER_KINDS = Object.freeze(
-  ["issues", "pull_request", "check_run", "check_suite"] as const,
-);
-
-/** The projection fields a filter can compare, and the type each holds. */
-export const EVENT_FILTER_KEYS = Object.freeze(
-  { number: "number", headSha: "string", repositoryId: "number" } as const,
-);
 
 /** The part of a stored receipt the matcher reads. */
 export type EventFacts = Readonly<{
@@ -33,21 +23,25 @@ export type EventFacts = Readonly<{
 }>;
 
 /**
- * Refuses an event trigger that names a kind or a filter key the receipt does
- * not carry, or a filter value of the wrong type. Throws a `TriggerError`
- * naming the part and why; returns nothing otherwise.
+ * Refuses an event trigger that names a provider that routes nothing to
+ * automations, a kind or a filter key the provider's receipt does not carry, or
+ * a filter value of the wrong type. Throws a `TriggerError` naming the part and
+ * why; returns nothing otherwise.
  */
 export function assertSupportedEventTrigger(trigger: EventTrigger): void {
-  if (!(EVENT_TRIGGER_KINDS as readonly string[]).includes(trigger.kind)) {
+  const declared = automationEventsOf(trigger.provider);
+  if (declared === undefined) {
+    throw new TriggerError(["provider"], "provider_unknown");
+  }
+  if (!declared.kinds.includes(trigger.kind)) {
     throw new TriggerError(["kind"], "kind_unsupported");
   }
   for (const [key, value] of Object.entries(trigger.filter)) {
     // Own keys only: `constructor` and `toString` are not projection fields.
-    if (!Object.hasOwn(EVENT_FILTER_KEYS, key)) {
+    if (!Object.hasOwn(declared.filterKeys, key)) {
       throw new TriggerError(["filter", key], "filter_key_unsupported");
     }
-    const expected = EVENT_FILTER_KEYS[key as keyof typeof EVENT_FILTER_KEYS];
-    const fits = expected === "number"
+    const fits = declared.filterKeys[key] === "number"
       ? typeof value === "number" && Number.isSafeInteger(value)
       : typeof value === "string";
     if (!fits) throw new TriggerError(["filter", key], "filter_value_type");
@@ -67,10 +61,12 @@ export function eventMatches(
   if (trigger.action !== undefined && trigger.action !== event.action) {
     return false;
   }
+  const declared = automationEventsOf(trigger.provider);
+  if (declared === undefined) return false;
   for (const [key, value] of Object.entries(trigger.filter)) {
     const field = (event as Record<string, unknown>)[key];
     if (
-      !Object.hasOwn(EVENT_FILTER_KEYS, key) || field === null ||
+      !Object.hasOwn(declared.filterKeys, key) || field === null ||
       field !== value
     ) {
       return false;

@@ -1,8 +1,7 @@
 import { assert, assertEquals, assertThrows } from "@std/assert";
+import { automationEventsOf } from "../../apps/server/src/modules/integrations/automation-events.ts";
 import {
   assertSupportedEventTrigger,
-  EVENT_FILTER_KEYS,
-  EVENT_TRIGGER_KINDS,
   type EventFacts,
   eventMatches,
 } from "../../apps/server/src/modules/workflows/automations/event-match.ts";
@@ -89,7 +88,8 @@ Deno.test("a filter key the receipt does not carry never matches, even if the ev
 });
 
 Deno.test("only kinds the receipt routes and filter keys it carries can be named, with the right type", () => {
-  for (const kind of EVENT_TRIGGER_KINDS) {
+  const declared = automationEventsOf("github")!;
+  for (const kind of declared.kinds) {
     assertSupportedEventTrigger(trigger({ kind }));
   }
   const refused = (over: Record<string, unknown>) =>
@@ -130,7 +130,7 @@ Deno.test("only kinds the receipt routes and filter keys it carries can be named
     "filter_value_type",
   );
   // The keys are the projection's, and nothing else.
-  assertEquals(Object.keys(EVENT_FILTER_KEYS).sort(), [
+  assertEquals(Object.keys(declared.filterKeys).sort(), [
     "headSha",
     "number",
     "repositoryId",
@@ -140,4 +140,16 @@ Deno.test("only kinds the receipt routes and filter keys it carries can be named
       filter: { number: 7, headSha: "a".repeat(40), repositoryId: 1 },
     }),
   );
+});
+
+Deno.test("a provider that declares nothing routes nothing: its triggers are refused and match nothing", () => {
+  const other = { ...trigger(), provider: "gitlab" } as unknown as EventTrigger;
+  const error = assertThrows(
+    () => assertSupportedEventTrigger(other),
+    TriggerError,
+  );
+  assertEquals([error.path, error.reason], [["provider"], "provider_unknown"]);
+  assert(!eventMatches(other, event()));
+  assertEquals(automationEventsOf("gitlab"), undefined);
+  assertEquals(automationEventsOf("constructor"), undefined);
 });
