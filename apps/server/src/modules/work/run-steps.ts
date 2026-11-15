@@ -4,7 +4,10 @@ import {
   isReviewLoopSpec,
   REVIEW_LOOP_LIMITS,
 } from "@bakery/contracts/review-evidence";
-import { WORKFLOW_ACTION_METADATA } from "@bakery/contracts/workflow-action-registry";
+import {
+  isEngineProjectionAction,
+  WORKFLOW_ACTION_METADATA,
+} from "@bakery/contracts/workflow-action-registry";
 import { DELIVERY_STEP_OUTPUT_REFERENCES } from "@bakery/contracts/workflow-presets";
 import { isAgentVersionSelector } from "@bakery/persistence";
 import type { ReviewLoopLimits } from "@bakery/persistence/repository-admission";
@@ -312,6 +315,11 @@ export function workflowRequiresRepository(normalizedSpec: unknown): boolean {
  * The normalized producer owns all semantic validation; admission still
  * validates the immutable boundary so malformed fixtures cannot create steps.
  */
+function namesProjection(step: unknown): boolean {
+  return isRecord(step) && typeof step.uses === "string" &&
+    isEngineProjectionAction(step.uses);
+}
+
 export function extractFixedWorkflowSteps(
   normalizedSpec: unknown,
   profileWorkflowKind?: unknown,
@@ -359,8 +367,11 @@ export function extractFixedWorkflowSteps(
   // publish, but this executor runs a flat list of actions, so name that limit
   // instead of failing as a corrupt version. A document without apiVersion
   // never has them: the flat validator refuses them at publish.
+  // The same holds for a step whose action the engine completes itself (a
+  // projection): there is no job for the fixed executor to run.
   if (
-    Object.hasOwn(normalizedSpec, "apiVersion") && steps.some(isContainerNode)
+    Object.hasOwn(normalizedSpec, "apiVersion") &&
+    steps.some((step) => isContainerNode(step) || namesProjection(step))
   ) {
     throw new WorkflowNotExecutableError();
   }
@@ -406,6 +417,10 @@ export function extractFixedWorkflowSteps(
     if (seen.has(id) || id === DELIVERY_GATE_STEP_KEY) {
       throw invalidWorkflowVersion();
     }
+    // A projection has no worker, and the fixed executor only runs jobs. A
+    // compiler-grammar document that names one never gets here (it is routed to
+    // the engine above); a legacy flat spec cannot name one.
+    if (isEngineProjectionAction(action)) throw invalidWorkflowVersion();
     seen.add(id);
     if (
       candidate.requires !== undefined &&

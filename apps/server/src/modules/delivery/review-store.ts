@@ -12,6 +12,11 @@ import {
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { formatMicroUsd, parseMicroUsd } from "../work/budget.ts";
 import { reviewLoopSteps } from "./loop-steps.ts";
+import {
+  isPlanRunSnapshot,
+  loopSnapshotOf,
+  planNextCycleUsd,
+} from "./plan-run-view.ts";
 import type {
   DecisionBudget,
   DecisionReviewStatus,
@@ -318,7 +323,13 @@ export async function loadRunLoopFacts(
   );
   const runRow = run.rows[0];
   if (!runRow) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  const snapshot = runRow.snapshot;
+  // A plan run is read through the steps it dispatched; a flat run through
+  // its frozen spec. Both answer the same questions below.
+  const snapshot = await loopSnapshotOf(transaction, {
+    organizationId,
+    runId,
+    snapshot: runRow.snapshot,
+  });
   const reviewLoop = reviewLoopFromSnapshot(snapshot);
   const stepOutputs = await loadStepOutputs(transaction, input);
 
@@ -505,6 +516,12 @@ export async function readRunBudgetHeadroom(
   );
   const remaining = account.rows[0]?.remaining;
   if (remaining === undefined) return null;
+  if (isPlanRunSnapshot(input.snapshot)) {
+    return {
+      remainingUsd: remaining,
+      nextCycleUsd: planNextCycleUsd(input.snapshot),
+    };
+  }
   const steps = reviewLoopSteps(input.snapshot);
   const next = frozenReservation(input.snapshot, steps.repair.key) +
     frozenReservation(input.snapshot, steps.review.key);

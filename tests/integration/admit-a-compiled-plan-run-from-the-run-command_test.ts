@@ -24,6 +24,7 @@ import {
   publishWorkflow,
   seedRulesRepository,
 } from "../helpers/pinned-rules.ts";
+import { reviewedPlanDocument } from "../helpers/review-repair/plan-loop-document.ts";
 import type { WorkerFixture } from "../helpers/worker-execution.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 
@@ -592,22 +593,93 @@ Deno.test("a published plan that no longer compiles is refused, not half started
     );
   }));
 
-Deno.test("a repository rule that requires a check stage refuses a plan, which the guard cannot read yet, and leaves nothing behind", () =>
+/** The plan of `plan()` with a check stage of the pinned rule after its implement step. */
+const checkedPlan = (over: { guarded?: boolean; before?: boolean } = {}) => {
+  const base = plan();
+  const flow = base.steps[0] as { steps: Record<string, unknown>[] };
+  const [brief, implement] = flow.steps;
+  const check = {
+    id: "check",
+    needs: [over.before === true ? "brief" : "implement"],
+    uses: "quality.check",
+    ...(over.guarded === true ? { if: '$input.note == "go"' } : {}),
+    with: {
+      repositoryId: "$input.repositoryId",
+      revision: over.before === true
+        ? "0000000000000000000000000000000000000000"
+        : "$step.flow.implement.headSha",
+      checks: ["magic.numbers"],
+    },
+  };
+  return {
+    ...base,
+    steps: [{
+      id: "flow",
+      steps: over.before === true
+        ? [brief, check, { ...implement, needs: ["check"] }]
+        : [brief, implement, check],
+    }],
+  };
+};
+
+Deno.test("a repository rule that requires a check is read against a plan's shape: a plan with its check after the last revision is admitted, and one without is refused naming the rule", () =>
   withWorkerFixture(async (fixture) => {
     const governed = await seedRulesRepository(fixture, fixture, "governed", {
       entries: [asOverride(numbersRule())],
     });
+    const refusal = async (
+      name: string,
+      document: unknown,
+      code: string,
+    ) => {
+      const { versionId } = await publishWorkflow(
+        fixture,
+        fixture,
+        name,
+        document,
+      );
+      const { task, response } = await start(fixture, governed, versionId);
+      const text = await response.text();
+      assertEquals(response.status, 422, text);
+      const body = JSON.parse(text) as {
+        code: string;
+        issues: { code: string; message: string }[];
+      };
+      assertEquals(body.code, "UNPROCESSABLE");
+      assertEquals(body.issues.map((issue) => issue.code), [code]);
+      assert(body.issues[0].message.includes("Rule code.magicNumbers "));
+      // Nothing was admitted: no run, the task stays a draft.
+      assertEquals(await facts(fixture, task.id), {
+        runs: 0,
+        status: "draft",
+        currentRun: null,
+      });
+    };
+    await refusal(
+      "plan-governed-missing",
+      plan(),
+      "repository_rule_stage_missing",
+    );
+    await refusal(
+      "plan-governed-guarded",
+      checkedPlan({ guarded: true }),
+      "repository_rule_stage_missing",
+    );
+    await refusal(
+      "plan-governed-reordered",
+      checkedPlan({ before: true }),
+      "repository_rule_stage_before_revision",
+    );
     const { versionId } = await publishWorkflow(
       fixture,
       fixture,
-      "plan-governed",
-      plan(),
+      "plan-governed-ok",
+      checkedPlan(),
     );
-    assertEquals(
-      (await refused(fixture, governed, versionId, 409)).reason,
-      "workflow_plan_rules_unsupported",
-    );
-    // (The same plan is admitted where no rule requires a stage: the first test.)
+    const { response } = await start(fixture, governed, versionId);
+    const run = await expectJson<RunBody>(response, 201);
+    assert(Object.hasOwn(await snapshotOf(fixture, run.id), "runtime"));
+    // (The same plan without a check is admitted where no rule requires one: the first test.)
   }));
 
 Deno.test("a compiler-grammar workflow that is a bare list of steps stays on the fixed executor, rows and all", () =>
@@ -735,4 +807,99 @@ Deno.test("a flat workflow is admitted exactly as before: its rows, its agents, 
       Object.keys(snapshot.stepAgents as object).length > 0,
       true,
     );
+  }));
+
+Deno.test("a plan that reviews freezes its review loop from its own repeat bound; a plan that does not freezes none", () =>
+  withWorkerFixture(async (fixture) => {
+    const { agent, repository } = await repositoryWithAgent(fixture, "loop");
+    const reviewed = await publishWorkflow(
+      fixture,
+      fixture,
+      "plan-reviewed",
+      reviewedPlanDocument({
+        name: "plan-reviewed",
+        agents: {
+          "harness.implement": agent,
+          "harness.repair": agent,
+          "review.independent": agent,
+        },
+        repairs: 3,
+      }),
+    );
+    const first = await start(fixture, repository, reviewed.versionId);
+    const run = await expectJson<RunBody>(first.response, 201);
+    const snapshot = await snapshotOf(fixture, run.id);
+    assertEquals(snapshot.reviewLoop, {
+      maxRepairCycles: 3,
+      maxLoopDurationMs: 24 * 60 * 60 * 1000,
+      maxFindings: 25,
+    });
+    // The plan sections are as for any plan run: nothing flat is written.
+    assertEquals(snapshot.stepActions, {});
+    assertEquals(await stepRows(fixture, run.id), []);
+
+    const plain = await publishWorkflow(fixture, fixture, "plan-plain", plan());
+    const second = await start(fixture, repository, plain.versionId);
+    const other = await expectJson<RunBody>(second.response, 201);
+    assertEquals(
+      Object.hasOwn(await snapshotOf(fixture, other.id), "reviewLoop"),
+      false,
+    );
+  }));
+
+Deno.test("a workflow that names a projection action is admitted as a compiled plan, even as a bare list the fixed executor would take", () =>
+  withWorkerFixture(async (fixture) => {
+    const { repository } = await repositoryWithAgent(fixture, "projection");
+    const evidence = {
+      headSha: "1".repeat(40),
+      baseSha: "2".repeat(40),
+      policyDigest: "c".repeat(64),
+      checksPassed: true,
+      checkRunIds: ["00000000-0000-4000-8000-0000000000c1"],
+      failedCheckIds: [],
+      blockingFindings: 0,
+      reviewId: "00000000-0000-4000-8000-0000000000b1",
+      findings: [],
+    };
+    const projection = {
+      id: "project",
+      uses: "delivery.candidate_evidence",
+      with: evidence,
+    };
+    const document = (steps: unknown[]) => ({
+      apiVersion: "bakery.dev/v1",
+      kind: "workflow",
+      name: "projection-admission",
+      description: "A step the engine completes itself.",
+      inputs: {
+        repositoryId: { type: "uuid", required: true },
+        brief: { type: "TaskBrief", required: true },
+        instructions: { type: "string", required: true },
+      },
+      steps,
+    });
+    // Both forms hold a step with no job: the engine runs them, not the fixed
+    // executor, so each is admitted as a plan (a runtime section, no step rows).
+    for (
+      const [name, steps] of [
+        ["projection-bare", [projection]],
+        ["projection-container", [{ id: "flow", steps: [projection] }]],
+      ] as const
+    ) {
+      const published = await publishWorkflow(
+        fixture,
+        fixture,
+        name,
+        document([...steps]),
+      );
+      const { response } = await start(
+        fixture,
+        repository,
+        published.versionId,
+      );
+      const run = await expectJson<RunBody>(response, 201);
+      const snapshot = await snapshotOf(fixture, run.id);
+      assert(Object.hasOwn(snapshot, "runtime"), name);
+      assertEquals(await stepRows(fixture, run.id), [], name);
+    }
   }));
