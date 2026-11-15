@@ -253,6 +253,128 @@ Deno.test("inventory report, components list and host projection match schemas",
     contractSchemas.WorkerProviderBinding.parse(await update.json());
   }));
 
+Deno.test("coding agents serve their payment methods; bindings keep to them (#68)", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, {
+      name: "issue68-payment-methods",
+      capabilities: ["git"],
+    });
+    const hostId = worker.registration.workerHostId;
+    const inventory = await workerRequest(
+      fixture,
+      worker.credential,
+      "/v1/worker/inventory",
+      {
+        reportId: crypto.randomUUID(),
+        hostGeneration: worker.registration.registrationGeneration,
+        expectedInventoryRevision: 1,
+        components: ["harness.claude", "harness.pi", "harness.bakery"].map((
+          componentKey,
+        ) => ({
+          componentKey,
+          kind: "harness",
+          actualVersion: "1.0",
+          installOwner: "bakery",
+          adapterVersion: "1.0",
+          observedAt: OBSERVED,
+          capabilities: ["git"],
+          maintenanceSupport: { remoteLogin: "device" },
+        })),
+        checks: [],
+      },
+      {
+        headers: { "X-Bakery-Worker-Protocol-Version": "2" },
+        idempotencyKey: crypto.randomUUID(),
+      },
+    );
+    assertEquals(inventory.status, 200);
+    const components = await adminRequest(
+      fixture,
+      `/v1/workers/${hostId}/components?limit=25`,
+      undefined,
+      { method: "GET" },
+    );
+    assertEquals(components.status, 200);
+    const methods = Object.fromEntries(
+      (contractSchemas["Page<WorkerComponent>"].parse(
+        await components.json(),
+      ) as unknown as {
+        items: { componentKey: string; paymentMethods: string[] }[];
+      }).items.map((item) => [item.componentKey, item.paymentMethods]),
+    );
+    assertEquals(methods, {
+      "harness.bakery": [],
+      "harness.claude": ["subscription", "api_metered"],
+      "harness.pi": ["api_metered", "local"],
+    });
+
+    const bind = (billingRoute: string) =>
+      adminRequest(
+        fixture,
+        `/v1/workers/${hostId}/provider-bindings`,
+        {
+          componentKey: "harness.pi",
+          provider: "openrouter",
+          billingRoute,
+          enabled: true,
+          authMode: "host_native",
+          credentialLocation: "harness_host",
+        },
+        { idempotencyKey: crypto.randomUUID() },
+      );
+    // Pi takes no subscription: a new binding on it is refused, with the reason.
+    const refused = await bind("subscription");
+    assertEquals(refused.status, 422);
+    const refusedBody = await refused.json() as Record<string, unknown>;
+    assertEquals(refusedBody.code, "VALIDATION_FAILED");
+    assertEquals(refusedBody.reason, "payment_method_unsupported");
+
+    const accepted = await bind("api_metered");
+    assertEquals(accepted.status, 201);
+    const binding = contractSchemas.WorkerProviderBinding.parse(
+      await accepted.json(),
+    ) as unknown as { id: string; paymentMethodSupported: boolean };
+    assertEquals(binding.paymentMethodSupported, true);
+
+    // Changing the route to one Pi does not take is refused too.
+    const rerouted = await adminRequest(
+      fixture,
+      `/v1/workers/${hostId}/provider-bindings/${binding.id}`,
+      { billingRoute: "subscription" },
+      {
+        method: "PATCH",
+        idempotencyKey: crypto.randomUUID(),
+        headers: { "If-Match": '"1"' },
+      },
+    );
+    assertEquals(rerouted.status, 422);
+    assertEquals(
+      (await rerouted.json() as Record<string, unknown>).reason,
+      "payment_method_unsupported",
+    );
+
+    // A binding saved before the rule still reads, flagged as needing attention.
+    await fixture.pgDatabase.query(
+      `update bakery.worker_provider_bindings set billing_route = 'subscription'
+        where id = $1`,
+      [binding.id],
+    );
+    const list = await adminRequest(
+      fixture,
+      `/v1/workers/${hostId}/provider-bindings?limit=25`,
+      undefined,
+      { method: "GET" },
+    );
+    assertEquals(list.status, 200);
+    const [legacy] = (contractSchemas["Page<WorkerProviderBinding>"].parse(
+      await list.json(),
+    ) as unknown as {
+      items: { billingRoute: string; paymentMethodSupported: boolean }[];
+    }).items;
+    assertEquals(legacy.billingRoute, "subscription");
+    assertEquals(legacy.paymentMethodSupported, false);
+  }));
+
 Deno.test("provider auth attempt entries round-trip create, read, report and cancel", () =>
   withWorkerFixture(async (fixture) => {
     const worker = await registeredWorker(fixture, {
