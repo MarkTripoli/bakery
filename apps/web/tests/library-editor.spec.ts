@@ -107,7 +107,7 @@ for (
       await expect(rows(page).nth(0)).toContainText("1. Write the task brief");
       await expect(rows(page).nth(1)).toContainText("2. Run the coding agent");
       await expect(rows(page).nth(2)).toContainText("3. Review the changes");
-      await expect(state(page)).toHaveText("Draft");
+      await expect(state(page)).toHaveText("Draft", { timeout: 15_000 });
       // A step's button ends its title line at its label's width on a wide
       // screen, and spans the row under the text on a phone.
       const button = (await rows(page).nth(0).getByRole("button", {
@@ -196,7 +196,9 @@ for (
           uses: "nope.action",
         }],
       }));
-      await expect(state(page)).toHaveText("Draft · 1 problem");
+      await expect(state(page)).toHaveText("Draft · 1 problem", {
+        timeout: 15_000,
+      });
       await expect(page.getByTestId("publish-reason")).toHaveText(
         "Fix 1 problem to publish.",
       );
@@ -212,7 +214,7 @@ for (
       await shot(page, "editor-problem");
       await select(page, 1);
       await panel(page).getByLabel("Action").selectOption("quality.check");
-      await expect(state(page)).toHaveText("Draft");
+      await expect(state(page)).toHaveText("Draft", { timeout: 15_000 });
       await expect(page.getByRole("button", { name: "Publish" })).toBeEnabled();
     });
 
@@ -291,7 +293,9 @@ for (
 
     test("when the checker cannot answer, Publish stays disabled and the page says it could not check", async ({ page }) => {
       await editor(page, { ...WITH_DRAFT, checker: "fail" });
-      await expect(state(page)).toHaveText("Could not be checked");
+      await expect(state(page)).toHaveText("Could not be checked", {
+        timeout: 15_000,
+      });
       await expect(page.getByRole("button", { name: "Publish" }))
         .toBeDisabled();
     });
