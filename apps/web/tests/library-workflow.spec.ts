@@ -95,13 +95,15 @@ for (
         "Write the task brief",
       );
       await expect(steps.locator("[data-step-id=implement]")).toContainText(
-        "Run the coding agent",
+        "Implement",
       );
+      await expect(steps.locator("[data-step-id=implement]")).not
+        .toContainText("Run the coding agent");
       await expect(steps.locator("[data-step-id=implement]")).toContainText(
         "Agent: Code writer, version 2",
       );
       await expect(steps.locator("[data-step-id=review]")).toContainText(
-        "Review the changes",
+        "Review",
       );
       await expect(steps).not.toContainText("harness.implement");
       // Each step's mark holds its number; the title is in the normal colour.
@@ -449,7 +451,7 @@ for (
       const seen = await libraryFixture(page, { ...WORLD, agentReads: "hold" });
       await page.goto(`/library/workflows/${WORKFLOW.id}`);
       const implement = page.locator("[data-step-id=implement]");
-      await expect(implement).toContainText("Run the coding agent");
+      await expect(implement).toContainText("Implement");
       // Nothing is said about the agent until the reads have answered.
       await expect(implement).not.toContainText("Agent:");
       await expect(page.getByText("version not found")).toHaveCount(0);
