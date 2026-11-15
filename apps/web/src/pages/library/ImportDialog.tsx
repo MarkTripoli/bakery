@@ -256,6 +256,36 @@ export function ImportDialog(
   // warnings, whose sentence is the advice itself.
   const generic = (problem: ImportProblem): string | null => {
     if (problem.where.kind === "whole") return null;
+    // Every finding located in a step has the step's shape, so the same kind of
+    // finding never reads two ways: "Step 3 has a field with a value Bakery
+    // cannot use: id." The path shape is only for a place that is not a step.
+    if (problem.where.kind === "step") {
+      const number = problem.where.number;
+      const field = problem.where.field ?? problem.field;
+      const missing = problem.code === "field_missing";
+      const inside = problem.inside !== undefined && problem.inside.length > 0;
+      const parts = inside ? way(problem) : "";
+      if (field === undefined || field === null) {
+        return translate(
+          (missing
+            ? "library.import.problem.stepFieldMissing"
+            : inside
+            ? "library.import.problem.stepInvalidIn"
+            : "library.import.problem.stepInvalid") as never,
+          { number, parts },
+        );
+      }
+      return translate(
+        (missing
+          ? inside
+            ? "library.import.problem.stepFieldMissingIn"
+            : "library.import.problem.stepFieldMissingNamed"
+          : inside
+          ? "library.import.problem.stepFieldInvalidIn"
+          : "library.import.problem.stepFieldInvalid") as never,
+        { number, parts, field },
+      );
+    }
     return translate(
       (problem.code === "field_missing"
         ? "library.import.problem.pathMissing"

@@ -67,11 +67,17 @@ export function PlanProvenance(
   const href = origin.kind === "saved_workflow" && origin.workflowVersionId
     ? `/library/workflows/${origin.workflowId}?version=${origin.workflowVersionId}`
     : null;
-  return (
-    <span data-ui-region="plan-provenance">
-      {leadingSeparator && <span aria-hidden="true">·&nbsp;</span>}
-      <span data-plan-origin={origin.kind}>
-        {href === null ? label : (
+  if (origin.kind === "saved_workflow") {
+    // A saved workflow's line is a row of its own: the link, then the "Older
+    // version" badge with its tip. The badge and the tip are one item of the
+    // row, so a wrapping line moves them together and never separates them.
+    return (
+      <UI.Inline
+        gap="compact"
+        data-plan-origin={origin.kind}
+        data-ui-region="plan-provenance"
+      >
+        {href === null ? <span>{label}</span> : (
           <UI.Link
             href={href}
             onClick={(event) => {
@@ -83,23 +89,25 @@ export function PlanProvenance(
           </UI.Link>
         )}
         {olderVersion && (
-          <>
-            {" "}
-            {
-              /* The tip belongs to the badge: it sits inside it, so the two never separate when the line wraps. */
-            }
+          <UI.Inline gap="compact" data-ui-region="plan-older-version">
             <UI.Badge tone="neutral">
               {t("tasks.coordination.origin.older")}
-              <UI.HelpTip
-                closeLabel={t("core.actions.close")}
-                label={t("tasks.coordination.origin.older")}
-              >
-                {t("tasks.coordination.origin.olderHelp")}
-              </UI.HelpTip>
             </UI.Badge>
-          </>
+            <UI.HelpTip
+              closeLabel={t("core.actions.close")}
+              label={t("tasks.coordination.origin.older")}
+            >
+              {t("tasks.coordination.origin.olderHelp")}
+            </UI.HelpTip>
+          </UI.Inline>
         )}
-      </span>
+      </UI.Inline>
+    );
+  }
+  return (
+    <span data-ui-region="plan-provenance">
+      {leadingSeparator && <span aria-hidden="true">·&nbsp;</span>}
+      <span data-plan-origin={origin.kind}>{label}</span>
     </span>
   );
 }

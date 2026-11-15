@@ -959,11 +959,25 @@ test("a saved workflow whose newer version is in use says this run's version is 
   const origin = page.locator("[data-plan-origin]");
   await expect(origin).toContainText("Workflow: Checkout fan-out, version 3");
   await expect(origin).toContainText("Older version");
-  // The tip is part of the badge: the two never separate when the line wraps.
+  // The badge is a normal badge (not taller than a text badge) and its tip follows
+  // it directly, the pair in one group that does not break across lines.
+  const group = origin.locator('[data-ui-region="plan-older-version"]');
+  await expect(group.locator('[data-ui-component="badge"]')).toHaveCount(1);
+  await expect(group.getByRole("button", { name: "Older version" }))
+    .toHaveCount(
+      1,
+    );
   await expect(
     origin.locator('[data-ui-component="badge"]').getByRole("button"),
-  )
-    .toHaveCount(1);
+  ).toHaveCount(0);
+  const older = await group.locator('[data-ui-component="badge"]')
+    .boundingBox();
+  // A normal badge is about 20px tall; with the tip inside it was 2.4 times that.
+  expect(older!.height).toBeLessThan(32);
+  const after = await group.getByRole("button", { name: "Older version" })
+    .boundingBox();
+  expect(after!.x).toBeGreaterThanOrEqual(older!.x + older!.width - 1);
+  expect(after!.x - (older!.x + older!.width)).toBeLessThanOrEqual(12);
   await shot(page, "task-origin-older");
   // In the wide header the workflow's link is line 2, under the title.
   if (test.info().project.name === "desktop") {
@@ -1051,6 +1065,7 @@ test("a long unbroken workflow name wraps on its line and never widens the page"
   await open(
     page,
     world({
+      workflowActiveVersionId: "bbbbbbbb-0000-4000-8000-0000000000c3",
       workflowName: "n".repeat(200),
       plans: [withOrigin({
         kind: "saved_workflow",
@@ -1061,6 +1076,16 @@ test("a long unbroken workflow name wraps on its line and never widens the page"
     }),
   );
   await expect(page.locator("[data-plan-origin]")).toContainText("version 3");
+  // Where the line wraps, the badge and its tip stay together on one line.
+  const group = page.locator('[data-ui-region="plan-older-version"]');
+  const badge = await group.locator('[data-ui-component="badge"]')
+    .boundingBox();
+  const tip = await group.getByRole("button", { name: "Older version" })
+    .boundingBox();
+  expect(tip!.y + tip!.height / 2).toBeGreaterThanOrEqual(badge!.y);
+  expect(tip!.y + tip!.height / 2).toBeLessThanOrEqual(
+    badge!.y + badge!.height,
+  );
   const overflow = await page.evaluate(() =>
     document.documentElement.scrollWidth - document.documentElement.clientWidth
   );

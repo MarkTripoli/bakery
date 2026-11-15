@@ -491,7 +491,7 @@ export function TaskCoordinationPage(
               title={heading}
               subtitle={phone
                 ? (
-                  <span>
+                  <div>
                     {[
                       task.data?.title,
                       t("tasks.coordination.revision", {
@@ -504,17 +504,14 @@ export function TaskCoordinationPage(
                     }
                     {origin?.kind === "saved_workflow" && provenance &&
                       hasProvenance(plan) && (
-                      <>
-                        <br />
-                        <PlanProvenance
-                          plan={plan}
-                          workflowName={workflow.data?.name}
-                          workflowVersion={workflowVersion}
-                          olderVersion={olderVersion}
-                        />
-                      </>
+                      <PlanProvenance
+                        plan={plan}
+                        workflowName={workflow.data?.name}
+                        workflowVersion={workflowVersion}
+                        olderVersion={olderVersion}
+                      />
                     )}
-                  </span>
+                  </div>
                 )
                 : (
                   origin?.kind === "saved_workflow" &&
@@ -523,19 +520,18 @@ export function TaskCoordinationPage(
                       // Line 1: the title and the plan's revision; line 2, under the
                       // title: the workflow's link, badge and tip. One span, so the
                       // break holds and the lane count stays at the end of line 1.
-                      <span>
+                      <div>
                         {task.data && <>{task.data.title}&nbsp;·&nbsp;</>}
                         {t("tasks.coordination.revision", {
                           revision: String(plan.revision),
                         })}
-                        <br />
                         <PlanProvenance
                           plan={plan}
                           workflowName={workflow.data?.name}
                           workflowVersion={workflowVersion}
                           olderVersion={olderVersion}
                         />
-                      </span>
+                      </div>
                     )
                     : (
                       <>

@@ -182,13 +182,15 @@ for (
         "Step 2 has a field with a value Bakery cannot use: with.",
       );
       // A finding with a path and no better sentence says where and that the
-      // value cannot be used; the checker's own words are not shown.
+      // value cannot be used; the checker's own words are not shown. One located
+      // in a step has the step's shape, never the path's.
       await checked(state(page)).toContainText(
         "inputs.target.type: Bakery cannot use this value.",
       );
       await checked(state(page)).toContainText(
-        "Step 3, id: Bakery cannot use this value.",
+        "Step 3 has a field with a value Bakery cannot use: id.",
       );
+      await expect(state(page)).not.toContainText("Step 3, id:");
       await expect(state(page)).not.toContainText("invalid shape");
       await expect(
         dialog(page).getByRole("button", { name: "Import as draft" }),

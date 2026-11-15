@@ -3516,5 +3516,7 @@
   "tasks.fingerprint.copyFailed": "Could not copy the fingerprint. Select it and copy it yourself.",
   "tasks.composer.budgetMinimum": "The smallest budget that works is {amount}.",
   "library.workflow.versions.unknownInUse": "That version does not exist. This is the version in use.",
-  "library.workflow.versions.unknownNewest": "That version does not exist. This is the newest version."
+  "library.workflow.versions.unknownNewest": "That version does not exist. This is the newest version.",
+  "library.import.problem.stepInvalid": "Step {number} has a value Bakery cannot use.",
+  "library.import.problem.stepInvalidIn": "Step {number}, in {parts}, has a value Bakery cannot use."
 }

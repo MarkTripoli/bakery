@@ -3516,5 +3516,7 @@
   "library.import.problem.stepFieldInvalidIn": "⟦Šŧëþ {number}, ïñ {parts}, ĥàš à ƒïëļð ŵïŧĥ à ṽàļûë Ɓàķëŕÿ çàññôŧ ûšë: {field}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "library.import.problem.fieldInvalid": "⟦Ŧĥë ðëƒïñïŧïôñ ĥàš à ƒïëļð ŵïŧĥ à ṽàļûë Ɓàķëŕÿ çàññôŧ ûšë: {field}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
   "library.import.problem.pathInvalid": "⟦{path}: Ɓàķëŕÿ çàññôŧ ûšë ŧĥïš ṽàļûë. ŧëšŧ çôþÿŧ⟧",
-  "library.import.problem.pathMissing": "⟦{path}: à ŕëǫûïŕëð ƒïëļð ïš ɱïššïñĝ. ŧëšŧ çôþÿŧ⟧"
+  "library.import.problem.pathMissing": "⟦{path}: à ŕëǫûïŕëð ƒïëļð ïš ɱïššïñĝ. ŧëšŧ çôþÿŧ⟧",
+  "library.import.problem.stepInvalid": "⟦Šŧëþ {number} ĥàš à ṽàļûë Ɓàķëŕÿ çàññôŧ ûšë. ŧëšŧ çôþÿ ŧëš⟧",
+  "library.import.problem.stepInvalidIn": "⟦Šŧëþ {number}, ïñ {parts}, ĥàš à ṽàļûë Ɓàķëŕÿ çàññôŧ ûšë. ŧëšŧ çôþÿ ŧëšŧ çô⟧"
 }
