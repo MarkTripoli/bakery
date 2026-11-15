@@ -5046,7 +5046,14 @@
       "routeId": "settings-organization-integrations",
       "path": "/settings/organization/integrations",
       "status": "no-mock",
-      "rationale": "Organization Integrations page (#133): the route every GitHub connection callback returns to. Connect GitHub (install then authorize), a pending connection's repository selection and Enable, a Check showing health and capabilities, and a message for every connection outcome. integration-mocks-v2 depicts a separate multi-route wizard (/integrations/github/connect/*, connection detail and settings) rather than this settings route the server redirects to, so no frame maps to it and none is invented. Built from the settings pattern (SettingsContent, SettingsSection, StatusBadge, Checkbox, DescriptionList, CapabilityList, AlertBanner). No-mock follows the owner-approved installation-integrations precedent of 2026-10-28; Paper parity stays unscored until a mock maps here.",
+      "rationale": "Organization Integrations list (#68 slice 1, with #236): what is connected, each with one health badge, a line and one button, and what can be added (GitHub only, the one provider the server can connect). It is also the route every GitHub connection callback returns to, so it shows a message for every connection outcome and continues a half-finished GitHub redirect on its own. integration-mocks-v2 depicts a separate multi-route wizard (/integrations/github/connect/*, connection detail and settings) rather than this settings route the server redirects to, so no frame maps to it and none is invented; design-ux's design for #68 does not follow those mocks. Built from the settings pattern (SettingsContent, PageHeader, ObjectRow, Badge, AlertBanner, InlineNotice, EmptyState). No-mock follows the owner-approved installation-integrations precedent of 2026-10-28; Paper parity stays unscored until a mock maps here.",
+      "frames": []
+    },
+    {
+      "routeId": "settings-organization-integration-connection",
+      "path": "/settings/organization/integrations/$connectionId",
+      "status": "no-mock",
+      "rationale": "One GitHub connection's own page (#68 slice 1, with #236): its health and the one fix, the setup steps while it is unfinished, its repositories (filter above ten, changes saved one at a time), what Bakery can do in plain words with GitHub's permission names behind a button, and details with Turn off. Built to design-ux's design for #68 and their rulings of 2026-11-14 (one column at every width, no new template). integration-mocks-v2 depicts a separate multi-route wizard rather than this settings route, so no frame maps to it and none is invented. Paper parity stays unscored until a mock maps here.",
       "frames": []
     },
     {

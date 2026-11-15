@@ -175,24 +175,28 @@ test.describe("GitHub setup against the real API and the fake GitHub App", () =>
     await expect(name).toBeVisible();
     await name.fill(APP_NAME);
     await page.getByRole("button", { name: "Create GitHub App" }).click();
-    await expect(page).toHaveURL(/githubAppRegistration=registered/);
+    // The same real-stack chain as the connect test below: 30 s, not 5 s.
+    await expect(page).toHaveURL(/githubAppRegistration=registered/, {
+      timeout: 30_000,
+    });
     expect(manifests.map((manifest) => manifest.name)).toEqual([APP_NAME]);
     await expect(page.getByText(APP_NAME, { exact: true })).toBeVisible();
     await expect(page.getByText("acme-bakery-preview", { exact: true }))
       .toBeVisible();
   });
 
-  test("Connect GitHub installs, authorizes and lands on a pending connection; select, enable and check make it healthy", async ({ page, baseURL }) => {
+  test("Connect GitHub installs, authorizes and lands on a pending connection's page; choose, save, turn on and check make it healthy", async ({ page, baseURL }) => {
     test.setTimeout(90_000);
     await connect(page, baseURL!);
     await page.goto(CONNECT_PAGE);
-    await expect(page.getByText("No GitHub connection yet")).toBeVisible();
+    await expect(page.getByText("Nothing is connected yet")).toBeVisible();
     await page.getByRole("button", { name: "Connect GitHub", exact: true })
       .click();
     // Install page, Setup URL (awaiting_authorization), automatic hop to
-    // authorization, OAuth callback: no hand-run step in between.
+    // authorization, OAuth callback: no hand-run step in between. The callback
+    // names the connection, so it lands on that connection's own page.
     await expect(page).toHaveURL(
-      /githubConnection=pending&connectionId=[0-9a-f-]{36}/,
+      /\/settings\/organization\/integrations\/[0-9a-f-]{36}\?githubConnection=pending/,
       { timeout: 30_000 },
     );
     await expect(page.getByTestId("github-connection-outcome")).toContainText(
@@ -201,33 +205,35 @@ test.describe("GitHub setup against the real API and the fake GitHub App", () =>
     expect(
       await page.evaluate(() => sessionStorage.getItem("bakery.githubConnect")),
     ).toBeNull();
-    const panel = page.getByTestId("github-connection");
-    await expect(panel).toHaveAttribute("data-highlighted", "true");
-    await expect(panel.getByText("acme-org", { exact: true })).toBeVisible();
-    await expect(panel.getByText("Needs setup")).toBeVisible();
-    const enable = panel.getByRole("button", { name: "Enable connection" });
-    await expect(enable).toBeDisabled();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(
+      "GitHub · acme-org",
+    );
+    await expect(page.getByText("Finish setup", { exact: true })).toBeVisible();
+    const steps = page.getByRole("list", { name: "Setup steps" });
+    await expect(steps).toBeVisible();
+    // Nothing is chosen yet, so Turn on is there but off.
+    await expect(page.getByRole("button", { name: "Turn on" })).toBeDisabled();
     for (const repository of ["bakery", "tools", "docs"]) {
-      await expect(panel.getByRole("checkbox", { name: repository }))
+      await expect(page.getByRole("checkbox", { name: repository }))
         .not.toBeChecked();
     }
-    await panel.getByRole("checkbox", { name: "bakery" }).click();
-    await expect(panel.getByRole("checkbox", { name: "bakery" }))
-      .toBeChecked();
-    await expect(panel.getByText("Repositories (1 selected)")).toBeVisible();
-    await enable.click();
-    await expect(panel.getByText("Enabled", { exact: true })).toBeVisible();
-    await panel.getByRole("button", { name: "Check connection" }).click();
-    const result = panel.getByTestId("github-connection-check");
-    await expect(result.getByText("Healthy", { exact: true })).toBeVisible();
-    await expect(result.getByRole("list")).toBeVisible();
-    await expect(panel.getByText("Never")).toHaveCount(0);
+    await page.getByRole("checkbox", { name: "bakery" }).check();
+    await page.getByRole("button", { name: "Save selection" }).click();
+    await expect(page.getByText("Repositories (1 selected)")).toBeVisible();
+    await expect(page.getByRole("checkbox", { name: "bakery" })).toBeChecked();
+    await page.getByRole("button", { name: "Turn on" }).click();
+    await expect(steps).toHaveCount(0, { timeout: 30_000 });
+    // Enabled and never checked: the page says so, and Check now settles it.
+    await expect(page.getByText("Not checked yet").first()).toBeVisible();
+    await page.getByRole("button", { name: "Check now" }).click();
+    await expect(page.getByText("Working", { exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByText("Not checked yet")).toHaveCount(0);
     // The reloaded list agrees with what the server stored.
     await page.goto(CONNECT_PAGE);
     await expect(
-      page.getByTestId("github-connection").getByText("Enabled", {
-        exact: true,
-      }),
+      page.getByTestId("connected-list").getByText("Working", { exact: true }),
     ).toBeVisible();
   });
 

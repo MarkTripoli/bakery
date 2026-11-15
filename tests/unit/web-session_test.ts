@@ -159,6 +159,7 @@ function fakeApi(
     },
     skillStorage: { get: rejecting, put: rejecting, verify: rejecting },
     integrationConnections: {
+      get: rejecting,
       list: rejecting,
       update: rejecting,
       check: rejecting,

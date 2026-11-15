@@ -49,6 +49,29 @@ export const Contract: StoryObj = {
         {row("loading", "comfortable")}
         {row("disabled", "standard")}
         {row("stale", "compact")}
+        <Text variant="caption">
+          Aligned lanes: a row with no metadata, or a longer button, keeps every
+          other row's columns
+        </Text>
+        <ObjectRow
+          aligned
+          identity={<Identity type="person" name="Alex Chen" />}
+          metadata="Updated just now"
+          status={<StatusBadge status="active">active</StatusBadge>}
+          actions={<Button variant="outline">Manage</Button>}
+        />
+        <ObjectRow
+          aligned
+          identity={<Identity type="person" name="Sam Okafor" />}
+          status={<StatusBadge status="degraded">degraded</StatusBadge>}
+          actions={<Button variant="outline">Reconnect now</Button>}
+        />
+        <ObjectRow
+          aligned
+          identity={<Identity type="person" name="Robin Diaz" />}
+          metadata="Updated yesterday"
+          actions={<Button variant="outline">Open</Button>}
+        />
       </Stack>
     );
   },
