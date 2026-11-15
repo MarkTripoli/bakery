@@ -11,6 +11,10 @@ import {
   type OrganizationId,
 } from "@bakery/contracts/contracts";
 import { iso } from "./shared.ts";
+import {
+  paymentMethodSupported,
+  requirePaymentMethodSupported,
+} from "./coding-agent-payment.ts";
 import { jsonResponse, parseContract } from "./http.ts";
 import {
   machineTransaction,
@@ -149,6 +153,10 @@ export async function listProviderBindings(
       const items = visible.map(({ created_at: _created_at, ...binding }) =>
         contractSchemas.WorkerProviderBinding.parse({
           ...binding,
+          paymentMethodSupported: paymentMethodSupported(
+            String(binding.componentKey),
+            String(binding.billingRoute),
+          ),
           lastCheckedAt: binding.lastCheckedAt
             ? iso(binding.lastCheckedAt as Date)
             : null,
@@ -179,6 +187,7 @@ export async function createProviderBinding(
     context,
     contractSchemas.WorkerProviderBindingCreate,
   );
+  requirePaymentMethodSupported(input.componentKey, input.billingRoute);
   const metadata = requestMetadataLocal(context);
   const response = await machineTransaction(
     context,
@@ -226,6 +235,19 @@ export async function updateProviderBinding(
     "worker:manage",
     "workerProviderBindings.update",
     async (transaction, organization, principal) => {
+      if (input.billingRoute !== undefined) {
+        // #68: a changed route must be one the binding's agent accepts.
+        const current = await transaction.query<{ componentKey: string }>(
+          `select component_key as "componentKey"
+             from bakery.worker_provider_bindings
+            where organization_id = $1 and worker_host_id = $2 and id = $3`,
+          [organization, workerHostId, bindingId],
+        );
+        const componentKey = current.rows[0]?.componentKey;
+        if (componentKey !== undefined) {
+          requirePaymentMethodSupported(componentKey, input.billingRoute);
+        }
+      }
       const workflows = readinessWorkflows(transaction, options);
       const result = await workflows.updateProviderBinding({
         organizationId: organization,
@@ -424,6 +446,10 @@ async function bindingProjection(
   if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   return contractSchemas.WorkerProviderBinding.parse({
     ...row,
+    paymentMethodSupported: paymentMethodSupported(
+      String(row.componentKey),
+      String(row.billingRoute),
+    ),
     lastCheckedAt: row.lastCheckedAt ? iso(row.lastCheckedAt as Date) : null,
   }) as unknown as Record<string, unknown>;
 }
