@@ -4,14 +4,12 @@ import {
   canonicalJson,
   sha256Hex,
 } from "../../apps/server/src/platform/canonical-json.ts";
-import { createBakeryPostgresWorkflowRepository } from "../../apps/server/src/modules/workflow-adapter/bakery-postgres-store.ts";
 import type { PgDatabase } from "../../apps/server/src/platform/database.ts";
 import {
   type BillingConfig,
   contractSchemas,
 } from "../../packages/contracts/src/contracts.ts";
 import {
-  WORKFLOW_ACTION_METADATA,
   WORKFLOW_ACTION_NAMES,
   WORKFLOW_ACTION_REGISTRY_VERSION,
 } from "../../packages/contracts/src/workflow-action-registry.ts";
@@ -19,7 +17,6 @@ import {
   FIXED_CODING_PRESET,
   renderImplementInstructions,
 } from "../../packages/contracts/src/workflow-presets.ts";
-import { StandardError } from "../../packages/contracts/src/http.ts";
 import {
   admitPresetRun,
   apiCall,
@@ -27,7 +24,6 @@ import {
   expectJson,
   presetBilling,
   presetBudgetEnv,
-  presetBudgetPolicy,
   type PresetRepository,
   seedPresetRepository,
 } from "../helpers/fixed-coding-preset.ts";
@@ -68,7 +64,10 @@ type Report = {
 const withFixture = <T>(work: (fixture: WorkerFixture) => Promise<T>) =>
   withWorkerFixture(work, { env: presetBudgetEnv });
 
-const BRIEF_INPUTS = {
+// Revision 3 declares the repository as an input (a compiled definition is
+// type-checked), so the brief inputs are built per repository.
+const briefInputs = (repositoryId: string) => ({
+  repositoryId,
   brief: {
     title: "Add upload retry",
     description: "Retry failed uploads twice.",
@@ -78,7 +77,7 @@ const BRIEF_INPUTS = {
     title: "Add upload retry",
     description: "Retry failed uploads twice.",
   }),
-};
+});
 
 /** Deep copy of the two-step fixed coding spec with optional bindings. */
 function definitionWith(
@@ -90,8 +89,12 @@ function definitionWith(
   } = {},
 ): Json {
   const spec = JSON.parse(JSON.stringify(FIXED_CODING_PRESET.spec)) as Json;
+  // Revision 3 nests the stages in one sequence.
   const steps = spec.steps as Json[];
-  const implement = steps.find((step) => step.id === "implement")!;
+  const sequence = steps.find((step) => step.id === "flow")!;
+  const implement = (sequence.steps as Json[]).find((step) =>
+    step.id === "implement"
+  )!;
   if (bindings.stepAgentVersionId !== undefined) {
     implement.agentVersionId = bindings.stepAgentVersionId;
   }
@@ -240,7 +243,7 @@ function makeApi(fixture: WorkerFixture) {
         executionMode: "repository",
         repositoryProfileId: repository.profileId,
         budgetLimitUsd: "5.00",
-        inputs: BRIEF_INPUTS,
+        inputs: briefInputs(repository.repositoryId),
       },
     });
   };
@@ -378,8 +381,9 @@ Deno.test("step, workflow and profile bindings freeze v1 and survive every defau
     const reportOf = async (definition: Json) => {
       const report = await api.validate(definition);
       assertEquals(report.valid, true, JSON.stringify(report));
+      // The plan qualifies each step with its container's id.
       const binding = report.stepBindings?.find((entry) =>
-        entry.stepId === "implement"
+        entry.stepId === "flow.implement"
       );
       assert(binding, JSON.stringify(report));
       return binding;
@@ -434,12 +438,43 @@ Deno.test("step, workflow and profile bindings freeze v1 and survive every defau
         fixture.organizationId,
         run.id,
       );
+      // A plan run freezes its resolved agents by version id, not by step key.
+      const planAgents = (snapshot as unknown as {
+        planAgents: Record<
+          string,
+          { agentVersionId: string; digest: string; revision: number }
+        >;
+      }).planAgents;
+      const frozen = Object.values(planAgents);
       assertEquals(
-        snapshot.stepAgents.implement.agentVersionId,
+        frozen.length,
+        1,
+        `${leg} freezes the one model step's agent`,
+      );
+      assertEquals(
+        frozen[0].agentVersionId,
         v1.id,
         `${leg} run freezes v1 at admission`,
       );
+      assertEquals(frozen[0].digest, v1.digest, `${leg} digest`);
+      assertEquals(frozen[0].revision, 1, `${leg} revision`);
     }
+
+    // A plan freezes its resolved agents by version id, so the one model step's
+    // agent is the only entry.
+    const frozenAgentOf = async (runId: string) =>
+      Object.values(
+        (await snapshotOf(
+          database,
+          fixture.organizationId,
+          runId,
+        ) as unknown as {
+          planAgents: Record<
+            string,
+            { agentVersionId: string; digest: string; revision: number }
+          >;
+        }).planAgents,
+      )[0];
 
     // Change every default. Run admission never reads
     // agent_definitions.active_version_id (agent-run-admission.ts resolves
@@ -530,19 +565,30 @@ Deno.test("step, workflow and profile bindings freeze v1 and survive every defau
         fixture.organizationId,
         runId,
       );
-      assertEquals(snapshot.stepAgents.implement.agentVersionId, v1.id);
-      assertEquals(snapshot.stepAgents.implement.digest, v1.digest);
-      assertEquals(snapshot.stepAgents.implement.revision, 1);
       assertEquals(
-        snapshot.stepActions.implement.registryVersion,
-        WORKFLOW_ACTION_REGISTRY_VERSION,
+        (snapshot as unknown as {
+          planAgents: Record<string, { agentVersionId: string }>;
+        }).planAgents[v1.id].agentVersionId,
+        v1.id,
       );
-      assertEquals(
-        snapshot.stepActions.implement.metadata,
-        JSON.parse(
-          JSON.stringify(WORKFLOW_ACTION_METADATA["harness.implement"]),
-        ),
-      );
+      const frozenAgent = (snapshot as unknown as {
+        planAgents: Record<
+          string,
+          { digest: string; revision: number }
+        >;
+      }).planAgents[v1.id];
+      assertEquals(frozenAgent.digest, v1.digest);
+      assertEquals(frozenAgent.revision, 1);
+      // A plan run freezes no per-step action rows; it pins the compiled
+      // document itself, which is what the flat snapshot's stepActions recorded
+      // per step.
+      const pin = (snapshot as unknown as {
+        runtime: {
+          pin: { semanticDigest: string; compilerVersion: string };
+        };
+      }).runtime.pin;
+      assert(/^[a-f0-9]{64}$/.test(pin.semanticDigest), pin.semanticDigest);
+      assertEquals(pin.compilerVersion, "2");
     }
     assertEquals(admitted.size, 3);
     assertEquals((await api.agentState(agentId)).activeVersionId, v2.id);
@@ -563,8 +609,7 @@ Deno.test("step, workflow and profile bindings freeze v1 and survive every defau
     );
     assertEquals(freshW.workflowVersionId, r2W);
     assertEquals(
-      (await snapshotOf(database, fixture.organizationId, freshW.id))
-        .stepAgents.implement.agentVersionId,
+      (await frozenAgentOf(freshW.id)).agentVersionId,
       v2.id,
     );
     const freshS = await expectJson<RunBody>(
@@ -573,8 +618,7 @@ Deno.test("step, workflow and profile bindings freeze v1 and survive every defau
     );
     assertEquals(freshS.workflowVersionId, r2S);
     assertEquals(
-      (await snapshotOf(database, fixture.organizationId, freshS.id))
-        .stepAgents.implement.agentVersionId,
+      (await frozenAgentOf(freshS.id)).agentVersionId,
       v2.id,
     );
     const freshP = await expectJson<RunBody>(
@@ -583,8 +627,7 @@ Deno.test("step, workflow and profile bindings freeze v1 and survive every defau
     );
     assertEquals(freshP.workflowVersionId, r1P);
     assertEquals(
-      (await snapshotOf(database, fixture.organizationId, freshP.id))
-        .stepAgents.implement.agentVersionId,
+      (await frozenAgentOf(freshP.id)).agentVersionId,
       v2.id,
     );
   }));
@@ -619,7 +662,8 @@ Deno.test("a model step without a billed, model-capable agent version is refused
           [
             "step",
             definitionWith({ stepAgentVersionId: version.id }),
-            ["steps", 1, "agentVersionId"],
+            // The plan's authored pointer reaches the step inside its sequence.
+            ["steps", 0, "steps", 1, "agentVersionId"],
           ],
           [
             "workflow",
@@ -701,102 +745,38 @@ Deno.test("action input carrying model or billing is refused at admission and cr
   withFixture(async (fixture) => {
     const api = makeApi(fixture);
     const database = fixture.pgDatabase;
-    const agentId = await api.createAgent("d6-input");
-    const version = await api.addVersion(agentId, 1, api.billedConfig("d6"));
-    const repository = await seedPresetRepository(database, fixture, {
-      agentVersionId: version.id,
-    });
+    // Revision 3 is compiled, so the references are the document's own and the
+    // repository is a declared input; `model`/`billing` are what the case is
+    // about: the compiler refuses them on a step, which is why the case now
+    // proves the refusal at publish and then that nothing is admitted.
     const implementWith = {
-      repositoryId: "$task.repositoryId",
-      planArtifact: "$step.brief.artifact.versionId",
+      repositoryId: "$input.repositoryId",
+      planArtifact: "$step.flow.brief.artifact.versionId",
       instructions: "$input.instructions",
       model: "gpt-override",
       billing: { maxUsdReservation: 1000 },
     };
+    const before = await factCounts(database, fixture.organizationId);
     const workflow = await api.createWorkflow("d6-input");
-    const versionId = await api.publish(
+    // Revision 3 compiles, so a step carrying `model` or `billing` is refused
+    // before anything can run: the input's fields come from the registry alone,
+    // which is a stronger guarantee than refusing it later at admission.
+    const refused = await api.publishDraft(
       workflow,
       definitionWith({ implementWith }),
     );
-    await api.activateWorkflow(workflow, versionId);
-    const run = await expectJson<RunBody>(
-      await api.startRun(repository, { workflowId: workflow }, "D6 input"),
-      201,
+    assertEquals(refused.status, 422);
+    const problem = await api.problemOf(refused);
+    assertEquals(problem.code, "UNPROCESSABLE");
+    assert(
+      JSON.stringify(problem).includes("input_field_unknown"),
+      JSON.stringify(problem),
     );
-    const engine = createBakeryPostgresWorkflowRepository({
-      database,
-      maxAttempts: 1,
-      budgetPolicy: presetBudgetPolicy,
-    });
-    const owner = await engine.acquireEngineOwner(
-      run.id,
-      crypto.randomUUID(),
-      60_000,
-    );
-    assert(owner);
-    try {
-      const key = (stepKey: string) => ({
-        runId: run.id,
-        stepKey,
-        iteration: 0,
-        actionVersion: run.workflowVersionId,
-      });
-      assert((await engine.admit(key("brief"), owner)).jobId);
-      const steps = await database.query<{ id: string; step_key: string }>(
-        `select id, step_key from bakery.run_steps
-          where organization_id = $1 and run_id = $2`,
-        [fixture.organizationId, run.id],
-      );
-      await database.query(
-        `update bakery.run_steps
-            set status = 'completed', output = $3::jsonb, finished_at = now()
-          where organization_id = $1 and id = $2`,
-        [
-          fixture.organizationId,
-          steps.rows.find((step) => step.step_key === "brief")!.id,
-          JSON.stringify({
-            artifact: {
-              artifactId: crypto.randomUUID(),
-              versionId: crypto.randomUUID(),
-              sha256: "d".repeat(64),
-            },
-          }),
-        ],
-      );
-      const failure = await engine.admit(key("implement"), owner).then(
-        () => null,
-        (error: unknown) => error,
-      );
-      assert(failure instanceof StandardError, String(failure));
-      assertEquals(failure.code, "STATE_CONFLICT");
-      assertEquals(
-        failure.params?.reason,
-        "workflow_action_input_invalid",
-      );
-    } finally {
-      await engine.releaseEngineOwner(owner);
-    }
-    const implementStep = await database.query<{ id: string }>(
-      `select id from bakery.run_steps
-        where organization_id = $1 and run_id = $2 and step_key = 'implement'`,
-      [fixture.organizationId, run.id],
-    );
-    const stepId = implementStep.rows[0]!.id;
-    const jobs = await database.query(
-      "select 1 from bakery.jobs where organization_id = $1 and run_step_id = $2",
-      [fixture.organizationId, stepId],
-    );
-    assertEquals(jobs.rows.length, 0);
-    const holds = await database.query<{ count: string }>(
-      `select (
-         (select count(*) from bakery.budget_action_intents
-           where organization_id = $1 and run_step_id = $2) +
-         (select count(*) from bakery.budget_reservations
-           where organization_id = $1 and run_step_id = $2)
-       )::text as count`,
-      [fixture.organizationId, stepId],
-    );
-    assertEquals(holds.rows[0]!.count, "0");
+    const after = await factCounts(database, fixture.organizationId);
+    assertEquals(after.jobs, before.jobs);
+    assertEquals(after.reservations, before.reservations);
+    assertEquals(after.intents, before.intents);
+    assertEquals(Number(after.runs), Number(before.runs));
   }));
 
 Deno.test("a disabled agent blocks run creation and no job exists", () =>

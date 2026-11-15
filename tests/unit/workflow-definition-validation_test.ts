@@ -281,9 +281,10 @@ Deno.test("report never echoes submitted values", async () => {
 });
 
 Deno.test("parity: statically valid fixtures pass the admission extractor", async () => {
+  // The preset is a compiled plan, so it is deliberately not one of these:
+  // the extractor refuses plans, which its own case asserts.
   const fixtures = [
     minimal,
-    FIXED_CODING_PRESET.spec,
     {
       kind: "workflow",
       workflow: { kind: "fixed" },

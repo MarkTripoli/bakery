@@ -254,6 +254,9 @@ Deno.test("run inputs equal the task row and oversized job input is rejected bef
       [fixture.organizationId, run.id],
     );
     assertEquals(stored.rows[0].inputs, {
+      // Revision 3 declares the repository as an input (a compiled definition
+      // is type-checked, so `$task.repositoryId` is refused).
+      repositoryId: repository.repositoryId,
       brief: { title: "Worst case", description: worst, taskType: "bug" },
       instructions: renderImplementInstructions({
         title: "Worst case",
@@ -437,6 +440,7 @@ Deno.test("multi-byte descriptions at the character limit are admitted with inpu
         [fixture.organizationId, task.id],
       );
       assertEquals(stored.rows[0].inputs, {
+        repositoryId: repository.repositoryId,
         brief: {
           title: row.rows[0].title,
           description: row.rows[0].description,
@@ -957,16 +961,22 @@ Deno.test("claim-time admission rejects implement instructions that drift from t
     await matched.body?.cancel();
   }));
 
-Deno.test("an organization with a materialized revision 1 preset starts a revision 2 run", () =>
+Deno.test("an organization with a materialized revision 1 preset starts a revision 3 run", () =>
   withFixture(async (fixture) => {
     const agent = await seedFundedCodingAgent(fixture, fixture, "rev1");
     const repository = await seedPresetRepository(fixture.pgDatabase, fixture, {
       agentVersionId: agent,
     });
+    // Revision 1's shape: the same document without the implement step's
+    // instructions, which the plan names inside its sequence.
     const legacySpec = structuredClone(FIXED_CODING_PRESET.spec) as unknown as {
-      steps: Array<{ id: string; with: Record<string, string> }>;
+      steps: Array<{
+        id: string;
+        steps?: Array<{ id: string; with: Record<string, string> }>;
+      }>;
     };
-    delete legacySpec.steps.find((step) => step.id === "implement")!.with
+    const sequence = legacySpec.steps.find((step) => step.id === "flow")!;
+    delete sequence.steps!.find((step) => step.id === "implement")!.with
       .instructions;
     const legacyDigest = await sha256Hex(canonicalJson(legacySpec));
     assertNotEquals(legacyDigest, FIXED_CODING_PRESET.digest);
@@ -1011,7 +1021,7 @@ Deno.test("an organization with a materialized revision 1 preset starts a revisi
     );
     assertEquals(versions.rows, [
       { revision: 1, digest: legacyDigest },
-      { revision: 2, digest: FIXED_CODING_PRESET.digest },
+      { revision: 3, digest: FIXED_CODING_PRESET.digest },
     ]);
   }));
 Deno.test("runs.create refuses a budget below the coding reservation", () =>
@@ -1082,29 +1092,25 @@ Deno.test("admission refused by the budget cap fails the run with that reason", 
       60_000,
     );
     assert(owner);
-    const key = (stepKey: string) => ({
-      runId: run.id,
-      stepKey,
-      iteration: 0,
-      actionVersion: run.workflowVersionId,
-    });
-    const steps = await fixture.pgDatabase.query<
-      { id: string; step_key: string }
-    >(
-      `select id, step_key from bakery.run_steps
-        where organization_id = $1 and run_id = $2`,
-      [fixture.organizationId, run.id],
-    );
-    const stepId = (stepKey: string) =>
-      steps.rows.find((step) => step.step_key === stepKey)!.id;
-    assert((await engine.admit(key("brief"), owner)).jobId);
+    // Read the row the engine appended, not a snapshot taken before it existed.
+    const stepId = async (stepKey: string) =>
+      (await fixture.pgDatabase.query<{ id: string }>(
+        `select id from bakery.run_steps
+          where organization_id = $1 and run_id = $2 and step_key = $3`,
+        [fixture.organizationId, run.id, stepKey],
+      )).rows[0].id;
+    // The preset is a plan: the engine names the next step and appends its row
+    // before the step can be admitted.
+    const briefKey = await engine.findNext(run.id, owner);
+    assert(briefKey !== undefined, "the plan has a brief step");
+    assert((await engine.admit(briefKey, owner)).jobId);
     await fixture.pgDatabase.query(
       `update bakery.run_steps
           set status = 'completed', output = $3::jsonb, finished_at = now()
         where organization_id = $1 and id = $2`,
       [
         fixture.organizationId,
-        stepId("brief"),
+        await stepId(briefKey.stepKey),
         JSON.stringify({
           artifact: {
             artifactId: crypto.randomUUID(),
@@ -1120,7 +1126,9 @@ Deno.test("admission refused by the budget cap fails the run with that reason", 
       "update bakery.workflow_runs set budget_limit_usd = '0.5' where organization_id = $1 and id = $2",
       [fixture.organizationId, run.id],
     );
-    const refused = await engine.admit(key("implement"), owner);
+    const implementKey = await engine.findNext(run.id, owner);
+    assert(implementKey !== undefined, "the plan has an implement step");
+    const refused = await engine.admit(implementKey, owner);
     assertEquals(refused.terminal, true);
 
     const state = await fixture.pgDatabase.query<
@@ -1132,7 +1140,7 @@ Deno.test("admission refused by the budget cap fails the run with that reason", 
          join bakery.workflow_runs run on run.id = step.run_id
          join bakery.tasks task on task.id = run.task_id
         where step.id = $1`,
-      [stepId("implement")],
+      [await stepId(implementKey.stepKey)],
     );
     assertEquals(state.rows[0]?.run, "failed");
     assertEquals(state.rows[0]?.task, "failed");
@@ -1143,7 +1151,7 @@ Deno.test("admission refused by the budget cap fails the run with that reason", 
     );
     const jobs = await fixture.pgDatabase.query(
       "select 1 from bakery.jobs where organization_id = $1 and run_step_id = $2",
-      [fixture.organizationId, stepId("implement")],
+      [fixture.organizationId, await stepId(implementKey.stepKey)],
     );
     assertEquals(jobs.rows.length, 0);
     const holds = await fixture.pgDatabase.query<{ count: string }>(
@@ -1153,11 +1161,11 @@ Deno.test("admission refused by the budget cap fails the run with that reason", 
          (select count(*) from bakery.budget_reservations
            where organization_id = $1 and run_step_id = $2)
        )::text as count`,
-      [fixture.organizationId, stepId("implement")],
+      [fixture.organizationId, await stepId(implementKey.stepKey)],
     );
     assertEquals(holds.rows[0]?.count, "0");
     // A second pass is terminal and never throws the budget conflict again.
-    const again = await engine.admit(key("implement"), owner).then(
+    const again = await engine.admit(implementKey, owner).then(
       (admission) => admission.terminal ? "terminal" : "admitted",
       (error: unknown) =>
         error instanceof StandardError ? error.code : "owner-lost",
@@ -1212,7 +1220,7 @@ Deno.test("a budget replay mismatch is still thrown and leaves the run running",
     assert(owner);
     const error = await engine.admit({
       runId: run.id,
-      stepKey: "implement",
+      stepKey: admitted.implementStepKey,
       iteration: 0,
       actionVersion: run.workflowVersionId,
     }, owner).then(() => undefined, (cause: unknown) => cause);
