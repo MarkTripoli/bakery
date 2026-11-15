@@ -314,6 +314,9 @@ export type PresetAdmission = Readonly<{
   runId: string;
   briefStepId: string;
   implementStepId: string;
+  /** The plan's key for the implement step (`flow.implement` while the preset
+   * is a compiled definition), for callers that admit it themselves. */
+  implementStepKey: string;
   implementJobId: string;
   /** The version the brief step recorded as its completed output. */
   briefVersionId: string;
@@ -342,12 +345,16 @@ export async function admitPresetRun(
   );
   assert(owner);
   try {
-    const briefAdmission = await repository.admit({
-      runId: run.id,
-      stepKey: "brief",
-      iteration: 0,
-      actionVersion: run.workflowVersionId,
-    }, owner);
+    // The preset is a compiled plan, so the engine decides each step: ask it
+    // for the next key (which appends the row), then admit that key. A flat
+    // run answers with its own next key, so this works for both.
+    const nextKey = async () => {
+      const key = await repository.findNext(run.id, owner);
+      assert(key !== undefined, "the run must have a next step");
+      return key;
+    };
+    const briefKey = await nextKey();
+    const briefAdmission = await repository.admit(briefKey, owner);
     assert(briefAdmission.jobId, "brief job must be admitted");
     const steps = await database.query<{ id: string; step_key: string }>(
       `select id, step_key from bakery.run_steps
@@ -355,10 +362,7 @@ export async function admitPresetRun(
       [scope.organizationId, run.id],
     );
     const briefStepId = steps.rows.find((step) =>
-      step.step_key === "brief"
-    )!.id;
-    const implementStepId = steps.rows.find((step) =>
-      step.step_key === "implement"
+      step.step_key === briefKey.stepKey
     )!.id;
     const briefVersionId = crypto.randomUUID();
     await database.query(
@@ -377,17 +381,23 @@ export async function admitPresetRun(
         }),
       ],
     );
-    const implementAdmission = await repository.admit({
-      runId: run.id,
-      stepKey: "implement",
-      iteration: 0,
-      actionVersion: run.workflowVersionId,
-    }, owner);
+    const implementKey = await nextKey();
+    const implementAdmission = await repository.admit(implementKey, owner);
     assert(implementAdmission.jobId, "implement job must be admitted");
+    const implementStep = steps.rows.find((step) =>
+      step.step_key === implementKey.stepKey
+    );
+    const implementStepId = implementStep?.id ??
+      (await database.query<{ id: string }>(
+        `select id from bakery.run_steps
+          where organization_id = $1 and run_id = $2 and step_key = $3`,
+        [scope.organizationId, run.id, implementKey.stepKey],
+      )).rows[0].id;
     return {
       runId: run.id,
       briefStepId,
       implementStepId,
+      implementStepKey: implementKey.stepKey,
       implementJobId: implementAdmission.jobId,
       briefVersionId,
     };
