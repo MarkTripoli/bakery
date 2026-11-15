@@ -10,6 +10,7 @@ import {
   repositoriesListQueryOptions,
   taskQueryOptions,
   workflowQueryOptions,
+  workflowVersionsQueryOptions,
 } from "../../api/query.ts";
 import { useLiveEvents } from "../../api/use-live-events.ts";
 import { useConnectivity } from "../../app/connectivity.ts";
@@ -119,6 +120,21 @@ export function TaskCoordinationPage(
     ...workflowQueryOptions(api, scope, workflowId ?? ""),
     enabled: enabled && workflowId !== undefined,
   });
+  // The version number and whether a newer version is in use are nicer to
+  // have: a failed or forbidden read leaves the short id and no badge.
+  const versions = useQuery({
+    ...workflowVersionsQueryOptions(api, scope, workflowId ?? ""),
+    enabled: enabled && workflowId !== undefined,
+  });
+  const workflowVersionId = origin?.kind === "saved_workflow"
+    ? origin.workflowVersionId
+    : undefined;
+  const workflowVersion = versions.data?.items.find((version) =>
+    version.id === workflowVersionId
+  )?.revision;
+  const inUse = workflow.data?.activeVersionId;
+  const olderVersion = workflowVersionId !== undefined &&
+    typeof inUse === "string" && inUse !== workflowVersionId;
   const lanes: PlanLane[] = plan
     ? planLanes(plan, roles.data, repositories.data)
     : [];
@@ -321,13 +337,16 @@ export function TaskCoordinationPage(
                 /* The phone header keeps Paper's height, so origin and digest
                   follow the lanes (frame 2JQJ-0 has blank space there). */
               }
-              {provenance && hasProvenance(plan) && (
+              {provenance && hasProvenance(plan) &&
+                origin?.kind !== "saved_workflow" && (
                 <UI.StackedRow
                   data-ui-region="plan-provenance-phone"
                   title={
                     <PlanProvenance
                       plan={plan}
                       workflowName={workflow.data?.name}
+                      workflowVersion={workflowVersion}
+                      olderVersion={olderVersion}
                     />
                   }
                 >
@@ -472,46 +491,84 @@ export function TaskCoordinationPage(
               title={heading}
               subtitle={phone
                 ? (
-                  <span>
+                  <div>
                     {[
                       task.data?.title,
                       t("tasks.coordination.revision", {
                         revision: String(plan.revision),
                       }),
                     ].filter((part) => part !== undefined).join(" · ")}
-                  </span>
+                    {
+                      /* A saved workflow's link, badge and tip are line 2 here too,
+                      under the revision and above the status. */
+                    }
+                    {origin?.kind === "saved_workflow" && provenance &&
+                      hasProvenance(plan) && (
+                      <PlanProvenance
+                        plan={plan}
+                        workflowName={workflow.data?.name}
+                        workflowVersion={workflowVersion}
+                        olderVersion={olderVersion}
+                      />
+                    )}
+                  </div>
                 )
                 : (
-                  <>
-                    {task.data && <span>{task.data.title}</span>}
-                    {provenance && hasProvenance(plan)
-                      ? (
-                        // One wrapping unit: the leading dot, revision, origin
-                        // and digest share the subtitle's text style and move
-                        // together, so no line ends in a lone dot.
-                        <span>
-                          {task.data && <span aria-hidden="true">·&nbsp;</span>}
-                          {t("tasks.coordination.revision", {
-                            revision: String(plan.revision),
-                          })}{" "}
-                          <PlanProvenance
-                            leadingSeparator
-                            plan={plan}
-                            workflowName={workflow.data?.name}
-                          />
-                        </span>
-                      )
-                      : (
-                        <>
-                          {task.data && <span aria-hidden="true">·</span>}
-                          <span>
-                            {t("tasks.coordination.revision", {
-                              revision: String(plan.revision),
-                            })}
-                          </span>
-                        </>
-                      )}
-                  </>
+                  origin?.kind === "saved_workflow" &&
+                    provenance && hasProvenance(plan)
+                    ? (
+                      // Line 1: the title and the plan's revision; line 2, under the
+                      // title: the workflow's link, badge and tip. One span, so the
+                      // break holds and the lane count stays at the end of line 1.
+                      <div>
+                        {task.data && <>{task.data.title}&nbsp;·&nbsp;</>}
+                        {t("tasks.coordination.revision", {
+                          revision: String(plan.revision),
+                        })}
+                        <PlanProvenance
+                          plan={plan}
+                          workflowName={workflow.data?.name}
+                          workflowVersion={workflowVersion}
+                          olderVersion={olderVersion}
+                        />
+                      </div>
+                    )
+                    : (
+                      <>
+                        {task.data && <span>{task.data.title}</span>}
+                        {provenance && hasProvenance(plan)
+                          ? (
+                            // One wrapping unit: the leading dot, revision, origin
+                            // and digest share the subtitle's text style and move
+                            // together, so no line ends in a lone dot.
+                            <span>
+                              {task.data && (
+                                <span aria-hidden="true">·&nbsp;</span>
+                              )}
+                              {t("tasks.coordination.revision", {
+                                revision: String(plan.revision),
+                              })}{" "}
+                              <PlanProvenance
+                                leadingSeparator
+                                plan={plan}
+                                workflowName={workflow.data?.name}
+                                workflowVersion={workflowVersion}
+                                olderVersion={olderVersion}
+                              />
+                            </span>
+                          )
+                          : (
+                            <>
+                              {task.data && <span aria-hidden="true">·</span>}
+                              <span>
+                                {t("tasks.coordination.revision", {
+                                  revision: String(plan.revision),
+                                })}
+                              </span>
+                            </>
+                          )}
+                      </>
+                    )
                 )}
               summary={phone
                 ? (

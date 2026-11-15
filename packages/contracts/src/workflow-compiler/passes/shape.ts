@@ -313,7 +313,7 @@ function requireCondition(
   path: Path,
 ): WorkflowExpressionNode | undefined {
   if (!Object.hasOwn(raw, key)) {
-    report(context, path, "field_missing");
+    report(context, [...path, key], "field_missing");
     return undefined;
   }
   return compileWorkflowCondition(raw[key], [...path, key], context.collector);
@@ -321,7 +321,7 @@ function requireCondition(
 
 function readId(context: Context, raw: Raw, path: Path): string | undefined {
   if (!Object.hasOwn(raw, "id")) {
-    report(context, path, "field_missing");
+    report(context, [...path, "id"], "field_missing");
     return undefined;
   }
   const id = raw["id"];
@@ -683,7 +683,7 @@ function shapeBranch(
   if (!when) failed = true;
   let thenSteps: WorkflowNode[] | undefined;
   if (!Object.hasOwn(body, "then")) {
-    report(context, bodyPath, "field_missing");
+    report(context, [...bodyPath, "then"], "field_missing");
     failed = true;
   } else {
     thenSteps = shapeNodeList(
@@ -842,7 +842,7 @@ function shapeRepeat(
   let failed = false;
   let max = 0;
   if (!Object.hasOwn(body, "max")) {
-    report(context, bodyPath, "field_missing");
+    report(context, [...bodyPath, "max"], "field_missing");
     failed = true;
   } else if (!isInteger(body["max"], 1, WORKFLOW_COMPILER_LIMITS.repeatMax)) {
     report(context, [...bodyPath, "max"], "repeat_max_invalid");
@@ -852,7 +852,7 @@ function shapeRepeat(
   }
   let seed: WorkflowRepeatSeed | undefined;
   if (!Object.hasOwn(body, "seed")) {
-    report(context, bodyPath, "field_missing");
+    report(context, [...bodyPath, "seed"], "field_missing");
     failed = true;
   } else {
     seed = shapeSeed(context, body["seed"], [...bodyPath, "seed"]);
@@ -862,7 +862,7 @@ function shapeRepeat(
   if (!until) failed = true;
   let steps: WorkflowNode[] | undefined;
   if (!Object.hasOwn(body, "steps")) {
-    report(context, bodyPath, "field_missing");
+    report(context, [...bodyPath, "steps"], "field_missing");
     failed = true;
   } else {
     steps = shapeNodeList(
@@ -1037,7 +1037,7 @@ function shapeLane(
   }
   const steps = Object.hasOwn(raw, "steps")
     ? shapeNodeList(context, raw["steps"], [...path, "steps"], false)
-    : (report(context, path, "field_missing"), undefined);
+    : (report(context, [...path, "steps"], "field_missing"), undefined);
   if (!steps) failed = true;
   if (failed || id === undefined || !needs || !steps) return undefined;
   const lane: WorkflowLane = { id, needs, repository, steps };
@@ -1273,7 +1273,12 @@ function shapeInputs(
     checkKeys(context, entry, inputPath, INPUT_KEYS);
     const type = entry["type"];
     if (typeof type !== "string") {
-      report(context, inputPath, "field_missing");
+      // Absent is missing; present with the wrong type is invalid.
+      report(
+        context,
+        [...inputPath, "type"],
+        Object.hasOwn(entry, "type") ? "field_invalid" : "field_missing",
+      );
       failed = true;
       continue;
     }
@@ -1283,7 +1288,11 @@ function shapeInputs(
       continue;
     }
     if (typeof entry["required"] !== "boolean") {
-      report(context, inputPath, "field_missing");
+      report(
+        context,
+        [...inputPath, "required"],
+        Object.hasOwn(entry, "required") ? "field_invalid" : "field_missing",
+      );
       failed = true;
       continue;
     }
@@ -1451,7 +1460,7 @@ export function shapeWorkflow(
   }
   const steps = Object.hasOwn(root, "steps")
     ? shapeNodeList(context, root["steps"], ["steps"], false)
-    : (report(context, [], "field_missing"), undefined);
+    : (report(context, ["steps"], "field_missing"), undefined);
   if (collector.size > before || !inputs || !limits || !agents || !steps) {
     return { document: undefined, locations };
   }

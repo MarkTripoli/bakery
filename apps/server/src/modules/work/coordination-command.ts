@@ -1,4 +1,6 @@
 import type { ActionContext } from "@bakery/contracts/action-registry";
+import { compileWorkflowDocumentDetailed } from "@bakery/contracts/workflow-compiler";
+import { defaultWorkflowCompilerCatalog } from "@bakery/contracts/workflow-compiler/default-catalog";
 import { contractSchemas } from "@bakery/contracts/contracts";
 import { requireCommandMetadata, StandardError } from "@bakery/contracts/http";
 import { appendDomainEvent } from "@bakery/persistence/event-audit";
@@ -402,10 +404,24 @@ export async function createCoordinationPlanFromWorkflowCommand(
       params: { reason: "workflow_disabled" },
     });
   }
+  // #66: the stored spec is the authored draft (`parallel.branches`); the
+  // compiler's document holds the `parallel` node with its lanes, as run
+  // admission reads it. Compile once here; published rows are not rewritten.
+  const { result: compiled } = await compileWorkflowDocumentDetailed(
+    version.normalized_spec,
+    { catalog: defaultWorkflowCompilerCatalog() },
+  );
+  if (!compiled.ok) {
+    throw workflowMappingInvalid(
+      new WorkflowMappingError("workflow_not_compilable", [
+        "workflowVersionId",
+      ]),
+    );
+  }
   let spec: CoordinationPlanSpec;
   try {
     spec = mapParallelNodeToPlanSpec(
-      findParallelNode(version.normalized_spec, input.nodeId),
+      findParallelNode(compiled.document, input.nodeId),
     );
   } catch (error) {
     if (error instanceof WorkflowMappingError) {

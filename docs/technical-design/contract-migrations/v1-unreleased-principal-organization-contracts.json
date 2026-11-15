@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "a7a6736492a9361c0a9fdf86bcf538122c5abc1b"
+    "22ef728a1fbeadb0778d5c6a407e98dfe6a2c1ac"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:90edc0143dc89189995445f9a3c948bbbf276bd1c706bcd75c6be58aa05aba01",
-  "reason": "#65 contract re-bind by dev-server on 2026-11-15 under owner's standing breaking-change authorization (2026-10-09), main a7a6736492a9361c0a9fdf86bcf538122c5abc1b: IntegrationResource gains defaultBranch, latestCheckState, latestCheckConclusion and latestCheckAt for the Projects page.",
+  "targetCompatibilityDigest": "sha256:327037841118e612c748e122ee1e39a636943ff6e4167c2f50875f8a2d96adae",
+  "reason": "#65 contract re-bind by dev-server on 2026-11-15 under owner's standing breaking-change authorization (2026-10-09), main 22ef728a1fbeadb0778d5c6a407e98dfe6a2c1ac: IntegrationResource gains defaultBranch, latestCheckState, latestCheckConclusion and latestCheckAt for the Projects page.",
   "priorApprovals": [
     {
       "allowBreaking": true,

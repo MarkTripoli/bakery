@@ -2,6 +2,7 @@ import type { BudgetRuntimeConfig } from "@bakery/config";
 import {
   type ActionAuthorityRunner,
   type ActionContext,
+  ActionKind,
   type EncodedSuccessResponse,
   validateEncodedSuccessResponse,
 } from "@bakery/contracts/action-registry";
@@ -31,6 +32,7 @@ import {
   type TicketSource,
 } from "./ticket-store.ts";
 import type {
+  TicketActorRole,
   TicketFactIndex,
   TicketIssueListPage,
   TicketReadFailure,
@@ -78,7 +80,9 @@ export type TicketOperationReads =
     issues: ReadonlyMap<number, TicketPrefetch>;
   }
   | { kind: "sync"; issues: ReadonlyMap<number, TicketPrefetch> }
-  | { kind: "ticket"; prefetch: TicketPrefetch };
+  | { kind: "ticket"; prefetch: TicketPrefetch }
+  /** One username looked up on the source's repository (#69). */
+  | { kind: "person"; login: string; role: TicketActorRole };
 
 const readsSlot = Symbol("bakery.ticket.operation.reads");
 
@@ -92,10 +96,11 @@ export function ticketReads<Kind extends TicketOperationReads["kind"]>(
   return reads as Extract<TicketOperationReads, { kind: Kind }>;
 }
 
-/** The four operations that read GitHub. */
+/** The operations that read GitHub. */
 const READING_ACTIONS = Object.freeze(
   new Set<string>([
     "ticketSources.preview",
+    "ticketSources.lookupPerson",
     "ticketSources.sync",
     "ticketReadiness.create",
     "ticketRequests.create",
@@ -107,6 +112,7 @@ export function readsProvider(actionName: string): boolean {
 }
 
 type ReadPlan =
+  | { kind: "person"; handle: TicketSourceHandle; login: string }
   | {
     kind: "preview";
     handle: TicketSourceHandle;
@@ -150,6 +156,10 @@ async function probe(
   const id = context.params.id;
   if (!id) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   const fields = (input ?? {}) as Record<string, unknown>;
+  if (actionName === "ticketSources.lookupPerson") {
+    const { handle } = await readSourceHandle(transaction, organizationId, id);
+    return { kind: "person", handle, login: String(fields.login) };
+  }
   if (actionName === "ticketSources.preview") {
     if (fields.filters !== undefined && !isEmptyObject(fields.filters)) {
       throw unprocessable(["filters"], "filters_unsupported");
@@ -244,6 +254,11 @@ async function readProvider(
     );
     return new Map<number, TicketPrefetch>(answers);
   };
+  if (plan.kind === "person") {
+    const role = await reader.readActorRole(plan.handle, plan.login, signal);
+    if (role.kind === "unavailable") throw dependencyUnavailable(role);
+    return { kind: "person", login: plan.login, role };
+  }
   if (plan.kind === "sync") {
     return {
       kind: "sync",
@@ -294,12 +309,15 @@ export function createTicketOperationRunner(
   dependencies: TicketOperationDependencies,
 ): ActionAuthorityRunner["run"] {
   return async (action, context, input, next) => {
-    const metadata = createNormalizedCommandMetadata(
-      action,
-      context.request,
-      context.params,
-      input,
-    );
+    // A read (the person lookup) has no command receipt to replay.
+    const metadata = action.policy.type === ActionKind.Command
+      ? createNormalizedCommandMetadata(
+        action,
+        context.request,
+        context.params,
+        input,
+      )
+      : null;
     const probed = await authority.run(
       action,
       context,
@@ -307,11 +325,13 @@ export function createTicketOperationRunner(
       async (authorized) => {
         // The action's own guard runs before any read, as it does in `next`.
         await action.policy.authorize?.(authorized, input);
-        const replay = await readCompletedCommandReplay({
-          context: authorized,
-          metadata,
-          input,
-        });
+        const replay = metadata === null
+          ? undefined
+          : await readCompletedCommandReplay({
+            context: authorized,
+            metadata,
+            input,
+          });
         if (replay) {
           return { replay: validateEncodedSuccessResponse(action, replay) };
         }
@@ -330,5 +350,29 @@ export function createTicketOperationRunner(
       (authorized) =>
         next(Object.assign({}, authorized, { [readsSlot]: reads })),
     );
+  };
+}
+
+/**
+ * `ticketSources.lookupPerson` (#69): Admin. A username on the source's
+ * repository, read by the runner before this transaction: the provider's
+ * numeric user id the trigger list stores, and whether the person may trigger
+ * (write or admin). A username the provider does not know is 404.
+ */
+export function lookupTicketSourcePerson(context: ActionContext): {
+  login: string;
+  externalUserId: string;
+  permission: "admin" | "write" | "read" | "none";
+  canTrigger: boolean;
+} {
+  const { login, role } = ticketReads(context, "person");
+  if (role.kind !== "present") {
+    throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  }
+  return {
+    login,
+    externalUserId: role.userId,
+    permission: role.permission,
+    canTrigger: role.permission === "write" || role.permission === "admin",
   };
 }

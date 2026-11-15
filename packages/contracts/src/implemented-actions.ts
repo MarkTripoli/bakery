@@ -309,6 +309,7 @@ export const TicketImplementedAction = Object.freeze(
     TicketSourcesGet: "ticketSources.get",
     TicketSourcesUpdate: "ticketSources.update",
     TicketSourcesPreview: "ticketSources.preview",
+    TicketSourcesLookupPerson: "ticketSources.lookupPerson",
     TicketSourcesSync: "ticketSources.sync",
     ExternalTicketsList: "externalTickets.list",
     ExternalTicketsGet: "externalTickets.get",

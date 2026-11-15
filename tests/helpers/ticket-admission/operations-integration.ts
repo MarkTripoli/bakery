@@ -337,6 +337,62 @@ Deno.test("issue 82 ops: preview records snapshots and reports and never a link,
   });
 });
 
+Deno.test("issue 69: an admin looks up a username on the source's repository, a developer may not", async () => {
+  await withTicketFixture(async (fx) => {
+    const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
+    fx.reader.setRole("octo-writer", {
+      kind: "present",
+      userId: "583231",
+      permission: "write",
+    });
+    fx.reader.setRole("octo-reader", {
+      kind: "present",
+      userId: "9919",
+      permission: "read",
+    });
+    const lookup = (login: string, cookie?: string) =>
+      ticketCall(
+        fx,
+        "GET",
+        `${SOURCES}/${sourceId}/people/${encodeURIComponent(login)}`,
+        cookie === undefined ? {} : { cookie },
+      );
+
+    // A writer may trigger; the numeric id is what the trigger list stores.
+    assertEquals(await read(await lookup("octo-writer"), 200), {
+      login: "octo-writer",
+      externalUserId: "583231",
+      permission: "write",
+      canTrigger: true,
+    });
+    // A reader is found but may not trigger.
+    assertEquals(
+      (await read<{ canTrigger: boolean }>(await lookup("octo-reader"), 200))
+        .canTrigger,
+      false,
+    );
+    // A username GitHub does not know is 404.
+    assertEquals((await lookup("nobody-here")).status, 404);
+    // A provider outage is DEPENDENCY_UNAVAILABLE.
+    fx.reader.failNext("readActorRole");
+    const down = await lookup("octo-writer");
+    assertEquals(down.status, 503, await down.clone().text());
+    // The lookup reads nothing to record: no audit row or event.
+    assertEquals(await sourceFacts(fx, sourceId), {
+      audit: [],
+      events: [],
+      outbox: 0,
+    });
+    // Admin only: a developer is refused before any read.
+    const calls = fx.reader.calls.length;
+    assertEquals(
+      (await lookup("octo-writer", fx.f.developerCookie)).status,
+      403,
+    );
+    assertEquals(fx.reader.calls.length, calls);
+  });
+});
+
 Deno.test("issue 82 ops: preview keeps the issues it could read when one read fails", async () => {
   await withTicketFixture(async (fx) => {
     const sourceId = await fx.insertSource();

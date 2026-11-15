@@ -9653,6 +9653,27 @@ const transportSchemas = {
         "Saving never switches the active backend: it stays filesystem until the paused copy, verify and switch procedure writes r2. Rotated credentials apply to the next object operation without a restart. While r2 is the active backend, changing accountId or bucket would orphan stored objects and answers 409 STATE_CONFLICT reason backend_active; only a credential rotation is accepted."
       ],
       "description": "Saves the R2 account, bucket and credentials that hold skill bundle objects for this installation. Credentials are write-only and never appear in a response, error, log, trace, event or audit record."
+    },
+    "TicketSourcePersonPath": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Ticket source whose repository the person is looked up on; supplied via the request's {id} path segment."
+        },
+        {
+          "name": "login",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 39
+          },
+          "description": "The person's username on the ticket source's provider, as typed; supplied via the request's {login} path segment."
+        }
+      ],
+      "description": "Path parameters naming one ticket source and a provider username to look up on its repository (#69)."
     }
   },
   "projections": {
@@ -24996,6 +25017,27 @@ const transportSchemas = {
         "available": "True when the deployment configures a separate artifact preview origin. When false every preview operation fails closed and clients hide the preview action."
       },
       "description": "Whether this deployment can serve isolated artifact previews."
+    },
+    "TicketSourcePerson": {
+      "fields": [
+        "login",
+        "externalUserId",
+        "permission",
+        "canTrigger"
+      ],
+      "fieldTypes": {
+        "login": "string",
+        "externalUserId": "string",
+        "permission": "enum(admin|write|read|none)",
+        "canTrigger": "boolean"
+      },
+      "fieldDescriptions": {
+        "login": "The username as it was looked up.",
+        "externalUserId": "The provider's stable numeric user id; the value a ticket source's trigger list stores.",
+        "permission": "The person's permission on the source's repository as the provider reports it now.",
+        "canTrigger": "Whether the person may be added to the trigger list: true only for write or admin on the repository."
+      },
+      "description": "One provider user found on a ticket source's repository, for the automatic-start trigger list (#69). A username the provider does not know answers 404."
     }
   },
   "pageEnvelope": {
