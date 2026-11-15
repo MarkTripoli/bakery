@@ -848,4 +848,3 @@ Slices 1 to 4 already give a configurable implement → check → requirement-aw
 | D13 | PRD and TDD interviews (one question per message) inside a workflow. | **One-pass draft plus the approval loop** in the workflow; the live interview stays in the task conversation, whose result the workflow can take as an input artifact. |
 | D14 | Task-level stage policy versus in-workflow gates. | **Keep both for now.** Presets keep `approval_policy`; workflows put gates in the definition where the diagram shows them. Migrate presets to compiled definitions once slice 3 lands. |
 | D15 | Generic agent step: evolve `agent.freeform` (new optional `inputs`, `outputs`, `skills`, `role`) or add a new action. | **Evolve `agent.freeform`.** It is already an admissible worker action whose input declares `maxTurns`, timeout, cost and tools, and it is already the editor's "Custom agent task". It still needs a harness implementation (A1). |
-
