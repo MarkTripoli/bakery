@@ -9743,6 +9743,23 @@
         }
       ],
       "description": "Path parameters naming one ticket source and a provider username to look up on its repository (#69)."
+    },
+    "DraftPublicationCreate": {
+      "fields": [
+        {
+          "name": "checkpointId",
+          "type": "uuid",
+          "required": true,
+          "description": "Committed checkpoint of this draft to publish, read from drafts.get at the moment Publish was pressed; it is the frozen cutoff, so edits committed after it are not in the version."
+        },
+        {
+          "name": "textDigest",
+          "type": "sha256",
+          "required": true,
+          "description": "Lowercase SHA-256 of the checkpoint's UTF-8 body text as the publisher previewed it; a different digest fails without publishing."
+        }
+      ],
+      "description": "Publishes one exact committed draft checkpoint as the artifact's next immutable version through the shared artifact-version service. No content, actor, artifact, parent version or organization can be supplied by the caller."
     }
   },
   "projections": {
@@ -21225,6 +21242,14 @@
           "fieldTypes": {
             "mutationId": "uuid|null"
           }
+        },
+        {
+          "type": "published",
+          "direction": "server",
+          "fields": [
+            "room",
+            "publication"
+          ]
         }
       ],
       "bounds": {
@@ -21248,9 +21273,10 @@
         "checkpointId": "uuid",
         "byteLength": "nonnegativeInteger",
         "mutationId": "uuid",
-        "receipt": "DraftMutationReceipt|null"
+        "receipt": "DraftMutationReceipt|null",
+        "publication": "DraftPublication"
       },
-      "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, and committed draft sync. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
+      "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, committed draft sync, and publication notices. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
       "fieldDescriptions": {
         "protocolVersion": "Collaboration protocol version reported by the server.",
         "connectionId": "Server-assigned identifier of this connection.",
@@ -21269,7 +21295,8 @@
         "checkpointId": "Checkpoint the synced state was read from.",
         "byteLength": "Exact length of the binary frame that immediately follows this frame.",
         "mutationId": "Client mutation id the frame refers to.",
-        "receipt": "Committed mutation receipt, replayed exactly for a duplicate; null when the update added nothing new to the committed state."
+        "receipt": "Committed mutation receipt, replayed exactly for a duplicate; null when the update added nothing new to the committed state.",
+        "publication": "Publication committed for the room's draft, pushed to everyone in the room so editors can show who published which version."
       }
     },
     "MetricPoint": {
@@ -23939,7 +23966,8 @@
         "checkpointId",
         "textDigest",
         "text",
-        "receipts"
+        "receipts",
+        "canPublish"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -23950,7 +23978,8 @@
         "checkpointId": "uuid",
         "textDigest": "sha256",
         "text": "string",
-        "receipts": "DraftMutationReceipt[]"
+        "receipts": "DraftMutationReceipt[]",
+        "canPublish": "boolean"
       },
       "description": "Authorized committed draft readback containing bounded plain text, current checkpoint metadata, and retained mutation receipts without exposing Loro bytes.",
       "fieldDescriptions": {
@@ -23962,7 +23991,8 @@
         "checkpointId": "Current full Loro checkpoint identifier.",
         "textDigest": "SHA-256 of the complete committed UTF-8 body text.",
         "text": "Complete committed body text, bounded to 1048576 UTF-8 bytes.",
-        "receipts": "Retained authenticated mutation receipts ordered by server sequence; at most 100 are returned."
+        "receipts": "Retained authenticated mutation receipts ordered by server sequence; at most 100 are returned.",
+        "canPublish": "Whether the caller may publish this draft as the artifact's next version right now (artifactVersion:write under the caller's role, grants and token scope); the UI hides Publish when false."
       },
       "bounds": {
         "text": {
@@ -25167,6 +25197,59 @@
         "canTrigger": "Whether the person may be added to the trigger list: true only for write or admin on the repository."
       },
       "description": "One provider user found on a ticket source's repository, for the automatic-start trigger list (#69). A username the provider does not know answers 404."
+    },
+    "DraftPublication": {
+      "fields": [
+        "draftId",
+        "epoch",
+        "checkpointId",
+        "serverSequence",
+        "textDigest",
+        "artifactId",
+        "artifactVersionId",
+        "versionNumber",
+        "sha256",
+        "publishedById",
+        "publishedByName",
+        "actorKind",
+        "publishedAt"
+      ],
+      "fieldTypes": {
+        "draftId": "uuid",
+        "epoch": "integer",
+        "checkpointId": "uuid",
+        "serverSequence": "decimalString",
+        "textDigest": "sha256",
+        "artifactId": "uuid",
+        "artifactVersionId": "uuid",
+        "versionNumber": "integer",
+        "sha256": "sha256",
+        "publishedById": "uuid",
+        "publishedByName": "string",
+        "actorKind": "enum(person|agent)",
+        "publishedAt": "timestamp"
+      },
+      "description": "Durable record that one draft checkpoint became one immutable artifact version: which version resulted, from which frozen cutoff, and who published it. Replayed exactly for a retry of the same checkpoint.",
+      "fieldDescriptions": {
+        "draftId": "Draft the version was published from.",
+        "epoch": "Draft epoch of the published checkpoint.",
+        "checkpointId": "Exact draft checkpoint frozen as the published content.",
+        "serverSequence": "Committed draft sequence of the cutoff; edits with a higher sequence are not in this version.",
+        "textDigest": "SHA-256 of the checkpoint's UTF-8 body text.",
+        "artifactId": "Artifact that received the new version.",
+        "artifactVersionId": "Immutable artifact version created by this publication.",
+        "versionNumber": "Revision number of the created version on its artifact, shown as version n.",
+        "sha256": "SHA-256 of the published version bytes; equals textDigest for a text draft.",
+        "publishedById": "Principal the publication is attributed to: the person, or the principal an agent acted for.",
+        "publishedByName": "Trusted display name of publishedById from the principal record.",
+        "actorKind": "person when a person published through a signed-in session; agent when an agent published through an access token or under its own service or worker identity.",
+        "publishedAt": "UTC time the publication committed."
+      },
+      "bounds": {
+        "publishedByName": {
+          "maxBytes": 1024
+        }
+      }
     }
   },
   "pageEnvelope": {
@@ -26355,6 +26438,15 @@
       },
       "inngestTrigger": null,
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "draft.published": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification that a draft checkpoint was published; resourceId is the draft and resourceVersion the created version number. Fetch the publication through draftPublications.get or the version through artifactVersions.list."
     }
   },
   "workerActions": {
@@ -26607,7 +26699,9 @@
       "bakery_drafts_get",
       "bakery_draftCheckpoints_get",
       "bakery_draftSlices_get",
-      "bakery_drafts_edit"
+      "bakery_drafts_edit",
+      "bakery_draftPublications_create",
+      "bakery_draftPublications_get"
     ],
     "discovery": "server/discover is optional. tools/list accepts standard cursor, filters current principal and enabled groups, and sorts deterministically. Initial cache TTL is zero; never share an authorization-filtered catalog between principals. No subscription capability is advertised.",
     "methods": [
