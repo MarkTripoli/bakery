@@ -82,6 +82,8 @@ export function useCheckView(
     /** The version of the settings the result is for, when there is a result. */
     observedProfileId: observation.data?.profileId ?? null,
     observedRevision: observation.data?.profileRevision ?? null,
+    /** When the check was started: a version created after it was saved by it. */
+    checkCreatedAt: check.data?.createdAt ?? null,
     refetch: () => {
       void check.refetch();
       void observation.refetch();

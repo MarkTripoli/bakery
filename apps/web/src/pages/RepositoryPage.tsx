@@ -415,6 +415,7 @@ export function RepositoryPage(
               <ReadinessStep
                 repository={current}
                 info={info}
+                profiles={profiles.items}
                 active={active}
                 canManage={canManage}
                 onStarted={(id) =>

@@ -25,8 +25,10 @@ import { useStartCheck } from "./use-readiness-check.ts";
  * other, and says "not checked yet" rather than guess.
  */
 export function ReadinessStep(
-  { repository, info, active, canManage, onStarted }: Readonly<{
+  { repository, info, profiles, active, canManage, onStarted }: Readonly<{
     repository: RepositoryResponse;
+    /** Every version of the settings, to tell whether the checked one was saved by the check. */
+    profiles: readonly RepositoryProfileResponse[];
     /** What is known about the check the address names (shared with the page header). */
     info: CheckInfo;
     active: RepositoryProfileResponse | null;
@@ -40,6 +42,13 @@ export function ReadinessStep(
   const archived = repository.archivedAt !== null;
   const starter = useStartCheck(repository, onStarted);
   const { view } = info;
+  // A version created after the check began was saved by it (the server saves
+  // the next version when a check runs, and puts it in use if the check passes).
+  const checked = info.observedRevision === null
+    ? undefined
+    : profiles.find((profile) => profile.revision === info.observedRevision);
+  const savedByCheck = checked !== undefined && info.checkCreatedAt !== null &&
+    Date.parse(checked.createdAt) >= Date.parse(info.checkCreatedAt);
 
   const when = (value: string) =>
     new Intl.DateTimeFormat(locale, {
@@ -226,6 +235,7 @@ export function ReadinessStep(
     next = run(again, true);
   } else if (view.kind === "result") {
     const { outcome } = view;
+    let note: ReactNode;
     if (outcome.ready) {
       stepStatus = "done";
       label = status("done");
@@ -235,6 +245,15 @@ export function ReadinessStep(
         machine: machine(outcome),
       });
       quiet = run(again, false);
+      note = savedByCheck && info.observedRevision === active.revision
+        ? (
+          <UI.Text variant="muted" data-testid="check-saved">
+            {translate("projects.repository.check.savedInUse" as never, {
+              version: active.revision,
+            })}
+          </UI.Text>
+        )
+        : undefined;
     } else {
       stepStatus = "failed";
       summary = translate("projects.repository.check.notReady" as never, {
@@ -252,19 +271,27 @@ export function ReadinessStep(
         info.observedRevision > active.revision
       ? (
         <UI.Text variant="muted" data-testid="check-not-in-use">
-          {translate("projects.repository.check.notInUse" as never, {
-            checked: info.observedRevision,
-            current: active.revision,
-          })}
+          {translate(
+            (savedByCheck
+              ? "projects.repository.check.notInUse"
+              : "projects.repository.check.notInUseBare") as never,
+            { checked: info.observedRevision, current: active.revision },
+          )}
         </UI.Text>
       )
       : null;
-    detail = notInUse === null ? list : (
-      <UI.Stack gap="compact">
-        {notInUse}
-        {list}
-      </UI.Stack>
+    const parts = [notInUse, note, list].filter((part) =>
+      part !== undefined && part !== null
     );
+    detail = parts.length === 0
+      ? undefined
+      : parts.length === 1
+      ? parts[0]
+      : (
+        <UI.Stack gap="compact">
+          {parts.map((part, index) => <Fragment key={index}>{part}</Fragment>)}
+        </UI.Stack>
+      );
   }
 
   const body = [phone ? next : undefined, notice, detail].filter((part) =>

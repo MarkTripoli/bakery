@@ -134,6 +134,9 @@ export function WorkingSettingsSheet(
               <UI.Heading level="subsection">
                 {translate("projects.repository.versions.title" as never)}
               </UI.Heading>
+              <UI.Text variant="muted">
+                {translate("projects.repository.versions.note" as never)}
+              </UI.Text>
               <UI.Stack gap="compact">
                 {earlier.map((profile) => (
                   <UI.StackedRow
@@ -290,6 +293,9 @@ export function WorkingSettingsSheet(
               <UI.Heading level="subsection">
                 {translate("projects.repository.versions.title" as never)}
               </UI.Heading>
+              <UI.Text variant="muted">
+                {translate("projects.repository.versions.note" as never)}
+              </UI.Text>
               <UI.Stack gap="compact">
                 {earlier.map((profile) => (
                   <UI.StackedRow

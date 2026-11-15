@@ -3698,5 +3698,8 @@
   "projects.repository.badge.ready": "Ready",
   "projects.repository.badge.checkFailed": "Check failed",
   "projects.repository.check.reason.optionalSuffix": "This does not stop work.",
-  "projects.repository.check.notInUse": "Version {checked} was saved but is not in use, because the check did not pass. Version {current} stays in use."
+  "projects.repository.check.notInUse": "This check saved version {checked}. It is not in use, because the check did not pass. Version {current} stays in use.",
+  "projects.repository.check.notInUseBare": "Version {checked} is not in use, because the check did not pass. Version {current} stays in use.",
+  "projects.repository.check.savedInUse": "This check saved version {version}, and it is now in use.",
+  "projects.repository.versions.note": "A new version is saved when you save settings and each time the readiness check runs."
 }

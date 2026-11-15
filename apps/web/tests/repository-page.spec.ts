@@ -223,6 +223,11 @@ test.describe("a repository with working settings", () => {
       ),
     ).toBeVisible();
     await expect(page.getByRole("heading", { name: "Versions" })).toBeVisible();
+    await expect(
+      page.getByText(
+        "A new version is saved when you save settings and each time the readiness check runs.",
+      ),
+    ).toBeVisible();
     await expect(page.getByTestId("profile-version-2")).toContainText("In use");
     await expect(page.getByTestId("profile-version-1")).toContainText(
       "Version 1",
@@ -763,6 +768,10 @@ test.describe("where the setup stands, in the header and the footnote", () => {
     );
     await expect(page.getByTestId("setup-settings")).toContainText("version 3");
     await expect(standing(page)).toHaveText("Ready");
+    // Who saved the new version, in the same words as when it did not pass.
+    await expect(page.getByTestId("check-saved")).toContainText(
+      "This check saved version 3, and it is now in use.",
+    );
     await expect(page.getByText(/The last check was for version/)).toHaveCount(
       0,
     );
@@ -780,7 +789,7 @@ test.describe("where the setup stands, in the header and the footnote", () => {
     await expect(standing(page)).toHaveText("Check failed");
     await expect(page.getByTestId("setup-settings")).toContainText("version 2");
     await expect(page.getByTestId("check-not-in-use")).toContainText(
-      "Version 3 was saved but is not in use, because the check did not pass. Version 2 stays in use.",
+      "This check saved version 3. It is not in use, because the check did not pass. Version 2 stays in use.",
     );
     await expect(
       page.locator('[data-check-id="tools"]'),

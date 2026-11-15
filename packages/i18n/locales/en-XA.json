@@ -3698,5 +3698,8 @@
   "projects.repository.badge.ready": "⟦Ŕëàðÿ⟧",
   "projects.repository.badge.checkFailed": "⟦Çĥëçķ ƒàïļëð ŧë⟧",
   "projects.repository.check.reason.optionalSuffix": "⟦Ŧĥïš ðôëš ñôŧ šŧôþ ŵôŕķ. ŧëšŧ ç⟧",
-  "projects.repository.check.notInUse": "⟦Ṽëŕšïôñ {checked} ŵàš šàṽëð ƀûŧ ïš ñôŧ ïñ ûšë, ƀëçàûšë ŧĥë çĥëçķ ðïð ñôŧ þàšš. Ṽëŕšïôñ {current} šŧàÿš ïñ ûšë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧"
+  "projects.repository.check.notInUse": "⟦Ŧĥïš çĥëçķ šàṽëð ṽëŕšïôñ {checked}. Ïŧ ïš ñôŧ ïñ ûšë, ƀëçàûšë ŧĥë çĥëçķ ðïð ñôŧ þàšš. Ṽëŕšïôñ {current} šŧàÿš ïñ ûšë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "projects.repository.check.notInUseBare": "⟦Ṽëŕšïôñ {checked} ïš ñôŧ ïñ ûšë, ƀëçàûšë ŧĥë çĥëçķ ðïð ñôŧ þàšš. Ṽëŕšïôñ {current} šŧàÿš ïñ ûšë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "projects.repository.check.savedInUse": "⟦Ŧĥïš çĥëçķ šàṽëð ṽëŕšïôñ {version}, àñð ïŧ ïš ñôŵ ïñ ûšë. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "projects.repository.versions.note": "⟦À ñëŵ ṽëŕšïôñ ïš šàṽëð ŵĥëñ ÿôû šàṽë šëŧŧïñĝš àñð ëàçĥ ŧïɱë ŧĥë ŕëàðïñëšš çĥëçķ ŕûñš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧"
 }
