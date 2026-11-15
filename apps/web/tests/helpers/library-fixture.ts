@@ -482,6 +482,11 @@ export async function libraryFixture(page: Page, options: Options = {}) {
             code: "field_invalid",
             message: "A field has an invalid shape.",
           },
+          {
+            path: "/steps/2/id",
+            code: "step_id_invalid",
+            message: "A step id is invalid.",
+          },
         ]
         : options.validation === "errors"
         ? [

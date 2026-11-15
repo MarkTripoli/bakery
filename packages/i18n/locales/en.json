@@ -3424,6 +3424,8 @@
   "library.import.problem.stepFieldInvalid": "Step {number} has a field with a value Bakery cannot use: {field}.",
   "library.import.problem.stepFieldInvalidIn": "Step {number}, in {parts}, has a field with a value Bakery cannot use: {field}.",
   "library.import.problem.fieldInvalid": "The definition has a field with a value Bakery cannot use: {field}.",
+  "library.import.problem.pathInvalid": "{path}: Bakery cannot use this value.",
+  "library.import.problem.pathMissing": "{path}: a required field is missing.",
   "library.import.empty": "Choose a file or paste a definition first.",
   "library.import.unreadable": "The definition could not be checked. Try changing it or try again in a moment.",
   "library.import.offline": "You are offline, so the definition cannot be checked.",

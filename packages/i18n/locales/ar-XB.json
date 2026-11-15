@@ -3514,5 +3514,7 @@
   "library.import.problem.stepFieldMissingIn": "⟪Step {number}, in {parts}, is missing a required field: {field}.⟫",
   "library.import.problem.stepFieldInvalid": "⟪Step {number} has a field with a value Bakery cannot use: {field}.⟫",
   "library.import.problem.stepFieldInvalidIn": "⟪Step {number}, in {parts}, has a field with a value Bakery cannot use: {field}.⟫",
-  "library.import.problem.fieldInvalid": "⟪The definition has a field with a value Bakery cannot use: {field}.⟫"
+  "library.import.problem.fieldInvalid": "⟪The definition has a field with a value Bakery cannot use: {field}.⟫",
+  "library.import.problem.pathInvalid": "⟪{path}: Bakery cannot use this value.⟫",
+  "library.import.problem.pathMissing": "⟪{path}: a required field is missing.⟫"
 }

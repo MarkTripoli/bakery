@@ -181,6 +181,15 @@ for (
       await checked(state(page)).toContainText(
         "Step 2 has a field with a value Bakery cannot use: with.",
       );
+      // A finding with a path and no better sentence says where and that the
+      // value cannot be used; the checker's own words are not shown.
+      await checked(state(page)).toContainText(
+        "inputs.target.type: Bakery cannot use this value.",
+      );
+      await checked(state(page)).toContainText(
+        "Step 3, id: Bakery cannot use this value.",
+      );
+      await expect(state(page)).not.toContainText("invalid shape");
       await expect(
         dialog(page).getByRole("button", { name: "Import as draft" }),
       )
@@ -193,7 +202,7 @@ for (
       const seen = await open(page);
       await paste(page, "steps: [");
       await checked(state(page)).toContainText(
-        "The definition: The definition is not valid YAML 1.2.",
+        "The definition is not valid YAML 1.2.",
       );
       await expect(
         dialog(page).getByRole("button", { name: "Import as draft" }),

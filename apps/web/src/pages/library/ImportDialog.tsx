@@ -250,28 +250,45 @@ export function ImportDialog(
     }
     return null;
   };
-  const lines = (problems: readonly ImportProblem[], label: string) => (
+  // What a finding with a path and no better sentence says: where it is, then
+  // that the value cannot be used (or the field is missing). The checker's own
+  // sentence is shown only when the finding has no path at all, and for
+  // warnings, whose sentence is the advice itself.
+  const generic = (problem: ImportProblem): string | null => {
+    if (problem.where.kind === "whole") return null;
+    return translate(
+      (problem.code === "field_missing"
+        ? "library.import.problem.pathMissing"
+        : "library.import.problem.pathInvalid") as never,
+      { path: where(problem) },
+    );
+  };
+  const lines = (
+    problems: readonly ImportProblem[],
+    label: string,
+    kind: "error" | "warning",
+  ) => (
     <UI.Stack gap="compact" role="list" aria-label={label}>
-      {problems.map((problem, index) => (
-        <div key={index} role="listitem">
-          {sentence(problem) !== null
-            ? <UI.Text variant="caption">{sentence(problem)}</UI.Text>
-            : problem.where.kind === "path"
-            ? (
-              <UI.Inline gap="compact">
-                <UI.DataText>{where(problem)}</UI.DataText>
-                <UI.Text variant="caption">{problem.message}</UI.Text>
-              </UI.Inline>
-            )
-            : (
-              <UI.Text variant="caption">
-                {where(problem)}
-                {": "}
-                {problem.message}
-              </UI.Text>
-            )}
-        </div>
-      ))}
+      {problems.map((problem, index) => {
+        const known = kind === "error"
+          ? sentence(problem) ?? generic(problem)
+          : sentence(problem);
+        return (
+          <div key={index} role="listitem">
+            {known !== null
+              ? <UI.Text variant="caption">{known}</UI.Text>
+              : problem.where.kind === "whole"
+              ? <UI.Text variant="caption">{problem.message}</UI.Text>
+              : (
+                <UI.Text variant="caption">
+                  {where(problem)}
+                  {": "}
+                  {problem.message}
+                </UI.Text>
+              )}
+          </div>
+        );
+      })}
     </UI.Stack>
   );
 
@@ -372,6 +389,7 @@ export function ImportDialog(
                     {lines(
                       check.problems,
                       translate("library.import.problems" as never),
+                      "error",
                     )}
                   </UI.Stack>
                 </UI.InlineNotice>
@@ -390,6 +408,7 @@ export function ImportDialog(
                     {check.warnings.length === 0 ? null : lines(
                       check.warnings,
                       translate("library.import.warnings" as never),
+                      "warning",
                     )}
                   </UI.Stack>
                 </UI.InlineNotice>
