@@ -4,6 +4,7 @@ import {
   isBlocking,
   missingTools,
   outcomeOf,
+  standingOf,
 } from "../../apps/web/src/pages/projects/check-state.ts";
 
 const check = (
@@ -159,4 +160,33 @@ Deno.test("the tools a machine lacks are named in the order it listed them", () 
     isBlocking(check("a", { required: false, status: "failed" }) as never),
     false,
   );
+});
+
+Deno.test("the header stands Ready only for a passed check of the version in use, Check failed for a failed one, and says nothing otherwise", () => {
+  const result = (blocking: boolean) =>
+    ({
+      kind: "result",
+      outcome: outcomeOf(
+        observation(
+          [check(
+            "a",
+            blocking ? { status: "failed", reason: "exit_nonzero" } : {},
+          )],
+          blocking ? "blocked" : "eligible",
+        ),
+      ),
+    }) as never;
+  assertEquals(standingOf(result(false), "p2", "p2"), "ready");
+  assertEquals(standingOf(result(true), "p2", "p2"), "failed");
+  // A result for another version, or no version in use, is not a standing.
+  assertEquals(standingOf(result(false), "p1", "p2"), null);
+  assertEquals(standingOf(result(false), "p2", null), null);
+  assertEquals(standingOf({ kind: "failed" }, null, "p2"), "failed");
+  assertEquals(standingOf({ kind: "canceled" }, null, "p2"), "failed");
+  assertEquals(standingOf({ kind: "none" }, null, "p2"), null);
+  assertEquals(
+    standingOf({ kind: "running", startedAt: "x" }, null, "p2"),
+    null,
+  );
+  assertEquals(standingOf({ kind: "unreadable" }, null, "p2"), null);
 });

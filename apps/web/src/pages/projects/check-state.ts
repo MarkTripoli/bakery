@@ -120,3 +120,24 @@ export function missingTools(host: CheckHost): string[] {
 export function isBlocking(check: CheckResult): boolean {
   return check.required && check.status !== "passed";
 }
+
+/**
+ * What the header and the footnote say once the connection and the settings
+ * are known: Ready when the check passed for the version in use, Check failed
+ * when it did not pass (or could not be completed), nothing when no check is
+ * known for that version: the page does not guess a state it has not read.
+ */
+export type CheckStanding = "ready" | "failed" | null;
+
+export function standingOf(
+  view: CheckView,
+  observedProfileId: string | null,
+  activeProfileId: string | null,
+): CheckStanding {
+  if (activeProfileId === null) return null;
+  if (view.kind === "failed" || view.kind === "canceled") return "failed";
+  if (view.kind !== "result") return null;
+  // A result for another version of the settings is not this version's.
+  if (observedProfileId !== activeProfileId) return null;
+  return view.outcome.ready ? "ready" : "failed";
+}

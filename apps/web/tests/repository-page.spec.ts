@@ -535,7 +535,7 @@ test.describe("the readiness check", () => {
       "All 3 required checks passed · checked",
       { timeout: 15_000 },
     );
-    await expect(step(page)).toContainText("on Linux (x64)");
+    await expect(step(page)).toContainText("on a Linux (x64) machine");
     await expect(step(page)).toHaveAttribute("data-state", "done");
     await expect(page).toHaveURL(new RegExp(`check=${CHECK_ID}`));
     await expect(again(page)).toBeVisible();
@@ -570,13 +570,16 @@ test.describe("the readiness check", () => {
     );
     const node = page.locator('[data-check-id="node"]');
     await expect(node).toContainText("Project builds (Node)");
-    await expect(node).toContainText("The check ran and failed.");
+    await expect(node).toContainText(
+      "The check ran and failed. Fix the build in the repository, then check again.",
+    );
     // The optional one is shown last, marked Optional.
     const optional = page.locator('[data-check-id="deno"]');
     await expect(optional).toContainText("Optional");
     await expect(optional).toContainText(
       "The check took too long and was stopped.",
     );
+    await expect(optional).toContainText("This does not stop work.");
     expect(await rows.last().getAttribute("data-check-id")).toBe("deno");
     // Check again is the page's one filled button.
     await expect(again(page)).toBeEnabled();
@@ -702,5 +705,93 @@ test.describe("the readiness check", () => {
     await run(page).click();
     await expect.poll(() => seen.starts.length).toBe(2);
     expect(seen.starts[1]).toBe(seen.starts[0]);
+  });
+});
+
+test.describe("where the setup stands, in the header and the footnote", () => {
+  const WORLD: Options = { profiles: SETTINGS, active: 2 };
+  const standing = (page: Page) => page.getByTestId("repository-standing");
+  const run = (page: Page) =>
+    page.getByTestId("setup-check").getByRole("button", {
+      name: "Run the check",
+    });
+
+  test("before any check the header says nothing about readiness, and the footnote is the plain one", async ({ page }) => {
+    await open(page, WORLD);
+    await expect(standing(page)).toHaveCount(0);
+    await expect(page.getByText("Not set up")).toHaveCount(0);
+    await expect(
+      page.getByText("Bakery can start tasks here once all three are done."),
+    ).toBeVisible();
+    // No line under step 3's sentence when no list of checks follows (wide screen).
+    if (test.info().project.name === "desktop") {
+      await expect(
+        page.getByTestId("setup-check").locator(".ui-step-item__detail"),
+      ).toHaveCount(0);
+    }
+  });
+
+  test("a passed check is Ready in the header and the footnote says tasks can start", async ({ page }) => {
+    await open(page, WORLD);
+    await run(page).click();
+    await expect(standing(page)).toHaveText("Ready", { timeout: 15_000 });
+    await expect(
+      page.getByText("Bakery can start tasks here.", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/once all three are done/),
+    ).toHaveCount(0);
+    if (test.info().project.name === "desktop") {
+      await expect(
+        page.getByTestId("setup-check").locator(".ui-step-item__detail"),
+      ).toHaveCount(0);
+    }
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-standing-ready");
+  });
+
+  test("a check that did not pass is Check failed in the header", async ({ page }) => {
+    await open(page, { ...WORLD, check: "blocked" });
+    await run(page).click();
+    await expect(standing(page)).toHaveText("Check failed", {
+      timeout: 15_000,
+    });
+    await expect(
+      page.getByText("Bakery can start tasks here once all three are done."),
+    ).toBeVisible();
+  });
+
+  test("a check that could not be completed is Check failed too", async ({ page }) => {
+    await open(page, { ...WORLD, check: "failed" });
+    await run(page).click();
+    await expect(standing(page)).toHaveText("Check failed", {
+      timeout: 15_000,
+    });
+  });
+
+  test("a result for another version of the settings says nothing in the header", async ({ page }) => {
+    await repositoryFixture(page, {
+      ...WORLD,
+      check: "stale",
+      existingCheck: true,
+    });
+    await page.goto(
+      `/projects/repositories/${REPOSITORY_ID}?check=${CHECK_ID}`,
+    );
+    await expect(
+      page.getByTestId("setup-check").getByText(
+        /The last check was for version 1/,
+      ),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(standing(page)).toHaveCount(0);
+  });
+
+  test("with the connection not working a passed check is not Ready", async ({ page }) => {
+    await open(page, { ...WORLD, connection: "revoked" });
+    await run(page).click();
+    await expect(
+      page.getByTestId("setup-check").getByText(/checked/),
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(standing(page)).toHaveCount(0);
   });
 });

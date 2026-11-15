@@ -26,6 +26,8 @@ import { PROJECTS_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
 import { useCursorPages } from "./projects-onboarding/useCursorPages.ts";
 import { ReadinessStep } from "./projects/ReadinessStep.tsx";
+import { useCheckView } from "./projects/use-check-view.ts";
+import { standingOf } from "./projects/check-state.ts";
 import { WorkingSettingsSheet } from "./projects/WorkingSettingsSheet.tsx";
 import {
   activeProfile,
@@ -116,6 +118,11 @@ export function RepositoryPage(
   };
 
   const current = repository.data;
+  const info = useCheckView(
+    { id: repositoryId, applicationId: current?.applicationId ?? "" },
+    checkId,
+    current !== undefined,
+  );
   const breadcrumbs = (
     <ShellSlot name="breadcrumbs">
       <UI.Breadcrumbs
@@ -216,13 +223,20 @@ export function RepositoryPage(
     );
   }
 
-  const badge = setupBadge(current);
   const active = activeProfile(current, profiles.items);
   const archived = current.archivedAt !== null;
   const status = (value: "done" | "todo" | "unknown") =>
     translate(`projects.repository.status.${value}` as never);
   const account = connection.data?.label ?? "";
   const connectionWorks = connection.data?.status === "enabled";
+  // The header says where the setup stands when it is known: Archived and Not
+  // set up from the repository itself, Ready or Check failed from the check
+  // for the version in use (and only when the connection works too); with no
+  // check known for that version it says nothing, never a guess.
+  const setup = setupBadge(current);
+  const standing = connectionWorks
+    ? standingOf(info.view, info.observedProfileId, active?.id ?? null)
+    : null;
 
   // On a wide screen the page's actions are in the top bar; on a phone they
   // follow the title (the header's own actions row is for the phone only).
@@ -266,13 +280,30 @@ export function RepositoryPage(
                   branch: current.defaultBranch,
                 })}
               </UI.Text>
-              {badge === null ? null : (
-                <UI.Inline gap="compact">
-                  <UI.Badge tone="neutral">
-                    {translate(`projects.list.badge.${badge}` as never)}
-                  </UI.Badge>
-                </UI.Inline>
-              )}
+              {setup === null && standing === null
+                ? null
+                : (
+                  <UI.Inline gap="compact">
+                    {setup !== null
+                      ? (
+                        <UI.Badge tone="neutral">
+                          {translate(`projects.list.badge.${setup}` as never)}
+                        </UI.Badge>
+                      )
+                      : (
+                        <UI.Badge
+                          tone={standing === "ready" ? "success" : "danger"}
+                          data-testid="repository-standing"
+                        >
+                          {translate(
+                            (standing === "ready"
+                              ? "projects.repository.badge.ready"
+                              : "projects.repository.badge.checkFailed") as never,
+                          )}
+                        </UI.Badge>
+                      )}
+                  </UI.Inline>
+                )}
             </UI.Stack>
           }
           actions={phone ? rulesButton : null}
@@ -383,10 +414,9 @@ export function RepositoryPage(
               </UI.StepItem>
               <ReadinessStep
                 repository={current}
-                applicationId={current.applicationId}
+                info={info}
                 active={active}
                 canManage={canManage}
-                checkId={checkId}
                 onStarted={(id) =>
                   void navigate({
                     to: "/projects/repositories/$repositoryId",
@@ -398,7 +428,11 @@ export function RepositoryPage(
             </UI.StepList>
           </UI.ListSection>
           <UI.Text variant="muted">
-            {translate("projects.repository.setup.footnote" as never)}
+            {translate(
+              (standing === "ready"
+                ? "projects.repository.setup.footnoteReady"
+                : "projects.repository.setup.footnote") as never,
+            )}
           </UI.Text>
         </UI.Stack>
         {sheet

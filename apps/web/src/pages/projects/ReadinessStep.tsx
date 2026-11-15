@@ -1,17 +1,10 @@
-import type { ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { Fragment, type ReactNode } from "react";
 import * as UI from "@bakery/ui";
 import type {
   RepositoryProfileResponse,
   RepositoryResponse,
 } from "../../api/client.ts";
-import { useBakeryApi } from "../../api/context.tsx";
-import {
-  repositoryCheckQueryOptions,
-  repositoryProfileObservationQueryOptions,
-} from "../../api/query.ts";
 import { useConnectivity } from "../../app/connectivity.ts";
-import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useShellViewport } from "../../app/responsive.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import {
@@ -19,10 +12,10 @@ import {
   CHECK_REASON_KEYS,
   type CheckOutcome,
   type CheckResult,
-  checkView,
   isBlocking,
   missingTools,
 } from "./check-state.ts";
+import type { CheckInfo } from "./use-check-view.ts";
 import { useStartCheck } from "./use-readiness-check.ts";
 
 /**
@@ -32,48 +25,21 @@ import { useStartCheck } from "./use-readiness-check.ts";
  * other, and says "not checked yet" rather than guess.
  */
 export function ReadinessStep(
-  { repository, applicationId, active, canManage, checkId, onStarted }:
-    Readonly<{
-      repository: RepositoryResponse;
-      applicationId: string;
-      active: RepositoryProfileResponse | null;
-      canManage: boolean;
-      checkId: string | null;
-      onStarted: (checkId: string) => void;
-    }>,
+  { repository, info, active, canManage, onStarted }: Readonly<{
+    repository: RepositoryResponse;
+    /** What is known about the check the address names (shared with the page header). */
+    info: CheckInfo;
+    active: RepositoryProfileResponse | null;
+    canManage: boolean;
+    onStarted: (checkId: string) => void;
+  }>,
 ) {
-  const api = useBakeryApi();
-  const scope = useProtectedScope();
   const { translate, locale, timeZone } = useI18n();
   const phone = useShellViewport() === "phone";
   const offline = useConnectivity() === "offline";
   const archived = repository.archivedAt !== null;
   const starter = useStartCheck(repository, onStarted);
-
-  const check = useQuery({
-    ...repositoryCheckQueryOptions(api, scope, repository.id, checkId ?? ""),
-    enabled: scope.organizationId !== null && checkId !== null,
-  });
-  const finished = check.data?.status === "completed" && !check.isError
-    ? check.data
-    : null;
-  const observation = useQuery({
-    ...repositoryProfileObservationQueryOptions(
-      api,
-      scope,
-      applicationId,
-      finished,
-    ),
-    enabled: scope.organizationId !== null && finished?.observationId != null &&
-      finished.profileId !== null,
-  });
-  const view = checkView({
-    known: checkId !== null,
-    onboarding: check.data ?? null,
-    readFailed: check.isError,
-    observation: observation.data ?? null,
-    observationFailed: observation.isError,
-  });
+  const { view } = info;
 
   const when = (value: string) =>
     new Intl.DateTimeFormat(locale, {
@@ -119,26 +85,28 @@ export function ReadinessStep(
       }` as never,
     );
   const reasonOf = (result: CheckResult, outcome: CheckOutcome) => {
-    if (result.reason === "tool_missing") {
-      const tools = missingTools(outcome.host);
-      return tools.length === 0
-        ? translate(
-          "projects.repository.check.reason.toolMissingUnknown" as never,
-        )
-        : translate("projects.repository.check.reason.toolMissing" as never, {
-          tools: tools.join(", "),
-        });
-    }
-    if (result.reason === "unsupported_command" && !result.required) {
-      return translate(
-        "projects.repository.check.reason.unsupportedCommandOptional" as never,
+    const sentence = result.reason === "tool_missing"
+      ? (() => {
+        const tools = missingTools(outcome.host);
+        return tools.length === 0
+          ? translate(
+            "projects.repository.check.reason.toolMissingUnknown" as never,
+          )
+          : translate("projects.repository.check.reason.toolMissing" as never, {
+            tools: tools.join(", "),
+          });
+      })()
+      : translate(
+        `projects.repository.check.reason.${
+          CHECK_REASON_KEYS[result.reason]
+        }` as never,
       );
-    }
-    return translate(
-      `projects.repository.check.reason.${
-        CHECK_REASON_KEYS[result.reason]
-      }` as never,
-    );
+    // An optional check that did not pass says what that costs: nothing.
+    return result.required
+      ? sentence
+      : `${sentence} ${
+        translate("projects.repository.check.reason.optionalSuffix" as never)
+      }`;
   };
   const failedList = (outcome: CheckOutcome): ReactNode => {
     const rows = outcome.checks.filter((result) => result.status !== "passed")
@@ -227,10 +195,7 @@ export function ReadinessStep(
     quiet = (
       <UI.Button
         variant="text"
-        onClick={() => {
-          void check.refetch();
-          void observation.refetch();
-        }}
+        onClick={info.refetch}
       >
         {translate("projects.repository.check.retry" as never)}
       </UI.Button>
@@ -249,13 +214,13 @@ export function ReadinessStep(
     );
     next = run(again, true);
   } else if (
-    observation.data !== undefined && observation.data.profileId !== active.id
+    info.observedProfileId !== null && info.observedProfileId !== active.id
   ) {
     // The result is for another version of the settings than the one in use.
     stepStatus = "unknown";
     label = status("unknown");
     summary = translate("projects.repository.check.otherVersion" as never, {
-      checked: observation.data.profileRevision,
+      checked: info.observedRevision,
       current: active.revision,
     });
     next = run(again, true);
@@ -283,6 +248,9 @@ export function ReadinessStep(
     detail = failedList(outcome);
   }
 
+  const body = [phone ? next : undefined, notice, detail].filter((part) =>
+    part !== undefined && part !== null && part !== false
+  );
   return (
     <UI.StepItem
       data-testid="setup-check"
@@ -292,9 +260,9 @@ export function ReadinessStep(
       summary={summary}
       action={phone ? quiet : next ?? quiet}
     >
-      {phone ? next : undefined}
-      {notice}
-      {detail}
+      {body.length === 0 ? undefined : (
+        body.map((part, index) => <Fragment key={index}>{part}</Fragment>)
+      )}
     </UI.StepItem>
   );
 }
