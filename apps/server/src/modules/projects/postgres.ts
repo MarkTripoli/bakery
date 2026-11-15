@@ -1215,6 +1215,42 @@ export const createProfile = async (
       });
     }
   }
+  // A branches-only save that carries the active overrides (#65) is still a
+  // retention save: only `branches` may change. Workflow, worktree and agent
+  // bindings are kept, and the active fixedPolicy must be carried; a fixed
+  // policy locks the branch boundary for its revision, so a branches change
+  // under one goes through a new policy revision instead.
+  if (carriedRepositoryRules !== undefined && parsedActiveConfig.success) {
+    const changed = changedRetainedFields(
+      parsedActiveConfig.data,
+      parsedConfig.data,
+    ).filter((field) => field !== "branches");
+    if (changed.length > 0) {
+      throw new StandardError({
+        code: "UNPROCESSABLE",
+        params: {
+          issues: [{
+            path: ["config"],
+            code: "repository_rules_must_retain_config",
+            message: `A branches-only save changed retained fields: ${
+              changed.join(", ")
+            }.`,
+          }],
+        },
+      });
+    }
+    const activeFixedPolicy = parsedActiveConfig.data.fixedPolicy;
+    if (
+      activeFixedPolicy?.lockedConfiguration.branches === true &&
+      canonicalJson(parsedActiveConfig.data.branches) !==
+        canonicalJson(parsedConfig.data.branches)
+    ) {
+      throw unprocessable(
+        ["config", "branches"],
+        "repository_branches_locked",
+      );
+    }
+  }
   if (repository.archived_at !== null) {
     throw new StandardError({
       code: "STATE_CONFLICT",

@@ -2257,6 +2257,75 @@ Deno.test("#65: keepRepositoryRules saves branches and carries the active overri
         );
       }
     });
+
+    await test.step("the flag still retains workflow, worktree and agent bindings (qa3)", async () => {
+      const retained = await f.seedRepository(organizationAId);
+      const seeded = await publish(retained.repositoryId, 1, {
+        ...baseProfileConfig,
+        repositoryRules: rules,
+      }, { expectedOrganizationRulesRevision: 0 });
+      assertEquals(seeded.status, 201, await seeded.clone().text());
+      const versionBefore = await repositoryVersion(retained.repositoryId);
+      const moved = await publish(retained.repositoryId, 2, {
+        ...branches("moved/*"),
+        worktree: { root: ".moved/worktrees" },
+      }, { keepRepositoryRules: true });
+      assertEquals(moved.status, 422, await moved.clone().text());
+      const issue = (await moved.json() as {
+        issues: { code: string; message: string }[];
+      }).issues[0];
+      assertEquals(issue.code, "repository_rules_must_retain_config");
+      assert(issue.message.includes("worktree"), issue.message);
+      assert(!issue.message.includes("branches"), issue.message);
+      assertEquals(
+        await repositoryVersion(retained.repositoryId),
+        versionBefore,
+      );
+    });
+
+    await test.step("over a fixed policy the flag must carry it and may not move locked branches (qa3)", async () => {
+      const locked = await f.seedRepository(organizationAId);
+      const seeded = await publish(locked.repositoryId, 1, {
+        ...baseProfileConfig,
+        fixedPolicy: fixedPolicyDraft,
+        repositoryRules: rules,
+      }, { expectedOrganizationRulesRevision: 0 });
+      assertEquals(seeded.status, 201, await seeded.clone().text());
+      const versionBefore = await repositoryVersion(locked.repositoryId);
+      // Omitting the fixed policy would drop its required checks and locks.
+      const dropped = await publish(locked.repositoryId, 2, {
+        ...baseProfileConfig,
+      }, { keepRepositoryRules: true });
+      assertEquals(dropped.status, 422, await dropped.clone().text());
+      const droppedIssue = (await dropped.json() as {
+        issues: { code: string; message: string }[];
+      }).issues[0];
+      assertEquals(droppedIssue.code, "repository_rules_must_retain_config");
+      assert(
+        droppedIssue.message.includes("fixedPolicy"),
+        droppedIssue.message,
+      );
+      // The fixed policy locks the branch boundary for its revision.
+      const moved = await publish(locked.repositoryId, 2, {
+        ...branches("locked/*"),
+        fixedPolicy: fixedPolicyDraft,
+      }, { keepRepositoryRules: true });
+      assertEquals(moved.status, 422, await moved.clone().text());
+      assertEquals(
+        (await moved.json() as { issues: { code: string }[] }).issues[0].code,
+        "repository_branches_locked",
+      );
+      assertEquals(await repositoryVersion(locked.repositoryId), versionBefore);
+      // Carrying both unchanged is accepted and keeps the overrides.
+      const kept = await publish(locked.repositoryId, 2, {
+        ...baseProfileConfig,
+        fixedPolicy: fixedPolicyDraft,
+      }, { keepRepositoryRules: true });
+      assertEquals(kept.status, 201, await kept.clone().text());
+      const active = await activeConfig(locked.repositoryId);
+      assertEquals(active.config.repositoryRules, rules);
+      assert(active.config.fixedPolicy !== undefined, "fixed policy kept");
+    });
   } finally {
     await f.close();
   }
