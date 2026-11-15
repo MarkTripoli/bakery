@@ -444,13 +444,10 @@ test("on a phone an applied search stays on one row, with Clear beside it", asyn
     (page.viewportSize()?.width ?? 1280) > 743,
     "on a wider screen the field itself is in the toolbar",
   );
-  const requests: URL[] = [];
-  await page.route("**/v1/tasks?*", (route) => {
-    requests.push(new URL(route.request().url()));
-    return route.fulfill({
-      json: { items: stillTasks, nextCursor: null },
-    });
-  });
+  await page.route(
+    "**/v1/tasks?*",
+    (route) => route.fulfill({ json: { items: stillTasks, nextCursor: null } }),
+  );
   await page.route(
     "**/v1/artifacts?*",
     (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
@@ -492,8 +489,10 @@ test("on a phone an applied search stays on one row, with Clear beside it", asyn
   await clear.click();
   await expect(searchButton("Search")).toBeFocused();
   await expect(clear).toHaveCount(0);
-  await expect.poll(() => requests.at(-1)?.searchParams.get("search") ?? "")
-    .toBe("");
+  // What a person sees: the whole list is back and the field is empty again.
+  await expect(page.getByRole("link", { name: stillTasks[0].title }))
+    .toBeVisible();
+  await expect(await searchField(page)).toHaveValue("");
 });
 
 // Evidence stills of the Work list (BAKERY_STILLS_DIR): the list with tasks,

@@ -282,6 +282,11 @@
   max-inline-size: 100%;
   min-inline-size: 0;
 }
+/* Only the Search button gives way: Clear keeps its whole touch target. */
+.ui-task-inbox__filters > .ui-inline > .ui-icon-button {
+  flex: 0 0 auto;
+  min-inline-size: var(--target-min);
+}
 .ui-popover__trigger--toolbar .ui-data-text {
   color: inherit;
   font: inherit;
