@@ -1557,8 +1557,10 @@ export function createMachineReadinessWorkflows(
         id: string;
         version: number;
         enabled: boolean;
+        billing_route: string;
       }>(
-        `select id, version, enabled from bakery.worker_provider_bindings
+        `select id, version, enabled, billing_route
+         from bakery.worker_provider_bindings
          where organization_id = $1 and worker_host_id = $2 and id = $3
          for update`,
         [organizationId, workerHostId, bindingId],
@@ -1587,7 +1589,12 @@ export function createMachineReadinessWorkflows(
           [organizationId, bindingId, input.modelProviderAccountId],
         );
       }
-      if (input.billingRoute !== undefined) {
+      // An unchanged route is no change (#68): no version bump, so a full-body
+      // save does not make another editor's If-Match stale.
+      if (
+        input.billingRoute !== undefined &&
+        input.billingRoute !== binding.billing_route
+      ) {
         await transaction.query(
           `update bakery.worker_provider_bindings
            set billing_route = $3, updated_at = current_timestamp,

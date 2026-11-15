@@ -392,6 +392,26 @@ Deno.test("coding agents serve their payment methods; bindings keep to them (#68
       },
     );
     assertEquals(resaved.status, 200, await resaved.clone().text());
+    // Re-sending only the unchanged route changes nothing: the version holds,
+    // so another editor's If-Match stays valid.
+    const versionOf = async () =>
+      (await fixture.pgDatabase.query<{ version: number }>(
+        `select version from bakery.worker_provider_bindings where id = $1`,
+        [binding.id],
+      )).rows[0].version;
+    const before = await versionOf();
+    const noop = await adminRequest(
+      fixture,
+      `/v1/workers/${hostId}/provider-bindings/${binding.id}`,
+      { billingRoute: "subscription" },
+      {
+        method: "PATCH",
+        idempotencyKey: crypto.randomUUID(),
+        headers: { "If-Match": `"${before}"` },
+      },
+    );
+    assertEquals(noop.status, 200, await noop.clone().text());
+    assertEquals(await versionOf(), before);
 
     // A component the table does not know supports no route: refused on bind
     // (fail closed), and an older binding on it reads as needing attention.
