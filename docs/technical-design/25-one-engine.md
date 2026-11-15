@@ -3,8 +3,7 @@
 Status: design accepted by the product owner on 14 November 2026. Nothing here is
 implemented yet. This chapter is the canonical statement of the one-system design.
 Where another chapter disagrees with it, this chapter wins and the other chapter
-should be corrected. Decisions O54 to O63 (section 19, tagging people) are
-**pending** until the owner confirms them; every other decision is made.
+should be corrected. No decision here is pending.
 
 Companion documents, kept for their detail, live in [one-system/](one-system/):
 
@@ -989,157 +988,125 @@ Bakery templates that need them and always labelled as an agent's action.
 - **O53:** sealed steps are available to any definition and the default for
   evaluation runs.
 
-## 19. Tagging people (pending O54 to O63)
+## 19. Tagging people (O54 to O63)
 
-The owner wants workflows to tag people: to review, to take control, or anything
-else. The model is one line: **@someone, plus what you need from them.** A tag
-is a typed request to a person with an intent, a link to the exact thing, a grant
-covering only what the intent needs, and a recorded response. It adds no new way
-to decide anything; it is the addressing, delivery and delegation layer over
-human steps, steering and take over (section 9), comments, and the inbox of
+The owner wants workflows to tag people, to review, take control or anything
+else, without over-engineering it. **A tag is who, what you need from them, and
+a link to the exact run or step**, with an optional short note and due time. It
+adds no new way to decide anything: it is how a person is addressed and reached
+for what the design already has, which is human steps, steering and take over
+(section 9), comments, and the inbox of
 [chapter 24](24-mentions-and-notifications.md). Chapter 24's rules hold: text
-never tags, a mention needs sharing authority, nothing crosses organizations,
-and one inbox item per recipient. This section is the architect's design in
-section 13 of `one-system.md`; its decisions are pending.
+never tags, a mention needs sharing authority, and there is one inbox item per
+recipient.
 
-### 19.1 What a tag is (O54)
+### 19.1 The tag (O54)
 
 | Part | Meaning |
 | --- | --- |
-| To | One or more recipients (19.3), resolved when the tag is made and frozen on it |
-| Intent | What is needed, from the closed set below |
-| About | The exact target: a run, step or session, an approval or question, an artifact version, a comment or a message. Every delivery deep-links to it |
-| Note, due | A short message; an optional due time that drives reminders and escalation |
-| Grant | What the tag lets the recipient do, and until when (19.4) |
-| Response | What the recipient did, recorded in the work item's decisions ledger |
+| Who | A member, a group or role (`@design-reviewers`), or a recipient worked out from the run: the starter, the workflow's owner, the task's owner, a seat's owner, the last person who steered the step |
+| What you need | One of five intents: FYI, review, approve, answer, take over |
+| Link | The exact run, step, approval, question, document version or comment |
+| Note, due time | Optional |
 
-| Intent | Asks for | Blocks a step? |
-| --- | --- | --- |
-| FYI | Nothing; recorded as seen | No |
-| Review | Look, comment or raise findings | Only if the workflow waits for it |
-| Approve or decide | Approve, request changes or reject, or a named decision | Yes |
-| Answer | An answer, from options or free text | If the asking step waits |
-| Take over | Become the step's completer (O20) | Yes |
-| Custom | A response the workflow declares (choices or short text), readable by a branch | As the workflow says |
+- A tag is a typed operation, never a pattern in text: `@Sam` in an agent's
+  message or a pasted document does nothing.
+- Recipients are resolved once, when the tag is made, and frozen on it.
+- A group is answered by any one member, after which the others see "handled by
+  Sam" (O57).
+- A recipient that cannot be resolved falls back to the workflow's owner with a
+  visible note (O62).
 
-A tag is a typed operation, never a pattern in text: `@Sam` in an agent's
-message, a pasted document or an attachment does nothing.
+Where a tag appears:
 
-### 19.2 Where tags come from
+| Place | How |
+| --- | --- |
+| A human step | The approver or assignee is a tag: `audience: ["@design-reviewers"]` |
+| A Notify step | `uses: people.tag`, which may wait for the response or carry on |
+| A steer or comment on a live run or step, an artifact comment, a chat message | The same @ picker as chat; a chat mention is a tag with intent FYI |
+| An agent, during a run | `people.tag` through Bakery's own connection (section 18.1) |
 
-- **Workflow definitions:** a human step's audience is a tag expression
-  (`audience: ["@design-reviewers"]`, with `due`, `remind` and `escalate`); a
-  **Notify** step, `uses: people.tag`, which may wait for the response or carry
-  on; escalation rules on a due time or stuck signal.
-- **Live runs:** the session panel's composer has the same @ picker as chat, so
-  a steer or a comment on a run or step can tag.
-- **Artifact comments:** typed references in version-pinned comments.
-- **Chat:** chapter 24's mention becomes a tag with intent FYI.
-- **Agents (O55):** through `people.tag` on Bakery's own connection (section
-  18.1), under the same grants as a person and always labelled as an agent's
-  action naming the principal it acts for. Toward people already involved (the
-  starter, the work item's assignee or author, the workflow's or seat's owner,
-  an audience the definition names) it is on by default and rate-limited.
-  Bringing in someone not yet involved, or delegating a power the recipient
-  lacks, is an off-by-default power under O52, and never for itself (O51).
+**Agents (O55).** Agent-first applies: an agent tags under the same grants as a
+person, and the tag is labelled as the agent's action. By default it tags people
+already involved (the starter, the owners above, an audience the workflow
+names), limited to 3 tags per step and 10 per run (O63). Bringing in someone
+new, or handing over a power the recipient does not already hold, is an
+off-by-default power under O52.
 
-### 19.3 Who can be tagged
+### 19.2 What a tag grants (O56)
 
-A member; a group (`@design-reviewers`, organization-defined; groups are new);
-a role (`@admins`); on call (from a rota or an on-call connection); the starter;
-the work item's assignee or author (through the tickets family and an identity
-link); the last steerer; `@owners` (supplied by a pack, for code the owners of
-changed paths); and the workflow's, seat's or task's owner.
+Observe on that run, plus the one power the intent needs, on the one thing the
+tag is about.
 
-- Recipients are resolved once, when the tag is made (K2).
-- A group tag is answered by any one member by default; a workflow may ask for
-  all, or a number (O57).
-- An unresolvable recipient falls back to the workflow's owner with a visible
-  note; a tag is never silently dropped (O62).
-- People outside the organization are not tagged in the first version. Later,
-  an Admin may enable **guests** per workflow: an expiring, email-confirmed link
-  to the named artifact versions, review and approve only (O58).
+| Intent | The recipient may |
+| --- | --- |
+| FYI | Observe |
+| Review | Observe and comment |
+| Approve | Observe and make that one decision: approve, request changes or reject |
+| Answer | Observe and answer that one question |
+| Take over | Observe, steer that session and take over that one step (O20) |
 
-### 19.4 What a tag grants (O56)
+- **Bounded by the tagger.** Nobody hands over what they do not hold; bringing in
+  someone without access needs sharing authority on the run. A tag-only
+  recipient cannot share onward, and a tag cannot gain a power for oneself.
+- **Narrow.** Nothing beyond that run and that power.
+- **Stated before sending:** "Sam will be able to see this run and approve this
+  step."
+- **Expiry and withdrawal.** The power is used up by the response, or ends when
+  the tag is withdrawn or expires after seven days (O63). Observe stays.
+  Withdrawal is explicit; deleting the comment that carried a tag does not
+  revoke it.
+- **Recorded.** Making a tag and its response both go in the work item's
+  decisions ledger.
 
-Observe on the run, plus the one power the intent needs on the one target: FYI
-observes or reads; Review adds comment; Approve or decide adds that one
-decision; Answer adds that one answer; Take over adds steering that session and
-taking over that step; Custom adds the response.
+### 19.3 Delivery and follow-through (O59, O60)
 
-- Bounded by the tagger: nobody hands over what they do not hold, and bringing
-  in someone without access needs sharing authority, as in chapter 24. A
-  tag-only recipient cannot share onward.
-- Nothing for oneself (O51): tagging yourself grants nothing.
-- Narrow: never the project, other runs or documents, or agent execution. Being
-  tagged to review does not make someone the independent reviewer of work they
-  built or took over.
-- The power is used up by the response, or ends on withdrawal, expiry (7 days by
-  default) or when the step stops waiting. Observe stays.
-- Withdrawal is explicit; deleting the carrying comment does not revoke.
-- "People on this run" shows who has access by tag and who tagged them. Making a
-  tag and its response are both in the decisions ledger.
+- One inbox item per recipient (chapter 24's notification); every channel
+  delivers that item.
+- Channels: the inbox always, Slack where the member has a linked identity, and
+  email as the fallback when the item stays unseen. Approving from Slack is
+  allowed under the linked identity (O21); email is a link to the signed-in
+  page.
+- A delivery carries the intent, who asked and the link, never document
+  contents.
+- One open tag per recipient, target and intent; tagging again nudges it.
+- **Escalate once, then expire.** A tag may name one escalation: after a time
+  with no response, tag someone else with the same request. If there is still no
+  response by the expiry, a waiting step returns `expired`, which the workflow
+  can branch on; unhandled, the run ends `needs_human`. Nothing is ever approved
+  by silence.
 
-### 19.5 Delivery and follow-through
-
-- **One inbox item** per recipient (chapter 24's notification and
-  deduplication); every channel delivers that item.
-- **Channels (O60):** inbox and bell always; Slack as a direct message or in the
-  run's thread where the member has a linked identity, with Approve and Reject
-  and thread replies as steers (O21); email as a link-only fallback when unseen;
-  push when chapter 24's foundation lands. Preferences are per person, intent and
-  channel; the inbox cannot be switched off. Deliveries carry a title, intent,
-  requester and link, never document bytes or transcripts.
-- **Dedupe:** one open tag per recipient, target and intent; tagging again
-  nudges it.
-- **Reminders and escalation:** at most three reminders and three escalation
-  levels; each level tags the next recipient, the first tag stays open, and the
-  first response settles it. "Waiting on a person" is a stuck signal.
-- **No response (O59):** a waiting step returns `expired`, a typed result the
-  workflow can branch on; unhandled, the run ends `needs_human`. A gate is never
-  approved by silence.
-- **Quiet hours (O61):** a per-person do-not-disturb window that holds Slack,
-  email and push, with an urgent override where the organization allows it. No
-  business-hours arithmetic in the first version.
-- **Defaults (O63):** agents may tag 3 times per step and 10 per run, with
-  identical tags suppressed and a cool-down per recipient; at most 3 reminders and
-  3 escalation levels; tags expire after 7 days.
-
-### 19.6 Slices
+### 19.4 Slices
 
 | Slice | Delivers |
 | --- | --- |
-| TG1 | Chapter 24's inbox, bell and page, with targets widened to runs, steps, approvals, questions, artifact versions and comments |
-| TG2 | The tag record, `people.tag`, scoped grants and withdrawal; tags as human-step audiences; ledger entries |
-| TG3 | Tags in steers and artifact comments; chat mentions folded in |
-| TG4 | Agents tag: limits, label, the default circle |
-| TG5 | Groups, roles, dynamic recipients, identity links for trackers and code hosts |
-| TG6 | Slack and email delivery, preferences, reminders |
-| TG7 | Escalation chains, the `expired` result, on call |
-| TG8 | Push and do-not-disturb |
-| TG9 | Guests, later if approved |
+| TG1 | Chapter 24's inbox, bell and page, with targets widened to runs, steps, approvals, questions, document versions and comments |
+| TG2 | The tag record, `people.tag`, scoped grants and withdrawal; tags as the audience of human steps, and in steers and comments |
+| TG3 | Agents tag people already involved, with limits and the label |
+| TG4 | Groups; Slack and email delivery; one escalation; the `expired` result |
 
-## 20. Pending owner decisions (O54 to O63)
+Later, not designed here: guests and other people outside the organization
+(O58), group tags needing all or a number of members, push, custom intents,
+longer escalation chains, reminders and per-person channel preferences, on-call
+rotas, and recipients taken from a tracker or code owners.
 
-These are the only pending items. Each is the architect's recommendation.
+## 20. Decisions O54 to O63
 
-- **O54:** a tag is one mechanism for approvers, Notify steps, comments, steers
-  and agents.
+Approved by the owner on 15 November 2026.
+
+- **O54:** one tag mechanism for approvers, Notify steps, comments, steers and
+  agents.
 - **O55:** agents tag people already involved by default, rate-limited and
-  labelled; bringing in someone new or delegating a power is off by default
-  under O52.
-- **O56:** a tag grants observe on the run plus the one power the intent needs,
+  labelled; bringing in someone new or delegating a power is an O52 power.
+- **O56:** a tag grants observe on the run plus the one power its intent needs,
   bounded by the tagger; the power expires, observe stays.
-- **O57:** any one member answers a group tag by default; all or a number where
-  the workflow asks.
-- **O58:** no people outside the organization in the first version; guests
-  later.
-- **O59:** with no response, escalate, then return `expired`; never approve a
-  gate by silence.
-- **O60:** inbox always, Slack where linked, email as a link-only fallback, push
-  later.
-- **O61:** a simple per-person do-not-disturb with an urgent override.
+- **O57:** any one member answers a group tag.
+- **O58:** no people outside the organization in the first version.
+- **O59:** escalate once, then return `expired`; never approve by silence.
+- **O60:** inbox always, Slack where linked, email as fallback; approving from
+  Slack is allowed, email is link-only.
+- **O61:** dropped (quiet hours and do-not-disturb).
 - **O62:** an unresolvable recipient falls back to the workflow's owner, with a
   visible note.
-- **O63:** agents 3 tags per step and 10 per run; at most 3 reminders and 3
-  escalation levels; tags expire after 7 days.
+- **O63:** agents 3 tags per step and 10 per run; one escalation step; tags
+  expire after 7 days.

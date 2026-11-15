@@ -117,4 +117,10 @@ This file records what the product owner decided in conversation with their orch
 - O52: these powers are off by default and can be granted per workflow or seat: decisions, publishing, "Use this version", switching on a start, widening one's own file scope, and steering other agents.
 - O53: sealed steps are available to any definition and are the default for evaluation runs.
 
-There are no pending owner decisions as of 14 November 2026.
+**Tagging people (one-system.md §13), 15 November 2026: "No quiet hours. Don't over-engineer."**
+- **Dropped:** O61, quiet hours and do-not-disturb.
+- **Approved as recommended:** O54 (one tag mechanism), O55 (agents tag people already involved by default; bringing in someone new or delegating a power is an O52 power), O56 (a tag grants observe plus the one power its intent needs, which expires; observe stays), O59 (escalate, then expire; never approve by silence), O60 (inbox always, Slack where linked, email fallback), O62 (an unresolvable recipient falls back to the workflow owner).
+- **Approved in simplified form:** O57 (any one group member answers), O58 (no outside people in v1), O63 (simple fixed limits; one escalation step).
+- **Later, not designed now:** push notifications, custom intent forms, "all" or "N of M" group answers, multi-level escalation, and guests.
+
+There are no pending owner decisions as of 15 November 2026.
