@@ -327,7 +327,11 @@ Deno.test("coding agents serve their payment methods; bindings keep to them (#68
     assertEquals(refused.status, 422);
     const refusedBody = await refused.json() as Record<string, unknown>;
     assertEquals(refusedBody.code, "VALIDATION_FAILED");
-    assertEquals(refusedBody.reason, "payment_method_unsupported");
+    assertEquals(refusedBody.issues, [{
+      path: ["billingRoute"],
+      message: "This coding agent does not accept this way of paying.",
+      code: "payment_method_unsupported",
+    }]);
 
     const accepted = await bind("api_metered");
     assertEquals(accepted.status, 201);
@@ -349,7 +353,8 @@ Deno.test("coding agents serve their payment methods; bindings keep to them (#68
     );
     assertEquals(rerouted.status, 422);
     assertEquals(
-      (await rerouted.json() as Record<string, unknown>).reason,
+      (await rerouted.json() as { issues: { code: string }[] }).issues[0]
+        .code,
       "payment_method_unsupported",
     );
 

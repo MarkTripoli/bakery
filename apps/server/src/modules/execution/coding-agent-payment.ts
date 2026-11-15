@@ -32,7 +32,8 @@ export function paymentMethodSupported(
 }
 
 /**
- * Refuses a new or changed binding whose route its coding agent does not accept.
+ * Refuses a new or changed binding whose route its coding agent does not accept,
+ * as a VALIDATION_FAILED issue on billingRoute coded payment_method_unsupported.
  * Existing bindings are never refused on read; they show as unsupported instead.
  */
 export function requirePaymentMethodSupported(
@@ -42,7 +43,13 @@ export function requirePaymentMethodSupported(
   if (!paymentMethodSupported(componentKey, billingRoute)) {
     throw new StandardError({
       code: "VALIDATION_FAILED",
-      params: { reason: "payment_method_unsupported" },
+      params: {
+        issues: [{
+          path: ["billingRoute"],
+          code: "payment_method_unsupported",
+          message: "This coding agent does not accept this way of paying.",
+        }],
+      },
     });
   }
 }
