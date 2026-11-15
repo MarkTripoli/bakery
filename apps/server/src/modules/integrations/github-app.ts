@@ -428,6 +428,9 @@ export const GitHubRepositorySchema = z.object({
   archived: z.boolean().optional().describe(
     "Whether the repository is archived; absent counts as not archived.",
   ),
+  default_branch: z.string().min(1).max(255).optional().describe(
+    "The repository's default branch name (#65); absent when GitHub omits it.",
+  ),
   permissions: z.object({
     admin: z.boolean().optional().describe(
       "Whether the authenticated user administers the repository.",
@@ -442,6 +445,7 @@ export const GitHubRepositorySchema = z.object({
   fullName: wire.full_name,
   private: wire.private,
   archived: wire.archived === true,
+  defaultBranch: wire.default_branch ?? null,
   // Fail closed: only an explicit admin grant to this user counts.
   admin: wire.permissions?.admin === true,
 })).describe(
