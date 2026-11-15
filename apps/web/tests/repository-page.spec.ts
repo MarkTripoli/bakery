@@ -513,7 +513,8 @@ test.describe("the two writes against how the server behaves", () => {
     await page.getByRole("button", { name: "Change" }).click();
     const folder = sheet(page).getByTestId("folder-text");
     await expect(folder).toContainText("Working folder");
-    await expect(folder).toContainText("services/api");
+    // A real folder is a path: it reads in the code face.
+    await expect(folder.locator(".ui-data-text")).toHaveText("services/api");
     await expect(folder).toContainText(
       "Set by this repository's rules. To change it, change the rules.",
     );
@@ -521,7 +522,9 @@ test.describe("the two writes against how the server behaves", () => {
     await expect(sheet(page).getByLabel("Working folder")).toHaveCount(0);
     await expect(sheet(page).getByRole("button", { name: "Advanced" }))
       .toHaveCount(0);
-    await expect(folder.getByRole("link", { name: "rules" })).toHaveAttribute(
+    await expect(
+      folder.getByRole("link", { name: "change the rules" }),
+    ).toHaveAttribute(
       "href",
       `/projects/repositories/${REPOSITORY_ID}/rules`,
     );
@@ -549,12 +552,14 @@ test.describe("the two writes against how the server behaves", () => {
       active: 1,
     });
     await page.getByRole("button", { name: "Change" }).click();
-    await expect(sheet(page).getByTestId("folder-text")).toContainText(
+    const folder = sheet(page).getByTestId("folder-text");
+    await expect(folder).toContainText(
       "Set by this repository's rules. To change it, change the rules.",
     );
-    await expect(sheet(page).getByRole("link", { name: "rules" })).toHaveCount(
-      0,
-    );
+    await expect(
+      sheet(page).getByRole("link", { name: "change the rules" }),
+    ).toHaveCount(0);
+    await expect(folder).toContainText("change the rules");
   });
 
   test("a repository without rules still sends no rules statement and no If-Match", async ({ page }) => {
@@ -588,8 +593,10 @@ test.describe("the two writes against how the server behaves", () => {
     await expect(notice).toContainText(
       "Nothing was saved. Your organization's rules fix the branches for this repository, so they cannot be changed here. An organization administrator can change that in Organization rules.",
     );
+    // The words in the sentence are the link: one link, no line repeating them.
     await expect(notice.getByRole("link", { name: "Organization rules" }))
       .toHaveAttribute("href", "/settings/organization/repository-rules");
+    await expect(notice.getByRole("link")).toHaveCount(1);
     await expect(sheet(page).getByText(/Try again/)).toHaveCount(0);
     // What was typed stays, and nothing changed: version 2 is still in use.
     await expect(sheet(page).getByLabel("Branches Bakery may work from"))
@@ -623,8 +630,10 @@ test.describe("the two writes against how the server behaves", () => {
     await expect(notice).toContainText(
       "Your organization's rules fix the branches for this repository. An organization administrator can change that in Organization rules.",
     );
+    // The words in the sentence are the link: one link, no line repeating them.
     await expect(notice.getByRole("link", { name: "Organization rules" }))
       .toHaveAttribute("href", "/settings/organization/repository-rules");
+    await expect(notice.getByRole("link")).toHaveCount(1);
     // Text, not a field; nothing to save, cancel or toggle.
     await expect(sheet(page).getByLabel("Branches Bakery may work from"))
       .toHaveCount(0);
@@ -637,9 +646,10 @@ test.describe("the two writes against how the server behaves", () => {
     await expect(sheet(page).getByRole("button", { name: "Cancel" }))
       .toHaveCount(0);
     await expect(sheet(page).getByText(/This saves version/)).toHaveCount(0);
-    await expect(sheet(page).getByTestId("folder-text")).toContainText(
-      "The whole repository",
-    );
+    const folderText = sheet(page).getByTestId("folder-text");
+    await expect(folderText).toContainText("The whole repository");
+    // A sentence about the folder, in the body face; only a real path is code.
+    await expect(folderText.locator(".ui-data-text")).toHaveCount(0);
     // The versions are still listed, with the one in use.
     await expect(sheet(page).getByTestId("profile-version-2")).toContainText(
       "In use",
@@ -655,11 +665,12 @@ test.describe("the two writes against how the server behaves", () => {
       active: 1,
     });
     await page.getByRole("button", { name: "Change" }).click();
-    await expect(sheet(page).getByTestId("branches-fixed")).toContainText(
+    const notice = sheet(page).getByTestId("branches-fixed");
+    await expect(notice).toContainText(
       "An organization administrator can change that in Organization rules.",
     );
-    await expect(sheet(page).getByRole("link", { name: "Organization rules" }))
-      .toHaveCount(0);
+    // The words, not a link: nothing to follow, and nothing repeated below.
+    await expect(notice.getByRole("link")).toHaveCount(0);
   });
 
   test("Use version over rules says when the chosen version does not carry them, and the button is the danger kind", async ({ page }) => {

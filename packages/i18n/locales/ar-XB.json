@@ -3740,7 +3740,8 @@
   "projects.repository.settings.organizationRules": "⟪Organization rules⟫",
   "projects.repository.use.rulesStop": "⟪Version {version} does not include this repository's own rules, so they stop applying.⟫",
   "projects.repository.use.otherRules": "⟪Version {version} has other rules of its own, so the ones in force now stop applying.⟫",
-  "projects.repository.failure.branchesLocked": "⟪Nothing was saved. Your organization's rules fix the branches for this repository, so they cannot be changed here. An organization administrator can change that in Organization rules.⟫",
-  "projects.repository.settings.folderSetByRules": "⟪Set by this repository's rules. To change it, change the rules.⟫",
-  "projects.repository.settings.branchesFixed": "⟪Your organization's rules fix the branches for this repository. An organization administrator can change that in Organization rules.⟫"
+  "projects.repository.failure.branchesLocked": "⟪Nothing was saved. Your organization's rules fix the branches for this repository, so they cannot be changed here. An organization administrator can change that in {organizationRules}.⟫",
+  "projects.repository.settings.folderSetByRules": "⟪Set by this repository's rules. To change it, {rulesLink}.⟫",
+  "projects.repository.settings.changeRules": "⟪change the rules⟫",
+  "projects.repository.settings.branchesFixed": "⟪Your organization's rules fix the branches for this repository. An organization administrator can change that in {organizationRules}.⟫"
 }

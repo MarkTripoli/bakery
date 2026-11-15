@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import * as UI from "@bakery/ui";
 import type {
   RepositoryProfileResponse,
@@ -6,6 +6,7 @@ import type {
 } from "../../api/client.ts";
 import { RouterLink } from "../../app/router-link.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
+import { LINK_SLOT, withLink } from "../with-link.tsx";
 import {
   branchesOf,
   fixesBranches,
@@ -66,41 +67,50 @@ export function WorkingSettingsSheet(
   const rulesBind = active !== null && rulesInForce(active.config);
   const branchesFixed = active !== null && fixesBranches(active.config);
   const disabled = !canManage || offline || archived || settings.pending;
-  // Where the person is sent, for those who may open it: the link follows the
-  // sentence on a line of its own (the shared link is a 44px target, which
-  // does not sit inside a sentence); the others get the sentence alone.
-  const rulesLink = canManage
+  // Where the person is sent. Inside a sentence the words themselves are the
+  // link (design-ux, #475 review): no line after it repeating the same words.
+  // Someone who may not open the page still reads the words, just not as a link.
+  const organizationRulesWords = translate(
+    "projects.repository.settings.organizationRules" as never,
+  );
+  const organizationRulesLink: ReactNode = canManage
+    ? (
+      <RouterLink to="/settings/organization/repository-rules">
+        {organizationRulesWords}
+      </RouterLink>
+    )
+    : organizationRulesWords;
+  const rulesLink: ReactNode = canManage
     ? (
       <RouterLink
         to="/projects/repositories/$repositoryId/rules"
         params={{ repositoryId: repository.id }}
       >
-        {translate("projects.repository.rules" as never)}
+        {translate("projects.repository.settings.changeRules" as never)}
       </RouterLink>
     )
-    : null;
-  const organizationRulesLink = canManage
-    ? (
-      <RouterLink to="/settings/organization/repository-rules">
-        {translate("projects.repository.settings.organizationRules" as never)}
-      </RouterLink>
-    )
-    : null;
-  const failureText = (kind: string, version: number) => {
-    const sentence = translate(
-      `projects.repository.failure.${kind}` as never,
-      { version },
+    : translate("projects.repository.settings.changeRules" as never);
+  const failureText = (kind: string, version: number) =>
+    withLink(
+      translate(
+        `projects.repository.failure.${kind}` as never,
+        { version, organizationRules: LINK_SLOT },
+      ),
+      organizationRulesLink,
     );
-    return kind === "branchesLocked" && organizationRulesLink !== null
-      ? (
-        <UI.Stack gap="tight">
-          <span>{sentence}</span>
-          {organizationRulesLink}
-        </UI.Stack>
-      )
-      : sentence;
-  };
+  const fixedBranchesNotice = withLink(
+    translate(
+      "projects.repository.settings.branchesFixed" as never,
+      { organizationRules: LINK_SLOT },
+    ),
+    organizationRulesLink,
+  );
   const folderText = active === null ? "" : folderOf(active.config);
+  // A folder is a path and reads in the code face; "The whole repository" is a
+  // sentence about the folder, so it reads in the body face (design-ux, #475).
+  const folderValue: ReactNode = folderText === ""
+    ? translate("projects.repository.settings.folderWhole" as never)
+    : <UI.DataText>{folderText}</UI.DataText>;
   // Putting a version in use that does not carry the rules in force switches
   // them off: said in the confirmation, whose button is then the danger kind.
   const rulesStopWith = (candidate: RepositoryProfileResponse) =>
@@ -190,14 +200,7 @@ export function WorkingSettingsSheet(
                   tone="information"
                   data-testid="branches-fixed"
                 >
-                  <UI.Stack gap="tight">
-                    <span>
-                      {translate(
-                        "projects.repository.settings.branchesFixed" as never,
-                      )}
-                    </span>
-                    {organizationRulesLink}
-                  </UI.Stack>
+                  {fixedBranchesNotice}
                 </UI.InlineNotice>
                 <UI.Stack gap="compact">
                   <UI.Text variant="strong">
@@ -248,22 +251,19 @@ export function WorkingSettingsSheet(
                 <UI.Text variant="strong">
                   {translate("projects.repository.settings.folder" as never)}
                 </UI.Text>
-                <UI.DataText>
-                  {folderText === ""
-                    ? translate(
-                      "projects.repository.settings.folderWhole" as never,
-                    )
-                    : folderText}
-                </UI.DataText>
+                {folderValue}
                 {rulesBind
                   ? (
                     <>
                       <UI.Text variant="muted">
-                        {translate(
-                          "projects.repository.settings.folderSetByRules" as never,
+                        {withLink(
+                          translate(
+                            "projects.repository.settings.folderSetByRules" as never,
+                            { rulesLink: LINK_SLOT },
+                          ),
+                          rulesLink,
                         )}
                       </UI.Text>
-                      {rulesLink}
                     </>
                   )
                   : null}
