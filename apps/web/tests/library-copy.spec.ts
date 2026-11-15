@@ -127,8 +127,8 @@ for (
       const steps = root.locator("[data-step-id]");
       await expect(steps).toHaveCount(3);
       await expect(steps.nth(0)).toContainText("Write the task brief");
-      await expect(steps.nth(1)).toContainText("Run the coding agent");
-      await expect(steps.nth(2)).toContainText("Review the changes");
+      await expect(steps.nth(1)).toContainText("Implement");
+      await expect(steps.nth(2)).toContainText("Review");
       await expect(root).not.toContainText("harness.implement");
       await expect(page.getByRole("button", { name: "Make a copy" }))
         .toHaveCount(1);
