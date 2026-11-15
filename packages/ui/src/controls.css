@@ -119,6 +119,10 @@ input:not([type="hidden"]) {
   color: var(--color-selection);
   text-underline-offset: var(--underline-offset); /* auth.css:8 a{text-underline-offset:3px} */
 }
+.ui-link--sentence {
+  display: inline;
+  min-block-size: 0;
+}
 .ui-link--quiet {
   color: var(--color-fg-muted);
 }

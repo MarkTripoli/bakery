@@ -436,60 +436,293 @@ test.describe("the two writes against how the server behaves", () => {
     await expect(page.getByTestId("profile-version-3")).toBeVisible();
   });
 
-  test("a repository with rules of its own is plainly read-only: View, the branches as text, nothing to save", async ({ page }) => {
-    await open(page, {
+  test("a repository with rules of its own is changed like any other: the branches are saved, the rules are kept, and nothing here mentions them", async ({ page }) => {
+    const { seen } = await open(page, {
       profiles: [
         { revision: 1, branches: ["main"] },
         { revision: 2, branches: ["main", "release/*"], rules: true },
       ],
       active: 2,
     });
-    // The step's action reads View, not Change.
-    await expect(page.getByRole("button", { name: "Change" })).toHaveCount(0);
-    await page.getByRole("button", { name: "View" }).click();
-    await expect(page.getByTestId("rules-in-force")).toContainText(
-      "This repository has rules of its own. Its branches cannot be changed in Bakery yet.",
+    await expect(page.getByRole("button", { name: "View" })).toHaveCount(0);
+    await shot(page, "repository-page-rules-in-force");
+    await page.getByRole("button", { name: "Change" }).click();
+    // The same sheet as any repository: a field, a Save, the version it makes.
+    // The one word about rules is the folder's line: the rules are why it is fixed.
+    await expect(sheet(page).getByLabel("Branches Bakery may work from"))
+      .toHaveValue("main\nrelease/*");
+    await expect(sheet(page).getByText("This saves version 3")).toBeVisible();
+    await expect(sheet(page).getByTestId("folder-text")).toContainText(
+      "The whole repository",
     );
-    // No link to a page that cannot change branches either.
-    await expect(page.getByRole("button", { name: "Open Rules" })).toHaveCount(
-      0,
+    await expect(sheet(page).getByTestId("rules-in-force")).toHaveCount(0);
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-settings-rules-in-force");
+    await sheet(page).getByLabel("Branches Bakery may work from").fill(
+      "main\nrelease/*\nhotfix/*",
     );
-    await expect(page.getByRole("link", { name: "Open Rules" })).toHaveCount(0);
-    // The branches are text, not a field; nothing to save, cancel or toggle.
-    await expect(page.getByLabel("Branches Bakery may work from")).toHaveCount(
-      0,
+    await page.getByRole("button", { name: "Save and use these settings" })
+      .click();
+    await expect(sheet(page)).toHaveCount(0);
+    await expect(page.getByTestId("setup-settings")).toContainText(
+      "Works from main, release/*, hotfix/* · version 3",
     );
-    await expect(page.getByText("Works from", { exact: true })).toBeVisible();
-    const branches = page.getByTestId("branches-read-only");
+    // What was sent: the branches, the rules left to the server to keep (never
+    // stated), and the repository's version as If-Match.
+    expect(seen.createdProfiles).toHaveLength(1);
+    const sent = seen.createdProfiles[0] as {
+      revision: number;
+      keepRepositoryRules?: boolean;
+      config: Record<string, unknown>;
+    };
+    expect(sent.revision).toBe(3);
+    expect(sent.keepRepositoryRules).toBe(true);
+    expect(sent.config.repositoryRules).toBeUndefined();
+    expect(seen.createIfMatch).toEqual(['"v1"']);
+    // The server put the new version in use itself, so the page sent nothing more.
+    expect(seen.updates).toHaveLength(0);
+    // The new version holds the rules still: saving again keeps them again.
+    await page.getByRole("button", { name: "Change" }).click();
+    await expect(sheet(page).getByText("This saves version 4")).toBeVisible();
+    await expect(sheet(page).getByTestId("profile-version-3")).toContainText(
+      "In use",
+    );
+    await sheet(page).getByLabel("Branches Bakery may work from").fill(
+      "main\nhotfix/*",
+    );
+    await page.getByRole("button", { name: "Save and use these settings" })
+      .click();
+    await expect(sheet(page)).toHaveCount(0);
+    expect(seen.createIfMatch).toEqual(['"v1"', '"v2"']);
+    expect(
+      (seen.createdProfiles[1] as { keepRepositoryRules?: boolean })
+        .keepRepositoryRules,
+    ).toBe(true);
+  });
+
+  test("with rules in force the working folder is text with where to change it, and is kept", async ({ page }) => {
+    const { seen } = await open(page, {
+      profiles: [{
+        revision: 1,
+        branches: ["main"],
+        folder: "services/api",
+        rules: true,
+      }],
+      active: 1,
+    });
+    await page.getByRole("button", { name: "Change" }).click();
+    const folder = sheet(page).getByTestId("folder-text");
+    await expect(folder).toContainText("Working folder");
+    // A real folder is a path: it reads in the code face.
+    await expect(folder.locator(".ui-data-text")).toHaveText("services/api");
+    await expect(folder).toContainText(
+      "Set by this repository's rules. To change it, change the rules.",
+    );
+    // Text, not a greyed field, and no Advanced toggle for it.
+    await expect(sheet(page).getByLabel("Working folder")).toHaveCount(0);
+    await expect(sheet(page).getByRole("button", { name: "Advanced" }))
+      .toHaveCount(0);
+    await expect(
+      folder.getByRole("link", { name: "change the rules" }),
+    ).toHaveAttribute(
+      "href",
+      `/projects/repositories/${REPOSITORY_ID}/rules`,
+    );
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-settings-rules-folder");
+    await sheet(page).getByLabel("Branches Bakery may work from").fill(
+      "main\ndevelop",
+    );
+    await page.getByRole("button", { name: "Save and use these settings" })
+      .click();
+    await expect(sheet(page)).toHaveCount(0);
+    const sent = seen.createdProfiles[0] as {
+      config: { worktree: { root: string } };
+    };
+    expect(sent.config.worktree.root).toBe("services/api");
+    await expect(page.getByTestId("setup-settings")).toContainText(
+      "Works from main, develop · version 2",
+    );
+  });
+
+  test("someone who may not open the rules page sees the same words, with nothing to follow", async ({ page }) => {
+    await open(page, {
+      role: "developer",
+      profiles: [{ revision: 1, branches: ["main"], rules: true }],
+      active: 1,
+    });
+    await page.getByRole("button", { name: "Change" }).click();
+    const folder = sheet(page).getByTestId("folder-text");
+    await expect(folder).toContainText(
+      "Set by this repository's rules. To change it, change the rules.",
+    );
+    await expect(
+      sheet(page).getByRole("link", { name: "change the rules" }),
+    ).toHaveCount(0);
+    await expect(folder).toContainText("change the rules");
+  });
+
+  test("a repository without rules still sends no rules statement and no If-Match", async ({ page }) => {
+    const { seen } = await open(page, { profiles: SETTINGS, active: 2 });
+    await page.getByRole("button", { name: "Change" }).click();
+    await sheet(page).getByLabel("Branches Bakery may work from").fill("main");
+    await page.getByRole("button", { name: "Save and use these settings" })
+      .click();
+    await expect(sheet(page)).toHaveCount(0);
+    const sent = seen.createdProfiles[0] as Record<string, unknown>;
+    expect(sent.keepRepositoryRules).toBeUndefined();
+    expect(seen.createIfMatch).toEqual([]);
+  });
+
+  test("the server refusing fixed branches says so with where to change them, keeps what was typed, and never says Try again", async ({ page }) => {
+    const { seen } = await open(page, {
+      profiles: [
+        { revision: 1, branches: ["main"] },
+        { revision: 2, branches: ["main"], rules: true },
+      ],
+      active: 2,
+      branchesLocked: true,
+    });
+    await page.getByRole("button", { name: "Change" }).click();
+    await sheet(page).getByLabel("Branches Bakery may work from").fill(
+      "main\nrelease/*",
+    );
+    await page.getByRole("button", { name: "Save and use these settings" })
+      .click();
+    const notice = sheet(page).getByRole("alert");
+    await expect(notice).toContainText(
+      "Nothing was saved. Your organization's rules fix the branches for this repository, so they cannot be changed here. An organization administrator can change that in Organization rules.",
+    );
+    // The words in the sentence are the link: one link, no line repeating them.
+    await expect(notice.getByRole("link", { name: "Organization rules" }))
+      .toHaveAttribute("href", "/settings/organization/repository-rules");
+    await expect(notice.getByRole("link")).toHaveCount(1);
+    await expect(sheet(page).getByText(/Try again/)).toHaveCount(0);
+    // What was typed stays, and nothing changed: version 2 is still in use.
+    await expect(sheet(page).getByLabel("Branches Bakery may work from"))
+      .toHaveValue("main\nrelease/*");
+    expect(seen.createdProfiles).toHaveLength(1);
+    await expect(sheet(page).getByTestId("profile-version-2")).toContainText(
+      "In use",
+    );
+    await expect(page.getByTestId("setup-settings")).toContainText(
+      "version 2",
+    );
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-settings-branches-locked");
+  });
+
+  test("a version in use with a fixed policy shows its branches as text, with where to change them, and nothing to save", async ({ page }) => {
+    await open(page, {
+      profiles: [
+        { revision: 1, branches: ["main"] },
+        {
+          revision: 2,
+          branches: ["main", "release/*"],
+          rules: true,
+          fixed: true,
+        },
+      ],
+      active: 2,
+    });
+    await page.getByRole("button", { name: "Change" }).click();
+    const notice = sheet(page).getByTestId("branches-fixed");
+    await expect(notice).toContainText(
+      "Your organization's rules fix the branches for this repository. An organization administrator can change that in Organization rules.",
+    );
+    // The words in the sentence are the link: one link, no line repeating them.
+    await expect(notice.getByRole("link", { name: "Organization rules" }))
+      .toHaveAttribute("href", "/settings/organization/repository-rules");
+    await expect(notice.getByRole("link")).toHaveCount(1);
+    // Text, not a field; nothing to save, cancel or toggle.
+    await expect(sheet(page).getByLabel("Branches Bakery may work from"))
+      .toHaveCount(0);
+    const branches = sheet(page).getByTestId("branches-text");
     await expect(branches).toContainText("main");
     await expect(branches).toContainText("release/*");
     await expect(
-      page.getByRole("button", { name: "Save and use these settings" }),
+      sheet(page).getByRole("button", { name: "Save and use these settings" }),
     ).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Cancel" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Advanced" })).toHaveCount(0);
-    await expect(page.getByText(/This saves version/)).toHaveCount(0);
-    // The versions are listed with the one in use and nothing to use.
-    await expect(page.getByTestId("profile-version-2")).toContainText("In use");
-    await expect(page.getByTestId("profile-version-1")).toBeVisible();
-    await expect(page.getByRole("button", { name: /^Use version/ }))
+    await expect(sheet(page).getByRole("button", { name: "Cancel" }))
       .toHaveCount(0);
+    await expect(sheet(page).getByText(/This saves version/)).toHaveCount(0);
+    const folderText = sheet(page).getByTestId("folder-text");
+    await expect(folderText).toContainText("The whole repository");
+    // A sentence about the folder, in the body face; only a real path is code.
+    await expect(folderText.locator(".ui-data-text")).toHaveCount(0);
+    // The versions are still listed, with the one in use.
+    await expect(sheet(page).getByTestId("profile-version-2")).toContainText(
+      "In use",
+    );
     await page.mouse.move(700, 700);
-    await shot(page, "repository-settings-rules-in-force");
-    await page.getByRole("button", { name: "Close sheet" }).click();
-    await expect(page.getByRole("dialog", { name: "Working settings" }))
-      .toHaveCount(0);
+    await shot(page, "repository-settings-branches-fixed");
   });
 
-  test("a save the server answers with a 428 says the repository has rules of its own, never Try again", async ({ page }) => {
-    await open(page, { ...WORLD, save: "rules" });
+  test("someone who may not open Organization rules sees the same words as plain text", async ({ page }) => {
+    await open(page, {
+      role: "developer",
+      profiles: [{ revision: 1, branches: ["main"], fixed: true }],
+      active: 1,
+    });
     await page.getByRole("button", { name: "Change" }).click();
-    await page.getByRole("button", { name: "Save and use these settings" })
-      .click();
-    await expect(
-      sheet(page).getByText(/has rules of its own/),
-    ).toBeVisible();
-    await expect(sheet(page).getByText(/Try again/)).toHaveCount(0);
+    const notice = sheet(page).getByTestId("branches-fixed");
+    await expect(notice).toContainText(
+      "An organization administrator can change that in Organization rules.",
+    );
+    // The words, not a link: nothing to follow, and nothing repeated below.
+    await expect(notice.getByRole("link")).toHaveCount(0);
+  });
+
+  test("Use version over rules says when the chosen version does not carry them, and the button is the danger kind", async ({ page }) => {
+    const { seen } = await open(page, {
+      profiles: [
+        { revision: 1, branches: ["main"] },
+        { revision: 2, branches: ["main"], rules: true },
+        { revision: 3, branches: ["main"], rules: "title.length" },
+        { revision: 4, branches: ["main", "dev"], rules: true },
+      ],
+      active: 2,
+    });
+    await page.getByRole("button", { name: "Change" }).click();
+    // No rules in the chosen version: they stop applying, said and shown as a danger.
+    await sheet(page).getByRole("button", { name: "Use version 1" }).click();
+    const confirm = page.getByRole("alertdialog", { name: "Use version 1?" });
+    await expect(confirm.getByTestId("use-rules-stop")).toHaveText(
+      "Version 1 does not include this repository's own rules, so they stop applying.",
+    );
+    await expect(confirm.getByRole("button", { name: "Use version 1" }))
+      .toHaveAttribute("data-variant", "destructive");
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-use-version-rules-stop");
+    await confirm.getByRole("button", { name: "Cancel" }).click();
+    // Other rules: said in its own words.
+    await sheet(page).getByRole("button", { name: "Use version 3" }).click();
+    const other = page.getByRole("alertdialog", { name: "Use version 3?" });
+    await expect(other.getByTestId("use-rules-stop")).toHaveText(
+      "Version 3 has other rules of its own, so the ones in force now stop applying.",
+    );
+    await expect(other.getByRole("button", { name: "Use version 3" }))
+      .toHaveAttribute("data-variant", "destructive");
+    await other.getByRole("button", { name: "Cancel" }).click();
+    // The same rules: the ordinary confirmation.
+    await sheet(page).getByRole("button", { name: "Use version 4" }).click();
+    const same = page.getByRole("alertdialog", { name: "Use version 4?" });
+    await expect(same.getByTestId("use-rules-stop")).toHaveCount(0);
+    await expect(same.getByRole("button", { name: "Use version 4" }))
+      .toHaveAttribute("data-variant", "primary");
+    await same.getByRole("button", { name: "Use version 4" }).click();
+    await expect(page.getByRole("alertdialog")).toHaveCount(0);
+    expect(seen.updates).toHaveLength(1);
+  });
+
+  test("Use version over a repository without rules is the ordinary confirmation", async ({ page }) => {
+    await open(page, { profiles: SETTINGS, active: 2 });
+    await page.getByRole("button", { name: "Change" }).click();
+    await sheet(page).getByRole("button", { name: "Use version 1" }).click();
+    const confirm = page.getByRole("alertdialog", { name: "Use version 1?" });
+    await expect(confirm.getByTestId("use-rules-stop")).toHaveCount(0);
+    await expect(confirm.getByRole("button", { name: "Use version 1" }))
+      .toHaveAttribute("data-variant", "primary");
   });
 
   test("values the server does not accept are named as such", async ({ page }) => {

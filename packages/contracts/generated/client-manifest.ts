@@ -432,7 +432,7 @@ export const clientManifest = {
       "output": "RepositoryProfile",
       "event": "repository.profile_created",
       "mcp": "bakery_repositoryProfiles_create",
-      "idempotency": "Idempotency-Key required",
+      "idempotency": "Idempotency-Key required; If-Match when the save activates the profile",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",

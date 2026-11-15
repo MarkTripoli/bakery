@@ -20,7 +20,13 @@ export type LinkProps =
       | "primaryButton"
       | "primaryIcon"
       | "icon"
-      | "back";
+      | "back"
+      /**
+       * `sentence` is a link that sits inside a sentence: it takes the
+       * sentence's line height and wraps like any other word instead of
+       * occupying a block of its own (#475 design review).
+       */
+      | "sentence";
   };
 
 export function Link({

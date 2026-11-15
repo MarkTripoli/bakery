@@ -38,7 +38,7 @@ const refused = (status: number) => ({
 });
 const input = (previous: unknown = null) => ({
   organizationId: "org",
-  repository: { id: "r", defaultBranch: "main" },
+  repository: { id: "r", defaultBranch: "main", version: 4 },
   previous: previous as never,
   revision: 3,
   branches: ["main", "release/*"],
@@ -115,4 +115,56 @@ Deno.test("a version saved but not put in use is reported with the version, whic
   const unread = fake({ create: ok(profile), read: refused(500) });
   const second = await saveWorkingSettings(unread.api, input());
   assertEquals(!second.ok && second.step, "use");
+});
+
+const withRules = {
+  config: {
+    schemaVersion: 1,
+    workflow: { kind: "fixed" },
+    branches: { base: "main", allowedPatterns: ["main"] },
+    worktree: { root: "." },
+    repositoryRules: { entries: [{ ruleKey: "commits.format" }] },
+  },
+};
+
+Deno.test("over a version that carries rules, the save keeps them: never stated, the repository version as If-Match", async () => {
+  const { api, calls } = fake({
+    create: ok(profile),
+    read: ok({ id: "r", version: 5, activeProfileId: "p3" }),
+  });
+  const result = await saveWorkingSettings(api, input(withRules));
+  assertEquals(result.ok && result.putInUseBy, "server");
+  assertEquals(calls.map((call) => call.name), ["create", "read"]);
+  const sent = calls[0].options;
+  assertEquals(sent.ifMatch, '"v4"');
+  const body = sent.input as Record<string, unknown>;
+  assertEquals(body.keepRepositoryRules, true);
+  assertEquals(
+    (body.config as Record<string, unknown>).repositoryRules,
+    undefined,
+  );
+});
+
+Deno.test("over a version without rules, the save says nothing of rules and sends no If-Match", async () => {
+  const { api, calls } = fake({
+    create: ok(profile),
+    read: ok({ id: "r", version: 5, activeProfileId: "p3" }),
+  });
+  await saveWorkingSettings(
+    api,
+    input({ config: { schemaVersion: 1, branches: { allowedPatterns: [] } } }),
+  );
+  assertEquals(calls[0].options.ifMatch, undefined);
+  assertEquals(
+    (calls[0].options.input as Record<string, unknown>).keepRepositoryRules,
+    undefined,
+  );
+});
+
+Deno.test("a refused save over rules reports the create step and its error", async () => {
+  const { api, calls } = fake({ create: refused(412) });
+  const result = await saveWorkingSettings(api, input(withRules));
+  assertEquals(result.ok, false);
+  assertEquals(!result.ok && result.step, "create");
+  assertEquals(calls.map((call) => call.name), ["create"]);
 });
