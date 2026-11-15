@@ -3775,5 +3775,17 @@
   "library.editor.publish.title": "⟪Publish these steps?⟫",
   "library.editor.publish.body": "⟪This saves the steps as a new version and makes it the one new tasks get.⟫",
   "library.editor.publish.confirm": "⟪Publish⟫",
-  "library.editor.publish.cancel": "⟪Keep editing⟫"
+  "library.editor.publish.cancel": "⟪Keep editing⟫",
+  "library.editor.howItStarts": "⟪How it starts⟫",
+  "library.editor.howItStartsLine": "⟪When a run starts from the work it is given.⟫",
+  "library.editor.startsHere": "⟪the start⟫",
+  "library.editor.addHere": "⟪Add a step after {after}⟫",
+  "library.editor.picker.title": "⟪Add a step⟫",
+  "library.editor.picker.cancel": "⟪Cancel⟫",
+  "library.editor.group.yes": "⟪Yes⟫",
+  "library.editor.group.otherwise": "⟪Otherwise⟫",
+  "library.editor.group.together": "⟪At the same time⟫",
+  "library.editor.group.repeat": "⟪Fix until it passes⟫",
+  "library.editor.group.wait": "⟪Wait for approval⟫",
+  "library.editor.group.codeOnly": "⟪Edited in code⟫"
 }

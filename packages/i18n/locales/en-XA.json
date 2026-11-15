@@ -3775,5 +3775,17 @@
   "library.editor.publish.title": "⟦Þûƀļïšĥ ŧĥëšë šŧëþš? ŧëšŧ⟧",
   "library.editor.publish.body": "⟦Ŧĥïš šàṽëš ŧĥë šŧëþš àš à ñëŵ ṽëŕšïôñ àñð ɱàķëš ïŧ ŧĥë ôñë ñëŵ ŧàšķš ĝëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "library.editor.publish.confirm": "⟦Þûƀļïšĥ…⟧",
-  "library.editor.publish.cancel": "⟦Ķëëþ ëðïŧïñĝ ŧë⟧"
+  "library.editor.publish.cancel": "⟦Ķëëþ ëðïŧïñĝ ŧë⟧",
+  "library.editor.howItStarts": "⟦Ĥôŵ ïŧ šŧàŕŧš ŧë⟧",
+  "library.editor.howItStartsLine": "⟦Ŵĥëñ à ŕûñ šŧàŕŧš ƒŕôɱ ŧĥë ŵôŕķ ïŧ ïš ĝïṽëñ. ŧëšŧ çôþÿ ŧëš⟧",
+  "library.editor.startsHere": "⟦ŧĥë šŧàŕŧ ŧ⟧",
+  "library.editor.addHere": "⟦Àðð à šŧëþ àƒŧëŕ {after} ŧëšŧ ç⟧",
+  "library.editor.picker.title": "⟦Àðð à šŧëþ ŧ⟧",
+  "library.editor.picker.cancel": "⟦Çàñçëļ…⟧",
+  "library.editor.group.yes": "⟦Ÿëš⟧",
+  "library.editor.group.otherwise": "⟦Ôŧĥëŕŵïšë ŧ⟧",
+  "library.editor.group.together": "⟦Àŧ ŧĥë šàɱë ŧïɱë ŧëš⟧",
+  "library.editor.group.repeat": "⟦Ƒïẋ ûñŧïļ ïŧ þàššëš ŧëšŧ⟧",
+  "library.editor.group.wait": "⟦Ŵàïŧ ƒôŕ àþþŕôṽàļ ŧëš⟧",
+  "library.editor.group.codeOnly": "⟦Ëðïŧëð ïñ çôðë ŧë⟧"
 }
