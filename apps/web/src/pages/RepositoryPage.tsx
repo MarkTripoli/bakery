@@ -340,20 +340,32 @@ export function RepositoryPage(
                       version: active.revision,
                     },
                   )}
-                action={
+                action={active === null ? undefined : (
                   <UI.Button
-                    variant={active === null && !archived ? "primary" : "text"}
+                    variant="text"
                     disabled={profiles.state !== "ready" || archived}
                     onClick={openSheet}
                   >
                     {translate(
-                      (active === null
-                        ? "projects.repository.step.settings.choose"
-                        : "projects.repository.step.settings.change") as never,
+                      "projects.repository.step.settings.change" as never,
                     )}
                   </UI.Button>
-                }
-              />
+                )}
+              >
+                {active === null
+                  ? (
+                    <UI.Button
+                      variant="primary"
+                      disabled={profiles.state !== "ready" || archived}
+                      onClick={openSheet}
+                    >
+                      {translate(
+                        "projects.repository.step.settings.choose" as never,
+                      )}
+                    </UI.Button>
+                  )
+                  : undefined}
+              </UI.StepItem>
               <UI.StepItem
                 data-testid="setup-check"
                 status="upcoming"
