@@ -788,6 +788,7 @@ export const updateRepository = async (
       config: unknown;
       digest: string;
       has_observation: boolean;
+      check_passed: boolean;
     }>(
       `select p.config, p.digest,
           exists (
@@ -795,7 +796,14 @@ export const updateRepository = async (
               from bakery.repository_profile_observations o
              where o.organization_id = p.organization_id
                and o.profile_id = p.id
-          ) as has_observation
+          ) as has_observation,
+          exists (
+            select 1
+              from bakery.repository_profile_observations o
+             where o.organization_id = p.organization_id
+               and o.profile_id = p.id
+               and o.readiness = 'eligible'
+          ) as check_passed
          from bakery.repository_profiles p
         where p.organization_id = $1
           and p.repository_id = $2
@@ -826,32 +834,24 @@ export const updateRepository = async (
     }
   }
   if (value.activeProfileId !== undefined) {
-    if (
-      repository.active_profile_id !== null &&
-      repository.active_profile_id !== value.activeProfileId
-    ) {
-      const currentProfile = await readProfileForActivation(
-        repository.active_profile_id,
-      );
-      if (currentProfile?.has_observation) {
-        throw unprocessable(
-          ["activeProfileId"],
-          "legacy_v1_config_only_required",
-        );
-      }
-    }
+    // #65 (PM decision): a person can always switch versions after a check.
+    // Leaving a check-made version in use is allowed; its inspection evidence
+    // is superseded until onboarding runs again (the same accepted
+    // consequence as a publication that replaces it). A check-made version
+    // may be put in use only if its check passed; a failed check's candidate
+    // never becomes the version in use.
     const profileRow = await readProfileForActivation(value.activeProfileId);
     if (!profileRow) {
       throw unprocessable(["activeProfileId"], "profile_not_in_repository");
     }
-    const parsedConfig = RepositoryProfileConfigSchema.safeParse(
-      profileRow.config,
-    );
-    if (!parsedConfig.success || profileRow.has_observation) {
-      throw unprocessable(
-        ["activeProfileId"],
-        "legacy_v1_config_only_required",
-      );
+    if (profileRow.has_observation && !profileRow.check_passed) {
+      throw unprocessable(["activeProfileId"], "profile_check_not_passed");
+    }
+    const parsedConfig = profileRow.has_observation
+      ? RepositoryVersionedProfileConfigSchema.safeParse(profileRow.config)
+      : RepositoryProfileConfigSchema.safeParse(profileRow.config);
+    if (!parsedConfig.success) {
+      throw unprocessable(["activeProfileId"], "profile_config_invalid");
     }
     if ((await profileDigest(parsedConfig.data)) !== profileRow.digest) {
       throw unprocessable(["activeProfileId"], "profile_digest_mismatch");

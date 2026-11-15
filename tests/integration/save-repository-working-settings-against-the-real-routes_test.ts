@@ -252,6 +252,44 @@ Deno.test("the page's save sequence against the real routes", async () => {
       !versions.items.some((item) => item.id === failed),
       "a failed check's candidate is not a listed version",
     );
+    // #65 (PM decision): after a check, a person can still change branches
+    // and switch versions. Put the passed check's version in use first.
+    await owner`
+      update bakery.repositories set active_profile_id = ${passed},
+        version = version + 1
+       where organization_id = ${fx.organizationId} and id = ${checked}`;
+    const repositoryNow = async () =>
+      (await request("GET", `/v1/repositories/${checked}`)).json as {
+        version: number;
+        activeProfileId: string;
+      };
+    // A branches save from the page supersedes the check-made version.
+    const afterCheck = await save(checked, ["feature/*", "after-check/*"]);
+    assert(afterCheck.ok, JSON.stringify(afterCheck));
+    assertEquals(await activeOf(checked), afterCheck.profile.id);
+    // "Use another version" back to the passed check's version works.
+    const back = await request("PATCH", `/v1/repositories/${checked}`, {
+      body: { activeProfileId: passed },
+      ifMatch: `"${(await repositoryNow()).version}"`,
+    });
+    assertEquals(back.status, 200, JSON.stringify(back.json));
+    assertEquals(await activeOf(checked), passed);
+    // ...and away from it again, while it is the version in use.
+    const away = await request("PATCH", `/v1/repositories/${checked}`, {
+      body: { activeProfileId: afterCheck.profile.id },
+      ifMatch: `"${(await repositoryNow()).version}"`,
+    });
+    assertEquals(away.status, 200, JSON.stringify(away.json));
+    // A failed check's candidate never becomes the version in use.
+    const refused = await request("PATCH", `/v1/repositories/${checked}`, {
+      body: { activeProfileId: failed },
+      ifMatch: `"${(await repositoryNow()).version}"`,
+    });
+    assertEquals(refused.status, 422, JSON.stringify(refused.json));
+    assertEquals(
+      (refused.json as { issues: { code: string }[] }).issues[0].code,
+      "profile_check_not_passed",
+    );
     // It is still stored, for audit and the check result.
     assertEquals(
       (await owner`select count(*)::int as n from bakery.repository_profiles
