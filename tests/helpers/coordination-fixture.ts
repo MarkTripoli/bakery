@@ -597,7 +597,7 @@ export function fourLaneSpec() {
         repositoryAlias: "api",
         title: "contract",
         instructions:
-          "Workflow lane contract, steps in order:\n- define: agent.implement",
+          "Workflow lane contract, steps in order:\n- define: workflow.noop",
         prerequisites: [],
         outputs: [{ key: "contract", kind: "artifact", artifactType: "patch" }],
         inputs: [],
@@ -607,7 +607,7 @@ export function fourLaneSpec() {
         repositoryAlias: "web",
         title: "web",
         instructions:
-          "Workflow lane web, steps in order:\n- build: agent.implement",
+          "Workflow lane web, steps in order:\n- build: workflow.noop",
         prerequisites: ["contract"],
         outputs: [patch],
         inputs: [{ fromLane: "contract", outputKey: "contract" }],
@@ -617,7 +617,7 @@ export function fourLaneSpec() {
         repositoryAlias: "mobile",
         title: "mobile",
         instructions:
-          "Workflow lane mobile, steps in order:\n- build: agent.implement",
+          "Workflow lane mobile, steps in order:\n- build: workflow.noop",
         prerequisites: ["contract"],
         outputs: [patch],
         inputs: [{ fromLane: "contract", outputKey: "contract" }],
@@ -627,12 +627,13 @@ export function fourLaneSpec() {
         repositoryAlias: "integration",
         title: "integration",
         instructions:
-          "Workflow lane integration, steps in order:\n- verify: agent.implement",
-        prerequisites: ["web", "mobile"],
+          "Workflow lane integration, steps in order:\n- verify: workflow.noop",
+        // The compiler orders a lane's needs by name.
+        prerequisites: ["mobile", "web"],
         outputs: [],
         inputs: [
-          { fromLane: "web", outputKey: "patch" },
           { fromLane: "mobile", outputKey: "patch" },
+          { fromLane: "web", outputKey: "patch" },
         ],
       },
     ],
@@ -643,54 +644,49 @@ export function fourLaneSpec() {
 }
 
 /** Normalized workflow document whose `delivery` parallel node is `fourLaneSpec`. */
+/**
+ * The four-lane delivery as a person authors it (`parallel.branches`), the form
+ * `workflowVersions.publish` stores; from-workflow compiles it (#66).
+ */
 export function fourLaneWorkflowDocument() {
-  const step = (id: string) => ({
-    kind: "action",
-    id,
-    needs: [],
-    action: "agent.implement",
-  });
-  const exported = { kind: "literal", value: "exported" };
+  const step = (id: string) => ({ id, uses: "workflow.noop" });
   return {
     apiVersion: "bakery.dev/v1",
     kind: "workflow",
+    name: "four-lane",
+    description: "Four-lane delivery: a contract, two clients, an integration.",
     steps: [{
-      kind: "parallel",
       id: "delivery",
-      needs: [],
-      maxConcurrency: 2,
-      join: "all-required",
-      failurePolicy: "stop-dependent",
-      lanes: [
-        {
-          id: "contract",
-          needs: [],
-          repository: "api",
-          steps: [step("define")],
+      parallel: {
+        maxConcurrency: 2,
+        join: "all-required",
+        failurePolicy: "stop-dependent",
+        branches: [
+          { id: "contract", repository: "api", steps: [step("define")] },
+          {
+            id: "web",
+            needs: ["contract"],
+            repository: "web",
+            steps: [step("build")],
+          },
+          {
+            id: "mobile",
+            needs: ["contract"],
+            repository: "mobile",
+            steps: [step("build")],
+          },
+          {
+            id: "integration",
+            needs: ["web", "mobile"],
+            repository: "integration",
+            steps: [step("verify")],
+          },
+        ],
+        outputs: {
+          contract: { contract: "exported" },
+          web: { patch: "exported" },
+          mobile: { patch: "exported" },
         },
-        {
-          id: "web",
-          needs: ["contract"],
-          repository: "web",
-          steps: [step("build")],
-        },
-        {
-          id: "mobile",
-          needs: ["contract"],
-          repository: "mobile",
-          steps: [step("build")],
-        },
-        {
-          id: "integration",
-          needs: ["web", "mobile"],
-          repository: "integration",
-          steps: [step("verify")],
-        },
-      ],
-      outputs: {
-        contract: { contract: exported },
-        web: { patch: exported },
-        mobile: { patch: exported },
       },
     }],
   };

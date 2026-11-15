@@ -27,6 +27,16 @@ Start from an authorized [integration connection](09-integrations.md). Configure
 
 ## Labels express intent; readiness establishes what can run
 
+**Direction (14 November 2026, [chapter 25](25-one-engine.md) section 7).**
+Readiness is a generic rule each provider declares: an item is ready when it
+carries a configured label **and** sits in a configured workflow status, matched
+by stable provider ids. Providers declare which trigger kinds they support, and
+the provenance checks apply to a status move as to a label. When work depends
+on a ticket in a tracker without code, the blocker being Done is enough to
+start; a merged pull request is required only where the tracker has code. Ticket
+admission becomes a start source, and a source names any workflow instead of the
+fixed preset. The label-only rules below describe GitHub as built today.
+
 These are configurable defaults. Setup resolves labels to provider IDs where available, retains their display names, and detects deleted mappings. Renaming a label must not silently change its meaning. Existing teams can keep `ready for agent` exactly as written.
 
 | Label or action | Meaning |

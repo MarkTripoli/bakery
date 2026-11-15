@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { DetailRow } from "@bakery/ui";
+import { DetailRow, HelpTip } from "@bakery/ui";
 
 const meta = {
   title: "Bakery/Molecules/DetailRow",
@@ -14,6 +14,20 @@ export const Contract: StoryObj = {
       <DetailRow label="Alias" tone="code">contract, ledger</DetailRow>
       <DetailRow label="Mapping status" tone="positive">Active</DetailRow>
       <DetailRow label="Branch">main</DetailRow>
+      {/* A long label with its help button: the wide column keeps them on one line. */}
+      <DetailRow
+        label={
+          <>
+            Tools it may use
+            <HelpTip closeLabel="Close" label="Tools it may use">
+              What this agent is allowed to do in a repository.
+            </HelpTip>
+          </>
+        }
+        labelWidth="wide"
+      >
+        repo.read, repo.write
+      </DetailRow>
     </>
   ),
 };

@@ -40,6 +40,7 @@ a meaningful description, without exceptions. See
 | 22 | [Repository rules](22-repository-rules.md) | Commit/PR conventions, templates, magic-value checks |
 | 23 | [Skills and evaluations](23-skills-and-evaluations.md) | Skill authoring and evaluation |
 | 24 | [Mentions and notifications](24-mentions-and-notifications.md) | Mentions, inbox, delivery |
+| 25 | [One engine](25-one-engine.md) | Platform philosophy, the kernel, primitives, extension points, convergence plan ([companions](one-system/owner-decisions.md)) |
 
 ### Product, design and CI
 

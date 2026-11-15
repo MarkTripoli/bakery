@@ -180,6 +180,19 @@ for (
       await shot(page, "workflow-page");
     });
 
+    test("an address with a version the workflow does not have shows the version in use, and says so", async ({ page }) => {
+      await open(page, WORLD);
+      await page.goto(
+        `/library/workflows/${WORKFLOW.id}?version=${uuid(9999)}`,
+      );
+      await expect(page.getByTestId("workflow-page")).toContainText(
+        "That version does not exist. This is the version in use.",
+      );
+      await expect(page.getByTestId("workflow-steps")).toContainText(
+        "Steps in version 3",
+      );
+    });
+
     test("View shows another version's steps and agents", async ({ page }) => {
       await open(page);
       await page.getByRole("link", { name: "View version 2" }).click();

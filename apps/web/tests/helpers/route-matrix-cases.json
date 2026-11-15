@@ -28,6 +28,10 @@
     "path": "/library/built-in/$presetId"
   },
   {
+    "id": "library-agent",
+    "path": "/library/agents/$agentId"
+  },
+  {
     "id": "issues",
     "path": "/issues"
   },

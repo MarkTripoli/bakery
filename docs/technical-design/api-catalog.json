@@ -7456,6 +7456,28 @@
     },
     {
       "group": "Tickets",
+      "method": "GET",
+      "path": "/v1/ticket-sources/{id}/people/{login}",
+      "action": "ticketSources.lookupPerson",
+      "access": "Admin",
+      "permission": "ticketSource:manage",
+      "input": "TicketSourcePersonPath",
+      "output": "TicketSourcePerson",
+      "event": "",
+      "mcp": null,
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "SCOPE_REQUIRED",
+        "DEPENDENCY_UNAVAILABLE"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Tickets",
       "method": "POST",
       "path": "/v1/ticket-sources/{id}/syncs",
       "action": "ticketSources.sync",

@@ -1855,6 +1855,30 @@ export function libraryAgentsQueryOptions(
 }
 
 /** Every version of one workflow (a few pages at most). */
+/** One agent definition of the organization. */
+export function agentQueryOptions(
+  client: Pick<BakeryApiClient, "getAgent">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<AgentDefinitionResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "agents.get", { id }),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      return unwrap(
+        await client.getAgent({
+          organizationId: scope.organizationId,
+          id,
+          signal,
+        }),
+      );
+    },
+    retry: retryNetworkOnce,
+  });
+}
+
 export function workflowVersionsQueryOptions(
   client: Pick<BakeryApiClient, "listWorkflowVersions">,
   scope: ApiScope,

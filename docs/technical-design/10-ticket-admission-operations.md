@@ -61,6 +61,13 @@ strict data: no expression, no URL.
 | `approval.plan` (`human_approval`)                       | `automatic` or `human_approval`.                                                                                                                                                            |
 | `preset`                                                 | Always `fixed-coding`.                                                                                                                                                                      |
 
+The rules above are today's GitHub-only implementation. The accepted direction
+is in [chapter 25](25-one-engine.md) section 7: readiness from a label and a
+workflow status as a generic rule each provider declares, a source that names
+any workflow instead of `preset`, and a Done blocker being enough to start in a
+tracker without code (`closed_unmerged` applies only where the tracker has
+code).
+
 Label names are GitHub display names, 1 to 50 characters, trimmed, matched
 exactly and case-sensitively. The three labels must differ.
 
