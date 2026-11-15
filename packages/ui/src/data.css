@@ -180,6 +180,13 @@
     auto;
   padding: var(--space-3);
 }
+.ui-object-row--aligned {
+  grid-template-columns: minmax(10rem, 2fr) minmax(6rem, 1fr) minmax(8rem, 2fr)
+    10rem;
+}
+.ui-object-row--aligned .ui-object-row__actions {
+  justify-self: end;
+}
 .ui-object-row[data-selected="true"] {
   background: var(--color-selection-surface);
 }
@@ -397,6 +404,12 @@
   }
   .ui-object-row__metadata {
     grid-column: 1 / -1;
+  }
+  .ui-object-row--aligned > :empty {
+    display: none;
+  }
+  .ui-object-row--aligned .ui-object-row__actions {
+    justify-self: start;
   }
   .ui-log-viewer li {
     grid-template-columns: 1fr;

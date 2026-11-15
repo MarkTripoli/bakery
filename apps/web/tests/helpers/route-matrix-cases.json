@@ -144,6 +144,10 @@
     "path": "/settings/organization/integrations"
   },
   {
+    "id": "settings-organization-integration-connection",
+    "path": "/settings/organization/integrations/$connectionId"
+  },
+  {
     "id": "settings-audit",
     "path": "/settings/audit"
   },
