@@ -709,7 +709,7 @@ for (
       lease: "Machine is no longer working on it",
       title: "Run timed out",
       says:
-        "The worker exceeded its execution deadline. The output saved so far is kept.",
+        "The machine exceeded its execution deadline. The output saved so far is kept.",
     },
     {
       name: "lost lease",
@@ -744,7 +744,7 @@ for (
       lease: "Machine is no longer working on it",
       title: "Run canceled",
       says:
-        "The worker confirmed process termination. The output saved so far is kept.",
+        "The machine confirmed process termination. The output saved so far is kept.",
     },
     {
       name: "quota reason",
@@ -1088,6 +1088,9 @@ async function routeAsideArtifacts(
     const index = artifacts.findIndex((item) => item.id === artifactId);
     return `00000000-0000-4000-8000-0000000007${index}1`;
   };
+  // Each version's bytes are a real diff line, so the verified content matches
+  // the size and the SHA-256 the version records.
+  const bodyOf = (item: { readonly name: string }) => `+${item.name}\n`;
   await page.route("**/v1/artifacts?*", (route) => {
     const params = new URL(route.request().url()).searchParams;
     const type = params.get("artifactType");
@@ -1126,8 +1129,8 @@ async function routeAsideArtifacts(
               runStepId: item.runStepId,
               authorId: task.createdBy,
               mediaType: "text/x-diff",
-              sizeBytes: 4,
-              sha256: createHash("sha256").update(item.name).digest("hex"),
+              sizeBytes: Buffer.byteLength(bodyOf(item)),
+              sha256: createHash("sha256").update(bodyOf(item)).digest("hex"),
               subjectHeadSha: "b".repeat(40),
               subjectBaseSha: "c".repeat(40),
               metadata: {},
@@ -1145,12 +1148,27 @@ async function routeAsideArtifacts(
         route.fulfill({
           json: {
             versionId: versionOf(item.id),
-            sha256: createHash("sha256").update(item.name).digest("hex"),
+            sha256: createHash("sha256").update(bodyOf(item)).digest("hex"),
             startByte: 0,
-            endByte: 4,
-            text: item.name,
+            endByte: Buffer.byteLength(bodyOf(item)),
+            text: bodyOf(item),
             hasMore: false,
           },
+        }),
+    );
+    await page.route(
+      `**/v1/artifact-versions/${versionOf(item.id)}/content*`,
+      (route) =>
+        route.fulfill({
+          status: 200,
+          headers: {
+            "content-type": "text/x-diff",
+            "content-length": String(Buffer.byteLength(bodyOf(item))),
+            etag: `"${
+              createHash("sha256").update(bodyOf(item)).digest("hex")
+            }"`,
+          },
+          body: bodyOf(item),
         }),
     );
   }
@@ -1187,9 +1205,11 @@ test("aside previews this run's patch, not a newer log or a prior run's patch", 
     .toBeVisible();
   await expect(pane.getByText("prior-run.patch")).toHaveCount(0);
   await expect(pane.getByText("transcript.log")).toHaveCount(0);
-  // text/x-diff is not extractable media: metadata only, no inline preview.
+  // A patch is text: its verified bytes show as the preview.
+  await expect(pane.getByRole("region", { name: "Artifact text preview" }))
+    .toContainText("+this-run.patch");
   await expect(pane.getByText("Preview unavailable for this media type."))
-    .toBeVisible();
+    .toHaveCount(0);
 });
 
 test("aside pages past other runs' patches to find this run's patch", async ({ page }) => {

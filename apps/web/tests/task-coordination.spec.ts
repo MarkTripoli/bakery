@@ -471,7 +471,10 @@ test("shows the current revision with lanes as rows", async ({ page }) => {
     "Shared budget ceiling: $12.50",
   );
   await expect(
-    page.getByRole(onPhone(page) ? "list" : "table", { name: "Lanes" }),
+    page.getByRole(onPhone(page) ? "list" : "table", {
+      name: "Lanes",
+      exact: true,
+    }),
   ).toBeVisible();
   await expect(page.locator("[data-lane-key]")).toHaveCount(3);
   const api = laneRow(page, "api");

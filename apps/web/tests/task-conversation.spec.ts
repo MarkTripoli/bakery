@@ -1366,7 +1366,7 @@ test.describe("route states", () => {
     await page.getByRole("textbox", { name: "Message this task" }).fill("x");
     await context.setOffline(true);
     await page.evaluate(() => globalThis.dispatchEvent(new Event("offline")));
-    await expect(page.getByText("You are offline.")).toBeVisible();
+    await expect(page.getByText(/^You are offline\. Your draft/)).toBeVisible();
     await expect(page.getByRole("button", { name: "Send", exact: true }))
       .toBeDisabled();
     await showPlan(page);
@@ -1374,7 +1374,9 @@ test.describe("route states", () => {
     await hidePlan(page);
     await context.setOffline(false);
     await page.evaluate(() => globalThis.dispatchEvent(new Event("online")));
-    await expect(page.getByText("You are offline.")).toHaveCount(0);
+    await expect(page.getByText(/^You are offline\. Your draft/)).toHaveCount(
+      0,
+    );
     await expect(page.getByRole("button", { name: "Send", exact: true }))
       .toBeEnabled();
   });
@@ -1905,7 +1907,10 @@ test.describe("participants and live updates", () => {
       name: "Conversation transcript",
     });
     await expect(transcript.getByText("Dana Teammate")).toBeVisible();
-    await expect(transcript.getByText("A teammate")).toHaveCount(0);
+    await expect(transcript.getByText("A teammate", { exact: true }))
+      .toHaveCount(
+        0,
+      );
     await expect(transcript.locator('[data-variant="person"]').first())
       .toContainText("You");
     await expect(transcript.locator('[data-variant="agent"]')).toContainText(
@@ -2268,7 +2273,10 @@ async function openRun(
 
 for (
   const [status, notice] of [
-    ["running", "A run is in progress."],
+    [
+      "running",
+      "A run is in progress. Your message is saved and the agent reads it at its next step.",
+    ],
     [
       "blocked",
       "This run is blocked. Your message is saved and the agent reads it when the run continues.",
@@ -2360,8 +2368,8 @@ test("the artifact panel keeps its facts under Details and reads a patch as text
   await expect(aside.getByTestId("artifact-id-row")).toBeHidden();
   await aside.getByText("Details", { exact: true }).last().click();
   await expect(aside.getByTestId("artifact-id-row")).toContainText("ID");
-  await expect(aside.getByText("Fingerprint")).toBeVisible();
-  await expect(aside.getByText("Made by")).toBeVisible();
+  await expect(aside.getByText("Fingerprint", { exact: true })).toBeVisible();
+  await expect(aside.getByText("Made by", { exact: true })).toBeVisible();
   // The step's name, not its id.
   await expect(aside.getByText(runStepId)).toHaveCount(0);
   await expect(aside.getByRole("link", { name: "Open" })).toHaveAttribute(

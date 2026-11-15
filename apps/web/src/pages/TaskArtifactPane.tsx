@@ -303,7 +303,10 @@ export function TaskArtifactPane(
               noHelp
               testId="artifact-id-row"
             />
-            <FingerprintRow fingerprint={selected.sha256} />
+            <FingerprintRow
+              fingerprint={selected.sha256}
+              testId="artifact-fingerprint-row"
+            />
             <UI.DetailRow label={t("tasks.artifact.size")}>
               {t("artifact.retrieval.sizeValue", { size: selected.sizeBytes })}
             </UI.DetailRow>
