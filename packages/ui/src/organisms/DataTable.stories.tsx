@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { DataTable, Stack, Text } from "@bakery/ui";
+import { DataTable, HelpTip, Inline, Stack, Text } from "@bakery/ui";
 
 type Row = { id: string; owner: string; status: string; title: string };
 
@@ -70,6 +70,38 @@ const BaseContract: StoryObj = {
           caption="Work queue / caption hidden"
           captionHidden
           columns={columns}
+          getRowKey={(row) => row.id}
+          rows={rows}
+        />
+        <DataTable
+          caption="Rules / headers with and without a help button"
+          columns={[
+            { id: "rule", header: "Rule", cell: (row: Row) => row.title },
+            {
+              id: "enforcement",
+              header: (
+                <Inline gap="compact">
+                  <span>Enforcement</span>
+                  <HelpTip label="About enforcement">
+                    Guide only suggests; require blocks the work.
+                  </HelpTip>
+                </Inline>
+              ),
+              cell: (row: Row) => row.status,
+            },
+            {
+              id: "source",
+              header: (
+                <Inline gap="compact">
+                  <span>Source</span>
+                  <HelpTip label="About source">
+                    Where the rule comes from.
+                  </HelpTip>
+                </Inline>
+              ),
+              cell: (row: Row) => row.owner,
+            },
+          ]}
           getRowKey={(row) => row.id}
           rows={rows}
         />

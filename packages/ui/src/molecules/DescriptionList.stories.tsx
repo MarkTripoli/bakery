@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { DescriptionItem, DescriptionList, IconGlyph } from "@bakery/ui";
+import { Badge, DescriptionItem, DescriptionList, IconGlyph } from "@bakery/ui";
 
 const meta = {
   title: "Bakery/Molecules/DescriptionList",
@@ -34,6 +34,17 @@ export const Contract: StoryObj = {
           initial="N"
           onSelect={() => {}}
           title="Northwind Labs"
+        />
+      </DescriptionList>
+      <DescriptionList labels="quiet">
+        <DescriptionItem
+          action={<Badge>Unknown</Badge>}
+          description="Bakery does not read the provider's branch protection."
+          title="Branch protection"
+        />
+        <DescriptionItem
+          action={<Badge tone="success">Configured</Badge>}
+          title="Bakery checks"
         />
       </DescriptionList>
     </div>

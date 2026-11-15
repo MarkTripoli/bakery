@@ -306,6 +306,11 @@
   text-align: start;
   vertical-align: top;
 }
+/* A header row that holds a help button is taller than its plain headers, which
+   sat at the top of it: centre every header of such a row on one line. */
+.ui-data-table thead tr:has(.ui-help-tip) th {
+  vertical-align: middle;
+}
 .ui-code-block {
   background: var(--color-syntax-surface);
   border-radius: var(--radius-control);
@@ -442,6 +447,10 @@
 .ui-description-item__title {
   color: var(--color-fg);
   font: var(--type-heading-subsection);
+}
+/* Opt-in (`labels="quiet"`): each row's title in the body weight, not the heavy subsection weight. */
+.ui-description-list[data-labels="quiet"] .ui-description-item__title {
+  font: var(--type-body);
 }
 .ui-description-item__description {
   color: var(--color-fg-muted);
