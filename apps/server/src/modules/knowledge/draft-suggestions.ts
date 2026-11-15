@@ -501,19 +501,30 @@ function refusalReason(error: unknown): DraftEditRefusalReason | null {
     : null;
 }
 
-/** Locks one still-waiting suggestion and returns it, or throws on conflict. */
+/**
+ * Locks the suggestion a decision is about to change and proves it is still
+ * waiting. Taking this lock before any edit is what keeps an accept and a
+ * reject from both passing the waiting check: the second decision waits here,
+ * then sees the settled state and changes nothing (#71 review).
+ */
 async function lockWaitingSuggestion(
   transaction: PgTransactionClient,
   organizationId: string,
   draftId: string,
   suggestionId: string,
-): Promise<SuggestionRow | undefined> {
-  return (await transaction.query<SuggestionRow>(
+): Promise<SuggestionRow> {
+  const row = (await transaction.query<SuggestionRow>(
     `select ${SUGGESTION_COLUMNS} ${SUGGESTION_FROM}
       where s.organization_id = $1 and s.draft_id = $2 and s.id = $3
       for update of s`,
     [organizationId, draftId, suggestionId],
   )).rows[0];
+  if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  // Another decision committed first: this one applies nothing at all.
+  if (row.state !== "waiting") {
+    throw new StandardError({ code: "STATE_CONFLICT" });
+  }
+  return row;
 }
 
 async function recordDecision(
@@ -536,12 +547,13 @@ async function recordDecision(
     organizationId,
     input.draftId,
   );
-  await transaction.query(
+  const updated = await transaction.query<{ id: string }>(
     `update bakery.artifact_draft_suggestions
         set state = $4, refusal_reason = $5, decided_by_id = $6,
             decided_at = current_timestamp, applied_server_sequence = $7::bigint
       where organization_id = $1 and draft_id = $2 and id = $3
-        and state = 'waiting'`,
+        and state = 'waiting'
+      returning id`,
     [
       organizationId,
       input.draftId,
@@ -552,6 +564,11 @@ async function recordDecision(
       input.appliedServerSequence ?? null,
     ],
   );
+  // The row was locked and proved waiting before any edit, so this always
+  // changes it; a decision that changed nothing must not claim it did.
+  if (updated.rows.length !== 1) {
+    throw new StandardError({ code: "STATE_CONFLICT" });
+  }
   await appendDomainEvent(transaction, {
     organizationId,
     applicationId: scope.application_id,
@@ -590,6 +607,26 @@ async function recordDecision(
   );
   if (!decided) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   return { suggestion: decided, draftId: input.draftId };
+}
+
+/**
+ * Takes the decision lock on a suggestion before the acceptance applies its
+ * edit. The edit then commits while the row is held, so a concurrent reject
+ * cannot settle the suggestion in between — it waits, then finds a decided
+ * row and changes nothing (#71 review).
+ */
+export async function lockSuggestionAcceptance(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  draftId: string,
+  suggestionId: string,
+): Promise<void> {
+  await lockWaitingSuggestion(
+    transaction,
+    organizationId,
+    draftId,
+    suggestionId,
+  );
 }
 
 /**

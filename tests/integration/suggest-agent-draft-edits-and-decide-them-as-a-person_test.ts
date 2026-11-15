@@ -496,3 +496,122 @@ Deno.test("the suggestion list pages by keyset and a cursor is bound to its list
     await cleanup(fixture);
   }
 });
+
+Deno.test("a stored state this build does not know reads as unknown and is never re-decided", async () => {
+  const fixture = await openDraftFixture("alpha target omega");
+  try {
+    const draft = await openDraft(fixture);
+    const selected = await slice(fixture, draft, 6, 12);
+    const proposed = await fixture.app.fetch(jsonDraftRequest(
+      fixture,
+      `/v1/drafts/${draft.id}/suggestions`,
+      "POST",
+      proposal(draft, selected, crypto.randomUUID(), "replacement"),
+    ));
+    assertEquals(proposed.status, 201);
+    const suggestion = await responseJson(proposed) as Suggestion;
+
+    // A newer build may store a state this one does not recognise; the read
+    // must say so plainly rather than guess one of the four it knows.
+    await fixture.pgDatabase.query(
+      `update bakery.artifact_draft_suggestions
+          set state = 'superseded_by_a_later_build'
+        where organization_id = $1 and id = $2`,
+      [fixture.ids.organizationId, suggestion.id],
+    );
+
+    const listed = await list(fixture, draft.id);
+    assertEquals(listed.items.length, 1);
+    assertEquals(listed.items[0].state, "unknown");
+    assertEquals(listed.items[0].refusalReason, null);
+
+    // A decision cannot move an unknown state: the answer is the row as it is.
+    const accepting = await decide(fixture, draft.id, suggestion.id, "accept");
+    assertEquals(accepting.status, 201);
+    assertEquals(
+      (await responseJson(accepting) as Suggestion).state,
+      "unknown",
+    );
+    const rejecting = await decide(fixture, draft.id, suggestion.id, "reject");
+    assertEquals(rejecting.status, 201);
+    assertEquals(
+      (await responseJson(rejecting) as Suggestion).state,
+      "unknown",
+    );
+    assertEquals(
+      (await readDraft(fixture, draft.id)).text,
+      "alpha target omega",
+    );
+  } finally {
+    await cleanup(fixture);
+  }
+});
+
+Deno.test("an accept applies nothing when a concurrent reject settles the suggestion first", async () => {
+  const fixture = await openDraftFixture("alpha target omega");
+  const lockHolder = await fixture.pgDatabase.connect();
+  let open = false;
+  try {
+    const draft = await openDraft(fixture);
+    const selected = await slice(fixture, draft, 6, 12);
+    const proposed = await fixture.app.fetch(jsonDraftRequest(
+      fixture,
+      `/v1/drafts/${draft.id}/suggestions`,
+      "POST",
+      proposal(draft, selected, crypto.randomUUID(), "replacement"),
+    ));
+    assertEquals(proposed.status, 201);
+    const suggestion = await responseJson(proposed) as Suggestion;
+
+    // A second connection holds the decision row, as a reject does while it
+    // decides. The accept must wait here, before its edit, rather than apply
+    // the replacement and then discover the suggestion is gone.
+    await lockHolder.query("begin");
+    open = true;
+    await lockHolder.query(
+      `select id from bakery.artifact_draft_suggestions
+        where organization_id = $1 and id = $2 for update`,
+      [fixture.ids.organizationId, suggestion.id],
+    );
+    const pending = decide(fixture, draft.id, suggestion.id, "accept");
+    // Long enough for the accept to prepare and reach the decision lock.
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    await lockHolder.query(
+      `update bakery.artifact_draft_suggestions
+          set state = 'rejected', decided_by_id = $3,
+              decided_at = current_timestamp
+        where organization_id = $1 and id = $2`,
+      [fixture.ids.organizationId, suggestion.id, fixture.ids.principalId],
+    );
+    await lockHolder.query("commit");
+    open = false;
+
+    const accepted = await pending;
+    assertEquals(accepted.status, 409, await accepted.clone().text());
+    const after = await readDraft(fixture, draft.id);
+    assertEquals(after.text, "alpha target omega");
+    assertEquals(after.receipts.length, 0);
+    const listed = await list(fixture, draft.id);
+    assertEquals(listed.items[0].state, "rejected");
+    assertEquals(listed.items[0].appliedServerSequence, null);
+    // The refused acceptance claims no decision of its own: no event, no audit.
+    const events = await fixture.pgDatabase.query<{ count: string }>(
+      `select count(*)::text as count from bakery.domain_events
+        where organization_id = $1 and aggregate_id = $2
+          and event_type = 'draft.suggestion_decided'`,
+      [fixture.ids.organizationId, suggestion.id],
+    );
+    assertEquals(events.rows[0]?.count, "0");
+    const audits = await fixture.pgDatabase.query<{ count: string }>(
+      `select count(*)::text as count from bakery.audit_events
+        where organization_id = $1 and resource_id = $2
+          and operation = 'draftSuggestions.accept'`,
+      [fixture.ids.organizationId, suggestion.id],
+    );
+    assertEquals(audits.rows[0]?.count, "0");
+  } finally {
+    if (open) await lockHolder.query("rollback");
+    lockHolder.release();
+    await cleanup(fixture);
+  }
+});

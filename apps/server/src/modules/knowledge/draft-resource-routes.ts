@@ -42,6 +42,7 @@ import {
   type DraftSuggestionCreateInput,
   type DraftSuggestionRead,
   listDraftSuggestions,
+  lockSuggestionAcceptance,
   prepareDraftSuggestion,
   prepareSuggestionDecision,
 } from "./draft-suggestions.ts";
@@ -786,6 +787,15 @@ export function createDraftResourceRoutes(
           return contractSchemas.DraftSuggestion.parse(suggestion);
         }
         if (stage.edit && stage.decision && stage.candidate) {
+          // The suggestion is settled only if the edit is about to apply: the
+          // lock is taken before the edit, so an accept and a reject cannot
+          // both pass the waiting check (#71 review).
+          await lockSuggestionAcceptance(
+            transaction,
+            organizationId,
+            draftId(context),
+            input.suggestionId,
+          );
           const receipt = await commitDraftEdit(
             transaction,
             organizationId,
