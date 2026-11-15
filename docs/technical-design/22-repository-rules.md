@@ -161,6 +161,23 @@ too). Refusal is `UNPROCESSABLE repository_rule_stage_missing` or
 written. Admission evaluates only the run being admitted against the pin being
 written; runs already admitted are never re-evaluated.
 
+_Compiled plans._ A workflow that is a compiled plan (#398) is read through its
+shape, not as a list. The guard asks the same question of every path through the
+plan and credits a check only when it runs after the last revision on every one:
+a step with an `if` guard may not run, so it covers nothing, and a revision
+behind a guard still ends coverage; the two arms of a branch are two paths, so
+only what both cover counts; a `repeat` body runs zero or more times, so a check
+inside it counts only for the revisions of the same pass (the reviewed shape,
+implement then check then a repair-and-check loop, is satisfied, and a repair with
+no check after it is not); the lanes of a parallel group have no order, so a check
+beside a revision covers nothing and checks beside other checks add up. A plan
+that is a plain list gets exactly the flat answer, and the refusals and their
+words are the same (`repository_rule_stage_missing`,
+`repository_rule_stage_before_revision`), at publication, activation and
+admission. Before this a plan under a `require` rule was refused outright
+(`workflow_plan_rules_unsupported` at admission, `workflow_not_executable` at
+publication and activation).
+
 _Consequence to know._ In an organization with an enabled `require` rule that
 has a `checkBinding`, the built-in `fixed-coding` preset (brief and implement,
 no check stage) and any workflow version published or activated before the rule
