@@ -17,7 +17,8 @@ create table bakery.artifact_draft_publications (
   version_number integer not null,
   idempotency_key text,
   publisher_id uuid not null,
-  actor_kind text not null check (actor_kind in ('person', 'agent')),
+  -- 'person' or 'agent' (O50), validated by the server, not the database.
+  actor_kind text not null,
   access_token_id uuid,
   published_at timestamptz not null default now(),
   constraint artifact_draft_publications_draft_fk
