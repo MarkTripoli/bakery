@@ -24,6 +24,7 @@ import {
   publishWorkflow,
   seedRulesRepository,
 } from "../helpers/pinned-rules.ts";
+import { reviewedPlanDocument } from "../helpers/review-repair/plan-loop-document.ts";
 import type { WorkerFixture } from "../helpers/worker-execution.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 
@@ -734,5 +735,43 @@ Deno.test("a flat workflow is admitted exactly as before: its rows, its agents, 
     assertEquals(
       Object.keys(snapshot.stepAgents as object).length > 0,
       true,
+    );
+  }));
+
+Deno.test("a plan that reviews freezes its review loop from its own repeat bound; a plan that does not freezes none", () =>
+  withWorkerFixture(async (fixture) => {
+    const { agent, repository } = await repositoryWithAgent(fixture, "loop");
+    const reviewed = await publishWorkflow(
+      fixture,
+      fixture,
+      "plan-reviewed",
+      reviewedPlanDocument({
+        name: "plan-reviewed",
+        agents: {
+          "harness.implement": agent,
+          "harness.repair": agent,
+          "review.independent": agent,
+        },
+        repairs: 3,
+      }),
+    );
+    const first = await start(fixture, repository, reviewed.versionId);
+    const run = await expectJson<RunBody>(first.response, 201);
+    const snapshot = await snapshotOf(fixture, run.id);
+    assertEquals(snapshot.reviewLoop, {
+      maxRepairCycles: 3,
+      maxLoopDurationMs: 24 * 60 * 60 * 1000,
+      maxFindings: 25,
+    });
+    // The plan sections are as for any plan run: nothing flat is written.
+    assertEquals(snapshot.stepActions, {});
+    assertEquals(await stepRows(fixture, run.id), []);
+
+    const plain = await publishWorkflow(fixture, fixture, "plan-plain", plan());
+    const second = await start(fixture, repository, plain.versionId);
+    const other = await expectJson<RunBody>(second.response, 201);
+    assertEquals(
+      Object.hasOwn(await snapshotOf(fixture, other.id), "reviewLoop"),
+      false,
     );
   }));

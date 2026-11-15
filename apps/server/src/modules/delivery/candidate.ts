@@ -7,6 +7,7 @@ import {
 } from "@bakery/contracts/check-evidence";
 import { StandardError } from "@bakery/contracts/http";
 import { candidateHeadSha } from "@bakery/persistence/repository-admission";
+import { loopSnapshotOf } from "./plan-run-view.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import type { DecisionCheckFact } from "./repair-loop.ts";
 import type { CandidateIdentity } from "./identity.ts";
@@ -320,7 +321,15 @@ export async function evaluateDeliveryCandidate(
   const stepOutputs = await loadStepOutputs(transaction, input);
   let headSha: string | null;
   try {
-    headSha = candidateHeadSha(run.rows[0]!.snapshot, stepOutputs);
+    // A plan run is read through the steps it dispatched, as the loop does.
+    headSha = candidateHeadSha(
+      await loopSnapshotOf(transaction, {
+        organizationId,
+        runId,
+        snapshot: run.rows[0]!.snapshot,
+      }),
+      stepOutputs,
+    );
   } catch (error) {
     if (
       !(error instanceof Error) || error.message !== "WORKFLOW_INPUT_UNRESOLVED"

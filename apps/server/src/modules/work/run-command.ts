@@ -27,6 +27,7 @@ import {
   workflowActionBinding,
 } from "@bakery/persistence";
 import type { ReviewLoopLimits } from "@bakery/persistence/repository-admission";
+import { planReviewLoopLimits } from "../delivery/plan-review-loop.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { nextOrganizationSequence } from "../../platform/event-clock.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
@@ -1027,6 +1028,9 @@ export async function createRunCommand(
   let reviewLoop: ReviewLoopLimits | null = null;
   let stepAgents: FrozenStepAgents = {};
   if (planAdmission !== null) {
+    // A plan that reviews freezes its loop bounds like a flat run does, from
+    // the plan itself (its `repeat` bound); a plan without a review freezes none.
+    reviewLoop = planReviewLoopLimits(planAdmission.document);
     assertBudgetCoversReservations(
       planAdmission.sites.map((site) => ({
         key: site.qualifiedId,

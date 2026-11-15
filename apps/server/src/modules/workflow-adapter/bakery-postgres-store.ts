@@ -25,6 +25,7 @@ import {
 import { type Inngest, NonRetriableError } from "inngest";
 import {
   type ActionDispatch,
+  type JsonValue,
   type WaitDispatch,
   WorkflowInterpreterError,
 } from "@bakery/contracts/workflow-interpreter";
@@ -818,6 +819,25 @@ async function finishPlanRunIn(
 }
 
 /**
+ * What the host knows about a plan run beyond its rows, read once per engine
+ * pass. `delivery` is `$delivery` as the host resolves it (absent until it can);
+ * `halt` is a stable code that ends the run failed instead of asking the plan
+ * anything. The engine names no template and no module behind either: the host
+ * injects the reader where it builds the engine.
+ */
+export type PlanHostFacts = Readonly<{ delivery?: JsonValue; halt?: string }>;
+
+/** Reads {@link PlanHostFacts} for one run, inside the engine's transaction. */
+export type PlanHostReader = (
+  transaction: PgTransactionClient,
+  run: Readonly<{
+    organizationId: string;
+    runId: string;
+    runSnapshot: unknown;
+  }>,
+) => Promise<PlanHostFacts>;
+
+/**
  * Asks a plan run's own interpreter revision what to do next, from the frozen
  * document, inputs and task and the stored step rows. Throws the adapter's or
  * the interpreter's stable error when the plan cannot be read.
@@ -825,6 +845,7 @@ async function finishPlanRunIn(
 async function askPlan(
   transaction: PgTransactionClient,
   run: Pick<RunEndRow, "organizationId" | "runId" | "runSnapshot">,
+  delivery?: JsonValue,
 ) {
   const runtime = await planRuntimeFromSnapshot(run.runSnapshot);
   if (runtime === null) throw new PlanStateError("plan_snapshot_invalid");
@@ -840,6 +861,7 @@ async function askPlan(
   return nextPlanStep(runtime, {
     inputs: planInputsFromSnapshot(run.runSnapshot),
     task: planTaskFromSnapshot(run.runSnapshot),
+    ...(delivery === undefined ? {} : { delivery }),
     rows: rows.rows,
   });
 }
@@ -858,6 +880,7 @@ async function findNextPlanKeys(
   transaction: PgTransactionClient,
   runId: string,
   owner: EngineOwner | undefined,
+  planHost?: PlanHostReader,
 ): Promise<readonly LogicalInvocationKey[] | undefined | null> {
   // A flat run is served by the row-order loop and must not queue behind a lock
   // on its run or task row, which only deciding a plan run needs. A run's
@@ -875,9 +898,18 @@ async function findNextPlanKeys(
     return undefined;
   }
   const activeOwner = requireOwnerValue(owner);
+  // The host may end the run (a recorded stop) or hand over `$delivery`; the
+  // engine acts on either without knowing what produced it.
+  const host: PlanHostFacts = planHost === undefined
+    ? {}
+    : await planHost(transaction, context);
+  if (host.halt !== undefined) {
+    await endPlanRunFailed(transaction, context, activeOwner, host.halt);
+    return undefined;
+  }
   let answer;
   try {
-    answer = await askPlan(transaction, context);
+    answer = await askPlan(transaction, context, host.delivery);
   } catch (error) {
     if (
       error instanceof PlanStateError ||
@@ -1177,6 +1209,8 @@ export function createBakeryPostgresWorkflowRepository(options: {
   database: PgDatabase;
   maxAttempts: number;
   budgetPolicy?: BudgetPolicy;
+  /** The host's view of a plan run (`$delivery`, a halt); none leaves both unresolved. */
+  planHost?: PlanHostReader;
 }): BakeryPostgresWorkflowRepository {
   if (
     !Number.isSafeInteger(options.maxAttempts) || options.maxAttempts < 1 ||
@@ -1382,7 +1416,12 @@ export function createBakeryPostgresWorkflowRepository(options: {
     async findNext(runId, owner) {
       return await withPgTransaction(options.database, async (transaction) => {
         await requireEngineOwner(transaction, runId, owner);
-        const planKeys = await findNextPlanKeys(transaction, runId, owner);
+        const planKeys = await findNextPlanKeys(
+          transaction,
+          runId,
+          owner,
+          options.planHost,
+        );
         if (planKeys !== null) return planKeys?.[0];
         return await loadNext(transaction, runId);
       });
@@ -1401,7 +1440,12 @@ export function createBakeryPostgresWorkflowRepository(options: {
     async findNextSet(runId, owner) {
       return await withPgTransaction(options.database, async (transaction) => {
         await requireEngineOwner(transaction, runId, owner);
-        const planKeys = await findNextPlanKeys(transaction, runId, owner);
+        const planKeys = await findNextPlanKeys(
+          transaction,
+          runId,
+          owner,
+          options.planHost,
+        );
         if (planKeys !== null) return planKeys ?? [];
         const key = await loadNext(transaction, runId);
         return key === undefined ? [] : [key];
@@ -1995,6 +2039,7 @@ export function createBakeryFixedWorkflow(options: {
   jobCompletionTimeout: string;
   engineRetries: number;
   budgetPolicy?: BudgetPolicy;
+  planHost?: PlanHostReader;
   /** Durable operations one function run may use; a test sets it small. */
   stepOperationBudget?: number;
 }) {
@@ -2004,6 +2049,7 @@ export function createBakeryFixedWorkflow(options: {
     database: options.database,
     maxAttempts: options.maxAttempts,
     budgetPolicy: options.budgetPolicy,
+    planHost: options.planHost,
   });
   const engineRetries = options.engineRetries as
     | 1
@@ -2526,11 +2572,13 @@ export function createBakeryWorkflowRecovery(options: {
   database: PgDatabase;
   limit?: number;
   budgetPolicy?: BudgetPolicy;
+  planHost?: PlanHostReader;
 }) {
   const repository = createBakeryPostgresWorkflowRepository({
     database: options.database,
     maxAttempts: 1,
     budgetPolicy: options.budgetPolicy,
+    planHost: options.planHost,
   });
   const limit = options.limit ?? 50;
   return options.client.createFunction(
