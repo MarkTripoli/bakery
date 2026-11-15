@@ -16677,6 +16677,7 @@ const transportSchemas = {
         "archivedAt",
         "createdAt",
         "updatedAt",
+        "nextProfileRevision",
         "version"
       ],
       "fieldTypes": {
@@ -16692,6 +16693,7 @@ const transportSchemas = {
         "archivedAt": "timestamp|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
+        "nextProfileRevision": "integer",
         "version": "integer"
       },
       "nullableFields": [
@@ -16713,8 +16715,12 @@ const transportSchemas = {
         "archivedAt": "UTC timestamp when the record was archived, or null while active.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
+        "nextProfileRevision": "The revision the next saved version of the working settings must use (#65): the highest stored revision plus one, counting check candidates the Versions list hides. Served by repositories.get; other repository responses omit it.",
         "version": "Optimistic-concurrency version used when updating the record."
-      }
+      },
+      "optionalFields": [
+        "nextProfileRevision"
+      ]
     },
     "RepositoryProfile": {
       "projection": "repository_profiles",

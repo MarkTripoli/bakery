@@ -113836,6 +113836,12 @@
                     "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
                     "description": "UTC timestamp when the record was last updated."
                   },
+                  "nextProfileRevision": {
+                    "description": "The revision the next saved version of the working settings must use (#65): the highest stored revision plus one, counting check candidates the Versions list hides. Served by repositories.get; other repository responses omit it.",
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  },
                   "version": {
                     "type": "integer",
                     "minimum": -9007199254740991,
@@ -133170,6 +133176,12 @@
               "format": "date-time",
               "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
               "description": "UTC timestamp when the record was last updated."
+            },
+            "nextProfileRevision": {
+              "description": "The revision the next saved version of the working settings must use (#65): the highest stored revision plus one, counting check candidates the Versions list hides. Served by repositories.get; other repository responses omit it.",
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
             },
             "version": {
               "type": "integer",
@@ -198782,7 +198794,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:147cc2fdc53f7ca3fd702a2a3ae9ad47186c6df3295bcd29e6e6f3fe5aaf98df",
+  "compatibilityDigest": "sha256:b2bd10b8c11086407932cb8342eeb213b2ad68fa6f1c9f7b11d3e4fa5a8e9a5a",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -281544,6 +281556,12 @@
                 "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
                 "description": "UTC timestamp when the record was last updated."
               },
+              "nextProfileRevision": {
+                "description": "The revision the next saved version of the working settings must use (#65): the highest stored revision plus one, counting check candidates the Versions list hides. Served by repositories.get; other repository responses omit it.",
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
               "version": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -300928,6 +300946,12 @@
           "format": "date-time",
           "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
           "description": "UTC timestamp when the record was last updated."
+        },
+        "nextProfileRevision": {
+          "description": "The revision the next saved version of the working settings must use (#65): the highest stored revision plus one, counting check candidates the Versions list hides. Served by repositories.get; other repository responses omit it.",
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991
         },
         "version": {
           "type": "integer",

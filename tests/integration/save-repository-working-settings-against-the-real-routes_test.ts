@@ -1,4 +1,10 @@
 import { assert, assertEquals } from "@std/assert";
+import { deriveRepositoryInspectionConfig } from "../../apps/server/src/modules/projects/repository-inspect.ts";
+import { RepositoryProfileConfigSchema } from "../../packages/contracts/src/repository-profile-config.ts";
+import {
+  canonicalJson,
+  sha256Hex,
+} from "../../apps/server/src/platform/canonical-json.ts";
 import { openCoordinationFixture } from "../helpers/coordination-fixture.ts";
 import {
   type SaveApi,
@@ -151,7 +157,10 @@ Deno.test("the page's save sequence against the real routes", async () => {
         organizationId: fx.organizationId,
         repository,
         previous: previous as never,
-        revision: nextRevision(listed.items as never),
+        revision: nextRevision(
+          listed.items as never,
+          (repository as { nextProfileRevision?: number }).nextProfileRevision,
+        ),
         branches,
         folder: "",
         createKey: crypto.randomUUID(),
@@ -207,6 +216,182 @@ Deno.test("the page's save sequence against the real routes", async () => {
       !controlResult.ok && controlResult.step === "create" &&
         (controlResult.error as { problem: { status: number } }).problem.status,
       400,
+    );
+
+    // #65: the Versions list shows what a person saved or what a passing
+    // check put in use; a failed check's candidate is stored but not listed.
+    const checked = await makeRepo("checked", { profile: config() });
+    const candidate = async (
+      revision: number,
+      readiness: "eligible" | "blocked",
+    ) => {
+      const profileId = crypto.randomUUID();
+      const candidateConfig = config({}, "main");
+      (candidateConfig.branches as { allowedPatterns: string[] })
+        .allowedPatterns = [`check-${revision}/*`];
+      const digest = await configDigest(candidateConfig);
+      await owner`
+        insert into bakery.repository_profiles (
+          id, organization_id, application_id, repository_id, revision, config,
+          digest, created_by, version
+        ) values (${profileId}, ${fx.organizationId}, ${fx.applicationId},
+          ${checked}, ${revision}, ${owner.json(candidateConfig as never)},
+          ${digest}, ${fx.admin.principalId}, 1)`;
+      await owner`
+        insert into bakery.repository_profile_observations (
+          organization_id, application_id, repository_id, profile_id,
+          profile_revision, profile_digest, observation_digest, observed_at,
+          source_mapping_revision, source_mapping_digest, base_sha, payload,
+          readiness
+        ) values (${fx.organizationId}, ${fx.applicationId}, ${checked},
+          ${profileId}, ${revision}, ${digest}, ${"c".repeat(64)}, now(), '1',
+          ${"d".repeat(64)}, ${"e".repeat(40)}, ${owner.json({} as never)},
+          ${readiness})`;
+      return profileId;
+    };
+    const failed = await candidate(2, "blocked");
+    const passed = await candidate(3, "eligible");
+    const versions = (await request(
+      "GET",
+      `/v1/repositories/${checked}/profiles?limit=100`,
+    )).json as { items: { id: string; revision: number }[] };
+    assertEquals(versions.items.map((item) => item.revision), [3, 1]);
+    assertEquals(versions.items[0].id, passed);
+    assert(
+      !versions.items.some((item) => item.id === failed),
+      "a failed check's candidate is not a listed version",
+    );
+    // #65 (PM decision): after a check, a person can still change branches
+    // and switch versions. Put the passed check's version in use first.
+    await owner`
+      update bakery.repositories set active_profile_id = ${passed},
+        version = version + 1
+       where organization_id = ${fx.organizationId} and id = ${checked}`;
+    const repositoryNow = async () =>
+      (await request("GET", `/v1/repositories/${checked}`)).json as {
+        version: number;
+        activeProfileId: string;
+      };
+    // A branches save from the page supersedes the check-made version.
+    const afterCheck = await save(checked, ["feature/*", "after-check/*"]);
+    assert(afterCheck.ok, JSON.stringify(afterCheck));
+    assertEquals(await activeOf(checked), afterCheck.profile.id);
+    // "Use another version" back to the passed check's version works.
+    const back = await request("PATCH", `/v1/repositories/${checked}`, {
+      body: { activeProfileId: passed },
+      ifMatch: `"${(await repositoryNow()).version}"`,
+    });
+    assertEquals(back.status, 200, JSON.stringify(back.json));
+    assertEquals(await activeOf(checked), passed);
+    // ...and away from it again, while it is the version in use.
+    const away = await request("PATCH", `/v1/repositories/${checked}`, {
+      body: { activeProfileId: afterCheck.profile.id },
+      ifMatch: `"${(await repositoryNow()).version}"`,
+    });
+    assertEquals(away.status, 200, JSON.stringify(away.json));
+    // A failed check's candidate never becomes the version in use.
+    const refused = await request("PATCH", `/v1/repositories/${checked}`, {
+      body: { activeProfileId: failed },
+      ifMatch: `"${(await repositoryNow()).version}"`,
+    });
+    assertEquals(refused.status, 422, JSON.stringify(refused.json));
+    assertEquals(
+      (refused.json as { issues: { code: string }[] }).issues[0].code,
+      "profile_check_not_passed",
+    );
+    // #65 with a REAL check-made config (schema 2, carrying checkPolicy, as
+    // deriveRepositoryInspectionConfig produces it): the page's branches save
+    // drops the check-only evidence and publishes a person's version.
+    const observedRepo = await makeRepo("observed", { profile: null });
+    const observedConfig = deriveRepositoryInspectionConfig(
+      RepositoryProfileConfigSchema.parse(config()),
+      {
+        organizationId: fx.organizationId,
+        applicationId: fx.applicationId,
+        repositoryId: observedRepo,
+        source: {
+          mappingRevision: "rev-1",
+          mappingDigest: "a".repeat(64),
+          baseSha: "b".repeat(40),
+          manifestDigest: await sha256Hex(canonicalJson([])),
+        },
+        entries: [],
+      },
+    );
+    assertEquals(observedConfig.schemaVersion, 2);
+    assert(
+      "checkPolicy" in observedConfig,
+      "a check-made config carries checkPolicy",
+    );
+    const observedId = crypto.randomUUID();
+    const observedDigest = await configDigest(observedConfig);
+    await owner`
+      insert into bakery.repository_profiles (
+        id, organization_id, application_id, repository_id, revision, config,
+        digest, created_by, version
+      ) values (${observedId}, ${fx.organizationId}, ${fx.applicationId},
+        ${observedRepo}, 1, ${owner.json(observedConfig as never)},
+        ${observedDigest}, ${fx.admin.principalId}, 1)`;
+    await owner`
+      insert into bakery.repository_profile_observations (
+        organization_id, application_id, repository_id, profile_id,
+        profile_revision, profile_digest, observation_digest, observed_at,
+        source_mapping_revision, source_mapping_digest, base_sha, payload,
+        readiness
+      ) values (${fx.organizationId}, ${fx.applicationId}, ${observedRepo},
+        ${observedId}, 1, ${observedDigest}, ${"c".repeat(64)}, now(), 'rev-1',
+        ${"a".repeat(64)}, ${"b".repeat(40)}, ${owner.json({} as never)},
+        'eligible')`;
+    await owner`
+      update bakery.repositories set active_profile_id = ${observedId},
+        version = version + 1
+       where organization_id = ${fx.organizationId} and id = ${observedRepo}`;
+    const observedSave = await save(observedRepo, ["feature/*", "after/*"]);
+    assert(observedSave.ok, JSON.stringify(observedSave));
+    assertEquals(await activeOf(observedRepo), observedSave.profile.id);
+    const savedConfig = observedSave.profile.config as Record<string, unknown>;
+    assertEquals(savedConfig.schemaVersion, 1);
+    assertEquals("checkPolicy" in savedConfig, false);
+    // qa2's case: a failed check's candidate holds the TOP revision. The list
+    // hides it, so the page takes the next revision from the server's
+    // nextProfileRevision; a save from max(listed) + 1 would be a 409.
+    const topFailed = await makeRepo("top-failed", { profile: config() });
+    {
+      const profileId = crypto.randomUUID();
+      const candidateConfig = config();
+      (candidateConfig.branches as { allowedPatterns: string[] })
+        .allowedPatterns = ["top-failed/*"];
+      const digest = await configDigest(candidateConfig);
+      await owner`
+        insert into bakery.repository_profiles (
+          id, organization_id, application_id, repository_id, revision, config,
+          digest, created_by, version
+        ) values (${profileId}, ${fx.organizationId}, ${fx.applicationId},
+          ${topFailed}, 2, ${owner.json(candidateConfig as never)}, ${digest},
+          ${fx.admin.principalId}, 1)`;
+      await owner`
+        insert into bakery.repository_profile_observations (
+          organization_id, application_id, repository_id, profile_id,
+          profile_revision, profile_digest, observation_digest, observed_at,
+          source_mapping_revision, source_mapping_digest, base_sha, payload,
+          readiness
+        ) values (${fx.organizationId}, ${fx.applicationId}, ${topFailed},
+          ${profileId}, 2, ${digest}, ${"c".repeat(64)}, now(), '1',
+          ${"d".repeat(64)}, ${"e".repeat(40)}, ${owner.json({} as never)},
+          'blocked')`;
+    }
+    const topRead = (await request("GET", `/v1/repositories/${topFailed}`))
+      .json as { nextProfileRevision: number };
+    assertEquals(topRead.nextProfileRevision, 3);
+    const topSave = await save(topFailed, ["feature/*", "after-failed/*"]);
+    assert(topSave.ok, JSON.stringify(topSave));
+    assertEquals(topSave.profile.revision, 3);
+    assertEquals(await activeOf(topFailed), topSave.profile.id);
+    // It is still stored, for audit and the check result.
+    assertEquals(
+      (await owner`select count(*)::int as n from bakery.repository_profiles
+        where id = ${failed}`)[0].n,
+      1,
     );
   } finally {
     await fx.close();
