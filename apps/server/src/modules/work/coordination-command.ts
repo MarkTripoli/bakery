@@ -49,6 +49,7 @@ import {
   loadTaskScope,
   lockApplication,
 } from "./postgres.ts";
+import { releaseDependentRuns } from "./dependency-release.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 
 type PlanCreateInput = z.output<typeof contractSchemas.CoordinationPlanCreate>;
@@ -1109,6 +1110,23 @@ async function emitChildCanceled(
   );
   const task = scope.rows[0];
   if (!task) return;
+  // #57: a lane child canceled directly (no live worker) ends its task
+  // without the worker lifecycle's terminal hook, so release the runs blocked
+  // on it here; the cancel cascades to their dependants the same way. Plan
+  // reconciliation is left to the plan cancel that called this.
+  if (versions.taskVersion !== undefined) {
+    const release = (taskId: string): Promise<void> =>
+      releaseDependentRuns(
+        transaction,
+        {
+          organizationId: facts.organizationId,
+          taskId,
+          traceId: facts.traceId,
+        },
+        release,
+      );
+    await release(childTaskId);
+  }
   const base = {
     organizationId: facts.organizationId,
     applicationId: task.application_id,

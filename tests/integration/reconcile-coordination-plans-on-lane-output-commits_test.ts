@@ -12,6 +12,7 @@ import {
   laneOf,
   materialize,
   planOf,
+  startRun,
 } from "../helpers/coordination-lanes.ts";
 
 const settled = async (promise: Promise<unknown>, ms: number) =>
@@ -117,6 +118,52 @@ Deno.test("sibling output commits, cancel and materialize replay never deadlock"
     for (const result of canceled) assertEquals(result.status, "fulfilled");
     const response = (canceled[0] as PromiseFulfilledResult<Response>).value;
     assertEquals(response.status, 201, await response.clone().text());
+  } finally {
+    await fx.close();
+  }
+});
+
+Deno.test("#57: canceling a plan releases runs blocked on its lane children", async () => {
+  const fx = await openCoordinationFixture();
+  try {
+    await fx.seedAliases();
+    const parent = await fx.insertTask("plan to cancel");
+    const plan = await materialize(
+      fx,
+      (await planOf(await createPlan(fx, parent, fourLaneSpec()))).id,
+    );
+    // An ordinary task outside the plan waits on the contract lane's child.
+    const outside = await fx.insertTask("waits on a lane child");
+    const laneChild = childOf(plan, "contract");
+    await fx.owner`
+      insert into bakery.task_dependencies (
+        organization_id, task_id, depends_on_task_id, condition
+      ) values (${fx.organizationId}, ${outside}, ${laneChild}, 'completed')`;
+    const started = await startRun(fx, outside);
+    assertEquals(started.status, 201, await started.clone().text());
+    const runId = (await started.json() as { id: string }).id;
+    const statusOf = async () =>
+      (await fx.owner`select status from bakery.workflow_runs
+        where organization_id = ${fx.organizationId} and id = ${runId}`)[0]
+        .status;
+    assertEquals(await statusOf(), "blocked");
+    // The lane child has no live worker, so the plan cancel ends it directly.
+    const canceled = await fx.send(
+      fx.developer,
+      "POST",
+      `/v1/coordination-plans/${plan.id}/cancel`,
+      { body: {} },
+    );
+    assertEquals(canceled.status, 201, await canceled.clone().text());
+    assertEquals(await statusOf(), "canceled");
+    const audit = await fx.owner`
+      select details from bakery.audit_events
+       where organization_id = ${fx.organizationId}
+         and operation = 'runs.dependency_cancel' and resource_id = ${runId}`;
+    assertEquals(audit.length, 1);
+    const details = audit[0].details as Record<string, unknown>;
+    assertEquals(details.reason, "dependency_canceled");
+    assertEquals(details.dependencyTaskId, laneChild);
   } finally {
     await fx.close();
   }
