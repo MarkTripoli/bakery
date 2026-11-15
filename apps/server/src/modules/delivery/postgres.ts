@@ -73,14 +73,17 @@ type CheckRunRow = {
   created_at: Date | string;
 };
 
-type KeysetCheckRunRow = CheckRunRow & { cursor_created_at: string };
+type KeysetCheckRunRow = CheckRunRow & {
+  cursor_created_at: string;
+  pull_request_id: string | null;
+};
 
 /** The `CheckRun` projection; the generated schema types it only as JSON. */
 type CheckRunOutput = {
   readonly id: string;
   readonly runId: string;
   readonly runStepId: string | null;
-  readonly pullRequestId: null;
+  readonly pullRequestId: string | null;
   readonly checkId: string;
   readonly checkName: string;
   readonly kind: CheckKind;
@@ -133,7 +136,7 @@ function checkRunBinding(
  * `version` is 1. `result` and `reason` pass through unchanged: a failed and an
  * unavailable check must stay distinguishable to every reader.
  */
-function toCheckRun(row: CheckRunRow): CheckRunOutput {
+function toCheckRun(row: KeysetCheckRunRow): CheckRunOutput {
   if (
     !isCheckKind(row.kind) || !isCheckResult(row.result) ||
     !isCheckReason(row.reason) ||
@@ -146,7 +149,7 @@ function toCheckRun(row: CheckRunRow): CheckRunOutput {
     id: row.id,
     runId: row.run_id,
     runStepId: row.run_step_id,
-    pullRequestId: null,
+    pullRequestId: row.pull_request_id,
     checkId: row.check_id,
     checkName: row.check_id,
     kind: row.kind,
@@ -202,6 +205,15 @@ export function createChecksListHandler(secret: string) {
     const limit = input.limit ?? 25;
     const result = await transaction.query<KeysetCheckRunRow>(
       `select ${CHECK_RUN_COLUMNS},
+        (
+                select pull_request.id
+                  from bakery.pull_requests as pull_request
+                 where pull_request.organization_id = check_runs.organization_id
+                   and pull_request.run_id = check_runs.run_id
+                   and pull_request.head_sha = check_runs.head_sha
+                 order by pull_request.provider_number asc
+                 limit 1
+              ) as pull_request_id,
         to_char(
           created_at at time zone 'UTC',
           'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
@@ -276,6 +288,7 @@ type ReviewCycleRow = {
   finding_count: number;
   blocking_count: number;
   created_at: Date | string;
+  pull_request_id: string | null;
 };
 
 type DeliveryDecisionRow = {
@@ -318,7 +331,7 @@ function toReviewCycle(row: ReviewCycleRow) {
     runId: row.run_id,
     runStepId: row.run_step_id,
     ordinal: row.ordinal,
-    pullRequestId: null,
+    pullRequestId: row.pull_request_id,
     reviewerSessionId: row.reviewer_session_id,
     reviewerPrincipalId: row.reviewer_principal_id,
     implementerSessionId: row.implementer_session_id,
@@ -448,7 +461,16 @@ export function createRunReviewsListHandler(secret: string) {
     const position = await decodeCursor(secret, input.cursor, binding);
     const limit = input.limit ?? 25;
     const result = await transaction.query<ReviewCycleRow>(
-      `select ${REVIEW_CYCLE_COLUMNS}
+      `select ${REVIEW_CYCLE_COLUMNS},
+              (
+                select pull_request.id
+                  from bakery.pull_requests as pull_request
+                 where pull_request.organization_id = review_cycles.organization_id
+                   and pull_request.run_id = review_cycles.run_id
+                   and pull_request.head_sha = review_cycles.head_sha
+                 order by pull_request.provider_number asc
+                 limit 1
+              ) as pull_request_id
          from bakery.review_cycles
         where organization_id = $1 and run_id = $2
           and (
@@ -624,5 +646,124 @@ export function createReviewFindingsListHandler(secret: string) {
         })
         : null,
     } as ReviewFindingPage;
+  };
+}
+
+type PullRequestQuery = z.output<typeof contractSchemas.PullRequestQuery>;
+type PullRequestPage = z.output<typeof contractSchemas["Page<PullRequest>"]>;
+
+const PULL_REQUEST_ORDERING = "createdAt:asc,id:asc";
+
+type PullRequestRow = {
+  id: string;
+  task_id: string;
+  repository_id: string;
+  run_id: string | null;
+  provider_number: number;
+  url: string;
+  head_sha: string;
+  base_sha: string;
+  status: string;
+  merged_sha: string | null;
+  created_at: Date | string;
+  updated_at: Date | string;
+  version: number;
+  cursor_created_at: string;
+};
+
+const PULL_REQUEST_STATUSES: readonly string[] = ["open", "merged", "closed"];
+
+/** The `PullRequest` projection. */
+function toPullRequest(row: PullRequestRow) {
+  if (!PULL_REQUEST_STATUSES.includes(row.status)) {
+    throw new Error("DELIVERY_READ_PULL_REQUEST_INVALID");
+  }
+  return {
+    id: row.id,
+    taskId: row.task_id,
+    repositoryId: row.repository_id,
+    runId: row.run_id,
+    providerNumber: row.provider_number,
+    url: row.url,
+    headSha: row.head_sha,
+    baseSha: row.base_sha,
+    status: row.status,
+    mergedSha: row.merged_sha,
+    createdAt: toIso(row.created_at),
+    updatedAt: toIso(row.updated_at),
+    version: row.version,
+  };
+}
+
+/**
+ * `pullRequests.list`: the organization's tracked pull requests, oldest
+ * registration first, keyed by creation time and id. Repository, task and run
+ * filters narrow the page and are bound into the cursor. Another
+ * organization's pull requests never match the `organization_id` predicate,
+ * so a foreign filter id reads as an empty page.
+ */
+export function createPullRequestsListHandler(secret: string) {
+  return async (
+    context: ActionContext,
+    input: PullRequestQuery,
+  ): Promise<PullRequestPage> => {
+    const { transaction, organizationId, principalId } = requireWorkTransaction(
+      context,
+    );
+    const filters = {
+      repositoryId: input.repositoryId ?? null,
+      taskId: input.taskId ?? null,
+      runId: input.runId ?? null,
+    };
+    const binding: CursorBinding = {
+      action: "pullRequests.list",
+      principalId,
+      organizationId,
+      ordering: PULL_REQUEST_ORDERING,
+      filters: JSON.stringify(filters),
+      schemaVersion: 1,
+    };
+    const position = await decodeCursor(secret, input.cursor, binding);
+    const limit = input.limit ?? 25;
+    const result = await transaction.query<PullRequestRow>(
+      `select id, task_id, repository_id, run_id, provider_number, url,
+              head_sha, base_sha, status, merged_sha, created_at, updated_at,
+              version,
+              to_char(
+                created_at at time zone 'UTC',
+                'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
+              ) as cursor_created_at
+         from bakery.pull_requests
+        where organization_id = $1
+          and ($2::uuid is null or repository_id = $2::uuid)
+          and ($3::uuid is null or task_id = $3::uuid)
+          and ($4::uuid is null or run_id = $4::uuid)
+          and (
+            $5::timestamptz is null or
+            (created_at, id) > ($5::timestamptz, $6::uuid)
+          )
+        order by created_at asc, id asc
+        limit $7`,
+      [
+        organizationId,
+        filters.repositoryId,
+        filters.taskId,
+        filters.runId,
+        position?.createdAt ?? null,
+        position?.id ?? null,
+        limit + 1,
+      ],
+    );
+    const visible = result.rows.slice(0, limit);
+    const last = visible.at(-1);
+    return {
+      items: visible.map(toPullRequest),
+      nextCursor: result.rows.length > limit && last
+        ? await encodeCursor(secret, binding, {
+          createdAt: last.cursor_created_at,
+          id: last.id,
+        })
+        : null,
+    } as PullRequestPage;
   };
 }
