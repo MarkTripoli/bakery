@@ -2100,6 +2100,12 @@ a.bakery-application-rail__link:hover {
 .bakery-page-header--split .ui-heading {
   margin: var(--space-0);
 }
+.bakery-page-header__description {
+  color: var(--color-fg-muted);
+  font: var(--type-body);
+  margin: var(--space-0);
+  max-inline-size: var(--layout-measure-prose);
+}
 .bakery-page-header__subtitle {
   align-items: center;
   color: var(--color-fg-muted);

@@ -20,6 +20,11 @@ export type PageHeaderProps = {
   variant?: "titled" | "tabsOnly" | "split" | "list";
   /** `split` and `list`: one muted line under the title. */
   subtitle?: ReactNode;
+  /**
+   * `split` and `list`: the page's own sentence, under the title and above
+   * `subtitle` — one explanation in plain view, in place of a help button.
+   */
+  description?: ReactNode;
   /** `split` only: right-aligned summary, such as a status and counts. */
   summary?: ReactNode;
   /**
@@ -33,8 +38,17 @@ export type PageHeaderProps = {
 
 /** Title, count and tabs block that opens every product page (Paper 5J-0). */
 export function PageHeader(
-  { actions, flush, meta, subtitle, summary, tabs, title, variant = "titled" }:
-    PageHeaderProps,
+  {
+    actions,
+    description,
+    flush,
+    meta,
+    subtitle,
+    summary,
+    tabs,
+    title,
+    variant = "titled",
+  }: PageHeaderProps,
 ) {
   if (variant === "split" || variant === "list") {
     return (
@@ -47,6 +61,9 @@ export function PageHeader(
       >
         <div className="bakery-page-header__lead">
           <Heading level="page">{title}</Heading>
+          {description
+            ? <p className="bakery-page-header__description">{description}</p>
+            : null}
           {subtitle
             ? variant === "list"
               ? <div className="bakery-page-header__subtitle">{subtitle}</div>

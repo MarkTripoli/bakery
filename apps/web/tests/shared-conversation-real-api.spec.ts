@@ -422,9 +422,9 @@ test(
     // ---- the coordination route is reachable and shows the empty state -----
     await a.goto(`/tasks/${taskId}/coordination`);
     await expect(
-      a.getByRole("heading", { name: "Coordination plan", exact: true }),
+      a.getByRole("heading", { name: "Split", exact: true }),
     ).toBeVisible();
-    await expect(a.getByText("No coordination plan yet")).toBeVisible();
+    await expect(a.getByText("This task is not split")).toBeVisible();
     await shot(a, "06-coordination-empty");
 
     await contextB.close();

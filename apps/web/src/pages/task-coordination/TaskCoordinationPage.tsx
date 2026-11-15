@@ -374,9 +374,25 @@ export function TaskCoordinationPage(
             {phase === "confirming" || phase === "canceling" ||
                 phase === "unknown"
               ? (
-                <>
-                  <UI.Text>{t("tasks.coordination.cancel.confirm")}</UI.Text>
-                  <UI.Inline variant="actions">
+                /* The shared alert dialog (design-ux, #396): the question is the
+                   title, what stopping costs is the body, and Keep comes before
+                   the danger action. */
+                <UI.AlertDialog
+                  open
+                  variant="destructive"
+                  title={t("tasks.coordination.cancel.title")}
+                  state={phase === "canceling" ? "confirming" : "open"}
+                  cancelAction={
+                    <UI.Button
+                      data-plan-cancel-keep=""
+                      variant="outline"
+                      disabled={phase === "canceling"}
+                      onClick={() => setPhase("idle")}
+                    >
+                      {t("tasks.coordination.cancel.keep")}
+                    </UI.Button>
+                  }
+                  confirmAction={
                     <UI.Button
                       variant="destructive"
                       loading={phase === "canceling"}
@@ -387,17 +403,10 @@ export function TaskCoordinationPage(
                         ? t("tasks.coordination.cancel.retry")
                         : t("tasks.coordination.cancel.confirmAction")}
                     </UI.Button>
-                    <UI.Button
-                      data-plan-cancel-keep=""
-                      variant="outline"
-                      disabled={phase === "canceling"}
-                      onClick={() =>
-                        setPhase("idle")}
-                    >
-                      {t("tasks.coordination.cancel.keep")}
-                    </UI.Button>
-                  </UI.Inline>
-                </>
+                  }
+                >
+                  <UI.Text>{t("tasks.coordination.cancel.confirm")}</UI.Text>
+                </UI.AlertDialog>
               )
               : null}
             <div aria-atomic="true" aria-live="polite" role="status">
@@ -489,6 +498,9 @@ export function TaskCoordinationPage(
             <UI.PageHeader
               variant="split"
               title={heading}
+              /* One explanation, once, under the heading (design-ux, O12): what
+                 a split and its lanes are, in plain view, no help button. */
+              description={t("tasks.coordination.description")}
               subtitle={phone
                 ? (
                   <div>

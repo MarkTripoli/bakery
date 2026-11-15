@@ -463,17 +463,22 @@ test.beforeEach(async ({ page }) => {
 
 test("shows the current revision with lanes as rows", async ({ page }) => {
   await open(page);
-  await expect(page.getByRole("heading", { name: "Coordination plan" }))
+  await expect(page.getByRole("heading", { name: "Split" }))
     .toBeVisible();
-  await expect(root(page)).toContainText("Plan, version 2");
+  await expect(root(page)).toContainText("Split, version 2");
   await expect(root(page)).toContainText("1 of 3 lanes completed");
   await expect(root(page)).toContainText(
     "Shared budget ceiling: $12.50",
   );
   await expect(
-    page.getByRole(onPhone(page) ? "list" : "table", { name: "Plan lanes" }),
+    page.getByRole(onPhone(page) ? "list" : "table", {
+      name: "Lanes",
+      exact: true,
+    }),
   ).toBeVisible();
   await expect(page.locator("[data-lane-key]")).toHaveCount(3);
+  await page.mouse.move(700, 700);
+  await shot(page, "task-split-lanes");
   const api = laneRow(page, "api");
   await expect(api).toContainText("Change the API contract");
   await expect(api).toContainText("example/api-service");
@@ -513,6 +518,10 @@ test("a declared output without an artifact stays declared", async ({ page }) =>
     await expect(api.getByText("Declared", { exact: true })).toBeVisible();
   }
   await expect(output_(page, "Committed")(api)).toHaveCount(0);
+  // O12: a lane that has not begun is "Not started"; the word "Planned"
+  // belongs to the plan document alone.
+  await expect(laneRow(page, "docs")).toContainText("Not started");
+  await expect(laneRow(page, "docs")).not.toContainText("Planned");
 });
 
 test("an older published artifact keeps the output committed past a newer unpublished one", async ({ page }) => {
@@ -583,12 +592,25 @@ test("partial delivery is explained and stopped lanes say why", async ({ page })
 
 test("cancel needs confirmation and sends one idempotent request", async ({ page }) => {
   const state = await open(page);
-  await page.getByRole("button", { name: "Cancel plan", exact: true }).click();
-  await expect(page.getByText("Cancel this plan?")).toBeVisible();
-  await page.getByRole("button", { name: "Keep the plan" }).click();
+  await page.getByRole("button", { name: "Cancel split", exact: true }).click();
+  // The shared alert dialog: the question is its name, what stopping costs is
+  // its body, "Keep the split" comes first and the danger action last
+  // (design-ux, #396).
+  const dialog = page.getByRole("alertdialog", { name: "Cancel this split?" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText(
+    "Unfinished lanes stop. Completed lanes keep their results.",
+  );
+  const actions = dialog.getByRole("button");
+  await expect(actions.first()).toHaveText("Keep the split");
+  await expect(actions.last()).toHaveText("Cancel the split");
+  await expect(actions.last()).toHaveAttribute("data-variant", "destructive");
+  await page.mouse.move(700, 700);
+  await shot(page, "task-split-cancel-confirm");
+  await page.getByRole("button", { name: "Keep the split" }).click();
   expect(state.cancels).toHaveLength(0);
-  await page.getByRole("button", { name: "Cancel plan", exact: true }).click();
-  await page.getByRole("button", { name: "Cancel the plan" }).click();
+  await page.getByRole("button", { name: "Cancel split", exact: true }).click();
+  await page.getByRole("button", { name: "Cancel the split" }).click();
   await expect(root(page).locator("[data-plan-status]")).toHaveAttribute(
     "data-plan-status",
     "canceled",
@@ -598,7 +620,7 @@ test("cancel needs confirmation and sends one idempotent request", async ({ page
   expect(state.cancels[0].key).toMatch(/^[0-9a-f-]{36}$/);
   await expect(laneRow(page, "api")).toContainText("Completed");
   await expect(laneRow(page, "docs")).toContainText("Canceled");
-  await expect(page.getByRole("button", { name: "Cancel plan", exact: true }))
+  await expect(page.getByRole("button", { name: "Cancel split", exact: true }))
     .toHaveCount(0);
 });
 
@@ -616,10 +638,12 @@ test("an unknown cancel outcome retries with the same key", async ({ page }) => 
     return route.fulfill({ json: state.plans[0] });
   };
   await open(page, state);
-  await page.getByRole("button", { name: "Cancel plan", exact: true }).click();
-  await page.getByRole("button", { name: "Cancel the plan" }).click();
-  await expect(page.getByText("The cancel outcome is unknown")).toBeVisible();
-  await page.getByRole("button", { name: "Retry cancel" }).click();
+  await page.getByRole("button", { name: "Cancel split", exact: true }).click();
+  await page.getByRole("button", { name: "Cancel the split" }).click();
+  await expect(
+    page.getByText("Bakery cannot tell whether the split was canceled"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Try again" }).click();
   await expect(root(page).locator("[data-plan-status]")).toHaveAttribute(
     "data-plan-status",
     "canceled",
@@ -639,9 +663,9 @@ test("a canceled plan changed elsewhere shows the conflict and the current state
     });
   };
   await open(page, state);
-  await page.getByRole("button", { name: "Cancel plan", exact: true }).click();
-  await page.getByRole("button", { name: "Cancel the plan" }).click();
-  await expect(page.getByText("The plan changed before it could be canceled"))
+  await page.getByRole("button", { name: "Cancel split", exact: true }).click();
+  await page.getByRole("button", { name: "Cancel the split" }).click();
+  await expect(page.getByText("The split changed before it could be canceled"))
     .toBeVisible();
   await expect(root(page).locator("[data-plan-status]")).toHaveAttribute(
     "data-plan-status",
@@ -651,13 +675,15 @@ test("a canceled plan changed elsewhere shows the conflict and the current state
 
 test("no plan shows the empty state", async ({ page }) => {
   await open(page, world({ plans: [] }));
-  await expect(page.getByText("No coordination plan yet")).toBeVisible();
+  await expect(page.getByText("This task is not split")).toBeVisible();
+  await page.mouse.move(700, 700);
+  await shot(page, "task-split-empty");
 });
 
 test("a failed read shows an error with retry", async ({ page }) => {
   const state = world({ plansStatus: 500 });
   await open(page, state);
-  await expect(page.getByText("The coordination plan could not be loaded."))
+  await expect(page.getByText("The split could not be loaded."))
     .toBeVisible();
   state.plansStatus = 200;
   await page.getByRole("button", { name: "Try again" }).click();
@@ -667,7 +693,7 @@ test("a failed read shows an error with retry", async ({ page }) => {
 test("a forbidden read shows no plan data", async ({ page }) => {
   await open(page, world({ plansStatus: 403, taskStatus: 403 }));
   await expect(
-    page.getByText("You do not have access to this coordination plan."),
+    page.getByText("You do not have access to this split."),
   )
     .toBeVisible();
   await expect(page.locator("[data-lane-key]")).toHaveCount(0);
@@ -681,11 +707,12 @@ test("a stale refresh keeps the last plan and offers a refresh", async ({ page }
   await expect.poll(() => stream.subscribes.length).toBe(1);
   state.plansStatus = 500;
   stream.push();
-  await expect(page.getByText("The plan could not be refreshed")).toBeVisible();
+  await expect(page.getByText("The split could not be refreshed"))
+    .toBeVisible();
   await expect(laneRow(page, "api")).toBeVisible();
   state.plansStatus = 200;
-  await page.getByRole("button", { name: "Refresh plan" }).click();
-  await expect(page.getByText("The plan could not be refreshed")).toHaveCount(
+  await page.getByRole("button", { name: "Refresh" }).click();
+  await expect(page.getByText("The split could not be refreshed")).toHaveCount(
     0,
   );
 });
@@ -724,11 +751,11 @@ test("offline shows a notice and keeps the plan", async ({ page, context }) => {
   await expect(laneRow(page, "api")).toBeVisible();
   await context.setOffline(true);
   await expect(
-    page.getByText("You are offline. The plan shown may be out of date."),
+    page.getByText("You are offline. What is shown may be out of date."),
   )
     .toBeVisible();
   await expect(laneRow(page, "api")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Cancel plan", exact: true }))
+  await expect(page.getByRole("button", { name: "Cancel split", exact: true }))
     .toBeDisabled();
   await context.setOffline(false);
 });
@@ -754,8 +781,10 @@ test("the task detail links to the plan only when one exists", async ({ page }) 
     // On a phone the link sits in the plan sheet (2J3V-0 has no top-bar link).
     await page.locator('[data-ui-component="planSummaryCard"]').first().click();
   }
-  const link = page.getByRole("link", { name: "View the coordination plan" });
+  const link = page.getByRole("link", { name: "View the split" });
   await expect(link).toBeVisible();
+  await page.mouse.move(700, 700);
+  await shot(page, "task-conversation-split-link");
   await link.click();
   await expect(page).toHaveURL(`/tasks/${taskId}/coordination`);
   await expect(laneRow(page, "api")).toBeVisible();
@@ -768,18 +797,18 @@ test("keyboard reaches the cancel flow and the child links in order", async ({ p
   });
   await link.focus();
   await expect(link).toBeFocused();
-  await page.getByRole("button", { name: "Cancel plan", exact: true }).focus();
+  await page.getByRole("button", { name: "Cancel split", exact: true }).focus();
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("button", { name: "Cancel the plan" }))
+  await expect(page.getByRole("button", { name: "Cancel the split" }))
     .toBeVisible();
-  await expect(page.getByRole("button", { name: "Keep the plan" }))
+  await expect(page.getByRole("button", { name: "Keep the split" }))
     .toBeFocused();
   await page.keyboard.press("Shift+Tab");
-  await expect(page.getByRole("button", { name: "Cancel the plan" }))
+  await expect(page.getByRole("button", { name: "Cancel the split" }))
     .toBeFocused();
   await page.keyboard.press("Tab");
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("button", { name: "Cancel plan", exact: true }))
+  await expect(page.getByRole("button", { name: "Cancel split", exact: true }))
     .toBeVisible();
 });
 
@@ -792,7 +821,7 @@ test(
     );
     await open(page);
     const targets = [
-      page.getByRole("button", { name: "Cancel plan", exact: true }),
+      page.getByRole("button", { name: "Cancel split", exact: true }),
       laneRow(page, "api").getByRole("link", { name: "Open child task" }),
     ];
     for (const control of targets) {
@@ -884,7 +913,7 @@ test("an ad hoc plan shows its origin and revision, and the digest behind a fing
   await expect(fingerprint).toContainText(
     "Identifies the selected requirements and versions.",
   );
-  await expect(root(page)).toContainText("Plan, version 2");
+  await expect(root(page)).toContainText("Split, version 2");
   await expect(page.locator('[data-ui-region="plan-ticket-claim"]'))
     .toHaveCount(0);
   // The row sits inside the page's column, lined up with the heading, and its
@@ -893,7 +922,7 @@ test("an ad hoc plan shows its origin and revision, and the digest behind a fing
   const copy = (await fingerprint.getByRole("button", { name: "Copy" })
     .boundingBox())!;
   const heading = (await page.getByRole("heading", {
-    name: "Coordination plan",
+    name: "Split",
   }).boundingBox())!;
   const width = page.viewportSize()!.width;
   // The label is a bare text node beside the help button (and the help text
@@ -1000,7 +1029,7 @@ test("a saved workflow whose newer version is in use says this run's version is 
       }, needle);
     const link = await origin.getByRole("link").boundingBox();
     const title = await line("Ship the contract change");
-    const plan = await line("Plan, version 2");
+    const plan = await line("Split, version 2");
     expect(title, "the title's text").not.toBeNull();
     expect(plan, "the plan label's text").not.toBeNull();
     expect(link, "the workflow link").not.toBeNull();
@@ -1178,11 +1207,11 @@ test("a stale lane has its own label, hint and a plan notice", async ({ page }) 
   await expect(web).toHaveAttribute("data-lane-status", "stale");
   await expect(web).toContainText("Stale");
   await expect(web).toContainText(
-    "An input it used was replaced after it finished. Rework it in a new version of the plan.",
+    "An input it used was replaced after it finished. Rework it in a new version of the split.",
   );
   const notice = page.locator('[data-ui-region="stale-lanes"]');
   await expect(notice).toContainText("Some lanes are stale");
-  await expect(notice).toContainText("new version of the plan");
+  await expect(notice).toContainText("new version of the split");
   await expect(root(page)).toContainText("In progress");
 });
 

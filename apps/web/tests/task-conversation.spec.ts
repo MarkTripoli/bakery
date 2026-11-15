@@ -998,7 +998,9 @@ test("an idempotency payload mismatch is an error, not an obsolete revision", as
   await open(page, state);
   await showPlan(page);
   await approve(page, 3).click();
-  await expect(page.getByText("Plan, version 3 is out of date")).toHaveCount(0);
+  await expect(page.getByText("Plan, version 3 is out of date")).toHaveCount(
+    0,
+  );
   await expect(page.getByText("Your decision was not recorded")).toBeVisible();
 });
 
