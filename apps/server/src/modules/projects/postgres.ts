@@ -653,7 +653,19 @@ export async function getRepository(context: ActionContext) {
   );
   const row = result.rows[0];
   if (!row) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  return toRepository(row);
+  // #65: the Versions list hides a failed check's candidate, so the page
+  // can't derive the next revision from what it lists. The server's rule
+  // (assertNextRevision) counts every stored profile.
+  const next = await transaction.query<{ next: number }>(
+    `select coalesce(max(revision), 0) + 1 as next
+       from bakery.repository_profiles
+      where organization_id = $1 and repository_id = $2`,
+    [organizationId, repositoryId],
+  );
+  return {
+    ...toRepository(row),
+    nextProfileRevision: Number(next.rows[0]?.next ?? 1),
+  };
 }
 
 export const createRepository = async (

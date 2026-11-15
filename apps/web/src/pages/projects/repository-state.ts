@@ -43,11 +43,19 @@ export function newestFirst(
   );
 }
 
-/** The number the next saved version takes; the person never types it. */
+/**
+ * The number the next saved version takes; the person never types it. The
+ * server's `nextProfileRevision` wins when the repository read carries it: the
+ * Versions list hides a failed check's candidate, which still holds a
+ * revision (#65).
+ */
 export function nextRevision(
   profiles: readonly RepositoryProfileResponse[],
+  serverNext?: number,
 ): number {
-  return Math.max(0, ...profiles.map((profile) => profile.revision)) + 1;
+  const listed = Math.max(0, ...profiles.map((profile) => profile.revision)) +
+    1;
+  return serverNext === undefined ? listed : Math.max(serverNext, listed);
 }
 
 /**

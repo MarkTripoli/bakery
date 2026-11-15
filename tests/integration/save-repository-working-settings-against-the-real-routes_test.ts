@@ -157,7 +157,10 @@ Deno.test("the page's save sequence against the real routes", async () => {
         organizationId: fx.organizationId,
         repository,
         previous: previous as never,
-        revision: nextRevision(listed.items as never),
+        revision: nextRevision(
+          listed.items as never,
+          (repository as { nextProfileRevision?: number }).nextProfileRevision,
+        ),
         branches,
         folder: "",
         createKey: crypto.randomUUID(),
@@ -349,6 +352,41 @@ Deno.test("the page's save sequence against the real routes", async () => {
     const savedConfig = observedSave.profile.config as Record<string, unknown>;
     assertEquals(savedConfig.schemaVersion, 1);
     assertEquals("checkPolicy" in savedConfig, false);
+    // qa2's case: a failed check's candidate holds the TOP revision. The list
+    // hides it, so the page takes the next revision from the server's
+    // nextProfileRevision; a save from max(listed) + 1 would be a 409.
+    const topFailed = await makeRepo("top-failed", { profile: config() });
+    {
+      const profileId = crypto.randomUUID();
+      const candidateConfig = config();
+      (candidateConfig.branches as { allowedPatterns: string[] })
+        .allowedPatterns = ["top-failed/*"];
+      const digest = await configDigest(candidateConfig);
+      await owner`
+        insert into bakery.repository_profiles (
+          id, organization_id, application_id, repository_id, revision, config,
+          digest, created_by, version
+        ) values (${profileId}, ${fx.organizationId}, ${fx.applicationId},
+          ${topFailed}, 2, ${owner.json(candidateConfig as never)}, ${digest},
+          ${fx.admin.principalId}, 1)`;
+      await owner`
+        insert into bakery.repository_profile_observations (
+          organization_id, application_id, repository_id, profile_id,
+          profile_revision, profile_digest, observation_digest, observed_at,
+          source_mapping_revision, source_mapping_digest, base_sha, payload,
+          readiness
+        ) values (${fx.organizationId}, ${fx.applicationId}, ${topFailed},
+          ${profileId}, 2, ${digest}, ${"c".repeat(64)}, now(), '1',
+          ${"d".repeat(64)}, ${"e".repeat(40)}, ${owner.json({} as never)},
+          'blocked')`;
+    }
+    const topRead = (await request("GET", `/v1/repositories/${topFailed}`))
+      .json as { nextProfileRevision: number };
+    assertEquals(topRead.nextProfileRevision, 3);
+    const topSave = await save(topFailed, ["feature/*", "after-failed/*"]);
+    assert(topSave.ok, JSON.stringify(topSave));
+    assertEquals(topSave.profile.revision, 3);
+    assertEquals(await activeOf(topFailed), topSave.profile.id);
     // It is still stored, for audit and the check result.
     assertEquals(
       (await owner`select count(*)::int as n from bakery.repository_profiles
