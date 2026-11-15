@@ -515,6 +515,8 @@ Deno.test("provide the first authorized repository and immutable fixed execution
       const duplicateRepositoryBody = await duplicateRepository
         .json() as Record<string, unknown>;
       assertEquals(duplicateRepositoryBody.code, "STATE_CONFLICT");
+      // #65: the refusal names why: this repository is already added.
+      assertEquals(duplicateRepositoryBody.reason, "repository_already_added");
     });
 
     await test.step("3. immutability", async () => {
