@@ -236,16 +236,21 @@ export async function updateProviderBinding(
     "workerProviderBindings.update",
     async (transaction, organization, principal) => {
       if (input.billingRoute !== undefined) {
-        // #68: a changed route must be one the binding's agent accepts.
-        const current = await transaction.query<{ componentKey: string }>(
-          `select component_key as "componentKey"
+        // #68: a changed route must be one the binding's agent accepts. A
+        // re-sent unchanged route is no change, so an older binding still saves.
+        const current = await transaction.query<{
+          componentKey: string;
+          billingRoute: string;
+        }>(
+          `select component_key as "componentKey",
+                  billing_route as "billingRoute"
              from bakery.worker_provider_bindings
             where organization_id = $1 and worker_host_id = $2 and id = $3`,
           [organization, workerHostId, bindingId],
         );
-        const componentKey = current.rows[0]?.componentKey;
-        if (componentKey !== undefined) {
-          requirePaymentMethodSupported(componentKey, input.billingRoute);
+        const row = current.rows[0];
+        if (row !== undefined && row.billingRoute !== input.billingRoute) {
+          requirePaymentMethodSupported(row.componentKey, input.billingRoute);
         }
       }
       const workflows = readinessWorkflows(transaction, options);

@@ -164,7 +164,7 @@ Deno.test("inventory report, components list and host projection match schemas",
         hostGeneration: worker.registration.registrationGeneration,
         expectedInventoryRevision: 1,
         components: [{
-          componentKey: "harness.bakery",
+          componentKey: "harness.claude",
           kind: "harness",
           actualVersion: "1.0",
           installOwner: "bakery",
@@ -176,7 +176,7 @@ Deno.test("inventory report, components list and host projection match schemas",
         checks: [{
           checkId: "capability:git",
           checkVersion: "1",
-          componentKey: "harness.bakery",
+          componentKey: "harness.claude",
           status: "pass",
           observedAt: OBSERVED,
         }],
@@ -206,13 +206,13 @@ Deno.test("inventory report, components list and host projection match schemas",
       await components.json(),
     ) as unknown as { items: { componentKey: string }[] }).items;
     assertEquals(componentItems.length, 1);
-    assertEquals(componentItems[0].componentKey, "harness.bakery");
+    assertEquals(componentItems[0].componentKey, "harness.claude");
 
     const binding = await adminRequest(
       fixture,
       `/v1/workers/${worker.registration.workerHostId}/provider-bindings`,
       {
-        componentKey: "harness.bakery",
+        componentKey: "harness.claude",
         provider: "anthropic",
         billingRoute: "subscription",
         enabled: true,
@@ -378,6 +378,60 @@ Deno.test("coding agents serve their payment methods; bindings keep to them (#68
     }).items;
     assertEquals(legacy.billingRoute, "subscription");
     assertEquals(legacy.paymentMethodSupported, false);
+
+    // Re-sending its own unchanged route is no change: a full-body save of the
+    // older binding succeeds (#68 ruling).
+    const resaved = await adminRequest(
+      fixture,
+      `/v1/workers/${hostId}/provider-bindings/${binding.id}`,
+      { billingRoute: "subscription", enabled: false },
+      {
+        method: "PATCH",
+        idempotencyKey: crypto.randomUUID(),
+        headers: { "If-Match": '"1"' },
+      },
+    );
+    assertEquals(resaved.status, 200, await resaved.clone().text());
+
+    // A component the table does not know supports no route: refused on bind
+    // (fail closed), and an older binding on it reads as needing attention.
+    const unknown = await adminRequest(
+      fixture,
+      `/v1/workers/${hostId}/provider-bindings`,
+      {
+        componentKey: "harness.bakery",
+        provider: "anthropic",
+        billingRoute: "api_metered",
+        enabled: true,
+        authMode: "host_native",
+        credentialLocation: "harness_host",
+      },
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(unknown.status, 422);
+    assertEquals(
+      (await unknown.json() as { issues: { code: string }[] }).issues[0].code,
+      "payment_method_unsupported",
+    );
+    await fixture.pgDatabase.query(
+      `update bakery.worker_provider_bindings set component_key = 'harness.bakery'
+        where id = $1`,
+      [binding.id],
+    );
+    const unknownList = await adminRequest(
+      fixture,
+      `/v1/workers/${hostId}/provider-bindings?limit=25`,
+      undefined,
+      { method: "GET" },
+    );
+    assertEquals(unknownList.status, 200);
+    assertEquals(
+      (contractSchemas["Page<WorkerProviderBinding>"].parse(
+        await unknownList.json(),
+      ) as unknown as { items: { paymentMethodSupported: boolean }[] }).items[0]
+        .paymentMethodSupported,
+      false,
+    );
   }));
 
 Deno.test("provider auth attempt entries round-trip create, read, report and cancel", () =>
@@ -396,7 +450,7 @@ Deno.test("provider auth attempt entries round-trip create, read, report and can
         hostGeneration: worker.registration.registrationGeneration,
         expectedInventoryRevision: 1,
         components: [{
-          componentKey: "harness.bakery",
+          componentKey: "harness.claude",
           kind: "harness",
           actualVersion: "1.0",
           installOwner: "bakery",
@@ -421,7 +475,7 @@ Deno.test("provider auth attempt entries round-trip create, read, report and can
       fixture,
       `/v1/workers/${hostId}/provider-bindings`,
       {
-        componentKey: "harness.bakery",
+        componentKey: "harness.claude",
         provider: "anthropic",
         billingRoute: "subscription",
         authMode: "host_native",

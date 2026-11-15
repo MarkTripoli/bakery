@@ -5,6 +5,10 @@ import { StandardError } from "@bakery/contracts/http";
  * provider binding may name. The v1 rule, from 05-runtime-and-protocols.md
  * ("Models and harnesses"): Claude Code and Codex run on a subscription or on
  * metered API keys; Pi runs on metered API keys (OpenRouter) or a local model.
+ *
+ * The keys are the component keys a worker reports for each coding agent,
+ * named after its harness (apps/worker/src/claude-harness.ts, codex-harness.ts,
+ * pi-harness.ts). Any other key supports no route (fails closed, #68 ruling).
  */
 export const CODING_AGENT_PAYMENT_METHODS: Readonly<
   Record<string, readonly string[]>
@@ -21,14 +25,13 @@ export function paymentMethodsOf(componentKey: string): readonly string[] {
 
 /**
  * Whether a binding's billing route is one its component accepts. A component
- * that is not a known coding agent has no rule, so any route is supported.
+ * that is not a known coding agent accepts no route.
  */
 export function paymentMethodSupported(
   componentKey: string,
   billingRoute: string,
 ): boolean {
-  const methods = CODING_AGENT_PAYMENT_METHODS[componentKey];
-  return methods === undefined || methods.includes(billingRoute);
+  return paymentMethodsOf(componentKey).includes(billingRoute);
 }
 
 /**
