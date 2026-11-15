@@ -30,13 +30,18 @@ export type RunPauseOutcome =
 export const TICKET_PAUSE_REASON = "ticket_request_suspended";
 
 /**
- * Enqueues a `pause` control command for the run's live attempt, in the
- * caller's transaction. The live attempt is the one `runs.control` finds: the
- * first step's attempt that is leased, running or canceling and holds the
- * job's current fence. The idempotency key names the request and its version,
- * so a repeated pass of the same version enqueues once and a later suspension
- * (a new version) can pause again. Sets nothing on the run or the request: the
- * caller records `pause_requested_at` only when `requested` is true.
+ * Enqueues a `pause` control command for every live attempt of the run, in the
+ * caller's transaction. The live attempts are the ones `runs.control` finds:
+ * each step's attempt that is leased, running or canceling and holds the job's
+ * current fence (a plan run in a parallel group has one per lane). Every one
+ * must be on a worker whose adapter can steer or interrupt it, or nothing is
+ * enqueued. The idempotency key names the request and its version, so a
+ * repeated pass of the same version enqueues once per attempt and a later
+ * suspension (a new version) can pause again. A lane that ended between the
+ * read and the enqueue does not hold the others back: they are paused, and the
+ * refusal is reported so the next pass looks again (the ones already enqueued
+ * dedupe). Sets nothing on the run or the request: the caller records
+ * `pause_requested_at` only when `requested` is true.
  */
 export async function requestRunPause(
   transaction: PgTransactionClient,
@@ -71,46 +76,57 @@ export async function requestRunPause(
         and attempt.status in ('leased', 'running', 'canceling')
         and job.current_fence = attempt.fence
       order by step.position asc, step.iteration asc,
-        attempt.attempt_no desc, attempt.id desc
-      limit 1`,
+        attempt.attempt_no desc, attempt.id desc`,
     [input.organizationId, input.runId],
   );
-  const attempt = attempts.rows[0];
-  if (!attempt) return { requested: false, reason: "no_live_attempt" };
-  if (
-    !adapterSupportsControl(
-      "pause",
-      readAdapterCapabilities(attempt.adapterCapabilities),
-    )
-  ) {
-    return { requested: false, reason: "unsupported" };
+  if (attempts.rows.length === 0) {
+    return { requested: false, reason: "no_live_attempt" };
   }
-  try {
-    await enqueueWorkerControlCommand(transaction, {
-      organizationId: input.organizationId,
-      attemptId: attempt.id,
-      action: "pause",
-      reason: TICKET_PAUSE_REASON,
-      idempotencyKey: `ticket-pause:${input.requestId}:${input.version}`,
-      requestDigest: await sha256Hex(canonicalJson({
-        runId: input.runId,
+  for (const attempt of attempts.rows) {
+    if (
+      !adapterSupportsControl(
+        "pause",
+        readAdapterCapabilities(attempt.adapterCapabilities),
+      )
+    ) {
+      return { requested: false, reason: "unsupported" };
+    }
+  }
+  const requestDigest = await sha256Hex(canonicalJson({
+    runId: input.runId,
+    action: "pause",
+    reason: TICKET_PAUSE_REASON,
+  }));
+  let refusal: RunPauseRefusal | undefined;
+  for (const attempt of attempts.rows) {
+    try {
+      await enqueueWorkerControlCommand(transaction, {
+        organizationId: input.organizationId,
+        attemptId: attempt.id,
         action: "pause",
         reason: TICKET_PAUSE_REASON,
-      })),
-      traceId: input.traceId,
-    });
-    return { requested: true };
-  } catch (error) {
-    // The attempt ended, its lease lapsed or its session moved between the
-    // read and the enqueue: nothing to pause, and the next pass looks again.
-    if (error instanceof StandardError) {
-      if (error.code === "STATE_CONFLICT") {
-        return { requested: false, reason: "state_conflict" };
+        idempotencyKey: `ticket-pause:${input.requestId}:${input.version}`,
+        requestDigest,
+        traceId: input.traceId,
+      });
+    } catch (error) {
+      // The attempt ended, its lease lapsed or its session moved between the
+      // read and the enqueue: nothing to pause there, and the next pass looks
+      // again.
+      if (error instanceof StandardError) {
+        if (error.code === "STATE_CONFLICT") {
+          refusal ??= "state_conflict";
+          continue;
+        }
+        if (error.code === "ALREADY_TERMINAL") {
+          refusal ??= "already_terminal";
+          continue;
+        }
       }
-      if (error.code === "ALREADY_TERMINAL") {
-        return { requested: false, reason: "already_terminal" };
-      }
+      throw error;
     }
-    throw error;
   }
+  return refusal === undefined
+    ? { requested: true }
+    : { requested: false, reason: refusal };
 }
