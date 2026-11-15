@@ -500,8 +500,11 @@ async function applyScan(
     );
     const version = updated.rows[0]?.version;
     if (version === undefined) throw new StandardError({ code: "INTERNAL" });
-    if (present) restored += 1;
-    else unavailable += 1;
+    // Only an availability transition counts (#65): a branch-only refresh
+    // emits its resource event but neither bumps the connection nor drops
+    // cached tokens.
+    if (present && !resource.available) restored += 1;
+    else if (!present && resource.available) unavailable += 1;
     await appendDomainEvent(transaction, {
       organizationId: claimed.organizationId,
       eventType: RESOURCES_CHANGED,

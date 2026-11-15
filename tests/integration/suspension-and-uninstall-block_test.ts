@@ -782,10 +782,25 @@ Deno.test("#65: a complete scan refreshes a renamed default branch and keeps a k
       .defaultBranch = "trunk";
     fake.find((repository) => String(repository.id) === unknown.external_id)!
       .defaultBranch = null;
+    const connectionState = async () =>
+      (await f.pgDatabase.query<{ version: number; events: number }>(
+        `select c.version,
+           (select count(*)::int from bakery.domain_events e
+             where e.aggregate_id = c.id
+               and e.event_type = 'integrationConnections.updated') as events
+           from bakery.integration_connections c where c.id = $1`,
+        [connectionId],
+      )).rows[0];
+    const connectionBefore = await connectionState();
     const result = await f.discover(
       await accepted(await postDiscovery(f, connectionId)),
     );
     assert(result.kind === "finished", JSON.stringify(result));
+    // A branch-only change is no availability transition: the scan restores
+    // nothing and the connection's version and events are unchanged.
+    assertEquals(result.restored, 0);
+    assertEquals(result.unavailable, 0);
+    assertEquals(await connectionState(), connectionBefore);
     const after = await branchOf(renamed.external_id);
     assertEquals(after.branch, "trunk");
     assertEquals(after.version, before.version + 1);
