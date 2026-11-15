@@ -439,7 +439,7 @@ test("queue inspector Details shows the short task id and copies the whole one",
   );
 });
 
-test("on a phone an applied search stays on one row, with Clear beside it", async ({ page }) => {
+test("on a phone an applied search shows the icon and the term on one row, with Clear beside it", async ({ page }) => {
   test.skip(
     (page.viewportSize()?.width ?? 1280) > 743,
     "on a wider screen the field itself is in the toolbar",
@@ -458,6 +458,13 @@ test("on a phone an applied search stays on one row, with Clear beside it", asyn
   const clear = page.getByRole("button", { name: "Clear search", exact: true });
   await expect(searchButton("Search")).toBeVisible();
   await expect(clear).toHaveCount(0);
+  const applications = page.getByRole("button", {
+    name: "All applications",
+    exact: true,
+  });
+  // With no term the applications filter keeps its label, even at 320.
+  await page.setViewportSize({ width: 320, height: 800 });
+  expect((await applications.boundingBox())!.width).toBeGreaterThan(100);
   const terms = [
     "repository",
     "a very long search term \u{1F9C1} indeed, and then some more words",
@@ -468,9 +475,27 @@ test("on a phone an applied search stays on one row, with Clear beside it", asyn
     for (const term of terms) {
       await (await searchField(page)).fill(term);
       await dismissFilters(page);
-      // The whole term stays in the button's name; the picture shrinks it.
+      // The button's name is "Search: <term>"; what is drawn is the search icon
+      // and the term, which shrinks (ellipsis) only when it is itself too long.
       const trigger = searchButton(`Search: ${term}`);
       await expect(trigger).toBeVisible();
+      const drawn = trigger.locator('[data-ui-component="dataText"]');
+      await expect(drawn).toHaveText(term);
+      if (term === terms[0]) {
+        expect(
+          await drawn.evaluate((node) => node.scrollWidth <= node.clientWidth),
+        ).toBe(true);
+      }
+      // At 360 px and below the applications filter is its icon alone while a
+      // term is applied (name and tooltip kept); wider it keeps its label.
+      await expect(applications).toBeVisible();
+      const icon = (await applications.boundingBox())!;
+      if (width <= 360) {
+        expect(icon.width).toBeLessThan(60);
+        await expect(applications).toHaveAttribute("title", "All applications");
+      } else {
+        expect(icon.width).toBeGreaterThan(100);
+      }
       await expect(clear).toBeVisible();
       const [a, b] = [await trigger.boundingBox(), await clear.boundingBox()];
       // One row: Clear is beside the button, never under it, inside the screen.
@@ -489,6 +514,8 @@ test("on a phone an applied search stays on one row, with Clear beside it", asyn
   await clear.click();
   await expect(searchButton("Search")).toBeFocused();
   await expect(clear).toHaveCount(0);
+  // The applications filter has its label back (the width is still 320).
+  expect((await applications.boundingBox())!.width).toBeGreaterThan(100);
   // What a person sees: the whole list is back and the field is empty again.
   await expect(page.getByRole("link", { name: stillTasks[0].title }))
     .toBeVisible();
@@ -587,6 +614,10 @@ test("still: the phone with a search term applied", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Clear search", exact: true }))
     .toBeVisible();
   await still(page, "work-list-search-applied-narrow");
+  await page.getByRole("button", { name: "Clear search", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Search", exact: true }))
+    .toBeFocused();
+  await still(page, "work-list-narrow");
 });
 
 test("still: the empty Work list", async ({ page }) => {

@@ -1088,9 +1088,13 @@ export function WorkQueueFilters(
         trigger={
           <>
             <UI.IconGlyph name="applications" />
-            {t("tasks.queue.filter.applications")}
+            {/* With a search applied, the narrowest phones draw the icon alone. */}
+            <UI.DataText data-collapse-narrow={search ? "" : undefined}>
+              {t("tasks.queue.filter.applications")}
+            </UI.DataText>
           </>
         }
+        triggerTitle={search ? t("tasks.queue.filter.applications") : undefined}
       >
         <UI.Field
           label={t("tasks.live.repository")}
@@ -1128,12 +1132,19 @@ export function WorkQueueFilters(
               label={t("tasks.queue.filter.search")}
               variant="interactive"
               triggerAppearance="toolbar"
-              // A filter that is on always says so: the term shrinks to fit.
+              // A filter that is on always says so: the search icon and the term,
+              // which shrinks to fit; the name stays "Search: {term}".
               trigger={search
                 ? (
-                  <UI.DataText truncate>
-                    {t("tasks.queue.filter.searchWith", { term: search })}
-                  </UI.DataText>
+                  <>
+                    <UI.IconGlyph name="search" />
+                    <UI.DataText aria-hidden="true" truncate>
+                      {search}
+                    </UI.DataText>
+                    <UI.VisuallyHidden>
+                      {t("tasks.queue.filter.searchWith", { term: search })}
+                    </UI.VisuallyHidden>
+                  </>
                 )
                 : t("tasks.queue.filter.more")}
             >

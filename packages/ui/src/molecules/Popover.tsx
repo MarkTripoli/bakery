@@ -17,6 +17,8 @@ export type PopoverProps =
     onOpenChange?: (open: boolean) => void;
     open?: boolean;
     trigger: ReactNode;
+    /** The trigger's tooltip, for when its label is drawn as an icon alone. */
+    triggerTitle?: string;
     variant?: "information" | "interactive";
   };
 
@@ -30,6 +32,7 @@ export function Popover(
     open,
     trigger,
     triggerAppearance = "plain",
+    triggerTitle,
     variant = "information",
     ...unsafeProps
   }: PopoverProps,
@@ -87,6 +90,7 @@ export function Popover(
         className={`ui-popover__trigger ui-popover__trigger--${triggerAppearance}`}
         onClick={() => setOpen(!isOpen)}
         ref={triggerRef}
+        title={triggerTitle}
         type="button"
       >
         {trigger}
