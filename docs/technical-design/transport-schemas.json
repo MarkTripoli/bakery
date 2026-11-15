@@ -408,7 +408,7 @@
           "bounds": {
             "maxBytes": 100000
           },
-          "description": "Ad hoc coordination plan: lanes with repository aliases, prerequisites, typed outputs and inputs, plus maxConcurrency, join `all-required` and failurePolicy `stop-dependent`. It is validated, stored immutably and identified by a canonical digest."
+          "description": "Ad hoc split, stored as a `coordination-plans` revision: lanes with repository aliases, prerequisites, typed outputs and inputs, plus maxConcurrency, join `all-required` and failurePolicy `stop-dependent`. It is validated, stored immutably and identified by a canonical digest."
         },
         {
           "name": "origin",
@@ -436,7 +436,7 @@
         "Aliases resolve only through the application's repository roles. Unknown or ambiguous aliases, cycles, repositories outside the application or the parent's links, undeclared typed handoffs and two writer lanes on one repository are rejected with UNPROCESSABLE and no target is selected silently.",
         "Creating a plan does not create child tasks; materialize does."
       ],
-      "description": "Stores a new immutable, versioned coordination plan revision for a parent task after validating aliases, scope, dependencies and typed handoffs."
+      "description": "Stores a new immutable, versioned split revision for a parent task after validating aliases, scope, dependencies and typed handoffs."
     },
     "CoordinationPlanCreateFromWorkflow": {
       "fields": [
@@ -478,7 +478,7 @@
         "The mapped spec goes through the same create command as `coordinationPlans.create`, so aliases, scope, cycles, digests, replay and revisions follow the same rules; the plan origin is the server-set `saved_workflow` origin.",
         "Creating a plan does not create child tasks; materialize does."
       ],
-      "description": "Stores a coordination plan revision mapped from one parallel node of a published workflow version, through the same boundary as ad hoc and ticket plans."
+      "description": "Stores a split revision mapped from one parallel node of a published workflow version, through the same boundary as ad hoc and ticket splits."
     },
     "CoordinationPlanListQuery": {
       "fields": [
@@ -513,7 +513,7 @@
       "rules": [
         "Newest-first keyset on createdAt DESC, id DESC; reject page and offset parameters."
       ],
-      "description": "Lists coordination plan revisions newest-first, optionally for one parent task."
+      "description": "Lists split revisions newest-first, optionally for one parent task."
     },
     "TaskRepositorySet": {
       "fields": [
@@ -563,7 +563,7 @@
           "bounds": {
             "maxLength": 63
           },
-          "description": "Stable alias coordination plans use to name the repository inside this application."
+          "description": "Stable alias a split's lanes use to name the repository inside this application."
         },
         {
           "name": "role",
@@ -14896,9 +14896,9 @@
         "version": "integer"
       },
       "nullableFields": [],
-      "description": "Coordination plan revision with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings.",
+      "description": "Split revision (a `coordination-plans` resource) with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings.",
       "fieldDescriptions": {
-        "id": "Stable UUID identifying the coordination plan revision.",
+        "id": "Stable UUID identifying the split revision.",
         "applicationId": "UUID of the application whose repositories the plan coordinates.",
         "parentTaskId": "UUID of the parent task that owns the plan.",
         "revision": "Monotonic revision number among the parent task's plans.",
@@ -14948,7 +14948,7 @@
         "repositoryId": "UUID of the linked repository.",
         "role": "Descriptive role of the repository for this task.",
         "required": "Whether the task needs this repository's outcome before it may finish.",
-        "provenance": "Who selected the link: user, coordinator or a coordination plan.",
+        "provenance": "Who selected the link: user, coordinator or a split.",
         "createdBy": "UUID of the principal who recorded the link.",
         "createdAt": "UTC timestamp when the link was created.",
         "updatedAt": "UTC timestamp when the link last changed.",
@@ -15002,7 +15002,7 @@
       "fieldDescriptions": {
         "id": "Stable UUID identifying the alias mapping.",
         "applicationId": "UUID of the application that owns the alias.",
-        "alias": "Alias coordination plans use to name the repository.",
+        "alias": "Alias a split's lanes use to name the repository.",
         "role": "Descriptive role the alias plays.",
         "repositoryId": "UUID of the repository the alias and role resolve to.",
         "createdAt": "UTC timestamp when the mapping was created.",
@@ -15012,7 +15012,7 @@
     },
     "Page<CoordinationPlan>": {
       "pageOf": "CoordinationPlan",
-      "description": "Cursor page of coordination plan revisions returned by `GET /v1/coordination-plans`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+      "description": "Cursor page of split revisions returned by `GET /v1/coordination-plans`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
     "Page<TaskRepository>": {
       "pageOf": "TaskRepository",

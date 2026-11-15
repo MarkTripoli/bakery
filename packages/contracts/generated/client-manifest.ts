@@ -6755,7 +6755,7 @@ export const clientManifest = {
         "spec"
       ],
       "additionalProperties": false,
-      "description": "Stores a new immutable, versioned coordination plan revision for a parent task after validating aliases, scope, dependencies and typed handoffs.",
+      "description": "Stores a new immutable, versioned split revision for a parent task after validating aliases, scope, dependencies and typed handoffs.",
       "$defs": {
         "__schema0": {
           "description": "JSON value node.",
@@ -7015,7 +7015,7 @@ export const clientManifest = {
         "nodeId"
       ],
       "additionalProperties": false,
-      "description": "Stores a coordination plan revision mapped from one parallel node of a published workflow version, through the same boundary as ad hoc and ticket plans."
+      "description": "Stores a split revision mapped from one parallel node of a published workflow version, through the same boundary as ad hoc and ticket splits."
     },
     "CoordinationPlanListQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7041,7 +7041,7 @@ export const clientManifest = {
         }
       },
       "additionalProperties": false,
-      "description": "Lists coordination plan revisions newest-first, optionally for one parent task."
+      "description": "Lists split revisions newest-first, optionally for one parent task."
     },
     "TaskRepositorySet": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -17780,7 +17780,7 @@ export const clientManifest = {
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID identifying the coordination plan revision."
+          "description": "Stable UUID identifying the split revision."
         },
         "applicationId": {
           "type": "string",
@@ -17991,7 +17991,7 @@ export const clientManifest = {
         "version"
       ],
       "additionalProperties": false,
-      "description": "Coordination plan revision with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings.",
+      "description": "Split revision (a `coordination-plans` resource) with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings.",
       "$defs": {
         "__schema0": {
           "anyOf": [
@@ -18366,7 +18366,7 @@ export const clientManifest = {
             "coordinator",
             "plan"
           ],
-          "description": "Who selected the link: user, coordinator or a coordination plan."
+          "description": "Who selected the link: user, coordinator or a split."
         },
         "createdBy": {
           "type": "string",
@@ -18427,7 +18427,7 @@ export const clientManifest = {
         "alias": {
           "type": "string",
           "maxLength": 65536,
-          "description": "Alias coordination plans use to name the repository."
+          "description": "Alias a split's lanes use to name the repository."
         },
         "role": {
           "type": "string",
@@ -18486,7 +18486,7 @@ export const clientManifest = {
                 "type": "string",
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID identifying the coordination plan revision."
+                "description": "Stable UUID identifying the split revision."
               },
               "applicationId": {
                 "type": "string",
@@ -18697,7 +18697,7 @@ export const clientManifest = {
               "version"
             ],
             "additionalProperties": false,
-            "description": "Coordination plan revision with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings."
+            "description": "Split revision (a `coordination-plans` resource) with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings."
           },
           "description": "Page<CoordinationPlan>.items must contain at most 100 items."
         },
@@ -19132,7 +19132,7 @@ export const clientManifest = {
                   "coordinator",
                   "plan"
                 ],
-                "description": "Who selected the link: user, coordinator or a coordination plan."
+                "description": "Who selected the link: user, coordinator or a split."
               },
               "createdBy": {
                 "type": "string",
@@ -19346,7 +19346,7 @@ export const clientManifest = {
               "alias": {
                 "type": "string",
                 "maxLength": 65536,
-                "description": "Alias coordination plans use to name the repository."
+                "description": "Alias a split's lanes use to name the repository."
               },
               "role": {
                 "type": "string",
