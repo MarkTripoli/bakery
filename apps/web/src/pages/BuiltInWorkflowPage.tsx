@@ -18,7 +18,8 @@ import { WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
 import { MakeCopyDialog } from "./library/MakeCopyDialog.tsx";
 import { presetSource } from "./library/copy-workflow.ts";
-import { ACTION_TITLES } from "./library/workflow-state.ts";
+import { ACTION_LINES, ACTION_TITLES } from "./library/workflow-state.ts";
+import { stepSummary } from "./library/step-summary.tsx";
 import { presetCopy } from "./task-composer-labels.ts";
 
 /**
@@ -51,6 +52,11 @@ export function BuiltInWorkflowPage(
   const stepTitle = (uses: string) => {
     const key = ACTION_TITLES[uses];
     return key === undefined ? uses : translate(key as never);
+  };
+  // The spec's sentence under a step's name, for the actions that have one.
+  const stepLine = (uses: string) => {
+    const key = ACTION_LINES[uses];
+    return key === undefined ? undefined : translate(key as never);
   };
 
   const breadcrumbs = (
@@ -224,6 +230,7 @@ export function BuiltInWorkflowPage(
                     { n: index + 1 },
                   )}
                   title={stepTitle(step.uses)}
+                  summary={stepSummary(stepLine(step.uses), undefined)}
                 />
               ))}
             </UI.StepList>
