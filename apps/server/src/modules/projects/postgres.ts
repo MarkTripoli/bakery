@@ -970,8 +970,8 @@ export function createProfilesListHandler(secret: string) {
          where repository_id = $1
            -- #65: the Versions list shows what a person saved (no readiness
            -- check created it) or what a passing check put in use. A failed
-           -- check's candidate stays out of the list; it is still stored and
-           -- reachable from its check result and by id.
+           -- check's candidate stays out of the list; it is still stored, and
+           -- its check result (the observation) references it.
            and (
              not exists (
                select 1 from bakery.repository_profile_observations o
