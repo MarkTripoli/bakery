@@ -9,6 +9,9 @@ const FORBIDDEN_ARTIFACT_TRANSPORT_REFERENCES = [
   "actions/upload-artifact",
   "actions/download-artifact",
 ];
+// The self-hosted pools a candidate workflow may ask for: `ovh` and `hetzner`
+// name hosts, `bakery-heavy` the heavy-lane pool (x64 and ARM64 runners).
+const SELF_HOSTED_POOL_LABELS = ["ovh", "hetzner", "bakery-heavy"];
 const GITHUB_HOSTED_LABELS = new Set([
   "ubuntu-24.04",
   "ubuntu-24.04-arm",
@@ -301,12 +304,14 @@ const assertCandidateRunnerLabels = (workflowPath, labelSets) => {
       );
     }
     if (
-      !isSingleGitHubHostedImage(labels) && !labels.has("ovh") &&
-      !labels.has("hetzner")
+      !isSingleGitHubHostedImage(labels) &&
+      !SELF_HOSTED_POOL_LABELS.some((pool) => labels.has(pool))
     ) {
       policyError(
         workflowPath,
-        "every non-single-GitHub-hosted runner-label set must include ovh or hetzner",
+        `every non-single-GitHub-hosted runner-label set must include ${
+          SELF_HOSTED_POOL_LABELS.slice(0, -1).join(", ")
+        } or ${SELF_HOSTED_POOL_LABELS.at(-1)}`,
       );
     }
   }

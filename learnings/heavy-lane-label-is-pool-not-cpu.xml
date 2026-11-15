@@ -7,5 +7,6 @@
   <verification>
     <requirement>Before calling a lane timeout a defect in the test, compare the same job name across runners: gh api repos/MarkTripoli/bakery/actions/runs/&lt;id&gt;/jobs gives runner_name, started_at and completed_at.</requirement>
   </verification>
+  <update date="2026-11-15">The pool label is now bakery-heavy (ci.yml, scripts/ci/runner-label-policy.mjs, .github/actionlint.yaml): it spans x64 hosts and temporary ARM64 runners, so it says nothing about architecture either. A lane with architecture-specific reference data (the three ui / paper parity lanes: K-0 baselines are linux-x64 rasters, packages/ui/scripts/paper-browser-profile.mjs) adds the X64 label.</update>
   <boundary>Capacity is still the limit: nine lanes ask for amd and four runners serve them, so a full dispatch competes with every pull request run for the same pool.</boundary>
 </learning>

@@ -52,7 +52,7 @@ export function WorkingSettingsSheet(
 
   const branches = parseBranches(branchText);
   const problem = settingsProblem(branches, folder);
-  const next = nextRevision(profiles);
+  const next = nextRevision(profiles, repository.nextProfileRevision);
   const archived = repository.archivedAt !== null;
   // Rules of the repository's own are carried by the Rules page: a save from
   // here cannot keep them, so nothing here is offered that could not succeed.

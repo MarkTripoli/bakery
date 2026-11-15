@@ -788,3 +788,28 @@ test("runner policy exposes actual decoded job selectors", () => {
   );
   assert.deepEqual([...sets[0]], ["ovh"]);
 });
+
+test("accepts the bakery-heavy pool label, with or without an architecture pin", () => {
+  for (
+    const [source, expected] of [
+      [
+        "jobs:\n  build:\n    runs-on: [self-hosted, linux, bakery-heavy]\n    steps: []\n",
+        ["self-hosted", "linux", "bakery-heavy"],
+      ],
+      [
+        "jobs:\n  build:\n    runs-on: [self-hosted, linux, bakery-heavy, X64]\n    steps: []\n",
+        ["self-hosted", "linux", "bakery-heavy", "x64"],
+      ],
+    ]
+  ) {
+    const [labels] = candidateLabels(source);
+    assert.deepEqual([...labels], expected);
+  }
+});
+
+test("a self-hosted label set without a pool label is still refused, naming the pools", () => {
+  rejectsCandidate(
+    "jobs:\n  build:\n    runs-on: [self-hosted, linux, x64]\n    steps: []\n",
+    /must include ovh, hetzner or bakery-heavy/,
+  );
+});
