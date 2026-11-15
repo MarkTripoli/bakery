@@ -24,6 +24,7 @@ import {
   publishWorkflow,
   seedRulesRepository,
 } from "../helpers/pinned-rules.ts";
+import { reviewedPlanDocument } from "../helpers/review-repair/plan-loop-document.ts";
 import type { WorkerFixture } from "../helpers/worker-execution.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 
@@ -737,136 +738,6 @@ Deno.test("a flat workflow is admitted exactly as before: its rows, its agents, 
     );
   }));
 
-/** A plan that implements, checks, reviews and repairs under a `repeat` of `max` rounds. */
-const reviewedPlan = (agent: string, max: number) => ({
-  apiVersion: "bakery.dev/v1",
-  kind: "workflow",
-  name: "plan-review",
-  description: "A compiled plan that reviews and repairs.",
-  agents: {
-    "harness.implement": agent,
-    "harness.repair": agent,
-    "review.independent": agent,
-  },
-  inputs: {
-    repositoryId: { type: "uuid", required: true },
-    brief: { type: "TaskBrief", required: true },
-    instructions: { type: "string", required: true },
-  },
-  steps: [{
-    id: "flow",
-    steps: [
-      {
-        id: "brief",
-        uses: "task.brief",
-        with: { brief: "$input.brief", repositoryId: "$input.repositoryId" },
-      },
-      {
-        id: "implement",
-        needs: ["brief"],
-        uses: "harness.implement",
-        with: {
-          repositoryId: "$input.repositoryId",
-          planArtifact: "$step.flow.brief.artifact.versionId",
-          instructions: "$input.instructions",
-        },
-      },
-      {
-        id: "test",
-        needs: ["implement"],
-        uses: "quality.check",
-        with: {
-          repositoryId: "$input.repositoryId",
-          revision: "$step.flow.implement.headSha",
-        },
-        checks: ["lint"],
-      },
-      {
-        id: "review",
-        needs: ["test"],
-        uses: "review.independent",
-        with: {
-          repositoryId: "$input.repositoryId",
-          revision: "$step.flow.implement.headSha",
-          evidence: "$step.flow.test.checkRunIds",
-        },
-      },
-      {
-        id: "repair",
-        needs: ["review"],
-        repeat: {
-          max,
-          seed: {
-            currentCandidate: {
-              headSha: "$step.flow.implement.headSha",
-              baseSha: "$step.flow.test.baseSha",
-              policyDigest: "$step.flow.test.policyDigest",
-              checksPassed: "$step.flow.test.allRequired",
-              blockingFindings: "$step.flow.review.blockingFindings",
-              reviewId: "$step.flow.review.reviewId",
-              findings: "$step.flow.review.findings",
-              checkRunIds: "$step.flow.test.checkRunIds",
-              failedCheckIds: "$step.flow.test.failedCheckIds",
-            },
-          },
-          until:
-            "$repeat.currentCandidate.blockingFindings == 0 && $repeat.currentCandidate.checksPassed == true",
-          steps: [
-            {
-              id: "repair_implement",
-              uses: "harness.repair",
-              with: {
-                repositoryId: "$input.repositoryId",
-                revision: "$repeat.currentCandidate.headSha",
-                findings: "$repeat.currentCandidate.findings",
-                failedChecks: "$repeat.currentCandidate.failedCheckIds",
-              },
-            },
-            {
-              id: "repair_test",
-              needs: ["repair_implement"],
-              uses: "quality.check",
-              with: {
-                repositoryId: "$input.repositoryId",
-                revision: "$step.flow.repair.repair_implement.headSha",
-              },
-              checks: ["lint"],
-            },
-            {
-              id: "repair_review",
-              needs: ["repair_test"],
-              uses: "review.independent",
-              with: {
-                repositoryId: "$input.repositoryId",
-                revision: "$step.flow.repair.repair_implement.headSha",
-                evidence: "$step.flow.repair.repair_test.checkRunIds",
-              },
-            },
-            {
-              id: "candidate_evidence",
-              needs: ["repair_review"],
-              uses: "delivery.candidate_evidence",
-              with: {
-                headSha: "$step.flow.repair.repair_implement.headSha",
-                baseSha: "$step.flow.repair.repair_test.baseSha",
-                policyDigest: "$step.flow.repair.repair_test.policyDigest",
-                checksPassed: "$step.flow.repair.repair_test.allRequired",
-                blockingFindings:
-                  "$step.flow.repair.repair_review.blockingFindings",
-                reviewId: "$step.flow.repair.repair_review.reviewId",
-                findings: "$step.flow.repair.repair_review.findings",
-                checkRunIds: "$step.flow.repair.repair_test.checkRunIds",
-                failedCheckIds: "$step.flow.repair.repair_test.failedCheckIds",
-              },
-            },
-          ],
-          outputs: { currentCandidate: "$step.flow.repair.candidate_evidence" },
-        },
-      },
-    ],
-  }],
-});
-
 Deno.test("a plan that reviews freezes its review loop from its own repeat bound; a plan that does not freezes none", () =>
   withWorkerFixture(async (fixture) => {
     const { agent, repository } = await repositoryWithAgent(fixture, "loop");
@@ -874,7 +745,15 @@ Deno.test("a plan that reviews freezes its review loop from its own repeat bound
       fixture,
       fixture,
       "plan-reviewed",
-      reviewedPlan(agent, 3),
+      reviewedPlanDocument({
+        name: "plan-reviewed",
+        agents: {
+          "harness.implement": agent,
+          "harness.repair": agent,
+          "review.independent": agent,
+        },
+        repairs: 3,
+      }),
     );
     const first = await start(fixture, repository, reviewed.versionId);
     const run = await expectJson<RunBody>(first.response, 201);

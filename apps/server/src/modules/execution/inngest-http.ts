@@ -6,6 +6,7 @@ import {
   createBakeryFixedWorkflow,
   createBakeryWorkflowRecovery,
 } from "../workflow-adapter/bakery-postgres-store.ts";
+import { readPlanHost } from "../delivery/plan-host.ts";
 import { createBakeryBudgetRecovery } from "../work/budget-recovery.ts";
 import {
   createSkillImportRecovery,
@@ -115,11 +116,13 @@ export function createDefaultInngestFunctions(options: {
       jobCompletionTimeout: options.config.jobCompletionTimeout,
       engineRetries: options.config.engineRetries,
       budgetPolicy: options.budget,
+      planHost: readPlanHost,
     }),
     createBakeryWorkflowRecovery({
       client: options.client,
       database: options.database,
       budgetPolicy: options.budget,
+      planHost: readPlanHost,
     }),
     createBakeryBudgetRecovery({
       client: options.client,

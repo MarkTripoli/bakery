@@ -47,6 +47,8 @@ import {
   observation,
 } from "../deterministic-checks/observations.ts";
 import { type FindingFixture, reviewOutput } from "./fixtures.ts";
+import { publishWorkflow } from "../pinned-rules.ts";
+import { planStepKey, reviewedPlanDocument } from "./plan-loop-document.ts";
 
 /**
  * A real reviewed-preset run for the issue #94 integration and security lanes.
@@ -225,6 +227,10 @@ export type LoopWorld = {
     options?: { worker?: RegisteredWorker; capabilities?: string[] },
   ): Promise<ReviewTurn>;
   steps(): Promise<StepRow[]>;
+  /** A plan run: the key the plan asks for next, or undefined once it is over. */
+  nextKey(): Promise<string | undefined>;
+  /** A plan run: the input the engine recorded for one step's dispatch. */
+  dispatchInput(stepKey: string): Promise<Record<string, unknown>>;
   runStatus(): Promise<string>;
   taskStatus(): Promise<string>;
   cycles(): Promise<CycleRow[]>;
@@ -374,7 +380,16 @@ const sha = (text: string) => sha256Hex(canonicalJson(text));
  */
 export async function openLoopWorld(
   fixture: WorkerFixture,
-  options: { budgetLimitUsd?: string; maxUsd?: number } = {},
+  options: {
+    budgetLimitUsd?: string;
+    maxUsd?: number;
+    /**
+     * Run the reviewed workflow as a compiled plan that repairs at most
+     * `repairs` times (#397), instead of the flat preset. The world's methods
+     * keep their names: `check(1, …)` admits `repair@1.repair_check`.
+     */
+    plan?: { readonly repairs: number };
+  } = {},
 ): Promise<LoopWorld> {
   const suffix = crypto.randomUUID().slice(0, 8);
   const agent = (label: string) =>
@@ -388,14 +403,43 @@ export async function openLoopWorld(
   };
   const repository = await onboardObserved(fixture, bindings);
   const task = await createPresetTask(fixture, fixture, repository);
+  const planBody = async () => {
+    const published = await publishWorkflow(
+      fixture,
+      fixture,
+      `plan-loop-${suffix}`,
+      reviewedPlanDocument({
+        name: `plan-loop-${suffix}`,
+        agents: bindings,
+        repairs: options.plan!.repairs,
+      }),
+    );
+    return {
+      workflowVersionId: published.versionId,
+      executionMode: "repository",
+      repositoryProfileId: repository.profileId,
+      budgetLimitUsd: options.budgetLimitUsd ?? "12.00",
+      inputs: {
+        repositoryId: repository.repositoryId,
+        brief: {
+          title: "Add upload retry",
+          description: "Retry failed uploads twice.",
+          taskType: "feature",
+        },
+        instructions: "Go.",
+      },
+    };
+  };
   const run = await expectJson<{ id: string; workflowVersionId: string }>(
     await apiCall(fixture, fixture, "POST", `/v1/tasks/${task.id}/runs`, {
-      body: presetRunBody(repository, {
-        presetId: REVIEWED_PRESET,
-        ...(options.budgetLimitUsd === undefined
-          ? {}
-          : { budgetLimitUsd: options.budgetLimitUsd }),
-      }),
+      body: options.plan === undefined
+        ? presetRunBody(repository, {
+          presetId: REVIEWED_PRESET,
+          ...(options.budgetLimitUsd === undefined
+            ? {}
+            : { budgetLimitUsd: options.budgetLimitUsd }),
+        })
+        : await planBody(),
     }),
     201,
   );
@@ -455,15 +499,32 @@ export async function openLoopWorld(
     );
   };
   const admit = async (
-    stepKey: string,
-    iteration: number,
+    logical: string,
+    logicalIteration: number,
   ): Promise<AdmittedStep> => {
-    const admitted = await engine.admit({
-      runId: run.id,
-      stepKey,
-      iteration,
-      actionVersion: run.workflowVersionId,
-    }, owner);
+    let stepKey = logical;
+    let iteration = logicalIteration;
+    let admitted;
+    if (options.plan === undefined) {
+      admitted = await engine.admit({
+        runId: run.id,
+        stepKey,
+        iteration,
+        actionVersion: run.workflowVersionId,
+      }, owner);
+    } else {
+      // A plan run has no rows up front: the engine appends the step the
+      // plan asks for, and that has to be the step this call names.
+      stepKey = planStepKey(
+        logical as Parameters<typeof planStepKey>[0],
+        logicalIteration,
+      );
+      iteration = 0;
+      const next = await engine.findNext(run.id, owner);
+      assertExists(next, `the plan asks for nothing; wanted ${stepKey}`);
+      assertEquals(next.stepKey, stepKey);
+      admitted = await engine.admit(next, owner);
+    }
     assert(admitted.jobId, `${stepKey}@${iteration} must admit a job`);
     const stepId = await stepIdOf(stepKey, iteration);
     const job = await database.query<
@@ -688,6 +749,18 @@ export async function openLoopWorld(
       return await turn();
     },
     steps: stepRows,
+    async nextKey() {
+      return (await engine.findNext(run.id, owner))?.stepKey;
+    },
+    async dispatchInput(stepKey) {
+      const row = await database.query<{ input: Record<string, unknown> }>(
+        `select dispatch -> 'input' as input from bakery.run_steps
+          where organization_id = $1 and run_id = $2 and step_key = $3`,
+        [org, run.id, stepKey],
+      );
+      assertExists(row.rows[0]?.input, `${stepKey} has no recorded dispatch`);
+      return row.rows[0].input;
+    },
     async runStatus() {
       return (await database.query<{ status: string }>(
         "select status from bakery.workflow_runs where organization_id = $1 and id = $2",
@@ -813,6 +886,8 @@ export async function withReviewedRun<T>(
   options: {
     budgetLimitUsd?: string;
     maxUsd?: number;
+    /** Run the reviewed workflow as a compiled plan (#397). */
+    plan?: { readonly repairs: number };
     seed?: Readonly<Record<string, Outcome>>;
     /** Skip implement and the seed check, for a test that drives them itself. */
     bare?: boolean;
