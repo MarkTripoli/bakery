@@ -1037,13 +1037,19 @@
   min-block-size: 0;
   padding: var(--space-6) var(--space-8);
   gap: var(--space-5);
+  /* The containing block of anything positioned inside it (the visually hidden
+     text), so it is clipped by this scroller and never makes the page scroll. */
+  position: relative;
 }
 .ui-task-detail--conversation .ui-task-detail__composer {
+  /* The message area is the lower part of the column, a line under the
+     scrolling conversation; nothing of the conversation passes under it. */
+  border-block-start: var(--border-default) solid var(--color-border);
   display: flex;
   flex: 0 0 auto;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-0) var(--space-8) var(--space-6);
+  padding: var(--space-3) var(--space-8) var(--space-6);
 }
 .ui-task-detail--conversation .ui-conversation-message {
   background: transparent;

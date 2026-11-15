@@ -489,7 +489,7 @@ test("shows the current revision with lanes as rows", async ({ page }) => {
   await expect(laneRow(page, "docs")).toContainText("Running");
   // Declared output is committed only when the child task holds the artifact.
   await expect(output_(page, "Committed")(api)).toBeVisible();
-  await expect(api.getByRole("link", { name: "Open child task" }))
+  await expect(api.getByRole("link", { name: "Open task" }))
     .toHaveAttribute(
       "href",
       `/tasks/${child(1)}`,
@@ -764,7 +764,7 @@ test("the task detail links to the plan only when one exists", async ({ page }) 
 test("keyboard reaches the cancel flow and the child links in order", async ({ page }) => {
   await open(page);
   const link = laneRow(page, "api").getByRole("link", {
-    name: "Open child task",
+    name: "Open task",
   });
   await link.focus();
   await expect(link).toBeFocused();
@@ -793,7 +793,7 @@ test(
     await open(page);
     const targets = [
       page.getByRole("button", { name: "Cancel plan", exact: true }),
-      laneRow(page, "api").getByRole("link", { name: "Open child task" }),
+      laneRow(page, "api").getByRole("link", { name: "Open task" }),
     ];
     for (const control of targets) {
       await control.scrollIntoViewIfNeeded();
@@ -919,6 +919,26 @@ test("an ad hoc plan shows its origin and revision, and the digest behind a fing
       .toBeLessThan(2);
   }
   await still(page, "plan-coordination");
+});
+
+test("a lane's child task link is the task's title, never an id", async ({ page }) => {
+  await page.route(
+    /\/v1\/tasks\/00000000-0000-4000-8000-0000000008\d0$/,
+    (route) => {
+      const id = route.request().url().split("/").at(-1)!;
+      return route.fulfill({
+        json: { ...task, id, title: `Update lane ${id.at(-2)}` },
+      });
+    },
+  );
+  await open(page);
+  const link = laneRow(page, "api").getByRole("link", {
+    name: /^Open Update lane/,
+  });
+  await expect(link).toBeVisible();
+  await expect(link).toHaveText(/^Update lane \d$/);
+  await expect(laneRow(page, "api")).not.toContainText("00000000");
+  await still(page, "plan-coordination-child-links");
 });
 
 test("a saved workflow origin names the workflow and version", async ({ page }) => {
