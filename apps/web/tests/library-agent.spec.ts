@@ -87,15 +87,23 @@ for (
       await expect(details).toContainText("repo.read, repo.write");
       await expect(details).toContainText("system");
       await expect(details).toContainText("review");
-      // All five rows keep one height, and a help button stays on its label's line.
-      const heights = await details.locator('[data-ui-component="detailRow"]')
-        .evaluateAll((nodes) =>
-          nodes.map((node) => Math.round(node.getBoundingClientRect().height))
-        );
-      expect(heights).toHaveLength(5);
-      expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(
-        1,
+      // A help button stays on its label's line; on a wide screen all five
+      // rows keep one height (on a phone a long value may wrap to a second line).
+      const rows = details.locator('[data-ui-component="detailRow"]');
+      await expect(rows).toHaveCount(5);
+      const heights = await rows.evaluateAll((nodes) =>
+        nodes.map((node) => Math.round(node.getBoundingClientRect().height))
       );
+      if (viewport.name === "desktop") {
+        expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(
+          1,
+        );
+      }
+      const tools = rows.filter({ hasText: "Tools it may use" });
+      const row = (await tools.boundingBox())!;
+      const help = (await tools.getByRole("button").boundingBox())!;
+      expect(help.y).toBeLessThan(row.y + row.height / 2 + 4);
+      expect(help.y + help.height).toBeLessThanOrEqual(row.y + row.height + 1);
       // The identifiers say what they are: each label has its help.
       await details.getByRole("button", { name: "Tools it may use" }).click();
       await expect(
