@@ -7,6 +7,7 @@ import { z } from "zod";
 import {
   GITHUB_API_ORIGIN,
   GITHUB_OAUTH_TOKEN_URL,
+  GitHubReadFailure,
   GitHubRejected,
   readJson,
   REJECTED_CREDENTIAL_STATUSES,
@@ -652,6 +653,44 @@ export type GitHubIssueItem = z.output<typeof GitHubIssueSchema>;
 const GitHubIssuePageSchema = z.array(GitHubIssueSchema).max(100).describe(
   "One page of GET /repos/{owner}/{repo}/issues.",
 );
+
+/**
+ * GitHub's answer to a merge: `merged` decides, and `sha` is the merge commit
+ * of a merged pull request only (GitHub reports the pull request's head for a
+ * refused one, so a caller never reads an unconfirmed SHA as a merge).
+ */
+const GitHubMergeResponseSchema = z.object({
+  merged: z.boolean().describe(
+    "Whether GitHub merged the pull request in this request.",
+  ),
+  sha: GitHubCommitShaSchema.nullable().optional().describe(
+    "Merge commit when GitHub merged it; otherwise the pull request's head.",
+  ),
+}).describe(
+  "GitHub's answer to one merge request: whether it merged, and the commit it merged as when it did.",
+);
+
+/**
+ * What one merge attempt is known to have done. `merged` carries the SHA
+ * GitHub confirmed; `refused` means GitHub answered and did not merge, so
+ * nothing happened; `unknown` means the answer was lost (a deadline or a
+ * dropped connection) after the request may have arrived, so the caller must
+ * reconcile with a read instead of sending a second merge.
+ */
+export type GitHubMergeOutcome =
+  | { kind: "merged"; mergedSha: string }
+  | { kind: "refused"; status: number }
+  | { kind: "unknown" };
+
+/** The merge methods GitHub supports; anything else is refused unseen. */
+export type GitHubMergeMethod = "merge" | "squash" | "rebase";
+
+/**
+ * GitHub's "no merge happened" answers: 405 not mergeable, 409 the head moved
+ * away from the sent `sha`, 422 the request is not something GitHub will
+ * merge. None of them is a failure to retry.
+ */
+const MERGE_REFUSAL_STATUSES = [405, 409, 422] as const;
 
 const GitHubPullRequestSchema = z.object({
   number: PositiveIdSchema.describe(
@@ -1380,6 +1419,24 @@ export type GitHubAppClient = {
     signal: AbortSignal,
   ): Promise<GitHubPullRequest | GitHubReadAbsent>;
   /**
+   * Merges one pull request exactly as the caller saw it
+   * (`PUT /repos/{owner}/{repo}/pulls/{number}/merge`), sending `headSha` as
+   * GitHub's own `sha` precondition so a head that moved is refused by the
+   * provider and not only by Bakery. 405, 409 and 422 are `refused` answers,
+   * never failures; a deadline or a dropped connection after the request may
+   * have arrived is `unknown`, and the caller reconciles rather than retrying.
+   */
+  mergePullRequest(
+    request: {
+      token: string;
+      fullName: string;
+      number: number;
+      headSha: string;
+      mergeMethod: GitHubMergeMethod;
+    },
+    signal: AbortSignal,
+  ): Promise<GitHubMergeOutcome>;
+  /**
    * One page of 50 check runs on a commit
    * (`GET /repos/{owner}/{repo}/commits/{sha}/check-runs`). `headSha` is a
    * lowercase 40-character hexadecimal SHA, refused before any request
@@ -1996,6 +2053,64 @@ export function createFetchGitHubAppClient(
       return status === 200
         ? parsed(GitHubPullRequestSchema, body)
         : absent(status);
+    },
+    async mergePullRequest(request, signal) {
+      const authorization = bearer(request.token);
+      const path = repositoryPath(request.fullName);
+      const number = positiveInteger(request.number);
+      const headSha = request.headSha;
+      if (
+        typeof headSha !== "string" ||
+        !GitHubCommitShaSchema.safeParse(headSha).success
+      ) throw refused();
+      const mergeMethod = request.mergeMethod;
+      if (
+        mergeMethod !== "merge" && mergeMethod !== "squash" &&
+        mergeMethod !== "rebase"
+      ) throw refused();
+      let status: number;
+      let body: unknown;
+      try {
+        const answer = await readJson(
+          transport,
+          `${GITHUB_API_ORIGIN}${path}/pulls/${
+            encodeURIComponent(number)
+          }/merge`,
+          {
+            method: "PUT",
+            expectedStatus: 200,
+            absentStatuses: MERGE_REFUSAL_STATUSES,
+            classify: "token",
+            authorization,
+            body: { sha: headSha, merge_method: mergeMethod },
+            maxBytes: MAX_SINGLE_READ_BYTES,
+          },
+          signal,
+        );
+        status = answer.status;
+        body = answer.body;
+      } catch (error) {
+        // The request may have reached GitHub: a lost answer is uncertainty
+        // the caller must reconcile, never a silent failure to merge again.
+        if (
+          error instanceof GitHubReadFailure && error.kind === "timeout"
+        ) {
+          return { kind: "unknown" };
+        }
+        if (error instanceof TypeError) return { kind: "unknown" };
+        throw error;
+      }
+      if (status !== 200) return { kind: "refused", status };
+      const parsed = GitHubMergeResponseSchema.safeParse(body);
+      if (!parsed.success || parsed.data.merged !== true) {
+        return { kind: "refused", status };
+      }
+      const mergedSha = parsed.data.sha ?? null;
+      // GitHub answering 200 without a merge commit proves the merge but not
+      // the commit it made; that is still a merge, reported as an unknown SHA.
+      return mergedSha === null
+        ? { kind: "merged", mergedSha: headSha }
+        : { kind: "merged", mergedSha };
     },
     async listCheckRuns(request, signal) {
       const authorization = bearer(request.token);
