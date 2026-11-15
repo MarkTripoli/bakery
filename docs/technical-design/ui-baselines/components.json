@@ -1,5 +1,5 @@
 {
-  "revision": "d79ba30b2d30502af95e22fdc18cb5b8593e5242d16c83d063abc602726d18bc",
+  "revision": "b5ffed5f48a79ce407c6037336a75126270548f561645126d9083737ce05d580",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -7279,6 +7279,141 @@
           ],
           "pointer:fine": [
             "runtime:ui.helpTip.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paperAbsentReason": "Designed in the #65 UX design comment (section E amendment, 2026-11-12); no Paper frame names it."
+    },
+    {
+      "id": "ui.disclosure",
+      "name": "Disclosure",
+      "description": "Shows or hides secondary facts in place: a text control with a chevron, closed by default, and the facts beneath it when open.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/Disclosure",
+      "usage": {
+        "whenToUse": "Keep secondary facts (an id, a fingerprint, who made it) one step away, in place, so the page leads with what a person came for.",
+        "whenNotToUse": "Do not hide what a person needs to finish the task, an error, or the only way to act.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "The explanation is a short note on one label",
+            "use": "ui.helpTip"
+          },
+          {
+            "when": "The content is a menu or a choice, not facts",
+            "use": "ui.popover"
+          }
+        ],
+        "replacesElements": [
+          "details"
+        ],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "paper": [],
+      "a11y": {
+        "role": "group",
+        "accessibleName": "content",
+        "keyboard": [
+          "Enter or Space on the control opens and closes it",
+          "Focus stays on the control; the facts follow it in reading order"
+        ],
+        "targetSize": "min 44px (coarse pointer)",
+        "notes": "The platform's own details and summary: the open state is exposed without extra attributes."
+      },
+      "tokens": [
+        "--color-focus",
+        "--color-selection",
+        "--focus-offset",
+        "--focus-width",
+        "--radius-control",
+        "--size-control",
+        "--space-2",
+        "--target-min",
+        "--type-control"
+      ],
+      "variants": [
+        "default"
+      ],
+      "states": [
+        "closed",
+        "open"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises the documented Disclosure states across required contexts: closed and open.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "closed",
+            "open"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.auth"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.disclosure.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.disclosure.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.disclosure.contract.desktop-light-fine"
           ],
           "pointer:coarse": [
             "suite:storybook.coarse-targets"

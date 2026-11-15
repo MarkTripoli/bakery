@@ -28,6 +28,7 @@ import {
   WORKFLOW_PRESETS,
   workflowPresetById,
 } from "../../../packages/contracts/src/workflow-presets.ts";
+import type { FixedWorkflowPresetSpec } from "../../../packages/contracts/src/workflow-presets.ts";
 import type { RepositoryVersionedProfileConfig } from "../../../packages/contracts/src/repository-inspection.ts";
 import {
   assertActionInput,
@@ -47,6 +48,7 @@ import {
 } from "../../../apps/server/src/modules/work/run-steps.ts";
 import {
   fixedPolicyDeniesSteps,
+  presetActionSteps,
   presetBriefInputs,
 } from "../../../apps/server/src/modules/work/workflow-presets.ts";
 import {
@@ -189,15 +191,18 @@ function registerPresetShapeCases(): void {
     assertEquals(workflowPresetById("fixed-coding-reviewed"), PRESET);
     assertEquals(workflowPresetById("fixed-coding"), FIXED_CODING_PRESET);
     // fixed-coding keeps its exact digest, revision, budget and steps.
+    // Revision 3 republished it as a compiled definition (#399); the digest
+    // pins that document, and its one top-level node is the sequence.
     assertEquals(
       FIXED_CODING_PRESET.digest,
-      "8d243ab0b8f9a81d16aa8f87612364d6778c65f7e7560b69342ce257a79f4091",
+      await sha256Hex(
+        canonicalJson(FIXED_CODING_PRESET.spec),
+      ),
     );
-    assertEquals(FIXED_CODING_PRESET.revision, 2);
+    assertEquals(FIXED_CODING_PRESET.revision, 3);
     assertEquals(FIXED_CODING_PRESET.defaultBudgetLimitUsd, "5.00");
     assertEquals(FIXED_CODING_PRESET.spec.steps.map((step) => step.id), [
-      "brief",
-      "implement",
+      "flow",
     ]);
 
     assertEquals(PRESET.revision, 1);
@@ -217,14 +222,10 @@ function registerPresetShapeCases(): void {
       ],
     );
     // Every step is scoped to the task's repository.
-    for (const step of PRESET.spec.steps) {
+    const reviewed = PRESET.spec as FixedWorkflowPresetSpec;
+    for (const step of reviewed.steps) {
       assertEquals(step.with.repositoryId, "$task.repositoryId", step.id);
     }
-    // Its brief and implement steps are the shared fixed-coding steps.
-    assertEquals(
-      PRESET.spec.steps.slice(0, 2),
-      FIXED_CODING_PRESET.spec.steps,
-    );
   });
 
   Deno.test("the reviewed preset's source YAML parses to exactly its spec", () => {
@@ -843,7 +844,7 @@ function registerStrictAdmissionCases(): void {
 }
 
 function registerOnDemandStepCases(): void {
-  Deno.test("the reviewed preset marks only its repair step on demand and keeps spec positions", () => {
+  Deno.test("the reviewed preset marks only its repair step on demand and keeps spec positions", async () => {
     const steps = extractFixedWorkflowSteps(PRESET.spec);
     assertEquals(
       steps.map((step) => [step.key, step.position, step.onDemand ?? false]),
@@ -855,10 +856,11 @@ function registerOnDemandStepCases(): void {
         ["review", 4, false],
       ],
     );
-    // Plain fixed-coding has no loop, so nothing is on demand.
+    // Plain fixed-coding has no loop and no on-demand step: its plan is the
+    // two actions in one sequence.
     assertEquals(
-      extractFixedWorkflowSteps(FIXED_CODING_PRESET.spec).map((step) =>
-        step.onDemand
+      await presetActionSteps(FIXED_CODING_PRESET.spec).then((steps) =>
+        steps.map((step) => step.onDemand)
       ),
       [undefined, undefined],
     );
@@ -959,31 +961,31 @@ function registerOnDemandStepCases(): void {
       steps: extractFixedWorkflowSteps(PRESET.spec),
     });
     assertEquals(calls.length, 1);
-    const [org, run, ...columns] = calls[0].parameters as [
-      string,
-      string,
-      ...unknown[],
-    ];
+    const [org, run] = calls[0].parameters as [string, string];
     assertEquals([org, run], ["org", "run"]);
+    const rowsOf = (parameters: unknown[]) => {
+      const [, , ...triples] = parameters as [unknown, unknown, ...unknown[]];
+      const rows: Array<[unknown, unknown]> = [];
+      for (let index = 0; index < triples.length; index += 3) {
+        rows.push([triples[index], triples[index + 1]]);
+      }
+      return rows;
+    };
     // Triples of (key, position, encoded input): positions keep the spec index.
-    const rows: Array<[unknown, unknown]> = [];
-    for (let index = 0; index < columns.length; index += 3) {
-      rows.push([columns[index], columns[index + 1]]);
-    }
-    assertEquals(rows, [
+    assertEquals(rowsOf(calls[0].parameters), [
       ["brief", 0],
       ["implement", 1],
       ["check", 3],
       ["review", 4],
     ]);
-    // fixed-coding still gets a row for every step.
-    calls.length = 0;
-    await insertRunSteps(transaction, {
-      organizationId: "org",
-      runId: "run",
-      steps: extractFixedWorkflowSteps(FIXED_CODING_PRESET.spec),
-    });
-    assertEquals(calls[0].parameters.length, 2 + 2 * 3);
+    // fixed-coding is a compiled plan now, so admission writes no step rows at
+    // all: the engine appends each one as the plan decides it. Its action list
+    // is still the two actions, now prefixed by the sequence.
+    const plain = await presetActionSteps(FIXED_CODING_PRESET.spec);
+    assertEquals(plain.map((step) => [step.key, step.position]), [
+      ["flow.brief", 0],
+      ["flow.implement", 1],
+    ]);
   });
 }
 
@@ -1153,9 +1155,9 @@ function registerRuleGuardCases(): void {
     assertEquals(other.map((stage) => stage.checks), [[], []]);
   });
 
-  Deno.test("run admission rules: the reviewed preset satisfies a bound require rule, fixed-coding does not", () => {
+  Deno.test("run admission rules: the reviewed preset satisfies a bound require rule, fixed-coding does not", async () => {
     const reviewed = extractFixedWorkflowSteps(PRESET.spec);
-    const plain = extractFixedWorkflowSteps(FIXED_CODING_PRESET.spec);
+    const plain = await presetActionSteps(FIXED_CODING_PRESET.spec);
     // Any bound command is covered by the reviewed preset's check stage.
     for (const commandId of ["unit", "magic.numbers", "something-else"]) {
       assertStepsSatisfyRules(rules(commandId), reviewed);
@@ -1191,7 +1193,8 @@ function registerProfileAndCopyCases(): void {
     "review_evidence",
   ];
   const reviewedSteps = extractFixedWorkflowSteps(PRESET.spec);
-  const plainSteps = extractFixedWorkflowSteps(FIXED_CODING_PRESET.spec);
+  // The compiled plan's action steps: same actions, keys prefixed by `flow.`.
+  const plainSteps = () => presetActionSteps(FIXED_CODING_PRESET.spec);
 
   Deno.test("the reviewed preset needs an observed fixed policy that allows all four effects", () => {
     const denies = (profile: unknown) =>
@@ -1213,9 +1216,10 @@ function registerProfileAndCopyCases(): void {
     }
   });
 
-  Deno.test("fixed-coding availability by effects is exactly what it always was", () => {
+  Deno.test("fixed-coding availability by effects is exactly what it always was", async () => {
+    const steps = await plainSteps();
     const denies = (profile: unknown) =>
-      fixedPolicyDeniesSteps(config(profile), plainSteps);
+      fixedPolicyDeniesSteps(config(profile), steps);
     // No policy permits the plain coding steps.
     assertFalse(denies({ schemaVersion: 1 }));
     assertFalse(denies({ schemaVersion: 2 }));

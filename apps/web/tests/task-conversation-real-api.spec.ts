@@ -280,11 +280,12 @@ test(
     await approve(stale, 1).click();
     await expect(stale.getByText("Nothing was decided")).toBeVisible();
     await stale.unroute(planReads, blockPlanReads);
-    await expect(stale.getByText("Plan, version 1 is out of date")).toBeVisible(
-      {
-        timeout: 30_000,
-      },
-    );
+    await expect(stale.getByText("Plan, version 1 is out of date"))
+      .toBeVisible(
+        {
+          timeout: 30_000,
+        },
+      );
     await expect(approve(stale, 2)).toBeVisible();
     await shot(stale, "05-obsolete-conflict");
     await stale.close();

@@ -19,6 +19,13 @@ type Receipt =
   | "rejected";
 type Intent = { key: string; input: RunControl };
 const actions = ["pause", "resume", "cancel", "interrupt"] as const;
+/** What a machine that cannot do one control says, in that control's own words. */
+const unsupportedReasons = {
+  pause: "tasks.controls.reason.unsupportedPause",
+  resume: "tasks.controls.reason.unsupportedResume",
+  cancel: "tasks.controls.reason.unsupportedCancel",
+  interrupt: "tasks.controls.reason.unsupportedInterrupt",
+} as const;
 const receiptLabels = {
   pending: "tasks.controls.requestPending",
   accepted: "tasks.controls.accepted",
@@ -192,17 +199,26 @@ export function TaskRunControls(
           );
           return (
             <UI.Stack key={action}>
-              <UI.Button
-                disabled={!online || unavailable || capabilities.isFetching ||
-                  receipt !== "idle" || !capability?.canRequest}
-                onClick={() => void submit(action)}
-              >
-                {t(`tasks.controls.action.${action}`)}
-              </UI.Button>
+              <UI.Inline gap="compact">
+                <UI.Button
+                  disabled={!online || unavailable || capabilities.isFetching ||
+                    receipt !== "idle" || !capability?.canRequest}
+                  onClick={() => void submit(action)}
+                  variant={action === "cancel"
+                    ? "destructive-outline"
+                    : "outline"}
+                >
+                  {t(`tasks.controls.action.${action}`)}
+                </UI.Button>
+              </UI.Inline>
               {!unavailable && capability && !capability.canRequest &&
                 (
                   <UI.Text>
-                    {t(`tasks.controls.reason.${capability.reason}`)}
+                    {t(
+                      capability.reason === "unsupported"
+                        ? unsupportedReasons[action]
+                        : `tasks.controls.reason.${capability.reason}`,
+                    )}
                   </UI.Text>
                 )}
             </UI.Stack>
@@ -246,12 +262,15 @@ export function TaskRunControls(
           {t("tasks.controls.newRequest")}
         </UI.Button>
       )}
-      <UI.Button
-        disabled={!online || receipt === "pending" || capabilities.isFetching}
-        onClick={() => void refreshWinner()}
-      >
-        {t("tasks.controls.refresh")}
-      </UI.Button>
+      <UI.Inline gap="compact">
+        <UI.Button
+          disabled={!online || receipt === "pending" || capabilities.isFetching}
+          onClick={() => void refreshWinner()}
+          variant="outline"
+        >
+          {t("tasks.controls.refresh")}
+        </UI.Button>
+      </UI.Inline>
     </UI.Stack>
   );
 }

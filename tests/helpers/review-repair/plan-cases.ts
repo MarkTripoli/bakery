@@ -1,0 +1,425 @@
+import { assert, assertEquals, assertNotEquals } from "@std/assert";
+import {
+  evaluateDeliveryCandidate,
+  REVIEW_RECORD_OPERATION,
+} from "../../../apps/server/src/modules/delivery/index.ts";
+import { withPgTransaction } from "../../../apps/server/src/platform/database.ts";
+import { WORKFLOW_PROJECTION_OPERATION } from "../../../apps/server/src/modules/workflow-adapter/bakery-postgres-store.ts";
+import { PLAN_DELIVERY_STOPPED_CODE } from "../../../apps/server/src/modules/delivery/plan-host.ts";
+import { finding, fingerprintOf } from "./fixtures.ts";
+import {
+  HEADS,
+  loopTest,
+  type LoopWorld,
+  withReviewedRun,
+} from "./loop-world.ts";
+
+// #397. The review and repair loop on a compiled plan: the same verification,
+// the same evidence rows and the same decisions as a flat run, with the plan's
+// own `repeat` running each repair and its recorded stop halting the run. Each
+// case drives a real plan run through the production engine and the real
+// worker result route, then reads back what the tables hold.
+
+const PLAN = { repairs: 2 } as const;
+
+const keys = (steps: Array<{ step_key: string; iteration: number }>) =>
+  steps.map((step) => `${step.step_key}@${step.iteration}`);
+
+async function accept(
+  turn: { post(result: unknown): Promise<Response> },
+  report: unknown,
+) {
+  const response = await turn.post(report);
+  assertEquals(response.status, 200, await response.clone().text());
+}
+
+const blocker = (line = 12) =>
+  finding({
+    fingerprint: fingerprintOf(1),
+    severity: "blocker",
+    path: "src/upload.ts",
+    line,
+  });
+
+/** The delivery gate, read with the application role like a merge consumer. */
+function gate(world: LoopWorld) {
+  return withPgTransaction(
+    world.fixture.runtimePgDatabase,
+    (transaction) =>
+      evaluateDeliveryCandidate(transaction, {
+        organizationId: world.fixture.organizationId,
+        runId: world.runId,
+      }),
+  );
+}
+
+/** What a gate-failed audit of the engine says, for the run. */
+async function planFailures(world: LoopWorld): Promise<string[]> {
+  const rows = await world.fixture.pgDatabase.query<{ code: string }>(
+    `select details ->> 'code' as code from bakery.audit_events
+      where organization_id = $1 and operation = 'workflow.plan_failed'
+        and resource_id = $2 order by created_at, id`,
+    [world.fixture.organizationId, world.runId],
+  );
+  return rows.rows.map(({ code }) => code);
+}
+
+/** The projection audit entries of a run, oldest first. */
+async function projectionAudits(world: LoopWorld) {
+  const rows = await world.fixture.pgDatabase.query<
+    { details: Record<string, unknown> }
+  >(
+    `select details from bakery.audit_events
+      where organization_id = $1 and operation = $2
+        and details ->> 'runId' = $3
+      order by created_at, id`,
+    [world.fixture.organizationId, WORKFLOW_PROJECTION_OPERATION, world.runId],
+  );
+  return rows.rows.map(({ details }) => details);
+}
+
+const PROJECTED = "repair@1.candidate_evidence";
+
+/** Drives a plan run through a blocking review, a repair and a clean second review. */
+async function repairedOnce(world: LoopWorld) {
+  const first = await world.review(0);
+  await accept(first, first.report([blocker()]));
+  await world.repair(1, HEADS[1]);
+  await world.check(1, HEADS[1]);
+  const second = await world.review(1);
+  const report = second.report([]);
+  await accept(second, report);
+  return report;
+}
+
+export function registerPlanCases(): void {
+  registerProjectionCases();
+  registerReviewCases();
+}
+
+function registerProjectionCases(): void {
+  loopTest(
+    "the engine completes the candidate projection itself, with no job, and the repaired plan run finishes",
+    () =>
+      withReviewedRun(async (world) => {
+        const report = await repairedOnce(world);
+        assertEquals(await world.nextKey(), PROJECTED);
+
+        const projected = await world.admitNext();
+        assertEquals(projected, {
+          stepKey: PROJECTED,
+          terminal: true,
+          jobId: null,
+        });
+        const row = (await world.steps()).find((step) =>
+          step.step_key === PROJECTED
+        )!;
+        assertEquals(row.status, "completed");
+        // The output is exactly the input the plan resolved, which is the
+        // candidate the second review judged.
+        const input = await world.dispatchInput(PROJECTED);
+        assertEquals(row.output, input);
+        const output = row.output as Record<string, unknown>;
+        assertEquals(output.headSha, HEADS[1]);
+        assertEquals(output.reviewId, report.reviewId);
+        assertEquals(output.blockingFindings, 0);
+        assertEquals(output.checksPassed, true);
+        const jobs = await world.fixture.pgDatabase.query<{ count: string }>(
+          `select count(*)::text as count from bakery.jobs
+            where organization_id = $1 and run_step_id = $2`,
+          [world.fixture.organizationId, row.id],
+        );
+        assertEquals(jobs.rows[0].count, "0");
+        assertEquals(await projectionAudits(world), [{
+          runId: world.runId,
+          stepKey: PROJECTED,
+          action: "delivery.candidate_evidence",
+        }]);
+
+        // The repeat's `until` now reads the projected candidate: it holds, the
+        // plan is over, the run and its task complete, and the candidate may merge.
+        assertEquals(await world.nextKey(), undefined);
+        assertEquals(await world.runStatus(), "completed");
+        assertEquals(await world.taskStatus(), "completed");
+        const evaluation = await gate(world);
+        assertEquals(evaluation.reasons, []);
+        assertEquals(evaluation.mergeBlocked, false);
+        assertEquals(evaluation.decision?.decision, "proceed");
+        assertEquals(evaluation.review?.id, report.reviewId);
+      }, { plan: PLAN }),
+  );
+
+  loopTest(
+    "admitting a completed projection again changes nothing and audits nothing more",
+    () =>
+      withReviewedRun(async (world) => {
+        await repairedOnce(world);
+        await world.admitNext();
+        const before = (await world.steps()).find((step) =>
+          step.step_key === PROJECTED
+        )!;
+        assertEquals(await world.admitKey(PROJECTED), {
+          terminal: true,
+          jobId: null,
+        });
+        const after = (await world.steps()).find((step) =>
+          step.step_key === PROJECTED
+        )!;
+        assertEquals(after, before);
+        assertEquals((await projectionAudits(world)).length, 1);
+      }, { plan: PLAN }),
+  );
+
+  loopTest(
+    "a projection whose input is not the candidate's shape fails the run with a stable reason and completes nothing",
+    () =>
+      withReviewedRun(async (world) => {
+        await repairedOnce(world);
+        // Nothing the real route accepts can leave this, so corrupt the stored check.
+        await world.fixture.pgDatabase.query(
+          `update bakery.run_steps
+              set output = jsonb_set(output, '{checkRunIds}', '[]'::jsonb)
+            where organization_id = $1 and run_id = $2
+              and step_key = 'repair@1.repair_check'`,
+          [world.fixture.organizationId, world.runId],
+        );
+        const projected = await world.admitNext();
+        assertEquals(projected.terminal, true);
+        const row = (await world.steps()).find((step) =>
+          step.step_key === PROJECTED
+        )!;
+        assertEquals(row.status, "failed");
+        assertEquals(row.output, null);
+        assertEquals(
+          (row.error as { code: string }).code,
+          "PROJECTION_INPUT_INVALID",
+        );
+        assertEquals(await world.runStatus(), "failed");
+        assertEquals(await projectionAudits(world), []);
+      }, { plan: PLAN }),
+  );
+}
+
+function registerReviewCases(): void {
+  loopTest(
+    "a clean review of a plan run records its cycle and decision, appends nothing, and the plan finishes",
+    () =>
+      withReviewedRun(async (world) => {
+        const before = keys(await world.steps());
+        assertEquals(before, [
+          "brief@0",
+          "implement@0",
+          "check@0",
+        ]);
+        const review = await world.review(0);
+        const report = review.report([]);
+        await accept(review, report);
+
+        const cycles = await world.cycles();
+        assertEquals(cycles.length, 1);
+        assertEquals(cycles[0].id, report.reviewId);
+        assertEquals(cycles[0].ordinal, 0);
+        assertEquals(cycles[0].status, "approved");
+        assertEquals(cycles[0].head_sha, HEADS[0]);
+        assertEquals(cycles[0].reviewer_session_id, review.sessionId);
+        assertNotEquals(
+          cycles[0].implementer_session_id,
+          cycles[0].reviewer_session_id,
+        );
+        const decisions = await world.decisions();
+        assertEquals(decisions.map((d) => [d.decision, d.reason]), [
+          ["proceed", "clean"],
+        ]);
+        // The decision added no row; the review row is the plan's own.
+        assertEquals(keys(await world.steps()), [...before, "review@0"]);
+        // The seed candidate is clean, so the repeat never runs and the plan is over.
+        assertEquals(await world.nextKey(), undefined);
+        assertEquals(await world.runStatus(), "completed");
+        assertEquals(
+          (await world.audits(REVIEW_RECORD_OPERATION, "succeeded")).length,
+          1,
+        );
+        // The delivery gate reads the plan run's candidate like a flat run's.
+        const evaluation = await gate(world);
+        assertEquals(evaluation.reasons, []);
+        assertEquals(evaluation.mergeBlocked, false);
+        assertEquals(evaluation.decision?.decision, "proceed");
+        assertEquals(evaluation.review?.id, report.reviewId);
+      }, { plan: PLAN }),
+  );
+
+  loopTest(
+    "a blocking review of a plan run records a repair decision and appends no step: the plan's repeat runs the repair with $delivery resolved",
+    () =>
+      withReviewedRun(async (world) => {
+        const review = await world.review(0);
+        await accept(review, review.report([blocker()]));
+
+        const decisions = await world.decisions();
+        assertEquals(decisions.map((d) => [d.decision, d.reason]), [
+          ["repair", "repair_selected"],
+        ]);
+        assertEquals(decisions[0].blocking_fingerprints, [fingerprintOf(1)]);
+        // The finalizer appended nothing: only the plan's own rows exist, and
+        // every one of them is stored at iteration 0.
+        const steps = await world.steps();
+        assertEquals(keys(steps), [
+          "brief@0",
+          "implement@0",
+          "check@0",
+          "review@0",
+        ]);
+        // The plan asks for the repair itself, over the evidence $delivery names.
+        assertEquals(await world.nextKey(), "repair@1.repair_implement");
+        const input = await world.dispatchInput("repair@1.repair_implement");
+        assertEquals(input.revision, HEADS[0]);
+        assertEquals(input.failedChecks, []);
+        const findings = input.findings as Array<Record<string, unknown>>;
+        assertEquals(findings.map((f) => f.fingerprint), [fingerprintOf(1)]);
+        assertEquals(findings[0].blocking, true);
+      }, { plan: PLAN }),
+  );
+
+  loopTest(
+    "a plan run repairs, reviews the new candidate, and a clean second review proceeds",
+    () =>
+      withReviewedRun(async (world) => {
+        const first = await world.review(0);
+        await accept(first, first.report([blocker()]));
+        await world.repair(1, HEADS[1]);
+        await world.check(1, HEADS[1]);
+        const second = await world.review(1);
+        assertEquals(second.pins.headSha, HEADS[1]);
+        await accept(second, second.report([]));
+
+        const cycles = await world.cycles();
+        assertEquals(cycles.map((c) => [c.ordinal, c.status, c.head_sha]), [
+          [0, "changes_requested", HEADS[0]],
+          [1, "approved", HEADS[1]],
+        ]);
+        assertEquals(
+          (await world.decisions()).map((d) => [d.ordinal, d.decision]),
+          [[0, "repair"], [1, "proceed"]],
+        );
+        // Four rows of repair round 1 are the plan's own; none came from the loop.
+        assertEquals(keys(await world.steps()), [
+          "brief@0",
+          "implement@0",
+          "check@0",
+          "review@0",
+          "repair@1.repair_implement@0",
+          "repair@1.repair_check@0",
+          "repair@1.repair_review@0",
+        ]);
+      }, { plan: PLAN }),
+  );
+
+  loopTest(
+    "a blocker that survives its repair records a stop and the engine halts the plan run with no delivery_gate row",
+    () =>
+      withReviewedRun(async (world) => {
+        const first = await world.review(0);
+        await accept(first, first.report([blocker(12)]));
+        await world.repair(1, HEADS[1]);
+        await world.check(1, HEADS[1]);
+        const second = await world.review(1);
+        await accept(second, second.report([blocker(40)]));
+
+        const decisions = await world.decisions();
+        assertEquals(decisions.map((d) => [d.decision, d.reason]), [
+          ["repair", "repair_selected"],
+          ["stop", "repeated_blocker"],
+        ]);
+        // The plan would run a third round (repeat max 3); the recorded stop ends it.
+        assertEquals(await world.nextKey(), undefined);
+        assertEquals(await world.runStatus(), "failed");
+        assertEquals(await planFailures(world), [PLAN_DELIVERY_STOPPED_CODE]);
+        assertEquals((await gate(world)).reasons, [
+          "decision_stop:repeated_blocker",
+        ]);
+        const steps = await world.steps();
+        assert(
+          !steps.some((step) => step.step_key === "delivery_gate"),
+          "a plan run gets no delivery_gate row",
+        );
+        assertEquals(steps.every((step) => step.iteration === 0), true);
+      }, { plan: { repairs: 3 } }),
+  );
+
+  loopTest(
+    "a review whose reviewer is the implementer's child session is refused and records nothing",
+    () =>
+      withReviewedRun(async (world) => {
+        const review = await world.review(0);
+        const implement = (await world.steps()).find((step) =>
+          step.step_key === "implement"
+        )!;
+        const [implementer] = await world.sessionIds(implement.id);
+        await world.fixture.pgDatabase.query(
+          `update bakery.agent_sessions set parent_session_id = $3
+            where organization_id = $1 and id = $2`,
+          [world.fixture.organizationId, review.sessionId, implementer],
+        );
+        const response = await review.post(review.report([]));
+        assertEquals(response.status, 422, await response.clone().text());
+        assertEquals(await world.evidenceCounts(), {
+          cycles: 0,
+          findings: 0,
+          decisions: 0,
+        });
+        const denied = await world.audits(REVIEW_RECORD_OPERATION, "denied");
+        assertEquals(
+          denied.map((entry) => entry.details.reason),
+          ["review_not_independent"],
+        );
+      }, { plan: PLAN }),
+  );
+
+  loopTest(
+    "a review of a head that is not the plan run's candidate is refused and records nothing",
+    () =>
+      withReviewedRun(async (world) => {
+        const review = await world.review(0);
+        const response = await review.post(
+          review.report([], { headSha: HEADS[2] }),
+        );
+        assertEquals(response.status, 422, await response.clone().text());
+        assertEquals(await world.evidenceCounts(), {
+          cycles: 0,
+          findings: 0,
+          decisions: 0,
+        });
+        const denied = await world.audits(REVIEW_RECORD_OPERATION, "denied");
+        assertEquals(
+          denied.map((entry) => entry.details.reason),
+          ["review_report_invalid"],
+        );
+      }, { plan: PLAN }),
+  );
+
+  loopTest(
+    "a reviewer that fails for good stops a plan run: a stop decision with no cycle, and the run fails",
+    () =>
+      withReviewedRun(async (world) => {
+        const review = await world.review(0);
+        const response = await review.fail({
+          code: "REVIEWER_UNAVAILABLE",
+          retryable: false,
+        });
+        assertEquals(response.status, 200, await response.clone().text());
+        const decisions = await world.decisions();
+        assertEquals(decisions.map((d) => [d.decision, d.reason]), [
+          ["stop", "reviewer_unavailable"],
+        ]);
+        assertEquals((await world.cycles()).length, 0);
+        assertEquals(
+          (await world.steps()).some((step) =>
+            step.step_key === "delivery_gate"
+          ),
+          false,
+        );
+        assertEquals(await world.nextKey(), undefined);
+        assertEquals(await world.runStatus(), "failed");
+      }, { plan: PLAN }),
+  );
+}

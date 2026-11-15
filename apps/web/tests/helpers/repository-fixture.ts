@@ -15,8 +15,14 @@ export type Profile = {
   revision: number;
   branches: string[];
   folder?: string;
-  /** The version states rules of its own (the Rules page publishes such versions). */
-  rules?: boolean;
+  /** The version states rules of its own (the Rules page publishes such versions); a string names the rule, so two versions can state different ones. */
+  rules?: boolean | string;
+  /** The version carries a fixed policy, which locks its branches. */
+  fixed?: boolean;
+  /** Made by a readiness check (schema 2 with its check policy); a person's version is schema 1. */
+  checkMade?: boolean;
+  /** A failed check's candidate: stored (it holds a revision) but not listed. */
+  hidden?: boolean;
 };
 
 export type Options = {
@@ -29,22 +35,119 @@ export type Options = {
   defaultBranch?: string;
   /** The connection's state; "missing" answers 404. */
   connection?: "enabled" | "revoked" | "missing";
-  /** What creating a version answers: ok, a 409 (the number is taken), a server fault, a 428 (rules of its own) or a 400. */
-  save?: "ok" | "conflict" | "down" | "rules" | "rejected";
+  /** What creating a version answers: ok, a 409 (the number is taken), a server fault or a 400. */
+  save?: "ok" | "conflict" | "down" | "rejected";
+  /** The server refuses a save that changes the branches with a 422 (`repository_branches_locked`) although the version in use shows no policy. */
+  branchesLocked?: boolean;
   /** What putting a version in use answers: ok, a 412 whatever the version, or a server fault. */
   use?: "ok" | "conflict" | "down";
   /** The repository read answers this status instead of the repository. */
   repositoryStatus?: 403 | 404 | 500;
   /** Versions per page, to prove every page is read. */
   pageSize?: number;
+  /**
+   * What the readiness check does once started: the check passes, a required
+   * check fails, optional checks fail, the check fails or is cancelled as a
+   * whole, it never leaves the queue, or its progress cannot be read.
+   */
+  check?:
+    | "ready"
+    | "blocked"
+    | "optional"
+    | "failed"
+    | "canceled"
+    | "stuck"
+    | "unreadable"
+    | "stale";
+  /** What starting a check answers instead of the check. */
+  start?: "forbidden" | "conflict" | "down";
+  /** A check that already exists, named by the address (`?check=`). */
+  existingCheck?: boolean;
+  /**
+   * The real server publishes the next version of the settings and puts it in
+   * use when a check completes: the same here, so the page must read the
+   * repository and its versions again to judge the result against it.
+   */
+  completionPublishes?: boolean;
 };
+
+export const CHECK_ID = uuid(700);
+export const JOB_ID = uuid(701);
+const OBSERVATION_ID = uuid(702);
+
+const SOURCE = {
+  mappingRevision: "1",
+  mappingDigest: "e".repeat(64),
+  baseSha: "c".repeat(40),
+  manifestDigest: "f".repeat(64),
+  envelopeDigest: "9".repeat(64),
+  envelopeBytes: 100,
+  decodedBytes: 200,
+  entryCount: 3,
+};
+type CheckRow = {
+  id: string;
+  template: string;
+  required: boolean;
+  status: string;
+  reason: string;
+};
+const PASSING: CheckRow[] = [
+  {
+    id: "source",
+    template: "source.integrity.v1",
+    required: true,
+    status: "passed",
+    reason: "verified",
+  },
+  {
+    id: "tools",
+    template: "tool.version.v1",
+    required: true,
+    status: "passed",
+    reason: "verified",
+  },
+  {
+    id: "node",
+    template: "node.syntax.v1",
+    required: true,
+    status: "passed",
+    reason: "verified",
+  },
+];
+const rowsFor = (mode: string): CheckRow[] =>
+  mode === "blocked"
+    ? [
+      PASSING[0],
+      { ...PASSING[1], status: "missing", reason: "tool_missing" },
+      { ...PASSING[2], status: "failed", reason: "exit_nonzero" },
+      {
+        id: "deno",
+        template: "deno.check.v1",
+        required: false,
+        status: "failed",
+        reason: "deadline",
+      },
+    ]
+    : mode === "optional"
+    ? [
+      ...PASSING,
+      {
+        id: "deno",
+        template: "deno.check.v1",
+        required: false,
+        status: "unsupported",
+        reason: "unsupported_command",
+      },
+    ]
+    : PASSING;
 
 const json = (body: unknown, status = 200) => ({
   status,
   contentType: "application/json",
   body: JSON.stringify(body),
 });
-const problem = (status: number, code: string) => ({
+const problem = (status: number, code: string, issueCode?: string) => ({
   status,
   contentType: "application/problem+json",
   body: JSON.stringify({
@@ -53,6 +156,9 @@ const problem = (status: number, code: string) => ({
     detail: "Problem.",
     status,
     code,
+    ...(issueCode === undefined ? {} : {
+      issues: [{ path: ["config"], code: issueCode, message: "Refused." }],
+    }),
     retryable: status >= 500,
     requestId: crypto.randomUUID(),
     traceId: crypto.randomUUID(),
@@ -66,7 +172,25 @@ const configOf = (profile: Profile, base: string) => ({
   workflow: { kind: "fixed" },
   branches: { base, allowedPatterns: profile.branches },
   worktree: { root: profile.folder ?? "." },
-  ...(profile.rules ? { repositoryRules: { entries: [] } } : {}),
+  ...(profile.rules
+    ? {
+      repositoryRules: {
+        entries: [{
+          ruleKey: typeof profile.rules === "string"
+            ? profile.rules
+            : "commits.format",
+        }],
+      },
+    }
+    : {}),
+  ...(profile.fixed
+    ? {
+      fixedPolicy: {
+        lockedConfiguration: { branches: true, worktree: true, checker: true },
+      },
+    }
+    : {}),
+  ...(profile.checkMade ? { schemaVersion: 2, checkPolicy: {} } : {}),
 });
 
 /** Stubs the session, role and every read and write of the repository page; returns what it saw. */
@@ -79,9 +203,20 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
     version: 1,
     archived: options.archived ?? false,
   };
+  const checkState = {
+    started: options.existingCheck === true,
+    polls: 0,
+    published: false,
+    /** The version the check was for, once it published one (else the one in use). */
+    observed: null as number | null,
+  };
+  const observedRevision = () => checkState.observed ?? state.active ?? 1;
   const seen = {
+    starts: [] as (string | null)[],
     createdProfiles: [] as Record<string, unknown>[],
     createKeys: [] as (string | null)[],
+    /** The If-Match each save over a version that carries rules was sent with. */
+    createIfMatch: [] as (string | null)[],
     updates: [] as { ifMatch: string | null; body: Record<string, unknown> }[],
     profileReads: 0,
   };
@@ -106,6 +241,9 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
     name: "api-service",
     defaultBranch: base,
     activeProfileId: state.active === null ? null : profileId(state.active),
+    // The highest stored revision plus one: a hidden failed candidate holds one.
+    nextProfileRevision: Math.max(0, ...profiles.map((item) => item.revision)) +
+      1,
     archivedAt: state.archived ? STAMP : null,
     createdAt: STAMP,
     updatedAt: STAMP,
@@ -199,6 +337,7 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
       if (request.method() === "POST") {
         const body = request.postDataJSON() as {
           revision: number;
+          keepRepositoryRules?: boolean;
           config: {
             branches: { allowedPatterns: string[] };
             worktree: { root: string };
@@ -212,22 +351,74 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
         if (options.save === "down") {
           return route.fulfill(problem(500, "INTERNAL"));
         }
-        if (options.save === "rules") {
-          return route.fulfill(problem(428, "PRECONDITION_REQUIRED"));
-        }
         if (options.save === "rejected") {
           return route.fulfill(problem(400, "MALFORMED_REQUEST"));
         }
-        const created = {
+        // The strict version-1 parser refuses the check's own key.
+        if (
+          (body.config as Record<string, unknown>).checkPolicy !== undefined
+        ) {
+          return route.fulfill(problem(422, "UNPROCESSABLE"));
+        }
+        const inUse = profiles.find((item) => item.revision === state.active);
+        const carries = inUse?.rules === true;
+        // The server refuses a save that both keeps the rules and states some.
+        if (
+          body.keepRepositoryRules === true &&
+          (body.config as Record<string, unknown>).repositoryRules !== undefined
+        ) {
+          return route.fulfill(
+            problem(422, "UNPROCESSABLE", "repository_rules_keep_conflict"),
+          );
+        }
+        let keeps = false;
+        if (carries) {
+          // Replacing a version that carries rules activates the new one under If-Match.
+          const ifMatch = request.headers()["if-match"];
+          seen.createIfMatch.push(ifMatch ?? null);
+          if (ifMatch === undefined) {
+            return route.fulfill(problem(428, "PRECONDITION_REQUIRED"));
+          }
+          if (ifMatch !== `"v${state.version}"`) {
+            return route.fulfill(problem(412, "PRECONDITION_FAILED"));
+          }
+          if (body.keepRepositoryRules === true) {
+            // A branches-only save: nothing else of the version in use may change.
+            const retainedFolder = inUse?.folder ?? ".";
+            if (body.config.worktree.root !== retainedFolder) {
+              return route.fulfill(
+                problem(
+                  422,
+                  "UNPROCESSABLE",
+                  "repository_rules_must_retain_config",
+                ),
+              );
+            }
+            if (
+              options.branchesLocked &&
+              JSON.stringify(body.config.branches.allowedPatterns) !==
+                JSON.stringify(inUse?.branches)
+            ) {
+              return route.fulfill(
+                problem(422, "UNPROCESSABLE", "repository_branches_locked"),
+              );
+            }
+            keeps = true;
+          }
+        }
+        const created: Profile = {
           revision: body.revision,
           branches: body.config.branches.allowedPatterns,
           folder: body.config.worktree.root === "."
             ? undefined
             : body.config.worktree.root,
+          // The rules in force are copied into the new version, as the server does.
+          ...(keeps ? { rules: inUse?.rules } : {}),
         };
         profiles.push(created);
-        // The server puts the first version of a repository in use itself.
-        if (state.active === null) {
+        // The server puts the first version of a repository in use itself, and
+        // one that keeps the rules in force.
+        if (state.active === null || keeps) {
           state.active = created.revision;
           state.version += 1;
         }
@@ -237,11 +428,168 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
       const url = new URL(request.url());
       const size = options.pageSize ?? 100;
       const offset = Number(url.searchParams.get("cursor")?.slice(1) ?? 0);
+      // A failed check's candidate is stored but not listed.
+      const listed = profiles.filter((item) => !item.hidden);
       return route.fulfill(json({
-        items: profiles.slice(offset, offset + size).map(profileBody),
-        nextCursor: offset + size < profiles.length
-          ? `c${offset + size}`
-          : null,
+        items: listed.slice(offset, offset + size).map(profileBody),
+        nextCursor: offset + size < listed.length ? `c${offset + size}` : null,
+      }));
+    },
+  );
+  const onboardingBody = (status: string, withResult: boolean) => ({
+    id: CHECK_ID,
+    repositoryId: REPOSITORY_ID,
+    jobId: JOB_ID,
+    status,
+    profileId: withResult
+      ? (options.check === "stale"
+        ? profileId(0)
+        : profileId(observedRevision()))
+      : null,
+    observationId: withResult ? OBSERVATION_ID : null,
+    createdAt: "2026-01-02T10:00:00.000Z",
+    updatedAt: STAMP,
+  });
+  await page.route(
+    (url) =>
+      url.pathname === `/v1/repositories/${REPOSITORY_ID}/onboarding-runs`,
+    (route) => {
+      seen.starts.push(route.request().headers()["idempotency-key"] ?? null);
+      if (options.start === "forbidden") {
+        return route.fulfill(problem(403, "AUTH_FORBIDDEN"));
+      }
+      if (options.start === "conflict") {
+        return route.fulfill(problem(409, "STATE_CONFLICT"));
+      }
+      if (options.start === "down") {
+        return route.fulfill(problem(500, "INTERNAL"));
+      }
+      checkState.started = true;
+      checkState.polls = 0;
+      return route.fulfill(json(onboardingBody("queued", false), 202));
+    },
+  );
+  await page.route(
+    (url) => url.pathname === `/v1/repository-onboardings/${CHECK_ID}`,
+    (route) => {
+      if (!checkState.started) return route.fulfill(problem(404, "NOT_FOUND"));
+      if (options.check === "unreadable") {
+        return route.fulfill(problem(500, "INTERNAL"));
+      }
+      checkState.polls += 1;
+      const mode = options.check ?? "ready";
+      if (mode === "stuck") {
+        return route.fulfill(json(onboardingBody("queued", false)));
+      }
+      // Queued, then running, then done.
+      if (checkState.polls === 1 && !options.existingCheck) {
+        return route.fulfill(json(onboardingBody("running", false)));
+      }
+      if (mode === "failed") {
+        return route.fulfill(json(onboardingBody("failed", false)));
+      }
+      if (mode === "canceled") {
+        return route.fulfill(json(onboardingBody("canceled", false)));
+      }
+      if (options.completionPublishes && !checkState.published) {
+        checkState.published = true;
+        const from = profiles.find((item) => item.revision === state.active) ??
+          profiles[profiles.length - 1];
+        const next: Profile = {
+          revision: Math.max(0, ...profiles.map((item) => item.revision)) + 1,
+          branches: from?.branches ?? ["main"],
+          folder: from?.folder,
+          // A check's candidate is check-made; one that did not pass is not listed.
+          checkMade: true,
+          hidden: mode === "blocked",
+        };
+        profiles.push(next);
+        checkState.observed = next.revision;
+        // A check that passes puts the version it published in use; one that
+        // does not pass leaves the version in use as it was (the real server).
+        if (mode !== "blocked") {
+          state.active = next.revision;
+          state.version += 1;
+        }
+      }
+      return route.fulfill(json(onboardingBody("completed", true)));
+    },
+  );
+  await page.route(
+    (url) =>
+      url.pathname === `/v1/repository-profile-observations/${OBSERVATION_ID}`,
+    (route) => {
+      const mode = options.check ?? "ready";
+      const rows = rowsFor(mode);
+      const observed = mode === "stale" ? 1 : observedRevision();
+      return route.fulfill(json({
+        id: OBSERVATION_ID,
+        repositoryId: REPOSITORY_ID,
+        profileId: mode === "stale" ? profileId(0) : profileId(observed),
+        profileRevision: observed,
+        profileDigest: "a".repeat(64),
+        observationDigest: "b".repeat(64),
+        baseSha: "c".repeat(40),
+        payload: {
+          schemaVersion: 1,
+          inspectionId: CHECK_ID,
+          jobId: JOB_ID,
+          organizationId: MOCK_ORGANIZATION_ID,
+          applicationId: APPLICATION_ID,
+          repositoryId: REPOSITORY_ID,
+          profileId: mode === "stale" ? profileId(0) : profileId(observed),
+          profileRevision: observed,
+          profileDigest: "a".repeat(64),
+          source: SOURCE,
+          receipt: {
+            inspectionId: CHECK_ID,
+            jobId: JOB_ID,
+            organizationId: MOCK_ORGANIZATION_ID,
+            applicationId: APPLICATION_ID,
+            repositoryId: REPOSITORY_ID,
+            inputDigest: "d".repeat(64),
+            source: SOURCE,
+            attemptId: uuid(703),
+            fence: "1",
+            workerHostId: uuid(900),
+            workerSessionId: uuid(704),
+            workerSessionGeneration: "1",
+            expiresAt: "2026-01-02T11:00:00.000Z",
+          },
+          host: {
+            workerHostId: uuid(900),
+            os: "linux",
+            architecture: "x64",
+            tools: [
+              {
+                tool: "git",
+                status: "available",
+                version: "2.40",
+                outputDigest: null,
+              },
+              {
+                tool: "deno",
+                status: mode === "blocked" ? "missing" : "available",
+                version: null,
+                outputDigest: null,
+              },
+              {
+                tool: "node",
+                status: "available",
+                version: "22.0",
+                outputDigest: null,
+              },
+            ],
+          },
+          checks: rows.map((row) => ({
+            ...row,
+            exitCode: null,
+            outputDigest: null,
+            durationMs: 12,
+          })),
+          readiness: mode === "blocked" ? "blocked" : "eligible",
+          observedAt: "2026-01-02T10:05:00.000Z",
+        },
       }));
     },
   );

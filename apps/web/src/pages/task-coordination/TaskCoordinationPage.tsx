@@ -168,6 +168,24 @@ export function TaskCoordinationPage(
       ? "committed"
       : "waiting";
   };
+  // The link to a lane's child task is that task's title. A design fixture
+  // supplies Paper's own text instead (it has no tasks to read).
+  const childTasks = useQueries({
+    queries: lanes.map((lane) => ({
+      ...taskQueryOptions(api, scope, lane.childTaskId ?? ""),
+      enabled: enabled && lane.childTaskId !== null &&
+        references === undefined,
+    })),
+  });
+  const childTitles = new Map<string, string>();
+  lanes.forEach((lane, index) => {
+    const title = childTasks[index]?.data?.title;
+    if (lane.childTaskId !== null && title) {
+      childTitles.set(lane.childTaskId, title);
+    }
+  });
+  const childTitle = (id: string): string | undefined =>
+    references === undefined ? childTitles.get(id) : references[id];
   const laneColumns = useLaneColumns({
     handoff,
     titles: new Map(lanes.map((lane) => [lane.key, lane.title])),
@@ -175,7 +193,7 @@ export function TaskCoordinationPage(
       const index = lanes.indexOf(lane);
       return artifactReads[index]?.data?.items;
     },
-    reference: (id) => references?.[id] ?? id.slice(0, 8),
+    childTitle,
   });
 
   // ---- cancel ------------------------------------------------------------
@@ -330,7 +348,7 @@ export function TaskCoordinationPage(
                 titles={new Map(lanes.map((lane) => [lane.key, lane.title]))}
                 artifacts={(lane) =>
                   artifactReads[lanes.indexOf(lane)]?.data?.items}
-                reference={reference}
+                childTitle={childTitle}
                 handoff={handoff}
               />
               {
@@ -374,9 +392,25 @@ export function TaskCoordinationPage(
             {phase === "confirming" || phase === "canceling" ||
                 phase === "unknown"
               ? (
-                <>
-                  <UI.Text>{t("tasks.coordination.cancel.confirm")}</UI.Text>
-                  <UI.Inline variant="actions">
+                /* The shared alert dialog (design-ux, #396): the question is the
+                   title, what stopping costs is the body, and Keep comes before
+                   the danger action. */
+                <UI.AlertDialog
+                  open
+                  variant="destructive"
+                  title={t("tasks.coordination.cancel.title")}
+                  state={phase === "canceling" ? "confirming" : "open"}
+                  cancelAction={
+                    <UI.Button
+                      data-plan-cancel-keep=""
+                      variant="outline"
+                      disabled={phase === "canceling"}
+                      onClick={() => setPhase("idle")}
+                    >
+                      {t("tasks.coordination.cancel.keep")}
+                    </UI.Button>
+                  }
+                  confirmAction={
                     <UI.Button
                       variant="destructive"
                       loading={phase === "canceling"}
@@ -387,17 +421,10 @@ export function TaskCoordinationPage(
                         ? t("tasks.coordination.cancel.retry")
                         : t("tasks.coordination.cancel.confirmAction")}
                     </UI.Button>
-                    <UI.Button
-                      data-plan-cancel-keep=""
-                      variant="outline"
-                      disabled={phase === "canceling"}
-                      onClick={() =>
-                        setPhase("idle")}
-                    >
-                      {t("tasks.coordination.cancel.keep")}
-                    </UI.Button>
-                  </UI.Inline>
-                </>
+                  }
+                >
+                  <UI.Text>{t("tasks.coordination.cancel.confirm")}</UI.Text>
+                </UI.AlertDialog>
               )
               : null}
             <div aria-atomic="true" aria-live="polite" role="status">
@@ -489,6 +516,9 @@ export function TaskCoordinationPage(
             <UI.PageHeader
               variant="split"
               title={heading}
+              /* One explanation, once, under the heading (design-ux, O12): what
+                 a split and its lanes are, in plain view, no help button. */
+              description={t("tasks.coordination.description")}
               subtitle={phone
                 ? (
                   <div>

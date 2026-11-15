@@ -10,11 +10,17 @@ import {
   RULE_GUARD_ALL_CHECKS,
 } from "@bakery/contracts/repository-rules";
 import { DELIVERY_REFERENCES } from "@bakery/contracts/workflow-presets";
+import {
+  compileWorkflowDocumentDetailed,
+  type WorkflowSemanticDocument,
+} from "@bakery/contracts/workflow-compiler";
+import { defaultWorkflowCompilerCatalog } from "@bakery/contracts/workflow-compiler/default-catalog";
 import type { WorkflowActionName } from "@bakery/contracts/workflow-action-registry";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { lockOrganization } from "../auth/adapters/access-postgres.ts";
 import { parseStoredOrganizationRules } from "../repository-rules/pinned.ts";
 import { readLatestRuleVersionRow } from "../repository-rules/postgres.ts";
+import { planRuleViolations } from "./plan-rule-guard.ts";
 import {
   extractFixedWorkflowSteps,
   type FixedWorkflowStep,
@@ -69,26 +75,10 @@ export function repositoryRuleWorkflowStages(
   }));
 }
 
-/**
- * Throws the typed refusal naming every rule key whose required check the
- * steps lack or misplace. Pure: the caller supplies the rules (the latest
- * organization baseline at publication, the pinned effective set at admission).
- */
-export function assertStepsSatisfyRules(
-  rules: {
-    readonly entries: readonly (
-      | OrganizationRepositoryRuleEntry
-      | EffectiveRepositoryRuleEntry
-    )[];
-  },
-  steps: readonly Pick<FixedWorkflowStep, "action" | "input" | "condition">[],
+/** Throws the typed refusal naming every violation; a no-op for none. */
+function refuseViolations(
+  violations: readonly RepositoryRuleStageViolation[],
 ): void {
-  const requirements = repositoryRuleStageRequirements(rules);
-  if (requirements.length === 0) return;
-  const violations = repositoryRuleStageViolations(
-    requirements,
-    repositoryRuleWorkflowStages(steps),
-  );
   if (violations.length === 0) return;
   throw new StandardError({
     code: "UNPROCESSABLE",
@@ -102,6 +92,46 @@ export function assertStepsSatisfyRules(
       })),
     },
   });
+}
+
+type RuleSet = {
+  readonly entries: readonly (
+    | OrganizationRepositoryRuleEntry
+    | EffectiveRepositoryRuleEntry
+  )[];
+};
+
+/**
+ * Throws the typed refusal naming every rule key whose required check the
+ * steps lack or misplace. Pure: the caller supplies the rules (the latest
+ * organization baseline at publication, the pinned effective set at admission).
+ */
+export function assertStepsSatisfyRules(
+  rules: RuleSet,
+  steps: readonly Pick<FixedWorkflowStep, "action" | "input" | "condition">[],
+): void {
+  const requirements = repositoryRuleStageRequirements(rules);
+  if (requirements.length === 0) return;
+  refuseViolations(
+    repositoryRuleStageViolations(
+      requirements,
+      repositoryRuleWorkflowStages(steps),
+    ),
+  );
+}
+
+/**
+ * The same refusal for a compiled plan, read through its shape: a check counts
+ * only when it runs after the last revision on every path through the plan
+ * (`planRuleViolations`). Pure, with the same two callers as the flat guard.
+ */
+export function assertPlanSatisfiesRules(
+  rules: RuleSet,
+  document: Pick<WorkflowSemanticDocument, "steps">,
+): void {
+  const requirements = repositoryRuleStageRequirements(rules);
+  if (requirements.length === 0) return;
+  refuseViolations(planRuleViolations(requirements, document.steps));
 }
 
 /**
@@ -125,6 +155,21 @@ export async function assertWorkflowSatisfiesRepositoryRules(
   try {
     steps = extractFixedWorkflowSteps(definition);
   } catch (cause) {
+    // A compiled plan is read through its shape, the way the engine runs it.
+    if (cause instanceof WorkflowNotExecutableError) {
+      const { result } = await compileWorkflowDocumentDetailed(definition, {
+        catalog: defaultWorkflowCompilerCatalog(),
+      });
+      if (!result.ok) {
+        throw new StandardError({
+          code: "STATE_CONFLICT",
+          params: { reason: "workflow_plan_not_compilable" },
+          cause,
+        });
+      }
+      assertPlanSatisfiesRules(rules, result.document);
+      return;
+    }
     // A definition the runtime cannot read proves nothing; never pass it.
     throw new StandardError({
       code: "STATE_CONFLICT",

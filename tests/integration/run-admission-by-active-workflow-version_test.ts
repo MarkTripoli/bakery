@@ -44,7 +44,15 @@ Deno.test("run admission by workflowId pins the active published version", () =>
             executionMode: "repository",
             repositoryProfileId: repository.profileId,
             budgetLimitUsd: "5.00",
-            inputs: { brief: "Retry failed uploads twice." },
+            inputs: {
+              repositoryId: repository.repositoryId,
+              brief: {
+                title: "Retry",
+                description: "Retry failed uploads twice.",
+                taskType: "feature",
+              },
+              instructions: "Retry failed uploads twice.",
+            },
           },
         },
       );
@@ -148,8 +156,17 @@ Deno.test("run admission by workflowId pins the active published version", () =>
           where organization_id = $1 and run_id = $2 order by step_key`,
         [scope.organizationId, runId],
       )).rows.map((row) => row.step_key);
+    // Revision 3 is a compiled plan: admission writes no step rows, because the
+    // engine appends each one as the plan decides it. What this case pins is the
+    // version, not the row set.
     const stepsA = await stepsOf(runA.id);
-    assert(stepsA.length > 0);
+    assertEquals(stepsA.length, 0);
+    const planPinned = await fixture.pgDatabase.query<{ plan: boolean }>(
+      `select snapshot ? 'runtime' as plan from bakery.workflow_runs
+        where organization_id = $1 and id = $2`,
+      [scope.organizationId, runA.id],
+    );
+    assertEquals(planPinned.rows[0].plan, true);
 
     const r2 = await publish(workflow.id);
     assert(r2 !== r1);
@@ -197,7 +214,15 @@ Deno.test("run admission by workflowId pins the active published version", () =>
               executionMode: "repository",
               repositoryProfileId: repository.profileId,
               budgetLimitUsd: "5.00",
-              inputs: { brief: "Retry failed uploads twice." },
+              inputs: {
+                repositoryId: repository.repositoryId,
+                brief: {
+                  title: "Retry",
+                  description: "Retry failed uploads twice.",
+                  taskType: "feature",
+                },
+                instructions: "Retry failed uploads twice.",
+              },
             },
           },
         ),

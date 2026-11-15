@@ -419,7 +419,7 @@ const transportSchemas = {
           "bounds": {
             "maxBytes": 100000
           },
-          "description": "Ad hoc coordination plan: lanes with repository aliases, prerequisites, typed outputs and inputs, plus maxConcurrency, join `all-required` and failurePolicy `stop-dependent`. It is validated, stored immutably and identified by a canonical digest."
+          "description": "Ad hoc split, stored as a `coordination-plans` revision: lanes with repository aliases, prerequisites, typed outputs and inputs, plus maxConcurrency, join `all-required` and failurePolicy `stop-dependent`. It is validated, stored immutably and identified by a canonical digest."
         },
         {
           "name": "origin",
@@ -447,7 +447,7 @@ const transportSchemas = {
         "Aliases resolve only through the application's repository roles. Unknown or ambiguous aliases, cycles, repositories outside the application or the parent's links, undeclared typed handoffs and two writer lanes on one repository are rejected with UNPROCESSABLE and no target is selected silently.",
         "Creating a plan does not create child tasks; materialize does."
       ],
-      "description": "Stores a new immutable, versioned coordination plan revision for a parent task after validating aliases, scope, dependencies and typed handoffs."
+      "description": "Stores a new immutable, versioned split revision for a parent task after validating aliases, scope, dependencies and typed handoffs."
     },
     "CoordinationPlanCreateFromWorkflow": {
       "fields": [
@@ -489,7 +489,7 @@ const transportSchemas = {
         "The mapped spec goes through the same create command as `coordinationPlans.create`, so aliases, scope, cycles, digests, replay and revisions follow the same rules; the plan origin is the server-set `saved_workflow` origin.",
         "Creating a plan does not create child tasks; materialize does."
       ],
-      "description": "Stores a coordination plan revision mapped from one parallel node of a published workflow version, through the same boundary as ad hoc and ticket plans."
+      "description": "Stores a split revision mapped from one parallel node of a published workflow version, through the same boundary as ad hoc and ticket splits."
     },
     "CoordinationPlanListQuery": {
       "fields": [
@@ -524,7 +524,7 @@ const transportSchemas = {
       "rules": [
         "Newest-first keyset on createdAt DESC, id DESC; reject page and offset parameters."
       ],
-      "description": "Lists coordination plan revisions newest-first, optionally for one parent task."
+      "description": "Lists split revisions newest-first, optionally for one parent task."
     },
     "TaskRepositorySet": {
       "fields": [
@@ -574,7 +574,7 @@ const transportSchemas = {
           "bounds": {
             "maxLength": 63
           },
-          "description": "Stable alias coordination plans use to name the repository inside this application."
+          "description": "Stable alias a split's lanes use to name the repository inside this application."
         },
         {
           "name": "role",
@@ -3193,6 +3193,53 @@ const transportSchemas = {
         "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
       ],
       "description": "Filters for listing pull requests, merge entries, deployments, or evaluation cases scoped to a repository."
+    },
+    "PullRequestQuery": {
+      "fields": [
+        {
+          "name": "repositoryId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to pull requests opened in this Bakery repository."
+        },
+        {
+          "name": "taskId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to pull requests registered for this task."
+        },
+        {
+          "name": "runId",
+          "type": "uuid",
+          "required": false,
+          "description": "Restrict results to pull requests opened by this workflow run; pull requests registered without a run never match."
+        },
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque pagination cursor from a previous response's `nextCursor` for this list; omit for the first page and never parse or construct it directly."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of records returned per page; defaults to 25, capped at 100."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Cursor pagination only: reject page, pageNumber, pageIndex, offset and skip. Bind cursor to this operation, current principal/scope, filters and ordering; validate and reauthorize before the keyset query."
+      ],
+      "description": "Filters for listing the organization's tracked pull requests, oldest registration first; every filter given must match."
     },
     "RepositoryUpdate": {
       "fields": [
@@ -8157,6 +8204,33 @@ const transportSchemas = {
         }
       ]
     },
+    "RunBlockingTask": {
+      "description": "One task a blocked run waits on: a dependency of the run's task, in the run's organization, that has not completed. Read live at request time, so it disappears once the task completes.",
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Id of the dependency task; use it to link to the task's page."
+        },
+        {
+          "name": "title",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "description": "Current title of the dependency task, for a line such as \"Waiting for <title> to finish\"."
+        },
+        {
+          "name": "status",
+          "type": "enum(draft|queued|active|waiting_input|blocked|completed|failed|canceled)",
+          "required": true,
+          "description": "Current status of the dependency task; never completed, because a completed dependency no longer blocks the run."
+        }
+      ]
+    },
     "ReviewInput": {
       "description": "Input to the review.independent workflow action: the repository and exact candidate revision a fresh reviewer session must judge, and the recorded check runs of that same candidate the reviewer may cite as evidence.",
       "fields": [
@@ -9680,6 +9754,23 @@ const transportSchemas = {
         }
       ],
       "description": "Path parameters naming one ticket source and a provider username to look up on its repository (#69)."
+    },
+    "DraftPublicationCreate": {
+      "fields": [
+        {
+          "name": "checkpointId",
+          "type": "uuid",
+          "required": true,
+          "description": "Committed checkpoint of this draft to publish, read from drafts.get at the moment Publish was pressed; it is the frozen cutoff, so edits committed after it are not in the version."
+        },
+        {
+          "name": "textDigest",
+          "type": "sha256",
+          "required": true,
+          "description": "Lowercase SHA-256 of the checkpoint's UTF-8 body text as the publisher previewed it; a different digest fails without publishing."
+        }
+      ],
+      "description": "Publishes one exact committed draft checkpoint as the artifact's next immutable version through the shared artifact-version service. No content, actor, artifact, parent version or organization can be supplied by the caller."
     }
   },
   "projections": {
@@ -12561,6 +12652,7 @@ const transportSchemas = {
         "id",
         "taskId",
         "repositoryId",
+        "runId",
         "providerNumber",
         "url",
         "headSha",
@@ -12583,10 +12675,12 @@ const transportSchemas = {
         "mergedSha": "string|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "runId": "uuid|null"
       },
       "nullableFields": [
-        "mergedSha"
+        "mergedSha",
+        "runId"
       ],
       "sourceColumns": {
         "id": "id",
@@ -12600,7 +12694,8 @@ const transportSchemas = {
         "mergedSha": "merged_sha",
         "createdAt": "created_at",
         "updatedAt": "updated_at",
-        "version": "version"
+        "version": "version",
+        "runId": "run_id"
       },
       "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema.",
       "fieldDescriptions": {
@@ -12615,7 +12710,8 @@ const transportSchemas = {
         "mergedSha": "Merge commit SHA created by the provider.",
         "createdAt": "UTC timestamp when the pull request record was created.",
         "updatedAt": "UTC timestamp when the pull request record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the pull request record."
+        "version": "Optimistic-concurrency version used when updating the pull request record.",
+        "runId": "Workflow run that opened the pull request; its check runs and review cycles at the pull request's head name this pull request. Null when the pull request was registered without a run."
       }
     },
     "review_cycles": {
@@ -12635,7 +12731,7 @@ const transportSchemas = {
       ],
       "fieldTypes": {
         "id": "uuid",
-        "pullRequestId": "uuid",
+        "pullRequestId": "uuid|null",
         "runId": "uuid",
         "reviewerSessionId": "uuid",
         "headSha": "string",
@@ -12648,11 +12744,11 @@ const transportSchemas = {
         "version": "integer"
       },
       "nullableFields": [
-        "artifactVersionId"
+        "artifactVersionId",
+        "pullRequestId"
       ],
       "sourceColumns": {
         "id": "id",
-        "pullRequestId": "pull_request_id",
         "runId": "run_id",
         "reviewerSessionId": "reviewer_session_id",
         "headSha": "head_sha",
@@ -12667,7 +12763,7 @@ const transportSchemas = {
       "description": "Explicit safe projection list. Runtime serializers use this allowlist; never auto-export new database columns. Config JSON is validated/redacted by its provider or action schema.",
       "fieldDescriptions": {
         "id": "Stable UUID identifying the review cycle record.",
-        "pullRequestId": "Stable UUID linking this review cycle record to the related pull request entity.",
+        "pullRequestId": "Pull request this review judged: the tracked pull request whose run is this review's run and whose current head SHA equals this review's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on.",
         "runId": "Stable UUID linking this review cycle record to the related run entity.",
         "reviewerSessionId": "Stable UUID linking this review cycle record to the related reviewer session entity.",
         "headSha": "Head commit SHA associated with the record.",
@@ -12678,6 +12774,9 @@ const transportSchemas = {
         "createdAt": "UTC timestamp when the review cycle record was created.",
         "updatedAt": "UTC timestamp when the review cycle record was last updated.",
         "version": "Optimistic-concurrency version used when updating the review cycle record."
+      },
+      "computedFields": {
+        "pullRequestId": "Joined at read time from bakery.pull_requests on (organization_id, run_id, head_sha); review_cycles stores no pull request column."
       }
     },
     "review_findings": {
@@ -12865,7 +12964,7 @@ const transportSchemas = {
         "createdAt": "created_at"
       },
       "computedFields": {
-        "pullRequestId": "Always null: check_runs has no pull_request_id column until pull_requests has a table.",
+        "pullRequestId": "Joined at read time from bakery.pull_requests on (organization_id, run_id, head_sha); check_runs stores no pull request column.",
         "updatedAt": "Equals created_at: check_runs rows are immutable and the table has no updated_at column.",
         "version": "Always 1: check_runs rows are immutable and the table has no version column."
       },
@@ -12874,7 +12973,7 @@ const transportSchemas = {
         "id": "Stable UUID identifying the check run record, generated by the worker for a command check and by the server for a metadata check.",
         "runId": "Stable UUID of the workflow run whose candidate this check observed.",
         "runStepId": "Run step whose quality.check job produced this row, or null for a metadata row that no step produced.",
-        "pullRequestId": "Stable UUID linking this record to the related pull request entity; always null until pull requests have a table.",
+        "pullRequestId": "Pull request this check judged: the tracked pull request whose run is this check's run and whose current head SHA equals this check's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on.",
         "checkId": "Fixed policy command id for a command check, or the repository rule key for a metadata check.",
         "checkName": "Display name of the check; equals checkId because the check is identified by its fixed command id or rule key.",
         "kind": "What was checked: a fixed policy command, the commit messages, the pull request title, the pull request description, or the final merge or squash message.",
@@ -14825,9 +14924,9 @@ const transportSchemas = {
         "version": "integer"
       },
       "nullableFields": [],
-      "description": "Coordination plan revision with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings.",
+      "description": "Split revision (a `coordination-plans` resource) with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings.",
       "fieldDescriptions": {
-        "id": "Stable UUID identifying the coordination plan revision.",
+        "id": "Stable UUID identifying the split revision.",
         "applicationId": "UUID of the application whose repositories the plan coordinates.",
         "parentTaskId": "UUID of the parent task that owns the plan.",
         "revision": "Monotonic revision number among the parent task's plans.",
@@ -14877,7 +14976,7 @@ const transportSchemas = {
         "repositoryId": "UUID of the linked repository.",
         "role": "Descriptive role of the repository for this task.",
         "required": "Whether the task needs this repository's outcome before it may finish.",
-        "provenance": "Who selected the link: user, coordinator or a coordination plan.",
+        "provenance": "Who selected the link: user, coordinator or a split.",
         "createdBy": "UUID of the principal who recorded the link.",
         "createdAt": "UTC timestamp when the link was created.",
         "updatedAt": "UTC timestamp when the link last changed.",
@@ -14931,7 +15030,7 @@ const transportSchemas = {
       "fieldDescriptions": {
         "id": "Stable UUID identifying the alias mapping.",
         "applicationId": "UUID of the application that owns the alias.",
-        "alias": "Alias coordination plans use to name the repository.",
+        "alias": "Alias a split's lanes use to name the repository.",
         "role": "Descriptive role the alias plays.",
         "repositoryId": "UUID of the repository the alias and role resolve to.",
         "createdAt": "UTC timestamp when the mapping was created.",
@@ -14941,7 +15040,7 @@ const transportSchemas = {
     },
     "Page<CoordinationPlan>": {
       "pageOf": "CoordinationPlan",
-      "description": "Cursor page of coordination plan revisions returned by `GET /v1/coordination-plans`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
+      "description": "Cursor page of split revisions returned by `GET /v1/coordination-plans`. `nextCursor: null` marks the last page; there are no page numbers or offsets."
     },
     "Page<TaskRepository>": {
       "pageOf": "TaskRepository",
@@ -16163,7 +16262,7 @@ const transportSchemas = {
         "id": "Stable UUID identifying the check run record, generated by the worker for a command check and by the server for a metadata check.",
         "runId": "Stable UUID of the workflow run whose candidate this check observed.",
         "runStepId": "Run step whose quality.check job produced this row, or null for a metadata row that no step produced.",
-        "pullRequestId": "Stable UUID linking this record to the related pull request entity; always null until pull requests have a table.",
+        "pullRequestId": "Pull request this check judged: the tracked pull request whose run is this check's run and whose current head SHA equals this check's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on.",
         "checkId": "Fixed policy command id for a command check, or the repository rule key for a metadata check.",
         "checkName": "Display name of the check; equals checkId because the check is identified by its fixed command id or rule key.",
         "kind": "What was checked: a fixed policy command, the commit messages, the pull request title, the pull request description, or the final merge or squash message.",
@@ -16249,6 +16348,7 @@ const transportSchemas = {
         "id",
         "taskId",
         "repositoryId",
+        "runId",
         "providerNumber",
         "url",
         "headSha",
@@ -16271,10 +16371,12 @@ const transportSchemas = {
         "mergedSha": "string|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "runId": "uuid|null"
       },
       "nullableFields": [
-        "mergedSha"
+        "mergedSha",
+        "runId"
       ],
       "description": "Bakery's mirror of a provider pull request's identity and latest known SHAs for a task's repository; provider webhooks reconcile status, mergedSha and the head/base SHAs against the provider's current state, so this record can lag briefly behind Git history.",
       "fieldDescriptions": {
@@ -16289,7 +16391,8 @@ const transportSchemas = {
         "mergedSha": "Merge commit SHA created by the provider.",
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
-        "version": "Optimistic-concurrency version used when updating the record."
+        "version": "Optimistic-concurrency version used when updating the record.",
+        "runId": "Workflow run that opened the pull request; its check runs and review cycles at the pull request's head name this pull request. Null when the pull request was registered without a run."
       }
     },
     "ReviewCycle": {
@@ -16362,7 +16465,7 @@ const transportSchemas = {
         "runId": "Stable UUID of the workflow run whose candidate this cycle reviewed.",
         "runStepId": "Run step of the review.independent job that produced this cycle; each repair iteration reviews in its own step row.",
         "ordinal": "Zero-based position of this cycle among the run's cycles; the first review of a candidate is 0.",
-        "pullRequestId": "Stable UUID linking this record to the related pull request entity; always null until pull requests have a table.",
+        "pullRequestId": "Pull request this review judged: the tracked pull request whose run is this review's run and whose current head SHA equals this review's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on.",
         "reviewerSessionId": "Server-created agent session the reviewer ran in; it is never an implementing session of the run and starts without a parent or resume reference.",
         "reviewerPrincipalId": "Worker principal of the host that ran the reviewer, recorded so an auditor can compare it with the implementer.",
         "implementerSessionId": "Agent session of the latest implementing step whose candidate this cycle reviewed.",
@@ -17031,7 +17134,9 @@ const transportSchemas = {
         "createdAt",
         "updatedAt",
         "version",
-        "budgetSummary"
+        "budgetSummary",
+        "blockedReason",
+        "blockingTasks"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -17055,7 +17160,9 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "version": "integer",
-        "budgetSummary": "RunBudgetSummary"
+        "budgetSummary": "RunBudgetSummary",
+        "blockedReason": "string|null",
+        "blockingTasks": "RunBlockingTask[]"
       },
       "description": "Kind-aware safe run projection. Workflow runs retain task and workflow ownership; skill imports expose null workflow owners and one registered source owner.",
       "nullableFields": [
@@ -17071,16 +17178,21 @@ const transportSchemas = {
         "workspaceBaseSha",
         "inngestRunId",
         "startedAt",
-        "finishedAt"
+        "finishedAt",
+        "blockedReason"
       ],
       "optionalFields": [
         "kind",
         "skillSourceId",
-        "workspaceBaseSha"
+        "workspaceBaseSha",
+        "blockedReason",
+        "blockingTasks"
       ],
       "computedFields": {
         "budgetSummary": "Join budget_accounts + outstanding reservations for this run and the applicable installation period under one consistent read snapshot.",
-        "workspaceBaseSha": "Base commit reported by the first completed harness step of this run: the step's output baseSha when it is a git SHA, else null. Read from run_steps joined to jobs by harness action; never written to workflow_runs."
+        "workspaceBaseSha": "Base commit reported by the first completed harness step of this run: the step's output baseSha when it is a git SHA, else null. Read from run_steps joined to jobs by harness action; never written to workflow_runs.",
+        "blockedReason": "snapshot.admission.reason of the run while status is blocked; null otherwise.",
+        "blockingTasks": "task_dependencies of the run's task joined to tasks of the same organization whose status is not completed, only while blockedReason is dependency_incomplete."
       },
       "fieldDescriptions": {
         "id": "Stable UUID identifying the run record.",
@@ -17104,7 +17216,14 @@ const transportSchemas = {
         "version": "Optimistic-concurrency version used when updating the record.",
         "budgetSummary": "Aggregated budget usage and reservation summary.",
         "kind": "Discriminator selecting task-owned workflow execution or source-owned skill import behavior.",
-        "skillSourceId": "Registered source UUID for skill import runs; null for workflow runs."
+        "skillSourceId": "Registered source UUID for skill import runs; null for workflow runs.",
+        "blockedReason": "Why the run is blocked, as admission recorded it (for example dependency_incomplete); null unless status is blocked. Served by runs.get and runs.list; omitted by other run responses.",
+        "blockingTasks": "For a run blocked with dependency_incomplete, the dependency tasks of the run's task that have not completed, read live and limited to the run's organization, oldest dependency first, at most 25; empty otherwise. Served by runs.get and runs.list; omitted by other run responses."
+      },
+      "fieldBounds": {
+        "blockingTasks": {
+          "maxItems": 25
+        }
       }
     },
     "AgentSession": {
@@ -21134,6 +21253,14 @@ const transportSchemas = {
           "fieldTypes": {
             "mutationId": "uuid|null"
           }
+        },
+        {
+          "type": "published",
+          "direction": "server",
+          "fields": [
+            "room",
+            "publication"
+          ]
         }
       ],
       "bounds": {
@@ -21157,9 +21284,10 @@ const transportSchemas = {
         "checkpointId": "uuid",
         "byteLength": "nonnegativeInteger",
         "mutationId": "uuid",
-        "receipt": "DraftMutationReceipt|null"
+        "receipt": "DraftMutationReceipt|null",
+        "publication": "DraftPublication"
       },
-      "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, and committed draft sync. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
+      "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, committed draft sync, and publication notices. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
       "fieldDescriptions": {
         "protocolVersion": "Collaboration protocol version reported by the server.",
         "connectionId": "Server-assigned identifier of this connection.",
@@ -21178,7 +21306,8 @@ const transportSchemas = {
         "checkpointId": "Checkpoint the synced state was read from.",
         "byteLength": "Exact length of the binary frame that immediately follows this frame.",
         "mutationId": "Client mutation id the frame refers to.",
-        "receipt": "Committed mutation receipt, replayed exactly for a duplicate; null when the update added nothing new to the committed state."
+        "receipt": "Committed mutation receipt, replayed exactly for a duplicate; null when the update added nothing new to the committed state.",
+        "publication": "Publication committed for the room's draft, pushed to everyone in the room so editors can show who published which version."
       }
     },
     "MetricPoint": {
@@ -22544,6 +22673,8 @@ const transportSchemas = {
         "lastObservedAt",
         "latestReadiness",
         "activeRequest",
+        "linkedTaskIds",
+        "linkedTaskCount",
         "createdAt",
         "updatedAt",
         "version"
@@ -22566,7 +22697,9 @@ const transportSchemas = {
         "activeRequest": "json|null",
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
-        "version": "integer"
+        "version": "integer",
+        "linkedTaskIds": "uuid[]",
+        "linkedTaskCount": "integer"
       },
       "nullableFields": [
         "number",
@@ -22592,12 +22725,24 @@ const transportSchemas = {
         "activeRequest": "The one nonterminal ticket request for this ticket (waiting, admitted, active or suspended) as a JSON object with id, intent, generation, disposition, disposition reason and run id, or null when none exists. Omitted by servers that predate it.",
         "createdAt": "Timestamp recording when the created event occurred for this external ticket record.",
         "updatedAt": "Timestamp recording the last update to this external ticket record.",
-        "version": "Monotonic revision used to order or conditionally update this external ticket record."
+        "version": "Monotonic revision used to order or conditionally update this external ticket record.",
+        "linkedTaskIds": "Bakery tasks linked to this ticket through ticket_task_links (primary and reference links), most recently linked first, at most 25; linkedTaskCount tells whether more exist. Empty when no task is linked. Omitted by servers that predate it.",
+        "linkedTaskCount": "Total number of tasks linked to this ticket; larger than the length of linkedTaskIds when the list was cut at 25. Omitted by servers that predate it."
       },
       "optionalFields": [
         "latestReadiness",
-        "activeRequest"
-      ]
+        "activeRequest",
+        "linkedTaskIds",
+        "linkedTaskCount"
+      ],
+      "fieldBounds": {
+        "linkedTaskIds": {
+          "maxItems": 25
+        },
+        "linkedTaskCount": {
+          "min": 0
+        }
+      }
     },
     "Page<ExternalTicket>": {
       "pageOf": "ExternalTicket"
@@ -23832,7 +23977,8 @@ const transportSchemas = {
         "checkpointId",
         "textDigest",
         "text",
-        "receipts"
+        "receipts",
+        "canPublish"
       ],
       "fieldTypes": {
         "id": "uuid",
@@ -23843,7 +23989,8 @@ const transportSchemas = {
         "checkpointId": "uuid",
         "textDigest": "sha256",
         "text": "string",
-        "receipts": "DraftMutationReceipt[]"
+        "receipts": "DraftMutationReceipt[]",
+        "canPublish": "boolean"
       },
       "description": "Authorized committed draft readback containing bounded plain text, current checkpoint metadata, and retained mutation receipts without exposing Loro bytes.",
       "fieldDescriptions": {
@@ -23855,7 +24002,8 @@ const transportSchemas = {
         "checkpointId": "Current full Loro checkpoint identifier.",
         "textDigest": "SHA-256 of the complete committed UTF-8 body text.",
         "text": "Complete committed body text, bounded to 1048576 UTF-8 bytes.",
-        "receipts": "Retained authenticated mutation receipts ordered by server sequence; at most 100 are returned."
+        "receipts": "Retained authenticated mutation receipts ordered by server sequence; at most 100 are returned.",
+        "canPublish": "Whether the caller may publish this draft as the artifact's next version right now (artifactVersion:write under the caller's role, grants and token scope); the UI hides Publish when false."
       },
       "bounds": {
         "text": {
@@ -25060,6 +25208,59 @@ const transportSchemas = {
         "canTrigger": "Whether the person may be added to the trigger list: true only for write or admin on the repository."
       },
       "description": "One provider user found on a ticket source's repository, for the automatic-start trigger list (#69). A username the provider does not know answers 404."
+    },
+    "DraftPublication": {
+      "fields": [
+        "draftId",
+        "epoch",
+        "checkpointId",
+        "serverSequence",
+        "textDigest",
+        "artifactId",
+        "artifactVersionId",
+        "versionNumber",
+        "sha256",
+        "publishedById",
+        "publishedByName",
+        "actorKind",
+        "publishedAt"
+      ],
+      "fieldTypes": {
+        "draftId": "uuid",
+        "epoch": "integer",
+        "checkpointId": "uuid",
+        "serverSequence": "decimalString",
+        "textDigest": "sha256",
+        "artifactId": "uuid",
+        "artifactVersionId": "uuid",
+        "versionNumber": "integer",
+        "sha256": "sha256",
+        "publishedById": "uuid",
+        "publishedByName": "string",
+        "actorKind": "enum(person|agent)",
+        "publishedAt": "timestamp"
+      },
+      "description": "Durable record that one draft checkpoint became one immutable artifact version: which version resulted, from which frozen cutoff, and who published it. Replayed exactly for a retry of the same checkpoint.",
+      "fieldDescriptions": {
+        "draftId": "Draft the version was published from.",
+        "epoch": "Draft epoch of the published checkpoint.",
+        "checkpointId": "Exact draft checkpoint frozen as the published content.",
+        "serverSequence": "Committed draft sequence of the cutoff; edits with a higher sequence are not in this version.",
+        "textDigest": "SHA-256 of the checkpoint's UTF-8 body text.",
+        "artifactId": "Artifact that received the new version.",
+        "artifactVersionId": "Immutable artifact version created by this publication.",
+        "versionNumber": "Revision number of the created version on its artifact, shown as version n.",
+        "sha256": "SHA-256 of the published version bytes; equals textDigest for a text draft.",
+        "publishedById": "Principal the publication is attributed to: the person, or the principal an agent acted for.",
+        "publishedByName": "Trusted display name of publishedById from the principal record.",
+        "actorKind": "person when a person published through a signed-in session; agent when an agent published through an access token or under its own service or worker identity.",
+        "publishedAt": "UTC time the publication committed."
+      },
+      "bounds": {
+        "publishedByName": {
+          "maxBytes": 1024
+        }
+      }
     }
   },
   "pageEnvelope": {
@@ -25761,6 +25962,14 @@ const transportSchemas = {
       "inngestTrigger": null,
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
+    "task.dependency_release_requested": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "taskId": "uuid"
+      },
+      "inngestTrigger": "bakery/task.dependency_release_requested.v1",
+      "description": "Requests release of the runs blocked on a prerequisite task that ended. Consumers re-read the task and its blocked dependants under their own run locks; a repeat changes nothing."
+    },
     "tasks.created": {
       "schemaVersion": 1,
       "payloadFields": {
@@ -26240,6 +26449,15 @@ const transportSchemas = {
       },
       "inngestTrigger": null,
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
+    },
+    "draft.published": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification that a draft checkpoint was published; resourceId is the draft and resourceVersion the created version number. Fetch the publication through draftPublications.get or the version through artifactVersions.list."
     }
   },
   "workerActions": {
@@ -26492,7 +26710,9 @@ const transportSchemas = {
       "bakery_drafts_get",
       "bakery_draftCheckpoints_get",
       "bakery_draftSlices_get",
-      "bakery_drafts_edit"
+      "bakery_drafts_edit",
+      "bakery_draftPublications_create",
+      "bakery_draftPublications_get"
     ],
     "discovery": "server/discover is optional. tools/list accepts standard cursor, filters current principal and enabled groups, and sorts deterministically. Initial cache TTL is zero; never share an authorization-filtered catalog between principals. No subscription capability is advertised.",
     "methods": [

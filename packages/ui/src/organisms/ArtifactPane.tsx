@@ -7,6 +7,7 @@ import {
   isSafeArtifactHref,
 } from "../molecules/ArtifactDescriptor.tsx";
 import { Combobox } from "../molecules/Combobox.tsx";
+import { Disclosure } from "../molecules/Disclosure.tsx";
 import { InlineNotice } from "../molecules/InlineNotice.tsx";
 import { SessionPane } from "./SessionPane.tsx";
 import "../collaboration.css";
@@ -37,6 +38,8 @@ export type ArtifactPaneLabels = Readonly<{
   reconnecting: ReactNode;
   download: ReactNode;
   open: ReactNode;
+  /** The closed control that holds `details`, for example "Details". */
+  details?: ReactNode;
 }>;
 
 export type ArtifactPaneProps = {
@@ -57,6 +60,11 @@ export type ArtifactPaneProps = {
   previewText?: string;
   downloadHref?: string;
   openHref?: string;
+  /**
+   * The facts about the selected version, shown under a closed Details control.
+   * When given, it takes the place of the descriptor's table.
+   */
+  details?: ReactNode;
   state?: ArtifactPaneState;
 };
 
@@ -81,6 +89,7 @@ const NOTICES = {
 export function ArtifactPane(
   {
     descriptor,
+    details,
     downloadHref,
     label,
     labels,
@@ -127,7 +136,7 @@ export function ArtifactPane(
               : null}
             {open
               ? (
-                <a className="ui-button ui-button--primary" href={open}>
+                <a className="ui-button ui-button--outline" href={open}>
                   {labels.open}
                 </a>
               )
@@ -176,7 +185,9 @@ export function ArtifactPane(
             )
             : null}
         </div>
-        {descriptor && state !== "loading" && state !== "empty"
+        {details !== undefined && state !== "loading" && state !== "empty"
+          ? <Disclosure summary={labels.details}>{details}</Disclosure>
+          : descriptor && state !== "loading" && state !== "empty"
           ? <ArtifactDescriptor {...descriptor} />
           : null}
         {showsText

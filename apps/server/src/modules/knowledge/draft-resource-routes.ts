@@ -13,7 +13,11 @@ import {
   contractSchemas,
   OrganizationContextPolicy,
 } from "@bakery/contracts/contracts";
-import { createApiRouter, StandardError } from "@bakery/contracts/http";
+import {
+  createApiRouter,
+  parseIdempotencyKey,
+  StandardError,
+} from "@bakery/contracts/http";
 import {
   assertImplementedActionRegistry,
   DraftImplementedAction,
@@ -22,6 +26,19 @@ import {
 import type { z } from "zod";
 import { PostgresAuthorityRunner } from "../auth/adapters/authority-postgres.ts";
 import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
+import { attributeAction } from "../auth/application/action-attribution.ts";
+import type {
+  AuthorizedActionContext,
+  OrganizationActor,
+} from "../auth/application/authority.ts";
+import { authorize } from "../auth/application/authorize.ts";
+import type { CollaborationRegistry } from "./collaboration-socket.ts";
+import {
+  type DraftPublicationRecord,
+  freezeTextDraftCheckpoint,
+  publishFrozenDraft,
+  readDraftPublication,
+} from "./draft-publication.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import type { PgDatabase } from "../../platform/database.ts";
 import {
@@ -55,7 +72,46 @@ export type DraftResourceRouteOptions = {
   browserSession: MiddlewareHandler<{ Variables: AuthVariables }>;
   publicBaseUrl: string;
   isolation?: DraftIsolation;
+  /** Collaboration rooms told about each committed publication. */
+  collaboration?: Pick<CollaborationRegistry, "notifyDraftPublished">;
 };
+
+/** Publication committed by this request, pushed to editors after commit. */
+const committedPublication: unique symbol = Symbol("committed-publication");
+type PublicationHolder = {
+  organizationId?: string;
+  publication?: DraftPublicationRecord;
+  replayed?: boolean;
+};
+type PublicationActionContext = ActionContext & {
+  [committedPublication]?: PublicationHolder;
+};
+
+/**
+ * Whether the authorized caller may publish: the same artifactVersion:write
+ * check (role, custom role, grant and token scope) draftPublications.create
+ * runs, so the UI can hide Publish instead of failing on press.
+ */
+function mayPublish(context: ActionContext): boolean {
+  const actor = (context as Partial<AuthorizedActionContext>).authority;
+  if (!actor || !("organizationId" in actor)) return false;
+  try {
+    authorize(actor as OrganizationActor, "artifactVersion:write", {
+      action: DraftImplementedAction.PublicationCreate,
+    });
+    return true;
+  } catch (error) {
+    if (error instanceof StandardError) return false;
+    throw error;
+  }
+}
+
+function withCapabilities(context: ActionContext, draft: DraftRead) {
+  return contractSchemas.Draft.parse({
+    ...draft,
+    canPublish: mayPublish(context),
+  });
+}
 
 type DraftSliceInput = z.output<typeof contractSchemas.DraftSliceQuery>;
 
@@ -138,6 +194,23 @@ export function createDraftResourceRoutes(
 
   const authority: ActionAuthorityRunner = {
     async run(action, context, input, next) {
+      if (action.name === DraftImplementedAction.PublicationCreate) {
+        const holder: PublicationHolder = {};
+        const result = await postgresAuthority.run(
+          action,
+          Object.assign({}, context, { [committedPublication]: holder }),
+          input,
+          next,
+        );
+        // After commit only: a rolled-back publish is never announced.
+        if (holder.publication && holder.organizationId && !holder.replayed) {
+          options.collaboration?.notifyDraftPublished(
+            holder.organizationId,
+            contractSchemas.DraftPublication.parse(holder.publication),
+          );
+        }
+        return result;
+      }
       if (!isStagedAction(action.name)) {
         return await postgresAuthority.run(action, context, input, next);
       }
@@ -242,14 +315,15 @@ export function createDraftResourceRoutes(
             draftId(context),
           );
           if (!("kind" in prepared)) {
-            return contractSchemas.Draft.parse(prepared);
+            return withCapabilities(context, prepared);
           }
           stage.open = prepared;
           stage.organizationId = organizationId;
           throw new DraftPreparationComplete();
         }
         if (!stage.open) throw new Error("DRAFT_OPEN_PREPARATION_MISSING");
-        return contractSchemas.Draft.parse(
+        return withCapabilities(
+          context,
           await commitDraftOpen(
             transaction,
             organizationId,
@@ -268,7 +342,8 @@ export function createDraftResourceRoutes(
       policy: readPolicy,
       handler: async (context) => {
         const { transaction, organizationId } = requireWorkTransaction(context);
-        return contractSchemas.Draft.parse(
+        return withCapabilities(
+          context,
           await readDraft(transaction, organizationId, draftId(context)),
         );
       },
@@ -373,6 +448,71 @@ export function createDraftResourceRoutes(
             input,
             stage.edit,
             stage.candidate,
+          ),
+        );
+      },
+    })
+    .register({
+      name: DraftImplementedAction.PublicationCreate,
+      method: HttpMethod.Post,
+      path: "/v1/drafts/:id/publications",
+      input: contractSchemas.DraftPublicationCreate,
+      output: contractSchemas.DraftPublication,
+      policy: commandPolicy,
+      naturalIdempotency: true,
+      naturalIdempotencyInputField: "checkpointId",
+      handler: async (context, input) => {
+        const { transaction, organizationId, principalId } =
+          requireWorkTransaction(context);
+        const id = draftId(context);
+        const supplied = context.request.headers.get("idempotency-key");
+        const frozen = await freezeTextDraftCheckpoint(
+          transaction,
+          organizationId,
+          id,
+          input.checkpointId,
+          input.textDigest,
+        );
+        const { publication, replayed } = await publishFrozenDraft(
+          transaction,
+          {
+            organizationId,
+            frozen,
+            attribution: attributeAction(context, principalId),
+            idempotencyKey: supplied === null
+              ? null
+              : parseIdempotencyKey(supplied),
+            requestId: context.requestId,
+            traceId: context.traceId,
+            operation: DraftImplementedAction.PublicationCreate,
+          },
+        );
+        const holder = (context as PublicationActionContext)[
+          committedPublication
+        ];
+        if (holder) {
+          holder.organizationId = organizationId;
+          holder.publication = publication;
+          holder.replayed = replayed;
+        }
+        return contractSchemas.DraftPublication.parse(publication);
+      },
+    })
+    .register({
+      name: DraftImplementedAction.PublicationGet,
+      method: HttpMethod.Get,
+      path: "/v1/drafts/:id/publications/:checkpointId",
+      input: contractSchemas.DraftCheckpointPath,
+      output: contractSchemas.DraftPublication,
+      policy: readPolicy,
+      handler: async (context, input) => {
+        const { transaction, organizationId } = requireWorkTransaction(context);
+        return contractSchemas.DraftPublication.parse(
+          await readDraftPublication(
+            transaction,
+            organizationId,
+            draftId(context),
+            input.checkpointId,
           ),
         );
       },

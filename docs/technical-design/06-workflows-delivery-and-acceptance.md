@@ -1590,6 +1590,38 @@ the exact next action. It reads state via REST and receives notification-only
 updates from `WS /v1/events`; all mutations use REST idempotency keys and
 preconditions.
 
+## Decision record: one interpreter (15 November 2026)
+
+Status: accepted. Source: [chapter 25](25-one-engine.md) sections 2, 3 and 5;
+[owner decisions](one-system/owner-decisions.md) O1, O2 and O12; backlog item 1
+(#396).
+
+1. **One interpreter (O1).** The compiled interpreter
+   (`packages/contracts/src/workflow-interpreter/`) is the only thing that
+   decides what runs next in a run. No new code path may pick a next step any
+   other way.
+2. **The flat preset executor is frozen (O1).** The flat loop that runs
+   `fixed-coding` and `fixed-coding-reviewed` (the "Fixed coding preset" section
+   below) gets no new features: only fixes that keep its existing runs correct.
+   The presets are republished as compiled definitions (#399) and the flat
+   executor is deleted once its runs drain (#400).
+3. **Coordination plans are the engine's split primitive (O2).** A coordination
+   plan is the stored form of a split: child work items joined by typed
+   artifacts. New work extends it as split (chapter 25 section 5; lanes run
+   definitions in #422), not as a second scheduler.
+4. **Vocabulary (O12).** "Workflow" or "definition" is what the engine runs.
+   "Plan" means only the document an agent writes. "Split" and "lanes" replace
+   "coordination plan" for people; the `coordination-plans` routes, tables and
+   contract keys keep their names, because renaming them is a breaking change
+   with no gain. "Execution plan" stays an internal term.
+
+Rails tests keep this honest (`tests/unit/workflow-kernel-rails_test.ts`):
+every built-in workflow definition compiles and declares `apiVersion`; engine
+modules never name a preset slug or import the presets module; ticket
+admission names no preset. Today's known violations are an explicit allow-list
+in that file, each naming the backlog issue that removes it, so no new one can
+be added.
+
 ## Fixed coding preset
 
 > Superseded direction: under [chapter 25](25-one-engine.md) (O1) this preset
@@ -1906,6 +1938,56 @@ its task because a step failed; the engine never claims the finished step. A
 repair appends three rows (`repair`, `check`, `review`) at `iteration = ordinal + 1`
 and positions above the run's highest, so the engine, which takes the lowest open
 `(position, iteration, id)` row, runs them next.
+
+### On a compiled plan
+
+A run of a compiled plan (`apiVersion`, with a `repeat` or another container)
+takes the same hook, verification and evidence rows (#397). What differs is how
+the loop reads the run and what a decision does to it.
+
+- **Bounds.** A plan that holds a `review.independent` step freezes `reviewLoop`
+  at admission, as a flat spec does. `maxRepairCycles` is the largest
+  `repeat.max` of a repeat that review sits in (the plan's own bound), capped at
+  the contract ceiling; the duration and findings bounds are the server
+  defaults. A plan with no review step freezes none, and its reviews, if any,
+  are plain steps.
+- **Reading the run.** A plan run freezes no list of steps, so the loop reads it
+  through the steps the engine dispatched, in the order it appended them: each
+  entry is the qualified step key (`repair@2.repair_review`) and the action its
+  dispatch recorded (`plan-run-view`). The one set of helpers that finds the
+  candidate (the last harness step with a head), the implementing steps and each
+  `$delivery` reference answers for flat and plan runs alike.
+- **`$delivery`.** The engine asks an injected `PlanHostReader` before each
+  pass. Its `delivery` is the four references (`headSha`, `checkIds`,
+  `failedChecks`, `blockingFindings`), present once the run has a candidate; a
+  field whose evidence does not exist yet is absent and reads as null. A plan
+  that reads `$delivery` before any candidate fails with `delivery_unresolved`.
+  The kernel imports nothing from the delivery module; the host composes the two
+  where it builds the engine.
+- **Decisions.** `repair` appends nothing: the plan's `repeat` runs the next
+  round and its `max` bounds it. `proceed` opens the run-stage approval exactly
+  as for a flat run. `stop` appends no `delivery_gate` row (a plan's rows are
+  all stored at iteration 0); the engine halts the run with
+  `delivery_loop_stopped` on its next pass, whatever the plan would have run
+  next, and the gate reports `decision_stop:<reason>`. A terminal reviewer
+  failure records the stop with no cycle, and the failed review step ends the
+  run.
+- **The gate.** `evaluateDeliveryCandidate` reads the plan run's candidate
+  through the same view, so a plan run is merge-eligible by the same rules.
+- **Projection steps.** An action the registry declares `projection_only` has no
+  worker. The engine completes such a plan step itself, in the transaction that
+  admits it: no job, no agent, no budget hold; the output is the step's resolved
+  input, validated against the action's input and output shapes, and a shape that
+  does not validate ends the run failed with `PROJECTION_INPUT_INVALID` and
+  writes no output. The step leaves one `workflow.projection.complete` audit
+  entry and moves a queued run to running with `run.updated`, like any finished
+  step, and a replay finds the finished row and does nothing more. The set of
+  actions that may complete this way is named (`ENGINE_PROJECTION_ACTIONS`), and
+  a unit test requires it to equal the registry's `projection_only` entries, so a
+  new entry does not start completing silently. Today that set is exactly one
+  action, `delivery.candidate_evidence`, which is what lets the plan's `repeat`
+  read the candidate of its latest round (`$repeat.currentCandidate`) and stop
+  when nothing blocks.
 
 ### The delivery gate
 
@@ -2459,7 +2541,7 @@ through the existing rails, rather than hand-writing parallel DTOs.
 | Application repository roles | Add stable organization/application-scoped alias-to-repository mappings with real FKs. Support several roles per repository; multiple candidate matches require explicit resolution. |
 | Task coordination | Reuse parent/child tasks and acyclic dependencies; persist a versioned plan, required children, concrete bindings and typed handoff references. Materialize children idempotently from parent + plan revision + lane key. |
 | Run repository pins | Add relational run/repository/profile bindings and pinned base revisions. The old single profile field is only a single-repository compatibility projection. Each child job retains its one concrete repository. |
-| Ad hoc execution | Workflow selection is optional at intake. Pin an internal coordination plan and existing child execution presets; no user-authored workflow is required. A parent coordination run may have no catalog workflow version, but must have exactly one immutable plan source. |
+| Ad hoc execution | Workflow selection is optional at intake. Pin an internal split (stored as a coordination plan) and existing child execution presets; no user-authored workflow is required. A parent coordination run may have no catalog workflow version, but must have exactly one immutable split source. |
 | Ticket routing | Add per-source, stable-provider-label-ID → repository/role rules with tenant FKs, a route-policy revision and match provenance. The single source repository field becomes a default, not an exhaustive target set. |
 | Compiler | Add described parallel-group/alias contracts, cycle checks, repository scope/IO validation, finite concurrency/expansion limits and named join outputs. Unsupported compiler versions reject the construct without losing the source file. |
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import type { RepositoryProfileResponse } from "../api/client.ts";
 import { useBakeryApi } from "../api/context.tsx";
@@ -25,11 +25,15 @@ import { useI18n } from "../i18n/I18nProvider.tsx";
 import { PROJECTS_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
 import { useCursorPages } from "./projects-onboarding/useCursorPages.ts";
+import { ReadinessStep } from "./projects/ReadinessStep.tsx";
+import { useCheckView } from "./projects/use-check-view.ts";
+import { standingOf } from "./projects/check-state.ts";
 import { WorkingSettingsSheet } from "./projects/WorkingSettingsSheet.tsx";
 import {
   activeProfile,
   branchesOf,
-  hasOwnRules,
+  isCheckMade,
+  needsCheck as needsCheckOf,
   setupBadge,
 } from "./projects/repository-state.ts";
 
@@ -53,6 +57,10 @@ export function RepositoryPage(
   useRestoreOrganizationScope();
   const offline = useConnectivity() === "offline";
   const phone = useShellViewport() === "phone";
+  // The check being shown is in the address, so a reload or a shared link
+  // shows the same one; no other check is known to the page.
+  const checkId = (useSearch({ strict: false }) as { check?: string }).check ??
+    null;
   const access = useQuery(effectiveAccessQueryOptions(api, scope));
   const canManage = access.data?.role === "admin";
   const repository = useQuery(repositoryQueryOptions(api, scope, repositoryId));
@@ -111,6 +119,11 @@ export function RepositoryPage(
   };
 
   const current = repository.data;
+  const info = useCheckView(
+    { id: repositoryId, applicationId: current?.applicationId ?? "" },
+    checkId,
+    current !== undefined,
+  );
   const breadcrumbs = (
     <ShellSlot name="breadcrumbs">
       <UI.Breadcrumbs
@@ -211,13 +224,30 @@ export function RepositoryPage(
     );
   }
 
-  const badge = setupBadge(current);
   const active = activeProfile(current, profiles.items);
   const archived = current.archivedAt !== null;
   const status = (value: "done" | "todo" | "unknown") =>
     translate(`projects.repository.status.${value}` as never);
   const account = connection.data?.label ?? "";
   const connectionWorks = connection.data?.status === "enabled";
+  // The header says where the setup stands when it is known: Archived and Not
+  // set up from the repository itself, Ready or Check failed from the check
+  // for the version in use (and only when the connection works too); with no
+  // check known for that version it says nothing, never a guess.
+  const setup = setupBadge(current);
+  // No check named in the address: a check-made version in use is itself the
+  // evidence that a check passed for it (the server puts a version made by a
+  // check in use only when the check passed, and a person's save replaces it),
+  // so the page agrees with the sheet instead of saying nothing.
+  const madeByCheck = active !== null && isCheckMade(active.config);
+  const standing = connectionWorks
+    ? standingOf(info.view, info.observedRevision, active?.revision ?? null) ??
+      (info.view.kind === "none" && madeByCheck ? "ready" : null)
+    : null;
+  // A person's version is in use over one a check made: tasks start, and stop at
+  // the steps where Bakery runs its checks until the check passes again.
+  const needsCheck = connectionWorks &&
+    needsCheckOf(active, profiles.items) && standing === null;
 
   // On a wide screen the page's actions are in the top bar; on a phone they
   // follow the title (the header's own actions row is for the phone only).
@@ -261,13 +291,36 @@ export function RepositoryPage(
                   branch: current.defaultBranch,
                 })}
               </UI.Text>
-              {badge === null ? null : (
-                <UI.Inline gap="compact">
-                  <UI.Badge tone="neutral">
-                    {translate(`projects.list.badge.${badge}` as never)}
-                  </UI.Badge>
-                </UI.Inline>
-              )}
+              {setup === null && standing === null && !needsCheck
+                ? null
+                : (
+                  <UI.Inline gap="compact">
+                    {setup !== null
+                      ? (
+                        <UI.Badge tone="neutral">
+                          {translate(`projects.list.badge.${setup}` as never)}
+                        </UI.Badge>
+                      )
+                      : (
+                        <UI.Badge
+                          tone={needsCheck
+                            ? "warning"
+                            : standing === "ready"
+                            ? "success"
+                            : "danger"}
+                          data-testid="repository-standing"
+                        >
+                          {translate(
+                            (needsCheck
+                              ? "projects.repository.badge.checkNeeded"
+                              : standing === "ready"
+                              ? "projects.repository.badge.ready"
+                              : "projects.repository.badge.checkFailed") as never,
+                          )}
+                        </UI.Badge>
+                      )}
+                  </UI.Inline>
+                )}
             </UI.Stack>
           }
           actions={phone ? rulesButton : null}
@@ -367,48 +420,38 @@ export function RepositoryPage(
                       onClick={openSheet}
                     >
                       {translate(
-                        (hasOwnRules(active.config)
-                          ? "projects.repository.step.settings.view"
-                          : "projects.repository.step.settings.change") as never,
+                        "projects.repository.step.settings.change" as never,
                       )}
                     </UI.Button>
                   )}
               >
                 {active === null && phone ? choose : undefined}
               </UI.StepItem>
-              <UI.StepItem
-                data-testid="setup-check"
-                status="upcoming"
-                statusLabel={status("todo")}
-                title={translate(
-                  "projects.repository.step.check.title" as never,
-                )}
-                summary={translate(
-                  (active === null
-                    ? "projects.repository.step.check.blocked"
-                    : "projects.repository.step.check.todo") as never,
-                )}
-                action={active === null ? undefined : (
-                  <UI.Button
-                    variant="text"
-                    onClick={() =>
-                      void navigate({
-                        to: "/projects/onboarding",
-                        search: {
-                          application: current.applicationId,
-                          repository: current.id,
-                          profile: undefined,
-                        },
-                      })}
-                  >
-                    {translate("projects.repository.step.check.open" as never)}
-                  </UI.Button>
-                )}
+              <ReadinessStep
+                repository={current}
+                info={info}
+                profiles={profiles.items}
+                needsCheck={needsCheckOf(active, profiles.items)}
+                active={active}
+                canManage={canManage}
+                onStarted={(id) =>
+                  void navigate({
+                    to: "/projects/repositories/$repositoryId",
+                    params: { repositoryId: current.id },
+                    search: { check: id },
+                    replace: true,
+                  })}
               />
             </UI.StepList>
           </UI.ListSection>
           <UI.Text variant="muted">
-            {translate("projects.repository.setup.footnote" as never)}
+            {translate(
+              (standing === "ready"
+                ? "projects.repository.setup.footnoteReady"
+                : needsCheck
+                ? "projects.repository.setup.footnoteCheckNeeded"
+                : "projects.repository.setup.footnote") as never,
+            )}
           </UI.Text>
         </UI.Stack>
         {sheet

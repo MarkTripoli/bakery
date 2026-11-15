@@ -432,7 +432,7 @@ export const clientManifest = {
       "output": "RepositoryProfile",
       "event": "repository.profile_created",
       "mcp": "bakery_repositoryProfiles_create",
-      "idempotency": "Idempotency-Key required",
+      "idempotency": "Idempotency-Key required; If-Match when the save activates the profile",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -4680,6 +4680,29 @@ export const clientManifest = {
     {
       "group": "Delivery",
       "method": "GET",
+      "path": "/v1/pull-requests",
+      "action": "pullRequests.list",
+      "access": "Developer",
+      "permission": "pullRequest:read",
+      "input": "PullRequestQuery",
+      "output": "Page<PullRequest>",
+      "event": "",
+      "mcp": "bakery_pullRequests_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Delivery",
+      "method": "GET",
       "path": "/v1/reviews/{id}/findings",
       "action": "reviewFindings.list",
       "access": "Developer",
@@ -6333,6 +6356,55 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Drafts",
+      "method": "POST",
+      "path": "/v1/drafts/{id}/publications",
+      "action": "draftPublications.create",
+      "access": "Developer",
+      "permission": "artifactVersion:write",
+      "input": "DraftPublicationCreate",
+      "output": "DraftPublication",
+      "event": "draft.published",
+      "mcp": "bakery_draftPublications_create",
+      "idempotency": "Natural idempotency by checkpointId: one artifact version per draft checkpoint; an optional Idempotency-Key is bound to that checkpoint and a reused key naming another checkpoint fails",
+      "idempotencyKeyOptional": true,
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Drafts",
+      "method": "GET",
+      "path": "/v1/drafts/{id}/publications/{checkpointId}",
+      "action": "draftPublications.get",
+      "access": "Developer",
+      "permission": "draft:read",
+      "input": "DraftCheckpointPath",
+      "output": "DraftPublication",
+      "event": "",
+      "mcp": "bakery_draftPublications_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Artifacts",
       "method": "GET",
       "path": "/v1/artifact-storage",
@@ -6732,7 +6804,7 @@ export const clientManifest = {
         "spec"
       ],
       "additionalProperties": false,
-      "description": "Stores a new immutable, versioned coordination plan revision for a parent task after validating aliases, scope, dependencies and typed handoffs.",
+      "description": "Stores a new immutable, versioned split revision for a parent task after validating aliases, scope, dependencies and typed handoffs.",
       "$defs": {
         "__schema0": {
           "description": "JSON value node.",
@@ -6992,7 +7064,7 @@ export const clientManifest = {
         "nodeId"
       ],
       "additionalProperties": false,
-      "description": "Stores a coordination plan revision mapped from one parallel node of a published workflow version, through the same boundary as ad hoc and ticket plans."
+      "description": "Stores a split revision mapped from one parallel node of a published workflow version, through the same boundary as ad hoc and ticket splits."
     },
     "CoordinationPlanListQuery": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7018,7 +7090,7 @@ export const clientManifest = {
         }
       },
       "additionalProperties": false,
-      "description": "Lists coordination plan revisions newest-first, optionally for one parent task."
+      "description": "Lists split revisions newest-first, optionally for one parent task."
     },
     "TaskRepositorySet": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -11134,6 +11206,8 @@ export const clientManifest = {
             "draftCheckpoints.get",
             "draftSlices.get",
             "drafts.edit",
+            "draftPublications.create",
+            "draftPublications.get",
             "artifactStorage.get",
             "coordinationPlans.create",
             "coordinationPlans.createFromWorkflow",
@@ -11843,6 +11917,44 @@ export const clientManifest = {
           ]
         }
       }
+    },
+    "PullRequestQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "repositoryId": {
+          "description": "Restrict results to pull requests opened in this Bakery repository.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "taskId": {
+          "description": "Restrict results to pull requests registered for this task.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "runId": {
+          "description": "Restrict results to pull requests opened by this workflow run; pull requests registered without a run never match.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "cursor": {
+          "description": "PullRequestQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "PullRequestQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": false,
+      "description": "Filters for listing the organization's tracked pull requests, oldest registration first; every filter given must match."
     },
     "RepositoryUpdate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -17566,6 +17678,29 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Path parameters naming one ticket source and a provider username to look up on its repository (#69)."
     },
+    "DraftPublicationCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "checkpointId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Committed checkpoint of this draft to publish, read from drafts.get at the moment Publish was pressed; it is the frozen cutoff, so edits committed after it are not in the version."
+        },
+        "textDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Lowercase SHA-256 of the checkpoint's UTF-8 body text as the publisher previewed it; a different digest fails without publishing."
+        }
+      },
+      "required": [
+        "checkpointId",
+        "textDigest"
+      ],
+      "additionalProperties": false,
+      "description": "Publishes one exact committed draft checkpoint as the artifact's next immutable version through the shared artifact-version service. No content, actor, artifact, parent version or organization can be supplied by the caller."
+    },
     "UserPreferences": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -17719,7 +17854,7 @@ export const clientManifest = {
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-          "description": "Stable UUID identifying the coordination plan revision."
+          "description": "Stable UUID identifying the split revision."
         },
         "applicationId": {
           "type": "string",
@@ -17930,7 +18065,7 @@ export const clientManifest = {
         "version"
       ],
       "additionalProperties": false,
-      "description": "Coordination plan revision with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings.",
+      "description": "Split revision (a `coordination-plans` resource) with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings.",
       "$defs": {
         "__schema0": {
           "anyOf": [
@@ -18305,7 +18440,7 @@ export const clientManifest = {
             "coordinator",
             "plan"
           ],
-          "description": "Who selected the link: user, coordinator or a coordination plan."
+          "description": "Who selected the link: user, coordinator or a split."
         },
         "createdBy": {
           "type": "string",
@@ -18366,7 +18501,7 @@ export const clientManifest = {
         "alias": {
           "type": "string",
           "maxLength": 65536,
-          "description": "Alias coordination plans use to name the repository."
+          "description": "Alias a split's lanes use to name the repository."
         },
         "role": {
           "type": "string",
@@ -18425,7 +18560,7 @@ export const clientManifest = {
                 "type": "string",
                 "format": "uuid",
                 "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                "description": "Stable UUID identifying the coordination plan revision."
+                "description": "Stable UUID identifying the split revision."
               },
               "applicationId": {
                 "type": "string",
@@ -18636,7 +18771,7 @@ export const clientManifest = {
               "version"
             ],
             "additionalProperties": false,
-            "description": "Coordination plan revision with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings."
+            "description": "Split revision (a `coordination-plans` resource) with its immutable spec, shared budget ceiling, parent projection and per-lane child bindings."
           },
           "description": "Page<CoordinationPlan>.items must contain at most 100 items."
         },
@@ -19071,7 +19206,7 @@ export const clientManifest = {
                   "coordinator",
                   "plan"
                 ],
-                "description": "Who selected the link: user, coordinator or a coordination plan."
+                "description": "Who selected the link: user, coordinator or a split."
               },
               "createdBy": {
                 "type": "string",
@@ -19285,7 +19420,7 @@ export const clientManifest = {
               "alias": {
                 "type": "string",
                 "maxLength": 65536,
-                "description": "Alias coordination plans use to name the repository."
+                "description": "Alias a split's lanes use to name the repository."
               },
               "role": {
                 "type": "string",
@@ -23168,6 +23303,63 @@ export const clientManifest = {
                 ],
                 "additionalProperties": false,
                 "description": "Aggregated budget usage and reservation summary."
+              },
+              "blockedReason": {
+                "description": "Run.blockedReason may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Why the run is blocked, as admission recorded it (for example dependency_incomplete); null unless status is blocked. Served by runs.get and runs.list; omitted by other run responses."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              },
+              "blockingTasks": {
+                "description": "Run.blockingTasks must contain at most 25 items.",
+                "maxItems": 25,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Id of the dependency task; use it to link to the task's page."
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500,
+                      "description": "RunBlockingTask.title must contain at most 500 characters."
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "queued",
+                        "active",
+                        "waiting_input",
+                        "blocked",
+                        "completed",
+                        "failed",
+                        "canceled"
+                      ],
+                      "description": "Current status of the dependency task; never completed, because a completed dependency no longer blocks the run."
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "status"
+                  ],
+                  "additionalProperties": false,
+                  "description": "For a run blocked with dependency_incomplete, the dependency tasks of the run's task that have not completed, read live and limited to the run's organization, oldest dependency first, at most 25; empty otherwise. Served by runs.get and runs.list; omitted by other run responses. Each array item follows this format."
+                }
               }
             },
             "required": [
@@ -29133,6 +29325,8 @@ export const clientManifest = {
                   "draftCheckpoints.get",
                   "draftSlices.get",
                   "drafts.edit",
+                  "draftPublications.create",
+                  "draftPublications.get",
                   "artifactStorage.get",
                   "coordinationPlans.create",
                   "coordinationPlans.createFromWorkflow",
@@ -31369,6 +31563,184 @@ export const clientManifest = {
       "additionalProperties": false,
       "description": "Cursor page of WorkerProviderBinding."
     },
+    "Page<PullRequest>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying the pull request record."
+              },
+              "taskId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID linking this record to the related task entity."
+              },
+              "repositoryId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID linking this record to the related repository entity."
+              },
+              "runId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Workflow run that opened the pull request; its check runs and review cycles at the pull request's head name this pull request. Null when the pull request was registered without a run."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PullRequest.runId may be null in this transport value."
+              },
+              "providerNumber": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Provider-assigned pull request number."
+              },
+              "url": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Canonical provider URL for the pull request."
+              },
+              "headSha": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Head commit SHA associated with the record."
+              },
+              "baseSha": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Base commit SHA associated with the record."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "open",
+                  "merged",
+                  "closed"
+                ],
+                "description": "Current lifecycle status of the record."
+              },
+              "mergedSha": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Merge commit SHA created by the provider."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "PullRequest.mergedSha may be null in this transport value."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was created."
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the record was last updated."
+              },
+              "version": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Optimistic-concurrency version used when updating the record."
+              }
+            },
+            "required": [
+              "id",
+              "taskId",
+              "repositoryId",
+              "runId",
+              "providerNumber",
+              "url",
+              "headSha",
+              "baseSha",
+              "status",
+              "mergedSha",
+              "createdAt",
+              "updatedAt",
+              "version"
+            ],
+            "additionalProperties": false,
+            "description": "Bakery's mirror of a provider pull request's identity and latest known SHAs for a task's repository; provider webhooks reconcile status, mergedSha and the head/base SHAs against the provider's current state, so this record can lag briefly behind Git history."
+          },
+          "description": "Page<PullRequest>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<PullRequest>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Page<PullRequest>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<PullRequest>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<PullRequest>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of PullRequest."
+    },
     "Page<ReviewCycle>": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -31409,7 +31781,7 @@ export const clientManifest = {
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Stable UUID linking this record to the related pull request entity; always null until pull requests have a table."
+                    "description": "Pull request this review judged: the tracked pull request whose run is this review's run and whose current head SHA equals this review's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on."
                   },
                   {
                     "type": "null",
@@ -32139,7 +32511,7 @@ export const clientManifest = {
                     "type": "string",
                     "format": "uuid",
                     "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
-                    "description": "Stable UUID linking this record to the related pull request entity; always null until pull requests have a table."
+                    "description": "Pull request this check judged: the tracked pull request whose run is this check's run and whose current head SHA equals this check's head SHA, joined at read time. Null when no tracked pull request of the run is at that head, including after the pull request's head moved on."
                   },
                   {
                     "type": "null",
@@ -36302,6 +36674,63 @@ export const clientManifest = {
           ],
           "additionalProperties": false,
           "description": "Aggregated budget usage and reservation summary."
+        },
+        "blockedReason": {
+          "description": "Run.blockedReason may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Why the run is blocked, as admission recorded it (for example dependency_incomplete); null unless status is blocked. Served by runs.get and runs.list; omitted by other run responses."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "blockingTasks": {
+          "description": "Run.blockingTasks must contain at most 25 items.",
+          "maxItems": 25,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Id of the dependency task; use it to link to the task's page."
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+                "description": "RunBlockingTask.title must contain at most 500 characters."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "queued",
+                  "active",
+                  "waiting_input",
+                  "blocked",
+                  "completed",
+                  "failed",
+                  "canceled"
+                ],
+                "description": "Current status of the dependency task; never completed, because a completed dependency no longer blocks the run."
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "status"
+            ],
+            "additionalProperties": false,
+            "description": "For a run blocked with dependency_incomplete, the dependency tasks of the run's task that have not completed, read live and limited to the run's organization, oldest dependency first, at most 25; empty otherwise. Served by runs.get and runs.list; omitted by other run responses. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -44277,6 +44706,8 @@ export const clientManifest = {
             "draftCheckpoints.get",
             "draftSlices.get",
             "drafts.edit",
+            "draftPublications.create",
+            "draftPublications.get",
             "artifactStorage.get",
             "coordinationPlans.create",
             "coordinationPlans.createFromWorkflow",
@@ -54610,6 +55041,23 @@ export const clientManifest = {
             }
           ]
         },
+        "linkedTaskIds": {
+          "description": "ExternalTicket.linkedTaskIds must contain at most 25 items.",
+          "maxItems": 25,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+            "description": "Bakery tasks linked to this ticket through ticket_task_links (primary and reference links), most recently linked first, at most 25; linkedTaskCount tells whether more exist. Empty when no task is linked. Omitted by servers that predate it. Each array item follows this format."
+          }
+        },
+        "linkedTaskCount": {
+          "description": "ExternalTicket.linkedTaskCount must be at least 0.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
         "createdAt": {
           "type": "string",
           "format": "date-time",
@@ -55205,6 +55653,23 @@ export const clientManifest = {
                     "description": "Null indicates that the value is unavailable."
                   }
                 ]
+              },
+              "linkedTaskIds": {
+                "description": "ExternalTicket.linkedTaskIds must contain at most 25 items.",
+                "maxItems": 25,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Bakery tasks linked to this ticket through ticket_task_links (primary and reference links), most recently linked first, at most 25; linkedTaskCount tells whether more exist. Empty when no task is linked. Omitted by servers that predate it. Each array item follows this format."
+                }
+              },
+              "linkedTaskCount": {
+                "description": "ExternalTicket.linkedTaskCount must be at least 0.",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
               },
               "createdAt": {
                 "type": "string",
@@ -57695,6 +58160,10 @@ export const clientManifest = {
             "description": "Retained authenticated mutation receipts ordered by server sequence; at most 100 are returned. Each array item follows this format."
           },
           "description": "Draft.receipts must contain at most 100 items."
+        },
+        "canPublish": {
+          "type": "boolean",
+          "description": "Whether the caller may publish this draft as the artifact's next version right now (artifactVersion:write under the caller's role, grants and token scope); the UI hides Publish when false."
         }
       },
       "required": [
@@ -57706,7 +58175,8 @@ export const clientManifest = {
         "checkpointId",
         "textDigest",
         "text",
-        "receipts"
+        "receipts",
+        "canPublish"
       ],
       "additionalProperties": false,
       "description": "Authorized committed draft readback containing bounded plain text, current checkpoint metadata, and retained mutation receipts without exposing Loro bytes."
@@ -61926,6 +62396,106 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "One provider user found on a ticket source's repository, for the automatic-start trigger list (#69). A username the provider does not know answers 404."
+    },
+    "DraftPublication": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "draftId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Draft the version was published from."
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Draft epoch of the published checkpoint."
+        },
+        "checkpointId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Exact draft checkpoint frozen as the published content."
+        },
+        "serverSequence": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$",
+          "description": "Committed draft sequence of the cutoff; edits with a higher sequence are not in this version."
+        },
+        "textDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 of the checkpoint's UTF-8 body text."
+        },
+        "artifactId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Artifact that received the new version."
+        },
+        "artifactVersionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Immutable artifact version created by this publication."
+        },
+        "versionNumber": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Revision number of the created version on its artifact, shown as version n."
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 of the published version bytes; equals textDigest for a text draft."
+        },
+        "publishedById": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Principal the publication is attributed to: the person, or the principal an agent acted for."
+        },
+        "publishedByName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "DraftPublication.publishedByName must contain at most 1024 UTF-8 bytes.",
+          "x-utf8-max-bytes": 1024
+        },
+        "actorKind": {
+          "type": "string",
+          "enum": [
+            "person",
+            "agent"
+          ],
+          "description": "person when a person published through a signed-in session; agent when an agent published through an access token or under its own service or worker identity."
+        },
+        "publishedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time the publication committed."
+        }
+      },
+      "required": [
+        "draftId",
+        "epoch",
+        "checkpointId",
+        "serverSequence",
+        "textDigest",
+        "artifactId",
+        "artifactVersionId",
+        "versionNumber",
+        "sha256",
+        "publishedById",
+        "publishedByName",
+        "actorKind",
+        "publishedAt"
+      ],
+      "additionalProperties": false,
+      "description": "Durable record that one draft checkpoint became one immutable artifact version: which version resulted, from which frozen cutoff, and who published it. Replayed exactly for a retry of the same checkpoint."
     }
   }
 } as const;

@@ -1,17 +1,22 @@
-import { useId, useState } from "react";
+import { type ReactNode, useId, useState } from "react";
 import * as UI from "@bakery/ui";
 import type {
   RepositoryProfileResponse,
   RepositoryResponse,
 } from "../../api/client.ts";
+import { RouterLink } from "../../app/router-link.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
+import { LINK_SLOT, withLink } from "../with-link.tsx";
 import {
   branchesOf,
+  fixesBranches,
   folderOf,
-  hasOwnRules,
+  isCheckMade,
   newestFirst,
   nextRevision,
   parseBranches,
+  rulesInForce,
+  sameRules,
   settingsProblem,
 } from "./repository-state.ts";
 import { useRepositorySettings } from "./use-repository-settings.ts";
@@ -54,11 +59,73 @@ export function WorkingSettingsSheet(
   const problem = settingsProblem(branches, folder);
   const next = nextRevision(profiles, repository.nextProfileRevision);
   const archived = repository.archivedAt !== null;
-  // Rules of the repository's own are carried by the Rules page: a save from
-  // here cannot keep them, so nothing here is offered that could not succeed.
-  const rules = active !== null && hasOwnRules(active.config);
-  const disabled = !canManage || offline || archived || settings.pending ||
-    rules;
+  // A repository with rules of its own is changed the same way as any other
+  // (design-ux, #65): the branches are saved and the rules stay exactly as they
+  // are, which the server does (`keepRepositoryRules`). The rules pin the
+  // working folder, so it is shown as text with where to change it. A fixed
+  // policy locks the branches: they are text too, and there is nothing to save.
+  const rulesBind = active !== null && rulesInForce(active.config);
+  const branchesFixed = active !== null && fixesBranches(active.config);
+  const disabled = !canManage || offline || archived || settings.pending;
+  // Where the person is sent. Inside a sentence the words themselves are the
+  // link (design-ux, #475 review): no line after it repeating the same words.
+  // Someone who may not open the page still reads the words, just not as a link.
+  const organizationRulesWords = translate(
+    "projects.repository.settings.organizationRules" as never,
+  );
+  const organizationRulesLink: ReactNode = canManage
+    ? (
+      <RouterLink
+        variant="sentence"
+        to="/settings/organization/repository-rules"
+      >
+        {organizationRulesWords}
+      </RouterLink>
+    )
+    : organizationRulesWords;
+  const rulesLink: ReactNode = canManage
+    ? (
+      <RouterLink
+        variant="sentence"
+        to="/projects/repositories/$repositoryId/rules"
+        params={{ repositoryId: repository.id }}
+      >
+        {translate("projects.repository.settings.changeRules" as never)}
+      </RouterLink>
+    )
+    : translate("projects.repository.settings.changeRules" as never);
+  const failureText = (kind: string, version: number) =>
+    withLink(
+      translate(
+        `projects.repository.failure.${kind}` as never,
+        { version, organizationRules: LINK_SLOT },
+      ),
+      organizationRulesLink,
+    );
+  const fixedBranchesNotice = withLink(
+    translate(
+      "projects.repository.settings.branchesFixed" as never,
+      { organizationRules: LINK_SLOT },
+    ),
+    organizationRulesLink,
+  );
+  const folderText = active === null ? "" : folderOf(active.config);
+  // A folder is a path and reads in the code face; "The whole repository" is a
+  // sentence about the folder, so it reads in the body face (design-ux, #475).
+  const folderValue: ReactNode = folderText === ""
+    ? translate("projects.repository.settings.folderWhole" as never)
+    : <UI.DataText>{folderText}</UI.DataText>;
+  // Putting a version in use that does not carry the rules in force switches
+  // them off: said in the confirmation, whose button is then the danger kind.
+  const rulesStopWith = (candidate: RepositoryProfileResponse) =>
+    !rulesBind || active === null ||
+      (rulesInForce(candidate.config) &&
+        sameRules(active.config, candidate.config))
+      ? null
+      : rulesInForce(candidate.config)
+      ? "projects.repository.use.otherRules"
+      : "projects.repository.use.rulesStop";
+  const stopKey = confirming === null ? null : rulesStopWith(confirming);
   const earlier = newestFirst(profiles);
   const date = (value: string) =>
     new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone }).format(
@@ -92,80 +159,6 @@ export function WorkingSettingsSheet(
     if (saved) onClose();
   };
 
-  // Rules of the repository's own: a save from here cannot carry them, and the
-  // Rules page does not change branches, so the sheet is plainly read-only: the
-  // branches as text, the versions with the one in use, nothing to save.
-  if (rules && active !== null) {
-    const folderText = folderOf(active.config);
-    return (
-      <UI.Sheet
-        open
-        onOpenChange={(open) => !open && onClose()}
-        state="open"
-        title={translate("projects.repository.settings.title" as never)}
-        variant="side"
-      >
-        <UI.Stack gap="standard">
-          <UI.InlineNotice tone="information" data-testid="rules-in-force">
-            {translate("projects.repository.settings.rulesInForce" as never)}
-          </UI.InlineNotice>
-          <UI.Stack gap="compact">
-            <UI.Text variant="strong">
-              {translate("projects.repository.settings.worksFrom" as never)}
-            </UI.Text>
-            <UI.Stack gap="tight" role="list" data-testid="branches-read-only">
-              {branchesOf(active.config).map((branch) => (
-                <div key={branch} role="listitem">
-                  <UI.DataText>{branch}</UI.DataText>
-                </div>
-              ))}
-            </UI.Stack>
-          </UI.Stack>
-          {folderText === "" ? null : (
-            <UI.Stack gap="compact">
-              <UI.Text variant="strong">
-                {translate("projects.repository.settings.folderRow" as never)}
-              </UI.Text>
-              <UI.DataText>{folderText}</UI.DataText>
-            </UI.Stack>
-          )}
-          {earlier.length === 0 ? null : (
-            <>
-              <UI.Heading level="subsection">
-                {translate("projects.repository.versions.title" as never)}
-              </UI.Heading>
-              <UI.Stack gap="compact">
-                {earlier.map((profile) => (
-                  <UI.StackedRow
-                    flush
-                    key={profile.id}
-                    data-testid={`profile-version-${profile.revision}`}
-                    title={translate(
-                      "projects.repository.earlier.row" as never,
-                      {
-                        version: profile.revision,
-                        date: date(profile.createdAt),
-                      },
-                    )}
-                    status={profile.id === active.id
-                      ? (
-                        <UI.Badge tone="success">
-                          {translate(
-                            "projects.repository.earlier.inUse" as never,
-                          )}
-                        </UI.Badge>
-                      )
-                      : undefined}
-                  />
-                ))}
-              </UI.Stack>
-            </>
-          )}
-        </UI.Stack>
-      </UI.Sheet>
-    );
-  }
-
   return (
     <>
       <UI.Sheet
@@ -198,98 +191,169 @@ export function WorkingSettingsSheet(
               role="alert"
               tone={settings.failure.kind === "conflict" ? "warning" : "error"}
             >
-              {translate(
-                `projects.repository.failure.${settings.failure.kind}` as never,
-                { version: settings.failure.version ?? 0 },
+              {failureText(
+                settings.failure.kind,
+                settings.failure.version ?? 0,
               )}
             </UI.InlineNotice>
           )}
-          <UI.Field
-            label={translate("projects.repository.settings.branches" as never)}
-            htmlFor={`${id}-branches`}
-            variant="textarea"
-            required
-            hint={translate(
-              "projects.repository.settings.branchesHelp" as never,
+          {branchesFixed
+            ? (
+              <>
+                <UI.InlineNotice
+                  tone="information"
+                  data-testid="branches-fixed"
+                >
+                  {fixedBranchesNotice}
+                </UI.InlineNotice>
+                <UI.Stack gap="compact">
+                  <UI.Text variant="strong">
+                    {translate(
+                      "projects.repository.settings.worksFrom" as never,
+                    )}
+                  </UI.Text>
+                  <UI.Stack gap="tight" role="list" data-testid="branches-text">
+                    {branchesOf(active?.config).map((branch) => (
+                      <div key={branch} role="listitem">
+                        <UI.DataText>{branch}</UI.DataText>
+                      </div>
+                    ))}
+                  </UI.Stack>
+                </UI.Stack>
+              </>
+            )
+            : (
+              <UI.Field
+                label={translate(
+                  "projects.repository.settings.branches" as never,
+                )}
+                htmlFor={`${id}-branches`}
+                variant="textarea"
+                required
+                hint={translate(
+                  "projects.repository.settings.branchesHelp" as never,
+                )}
+                error={branchError}
+              >
+                <textarea
+                  id={`${id}-branches`}
+                  name="branches"
+                  rows={4}
+                  cols={40}
+                  spellCheck={false}
+                  autoComplete="off"
+                  aria-invalid={branchError === undefined ? undefined : true}
+                  disabled={disabled}
+                  value={branchText}
+                  onChange={(event) => setBranchText(event.target.value)}
+                />
+              </UI.Field>
             )}
-            error={branchError}
-          >
-            <textarea
-              id={`${id}-branches`}
-              name="branches"
-              rows={4}
-              cols={40}
-              spellCheck={false}
-              autoComplete="off"
-              aria-invalid={branchError === undefined ? undefined : true}
-              disabled={disabled}
-              value={branchText}
-              onChange={(event) => setBranchText(event.target.value)}
-            />
-          </UI.Field>
-          <UI.Button
-            variant="text"
-            aria-expanded={advanced}
-            aria-controls={`${id}-advanced`}
-            onClick={() => setAdvanced(!advanced)}
-          >
-            {translate("projects.repository.settings.advanced" as never)}
-          </UI.Button>
-          <div id={`${id}-advanced`} hidden={!advanced}>
-            <UI.Field
-              label={translate("projects.repository.settings.folder" as never)}
-              htmlFor={`${id}-folder`}
-              hint={translate(
-                "projects.repository.settings.folderHelp" as never,
-              )}
-              error={folderError}
-            >
-              <UI.TextInput
-                type="text"
-                id={`${id}-folder`}
-                name="folder"
-                invalid={folderError !== undefined}
-                autoComplete="off"
-                disabled={disabled}
-                value={folder}
-                onChange={setFolder}
-              />
-            </UI.Field>
-          </div>
-          <UI.Text variant="muted">
-            {active === null
-              ? translate("projects.repository.settings.savesFirst" as never, {
-                next,
-              })
-              : translate("projects.repository.settings.saves" as never, {
-                next,
-                current: active.revision,
-              })}
-          </UI.Text>
-          <UI.Inline gap="compact">
-            <UI.Button
-              variant="primary"
-              disabled={disabled}
-              loading={settings.pending}
-              onClick={() => void submit()}
-            >
-              {settings.pending
-                ? translate("projects.repository.settings.saving" as never)
-                : translate("projects.repository.settings.save" as never)}
-            </UI.Button>
-            <UI.Button
-              variant="secondary"
-              disabled={settings.pending}
-              onClick={onClose}
-            >
-              {translate("projects.repository.settings.cancel" as never)}
-            </UI.Button>
-          </UI.Inline>
+          {rulesBind || branchesFixed
+            ? (
+              <UI.Stack gap="compact" data-testid="folder-text">
+                <UI.Text variant="strong">
+                  {translate("projects.repository.settings.folder" as never)}
+                </UI.Text>
+                {folderValue}
+                {rulesBind
+                  ? (
+                    <>
+                      <UI.Text variant="muted">
+                        {withLink(
+                          translate(
+                            "projects.repository.settings.folderSetByRules" as never,
+                            { rulesLink: LINK_SLOT },
+                          ),
+                          rulesLink,
+                        )}
+                      </UI.Text>
+                    </>
+                  )
+                  : null}
+              </UI.Stack>
+            )
+            : (
+              <>
+                <UI.Button
+                  variant="text"
+                  aria-expanded={advanced}
+                  aria-controls={`${id}-advanced`}
+                  onClick={() => setAdvanced(!advanced)}
+                >
+                  {translate("projects.repository.settings.advanced" as never)}
+                </UI.Button>
+                <div id={`${id}-advanced`} hidden={!advanced}>
+                  <UI.Field
+                    label={translate(
+                      "projects.repository.settings.folder" as never,
+                    )}
+                    htmlFor={`${id}-folder`}
+                    hint={translate(
+                      "projects.repository.settings.folderHelp" as never,
+                    )}
+                    error={folderError}
+                  >
+                    <UI.TextInput
+                      type="text"
+                      id={`${id}-folder`}
+                      name="folder"
+                      invalid={folderError !== undefined}
+                      autoComplete="off"
+                      disabled={disabled}
+                      value={folder}
+                      onChange={setFolder}
+                    />
+                  </UI.Field>
+                </div>
+              </>
+            )}
+          {branchesFixed ? null : (
+            <>
+              <UI.Text variant="muted">
+                {active === null
+                  ? translate(
+                    "projects.repository.settings.savesFirst" as never,
+                    {
+                      next,
+                    },
+                  )
+                  : translate(
+                    (isCheckMade(active.config)
+                      ? "projects.repository.settings.savesAfterCheck"
+                      : "projects.repository.settings.saves") as never,
+                    { next, current: active.revision },
+                  )}
+              </UI.Text>
+              <UI.Inline gap="compact">
+                <UI.Button
+                  variant="primary"
+                  disabled={disabled}
+                  loading={settings.pending}
+                  onClick={() => void submit()}
+                >
+                  {settings.pending
+                    ? translate("projects.repository.settings.saving" as never)
+                    : translate("projects.repository.settings.save" as never)}
+                </UI.Button>
+                <UI.Button
+                  variant="secondary"
+                  disabled={settings.pending}
+                  onClick={onClose}
+                >
+                  {translate("projects.repository.settings.cancel" as never)}
+                </UI.Button>
+              </UI.Inline>
+            </>
+          )}
           {earlier.length === 0 ? null : (
             <>
               <UI.Heading level="subsection">
                 {translate("projects.repository.versions.title" as never)}
               </UI.Heading>
+              <UI.Text variant="muted">
+                {translate("projects.repository.versions.note" as never)}
+              </UI.Text>
               <UI.Stack gap="compact">
                 {earlier.map((profile) => (
                   <UI.StackedRow
@@ -350,7 +414,7 @@ export function WorkingSettingsSheet(
           }
           confirmAction={
             <UI.Button
-              variant="primary"
+              variant={stopKey === null ? "primary" : "destructive"}
               disabled={disabled}
               loading={settings.pending}
               onClick={() =>
@@ -374,7 +438,23 @@ export function WorkingSettingsSheet(
                   version: confirming.revision,
                   current: active.revision,
                 })}
+              {
+                /* Leaving a check-made version for a person's drops the check's
+                   evidence until the check runs again. */
+              }
+              {isCheckMade(active?.config) && !isCheckMade(confirming.config)
+                ? ` ${translate("projects.repository.use.afterCheck" as never)}`
+                : ""}
             </UI.Text>
+            {stopKey === null
+              ? null
+              : (
+                <UI.Text variant="strong" data-testid="use-rules-stop">
+                  {translate(stopKey as never, {
+                    version: confirming.revision,
+                  })}
+                </UI.Text>
+              )}
             {settings.failure === null ? null : (
               <UI.InlineNotice
                 role="alert"
@@ -382,9 +462,9 @@ export function WorkingSettingsSheet(
                   ? "warning"
                   : "error"}
               >
-                {translate(
-                  `projects.repository.failure.${settings.failure.kind}` as never,
-                  { version: settings.failure.version ?? 0 },
+                {failureText(
+                  settings.failure.kind,
+                  settings.failure.version ?? 0,
                 )}
               </UI.InlineNotice>
             )}

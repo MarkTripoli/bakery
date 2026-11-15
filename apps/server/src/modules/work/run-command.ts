@@ -18,7 +18,6 @@ import {
 import { WORKFLOW_ACTION_METADATA } from "@bakery/contracts/workflow-action-registry";
 import {
   type PinnedRepositoryRules,
-  repositoryRuleStageRequirements,
   STEP_OUTPUT_ALLOWANCE_BYTES,
 } from "@bakery/contracts/repository-rules";
 import { workflowPresetById } from "@bakery/contracts/workflow-presets";
@@ -27,10 +26,13 @@ import {
   workflowActionBinding,
 } from "@bakery/persistence";
 import type { ReviewLoopLimits } from "@bakery/persistence/repository-admission";
+import { planReviewLoopLimits } from "../delivery/plan-review-loop.ts";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { nextOrganizationSequence } from "../../platform/event-clock.ts";
 import { canonicalJson, sha256Hex } from "../../platform/canonical-json.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
+import { requestRunStart } from "./run-start.ts";
+import { resolveDependencyReadiness } from "./dependency-readiness.ts";
 import {
   appendTaskProjectionEvent,
   loadTaskScope,
@@ -65,7 +67,10 @@ import {
 import { admitStagePolicy } from "./stage-admission.ts";
 import { ticketRequestBlocksRun } from "./ticket-run-guard.ts";
 import { pinEffectiveRepositoryRules } from "../repository-rules/pinned.ts";
-import { assertStepsSatisfyRules } from "../workflows/rule-guard.ts";
+import {
+  assertPlanSatisfiesRules,
+  assertStepsSatisfyRules,
+} from "../workflows/rule-guard.ts";
 import { writePlanRun } from "../workflow-adapter/plan-admission.ts";
 import {
   type PlanAdmission,
@@ -298,17 +303,7 @@ type RunSnapshot = {
   planActionAgents?: unknown;
 };
 
-export function resolveDependencyReadiness(
-  dependencies: readonly RunDependencySnapshot[],
-): { status: RunStatus; reason: string | null } {
-  const ready = dependencies.every((dependency) =>
-    dependency.status === "completed"
-  );
-  return {
-    status: ready ? "queued" : "blocked",
-    reason: ready ? null : "dependency_incomplete",
-  };
-}
+export { resolveDependencyReadiness };
 
 function buildRunSnapshot(options: {
   executionMode: RunSnapshot["executionMode"];
@@ -509,53 +504,45 @@ async function appendRunFacts(
       JSON.stringify({ status: options.status, reason: options.reason }),
     ],
   );
-  const sequence = await nextOrganizationSequence(
-    transaction,
-    options.organizationId,
-  );
-  const eventType = options.status === "queued"
-    ? "run.requested"
-    : "run.blocked";
-  const event = await transaction.query<{ id: string }>(
-    `insert into bakery.domain_events (
-       organization_id, organization_sequence, event_type, schema_version,
-       application_id, repository_id, task_id, conversation_id, aggregate_id,
-       aggregate_version, payload, trace_id
-     ) values ($1, $2, $3, 1, $4, $5, $6, $7, $8, $9, $10::jsonb, $11)
-     returning id`,
-    [
+  if (options.status === "queued") {
+    await requestRunStart(transaction, {
+      organizationId: options.organizationId,
+      applicationId: options.task.application_id,
+      repositoryId: options.task.repository_id,
+      taskId: options.task.id,
+      conversationId: options.task.conversation_id,
+      runId: options.run.id,
+      runVersion: options.run.version,
+      traceId: options.traceId,
+    });
+  } else {
+    const sequence = await nextOrganizationSequence(
+      transaction,
       options.organizationId,
-      sequence,
-      eventType,
-      options.task.application_id,
-      options.task.repository_id,
-      options.task.id,
-      options.task.conversation_id,
-      options.run.id,
-      options.run.version,
-      JSON.stringify(
-        options.status === "queued" ? { runId: options.run.id } : {
+    );
+    await transaction.query(
+      `insert into bakery.domain_events (
+         organization_id, organization_sequence, event_type, schema_version,
+         application_id, repository_id, task_id, conversation_id, aggregate_id,
+         aggregate_version, payload, trace_id
+       ) values ($1, $2, 'run.blocked', 1, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)`,
+      [
+        options.organizationId,
+        sequence,
+        options.task.application_id,
+        options.task.repository_id,
+        options.task.id,
+        options.task.conversation_id,
+        options.run.id,
+        options.run.version,
+        JSON.stringify({
           resourceId: options.run.id,
           resourceVersion: options.run.version,
           taskId: options.task.id,
           status: options.status,
           reason: options.reason,
-        },
-      ),
-      options.traceId,
-    ],
-  );
-  const eventId = event.rows[0]?.id;
-  if (!eventId) throw new Error("DOMAIN_EVENT_INSERT_FAILED");
-  if (options.status === "queued") {
-    await transaction.query(
-      `insert into bakery.outbox (
-         organization_id, event_id, destination, delivery_key, status
-       ) values ($1, $2, 'inngest', $3, 'pending')`,
-      [
-        options.organizationId,
-        eventId,
-        `run:${options.run.id}:version:${options.run.version}`,
+        }),
+        options.traceId,
       ],
     );
   }
@@ -1043,6 +1030,9 @@ export async function createRunCommand(
   let reviewLoop: ReviewLoopLimits | null = null;
   let stepAgents: FrozenStepAgents = {};
   if (planAdmission !== null) {
+    // A plan that reviews freezes its loop bounds like a flat run does, from
+    // the plan itself (its `repeat` bound); a plan without a review freezes none.
+    reviewLoop = planReviewLoopLimits(planAdmission.document);
     assertBudgetCoversReservations(
       planAdmission.sites.map((site) => ({
         key: site.qualifiedId,
@@ -1134,14 +1124,10 @@ export async function createRunCommand(
   if (pinnedRules !== null) {
     if (planAdmission === null) {
       assertStepsSatisfyRules(pinnedRules, steps);
-    } else if (repositoryRuleStageRequirements(pinnedRules).length > 0) {
-      // A plan's stages are not yet read against a `require` rule, and a
-      // definition the guard cannot read proves nothing: it is refused, as
-      // publication refuses it, never passed.
-      throw new StandardError({
-        code: "STATE_CONFLICT",
-        params: { reason: "workflow_plan_rules_unsupported" },
-      });
+    } else {
+      // A plan is read through its shape: a check counts only when it runs
+      // after the last revision on every path through the plan.
+      assertPlanSatisfiesRules(pinnedRules, planAdmission.document);
     }
   }
   // What a plan run freezes beside the sections every run has, read back the

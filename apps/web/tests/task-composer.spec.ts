@@ -359,9 +359,9 @@ test(
         }),
     );
     await page.goto("/tasks/new");
-    const error = "Tasks could not be loaded. Retry this page.";
+    const error = "Tasks could not be loaded. Try again.";
     await expect(page.getByText(error)).toBeVisible();
-    await expect(page.getByRole("button", { name: "Retry", exact: true }))
+    await expect(page.getByRole("button", { name: "Try again", exact: true }))
       .toBeVisible();
     if (testInfo.project.name === "mobile") {
       // The sheet is the page, so its error state must own the only h1.

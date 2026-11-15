@@ -251,7 +251,7 @@ export function TaskStartRun({ task }: { task: TaskResponse }) {
             disabled={blocked || phase === "submitting"}
             loading={phase === "submitting"}
             onClick={start}
-            variant="primary"
+            variant={blocked || phase === "submitting" ? "outline" : "primary"}
           >
             {phase === "submitting"
               ? t("tasks.startRun.starting")

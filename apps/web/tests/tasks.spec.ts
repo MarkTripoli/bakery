@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import {
   mockAuthenticatedSession,
@@ -273,7 +273,7 @@ test("task filters reset cursors, preserve focus, and navigate real routes", asy
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Start run", exact: true }))
     .toBeVisible();
-  await expect(page.getByText("No accessible artifacts.")).toBeVisible();
+  await expect(page.getByText("No artifacts to show.")).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
 });
 
@@ -769,7 +769,7 @@ test("cursor controls stay disabled after a cached-page refetch fails", async ({
 
   rejectRefetch = false;
   recovered = true;
-  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
   await expect(page.getByRole("link", { name: "Second page" })).toBeVisible();
   await expect(previous).toBeEnabled();
   await expect(next).toBeEnabled();
@@ -822,7 +822,7 @@ test("inbox distinguishes empty, forbidden, retryable error, and offline", async
   await expect(inbox).toHaveAttribute("data-state", "error");
   state = "empty";
   await dismissFilters(page);
-  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
   await expect(inbox).toHaveAttribute("data-state", "empty");
   // A search is typed, so "no tasks" means none match it.
   await expect(inbox).toContainText("No tasks match this filter.");
@@ -1215,10 +1215,13 @@ test("intercepted run view renders server current run and survives reload", asyn
   );
   await page.goto("/tasks");
   await page.getByRole("link", { name: task.title }).click();
-  await expect(page.getByText(runId)).toBeVisible();
+  // The run id is not on the page until Details is opened, and then it is short.
+  await page.getByText("Details", { exact: true }).first().click();
+  await expect(page.getByTestId("run-id-row")).toContainText(runId.slice(0, 8));
   await expect(page.getByText("publish", { exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByText(runId)).toBeVisible();
+  await page.getByText("Details", { exact: true }).first().click();
+  await expect(page.getByTestId("run-id-row")).toContainText(runId.slice(0, 8));
   await expect(page.getByText("publish", { exact: true })).toBeVisible();
 });
 
@@ -1378,7 +1381,7 @@ test("intercepted wrong-run response suppresses child reads and controls", async
   await page.getByRole("link", { name: task.title }).click();
   await expect(
     page.getByRole("heading", {
-      name: "Tasks could not be loaded. Retry this page.",
+      name: "Tasks could not be loaded. Try again.",
     }),
   ).toBeVisible();
   await expect(page.getByText(step.stepKey, { exact: true })).toHaveCount(0);
@@ -1474,11 +1477,11 @@ test("controls recover one uncertain intent and render completion over a replaye
   await page.getByRole("button", { name: "Retry same request", exact: true })
     .click();
   await expect(receipt).toContainText("Request admitted.");
-  await expect(receipt).toContainText("not confirmation of a worker effect");
+  await expect(receipt).toContainText("does not confirm what the machine did");
   await expect(observedReceipts).toHaveCount(2);
   await expect(observedReceipts.last()).toContainText("Request admitted.");
   await expect(observedReceipts.last()).toContainText(
-    "not confirmation of a worker effect",
+    "does not confirm what the machine did",
   );
   await expect(observedReceipts.last()).not.toHaveAttribute("data-state");
   await expect(page.getByRole("status", { name: "Run updates" })).toHaveText(
@@ -1724,8 +1727,10 @@ test("controls preserve uncertain receipt through a failed parent task refresh",
     page.getByRole("button", { name: "Retry same request", exact: true }),
   ).toBeDisabled();
   failedTask = false;
-  await page.getByRole("button", { name: "Retry", exact: true })
-    .click();
+  // The refresh of the task failed: the warning notice about it has the retry.
+  await page.locator('[data-ui-component="inlineNotice"]', {
+    hasText: "The task could not be loaded.",
+  }).getByRole("button", { name: "Try again", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Retry same request", exact: true }),
   ).toBeEnabled();
@@ -2008,6 +2013,19 @@ test("offline and reconnecting are announced in the timeline banner, never as ro
   await expect(timeline(page).getByRole("listitem")).toHaveCount(2);
 });
 
+/**
+ * The aside's facts sit under a closed Details control: open it and read the
+ * short fingerprint (the first 12 characters, with Copy) and, when given, the size.
+ */
+async function expectAsideFacts(pane: Locator, sha256: string, size?: string) {
+  // The control by its element, so a pseudo-locale label does not matter.
+  await pane.locator("summary").click();
+  const fingerprint = pane.getByTestId("artifact-fingerprint-row");
+  await expect(fingerprint).toContainText(sha256.slice(0, 12));
+  await expect(fingerprint).not.toContainText(sha256.slice(0, 13));
+  if (size !== undefined) await expect(pane).toContainText(size);
+}
+
 const artifactId = "00000000-0000-4000-8000-000000000030";
 const versionIds = [
   "00000000-0000-4000-8000-000000000031",
@@ -2121,10 +2139,9 @@ test(
     await expect(preview).toContainText("<script>alert(1)</script>");
     await expect(preview.locator("script")).toHaveCount(0);
     await expect(preview.locator("pre")).toHaveAttribute("dir", "ltr");
-    // The descriptor carries the immutable facts.
-    await expect(pane).toContainText(digest("b"));
+    // The facts sit under a closed Details control, in short form.
     await expect(pane).toContainText("text/markdown");
-    await expect(pane).toContainText("121 bytes");
+    await expectAsideFacts(pane, digest("b"), "121 bytes");
     const open = pane.getByRole("link", { name: "Open", exact: true });
     await expect(open).toHaveAttribute(
       "href",
@@ -2135,7 +2152,9 @@ test(
     expect(box!.width).toBeGreaterThanOrEqual(44);
     await versions.selectOption(versionIds[0]);
     await expect(preview).toContainText("# Brief v1");
-    await expect(pane).toContainText(digest("a"));
+    await expect(pane.getByTestId("artifact-fingerprint-row")).toContainText(
+      digest("a").slice(0, 12),
+    );
     expect(extracts).toContain(versionIds[0]);
     expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   },
@@ -2312,7 +2331,7 @@ test("the aside prefers this run's patch over another run-owned artifact type", 
   await expect(pane).toBeVisible();
   await expect(pane.getByRole("heading", { name: "Implement patch" }))
     .toBeVisible();
-  await expect(pane).toContainText(digest("c"));
+  await expectAsideFacts(pane, digest("c"));
   await expect(pane.getByRole("heading", { name: "Task brief" }))
     .toHaveCount(0);
 });
@@ -2352,8 +2371,7 @@ test("the aside shows a run-owned non-patch artifact when the run has no patch",
     exact: true,
   });
   await expect(pane.getByRole("heading", { name: "Task brief" })).toBeVisible();
-  await expect(pane.locator('[data-ui-component="artifactDescriptor"]'))
-    .toContainText(digest("a"));
+  await expectAsideFacts(pane, digest("a"));
 });
 
 test("an artifact published outside this run never becomes the aside card", async ({ page }) => {
@@ -2624,8 +2642,7 @@ for (const locale of ["en", "en-XA", "ar-XB"]) {
     await expect(page.locator('[data-ui-component="runTimeline"]'))
       .toBeVisible();
     const pane = page.locator('[data-ui-component="artifactPane"]');
-    await expect(pane.locator('[data-ui-component="artifactDescriptor"]'))
-      .toContainText(digest("b"));
+    await expectAsideFacts(pane, digest("b"));
     await expect(pane.locator("pre")).toHaveAttribute("dir", "ltr");
     await expect(pane.locator("pre")).toHaveCSS("direction", "ltr");
     expect(

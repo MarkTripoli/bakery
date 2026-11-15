@@ -21,13 +21,37 @@ const TONES: Record<LaneStatus, UI.StatusDotTone> = {
   canceled: "neutral",
 };
 
+/**
+ * The link to a lane's child task: the task's title, "Open {title}" to
+ * assistive technology; "Open task" while the title is not loaded. No id.
+ */
+function ChildTaskLink(
+  { childTaskId, title }: Readonly<{
+    childTaskId: string;
+    title: string | undefined;
+  }>,
+) {
+  const { translate: t } = useI18n();
+  return (
+    <RouterLink
+      to="/tasks/$taskId"
+      params={{ taskId: childTaskId }}
+      aria-label={title
+        ? t("tasks.coordination.lane.openTitled", { title })
+        : t("tasks.coordination.lane.openTask")}
+    >
+      {title ?? t("tasks.coordination.lane.openTask")}
+    </RouterLink>
+  );
+}
+
 export type LaneColumnsOptions = Readonly<{
   /** Lane titles by key, to name prerequisites. */
   titles: ReadonlyMap<string, string>;
   /** Artifacts of a lane's child task; undefined while unread. */
   artifacts: (lane: PlanLane) => readonly CommitCandidate[] | undefined;
-  /** Child task reference shown as the link text. */
-  reference: (childTaskId: string) => string;
+  /** The child task's title, the link text; undefined while it is not loaded. */
+  childTitle: (childTaskId: string) => string | undefined;
   /** Whether the upstream output an input names is committed yet. */
   handoff: (input: PlanLane["inputs"][number]) => HandoffState;
 }>;
@@ -86,7 +110,7 @@ function Handoffs(
  * Status comes from the server projection; nothing is derived here.
  */
 export function useLaneColumns(
-  { titles, artifacts, reference, handoff }: LaneColumnsOptions,
+  { titles, artifacts, childTitle, handoff }: LaneColumnsOptions,
 ): UI.DataTableColumn<PlanLane>[] {
   const { translate: t } = useI18n();
   const name = (key: string) => titles.get(key) ?? key;
@@ -188,15 +212,10 @@ export function useLaneColumns(
       cell: (lane) =>
         lane.childTaskId
           ? (
-            <RouterLink
-              to="/tasks/$taskId"
-              params={{ taskId: lane.childTaskId }}
-              aria-label={`${t("tasks.coordination.lane.openTask")} ${
-                reference(lane.childTaskId)
-              }`}
-            >
-              <UI.DataText>{reference(lane.childTaskId)}</UI.DataText>
-            </RouterLink>
+            <ChildTaskLink
+              childTaskId={lane.childTaskId}
+              title={childTitle(lane.childTaskId)}
+            />
           )
           : (
             <UI.Text variant="hint">
@@ -209,7 +228,7 @@ export function useLaneColumns(
 
 /** Phone form of the lane table: one stacked row per lane (frame 2JQJ-0). */
 export function LaneCards(
-  { lanes, titles, artifacts, reference, handoff }: LaneColumnsOptions & {
+  { lanes, titles, artifacts, childTitle, handoff }: LaneColumnsOptions & {
     lanes: readonly PlanLane[];
   },
 ) {
@@ -288,15 +307,10 @@ export function LaneCards(
               )}
               <Handoffs lane={lane} name={name} handoff={handoff} />
               {lane.childTaskId && (
-                <RouterLink
-                  to="/tasks/$taskId"
-                  params={{ taskId: lane.childTaskId }}
-                  aria-label={`${t("tasks.coordination.lane.openTask")} ${
-                    reference(lane.childTaskId)
-                  }`}
-                >
-                  <UI.DataText>{reference(lane.childTaskId)}</UI.DataText>
-                </RouterLink>
+                <ChildTaskLink
+                  childTaskId={lane.childTaskId}
+                  title={childTitle(lane.childTaskId)}
+                />
               )}
             </UI.StackedRow>
           </div>

@@ -115,9 +115,40 @@ export function exportFileName(slug: string, revision: number): string {
   return `${safe === "" ? "workflow" : safe}-v${revision}.yaml`;
 }
 
-/** The sentences for the actions a definition's steps run most. */
+/**
+ * The names of the actions a step can run: the workflow editor spec's, so the
+ * Library and the editor say the same thing (design-ux, #432). An action with
+ * no name here keeps showing its own identifier.
+ */
 export const ACTION_TITLES: Readonly<Record<string, string>> = {
   "task.brief": "library.workflow.action.taskBrief",
+  "rpi.research": "library.workflow.action.rpiResearch",
+  "rpi.design": "library.workflow.action.rpiDesign",
+  "rpi.plan": "library.workflow.action.rpiPlan",
   "harness.implement": "library.workflow.action.harnessImplement",
+  "harness.repair": "library.workflow.action.harnessRepair",
   "agent.review": "library.workflow.action.agentReview",
+  "review.independent": "library.workflow.action.reviewIndependent",
+  "agent.freeform": "library.workflow.action.agentFreeform",
+  "quality.check": "library.workflow.action.qualityCheck",
+  "delivery.merge": "library.workflow.action.deliveryMerge",
+  "delivery.prepare": "library.workflow.action.deliveryPrepare",
+  "delivery.deploy": "library.workflow.action.deliveryDeploy",
+  "delivery.health": "library.workflow.action.deliveryHealth",
+  "artifact.publish": "library.workflow.action.artifactPublish",
+};
+
+/** The spec's sentence under a step's name; the actions it has none for show only their name. */
+export const ACTION_LINES: Readonly<Record<string, string>> = {
+  "task.brief": "library.workflow.actionLine.taskBrief",
+  "rpi.research": "library.workflow.actionLine.rpiResearch",
+  "rpi.design": "library.workflow.actionLine.rpiDesign",
+  "rpi.plan": "library.workflow.actionLine.rpiPlan",
+  "harness.implement": "library.workflow.actionLine.harnessImplement",
+  "harness.repair": "library.workflow.actionLine.harnessRepair",
+  "agent.review": "library.workflow.actionLine.agentReview",
+  "review.independent": "library.workflow.actionLine.reviewIndependent",
+  "agent.freeform": "library.workflow.actionLine.agentFreeform",
+  "quality.check": "library.workflow.actionLine.qualityCheck",
+  "delivery.merge": "library.workflow.actionLine.deliveryMerge",
 };

@@ -83,7 +83,7 @@ export const CoordinationPlanSpecSchema = z.object({
     "Failure policy: a failed lane stops its dependants while independent lanes may finish.",
   ),
 }).strict().describe(
-  "Immutable ad hoc multi-repository coordination plan: lanes, prerequisites, typed handoffs, concurrency, join and failure policy.",
+  "Immutable ad hoc multi-repository split (stored as a coordination plan): lanes, prerequisites, typed handoffs, concurrency, join and failure policy.",
 );
 
 export type CoordinationPlanSpec = z.output<typeof CoordinationPlanSpecSchema>;
@@ -137,7 +137,7 @@ export const CoordinationPlanOriginSchema = z.discriminatedUnion("kind", [
     "Origin of a plan a ticket asked for; provider, reference and link are claims by the caller and are not verified.",
   ),
 ]).describe(
-  "Where a coordination plan came from: ad hoc conversation, saved workflow node or ticket. Origin labels the plan and never changes its semantics, digest or lane identities.",
+  "Where a split came from: ad hoc conversation, saved workflow node or ticket. Origin labels the split and never changes its semantics, digest or lane identities.",
 );
 
 export type CoordinationPlanOrigin = z.output<

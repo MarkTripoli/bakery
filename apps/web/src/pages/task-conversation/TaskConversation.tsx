@@ -24,6 +24,7 @@ import {
   planRevisionsQueryOptions,
   questionsQueryOptions,
   repositoryQueryOptions,
+  runQueryOptions,
 } from "../../api/query.ts";
 import { useLiveEvents } from "../../api/use-live-events.ts";
 import { useConnectivity } from "../../app/connectivity.ts";
@@ -394,9 +395,24 @@ export function TaskConversation(
     ...openQuestions.filter((question) => question.status === "open"),
     ...openQuestions.filter((question) => question.status !== "open").slice(-2),
   ];
-  const runActive = task.currentRunId !== null &&
-    task.status !== "completed" && task.status !== "failed" &&
-    task.status !== "canceled";
+  // The notice and the status badge follow the RUN: a run that has ended
+  // (failed, finished, canceled) leaves no notice; a blocked run says so. While
+  // the run has not been read yet, the task's own status stands in.
+  const run = useQuery({
+    ...runQueryOptions(api, scope, task.currentRunId ?? ""),
+    enabled: enabled && task.currentRunId !== null,
+  });
+  const runStatus = run.data !== undefined && run.data.taskId === task.id
+    ? run.data.status
+    : undefined;
+  const runEnded = runStatus === "completed" || runStatus === "failed" ||
+    runStatus === "canceled";
+  const runBlocked = runStatus === "blocked";
+  const runActive = task.currentRunId !== null && !runBlocked &&
+    (runStatus === undefined
+      ? task.status !== "completed" && task.status !== "failed" &&
+        task.status !== "canceled"
+      : !runEnded);
   const people = participantsOf(
     transcript.map((message) =>
       message.messageType === "user" ? message.authorId : null
@@ -406,11 +422,11 @@ export function TaskConversation(
     (id) =>
       id === principalId
         ? t("tasks.conversation.author.you")
-        : t("tasks.conversation.author.member", { id: id.slice(0, 8) }),
+        : t("tasks.conversation.author.member"),
   );
   const nameOf = (id: string | null): string | null =>
     id === null ? null : people.find((person) => person.id === id)?.name ??
-      t("tasks.conversation.author.member", { id: id.slice(0, 8) });
+      t("tasks.conversation.author.member");
   const author = (message: (typeof transcript)[number]) =>
     message.messageType === "user"
       ? message.authorId === principalId
@@ -483,7 +499,11 @@ export function TaskConversation(
     t("tasks.conversation.subtitle.preset"),
   ].filter((part) => part !== undefined).join(" · ");
   const reference = references?.[task.id] ?? task.id.slice(0, 8);
-  const statusTone = stage === "discuss" ? "neutral" : "information";
+  const statusTone = runBlocked
+    ? "warning"
+    : stage === "discuss"
+    ? "neutral"
+    : "information";
   const coordinationLink = (coordination.data?.items.length ?? 0) > 0;
   const planCard = (
     <UI.PlanSummaryCard
@@ -521,15 +541,17 @@ export function TaskConversation(
           <UI.InlineNotice tone="warning">
             <UI.Stack gap="compact">
               <UI.Text>{t("tasks.conversation.sections.error")}</UI.Text>
-              <UI.Button
-                variant="outline"
-                onClick={() =>
-                  void Promise.all(
-                    sectionReads.map((read) => read.refetch()),
-                  )}
-              >
-                {t("tasks.conversation.retry")}
-              </UI.Button>
+              <UI.Inline gap="compact">
+                <UI.Button
+                  variant="outline"
+                  onClick={() =>
+                    void Promise.all(
+                      sectionReads.map((read) => read.refetch()),
+                    )}
+                >
+                  {t("tasks.conversation.retry")}
+                </UI.Button>
+              </UI.Inline>
             </UI.Stack>
           </UI.InlineNotice>
         </UI.PaneSection>
@@ -591,7 +613,9 @@ export function TaskConversation(
         <ShellSlot name="actions">
           <UI.Inline gap="standard">
             <UI.StatusDot tone={statusTone}>
-              {t(`tasks.conversation.status.${stage}`)}
+              {runBlocked
+                ? t("tasks.conversation.status.blocked")
+                : t(`tasks.conversation.status.${stage}`)}
             </UI.StatusDot>
             {coordinationLink && (
               <RouterLink
@@ -638,15 +662,25 @@ export function TaskConversation(
           data-ui-region="plan-sheet"
         >
           <UI.PaneSection ruled>
-            <UI.Switch
-              aria-describedby="stage-planning-only-hint"
-              checked={planningPending ?? task.planningOnly ?? false}
-              disabled={planningPending !== null || !online}
-              onChange={(event) =>
-                void setPlanningOnly(event.currentTarget.checked)}
-            >
-              {t("tasks.conversation.stage.planningOnly")}
-            </UI.Switch>
+            {
+              /* The switch says what it does here too (design-ux, #57 item 14):
+                the stage strip's hint is shown on the wider layouts, so this
+                sheet carries the same line under its switch. */
+            }
+            <UI.Stack gap="tight">
+              <UI.Switch
+                aria-describedby="stage-planning-only-hint-phone"
+                checked={planningPending ?? task.planningOnly ?? false}
+                disabled={planningPending !== null || !online}
+                onChange={(event) =>
+                  void setPlanningOnly(event.currentTarget.checked)}
+              >
+                {t("tasks.conversation.stage.planningOnly")}
+              </UI.Switch>
+              <UI.Text id="stage-planning-only-hint-phone" variant="hint">
+                {t("tasks.conversation.stage.planningOnlyHint")}
+              </UI.Text>
+            </UI.Stack>
           </UI.PaneSection>
           {paneContent}
           {coordinationLink && (
@@ -740,6 +774,7 @@ export function TaskConversation(
               phase={sendPhase}
               offline={!online}
               runActive={runActive}
+              runBlocked={runBlocked}
               resultsHint={task.status === "completed" &&
                 task.currentRunId !== null}
               onBody={(body) => {
@@ -801,14 +836,19 @@ export function TaskConversation(
           )
           : hardError
           ? (
-            <UI.ErrorState
-              title={t("tasks.conversation.error")}
-              action={
-                <UI.Button onClick={() => void messages.refetch()}>
-                  {t("tasks.conversation.retry")}
-                </UI.Button>
-              }
-            />
+            <UI.InlineNotice tone="warning">
+              <UI.Stack gap="compact">
+                <UI.Text>{t("tasks.conversation.error")}</UI.Text>
+                <UI.Inline gap="compact">
+                  <UI.Button
+                    variant="outline"
+                    onClick={() => void messages.refetch()}
+                  >
+                    {t("tasks.conversation.retry")}
+                  </UI.Button>
+                </UI.Inline>
+              </UI.Stack>
+            </UI.InlineNotice>
           )
           : transcript.length === 0 && !messages.hasNextPage
           ? (

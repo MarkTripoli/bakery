@@ -143,7 +143,7 @@
           </div>
           <div id="2JND-0" style={{ alignItems: 'center', borderBottomColor: 'var(--color-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', flexShrink: '0', gap: '16px', height: '36px', paddingInline: '12px' }}>
             <div id="2JNI-0" style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', flexShrink: '0', fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 500, lineHeight: '18px', width: '240px' }}>
-              Plan lanes
+              Lanes
             </div>
             <div id="2JNH-0" style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', flexShrink: '0', fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 500, lineHeight: '18px', width: '112px' }}>
               Status
@@ -152,7 +152,7 @@
               Prerequisites
             </div>
             <div id="2JNF-0" style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', flexShrink: '0', fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 500, lineHeight: '18px', width: '236px' }}>
-              Declared outputs
+              Produces
             </div>
             <div id="2JNE-0" style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', display: 'flex', flexShrink: '0', flexWrap: 'wrap', fontFamily: 'var(--font-sans)', fontSize: '12px', fontWeight: 500, justifyContent: 'end', lineHeight: '18px', textAlign: 'right', width: '120px' }}>
               Child task
@@ -164,7 +164,7 @@
                 northwind/payments
               </div>
               <div id="2JNB-0" style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)', fontSize: '12px', lineHeight: '18px' }}>
-                alias contract
+                Short name: contract
               </div>
             </div>
             <div id="2JN6-0" style={{ boxSizing: 'border-box', display: 'flex', flexShrink: '0', width: '112px' }}>
@@ -198,7 +198,7 @@
                 northwind/web
               </div>
               <div id="2JMX-0" style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)', fontSize: '12px', lineHeight: '18px' }}>
-                alias storefront
+                Short name: storefront
               </div>
             </div>
             <div id="2JMS-0" style={{ boxSizing: 'border-box', display: 'flex', flexShrink: '0', width: '112px' }}>
@@ -235,7 +235,7 @@
                 northwind/payments
               </div>
               <div id="2JMI-0" style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)', fontSize: '12px', lineHeight: '18px' }}>
-                alias ledger
+                Short name: ledger
               </div>
             </div>
             <div id="2JMD-0" style={{ boxSizing: 'border-box', display: 'flex', flexShrink: '0', width: '112px' }}>
@@ -267,7 +267,7 @@
                 northwind/jobs
               </div>
               <div id="2JM5-0" style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)', fontSize: '12px', lineHeight: '18px' }}>
-                alias backfill
+                Short name: backfill
               </div>
             </div>
             <div id="2JM0-0" style={{ boxSizing: 'border-box', display: 'flex', flexShrink: '0', width: '112px' }}>
@@ -304,7 +304,7 @@
                 northwind/e2e
               </div>
               <div id="2JLQ-0" style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-mono)', fontSize: '12px', lineHeight: '18px' }}>
-                alias e2e
+                Short name: e2e
               </div>
             </div>
             <div id="2JLL-0" style={{ boxSizing: 'border-box', display: 'flex', flexShrink: '0', width: '112px' }}>

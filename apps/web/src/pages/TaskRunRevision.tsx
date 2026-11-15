@@ -99,6 +99,7 @@ function UnknownRevision({ baseSha }: { readonly baseSha: string | null }) {
       summary={null}
       disclaimer={t("tasks.run.revision.disclaimer")}
       unknownLabel={t("tasks.run.unknown")}
+      noneRecorded={t("tasks.run.revision.noneRecorded")}
     />
   );
 }
@@ -226,6 +227,7 @@ function PatchContent(
         : null}
       disclaimer={t("tasks.run.revision.disclaimer")}
       unknownLabel={t("tasks.run.unknown")}
+      noneRecorded={t("tasks.run.revision.noneRecorded")}
       action={
         <UI.Button
           variant="outline"

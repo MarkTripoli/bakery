@@ -129,6 +129,15 @@ export const INNGEST_EVENT_DEFINITIONS = {
       runId: payloadUuid("UUID of the requested pinned skill import run."),
     }).strict().describe("Version 1 pinned skill import request payload."),
   },
+  "task.dependency_release_requested": {
+    schemaVersion: 1,
+    name: "bakery/task.dependency_release_requested.v1",
+    payload: z.object({
+      taskId: payloadUuid(
+        "UUID of the prerequisite task whose blocked dependant runs are released.",
+      ),
+    }).strict().describe("Version 1 dependency release request payload."),
+  },
   "tasks.created": {
     schemaVersion: 1,
     name: "bakery/tasks.created.v1",

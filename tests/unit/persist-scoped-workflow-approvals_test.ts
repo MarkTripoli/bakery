@@ -36,12 +36,15 @@ Deno.test("a missing stored policy reads as the automatic legacy policy", () => 
   assertThrows(() => parseApprovalPolicy({ plan: "automatic", extra: true }));
 });
 
-Deno.test("the fixed coding preset is revision 2 and its digest covers instructions", async () => {
-  assertEquals(FIXED_CODING_PRESET.revision, 2);
-  const implement = FIXED_CODING_PRESET.spec.steps.find((step) =>
-    step.id === "implement"
+Deno.test("the fixed coding preset is revision 3 and its digest covers instructions", async () => {
+  assertEquals(FIXED_CODING_PRESET.revision, 3);
+  const flow = FIXED_CODING_PRESET.spec.steps.find((step) =>
+    step.id === "flow"
+  ) as { steps: { id: string; with: Record<string, string> }[] };
+  assertEquals(
+    flow.steps.find((step) => step.id === "implement")?.with.instructions,
+    "$input.instructions",
   );
-  assertEquals(implement?.with.instructions, "$input.instructions");
   assertEquals(
     await sha256Hex(canonicalJson(FIXED_CODING_PRESET.spec)),
     FIXED_CODING_PRESET.digest,
