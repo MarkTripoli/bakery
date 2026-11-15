@@ -1,12 +1,12 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "0e07f360d50e7394b1abbce6ae900d25db1d6678"
+    "905873f8e56ae9751c55996d65775a5af7eea452"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:dbd1ce71569c2a7852a95b877d6ce540c6daebb686d9cd3bd66c48df3648ecca",
-  "reason": "#57 contract re-bind by dev-server on 2026-11-15 under owner's standing breaking-change authorization (2026-10-09), main 0e07f360d50e7394b1abbce6ae900d25db1d6678: PullRequest gains runId; pullRequests.list takes PullRequestQuery (repositoryId, taskId, runId); CheckRun and ReviewCycle pullRequestId is joined from pull_requests; ExternalTicket gains optional linkedTaskIds and linkedTaskCount; Run gains optional blockedReason and blockingTasks.",
+  "targetCompatibilityDigest": "sha256:147cc2fdc53f7ca3fd702a2a3ae9ad47186c6df3295bcd29e6e6f3fe5aaf98df",
+  "reason": "#57 contract re-bind by dev-server on 2026-11-15 under owner's standing breaking-change authorization (2026-10-09), main 905873f8e56ae9751c55996d65775a5af7eea452: PullRequest gains runId; pullRequests.list takes PullRequestQuery (repositoryId, taskId, runId); CheckRun and ReviewCycle pullRequestId is joined from pull_requests; ExternalTicket gains optional linkedTaskIds and linkedTaskCount; Run gains optional blockedReason and blockingTasks.",
   "priorApprovals": [
     {
       "allowBreaking": true,
