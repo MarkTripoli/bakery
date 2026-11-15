@@ -128,7 +128,7 @@ result, effect, run end) plus compile time.
 | 5 | Session | One sitting of an agent. Every session has a live feed and accepts recorded steering (section 9) |
 | 6 | Action | The contract of a step type: schemas, capabilities, effect policy, cancellation, retries, timeout, cost ceiling |
 | 7 | Agent and skill | Immutable agent versions and digest-pinned skill versions. A seat is a standing role declared in a definition |
-| 8 | Artifact | The only handoff channel: named documents with immutable versions. A kind says what a document must contain and which facts the engine may read |
+| 8 | Artifact | The only handoff channel: named documents with immutable versions. A kind says what a document must contain and which facts the engine may read. People and tools browse artifacts as files in one tree (section 17) |
 | 9 | Event and start | Events record what happened; a start matches an event to a definition and creates a run through normal admission |
 | 10 | Envelope | Grants, budgets, the effect ledger, rules (repository rules come from the software-delivery pack), human decisions and audit |
 | 11 | Interpreter | Decides what happens next inside a run |
@@ -515,7 +515,7 @@ A workspace is where a step reads or changes files. It is optional.
 | Kind | What it is | Revision |
 | --- | --- | --- |
 | `repository` (software-delivery pack) | A git checkout | A commit |
-| `files` (kernel) | A plain tree of files, such as a video project folder or a dataset | The digest of a manifest of paths, artifact versions and hashes |
+| `files` (kernel) | A plain tree of files, such as a video project folder or a dataset; a folder in the storage tree (section 17) | The digest of a manifest of paths, artifact versions and hashes (a folder snapshot) |
 | none | Tool calls and documents only | n/a |
 
 A workspace kind implements four verbs: prepare a mount at a revision, capture a
@@ -612,7 +612,7 @@ by name, recorded and keyed where it writes, and the person can watch and steer.
 | H | Local stdio servers; third-party local servers under the T1 sandbox |
 | I | The non-code proof: a text-only content factory first, then the video factory (O33) |
 
-Families stay `tickets`, `code`, `chat` and `deploy`; `storage` and `publish` are
+Families stay `tickets`, `code`, `chat` and `deploy`; `storage` (section 17.4) and `publish` are
 added when the first template needs them, and the long tail goes through MCP.
 
 ## 16. Decisions O23 to O33
@@ -641,3 +641,169 @@ Approved by the owner on 14 November 2026, as recommended.
   in the kernel.
 - **O33:** the first non-code proof is a text-only content factory, then the
   video factory.
+
+## 17. Storage as a navigable file tree (O28, O34 to O43)
+
+Bakery's storage looks and navigates like a file system, though it is not
+literally one: a virtual, hierarchical tree over the object store, with folders,
+paths and sensible default top-level areas. Users, agents, the API and CLI, and
+the UI navigate the same tree. Underneath, bytes stay immutable and
+content-addressed, runs pin versions and never paths, and every area has a
+policy for who writes, what is kept and what may be deleted. This is the owner's
+callout on O28, designed in section 11 of `one-system.md`.
+
+### 17.1 The model
+
+| Layer | What it is | Changes? |
+| --- | --- | --- |
+| Entry | A folder or file at a place in the tree: stable id, name, parent, a pointer to its current version, its history | Name, parent and pointer change; the id never does |
+| Version | One immutable state of a file: digest, size, media type, kind, facts, producer | Never |
+| Blob | The bytes, stored once per organization under their SHA-256 | Never |
+
+**A path is a name, not an identity (O34).** A path resolves to an entry, and the
+entry's pointer to a version. So:
+
+- Runs pin versions (`ArtifactRef` has no path). A path in a workflow or start is
+  stored as the entry id with the path as a label, resolved at admission and
+  frozen (K1).
+- A rename or move changes one row; no pinned reference, history, comment or
+  "used by" list breaks.
+- A copy inside Bakery is a new entry pointing at the same blob.
+- A folder used as an input is pinned as a **snapshot**: an immutable manifest
+  of paths, versions and digests. A `files` workspace revision (section 15.2)
+  and a skill version are both snapshots.
+
+Every write makes a new version. Areas differ only by the **folder policy**
+their children inherit:
+
+| Policy | Record areas (artifacts, run outputs) | Working areas (assets, shared, personal, attachments) | Scratch |
+| --- | --- | --- | --- |
+| Who writes | Steps through declared outputs; people only into `attachments` | People and granted steps | Its owner |
+| Versions kept | All, under retention | Last 20 by default, plus any a run pinned | Latest only |
+| Rename and move | No: names are the workflow's document names | Yes | Yes |
+| Delete | No; an Admin purge leaves a tombstone | To trash, then removed | Expires |
+| Retention | Evidence or transient | Kept until deleted | 30 days |
+
+Folders are real entries, so empty folders exist and policies and grants have
+somewhere to attach.
+
+### 17.2 The default layout (O35)
+
+```text
+/projects/<project>/
+    artifacts/<work item>/          one folder per work item, made by Bakery
+        plan.md, script.md, cut.mp4 the item's named documents
+        attachments/                files people add to this item
+        runs/<run>/<step>/          unnamed step outputs, evidence, transcripts
+    workspaces/<name>/              file workspaces: live head and snapshots
+    assets/                         the project's reference files and templates
+/shared/                            organization-wide assets
+/library/                           read-only mirror of skills, workflows, agents, kinds, packages
+/users/<member>/                    personal: uploads/, scratch/, private files
+/connections/<connection>/          outside storage, read through
+/trash/                             deleted working files, kept 30 days
+/system/                            Admin only: outputs with no work item, quarantine
+```
+
+- Project first, so one folder carries the project's grant. "All artifacts",
+  "All workspaces" and "Runs" are views across projects, not top-level folders.
+- Artifacts are grouped by work item, then name, then run and step. Kind is a
+  filter, not a folder level.
+- An upload lands where it has context: a work item's `attachments`, the folder
+  being browsed, or the person's own `uploads`.
+- `/library` is a mirror (O37): authoring stays in the library, with one
+  lifecycle.
+- `/connections` holds files Bakery does not store.
+- Top-level folders, `/library`, and the artifacts area are created by Bakery;
+  people add folders only in `assets`, `attachments`, `/shared`, workspaces and
+  their personal folder. Names are unique per folder, compared
+  case-insensitively after normalization; `.` and `..` are refused.
+
+### 17.3 Permissions
+
+- One tree per organization. Every entry, version and blob key carries the
+  organization; deduplication never crosses organizations (O43), and no error,
+  count, listing or search result leaks another organization.
+- Folder grants (view, edit, manage) inherit downward; a restricted folder stops
+  inheritance.
+- `/projects/<project>` takes the project's grants. The artifacts area stays
+  task-scoped with no per-folder overrides (O36); folder grants apply to assets,
+  shared, workspaces and personal folders.
+- Personal folders are owner only. An Admin sees size and can transfer or delete
+  on offboarding, audited, without reading contents (O41).
+- `/library` follows the catalog's Global, Organization and My scopes. A private
+  skill attached to a shared workflow is usable by its runs but stays a
+  placeholder in the tree for everyone but its owner.
+- A session never browses with a person's authority. Its view is a mount of the
+  versions pinned at admission, where the run principal's read and write rights
+  are checked. Kind rules (writer-private kinds) still bind reviewer steps.
+- Secrets and credentials are never in the tree. No public links in the first
+  version; previews use the separate preview origin.
+
+### 17.4 Access paths over the same tree
+
+| Path | What it offers |
+| --- | --- |
+| File browser | Navigate, preview (video and audio by byte range), version history, "Produced by" (run, step, session), "Used by" (every pinned reference), kind, validator verdict and facts, comments on a version |
+| API and CLI | `ls`, `stat`, `cat`, `get`, `put`, `cp`, `mv`, `rm`, `history`, `pin`. A path reads the current version; `path@<version>` or a digest reads an immutable one. `put` uses `If-Match`, `cp` is by reference, `mv` changes only the entry, `rm` trashes in working areas and is refused in record areas |
+| Agent sessions | The context directory is a read-only mounted subtree of pinned versions and snapshots, with an index of kind, size, digest and headings. A workspace is a mounted snapshot of its folder. Outputs become new versions at the step's declared destinations. Large files are fetched lazily by range; nothing outside the mount is visible |
+| MCP inward | An optional built-in connection, "Bakery Files", through the tool gateway (section 15.4): list, stat, read by range, search, write to granted destinations. Off by default (O39); every file read is recorded on the step with its version and digest |
+| MCP outward | Bakery's own MCP server exposes the tree under its OAuth scopes |
+| Integrations | A `storage` family: list, stat, read by range, write, change events. Connections mount under `/connections`, read through. Using an outside file ingests it into a version; one-way sync is a workflow; writing out is a keyed effect; no two-way sync in the first version (O38) |
+
+### 17.5 Lifecycle
+
+- **Retention** follows folder policy. Record areas keep today's rules (30 days
+  transient, 180 days evidence, collected only when expired, terminal, unpinned
+  and unreferenced, leaving a tombstone).
+- **Deleting a pinned file** removes the entry from the tree; the pinned versions
+  stay for their runs, shown as "deleted from <path>; kept for this run".
+- **Purge** is an audited Admin action for leaked secrets or legal demands, and
+  the only early removal from a record area.
+- **Large files** use resumable uploads with a server-checked digest, and range
+  downloads. Transfers go through Bakery first; signed links only if measured
+  throughput needs them (O40). Small text stays inline in Postgres so kind
+  validators run in the publish transaction.
+- **Binary publishing** is staged, then current: the kind's probe (O29) runs on
+  staged bytes.
+- **Dedup** is per organization by SHA-256 with put-if-absent.
+- **Quotas** per organization, project and personal folder, warning at 75% and
+  pausing new writes at 90%.
+- **Search** by name, path, kind, facts, media type, size, date, digest, work
+  item and producer, obeying permissions.
+- **Defaults** (O42): 20 versions kept in working areas, 30 days in trash, 30
+  days for scratch, 5 GiB maximum file size; all are organization settings.
+
+### 17.6 Slices
+
+| Slice | Delivers |
+| --- | --- |
+| F1 | Organization blob store keyed by digest (skills become one user); versions that name a blob; resumable upload; range download |
+| F2 | Entries and folders; the default layout; existing artifacts projected under their work items with no data moved |
+| F3 | Read-only file browser, API and CLI |
+| F4 | Session mounts from pinned versions and snapshots; lazy large files; outputs to destinations |
+| F5 | Working areas: upload, move, rename, trash, folder policies, `kept` and `scratch` retention classes, quotas |
+| F6 | Folder grants and restricted folders |
+| F7 | File workspaces as folder snapshots |
+| F8 | "Bakery Files" tools through the gateway |
+| F9 | The `storage` family: mount, ingest, one-way sync, export as an effect |
+| F10 | Search and metadata; the `/library` mirror |
+
+F2 and F3 are useful without large files and can ship before F1. F1 to F4 are
+what the video factory needs.
+
+### 17.7 Decisions O34 to O43
+
+- **O34:** a path is a name, not an identity.
+- **O35:** project-first layout with `/shared`, `/library`, `/users`,
+  `/connections`; no top-level `/runs` or `/uploads`.
+- **O36:** the artifacts area stays task-scoped with no per-folder overrides.
+- **O37:** the library appears as a read-only mirror.
+- **O38:** outside storage is mounted read-through and ingested on use; one-way
+  sync as a workflow; no two-way sync in the first version.
+- **O39:** agents browsing the tree is off by default; granted reads are
+  recorded on the step.
+- **O40:** large transfers go through Bakery first.
+- **O41:** personal folders are owner only.
+- **O42:** default limits as in 17.5, all organization settings.
+- **O43:** deduplication within one organization only.

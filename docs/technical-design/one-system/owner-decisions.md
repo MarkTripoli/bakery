@@ -99,4 +99,10 @@ This file records what the product owner decided in conversation with their orch
 
 **Storage (owner callout on O28):** Bakery's storage must look and navigate like a file system, even though it is not literally one. It is a virtual, hierarchical file tree over the object store, with folders, paths and browsing. Its top-level areas have sensible defaults; for example, artifacts are stored in a specific area. Users, agents, the API/CLI and the UI all navigate the same tree. Immutable artifact versions and pinned refs stay underneath, and paths are the human-friendly way in. The design is pending from the architect.
 
-There are no pending owner decisions as of 14 November 2026. The storage design is in progress.
+**Storage (one-system.md §11): O34–O43 approved as recommended, with one change.**
+- **O39 changed: agents browse by default.** Agents can browse and read the file tree within their grants (not only their step's mounts). Every read is recorded.
+- **Agents can upload and write files.** They do this through the Bakery Files connection, the CLI or API, and step outputs. Writes are versioned, recorded and kept within grants and quotas.
+
+**Principle: EVERYTHING in Bakery is agent-first.** Anything a person can do, an agent can do through the same operations (API, CLI or MCP), under the same grants, budgets and audit. The architect is adding a parity audit.
+
+There are no pending owner decisions as of 14 November 2026.
