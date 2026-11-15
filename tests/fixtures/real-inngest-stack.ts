@@ -5,6 +5,11 @@
  * restarts are separate process restarts; no Hono/router reconstruction is used.
  */
 import { canonicalJson } from "../../apps/server/src/platform/canonical-json.ts";
+import { createSuperuser } from "../../apps/server/src/modules/auth/index.ts";
+import { writePlanRun } from "../../apps/server/src/modules/workflow-adapter/plan-admission.ts";
+import { readRuntimeConfig } from "../../packages/config/src/env.ts";
+import { compileWorkflowDocument } from "../../packages/contracts/src/workflow-compiler/mod.ts";
+import { sessionCookie } from "../helpers/auth.ts";
 import {
   closePgDatabase,
   openPgDatabase,
@@ -32,7 +37,8 @@ export type SeededWorkflow = {
   taskId: string;
   runId: string;
   requestDeliveryKey: string;
-  steps: readonly [SeededStep, SeededStep];
+  /** The two fixed steps; empty for a compiled plan run, whose steps the engine appends. */
+  steps: readonly SeededStep[];
   worker: {
     credential: string;
     workerHostId: string;
@@ -48,9 +54,39 @@ export type WorkflowState = {
   engineOwnerGeneration: string;
   engineOwnerLeaseExpiresAt: string | null;
   steps: Array<
-    { status: string; jobStatus: string | null; attemptCount: number }
+    {
+      key: string;
+      status: string;
+      jobStatus: string | null;
+      attemptCount: number;
+    }
   >;
 };
+/** What a run seeded as a compiled plan runs: the definition and its inputs. */
+export type PlanSeed = Readonly<{
+  definition: Readonly<Record<string, unknown>>;
+  inputs?: Readonly<Record<string, string | number | boolean>>;
+}>;
+export type SeedWorkflowOptions = Readonly<{
+  /**
+   * Seeds a compiled plan run instead of the two fixed steps. The builder is
+   * given the ids the seed creates (the repository the plan's `repo` input
+   * names, the agent its `harness.implement` steps run as); the fixture binds
+   * that agent to the action and writes the run's snapshot with admission's
+   * own `writePlanRun`, so the engine reads what production would write.
+   */
+  plan?: (ids: { repositoryId: string; agentVersionId: string }) => PlanSeed;
+  /** Worker slots (default 1): a claim per slot may be held at once. */
+  slots?: number;
+}>;
+/** A job a worker holds: claimed and not yet reported. */
+export type ClaimedPlanJob = Readonly<{
+  attemptId: string;
+  leaseToken: string;
+  fence: string;
+  stepKey: string;
+  sessionId: string | null;
+}>;
 export type EngineInvocation = {
   functionRunId: string;
   eventId: string;
@@ -61,8 +97,25 @@ export type RealInngestStack = {
   readonly eventKey: string;
   readonly inngestUrl: string;
   readonly serverUrl: string;
-  readonly seedWorkflow: (runId: string) => Promise<SeededWorkflow>;
+  readonly seedWorkflow: (
+    runId: string,
+    options?: SeedWorkflowOptions,
+  ) => Promise<SeededWorkflow>;
   readonly completeNextStep: (seed: SeededWorkflow) => Promise<void>;
+  /** Claims the next queued job of a plan run and leaves it held. */
+  readonly claimPlanJob: (seed: SeededWorkflow) => Promise<ClaimedPlanJob>;
+  /** Reports a held job completed. */
+  readonly finishPlanJob: (
+    seed: SeededWorkflow,
+    claimed: ClaimedPlanJob,
+  ) => Promise<void>;
+  /** Claims and completes the next job; returns its step key. */
+  readonly completePlanJob: (seed: SeededWorkflow) => Promise<string>;
+  /**
+   * Requests a cancel of the run through the server's run-control route, as a
+   * signed-in administrator of the run's organization; returns the response.
+   */
+  readonly cancelRun: (seed: SeededWorkflow) => Promise<Response>;
   readonly setStepAvailableAt: (
     seed: SeededWorkflow,
     index: 0 | 1,
@@ -258,8 +311,12 @@ export function createRealInngestStack(
     }
     throw new Error("dispatch did not become ready");
   };
+  // The attempts a plan test's worker holds, by run: each heartbeat names them,
+  // or the server reads the worker as having dropped them.
+  const heldAttempts = new Map<string, Set<string>>();
   const heartbeatWorker = async (
     worker: SeededWorkflow["worker"],
+    activeAttemptIds: readonly string[] = [],
   ): Promise<void> => {
     const heartbeat = await fetch(`${serverUrl}/v1/worker/heartbeat`, {
       method: "POST",
@@ -275,7 +332,7 @@ export function createRealInngestStack(
         workerHostId: worker.workerHostId,
         observedAt: new Date().toISOString(),
         load: 0,
-        activeAttemptIds: [],
+        activeAttemptIds,
         workerSessionId: worker.workerSessionId,
         workerSessionGeneration: worker.workerSessionGeneration,
       }),
@@ -298,7 +355,10 @@ export function createRealInngestStack(
     worker.workerSessionId = workerSessionId;
     worker.workerSessionGeneration = workerSessionGeneration;
   };
-  const seedWorkflow = async (runId: string): Promise<SeededWorkflow> => {
+  const seedWorkflow = async (
+    runId: string,
+    options: SeedWorkflowOptions = {},
+  ): Promise<SeededWorkflow> => {
     const organizationId = crypto.randomUUID();
     const principalId = crypto.randomUUID();
     const applicationId = crypto.randomUUID();
@@ -365,20 +425,50 @@ export function createRealInngestStack(
       { id: "step_1", uses: action, with: jobInputObject },
       { id: "step_2", uses: action, with: jobInputObject },
     ];
-    const spec = {
-      apiVersion: "bakery.dev/v1",
-      kind: "workflow",
-      name: `issue40-recovery-${workflowId.slice(0, 8)}`,
-      workflow: { kind: "fixed" },
-      agents: { [action]: agentVersionId },
-      steps: workflowSteps,
-    };
+    const planSeed = options.plan?.({ repositoryId, agentVersionId });
+    const spec: Record<string, unknown> = planSeed === undefined
+      ? {
+        apiVersion: "bakery.dev/v1",
+        kind: "workflow",
+        name: `issue40-recovery-${workflowId.slice(0, 8)}`,
+        workflow: { kind: "fixed" },
+        agents: { [action]: agentVersionId },
+        steps: workflowSteps,
+      }
+      : { ...planSeed.definition, agents: { [action]: agentVersionId } };
+    // A plan run freezes its document, pin, task, inputs and agents beside the
+    // sections every run has: written by admission's own writer.
+    let planSections:
+      | Awaited<ReturnType<typeof writePlanRun>>
+      | undefined;
+    if (planSeed !== undefined) {
+      const compiled = await compileWorkflowDocument(spec);
+      if (!compiled.ok) {
+        throw new Error(
+          `PLAN_SEED_DEFINITION_INVALID ${
+            JSON.stringify(compiled.diagnostics)
+          }`,
+        );
+      }
+      planSections = await writePlanRun({
+        document: compiled.document,
+        task: {
+          id: taskId,
+          title: "Issue 40 recovery",
+          description: "",
+          status: "active",
+        },
+        inputs: planSeed.inputs ?? {},
+        agents: { [agentVersionId]: agent },
+        actionAgents: { [action]: agentVersionId },
+      });
+    }
     const workflowSpec = JSON.stringify(spec);
     const workflowDigest = await sha256Hex(canonicalJson(spec));
     const snapshot = JSON.stringify({
       schemaVersion: 1,
       executionMode: "repository",
-      inputs: {},
+      inputs: planSections?.inputs ?? {},
       workflow: {
         id: workflowVersionId,
         revision: 1,
@@ -386,10 +476,47 @@ export function createRealInngestStack(
         normalizedSpec: spec,
       },
       repositoryProfile,
-      stepAgents: { step_1: agent, step_2: agent },
+      stepAgents: planSections === undefined
+        ? { step_1: agent, step_2: agent }
+        : {},
+      ...(planSections === undefined ? {} : {
+        stepActions: {},
+        runtime: planSections.runtime,
+        task: planSections.task,
+        planAgents: planSections.planAgents,
+        planActionAgents: planSections.planActionAgents,
+      }),
       admission: { dependencies: [], status: "queued", reason: null },
     });
     const traceId = crypto.randomUUID();
+    // A plan run has no steps here: the engine appends each as the plan decides it.
+    const fixedStepsSql = planSections !== undefined ? "" : `
+      insert into bakery.run_steps (
+        id, organization_id, run_id, step_key, position, iteration, status, input
+      ) values
+        (
+          :'run_step_1_id'::uuid, :'organization_id'::uuid, :'run_id'::uuid,
+          'step_1', 1, 0, 'pending', :'step_input'::jsonb
+        ),
+        (
+          :'run_step_2_id'::uuid, :'organization_id'::uuid, :'run_id'::uuid,
+          'step_2', 2, 0, 'pending', :'step_input'::jsonb
+        );
+      insert into bakery.agent_sessions (
+        id, organization_id, run_step_id, conversation_id, agent_version_id,
+        harness, status
+      ) values
+        (
+          :'run_step_1_session_id'::uuid, :'organization_id'::uuid,
+          :'run_step_1_id'::uuid, :'conversation_id'::uuid,
+          :'agent_version_id'::uuid, 'codex', 'active'
+        ),
+        (
+          :'run_step_2_session_id'::uuid, :'organization_id'::uuid,
+          :'run_step_2_id'::uuid, :'conversation_id'::uuid,
+          :'agent_version_id'::uuid, 'codex', 'active'
+        );
+    `;
     const sql = `
       insert into bakery.principals (id, display_name, principal_type)
       values (:'principal_id'::uuid, 'Issue 40 recovery service', 'service');
@@ -487,31 +614,7 @@ export function createRealInngestStack(
          set current_run_id = :'run_id'::uuid, status = 'active'
        where organization_id = :'organization_id'::uuid
          and id = :'task_id'::uuid;
-      insert into bakery.run_steps (
-        id, organization_id, run_id, step_key, position, iteration, status, input
-      ) values
-        (
-          :'run_step_1_id'::uuid, :'organization_id'::uuid, :'run_id'::uuid,
-          'step_1', 1, 0, 'pending', :'step_input'::jsonb
-        ),
-        (
-          :'run_step_2_id'::uuid, :'organization_id'::uuid, :'run_id'::uuid,
-          'step_2', 2, 0, 'pending', :'step_input'::jsonb
-        );
-      insert into bakery.agent_sessions (
-        id, organization_id, run_step_id, conversation_id, agent_version_id,
-        harness, status
-      ) values
-        (
-          :'run_step_1_session_id'::uuid, :'organization_id'::uuid,
-          :'run_step_1_id'::uuid, :'conversation_id'::uuid,
-          :'agent_version_id'::uuid, 'codex', 'active'
-        ),
-        (
-          :'run_step_2_session_id'::uuid, :'organization_id'::uuid,
-          :'run_step_2_id'::uuid, :'conversation_id'::uuid,
-          :'agent_version_id'::uuid, 'codex', 'active'
-        );
+      ${fixedStepsSql}
       insert into bakery.event_clock (organization_id, stream, next_seq)
       values (:'organization_id'::uuid, 'domain_events', 2);
       insert into bakery.domain_events (
@@ -537,7 +640,8 @@ export function createRealInngestStack(
         allowed_capabilities, slots, token_hash, expires_at
       ) values (
         :'organization_id'::uuid, :'principal_id'::uuid,
-        'Issue 40 recovery worker', 'linux', 'x64', :'capabilities'::jsonb, 1,
+        'Issue 40 recovery worker', 'linux', 'x64', :'capabilities'::jsonb,
+        :'slots'::int,
         :'enrollment_hash', now() + interval '1 hour'
       );
     `;
@@ -586,6 +690,7 @@ export function createRealInngestStack(
         '-v agent_version_id="${26}"',
         '-v agent_config="${27}"',
         '-v agent_digest="${28}"',
+        '-v slots="${29}"',
         "-f -",
       ].join(" "),
       "--",
@@ -617,6 +722,7 @@ export function createRealInngestStack(
       agentVersionId,
       JSON.stringify(agentConfig),
       agentDigest,
+      String(options.slots ?? 1),
     ]);
     const registration = await fetch(`${serverUrl}/v1/worker/registration`, {
       method: "POST",
@@ -633,7 +739,7 @@ export function createRealInngestStack(
         architecture: "x64",
         capabilities: workerFixtureCapabilities,
         toolchainVersions: { deno: "2.x" },
-        slots: 1,
+        slots: options.slots ?? 1,
       }),
     });
     const registrationBody = await registration.json().catch(() => ({}));
@@ -803,6 +909,239 @@ export function createRealInngestStack(
     }
     throw new Error("WORKER_ASSIGNMENT_TIMEOUT");
   };
+  const workerPost = (
+    seed: SeededWorkflow,
+    path: string,
+    idempotencyKey: string,
+    body: Record<string, unknown>,
+  ): Promise<Response> =>
+    fetch(`${serverUrl}${path}`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${seed.worker.credential}`,
+        "content-type": "application/json",
+        "idempotency-key": idempotencyKey,
+        "x-bakery-worker-protocol-version": "2",
+        "x-request-id": crypto.randomUUID(),
+        "x-trace-id": crypto.randomUUID(),
+      },
+      body: JSON.stringify(body),
+    });
+  /** The step a claimed attempt belongs to, and the session the server made for it. */
+  const readClaimedStep = async (
+    seed: SeededWorkflow,
+    attemptId: string,
+  ): Promise<{ stepKey: string; sessionId: string | null }> => {
+    const output = await run([
+      "exec",
+      "-T",
+      "postgres",
+      "sh",
+      "-c",
+      [
+        `printf '%s' "$1" | psql -U postgres -d bakery -At -v ON_ERROR_STOP=1`,
+        '-v organization_id="$2"',
+        '-v attempt_id="$3"',
+        "-f -",
+      ].join(" "),
+      "--",
+      `select step.step_key || '|' || coalesce(session.id::text, '')
+         from bakery.job_attempts attempt
+         join bakery.jobs job
+           on job.organization_id = attempt.organization_id
+          and job.id = attempt.job_id
+         join bakery.run_steps step
+           on step.organization_id = job.organization_id
+          and step.id = job.run_step_id
+         left join bakery.agent_sessions session
+           on session.organization_id = step.organization_id
+          and session.run_step_id = step.id
+        where attempt.organization_id = :'organization_id'::uuid
+          and attempt.id = :'attempt_id'::uuid`,
+      seed.organizationId,
+      attemptId,
+    ]);
+    const line = output.trim().split("\n").at(-1) ?? "";
+    const [stepKey, sessionId] = line.split("|");
+    if (!stepKey) throw new Error("CLAIMED_STEP_MISSING");
+    return { stepKey, sessionId: sessionId || null };
+  };
+  const claimPlanJob = async (
+    seed: SeededWorkflow,
+  ): Promise<ClaimedPlanJob> => {
+    for (let attempt = 0; attempt < 120; attempt++) {
+      await heartbeatWorker(seed.worker, [
+        ...(heldAttempts.get(seed.runId) ?? []),
+      ]);
+      const claimKey = crypto.randomUUID();
+      const response = await workerPost(seed, "/v1/worker/claims", claimKey, {
+        claimKey,
+        workerHostId: seed.worker.workerHostId,
+        capabilities: workerFixtureCapabilities,
+        supportedActions: ["harness.implement"],
+        workerSessionId: seed.worker.workerSessionId,
+        workerSessionGeneration: seed.worker.workerSessionGeneration,
+      });
+      if (response.status === 204) {
+        await response.arrayBuffer();
+        await delay(250);
+        continue;
+      }
+      const body = await response.json().catch(() => ({})) as {
+        attemptId?: string;
+        leaseToken?: string;
+        fence?: string;
+      };
+      if (!response.ok) {
+        throw new Error(
+          `worker claim failed: ${response.status} ${JSON.stringify(body)}`,
+        );
+      }
+      if (!body.attemptId || !body.leaseToken || !body.fence) {
+        throw new Error("WORKER_ASSIGNMENT_INCOMPLETE");
+      }
+      const held = heldAttempts.get(seed.runId) ?? new Set<string>();
+      held.add(body.attemptId);
+      heldAttempts.set(seed.runId, held);
+      return {
+        attemptId: body.attemptId,
+        leaseToken: body.leaseToken,
+        fence: body.fence,
+        ...await readClaimedStep(seed, body.attemptId),
+      };
+    }
+    throw new Error("WORKER_ASSIGNMENT_TIMEOUT");
+  };
+  const finishPlanJob = async (
+    seed: SeededWorkflow,
+    claimed: ClaimedPlanJob,
+  ): Promise<void> => {
+    if (claimed.sessionId === null) throw new Error("CLAIMED_SESSION_MISSING");
+    const attemptPath = `/v1/worker/attempts/${
+      encodeURIComponent(claimed.attemptId)
+    }`;
+    const lease = {
+      leaseToken: claimed.leaseToken,
+      fence: claimed.fence,
+      workerSessionId: seed.worker.workerSessionId,
+      workerSessionGeneration: seed.worker.workerSessionGeneration,
+    };
+    const startedEventId = crypto.randomUUID();
+    const started = await workerPost(
+      seed,
+      `${attemptPath}/events`,
+      startedEventId,
+      {
+        ...lease,
+        events: [{
+          eventId: startedEventId,
+          localSeq: "1",
+          eventType: "job.accepted",
+          payload: { acceptedAt: new Date().toISOString() },
+        }],
+      },
+    );
+    if (!started.ok) {
+      throw new Error(
+        `worker event failed: ${started.status} ${await started.text()}`,
+      );
+    }
+    await started.arrayBuffer();
+    const resultKey = crypto.randomUUID();
+    for (let resultAttempt = 0; resultAttempt < 20; resultAttempt++) {
+      const response = await workerPost(
+        seed,
+        `${attemptPath}/result`,
+        resultKey,
+        {
+          ...lease,
+          localSeq: "2",
+          status: "completed",
+          result: {
+            headSha: "recovery-head",
+            baseSha: "recovery-base",
+            sessionId: claimed.sessionId,
+            artifacts: [],
+          },
+        },
+      );
+      const body = await response.json().catch(() => ({})) as {
+        code?: string;
+      };
+      if (response.ok) {
+        heldAttempts.get(seed.runId)?.delete(claimed.attemptId);
+        return;
+      }
+      if (response.status === 404 && body.code === "RESOURCE_NOT_FOUND") {
+        await delay(250);
+        continue;
+      }
+      throw new Error(
+        `worker result failed: ${response.status} ${JSON.stringify(body)}`,
+      );
+    }
+    throw new Error("WORKER_RESULT_RESOURCE_TIMEOUT");
+  };
+  const completePlanJob = async (seed: SeededWorkflow): Promise<string> => {
+    const claimed = await claimPlanJob(seed);
+    await finishPlanJob(seed, claimed);
+    return claimed.stepKey;
+  };
+  const cancelRun = async (seed: SeededWorkflow): Promise<Response> => {
+    const email = `cancel-${crypto.randomUUID()}@example.test`;
+    const password = `Cancel-${crypto.randomUUID()}`;
+    const database = openPgDatabase(
+      `postgres://bakery:${env.BAKERY_LOCAL_BAKERY_PASSWORD}@127.0.0.1:${env.BAKERY_POSTGRES_PORT}/bakery`,
+    );
+    try {
+      await createSuperuser({
+        pgDatabase: database,
+        config: readRuntimeConfig({
+          BAKERY_ENV: "test",
+          BAKERY_APP_DATABASE_URL:
+            `postgres://bakery:${env.BAKERY_LOCAL_BAKERY_PASSWORD}@127.0.0.1:${env.BAKERY_POSTGRES_PORT}/bakery`,
+          BAKERY_PUBLIC_BASE_URL: serverUrl,
+          BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET,
+        }).auth!,
+      }, { email, displayName: "Cancel administrator", password });
+      // The seeded organization is its own: the administrator joins it.
+      await database.query(
+        `insert into bakery.organization_memberships (id, organization_id, principal_id,
+           role, status, joined_at, created_at, updated_at)
+         select $1, $2, principal.id, 'admin', 'active', clock_timestamp(),
+                clock_timestamp(), clock_timestamp()
+           from bakery.principals principal
+           join public."user" provider_user on provider_user.id = principal.provider_user_id
+          where provider_user.email = $3`,
+        [crypto.randomUUID(), seed.organizationId, email],
+      );
+    } finally {
+      await closePgDatabase(database);
+    }
+    const response = await fetch(
+      new Request(`${serverUrl}/api/auth/sign-in/email`, {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: serverUrl },
+        body: JSON.stringify({ email, password }),
+      }),
+    );
+    if (!response.ok) {
+      throw new Error(`cancel sign-in failed: ${response.status}`);
+    }
+    const cookie = sessionCookie(response);
+    await response.arrayBuffer();
+    return await fetch(`${serverUrl}/v1/runs/${seed.runId}/controls`, {
+      method: "POST",
+      headers: {
+        cookie,
+        origin: serverUrl,
+        "content-type": "application/json",
+        "idempotency-key": crypto.randomUUID(),
+        "bakery-organization-id": seed.organizationId,
+      },
+      body: JSON.stringify({ action: "cancel" }),
+    });
+  };
   const setStepAvailableAt = async (
     seed: SeededWorkflow,
     index: 0 | 1,
@@ -858,6 +1197,7 @@ export function createRealInngestStack(
         'steps', coalesce((
           select json_agg(
             json_build_object(
+              'key', step.step_key,
               'status', step.status,
               'jobStatus', job.status,
               'attemptCount', (
@@ -1143,6 +1483,10 @@ export function createRealInngestStack(
     },
     seedWorkflow,
     completeNextStep,
+    claimPlanJob,
+    finishPlanJob,
+    completePlanJob,
+    cancelRun,
     setStepAvailableAt,
     readWorkflowState,
     readEngineRegistration,
