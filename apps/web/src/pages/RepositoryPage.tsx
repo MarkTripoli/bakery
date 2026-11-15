@@ -29,6 +29,7 @@ import { WorkingSettingsSheet } from "./projects/WorkingSettingsSheet.tsx";
 import {
   activeProfile,
   branchesOf,
+  hasOwnRules,
   setupBadge,
 } from "./projects/repository-state.ts";
 
@@ -366,7 +367,9 @@ export function RepositoryPage(
                       onClick={openSheet}
                     >
                       {translate(
-                        "projects.repository.step.settings.change" as never,
+                        (hasOwnRules(active.config)
+                          ? "projects.repository.step.settings.view"
+                          : "projects.repository.step.settings.change") as never,
                       )}
                     </UI.Button>
                   )}

@@ -3643,8 +3643,10 @@
   "projects.repository.use.body": "New tasks use version {version}. Tasks already running keep version {current}.",
   "projects.repository.use.bodyFirst": "New tasks use version {version}.",
   "projects.repository.settings.branchesControl": "Remove the control characters from the branch names.",
-  "projects.repository.settings.rulesInForce": "This repository has rules of its own, so its working settings cannot be changed from this page yet.",
-  "projects.repository.settings.openRules": "Open Rules",
-  "projects.repository.failure.rules": "This repository has rules of its own, so its working settings cannot be changed from this page yet.",
-  "projects.repository.failure.rejected": "The server did not accept these settings. Check the branches and the folder."
+  "projects.repository.settings.rulesInForce": "This repository has rules of its own. Its branches cannot be changed in Bakery yet.",
+  "projects.repository.failure.rules": "This repository has rules of its own. Its branches cannot be changed in Bakery yet.",
+  "projects.repository.failure.rejected": "The server did not accept these settings. Check the branches and the folder.",
+  "projects.repository.settings.worksFrom": "Works from",
+  "projects.repository.settings.folderRow": "Working folder",
+  "projects.repository.step.settings.view": "View"
 }

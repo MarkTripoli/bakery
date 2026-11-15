@@ -1,5 +1,4 @@
 import { useId, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import * as UI from "@bakery/ui";
 import type {
   RepositoryProfileResponse,
@@ -36,7 +35,6 @@ export function WorkingSettingsSheet(
   const { translate, locale, timeZone } = useI18n();
   const id = useId();
   const settings = useRepositorySettings(repository);
-  const navigate = useNavigate();
   const [branchText, setBranchText] = useState(
     () =>
       (active === null ? [repository.defaultBranch] : branchesOf(active.config))
@@ -94,6 +92,80 @@ export function WorkingSettingsSheet(
     if (saved) onClose();
   };
 
+  // Rules of the repository's own: a save from here cannot carry them, and the
+  // Rules page does not change branches, so the sheet is plainly read-only: the
+  // branches as text, the versions with the one in use, nothing to save.
+  if (rules && active !== null) {
+    const folderText = folderOf(active.config);
+    return (
+      <UI.Sheet
+        open
+        onOpenChange={(open) => !open && onClose()}
+        state="open"
+        title={translate("projects.repository.settings.title" as never)}
+        variant="side"
+      >
+        <UI.Stack gap="standard">
+          <UI.InlineNotice tone="information" data-testid="rules-in-force">
+            {translate("projects.repository.settings.rulesInForce" as never)}
+          </UI.InlineNotice>
+          <UI.Stack gap="compact">
+            <UI.Text variant="strong">
+              {translate("projects.repository.settings.worksFrom" as never)}
+            </UI.Text>
+            <UI.Stack gap="tight" role="list" data-testid="branches-read-only">
+              {branchesOf(active.config).map((branch) => (
+                <div key={branch} role="listitem">
+                  <UI.DataText>{branch}</UI.DataText>
+                </div>
+              ))}
+            </UI.Stack>
+          </UI.Stack>
+          {folderText === "" ? null : (
+            <UI.Stack gap="compact">
+              <UI.Text variant="strong">
+                {translate("projects.repository.settings.folderRow" as never)}
+              </UI.Text>
+              <UI.DataText>{folderText}</UI.DataText>
+            </UI.Stack>
+          )}
+          {earlier.length === 0 ? null : (
+            <>
+              <UI.Heading level="subsection">
+                {translate("projects.repository.versions.title" as never)}
+              </UI.Heading>
+              <UI.Stack gap="compact">
+                {earlier.map((profile) => (
+                  <UI.StackedRow
+                    flush
+                    key={profile.id}
+                    data-testid={`profile-version-${profile.revision}`}
+                    title={translate(
+                      "projects.repository.earlier.row" as never,
+                      {
+                        version: profile.revision,
+                        date: date(profile.createdAt),
+                      },
+                    )}
+                    status={profile.id === active.id
+                      ? (
+                        <UI.Badge tone="success">
+                          {translate(
+                            "projects.repository.earlier.inUse" as never,
+                          )}
+                        </UI.Badge>
+                      )
+                      : undefined}
+                  />
+                ))}
+              </UI.Stack>
+            </>
+          )}
+        </UI.Stack>
+      </UI.Sheet>
+    );
+  }
+
   return (
     <>
       <UI.Sheet
@@ -118,31 +190,6 @@ export function WorkingSettingsSheet(
             ? (
               <UI.InlineNotice tone="information">
                 {translate("projects.repository.archivedNotice" as never)}
-              </UI.InlineNotice>
-            )
-            : null}
-          {rules
-            ? (
-              <UI.InlineNotice tone="information" data-testid="rules-in-force">
-                <UI.Stack gap="compact">
-                  <span>
-                    {translate(
-                      "projects.repository.settings.rulesInForce" as never,
-                    )}
-                  </span>
-                  <UI.Button
-                    variant="text"
-                    onClick={() =>
-                      void navigate({
-                        to: "/projects/repositories/$repositoryId/rules",
-                        params: { repositoryId: repository.id },
-                      })}
-                  >
-                    {translate(
-                      "projects.repository.settings.openRules" as never,
-                    )}
-                  </UI.Button>
-                </UI.Stack>
               </UI.InlineNotice>
             )
             : null}

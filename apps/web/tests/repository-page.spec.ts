@@ -425,29 +425,49 @@ test.describe("the two writes against how the server behaves", () => {
     await expect(page.getByTestId("profile-version-3")).toBeVisible();
   });
 
-  test("a repository with rules of its own offers no save that cannot succeed, and says where its rules are", async ({ page }) => {
+  test("a repository with rules of its own is plainly read-only: View, the branches as text, nothing to save", async ({ page }) => {
     await open(page, {
       profiles: [
         { revision: 1, branches: ["main"] },
-        { revision: 2, branches: ["main"], rules: true },
+        { revision: 2, branches: ["main", "release/*"], rules: true },
       ],
       active: 2,
     });
-    await page.getByRole("button", { name: "Change" }).click();
+    // The step's action reads View, not Change.
+    await expect(page.getByRole("button", { name: "Change" })).toHaveCount(0);
+    await page.getByRole("button", { name: "View" }).click();
     await expect(page.getByTestId("rules-in-force")).toContainText(
-      "This repository has rules of its own, so its working settings cannot be changed from this page yet.",
+      "This repository has rules of its own. Its branches cannot be changed in Bakery yet.",
     );
+    // No link to a page that cannot change branches either.
+    await expect(page.getByRole("button", { name: "Open Rules" })).toHaveCount(
+      0,
+    );
+    await expect(page.getByRole("link", { name: "Open Rules" })).toHaveCount(0);
+    // The branches are text, not a field; nothing to save, cancel or toggle.
+    await expect(page.getByLabel("Branches Bakery may work from")).toHaveCount(
+      0,
+    );
+    await expect(page.getByText("Works from", { exact: true })).toBeVisible();
+    const branches = page.getByTestId("branches-read-only");
+    await expect(branches).toContainText("main");
+    await expect(branches).toContainText("release/*");
     await expect(
       page.getByRole("button", { name: "Save and use these settings" }),
-    ).toBeDisabled();
-    await expect(page.getByRole("button", { name: "Use version 1" }))
-      .toBeDisabled();
+    ).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Cancel" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Advanced" })).toHaveCount(0);
+    await expect(page.getByText(/This saves version/)).toHaveCount(0);
+    // The versions are listed with the one in use and nothing to use.
+    await expect(page.getByTestId("profile-version-2")).toContainText("In use");
+    await expect(page.getByTestId("profile-version-1")).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Use version/ }))
+      .toHaveCount(0);
     await page.mouse.move(700, 700);
     await shot(page, "repository-settings-rules-in-force");
-    await page.getByRole("button", { name: "Open Rules" }).click();
-    await expect(page).toHaveURL(
-      new RegExp(`/projects/repositories/${REPOSITORY_ID}/rules$`),
-    );
+    await page.getByRole("button", { name: "Close dialog" }).click();
+    await expect(page.getByRole("dialog", { name: "Working settings" }))
+      .toHaveCount(0);
   });
 
   test("a save the server answers with a 428 says the repository has rules of its own, never Try again", async ({ page }) => {
