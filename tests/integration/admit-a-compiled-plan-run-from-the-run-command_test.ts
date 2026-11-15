@@ -786,6 +786,7 @@ const reviewedPlan = (agent: string, max: number) => ({
         needs: ["test"],
         uses: "review.independent",
         with: {
+          repositoryId: "$input.repositoryId",
           revision: "$step.flow.implement.headSha",
           evidence: "$step.flow.test.checkRunIds",
         },
@@ -810,17 +811,56 @@ const reviewedPlan = (agent: string, max: number) => ({
           },
           until:
             "$repeat.currentCandidate.blockingFindings == 0 && $repeat.currentCandidate.checksPassed == true",
-          steps: [{
-            id: "repair_implement",
-            uses: "harness.repair",
-            with: {
-              repositoryId: "$input.repositoryId",
-              currentCandidate: "$repeat.currentCandidate",
-              findings: "$repeat.currentCandidate.findings",
-              failedCheckIds: "$repeat.currentCandidate.failedCheckIds",
+          steps: [
+            {
+              id: "repair_implement",
+              uses: "harness.repair",
+              with: {
+                repositoryId: "$input.repositoryId",
+                revision: "$repeat.currentCandidate.headSha",
+                findings: "$repeat.currentCandidate.findings",
+                failedChecks: "$repeat.currentCandidate.failedCheckIds",
+              },
             },
-          }],
-          outputs: { currentCandidate: "$step.flow.repair.repair_implement" },
+            {
+              id: "repair_test",
+              needs: ["repair_implement"],
+              uses: "quality.check",
+              with: {
+                repositoryId: "$input.repositoryId",
+                revision: "$step.flow.repair.repair_implement.headSha",
+              },
+              checks: ["lint"],
+            },
+            {
+              id: "repair_review",
+              needs: ["repair_test"],
+              uses: "review.independent",
+              with: {
+                repositoryId: "$input.repositoryId",
+                revision: "$step.flow.repair.repair_implement.headSha",
+                evidence: "$step.flow.repair.repair_test.checkRunIds",
+              },
+            },
+            {
+              id: "candidate_evidence",
+              needs: ["repair_review"],
+              uses: "delivery.candidate_evidence",
+              with: {
+                headSha: "$step.flow.repair.repair_implement.headSha",
+                baseSha: "$step.flow.repair.repair_test.baseSha",
+                policyDigest: "$step.flow.repair.repair_test.policyDigest",
+                checksPassed: "$step.flow.repair.repair_test.allRequired",
+                blockingFindings:
+                  "$step.flow.repair.repair_review.blockingFindings",
+                reviewId: "$step.flow.repair.repair_review.reviewId",
+                findings: "$step.flow.repair.repair_review.findings",
+                checkRunIds: "$step.flow.repair.repair_test.checkRunIds",
+                failedCheckIds: "$step.flow.repair.repair_test.failedCheckIds",
+              },
+            },
+          ],
+          outputs: { currentCandidate: "$step.flow.repair.candidate_evidence" },
         },
       },
     ],

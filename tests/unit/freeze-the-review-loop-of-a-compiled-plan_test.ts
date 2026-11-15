@@ -21,7 +21,10 @@ const test = {
   id: "test",
   needs: ["implement"],
   uses: "quality.check",
-  with: { repositoryId: "$input.repo", revision: "$step.implement.headSha" },
+  with: {
+    repositoryId: "$input.repo",
+    revision: "$step.implement.headSha",
+  },
   checks: ["lint"],
 };
 const review = {
@@ -29,11 +32,13 @@ const review = {
   needs: ["test"],
   uses: "review.independent",
   with: {
+    repositoryId: "$input.repo",
     revision: "$step.implement.headSha",
     evidence: "$step.test.checkRunIds",
   },
 };
 
+/** The repair loop of chapter 6: repair, check and review until nothing blocks. */
 const repairLoop = (max: number) => ({
   id: "repair",
   needs: ["review"],
@@ -60,9 +65,9 @@ const repairLoop = (max: number) => ({
         uses: "harness.repair",
         with: {
           repositoryId: "$input.repo",
-          currentCandidate: "$repeat.currentCandidate",
+          revision: "$repeat.currentCandidate.headSha",
           findings: "$repeat.currentCandidate.findings",
-          failedCheckIds: "$repeat.currentCandidate.failedCheckIds",
+          failedChecks: "$repeat.currentCandidate.failedCheckIds",
         },
       },
       {
@@ -80,12 +85,29 @@ const repairLoop = (max: number) => ({
         needs: ["repair_test"],
         uses: "review.independent",
         with: {
+          repositoryId: "$input.repo",
           revision: "$step.repair.repair_implement.headSha",
           evidence: "$step.repair.repair_test.checkRunIds",
         },
       },
+      {
+        id: "candidate_evidence",
+        needs: ["repair_review"],
+        uses: "delivery.candidate_evidence",
+        with: {
+          headSha: "$step.repair.repair_implement.headSha",
+          baseSha: "$step.repair.repair_test.baseSha",
+          policyDigest: "$step.repair.repair_test.policyDigest",
+          checksPassed: "$step.repair.repair_test.allRequired",
+          blockingFindings: "$step.repair.repair_review.blockingFindings",
+          reviewId: "$step.repair.repair_review.reviewId",
+          findings: "$step.repair.repair_review.findings",
+          checkRunIds: "$step.repair.repair_test.checkRunIds",
+          failedCheckIds: "$step.repair.repair_test.failedCheckIds",
+        },
+      },
     ],
-    outputs: { currentCandidate: "$step.repair.repair_review" },
+    outputs: { currentCandidate: "$step.repair.candidate_evidence" },
   },
 });
 
