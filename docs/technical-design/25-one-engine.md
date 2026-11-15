@@ -109,6 +109,10 @@ coordination lane gate. After convergence there is one.
   adds `route`.
 - The **coordination lane gate becomes the split primitive** (section 5).
 
+The decision is recorded in
+[chapter 6, "Decision record: one interpreter"](06-workflows-delivery-and-acceptance.md#decision-record-one-interpreter-15-november-2026),
+with the rails tests that enforce it.
+
 The interpreter is a pure function `(document, recorded results) -> next`. It
 has no clock, no database and no model. Cross-run rules (capacity, counters) are
 checked at step admission, never inside the interpreter.
