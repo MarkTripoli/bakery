@@ -998,7 +998,7 @@
   "tasks.queue.filter.repository": "⟦Repository filter expansion ⟧",
   "tasks.queue.filter.more": "⟦Šëàŕçĥ…⟧",
   "tasks.queue.filter.searchWith": "⟦Šëàŕçĥ: {term} ŧë⟧",
-  "tasks.queue.filter.clearSearch": "⟦Çļëàŕ⟧",
+  "tasks.queue.filter.clearSearchLabel": "⟦Çļëàŕ šëàŕçĥ ŧë⟧",
   "tasks.queue.filter.search": "⟦Search filter expansion ⟧",
   "tasks.queue.filter.status": "⟦Status expansion ⟧",
   "tasks.queue.newTask": "⟦New task expansion ⟧",

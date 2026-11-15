@@ -1123,17 +1123,18 @@ export function WorkQueueFilters(
           />
         )
         : (
-          <>
+          <UI.Inline data-search-filter="" gap="compact">
             <UI.Popover
-              data-search-popover=""
               label={t("tasks.queue.filter.search")}
               variant="interactive"
               triggerAppearance="toolbar"
-              // A filter that is on always says so: the term, cut when long.
+              // A filter that is on always says so: the term shrinks to fit.
               trigger={search
-                ? t("tasks.queue.filter.searchWith", {
-                  term: shortSearchTerm(search),
-                })
+                ? (
+                  <UI.DataText truncate>
+                    {t("tasks.queue.filter.searchWith", { term: search })}
+                  </UI.DataText>
+                )
                 : t("tasks.queue.filter.more")}
             >
               <UI.Stack gap="compact">
@@ -1150,37 +1151,30 @@ export function WorkQueueFilters(
             </UI.Popover>
             {search
               ? (
-                <UI.Button
+                <UI.IconButton
+                  label={t("tasks.queue.filter.clearSearchLabel")}
+                  title={t("tasks.queue.filter.clearSearchLabel")}
                   onClick={() => {
                     onSearch("");
-                    // Clear goes with the term: focus returns to the Search button.
+                    // Clear goes with the term: focus returns to the Search
+                    // button, found in the wrapper that is always drawn (the
+                    // popover's own content is drawn only while it is open).
                     focusAfterPaint(() =>
                       document.querySelector<HTMLElement>(
-                        "[data-search-popover] button",
+                        '[data-search-filter] button[aria-haspopup="dialog"]',
                       )
                     );
                   }}
                   type="button"
-                  variant="quiet"
                 >
-                  {t("tasks.queue.filter.clearSearch")}
-                </UI.Button>
+                  <UI.IconGlyph name="close" size="small" />
+                </UI.IconButton>
               )
               : null}
-          </>
+          </UI.Inline>
         )}
     </>
   );
-}
-
-/** How many characters of an applied search show on the phone's Search button. */
-const SEARCH_SHOWN = 16;
-/** The term cut to fit, by whole characters, with an ellipsis when it was long. */
-function shortSearchTerm(term: string): string {
-  const characters = Array.from(term);
-  return characters.length > SEARCH_SHOWN
-    ? `${characters.slice(0, SEARCH_SHOWN - 1).join("").trimEnd()}…`
-    : term;
 }
 
 function WorkQueueInspectorActions(

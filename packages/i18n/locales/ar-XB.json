@@ -1000,7 +1000,7 @@
   "tasks.queue.filter.repository": "‮Repository filter توسيع ‬",
   "tasks.queue.filter.more": "⟪Search⟫",
   "tasks.queue.filter.searchWith": "⟪Search: {term}⟫",
-  "tasks.queue.filter.clearSearch": "⟪Clear⟫",
+  "tasks.queue.filter.clearSearchLabel": "⟪Clear search⟫",
   "tasks.queue.filter.search": "‮Search filter توسيع ‬",
   "tasks.queue.filter.status": "‮Status توسيع ‬",
   "tasks.queue.newTask": "‮New task توسيع ‬",

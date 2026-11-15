@@ -1540,7 +1540,8 @@
         "laptop",
         "book",
         "plus",
-        "chevron-right"
+        "chevron-right",
+        "close"
       ],
       "states": [
         "default"
@@ -1601,7 +1602,8 @@
             "laptop",
             "book",
             "plus",
-            "chevron-right"
+            "chevron-right",
+            "close"
           ],
           "states": [
             "default"

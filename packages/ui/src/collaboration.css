@@ -270,6 +270,22 @@
 .ui-task-inbox__filters .ui-search-field {
   flex: 0 1 18rem;
 }
+/* An applied search on a phone (Search: term, then Clear): one row, always. The
+   button takes the space that is left and the term ends in an ellipsis. */
+.ui-task-inbox__filters > .ui-inline {
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  min-inline-size: 0;
+}
+.ui-task-inbox__filters > .ui-inline > .ui-popover,
+.ui-task-inbox__filters > .ui-inline .ui-popover__trigger {
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+.ui-popover__trigger--toolbar .ui-data-text {
+  color: inherit;
+  font: inherit;
+}
 .ui-task-inbox__results {
   padding-inline: var(--space-task-inset);
 }
@@ -315,7 +331,11 @@
   color: var(--color-selection);
 }
 .ui-task-inbox--sheet .ui-task-inbox__filters {
+  flex-wrap: nowrap;
   padding-inline: var(--space-5);
+}
+.ui-task-inbox--sheet .ui-task-inbox__filters > .ui-popover {
+  flex: 0 0 auto;
 }
 .ui-task-inbox--sheet .ui-task-inbox__results {
   padding-inline: var(--space-0);

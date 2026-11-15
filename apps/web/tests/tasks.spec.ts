@@ -19,7 +19,11 @@ registerPageHealth(test);
  * closed.
  */
 async function openFilter(page: Page, name: "Search" | "All applications") {
-  const trigger = page.getByRole("button", { name, exact: true });
+  // Once a term is applied the Search trigger reads "Search: <term>".
+  const trigger = page.getByRole(
+    "button",
+    name === "Search" ? { name: /^Search(: .*)?$/ } : { name, exact: true },
+  );
   if (await trigger.getAttribute("aria-expanded") !== "true") {
     await trigger.click();
   }
@@ -435,7 +439,7 @@ test("queue inspector Details shows the short task id and copies the whole one",
   );
 });
 
-test("on a phone an applied search shows on the Search button, with Clear beside it", async ({ page }) => {
+test("on a phone an applied search stays on one row, with Clear beside it", async ({ page }) => {
   test.skip(
     (page.viewportSize()?.width ?? 1280) > 743,
     "on a wider screen the field itself is in the toolbar",
@@ -454,20 +458,37 @@ test("on a phone an applied search shows on the Search button, with Clear beside
   await page.goto("/tasks");
   const searchButton = (name: string | RegExp) =>
     page.getByRole("button", { name, exact: typeof name === "string" });
-  const clear = page.getByRole("button", { name: "Clear", exact: true });
+  const clear = page.getByRole("button", { name: "Clear search", exact: true });
   await expect(searchButton("Search")).toBeVisible();
   await expect(clear).toHaveCount(0);
-  const search = await searchField(page);
-  await search.fill("onboarding");
-  await dismissFilters(page);
-  await expect(searchButton("Search: onboarding")).toBeVisible();
-  await expect(clear).toBeVisible();
-  // A long term is cut by whole characters and ends in an ellipsis.
-  await (await searchField(page)).fill(
-    "a very long search term \u{1F9C1} indeed",
-  );
-  await dismissFilters(page);
-  await expect(searchButton(/^Search: a very long sea…$/)).toBeVisible();
+  const terms = [
+    "repository",
+    "a very long search term \u{1F9C1} indeed, and then some more words",
+    "x".repeat(120),
+  ];
+  for (const width of [390, 320]) {
+    await page.setViewportSize({ width, height: 800 });
+    for (const term of terms) {
+      await (await searchField(page)).fill(term);
+      await dismissFilters(page);
+      // The whole term stays in the button's name; the picture shrinks it.
+      const trigger = searchButton(`Search: ${term}`);
+      await expect(trigger).toBeVisible();
+      await expect(clear).toBeVisible();
+      const [a, b] = [await trigger.boundingBox(), await clear.boundingBox()];
+      // One row: Clear is beside the button, never under it, inside the screen.
+      expect(Math.abs((a!.y + a!.height / 2) - (b!.y + b!.height / 2)))
+        .toBeLessThan(4);
+      expect(b!.x).toBeGreaterThanOrEqual(a!.x + a!.width - 1);
+      expect(b!.x + b!.width).toBeLessThanOrEqual(width);
+      expect(Math.min(b!.width, b!.height)).toBeGreaterThanOrEqual(44);
+      expect(
+        await page.evaluate(() =>
+          document.documentElement.scrollWidth <= globalThis.innerWidth
+        ),
+      ).toBe(true);
+    }
+  }
   await clear.click();
   await expect(searchButton("Search")).toBeFocused();
   await expect(clear).toHaveCount(0);
@@ -559,9 +580,14 @@ test("still: the phone with a search term applied", async ({ page }) => {
   const search = await searchField(page);
   await search.fill("repository");
   await dismissFilters(page);
-  await expect(page.getByRole("button", { name: "Clear", exact: true }))
+  await expect(page.getByRole("button", { name: "Clear search", exact: true }))
     .toBeVisible();
   await still(page, "work-list-search-applied");
+  // The narrowest phone keeps the same single row.
+  await page.setViewportSize({ width: 320, height: 800 });
+  await expect(page.getByRole("button", { name: "Clear search", exact: true }))
+    .toBeVisible();
+  await still(page, "work-list-search-applied-narrow");
 });
 
 test("still: the empty Work list", async ({ page }) => {
