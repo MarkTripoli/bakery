@@ -291,6 +291,7 @@ export const DeliveryImplementedAction = Object.freeze(
     RunReviewsList: "runReviews.list",
     ReviewFindingsList: "reviewFindings.list",
     RunDeliveryDecisionsList: "runDeliveryDecisions.list",
+    PullRequestsList: "pullRequests.list",
   } as const satisfies Record<string, CatalogActionName>,
 );
 export const deliveryImplementedActions = Object.freeze(

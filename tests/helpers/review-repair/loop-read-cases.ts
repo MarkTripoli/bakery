@@ -11,6 +11,7 @@ import {
   type ChecksFixture,
   openChecksFixture,
 } from "../deterministic-checks/checks-fixture.ts";
+import { insertCheckRun } from "../deterministic-checks/run-fixture.ts";
 import { fingerprintOf } from "./fixtures.ts";
 import {
   insertDeliveryDecision,
@@ -135,6 +136,92 @@ async function seedCycles(
     });
   }
   return ids;
+}
+
+type PullRequestSeed = {
+  organizationId: string;
+  taskId: string;
+  runId: string | null;
+  providerNumber: number;
+  headSha: string;
+  createdAt: Date;
+  repositoryId?: string;
+};
+
+/** A repository in the task's application, owned by the owner role. */
+async function seedRepository(
+  reads: Reads,
+  organizationId: string,
+  taskId: string,
+): Promise<string> {
+  const repositoryId = crypto.randomUUID();
+  await reads.owner.query(
+    `insert into bakery.repositories (
+       id, organization_id, application_id, integration_connection_id,
+       provider_repo_id, owner, name, default_branch
+     ) select $1, organization_id, application_id, $2, $3, 'reads-owner', $3,
+              'main'
+         from bakery.tasks where organization_id = $4 and id = $5`,
+    [
+      repositoryId,
+      crypto.randomUUID(),
+      `repo-${repositoryId}`,
+      organizationId,
+      taskId,
+    ],
+  );
+  return repositoryId;
+}
+
+/** One tracked pull request row, as registration and observation leave it. */
+async function seedPullRequest(
+  reads: Reads,
+  seed: PullRequestSeed,
+): Promise<{ id: string; repositoryId: string }> {
+  const id = crypto.randomUUID();
+  const repositoryId = seed.repositoryId ??
+    await seedRepository(reads, seed.organizationId, seed.taskId);
+  await reads.owner.query(
+    `insert into bakery.pull_requests (
+       id, organization_id, task_id, repository_id, run_id, provider_number,
+       url, head_sha, base_sha, status, merged_sha, created_at, updated_at,
+       version
+     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'merged', $10, $11, $11, 2)`,
+    [
+      id,
+      seed.organizationId,
+      seed.taskId,
+      repositoryId,
+      seed.runId,
+      seed.providerNumber,
+      `https://github.example/o/r/pull/${seed.providerNumber}`,
+      seed.headSha,
+      "b".repeat(40),
+      "c".repeat(40),
+      seed.createdAt,
+    ],
+  );
+  return { id, repositoryId };
+}
+
+function pullRequestContext(
+  organizationId: string,
+  principalId: string,
+): ActionContext {
+  return {
+    request: new Request("http://test/v1/pull-requests", {
+      headers: { "Bakery-Organization-Id": organizationId },
+    }),
+    params: {},
+    requestId: crypto.randomUUID(),
+    traceId: crypto.randomUUID(),
+    signal: new AbortController().signal,
+    principal: {
+      principalId,
+      principalType: "service",
+      displayName: "Pull request reader",
+    },
+  };
 }
 
 const ids = (page: Page) => page.items.map((item) => item.id);
@@ -602,6 +689,209 @@ export function registerLoopReadCases(): void {
             role,
           );
         }
+      }),
+  );
+
+  readCase(
+    "#57 pullRequests.list pages the organization's pull requests with their fields and filters, and never another organization's",
+    () =>
+      withReads(async (reads) => {
+        const registry = createDeliveryActionRegistry(
+          reads.fixture.appPg,
+          createDeliveryHandlers(SECRET),
+        );
+        const list = async (
+          query: Record<string, unknown>,
+          organizationId: string = reads.fixture.organizationId,
+          principalId: string = reads.principalId,
+        ) =>
+          await registry.execute(
+            DeliveryImplementedAction.PullRequestsList,
+            pullRequestContext(organizationId, principalId),
+            query,
+          ) as Page;
+        const run = await seedReviewRun(reads.owner, reads.scope());
+        const other = await seedReviewRun(reads.owner, reads.scope());
+        const orgId = reads.fixture.organizationId;
+        const first = await seedPullRequest(reads, {
+          organizationId: orgId,
+          taskId: run.taskId,
+          runId: run.runId,
+          providerNumber: 101,
+          headSha: "1".repeat(40),
+          createdAt: new Date("2026-11-15T01:00:00.000Z"),
+        });
+        const second = await seedPullRequest(reads, {
+          organizationId: orgId,
+          taskId: run.taskId,
+          runId: null,
+          providerNumber: 102,
+          headSha: "2".repeat(40),
+          createdAt: new Date("2026-11-15T02:00:00.000Z"),
+          repositoryId: first.repositoryId,
+        });
+        const third = await seedPullRequest(reads, {
+          organizationId: orgId,
+          taskId: other.taskId,
+          runId: other.runId,
+          providerNumber: 7,
+          headSha: "3".repeat(40),
+          createdAt: new Date("2026-11-15T03:00:00.000Z"),
+        });
+        // Another organization's pull request, on its own run.
+        const foreignPrincipal = await reads.addPrincipal(
+          reads.otherOrganizationId,
+          "developer",
+        );
+        const foreignRun = await seedReviewRun(reads.owner, {
+          organizationId: reads.otherOrganizationId,
+          principalId: foreignPrincipal,
+        });
+        const foreign = await seedPullRequest(reads, {
+          organizationId: reads.otherOrganizationId,
+          taskId: foreignRun.taskId,
+          runId: foreignRun.runId,
+          providerNumber: 9,
+          headSha: "4".repeat(40),
+          createdAt: new Date("2026-11-15T00:30:00.000Z"),
+        });
+
+        const all = await list({});
+        contractSchemas["Page<PullRequest>"].parse(all);
+        assert(!ids(all).includes(foreign.id));
+        const mine = ids(all).filter((id) =>
+          [first.id, second.id, third.id].includes(String(id))
+        );
+        assertEquals(mine, [first.id, second.id, third.id]);
+        const projected = all.items.find((item) => item.id === first.id)!;
+        assertEquals(projected, {
+          id: first.id,
+          taskId: run.taskId,
+          repositoryId: first.repositoryId,
+          runId: run.runId,
+          providerNumber: 101,
+          url: "https://github.example/o/r/pull/101",
+          headSha: "1".repeat(40),
+          baseSha: "b".repeat(40),
+          status: "merged",
+          mergedSha: "c".repeat(40),
+          createdAt: "2026-11-15T01:00:00.000Z",
+          updatedAt: "2026-11-15T01:00:00.000Z",
+          version: 2,
+        });
+        assertEquals(
+          ids(await list({ repositoryId: first.repositoryId })),
+          [first.id, second.id],
+        );
+        assertEquals(ids(await list({ taskId: run.taskId })), [
+          first.id,
+          second.id,
+        ]);
+        assertEquals(ids(await list({ runId: run.runId })), [first.id]);
+        assertEquals(ids(await list({ runId: other.runId })), [third.id]);
+        // A foreign filter id reads as an empty page, never the row.
+        assertEquals(ids(await list({ runId: foreignRun.runId })), []);
+        assertEquals(
+          ids(await list({}, reads.otherOrganizationId, foreignPrincipal)),
+          [foreign.id],
+        );
+
+        const one = await list({ taskId: run.taskId, limit: 1 });
+        assertEquals(ids(one), [first.id]);
+        assert(one.nextCursor !== null);
+        const two = await list({
+          taskId: run.taskId,
+          limit: 1,
+          cursor: one.nextCursor,
+        });
+        assertEquals(ids(two), [second.id]);
+        assertEquals(two.nextCursor, null);
+        // The cursor is bound to its filters.
+        assertEquals(
+          await code(list({ runId: run.runId, cursor: one.nextCursor })),
+          "INVALID_CURSOR",
+        );
+      }),
+  );
+
+  readCase(
+    "#57 a check and a review name the run's pull request at their head, and stay null without one",
+    () =>
+      withReads(async (reads) => {
+        const orgId = reads.fixture.organizationId;
+        const run = await seedReviewRun(reads.owner, reads.scope());
+        const head = "5".repeat(40);
+        const moved = "6".repeat(40);
+        const pullRequest = await seedPullRequest(reads, {
+          organizationId: orgId,
+          taskId: run.taskId,
+          runId: run.runId,
+          providerNumber: 55,
+          headSha: head,
+          createdAt: new Date("2026-11-15T05:00:00.000Z"),
+        });
+        // A pull request of the same task but no run never matches.
+        await seedPullRequest(reads, {
+          organizationId: orgId,
+          taskId: run.taskId,
+          runId: null,
+          providerNumber: 56,
+          headSha: moved,
+          createdAt: new Date("2026-11-15T05:01:00.000Z"),
+          repositoryId: pullRequest.repositoryId,
+        });
+        const atHead = await insertCheckRun(reads.owner, {
+          organizationId: orgId,
+          runId: run.runId,
+          headSha: head,
+          checkId: "unit",
+          createdAt: new Date("2026-11-15T05:02:00.000Z"),
+        });
+        const elsewhere = await insertCheckRun(reads.owner, {
+          organizationId: orgId,
+          runId: run.runId,
+          headSha: moved,
+          checkId: "lint",
+          createdAt: new Date("2026-11-15T05:03:00.000Z"),
+        });
+        const checks = await reads.list(orgId, run.runId);
+        contractSchemas["Page<CheckRun>"].parse(checks);
+        const byId = new Map(checks.items.map((item) => [item.id, item]));
+        assertEquals(byId.get(atHead)?.pullRequestId, pullRequest.id);
+        assertEquals(byId.get(elsewhere)?.pullRequestId, null);
+
+        await insertReviewCycle(reads.owner, {
+          organizationId: orgId,
+          runId: run.runId,
+          runStepId: run.reviewStepId,
+          reviewerSessionId: run.reviewerSessionId,
+          implementerSessionId: run.implementerSessionId,
+          ordinal: 0,
+          headSha: head,
+          status: "changes_requested",
+          findingCount: 0,
+          blockingCount: 0,
+          createdAt: new Date("2026-11-15T05:04:00.000Z"),
+        });
+        await insertReviewCycle(reads.owner, {
+          organizationId: orgId,
+          runId: run.runId,
+          runStepId: run.reviewStepId,
+          reviewerSessionId: run.reviewerSessionId,
+          implementerSessionId: run.implementerSessionId,
+          ordinal: 1,
+          headSha: moved,
+          status: "approved",
+          findingCount: 0,
+          blockingCount: 0,
+          createdAt: new Date("2026-11-15T05:05:00.000Z"),
+        });
+        const reviews = await reads.read("runReviews.list", { id: run.runId });
+        contractSchemas["Page<ReviewCycle>"].parse(reviews);
+        assertEquals(
+          reviews.items.map((item) => item.pullRequestId),
+          [pullRequest.id, null],
+        );
       }),
   );
 

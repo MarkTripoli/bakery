@@ -204,6 +204,49 @@ function activeRequestOf(request: TicketRequest | undefined) {
   };
 }
 
+/** At most this many linked task ids are listed per ticket. */
+const MAX_LINKED_TASK_IDS = 25;
+
+type LinkedTasks = { ids: string[]; count: number };
+
+/**
+ * Each ticket's linked tasks from `ticket_task_links`, most recently linked
+ * first and cut at `MAX_LINKED_TASK_IDS`, with the uncut count. One statement
+ * per page, scoped to the organization.
+ */
+async function linkedTasksFor(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  ticketIds: readonly string[],
+): Promise<Map<string, LinkedTasks>> {
+  const result = await transaction.query<
+    { external_ticket_id: string; task_ids: string[]; total: number }
+  >(
+    `select ranked.external_ticket_id,
+            array_agg(ranked.task_id order by ranked.position)
+              filter (where ranked.position <= $3) as task_ids,
+            count(*)::integer as total
+       from (
+         select link.external_ticket_id, link.task_id,
+                row_number() over (
+                  partition by link.external_ticket_id
+                  order by link.created_at desc, link.id desc
+                ) as position
+           from bakery.ticket_task_links as link
+          where link.organization_id = $1
+            and link.external_ticket_id = any($2::uuid[])
+       ) as ranked
+      group by ranked.external_ticket_id`,
+    [organizationId, ticketIds, MAX_LINKED_TASK_IDS],
+  );
+  return new Map(
+    result.rows.map((row) => [
+      row.external_ticket_id,
+      { ids: row.task_ids, count: row.total },
+    ]),
+  );
+}
+
 /** The ticket rows with the newest report and the nonterminal request each owns. */
 async function projectTickets(
   transaction: PgTransactionClient,
@@ -217,8 +260,10 @@ async function projectTickets(
     organizationId,
     ids,
   );
+  const links = await linkedTasksFor(transaction, organizationId, ids);
   return rows.map((row) => {
     const stored = reports.get(row.id);
+    const linked = links.get(row.id);
     return {
       id: row.id,
       organizationId: row.organization_id,
@@ -245,6 +290,8 @@ async function projectTickets(
         evaluatedAt: stored.evaluatedAt,
       },
       activeRequest: activeRequestOf(requests.get(row.id)),
+      linkedTaskIds: linked?.ids ?? [],
+      linkedTaskCount: linked?.count ?? 0,
       createdAt: row.created_at.toISOString(),
       updatedAt: row.updated_at.toISOString(),
       version: row.version,
