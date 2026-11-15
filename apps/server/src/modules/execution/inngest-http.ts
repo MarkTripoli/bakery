@@ -7,6 +7,7 @@ import {
   createBakeryWorkflowRecovery,
 } from "../workflow-adapter/bakery-postgres-store.ts";
 import { createBakeryBudgetRecovery } from "../work/budget-recovery.ts";
+import { createDependencyReleaseWorkflow } from "../work/dependency-release-workflow.ts";
 import {
   createSkillImportRecovery,
   createSkillImportWorkflow,
@@ -208,6 +209,10 @@ export function createDefaultInngestFunctions(options: {
       database: options.database,
     }),
     createAutomationIntakeFunction({
+      client: options.client,
+      database: options.database,
+    }),
+    createDependencyReleaseWorkflow({
       client: options.client,
       database: options.database,
     }),

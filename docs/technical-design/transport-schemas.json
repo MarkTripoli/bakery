@@ -25738,6 +25738,14 @@
       "inngestTrigger": null,
       "description": "Authorized invalidation notification; fetch authoritative current resource through its REST operation. Trigger consumers always re-read durable state."
     },
+    "task.dependency_release_requested": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "taskId": "uuid"
+      },
+      "inngestTrigger": "bakery/task.dependency_release_requested.v1",
+      "description": "Requests release of the runs blocked on a prerequisite task that ended. Consumers re-read the task and its blocked dependants under their own run locks; a repeat changes nothing."
+    },
     "tasks.created": {
       "schemaVersion": 1,
       "payloadFields": {

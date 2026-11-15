@@ -42,6 +42,7 @@ import {
   type PlanRecord,
   reconcileCoordinationPlan,
   recordFacts,
+  requestDependencyRelease,
   setLaneStatus,
 } from "./coordination-projection.ts";
 import {
@@ -49,10 +50,6 @@ import {
   loadTaskScope,
   lockApplication,
 } from "./postgres.ts";
-import {
-  findBlockedDependants,
-  releaseDependentRuns,
-} from "./dependency-release.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 
 type PlanCreateInput = z.output<typeof contractSchemas.CoordinationPlanCreate>;
@@ -717,24 +714,9 @@ async function lockCoordinationScope(
         and l.child_task_id is not null`,
     [organizationId, parentTaskId],
   );
-  const laneChildren = [...new Set(scope.rows.map((row) => row.child_id))];
-  // #57: a cancel or supersede of these children releases the runs blocked
-  // on them, cascading. Find those blocked dependants now so their runs and
-  // tasks join the id-ordered run and task locks below, before any plan row:
-  // after the plan lock the cascade only touches rows this scope holds.
-  const dependants = await findBlockedDependants(
-    transaction,
-    organizationId,
-    laneChildren,
-  );
-  const children = [...new Set([...laneChildren, ...dependants.taskIds])]
+  const children = scope.rows.map((row) => row.child_id).sort();
+  const runs = scope.rows.flatMap((row) => row.run_id ? [row.run_id] : [])
     .sort();
-  const runs = [
-    ...new Set([
-      ...scope.rows.flatMap((row) => row.run_id ? [row.run_id] : []),
-      ...dependants.runIds,
-    ]),
-  ].sort();
   if (runs.length > 0) {
     const live = `from bakery.run_steps step
          join bakery.jobs job
@@ -1131,21 +1113,17 @@ async function emitChildCanceled(
   const task = scope.rows[0];
   if (!task) return;
   // #57: a lane child canceled directly (no live worker) ends its task
-  // without the worker lifecycle's terminal hook, so release the runs blocked
-  // on it here; the cancel cascades to their dependants the same way. Plan
-  // reconciliation is left to the plan cancel that called this.
+  // without the worker lifecycle's terminal hook, so request the release of
+  // the runs blocked on it the same deferred way the hook does: a durable
+  // outbox follow-up whose consumer locks the dependants in its own
+  // transaction. Plan reconciliation is left to the plan cancel that called
+  // this.
   if (versions.taskVersion !== undefined) {
-    const release = (taskId: string): Promise<void> =>
-      releaseDependentRuns(
-        transaction,
-        {
-          organizationId: facts.organizationId,
-          taskId,
-          traceId: facts.traceId,
-        },
-        release,
-      );
-    await release(childTaskId);
+    await requestDependencyRelease(transaction, {
+      organizationId: facts.organizationId,
+      taskId: childTaskId,
+      traceId: facts.traceId,
+    });
   }
   const base = {
     organizationId: facts.organizationId,

@@ -1,6 +1,7 @@
 import { assert, assertEquals } from "@std/assert";
 import { commitArtifactVersion } from "../../apps/server/src/modules/knowledge/persistence.ts";
 import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
+import { runDependencyRelease } from "../../apps/server/src/modules/work/dependency-release-workflow.ts";
 import type { CoordinationFixture } from "./coordination-fixture.ts";
 
 export type Lane = {
@@ -268,4 +269,30 @@ export async function commitArtifact(
       promotion: { kind: "human" },
     });
   });
+}
+
+/**
+ * Delivers every recorded `task.dependency_release_requested` outbox request
+ * to its consumer, each in its own transaction, as the Inngest function would.
+ * The consumer is idempotent, so earlier requests may be delivered again.
+ * Returns how many requests were delivered.
+ */
+export async function deliverDependencyReleases(fx: CoordinationFixture) {
+  const requests = await fx.owner`
+    select event.payload ->> 'taskId' as task_id, event.trace_id
+      from bakery.domain_events event
+      join bakery.outbox outbox on outbox.event_id = event.id
+     where event.organization_id = ${fx.organizationId}
+       and event.event_type = 'task.dependency_release_requested'
+       and outbox.destination = 'inngest'
+       and outbox.delivery_key = 'task:' || event.aggregate_id || ':dependency-release:' || event.aggregate_version
+     order by event.organization_sequence`;
+  for (const request of requests) {
+    await runDependencyRelease(fx.ownerPg, {
+      organizationId: fx.organizationId,
+      taskId: request.task_id,
+      traceId: request.trace_id,
+    });
+  }
+  return requests.length;
 }

@@ -6,10 +6,14 @@ import {
   type CoordinationFixture,
   openCoordinationFixture,
 } from "../helpers/coordination-fixture.ts";
+import { deliverDependencyReleases as deliverReleases } from "../helpers/coordination-lanes.ts";
 
 // A run admitted blocked on `dependency_incomplete` leaves `blocked` when its
 // prerequisite tasks end: queued and started once all completed, canceled
-// naming the prerequisite when one failed or was canceled.
+// naming the prerequisite when one failed or was canceled. The terminal hook
+// only writes a durable `task.dependency_release_requested` outbox follow-up;
+// the release itself is that event's consumer, run here in its own
+// transaction for every request recorded so far (it is idempotent).
 
 async function dependsOn(
   fx: CoordinationFixture,
@@ -44,7 +48,8 @@ async function startRun(fx: CoordinationFixture, taskId: string) {
 
 /**
  * Ends a prerequisite task the way a terminal path does: the task status
- * changes and the terminal hook runs in the same transaction.
+ * changes and the terminal hook runs in the same transaction; then the
+ * deferred release request is delivered.
  */
 async function endTask(
   fx: CoordinationFixture,
@@ -63,6 +68,7 @@ async function endTask(
       traceId: "dependency-release-trace",
     });
   });
+  await deliverReleases(fx);
 }
 
 /** Repeats only the terminal hook, as a duplicate completion signal would. */
@@ -74,6 +80,7 @@ async function signalAgain(fx: CoordinationFixture, taskId: string) {
       traceId: "dependency-release-duplicate",
     });
   });
+  await deliverReleases(fx);
 }
 
 async function runState(fx: CoordinationFixture, runId: string) {
@@ -119,7 +126,24 @@ Deno.test("dependency release: a blocked run is queued and started when its prer
     assertEquals(blocked.requested, 0);
     assertEquals(blocked.task_status, "blocked");
 
-    await endTask(fx, a, "completed");
+    // The terminal transaction only records the request: nothing is
+    // released until its consumer runs.
+    await withPgTransaction(fx.ownerPg, async (transaction) => {
+      await transaction.query(
+        `update bakery.tasks set status = 'completed', version = version + 1
+          where organization_id = $1 and id = $2`,
+        [fx.organizationId, a],
+      );
+      await reconcileCoordinationForTerminalTask(transaction, {
+        organizationId: fx.organizationId,
+        taskId: a,
+        traceId: "dependency-release-trace",
+      });
+    });
+    const deferred = await runState(fx, run.id);
+    assertEquals(deferred.status, "blocked");
+    assertEquals(deferred.version, blocked.version);
+    assertEquals(await deliverReleases(fx), 1);
     const resumed = await runState(fx, run.id);
     assertEquals(resumed.status, "queued");
     assertEquals(resumed.task_status, "queued");

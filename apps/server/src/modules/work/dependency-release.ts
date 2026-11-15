@@ -104,8 +104,8 @@ export async function releaseDependentRuns(
 
 /**
  * The runs still blocked on `taskIds`, directly or through a chain of blocked
- * dependants, and their tasks, each list sorted by id. A plan cancel adds them
- * to its scope locks (`lockCoordinationScope`) before its plan lock.
+ * dependants, and their tasks, each list sorted by id
+ * (`lockBlockedDependants` locks them).
  */
 export async function findBlockedDependants(
   transaction: PgTransactionClient,
