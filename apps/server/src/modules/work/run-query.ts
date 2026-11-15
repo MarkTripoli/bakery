@@ -16,7 +16,7 @@ import {
   toRun,
 } from "./run-command.ts";
 import { readRunBudgetSummary } from "./budget.ts";
-import { toIso } from "./postgres.ts";
+import { isTaskStatus, toIso } from "./postgres.ts";
 import { requireWorkTransaction } from "./work-transaction.ts";
 
 const RUN_ORDERING = "createdAt:desc,id:desc";
@@ -192,6 +192,64 @@ async function assertRunVisible(
   return row;
 }
 
+/** At most this many blocking tasks are listed on a run read. */
+const MAX_BLOCKING_TASKS = 25;
+const DEPENDENCY_INCOMPLETE = "dependency_incomplete";
+
+type RunBlocking = Pick<RunOutput, "blockedReason" | "blockingTasks">;
+
+/**
+ * Why a run is blocked and which tasks it waits on, read live. The reason is
+ * the one admission froze in the run snapshot (`admission.reason`) and is
+ * served only while the run is `blocked`. For `dependency_incomplete` the
+ * blocking tasks are the run task's dependencies that are not `completed`
+ * now, oldest dependency first; every predicate names the organization, so
+ * another organization's task never appears.
+ */
+async function readRunBlocking(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  run: RunRow,
+): Promise<RunBlocking> {
+  if (run.status !== "blocked") {
+    return { blockedReason: null, blockingTasks: [] };
+  }
+  const stored = await transaction.query<{ reason: string | null }>(
+    `select snapshot -> 'admission' ->> 'reason' as reason
+       from bakery.workflow_runs
+      where organization_id = $1 and id = $2`,
+    [organizationId, run.id],
+  );
+  const blockedReason = stored.rows[0]?.reason ?? null;
+  if (blockedReason !== DEPENDENCY_INCOMPLETE || run.task_id === null) {
+    return { blockedReason, blockingTasks: [] };
+  }
+  const tasks = await transaction.query<
+    { id: string; title: string; status: string }
+  >(
+    `select task.id, task.title, task.status
+       from bakery.task_dependencies as dependency
+       join bakery.tasks as task
+         on task.organization_id = dependency.organization_id
+        and task.id = dependency.depends_on_task_id
+      where dependency.organization_id = $1
+        and dependency.task_id = $2
+        and task.status <> 'completed'
+      order by dependency.created_at asc, dependency.id asc
+      limit $3`,
+    [organizationId, run.task_id, MAX_BLOCKING_TASKS],
+  );
+  return {
+    blockedReason,
+    blockingTasks: tasks.rows.map((task) => {
+      if (!isTaskStatus(task.status)) {
+        throw new Error("WORK_READ_TASK_INVALID");
+      }
+      return { id: task.id, title: task.title, status: task.status };
+    }),
+  };
+}
+
 export function createRunQueryHandlers(secret: string) {
   return {
     async runsList(context: ActionContext, input: unknown) {
@@ -228,8 +286,8 @@ export function createRunQueryHandlers(secret: string) {
       const visible = result.rows.slice(0, limit);
       const items: RunOutput[] = [];
       for (const row of visible) {
-        items.push(
-          toRun(
+        items.push({
+          ...toRun(
             row,
             await readRunBudgetSummary(transaction, {
               organizationId,
@@ -237,7 +295,8 @@ export function createRunQueryHandlers(secret: string) {
               limitUsd: String(row.budget_limit_usd),
             }),
           ),
-        );
+          ...await readRunBlocking(transaction, organizationId, row),
+        });
       }
       const last = visible.at(-1);
       return {
@@ -256,14 +315,17 @@ export function createRunQueryHandlers(secret: string) {
       const runId = context.params.id;
       if (!runId) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
       const run = await assertRunVisible(transaction, organizationId, runId);
-      return toRun(
-        run,
-        await readRunBudgetSummary(transaction, {
-          organizationId,
-          runId: run.id,
-          limitUsd: String(run.budget_limit_usd),
-        }),
-      );
+      return {
+        ...toRun(
+          run,
+          await readRunBudgetSummary(transaction, {
+            organizationId,
+            runId: run.id,
+            limitUsd: String(run.budget_limit_usd),
+          }),
+        ),
+        ...await readRunBlocking(transaction, organizationId, run),
+      };
     },
 
     async runStepsList(context: ActionContext, input: unknown) {

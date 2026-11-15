@@ -31,7 +31,8 @@ const PULL_REQUEST_COLUMNS = `id, organization_id as "organizationId",
   base_sha as "baseSha", status, merged_sha as "mergedSha",
   provider_updated_at as "providerUpdatedAt",
   observed_started_at as "observedStartedAt",
-  last_observed_at as "lastObservedAt", version`;
+  last_observed_at as "lastObservedAt", run_id as "runId",
+  created_at as "createdAt", updated_at as "updatedAt", version`;
 
 const ShaSchema = z.string().regex(FULL_SHA).describe(
   "Full lowercase 40-character Git commit SHA.",
@@ -76,6 +77,13 @@ export const PullRequestRecordSchema = z.object({
   ),
   lastObservedAt: z.date().nullable().describe(
     "Time the last stored observation was written; null until the first read.",
+  ),
+  runId: z.string().uuid().nullable().describe(
+    "Workflow run that opened the pull request; null when it was registered without a run.",
+  ),
+  createdAt: z.date().describe("Time the pull request was registered."),
+  updatedAt: z.date().describe(
+    "Time the stored state last changed; moves with version, not with a confirming read.",
   ),
   version: z.number().int().positive().describe(
     "Row version; it moves only when an observation changes the stored state.",
@@ -157,6 +165,9 @@ export const PullRequestRegistrationSchema = z.object({
   ),
   headSha: ShaSchema,
   baseSha: ShaSchema,
+  runId: z.string().uuid().optional().describe(
+    "Workflow run of the task that opened the pull request; omitted when no run opened it. Its check runs and review cycles at the pull request's head name this pull request.",
+  ),
 }).strict().describe(
   "Registration of one pull request a task opened: where it lives and the two commits it joined.",
 );
@@ -179,8 +190,8 @@ export async function registerPullRequest(
   const inserted = await transaction.query(
     `insert into bakery.pull_requests (
        id, organization_id, task_id, repository_id, provider_number, url,
-       head_sha, base_sha, status, version
-     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 1)
+       head_sha, base_sha, status, run_id, version
+     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 1)
      on conflict (repository_id, provider_number) do nothing
      returning ${PULL_REQUEST_COLUMNS}`,
     [
@@ -193,6 +204,7 @@ export async function registerPullRequest(
       registration.headSha,
       registration.baseSha,
       PullRequestStatus.Open,
+      registration.runId ?? null,
     ],
   );
   if (inserted.rows[0] !== undefined) {
@@ -371,7 +383,7 @@ export async function observePullRequest(
         set url = $4, head_sha = $5, base_sha = $6, status = $7,
             merged_sha = $8, provider_updated_at = $9,
             observed_started_at = $10, last_observed_at = now(),
-            version = version + 1
+            updated_at = now(), version = version + 1
       where organization_id = $1 and repository_id = $2
         and provider_number = $3
         and (provider_updated_at is null
