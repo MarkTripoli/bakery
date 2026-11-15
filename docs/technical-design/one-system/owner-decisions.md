@@ -84,4 +84,19 @@ This file records what the product owner decided in conversation with their orch
 - Design note: the "no two code-changing parallel steps on one repository" rule counts ANY step allowed to write to that repository or workspace, including custom agent tasks.
 - Framing: Bakery is not code-only. The kernel is domain-neutral. Software delivery is one template pack beside it. MCP servers, skills and integrations are all building blocks inside workflows (architect addendum pending).
 
-There are no pending decisions as of 14 November 2026.
+**Non-code factories and MCP (one-system.md §10): O23–O33 all approved as recommended.**
+- O23: the kernel is domain-neutral, and software delivery is a pack.
+- O24: an MCP server is a Connection kind under E4.
+- O25: agents reach MCP only through Bakery's broker.
+- O26: an Admin classifies each tool's side effects.
+- O27: personal MCP connections on shared workflows need an explicit use grant, are labelled, and are never used by unattended starts.
+- O28: large media goes in Bakery's object store as artifact versions. This is amended by the storage decision below.
+- O29: binary documents are validated by sandboxed platform probes.
+- O30: the review loop is split out of the delivery pack.
+- O31: MCP tools come first.
+- O32: add "Connection", "revision" and "scope profile" to the vocabulary.
+- O33: the first non-code proof is a text-only content factory, then video.
+
+**Storage (owner callout on O28):** Bakery's storage must look and navigate like a file system, even though it is not literally one. It is a virtual, hierarchical file tree over the object store, with folders, paths and browsing. Its top-level areas have sensible defaults; for example, artifacts are stored in a specific area. Users, agents, the API/CLI and the UI all navigate the same tree. Immutable artifact versions and pinned refs stay underneath, and paths are the human-friendly way in. The design is pending from the architect.
+
+There are no pending owner decisions as of 14 November 2026. The storage design is in progress.

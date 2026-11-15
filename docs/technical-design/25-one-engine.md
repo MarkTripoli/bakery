@@ -3,8 +3,7 @@
 Status: design accepted by the product owner on 14 November 2026. Nothing here is
 implemented yet. This chapter is the canonical statement of the one-system design.
 Where another chapter disagrees with it, this chapter wins and the other chapter
-should be corrected. Decisions O23 to O33 (section 15) are **pending**: they
-wait for the owner's confirmation. Every other decision here is made.
+should be corrected. No decision here is pending.
 
 Companion documents, kept for their detail, live in [one-system/](one-system/):
 
@@ -122,7 +121,7 @@ result, effect, run end) plus compile time.
 
 | # | Primitive | Responsibility |
 | --- | --- | --- |
-| 1 | Work item (task) | Carries intent and continuity: brief, scope (the workspaces its steps declare, which may be none; repository links are the software-delivery pack's workspace kind, pending O23), tracker link, parent and children, priority, its named documents and its decisions ledger. Outlives runs |
+| 1 | Work item (task) | Carries intent and continuity: brief, scope (the workspaces its steps declare, which may be none; repository links are the software-delivery pack's workspace kind, O23), tracker link, parent and children, priority, its named documents and its decisions ledger. Outlives runs |
 | 2 | Definition (workflow and its immutable versions; listed or unlisted) | Steps, order rules, inputs and outputs, limits, default agents, seats and starts. A version never changes. Bounded before it runs |
 | 3 | Run | One execution of one pinned version on one work item, with snapshot, budget, status and a named outcome. Runs form a tree |
 | 4 | Step (with attempts) | One invocation of one action with a frozen input and a typed result. Exactly one completer finishes it: a worker job, a timer, a person, or child runs |
@@ -146,7 +145,7 @@ delivery, not guests.
 The user-facing vocabulary stays small (O12). "Workflow" (or "definition") is
 what the engine runs. "Plan" means only the document an agent writes.
 "Proposal" is what the coordinator suggests. "Split" and "lanes" replace
-"coordination plan". "Execution plan" stays internal. Pending O32 adds "Connection" to the user
+"coordination plan". "Execution plan" stays internal. O32 adds "Connection" to the user
 vocabulary and says "revision" rather than "candidate" and "scope profile"
 rather than "repository profile" in the kernel.
 
@@ -154,10 +153,10 @@ rather than "repository profile" in the kernel.
 
 | # | Extension point | What plugs in | Authored as |
 | --- | --- | --- | --- |
-| E1 | Actions | What a step does, including `tool.call` on a connection's tool (pending O24) | Data (an agent step preset), a workflow (`call`), a granted tool, or code in a package |
+| E1 | Actions | What a step does, including `tool.call` on a connection's tool | Data (an agent step preset), a workflow (`call`), a granted tool, or code in a package |
 | E2 | Artifact kinds | What a document must contain and which facts it yields | Data: template, rules from platform rule types, fact schema |
 | E3 | Start sources | What begins a run | Data (schedule, generic signed webhook) or a provider module |
-| E4 | Connections (integration families and providers) | Native providers: trackers, chat, and pack-specific families such as code hosts and deploy (software delivery). MCP servers as a second connection kind (pending O24) | A provider module implementing a family port, or an MCP server definition with a pinned capability snapshot |
+| E4 | Connections (integration families and providers) | Native providers: trackers, chat, and pack-specific families such as code hosts and deploy (software delivery). MCP servers as a second connection kind | A provider module implementing a family port, or an MCP server definition with a pinned capability snapshot |
 | E5 | Library | Agents, skills, seats, workflows, templates, step presets | Data, one lifecycle: draft, immutable version, copy with lineage, "update available", used-by |
 | E6 | Decision actions | Who supplies a choice: route, assign, plan | An action whose output fits one of three contracts |
 | E7 | Guards and counters | Limits across runs | A closed guard library; counters as data from kernel events, family projections, or values a step publishes |
@@ -167,7 +166,7 @@ Closed on purpose, extended only by a platform release: node forms and the
 interpreter, step completers, guard types, validator rule types, feed item
 kinds, steer kinds, the effect ledger and the checkpoints.
 
-Extensions are data only for now (O6/O7, section 6). MCP needs no ninth extension point: under the pending O24 it is a connection kind (E4) whose tools are actions (E1) bound through the library (E5).
+Extensions are data only for now (O6/O7, section 6). MCP needs no ninth extension point: under O24 it is a connection kind (E4) whose tools are actions (E1) bound through the library (E5).
 
 ## 5. Coordination plans become split (O2)
 
@@ -267,7 +266,7 @@ refs, tear down, and report cost. Six v1 choices keep the door open:
    never a host-local socket. The usage ledger accepts a compute kind beside
    model usage.
 
-Under the pending O23, "repository at a pinned commit" reads "each declared
+Under O23, "repository at a pinned commit" reads "each declared
 workspace at its pinned revision". The repository, commit and candidate details
 above belong to the software-delivery pack; a non-code step's whole file contract is its context and
 output directories.
@@ -386,7 +385,7 @@ count, set in the loop's panel.
 
 ## 12. Integration seams
 
-Under the pending O24, integrations and MCP servers are both **connections**
+Under O24, integrations and MCP servers are both **connections**
 (section 15.4): one broker, one grant model and one effect ledger.
 
 
@@ -466,7 +465,7 @@ are the keystone: they make "one engine" true and remove four private paths.
 19. **Execution-environment seam.** Placement as data and the `compute` family
     contract; no provider in v1 (O22).
 
-Section 15.7 adds the domain-neutral slices (pending O23 to O33).
+Section 15.7 adds the domain-neutral slices.
 
 The first customer-visible proof is Deliver shipped as a template after steps 1
 to 12.
@@ -487,12 +486,10 @@ to 12.
 - Raw token streams relayed into chat.
 - A cloud VM provider in v1.
 
-## 15. Domain-neutral kernel, workspaces and MCP connections (pending O23 to O33)
+## 15. Domain-neutral kernel, workspaces and MCP connections (O23 to O33)
 
-This section states section 10 of the kernel proposal (`one-system.md`). Its
-decisions, O23 to O33, are **pending** until the owner confirms them. It does not
-change any decided item above; where an earlier section now depends on it, that
-section says so.
+This section states section 10 of the kernel proposal (`one-system.md`). The
+owner approved its decisions, O23 to O33, as recommended.
 
 ### 15.1 Code-only assumptions and their neutral form (O23)
 
@@ -509,9 +506,7 @@ section says so.
 | Effect policy `repository_revision` | `workspace_revision` | none |
 | The review loop is about code | A neutral **review loop module** (O30): findings and status facts, rounds per checkpoint, a progress rule, caps and `limit` decisions | Repository checks as evidence; the merge gate |
 
-Readiness stays as decided (a label AND a workflow status, section 7). Section 10
-also allows a custom field of the work item as a readiness field; that
-widening is part of pending O23.
+Readiness stays as decided: a label AND a workflow status (section 7).
 
 ### 15.2 The workspace
 
@@ -620,9 +615,9 @@ by name, recorded and keyed where it writes, and the person can watch and steer.
 Families stay `tickets`, `code`, `chat` and `deploy`; `storage` and `publish` are
 added when the first template needs them, and the long tail goes through MCP.
 
-## 16. Pending owner decisions (O23 to O33)
+## 16. Decisions O23 to O33
 
-These are the only pending items. Each is the architect's recommendation.
+Approved by the owner on 14 November 2026, as recommended.
 
 - **O23:** the kernel is domain-neutral, with software delivery as a pack; the
   kernel gains the workspace, the revision chain and the one-writer rule.
