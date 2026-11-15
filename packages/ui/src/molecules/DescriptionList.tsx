@@ -11,6 +11,12 @@ export type DescriptionListProps =
      * has no inset of its own (the coordination plan).
      */
     inset?: "page";
+    /**
+     * Opt-in: `quiet` sets each row's title in the body weight, for a list of
+     * facts whose values are small, so the label is the quieter of the two. The
+     * default (the heavy subsection weight) is for a list of things to choose.
+     */
+    labels?: "quiet";
   };
 
 /**
@@ -19,12 +25,13 @@ export type DescriptionListProps =
  * gapless full-width column, not a `Stack`.
  */
 export function DescriptionList(
-  { children, inset, ...props }: DescriptionListProps,
+  { children, inset, labels, ...props }: DescriptionListProps,
 ) {
   return (
     <div
       className="ui-description-list"
       data-inset={inset}
+      data-labels={labels}
       {...props}
       data-state="default"
       data-ui-component="descriptionList"
