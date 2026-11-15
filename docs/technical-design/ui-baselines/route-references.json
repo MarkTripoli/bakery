@@ -5092,6 +5092,13 @@
       "frames": []
     },
     {
+      "routeId": "repository",
+      "path": "/projects/repositories/$repositoryId",
+      "status": "no-mock",
+      "rationale": "The repository page (#65 slice 2): the setup steps (connection, working settings, readiness check) and the working-settings sheet, designed by design-ux on #65 (section C and the server-facts addendum); Paper has no frame for it.",
+      "frames": []
+    },
+    {
       "routeId": "repository-rules",
       "path": "/projects/repositories/$repositoryId/rules",
       "status": "no-mock",
