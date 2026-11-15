@@ -45,6 +45,14 @@ export const artifactVersionReferences = [
     protection: "live-effect",
   },
   {
+    // A draft publication records which version a checkpoint became (#71). It
+    // never keeps the bytes alive: purging the version removes the record.
+    kind: "draft-publication",
+    table: "artifact_draft_publications",
+    constraint: "artifact_draft_publications_version_fk",
+    protection: "none",
+  },
+  {
     // A check row cites its output as retained evidence. The bytes stay for as
     // long as the row exists: expiry alone never retires check evidence.
     kind: "retained-evidence",

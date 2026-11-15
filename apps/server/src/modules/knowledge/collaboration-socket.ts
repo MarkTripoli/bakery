@@ -251,7 +251,21 @@ export type CollaborationRegistry = {
   /** Participants currently present in a room, for tests and diagnostics. */
   participants(room: Room): readonly Presence[];
   closeAll(code?: number, reason?: string): void;
+  /**
+   * Pushes a committed draft publication to everyone in that draft's room in
+   * the same organization, so editors can show who published which version.
+   * Best effort: a missed notice is recovered by reading the publication.
+   */
+  notifyDraftPublished(
+    organizationId: string,
+    publication: DraftPublicationNotice,
+  ): void;
 };
+
+/** The publication a `published` frame carries. */
+export type DraftPublicationNotice = z.output<
+  typeof contractSchemas.DraftPublication
+>;
 
 type RegistryInternals = {
   readonly connections: Set<Connection>;
@@ -291,6 +305,29 @@ export function createCollaborationRegistry(): CollaborationRegistry {
     closeAll(code = 1001, reason = "server shutdown") {
       for (const connection of [...internals.connections]) {
         connection.close(code, reason);
+      }
+    },
+    notifyDraftPublished(organizationId, publication) {
+      const room: Room = { kind: "draft", id: publication.draftId };
+      const parsed = contractSchemas.CollaborationFrame.safeParse({
+        type: "published",
+        room,
+        publication,
+      });
+      if (!parsed.success) return;
+      const encoded = JSON.stringify(parsed.data);
+      for (
+        const participant of internals.rooms.get(roomKey(room))?.values() ?? []
+      ) {
+        const connection = participant.connection;
+        if (
+          connection.closed || connection.organizationId !== organizationId
+        ) continue;
+        try {
+          connection.socket.send(encoded);
+        } catch {
+          connection.close(1011, "socket error");
+        }
       }
     },
   };
