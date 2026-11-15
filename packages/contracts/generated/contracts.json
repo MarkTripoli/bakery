@@ -8525,6 +8525,55 @@
       "implemented": true
     },
     {
+      "group": "Drafts",
+      "method": "POST",
+      "path": "/v1/drafts/{id}/publications",
+      "action": "draftPublications.create",
+      "access": "Developer",
+      "permission": "artifactVersion:write",
+      "input": "DraftPublicationCreate",
+      "output": "DraftPublication",
+      "event": "draft.published",
+      "mcp": "bakery_draftPublications_create",
+      "idempotency": "Natural idempotency by checkpointId: one artifact version per draft checkpoint; an optional Idempotency-Key is bound to that checkpoint and a reused key naming another checkpoint fails",
+      "idempotencyKeyOptional": true,
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "STATE_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Drafts",
+      "method": "GET",
+      "path": "/v1/drafts/{id}/publications/{checkpointId}",
+      "action": "draftPublications.get",
+      "access": "Developer",
+      "permission": "draft:read",
+      "input": "DraftCheckpointPath",
+      "output": "DraftPublication",
+      "event": "",
+      "mcp": "bakery_draftPublications_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Artifacts",
       "method": "GET",
       "path": "/v1/artifact-storage",
@@ -9121,6 +9170,8 @@
     "draftCheckpoints.get",
     "draftSlices.get",
     "drafts.edit",
+    "draftPublications.create",
+    "draftPublications.get",
     "secrets.list",
     "secrets.get",
     "secrets.create",
@@ -30495,6 +30546,135 @@
           }
         }
       },
+      "/v1/drafts/{id}/publications": {
+        "post": {
+          "operationId": "draftPublications.create",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/DraftPublication"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftPublicationCreate"
+                }
+              }
+            }
+          }
+        }
+      },
+      "/v1/drafts/{id}/publications/{checkpointId}": {
+        "get": {
+          "operationId": "draftPublications.get",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Authorized active draft identifier from the route."
+              }
+            },
+            {
+              "name": "checkpointId",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Immutable checkpoint identifier owned by the same draft and epoch."
+              }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/DraftPublication"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
       "/v1/artifact-storage": {
         "get": {
           "operationId": "artifactStorage.get",
@@ -38656,6 +38836,8 @@
                 "draftCheckpoints.get",
                 "draftSlices.get",
                 "drafts.edit",
+                "draftPublications.create",
+                "draftPublications.get",
                 "artifactStorage.get",
                 "coordinationPlans.create",
                 "coordinationPlans.createFromWorkflow",
@@ -55369,6 +55551,29 @@
           ],
           "additionalProperties": false,
           "description": "Path parameters naming one ticket source and a provider username to look up on its repository (#69)."
+        },
+        "DraftPublicationCreate": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "checkpointId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Committed checkpoint of this draft to publish, read from drafts.get at the moment Publish was pressed; it is the frozen cutoff, so edits committed after it are not in the version."
+            },
+            "textDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "description": "Lowercase SHA-256 of the checkpoint's UTF-8 body text as the publisher previewed it; a different digest fails without publishing."
+            }
+          },
+          "required": [
+            "checkpointId",
+            "textDigest"
+          ],
+          "additionalProperties": false,
+          "description": "Publishes one exact committed draft checkpoint as the artifact's next immutable version through the shared artifact-version service. No content, actor, artifact, parent version or organization can be supplied by the caller."
         },
         "applications": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -81183,6 +81388,8 @@
                 "draftCheckpoints.get",
                 "draftSlices.get",
                 "drafts.edit",
+                "draftPublications.create",
+                "draftPublications.get",
                 "artifactStorage.get",
                 "coordinationPlans.create",
                 "coordinationPlans.createFromWorkflow",
@@ -81646,6 +81853,8 @@
                 "draftCheckpoints.get",
                 "draftSlices.get",
                 "drafts.edit",
+                "draftPublications.create",
+                "draftPublications.get",
                 "artifactStorage.get",
                 "coordinationPlans.create",
                 "coordinationPlans.createFromWorkflow",
@@ -82109,6 +82318,8 @@
                 "draftCheckpoints.get",
                 "draftSlices.get",
                 "drafts.edit",
+                "draftPublications.create",
+                "draftPublications.get",
                 "artifactStorage.get",
                 "coordinationPlans.create",
                 "coordinationPlans.createFromWorkflow",
@@ -125238,6 +125449,8 @@
                       "draftCheckpoints.get",
                       "draftSlices.get",
                       "drafts.edit",
+                      "draftPublications.create",
+                      "draftPublications.get",
                       "artifactStorage.get",
                       "coordinationPlans.create",
                       "coordinationPlans.createFromWorkflow",
@@ -177575,9 +177788,149 @@
                 ],
                 "additionalProperties": false,
                 "description": "CollaborationFrame resync_required frame."
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "room": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "draft"
+                        ],
+                        "description": "Room type; only collaborative drafts can be joined."
+                      },
+                      "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Identifier of the draft the room belongs to."
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "id"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Room the frame applies to."
+                  },
+                  "publication": {
+                    "type": "object",
+                    "properties": {
+                      "draftId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Draft the version was published from."
+                      },
+                      "epoch": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Draft epoch of the published checkpoint."
+                      },
+                      "checkpointId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Exact draft checkpoint frozen as the published content."
+                      },
+                      "serverSequence": {
+                        "type": "string",
+                        "pattern": "^(?:0|[1-9][0-9]*)$",
+                        "description": "Committed draft sequence of the cutoff; edits with a higher sequence are not in this version."
+                      },
+                      "textDigest": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$",
+                        "description": "SHA-256 of the checkpoint's UTF-8 body text."
+                      },
+                      "artifactId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Artifact that received the new version."
+                      },
+                      "artifactVersionId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Immutable artifact version created by this publication."
+                      },
+                      "versionNumber": {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991,
+                        "description": "Revision number of the created version on its artifact, shown as version n."
+                      },
+                      "sha256": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$",
+                        "description": "SHA-256 of the published version bytes; equals textDigest for a text draft."
+                      },
+                      "publishedById": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "Principal the publication is attributed to: the person, or the principal an agent acted for."
+                      },
+                      "publishedByName": {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "DraftPublication.publishedByName must contain at most 1024 UTF-8 bytes.",
+                        "x-utf8-max-bytes": 1024
+                      },
+                      "actorKind": {
+                        "type": "string",
+                        "enum": [
+                          "person",
+                          "agent"
+                        ],
+                        "description": "person when a person published through a signed-in session; agent when an agent published through an access token or under its own service or worker identity."
+                      },
+                      "publishedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                        "description": "UTC time the publication committed."
+                      }
+                    },
+                    "required": [
+                      "draftId",
+                      "epoch",
+                      "checkpointId",
+                      "serverSequence",
+                      "textDigest",
+                      "artifactId",
+                      "artifactVersionId",
+                      "versionNumber",
+                      "sha256",
+                      "publishedById",
+                      "publishedByName",
+                      "actorKind",
+                      "publishedAt"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Publication committed for the room's draft, pushed to everyone in the room so editors can show who published which version."
+                  },
+                  "type": {
+                    "type": "string",
+                    "const": "published",
+                    "description": "CollaborationFrame.published discriminator."
+                  }
+                },
+                "required": [
+                  "room",
+                  "publication",
+                  "type"
+                ],
+                "additionalProperties": false,
+                "description": "CollaborationFrame published frame."
               }
             ],
-            "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, and committed draft sync. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
+            "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, committed draft sync, and publication notices. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
             "x-utf8-max-bytes": 65536
           },
           "description": "CollaborationFrames frames."
@@ -178946,9 +179299,149 @@
               ],
               "additionalProperties": false,
               "description": "CollaborationFrame resync_required frame."
+            },
+            {
+              "type": "object",
+              "properties": {
+                "room": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "draft"
+                      ],
+                      "description": "Room type; only collaborative drafts can be joined."
+                    },
+                    "id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Identifier of the draft the room belongs to."
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Room the frame applies to."
+                },
+                "publication": {
+                  "type": "object",
+                  "properties": {
+                    "draftId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Draft the version was published from."
+                    },
+                    "epoch": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "Draft epoch of the published checkpoint."
+                    },
+                    "checkpointId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Exact draft checkpoint frozen as the published content."
+                    },
+                    "serverSequence": {
+                      "type": "string",
+                      "pattern": "^(?:0|[1-9][0-9]*)$",
+                      "description": "Committed draft sequence of the cutoff; edits with a higher sequence are not in this version."
+                    },
+                    "textDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$",
+                      "description": "SHA-256 of the checkpoint's UTF-8 body text."
+                    },
+                    "artifactId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Artifact that received the new version."
+                    },
+                    "artifactVersionId": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Immutable artifact version created by this publication."
+                    },
+                    "versionNumber": {
+                      "type": "integer",
+                      "minimum": -9007199254740991,
+                      "maximum": 9007199254740991,
+                      "description": "Revision number of the created version on its artifact, shown as version n."
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$",
+                      "description": "SHA-256 of the published version bytes; equals textDigest for a text draft."
+                    },
+                    "publishedById": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                      "description": "Principal the publication is attributed to: the person, or the principal an agent acted for."
+                    },
+                    "publishedByName": {
+                      "type": "string",
+                      "maxLength": 65536,
+                      "description": "DraftPublication.publishedByName must contain at most 1024 UTF-8 bytes.",
+                      "x-utf8-max-bytes": 1024
+                    },
+                    "actorKind": {
+                      "type": "string",
+                      "enum": [
+                        "person",
+                        "agent"
+                      ],
+                      "description": "person when a person published through a signed-in session; agent when an agent published through an access token or under its own service or worker identity."
+                    },
+                    "publishedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                      "description": "UTC time the publication committed."
+                    }
+                  },
+                  "required": [
+                    "draftId",
+                    "epoch",
+                    "checkpointId",
+                    "serverSequence",
+                    "textDigest",
+                    "artifactId",
+                    "artifactVersionId",
+                    "versionNumber",
+                    "sha256",
+                    "publishedById",
+                    "publishedByName",
+                    "actorKind",
+                    "publishedAt"
+                  ],
+                  "additionalProperties": false,
+                  "description": "Publication committed for the room's draft, pushed to everyone in the room so editors can show who published which version."
+                },
+                "type": {
+                  "type": "string",
+                  "const": "published",
+                  "description": "CollaborationFrame.published discriminator."
+                }
+              },
+              "required": [
+                "room",
+                "publication",
+                "type"
+              ],
+              "additionalProperties": false,
+              "description": "CollaborationFrame published frame."
             }
           ],
-          "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, and committed draft sync. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
+          "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, committed draft sync, and publication notices. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
           "x-utf8-max-bytes": 65536
         },
         "CollaborationFrame____schema0": {
@@ -192161,6 +192654,10 @@
                 "description": "Retained authenticated mutation receipts ordered by server sequence; at most 100 are returned. Each array item follows this format."
               },
               "description": "Draft.receipts must contain at most 100 items."
+            },
+            "canPublish": {
+              "type": "boolean",
+              "description": "Whether the caller may publish this draft as the artifact's next version right now (artifactVersion:write under the caller's role, grants and token scope); the UI hides Publish when false."
             }
           },
           "required": [
@@ -192172,7 +192669,8 @@
             "checkpointId",
             "textDigest",
             "text",
-            "receipts"
+            "receipts",
+            "canPublish"
           ],
           "additionalProperties": false,
           "description": "Authorized committed draft readback containing bounded plain text, current checkpoint metadata, and retained mutation receipts without exposing Loro bytes."
@@ -197309,6 +197807,106 @@
           "additionalProperties": false,
           "description": "One provider user found on a ticket source's repository, for the automatic-start trigger list (#69). A username the provider does not know answers 404."
         },
+        "DraftPublication": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "draftId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Draft the version was published from."
+            },
+            "epoch": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Draft epoch of the published checkpoint."
+            },
+            "checkpointId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Exact draft checkpoint frozen as the published content."
+            },
+            "serverSequence": {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Committed draft sequence of the cutoff; edits with a higher sequence are not in this version."
+            },
+            "textDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "description": "SHA-256 of the checkpoint's UTF-8 body text."
+            },
+            "artifactId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Artifact that received the new version."
+            },
+            "artifactVersionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Immutable artifact version created by this publication."
+            },
+            "versionNumber": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Revision number of the created version on its artifact, shown as version n."
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "description": "SHA-256 of the published version bytes; equals textDigest for a text draft."
+            },
+            "publishedById": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Principal the publication is attributed to: the person, or the principal an agent acted for."
+            },
+            "publishedByName": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "DraftPublication.publishedByName must contain at most 1024 UTF-8 bytes.",
+              "x-utf8-max-bytes": 1024
+            },
+            "actorKind": {
+              "type": "string",
+              "enum": [
+                "person",
+                "agent"
+              ],
+              "description": "person when a person published through a signed-in session; agent when an agent published through an access token or under its own service or worker identity."
+            },
+            "publishedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC time the publication committed."
+            }
+          },
+          "required": [
+            "draftId",
+            "epoch",
+            "checkpointId",
+            "serverSequence",
+            "textDigest",
+            "artifactId",
+            "artifactVersionId",
+            "versionNumber",
+            "sha256",
+            "publishedById",
+            "publishedByName",
+            "actorKind",
+            "publishedAt"
+          ],
+          "additionalProperties": false,
+          "description": "Durable record that one draft checkpoint became one immutable artifact version: which version resulted, from which frozen cutoff, and who published it. Replayed exactly for a retry of the same checkpoint."
+        },
         "ArtifactOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -198794,7 +199392,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:6bfc1442f25c54b84101fd9cfac91715878bc3d6e4517147188cfa920f92ca58",
+  "compatibilityDigest": "sha256:1761ce543c2948f552e4f84c2070e726bddc93284b7f15890f2eb48de466075e",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -206114,6 +206712,8 @@
             "draftCheckpoints.get",
             "draftSlices.get",
             "drafts.edit",
+            "draftPublications.create",
+            "draftPublications.get",
             "artifactStorage.get",
             "coordinationPlans.create",
             "coordinationPlans.createFromWorkflow",
@@ -222881,6 +223481,29 @@
       ],
       "additionalProperties": false,
       "description": "Path parameters naming one ticket source and a provider username to look up on its repository (#69)."
+    },
+    "DraftPublicationCreate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "checkpointId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Committed checkpoint of this draft to publish, read from drafts.get at the moment Publish was pressed; it is the frozen cutoff, so edits committed after it are not in the version."
+        },
+        "textDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Lowercase SHA-256 of the checkpoint's UTF-8 body text as the publisher previewed it; a different digest fails without publishing."
+        }
+      },
+      "required": [
+        "checkpointId",
+        "textDigest"
+      ],
+      "additionalProperties": false,
+      "description": "Publishes one exact committed draft checkpoint as the artifact's next immutable version through the shared artifact-version service. No content, actor, artifact, parent version or organization can be supplied by the caller."
     },
     "applications": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -248789,6 +249412,8 @@
             "draftCheckpoints.get",
             "draftSlices.get",
             "drafts.edit",
+            "draftPublications.create",
+            "draftPublications.get",
             "artifactStorage.get",
             "coordinationPlans.create",
             "coordinationPlans.createFromWorkflow",
@@ -249252,6 +249877,8 @@
             "draftCheckpoints.get",
             "draftSlices.get",
             "drafts.edit",
+            "draftPublications.create",
+            "draftPublications.get",
             "artifactStorage.get",
             "coordinationPlans.create",
             "coordinationPlans.createFromWorkflow",
@@ -249715,6 +250342,8 @@
             "draftCheckpoints.get",
             "draftSlices.get",
             "drafts.edit",
+            "draftPublications.create",
+            "draftPublications.get",
             "artifactStorage.get",
             "coordinationPlans.create",
             "coordinationPlans.createFromWorkflow",
@@ -292986,6 +293615,8 @@
                   "draftCheckpoints.get",
                   "draftSlices.get",
                   "drafts.edit",
+                  "draftPublications.create",
+                  "draftPublications.get",
                   "artifactStorage.get",
                   "coordinationPlans.create",
                   "coordinationPlans.createFromWorkflow",
@@ -345381,9 +346012,149 @@
             ],
             "additionalProperties": false,
             "description": "CollaborationFrame resync_required frame."
+          },
+          {
+            "type": "object",
+            "properties": {
+              "room": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "draft"
+                    ],
+                    "description": "Room type; only collaborative drafts can be joined."
+                  },
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Identifier of the draft the room belongs to."
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false,
+                "description": "Room the frame applies to."
+              },
+              "publication": {
+                "type": "object",
+                "properties": {
+                  "draftId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Draft the version was published from."
+                  },
+                  "epoch": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Draft epoch of the published checkpoint."
+                  },
+                  "checkpointId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Exact draft checkpoint frozen as the published content."
+                  },
+                  "serverSequence": {
+                    "type": "string",
+                    "pattern": "^(?:0|[1-9][0-9]*)$",
+                    "description": "Committed draft sequence of the cutoff; edits with a higher sequence are not in this version."
+                  },
+                  "textDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$",
+                    "description": "SHA-256 of the checkpoint's UTF-8 body text."
+                  },
+                  "artifactId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Artifact that received the new version."
+                  },
+                  "artifactVersionId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Immutable artifact version created by this publication."
+                  },
+                  "versionNumber": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Revision number of the created version on its artifact, shown as version n."
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$",
+                    "description": "SHA-256 of the published version bytes; equals textDigest for a text draft."
+                  },
+                  "publishedById": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "Principal the publication is attributed to: the person, or the principal an agent acted for."
+                  },
+                  "publishedByName": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "DraftPublication.publishedByName must contain at most 1024 UTF-8 bytes.",
+                    "x-utf8-max-bytes": 1024
+                  },
+                  "actorKind": {
+                    "type": "string",
+                    "enum": [
+                      "person",
+                      "agent"
+                    ],
+                    "description": "person when a person published through a signed-in session; agent when an agent published through an access token or under its own service or worker identity."
+                  },
+                  "publishedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "UTC time the publication committed."
+                  }
+                },
+                "required": [
+                  "draftId",
+                  "epoch",
+                  "checkpointId",
+                  "serverSequence",
+                  "textDigest",
+                  "artifactId",
+                  "artifactVersionId",
+                  "versionNumber",
+                  "sha256",
+                  "publishedById",
+                  "publishedByName",
+                  "actorKind",
+                  "publishedAt"
+                ],
+                "additionalProperties": false,
+                "description": "Publication committed for the room's draft, pushed to everyone in the room so editors can show who published which version."
+              },
+              "type": {
+                "type": "string",
+                "const": "published",
+                "description": "CollaborationFrame.published discriminator."
+              }
+            },
+            "required": [
+              "room",
+              "publication",
+              "type"
+            ],
+            "additionalProperties": false,
+            "description": "CollaborationFrame published frame."
           }
         ],
-        "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, and committed draft sync. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
+        "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, committed draft sync, and publication notices. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
         "x-utf8-max-bytes": 65536
       },
       "description": "CollaborationFrames frames.",
@@ -346754,9 +347525,149 @@
           ],
           "additionalProperties": false,
           "description": "CollaborationFrame resync_required frame."
+        },
+        {
+          "type": "object",
+          "properties": {
+            "room": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "draft"
+                  ],
+                  "description": "Room type; only collaborative drafts can be joined."
+                },
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Identifier of the draft the room belongs to."
+                }
+              },
+              "required": [
+                "kind",
+                "id"
+              ],
+              "additionalProperties": false,
+              "description": "Room the frame applies to."
+            },
+            "publication": {
+              "type": "object",
+              "properties": {
+                "draftId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Draft the version was published from."
+                },
+                "epoch": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Draft epoch of the published checkpoint."
+                },
+                "checkpointId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Exact draft checkpoint frozen as the published content."
+                },
+                "serverSequence": {
+                  "type": "string",
+                  "pattern": "^(?:0|[1-9][0-9]*)$",
+                  "description": "Committed draft sequence of the cutoff; edits with a higher sequence are not in this version."
+                },
+                "textDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$",
+                  "description": "SHA-256 of the checkpoint's UTF-8 body text."
+                },
+                "artifactId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Artifact that received the new version."
+                },
+                "artifactVersionId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Immutable artifact version created by this publication."
+                },
+                "versionNumber": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991,
+                  "description": "Revision number of the created version on its artifact, shown as version n."
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$",
+                  "description": "SHA-256 of the published version bytes; equals textDigest for a text draft."
+                },
+                "publishedById": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "Principal the publication is attributed to: the person, or the principal an agent acted for."
+                },
+                "publishedByName": {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "DraftPublication.publishedByName must contain at most 1024 UTF-8 bytes.",
+                  "x-utf8-max-bytes": 1024
+                },
+                "actorKind": {
+                  "type": "string",
+                  "enum": [
+                    "person",
+                    "agent"
+                  ],
+                  "description": "person when a person published through a signed-in session; agent when an agent published through an access token or under its own service or worker identity."
+                },
+                "publishedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                  "description": "UTC time the publication committed."
+                }
+              },
+              "required": [
+                "draftId",
+                "epoch",
+                "checkpointId",
+                "serverSequence",
+                "textDigest",
+                "artifactId",
+                "artifactVersionId",
+                "versionNumber",
+                "sha256",
+                "publishedById",
+                "publishedByName",
+                "actorKind",
+                "publishedAt"
+              ],
+              "additionalProperties": false,
+              "description": "Publication committed for the room's draft, pushed to everyone in the room so editors can show who published which version."
+            },
+            "type": {
+              "type": "string",
+              "const": "published",
+              "description": "CollaborationFrame.published discriminator."
+            }
+          },
+          "required": [
+            "room",
+            "publication",
+            "type"
+          ],
+          "additionalProperties": false,
+          "description": "CollaborationFrame published frame."
         }
       ],
-      "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, and committed draft sync. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
+      "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, committed draft sync, and publication notices. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
       "x-utf8-max-bytes": 65536,
       "$defs": {
         "__schema0": {
@@ -360005,6 +360916,10 @@
             "description": "Retained authenticated mutation receipts ordered by server sequence; at most 100 are returned. Each array item follows this format."
           },
           "description": "Draft.receipts must contain at most 100 items."
+        },
+        "canPublish": {
+          "type": "boolean",
+          "description": "Whether the caller may publish this draft as the artifact's next version right now (artifactVersion:write under the caller's role, grants and token scope); the UI hides Publish when false."
         }
       },
       "required": [
@@ -360016,7 +360931,8 @@
         "checkpointId",
         "textDigest",
         "text",
-        "receipts"
+        "receipts",
+        "canPublish"
       ],
       "additionalProperties": false,
       "description": "Authorized committed draft readback containing bounded plain text, current checkpoint metadata, and retained mutation receipts without exposing Loro bytes."
@@ -365162,6 +366078,106 @@
       ],
       "additionalProperties": false,
       "description": "One provider user found on a ticket source's repository, for the automatic-start trigger list (#69). A username the provider does not know answers 404."
+    },
+    "DraftPublication": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "draftId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Draft the version was published from."
+        },
+        "epoch": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Draft epoch of the published checkpoint."
+        },
+        "checkpointId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Exact draft checkpoint frozen as the published content."
+        },
+        "serverSequence": {
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$",
+          "description": "Committed draft sequence of the cutoff; edits with a higher sequence are not in this version."
+        },
+        "textDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 of the checkpoint's UTF-8 body text."
+        },
+        "artifactId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Artifact that received the new version."
+        },
+        "artifactVersionId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Immutable artifact version created by this publication."
+        },
+        "versionNumber": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Revision number of the created version on its artifact, shown as version n."
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "SHA-256 of the published version bytes; equals textDigest for a text draft."
+        },
+        "publishedById": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Principal the publication is attributed to: the person, or the principal an agent acted for."
+        },
+        "publishedByName": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "DraftPublication.publishedByName must contain at most 1024 UTF-8 bytes.",
+          "x-utf8-max-bytes": 1024
+        },
+        "actorKind": {
+          "type": "string",
+          "enum": [
+            "person",
+            "agent"
+          ],
+          "description": "person when a person published through a signed-in session; agent when an agent published through an access token or under its own service or worker identity."
+        },
+        "publishedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC time the publication committed."
+        }
+      },
+      "required": [
+        "draftId",
+        "epoch",
+        "checkpointId",
+        "serverSequence",
+        "textDigest",
+        "artifactId",
+        "artifactVersionId",
+        "versionNumber",
+        "sha256",
+        "publishedById",
+        "publishedByName",
+        "actorKind",
+        "publishedAt"
+      ],
+      "additionalProperties": false,
+      "description": "Durable record that one draft checkpoint became one immutable artifact version: which version resulted, from which frozen cutoff, and who published it. Replayed exactly for a retry of the same checkpoint."
     },
     "ArtifactOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

@@ -23,6 +23,18 @@ const expected = [
   ],
   ["draftSlices.get", "GET", "/v1/drafts/{id}/slice", "bakery_draftSlices_get"],
   ["drafts.edit", "POST", "/v1/drafts/{id}/edits", "bakery_drafts_edit"],
+  [
+    "draftPublications.create",
+    "POST",
+    "/v1/drafts/{id}/publications",
+    "bakery_draftPublications_create",
+  ],
+  [
+    "draftPublications.get",
+    "GET",
+    "/v1/drafts/{id}/publications/{checkpointId}",
+    "bakery_draftPublications_get",
+  ],
 ] as const;
 
 Deno.test("generated REST and scoped MCP catalogs own the guarded draft actions", () => {
@@ -133,6 +145,7 @@ Deno.test("readback schemas expose committed text and receipts but no Loro bytes
     textDigest: receipt.textDigest,
     text: "committed",
     receipts: [receipt],
+    canPublish: true,
   };
   assert(contractSchemas.Draft.safeParse(draft).success);
   assertEquals(
