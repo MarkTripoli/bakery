@@ -489,6 +489,9 @@ export function TaskCoordinationPage(
             <UI.PageHeader
               variant="split"
               title={heading}
+              /* One explanation, once, under the heading (design-ux, O12): what
+                 a split and its lanes are, in plain view, no help button. */
+              description={t("tasks.coordination.description")}
               subtitle={phone
                 ? (
                   <div>
