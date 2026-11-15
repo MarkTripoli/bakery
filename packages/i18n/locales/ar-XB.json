@@ -3770,5 +3770,10 @@
   "library.editor.removeStep": "⟪Remove {name}⟫",
   "library.editor.check": "⟪Check the steps⟫",
   "library.editor.check.ok": "⟪Nothing to fix in these steps.⟫",
-  "library.editor.check.problems": "⟪Steps need attention: {count}.⟫"
+  "library.editor.check.problems": "⟪Steps need attention: {count}.⟫",
+  "library.editor.publish": "⟪Publish⟫",
+  "library.editor.publish.title": "⟪Publish these steps?⟫",
+  "library.editor.publish.body": "⟪This saves the steps as a new version and makes it the one new tasks get.⟫",
+  "library.editor.publish.confirm": "⟪Publish⟫",
+  "library.editor.publish.cancel": "⟪Keep editing⟫"
 }

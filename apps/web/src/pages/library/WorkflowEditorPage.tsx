@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useReducer, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { RouterLink } from "../../app/router-link.tsx";
+import { ShellSlot } from "../../shell/shell-slots.tsx";
 import * as UI from "@bakery/ui";
 import {
   effectiveAccessQueryOptions,
@@ -11,7 +12,7 @@ import { useBakeryApi } from "../../api/context.tsx";
 import { asyncKindForError, failureStatus } from "../../app/async-state.ts";
 import { useProtectedScope } from "../../app/query-scope-context.tsx";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { versionSource } from "./copy-workflow.ts";
 import { problemsOf, stepProblemLine } from "./editor-validation.ts";
 import { stepSummary } from "./step-summary.tsx";
@@ -36,9 +37,11 @@ export function WorkflowEditorPage(
   { workflowId }: { readonly workflowId: string },
 ) {
   const api = useBakeryApi();
+  const queryClient = useQueryClient();
   const scope = useProtectedScope();
   const { translate } = useI18n();
   const [tab, setTab] = useState<"steps" | "code">("steps");
+  const [publishOpen, setPublishOpen] = useState(false);
 
   const workflow = useQuery(workflowQueryOptions(api, scope, workflowId));
   const versions = useQuery(
@@ -108,7 +111,44 @@ export function WorkflowEditorPage(
       });
     },
   });
-  // A step is named by what it does; an action without a sentence shows its key.
+  // Publishing writes the editor's steps as a new version and makes it the one
+  // new tasks use; the version itself is published as it is created.
+  const publish = useMutation({
+    mutationFn: async () => {
+      const made = await api.createWorkflowVersion({
+        organizationId: scope.organizationId as string,
+        workflowId,
+        input: {
+          definition: {
+            steps: editor.steps.map((step) => ({
+              id: step.id,
+              uses: step.uses,
+              ...(step.agentVersionId === null
+                ? {}
+                : { agentVersionId: step.agentVersionId }),
+            })),
+          } as never,
+        } as never,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      if (!made.ok) throw made.error;
+      const activated = await api.activateWorkflowVersion({
+        organizationId: scope.organizationId as string,
+        id: workflowId,
+        versionId: made.data.id,
+        version: workflow.data?.version ?? 0,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      if (!activated.ok) throw activated.error;
+      return made.data;
+    },
+    onSuccess: () => {
+      setPublishOpen(false);
+      setChecked(null);
+      dispatch({ kind: "reset", steps: versionSteps });
+      void queryClient.invalidateQueries({ queryKey: ["protected"] });
+    },
+  }); // A step is named by what it does; an action without a sentence shows its key.
   const stepTitle = (uses: string) => {
     const key = ACTION_TITLES[uses];
     return key === undefined ? uses : translate(key as never);
@@ -415,8 +455,59 @@ export function WorkflowEditorPage(
             </UI.Badge>
           )}
       />
+      {canManage && current !== null
+        ? (
+          <ShellSlot name="actions">
+            <UI.Button
+              variant="primary"
+              disabled={!isDirty(editor) || publish.isPending || offline}
+              loading={publish.isPending}
+              onClick={() => setPublishOpen(true)}
+            >
+              {translate("library.editor.publish" as never)}
+            </UI.Button>
+          </ShellSlot>
+        )
+        : null}
       {back}
       {body}
+      <UI.AlertDialog
+        open={publishOpen}
+        variant="destructive"
+        title={translate("library.editor.publish.title" as never)}
+        state={publish.isPending ? "confirming" : "open"}
+        onOpenChange={(open) => {
+          if (!open) setPublishOpen(false);
+        }}
+        cancelAction={
+          <UI.Button
+            variant="outline"
+            disabled={publish.isPending}
+            onClick={() => setPublishOpen(false)}
+          >
+            {translate("library.editor.publish.cancel" as never)}
+          </UI.Button>
+        }
+        confirmAction={
+          <UI.Button
+            variant="destructive"
+            loading={publish.isPending}
+            disabled={publish.isPending}
+            onClick={() => publish.mutate()}
+          >
+            {translate("library.editor.publish.confirm" as never)}
+          </UI.Button>
+        }
+      >
+        <UI.Stack gap="tight">
+          <UI.Text>
+            {translate("library.editor.publish.body" as never)}
+          </UI.Text>
+          <UI.Text variant="muted">
+            {translate("library.workflow.steps.never" as never)}
+          </UI.Text>
+        </UI.Stack>
+      </UI.AlertDialog>
     </>
   );
 }

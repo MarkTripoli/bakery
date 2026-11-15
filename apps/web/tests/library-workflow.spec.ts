@@ -525,7 +525,7 @@ for (
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
 
     const openEditor = async (page: Page, options: Options = WORLD) => {
-      await libraryFixture(page, options);
+      const seen = await libraryFixture(page, options);
       await page.goto(`/library/workflows/${WORKFLOW.id}`);
       await expect(page.getByTestId("workflow-page")).toBeVisible();
       if (viewport.width < 744) {
@@ -539,6 +539,7 @@ for (
       await expect(page).toHaveURL(
         `/library/workflows/${WORKFLOW.id}/edit`,
       );
+      return seen;
     };
 
     test("Edit opens the editor on the version in use: its steps and its code", async ({ page }) => {
@@ -627,6 +628,33 @@ for (
       );
       await expect(page.locator('[data-step-row] [data-step-status="failed"]'))
         .toHaveCount(0);
+    });
+
+    test("Publish writes the steps as a new version, makes it the one in use, and clears the draft", async ({ page }) => {
+      const seen = await openEditor(page);
+      // Nothing to publish until something changes.
+      await expect(page.getByRole("button", { name: "Publish" }))
+        .toBeDisabled();
+      await page
+        .getByRole("button", { name: "Move Write the task brief down" })
+        .click();
+      await expect(page.getByRole("button", { name: "Publish" })).toBeEnabled();
+      await page.getByRole("button", { name: "Publish" }).click();
+      const dialog = page.getByRole("alertdialog", {
+        name: "Publish these steps?",
+      });
+      await expect(dialog).toContainText(
+        "This saves the steps as a new version and makes it the one new tasks get.",
+      );
+      // What the version never does is said here, as the page says it elsewhere.
+      await expect(dialog).toContainText("A version never changes after");
+      await expect(dialog.getByRole("button", { name: "Keep editing" }))
+        .toBeVisible();
+      await dialog.getByRole("button", { name: "Publish" }).click();
+      // The steps went out in their edited order, and the new version is used.
+      await expect.poll(() => seen.stepWrites).toBeGreaterThan(0);
+      await expect(page.getByText("Unsaved changes")).toHaveCount(0);
+      await shot(page, "workflow-editor-publish");
     });
 
     test("a member who may not change workflows sees the editor read only", async ({ page }) => {

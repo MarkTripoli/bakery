@@ -3770,5 +3770,10 @@
   "library.editor.removeStep": "⟦Ŕëɱôṽë {name} ŧë⟧",
   "library.editor.check": "⟦Çĥëçķ ŧĥë šŧëþš ŧëš⟧",
   "library.editor.check.ok": "⟦Ñôŧĥïñĝ ŧô ƒïẋ ïñ ŧĥëšë šŧëþš. ŧëšŧ çôþ⟧",
-  "library.editor.check.problems": "⟦Šŧëþš ñëëð àŧŧëñŧïôñ: {count}. ŧëšŧ çôþ⟧"
+  "library.editor.check.problems": "⟦Šŧëþš ñëëð àŧŧëñŧïôñ: {count}. ŧëšŧ çôþ⟧",
+  "library.editor.publish": "⟦Þûƀļïšĥ…⟧",
+  "library.editor.publish.title": "⟦Þûƀļïšĥ ŧĥëšë šŧëþš? ŧëšŧ⟧",
+  "library.editor.publish.body": "⟦Ŧĥïš šàṽëš ŧĥë šŧëþš àš à ñëŵ ṽëŕšïôñ àñð ɱàķëš ïŧ ŧĥë ôñë ñëŵ ŧàšķš ĝëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "library.editor.publish.confirm": "⟦Þûƀļïšĥ…⟧",
+  "library.editor.publish.cancel": "⟦Ķëëþ ëðïŧïñĝ ŧë⟧"
 }
