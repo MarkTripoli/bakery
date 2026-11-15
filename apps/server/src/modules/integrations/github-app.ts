@@ -2092,12 +2092,20 @@ export function createFetchGitHubAppClient(
       } catch (error) {
         // The request may have reached GitHub: a lost answer is uncertainty
         // the caller must reconcile, never a silent failure to merge again.
+        // A deadline is the client's own; the transport reports every other
+        // failed exchange as DEPENDENCY_UNAVAILABLE, which for a write may
+        // still mean GitHub acted, so both read as unknown.
         if (
           error instanceof GitHubReadFailure && error.kind === "timeout"
         ) {
           return { kind: "unknown" };
         }
-        if (error instanceof TypeError) return { kind: "unknown" };
+        if (
+          error instanceof StandardError &&
+          error.code === "DEPENDENCY_UNAVAILABLE"
+        ) {
+          return { kind: "unknown" };
+        }
         throw error;
       }
       if (status !== 200) return { kind: "refused", status };
