@@ -19,7 +19,7 @@ export const Contract: StoryObj = {
         unknownLabel="Unknown"
       />
       <RunIdentity
-        title="Where this ran"
+        title="Where this ran, machine stopped"
         worker="atlas-01"
         attempt="Try 2"
         lease="Machine stopped responding. Bakery took the task back."
@@ -28,7 +28,7 @@ export const Contract: StoryObj = {
         unknownLabel="Unknown"
       />
       <RunIdentity
-        title="Where this ran"
+        title="Where this ran, machine unknown"
         worker={null}
         attempt={null}
         lease={null}
