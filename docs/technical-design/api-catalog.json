@@ -5402,7 +5402,7 @@
       "action": "pullRequests.list",
       "access": "Developer",
       "permission": "pullRequest:read",
-      "input": "RepositoryQuery",
+      "input": "PullRequestQuery",
       "output": "Page<PullRequest>",
       "event": "",
       "mcp": "bakery_pullRequests_list",
@@ -5410,10 +5410,12 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
         "RESOURCE_NOT_FOUND",
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
-      ]
+      ],
+      "organizationContext": "required_authenticated_context"
     },
     {
       "group": "Delivery",

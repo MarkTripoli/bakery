@@ -288,3 +288,231 @@ Deno.test("a run projects the base its first completed harness step started from
     await fixture.close();
   }
 });
+
+type BlockingView = {
+  readonly id: string;
+  readonly status: string;
+  readonly blockedReason: string | null;
+  readonly blockingTasks: readonly {
+    id: string;
+    title: string;
+    status: string;
+  }[];
+};
+
+Deno.test("#57 a blocked run serves its reason and the unfinished tasks it waits on", async () => {
+  const fixture = await openOutboxTestFixture();
+  const owner: Database = fixture.owner;
+  const organizationId = fixture.organizationId;
+  const otherOrganizationId = crypto.randomUUID();
+  const principalId = crypto.randomUUID();
+  const applicationId = crypto.randomUUID();
+  const conversationId = crypto.randomUUID();
+  const workflowId = crypto.randomUUID();
+  const workflowVersionId = crypto.randomUUID();
+  const insertTask = async (
+    title: string,
+    status: string,
+    organization: string = organizationId,
+    application = applicationId,
+    conversation = conversationId,
+  ) => {
+    const id = crypto.randomUUID();
+    await owner`
+      insert into bakery.tasks (
+        id, organization_id, application_id, conversation_id, title,
+        description, task_type, status, created_by
+      ) values (${id}, ${organization}, ${application}, ${conversation},
+        ${title}, '', 'feature', ${status}, ${principalId})`;
+    return id;
+  };
+  const depend = async (taskId: string, on: string, at: Date) => {
+    await owner`
+      insert into bakery.task_dependencies (
+        organization_id, task_id, depends_on_task_id, condition, created_at
+      ) values (${organizationId}, ${taskId}, ${on}, 'completed', ${at})`;
+  };
+  const insertRun = async (
+    taskId: string,
+    status: string,
+    admission: Record<string, unknown> | null,
+  ) => {
+    const runId = crypto.randomUUID();
+    const snapshot = admission === null
+      ? { name: "blocking" }
+      : { name: "blocking", admission };
+    await owner`
+      insert into bakery.workflow_runs (
+        id, organization_id, task_id, workflow_version_id, requested_by,
+        status, snapshot, budget_limit_usd, created_at, updated_at, version
+      ) values (
+        ${runId}, ${organizationId}, ${taskId}, ${workflowVersionId},
+        ${principalId}, ${status}, ${owner.json(snapshot as never)}, 0,
+        ${now}, ${now}, 1
+      )`;
+    return runId;
+  };
+  try {
+    await owner`
+      insert into bakery.principals (
+        id, provider_user_id, display_name, principal_type
+      ) values (${principalId}, null, 'Blocking reader', 'service')`;
+    await owner`
+      insert into bakery.organization_memberships (
+        id, organization_id, principal_id, role, status, joined_at,
+        created_at, updated_at, version
+      ) values (
+        ${crypto.randomUUID()}, ${organizationId}, ${principalId},
+        'developer', 'active', ${now}, ${now}, ${now}, 1
+      )`;
+    await owner`
+      insert into bakery.organizations (
+        id, name, slug, metadata, created_at, updated_at, version
+      ) values (${otherOrganizationId}, 'Other', ${`other-${otherOrganizationId}`},
+        '{}'::jsonb, ${now}, ${now}, 1)`;
+    await owner`
+      insert into bakery.applications (id, organization_id, slug, name, description)
+      values (${applicationId}, ${organizationId}, 'blocking', 'Blocking', '')`;
+    await owner`
+      insert into bakery.conversations (
+        id, organization_id, application_id, title, created_by
+      ) values (${conversationId}, ${organizationId}, ${applicationId},
+        'Blocking', ${principalId})`;
+    await owner`
+      insert into bakery.workflow_definitions (id, organization_id, slug, name)
+      values (${workflowId}, ${organizationId}, 'blocking', 'Blocking')`;
+    await owner`
+      insert into bakery.workflow_versions (
+        id, organization_id, workflow_id, revision, source_yaml,
+        normalized_spec, digest, status, created_by
+      ) values (
+        ${workflowVersionId}, ${organizationId}, ${workflowId}, 1,
+        'name: blocking', ${owner.json({ name: "blocking" })},
+        'blocking-test-digest', 'published', ${principalId}
+      )`;
+
+    const waiting = await insertTask("Waiting task", "queued");
+    const schema = await insertTask("Add the schema", "active");
+    const done = await insertTask("Done already", "completed");
+    const failed = await insertTask("Seed the fixtures", "failed");
+    await depend(waiting, failed, new Date("2026-10-21T00:00:02.000Z"));
+    await depend(waiting, schema, new Date("2026-10-21T00:00:01.000Z"));
+    await depend(waiting, done, new Date("2026-10-21T00:00:00.000Z"));
+    // Another organization's task with the same title and a dependency of its
+    // own: it can never be named by this organization's run.
+    const otherApplication = crypto.randomUUID();
+    const otherConversation = crypto.randomUUID();
+    await owner`
+      insert into bakery.applications (id, organization_id, slug, name, description)
+      values (${otherApplication}, ${otherOrganizationId}, 'other', 'Other', '')`;
+    await owner`
+      insert into bakery.conversations (
+        id, organization_id, application_id, title, created_by
+      ) values (${otherConversation}, ${otherOrganizationId},
+        ${otherApplication}, 'Other', ${principalId})`;
+    const foreign = await insertTask(
+      "Add the schema",
+      "active",
+      otherOrganizationId,
+      otherApplication,
+      otherConversation,
+    );
+    const foreignOwner = await insertTask(
+      "Waiting task",
+      "queued",
+      otherOrganizationId,
+      otherApplication,
+      otherConversation,
+    );
+    await owner`
+      insert into bakery.task_dependencies (
+        organization_id, task_id, depends_on_task_id, condition
+      ) values (${otherOrganizationId}, ${foreignOwner}, ${foreign},
+        'completed')`;
+
+    const blocked = await insertRun(waiting, "blocked", {
+      dependencies: [],
+      status: "blocked",
+      reason: "dependency_incomplete",
+    });
+    const queued = await insertRun(waiting, "queued", {
+      dependencies: [],
+      status: "queued",
+      reason: null,
+    });
+    const otherReason = await insertRun(waiting, "blocked", {
+      dependencies: [],
+      status: "blocked",
+      reason: "awaiting_approval",
+    });
+
+    const registry = createTaskActionRegistry(
+      createWorkTaskHandlers(cursorSecret),
+      { authorityRunner: new PostgresAuthorityRunner(fixture.appPg) },
+    );
+    const get = async (runId: string) =>
+      await registry.execute(
+        TaskImplementedAction.RunsGet,
+        contextFor(
+          organizationId,
+          principalId,
+          { id: runId },
+          `/v1/runs/${runId}`,
+        ),
+        { id: runId },
+      ) as BlockingView;
+
+    const blockedRun = await get(blocked);
+    assertEquals(blockedRun.blockedReason, "dependency_incomplete");
+    assertEquals(blockedRun.blockingTasks, [
+      { id: schema, title: "Add the schema", status: "active" },
+      { id: failed, title: "Seed the fixtures", status: "failed" },
+    ]);
+    assertEquals(
+      blockedRun.blockingTasks.some((task) => task.id === foreign),
+      false,
+    );
+    const queuedRun = await get(queued);
+    assertEquals([queuedRun.blockedReason, queuedRun.blockingTasks], [
+      null,
+      [],
+    ]);
+    const otherRun = await get(otherReason);
+    assertEquals([otherRun.blockedReason, otherRun.blockingTasks], [
+      "awaiting_approval",
+      [],
+    ]);
+
+    // A finished dependency drops out on the next read.
+    await owner`
+      update bakery.tasks set status = 'completed'
+       where organization_id = ${organizationId} and id = ${schema}`;
+    assertEquals((await get(blocked)).blockingTasks.map((task) => task.id), [
+      failed,
+    ]);
+
+    const listed = await registry.execute(
+      TaskImplementedAction.RunsList,
+      contextFor(
+        organizationId,
+        principalId,
+        { id: waiting },
+        `/v1/tasks/${waiting}/runs`,
+      ),
+      { limit: 25 },
+    ) as { items: BlockingView[] };
+    const byId = new Map(listed.items.map((item) => [item.id, item]));
+    assertEquals(byId.get(blocked)?.blockingTasks.map((task) => task.id), [
+      failed,
+    ]);
+    assertEquals(byId.get(queued)?.blockedReason, null);
+  } finally {
+    await owner`
+      delete from bakery.organizations where id = ${otherOrganizationId}`;
+    await owner`
+      delete from bakery.organization_memberships
+       where organization_id = ${organizationId}
+         and principal_id = ${principalId}`;
+    await fixture.close();
+  }
+});

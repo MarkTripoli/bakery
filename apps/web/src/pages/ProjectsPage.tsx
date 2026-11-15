@@ -121,6 +121,7 @@ export function ProjectsPage() {
     void navigate({
       to: "/projects/repositories/$repositoryId",
       params: { repositoryId: repository.id },
+      search: { check: undefined },
     });
 
   const addRepository = async (draft: AddRepositoryDraft) => {
