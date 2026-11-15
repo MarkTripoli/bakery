@@ -68,6 +68,47 @@ export function hasOwnRules(config: unknown): boolean {
 }
 
 /**
+ * Whether the rules of a version bind it: it states at least one entry. An
+ * explicit empty statement is "no overrides" and binds nothing (the server
+ * carries nothing forward for it either).
+ */
+export function rulesInForce(config: unknown): boolean {
+  const rules = record(record(config).repositoryRules).entries;
+  return Array.isArray(rules) && rules.length > 0;
+}
+
+/** The same JSON whatever the order of an object's keys, so two statements of rules compare. */
+function stable(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
+  if (typeof value === "object" && value !== null) {
+    return `{${
+      Object.keys(value).sort().map((key) =>
+        `${JSON.stringify(key)}:${
+          stable((value as Record<string, unknown>)[key])
+        }`
+      ).join(",")
+    }}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+/** Whether two versions state exactly the same rules. */
+export function sameRules(a: unknown, b: unknown): boolean {
+  return stable(record(a).repositoryRules ?? null) ===
+    stable(record(b).repositoryRules ?? null);
+}
+
+/**
+ * Whether the version's fixed policy locks its branches (a policy states the
+ * lock for every revision it carries): the branches change only with a new
+ * policy revision, never from a save of the working settings.
+ */
+export function fixesBranches(config: unknown): boolean {
+  const policy = record(record(config).fixedPolicy);
+  return record(policy.lockedConfiguration).branches === true;
+}
+
+/**
  * Whether a version of the settings was made by a readiness check: its config
  * is the check's own (schema 2, with the check policy), and a check only puts
  * its version in use when it passed. A person's version is schema 1.

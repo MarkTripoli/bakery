@@ -15,8 +15,10 @@ export type Profile = {
   revision: number;
   branches: string[];
   folder?: string;
-  /** The version states rules of its own (the Rules page publishes such versions). */
-  rules?: boolean;
+  /** The version states rules of its own (the Rules page publishes such versions); a string names the rule, so two versions can state different ones. */
+  rules?: boolean | string;
+  /** The version carries a fixed policy, which locks its branches. */
+  fixed?: boolean;
   /** Made by a readiness check (schema 2 with its check policy); a person's version is schema 1. */
   checkMade?: boolean;
   /** A failed check's candidate: stored (it holds a revision) but not listed. */
@@ -35,7 +37,7 @@ export type Options = {
   connection?: "enabled" | "revoked" | "missing";
   /** What creating a version answers: ok, a 409 (the number is taken), a server fault or a 400. */
   save?: "ok" | "conflict" | "down" | "rejected";
-  /** The policy of the version in use fixes its branches: a save that changes them is a 422 (`repository_branches_locked`). */
+  /** The server refuses a save that changes the branches with a 422 (`repository_branches_locked`) although the version in use shows no policy. */
   branchesLocked?: boolean;
   /** What putting a version in use answers: ok, a 412 whatever the version, or a server fault. */
   use?: "ok" | "conflict" | "down";
@@ -171,7 +173,22 @@ const configOf = (profile: Profile, base: string) => ({
   branches: { base, allowedPatterns: profile.branches },
   worktree: { root: profile.folder ?? "." },
   ...(profile.rules
-    ? { repositoryRules: { entries: [{ ruleKey: "commits.format" }] } }
+    ? {
+      repositoryRules: {
+        entries: [{
+          ruleKey: typeof profile.rules === "string"
+            ? profile.rules
+            : "commits.format",
+        }],
+      },
+    }
+    : {}),
+  ...(profile.fixed
+    ? {
+      fixedPolicy: {
+        lockedConfiguration: { branches: true, worktree: true, checker: true },
+      },
+    }
     : {}),
   ...(profile.checkMade ? { schemaVersion: 2, checkPolicy: {} } : {}),
 });
@@ -396,7 +413,7 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
             ? undefined
             : body.config.worktree.root,
           // The rules in force are copied into the new version, as the server does.
-          ...(keeps ? { rules: true } : {}),
+          ...(keeps ? { rules: inUse?.rules } : {}),
         };
         profiles.push(created);
         // The server puts the first version of a repository in use itself, and

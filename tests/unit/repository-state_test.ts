@@ -3,12 +3,15 @@ import {
   branchesOf,
   canonicalJson,
   configDigest,
+  fixesBranches,
   folderOf,
   hasOwnRules,
   isCheckMade,
   needsCheck,
   nextRevision,
   parseBranches,
+  rulesInForce,
+  sameRules,
   settingsConfig,
   settingsProblem,
   setupBadge,
@@ -141,4 +144,43 @@ Deno.test("a saved config never states the rules in force: the server keeps them
     (next.branches as { allowedPatterns: string[] }).allowedPatterns,
     ["main", "dev"],
   );
+});
+
+Deno.test("rules bind a version only when they state an entry", () => {
+  assertEquals(
+    rulesInForce({ repositoryRules: { entries: [{ a: 1 }] } }),
+    true,
+  );
+  assertEquals(rulesInForce({ repositoryRules: { entries: [] } }), false);
+  assertEquals(rulesInForce({ schemaVersion: 1 }), false);
+  assertEquals(rulesInForce(null), false);
+});
+
+Deno.test("two versions state the same rules whatever the order of their keys", () => {
+  const a = {
+    repositoryRules: { entries: [{ ruleKey: "x", mode: "require" }] },
+  };
+  const b = {
+    repositoryRules: { entries: [{ mode: "require", ruleKey: "x" }] },
+  };
+  const c = {
+    repositoryRules: { entries: [{ ruleKey: "y", mode: "require" }] },
+  };
+  assertEquals(sameRules(a, b), true);
+  assertEquals(sameRules(a, c), false);
+  assertEquals(sameRules(a, {}), false);
+  assertEquals(sameRules({}, { schemaVersion: 1 }), true);
+});
+
+Deno.test("a fixed policy fixes the branches of its version", () => {
+  assertEquals(
+    fixesBranches({
+      fixedPolicy: {
+        lockedConfiguration: { branches: true, worktree: true, checker: true },
+      },
+    }),
+    true,
+  );
+  assertEquals(fixesBranches({ schemaVersion: 1 }), false);
+  assertEquals(fixesBranches(null), false);
 });

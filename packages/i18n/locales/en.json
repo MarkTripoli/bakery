@@ -3735,6 +3735,12 @@
   "library.workflow.actionLine.agentFreeform": "An agent follows instructions written for this step.",
   "library.workflow.actionLine.qualityCheck": "Runs the repository's lint, tests and build.",
   "library.workflow.actionLine.deliveryMerge": "Merges the changes when checks and review allow it.",
-  "projects.repository.failure.branchesLocked": "This repository's policy fixes its branches, so they cannot be changed here. Nothing was saved.",
-  "projects.repository.settings.folderFixed": "The working folder cannot be changed here."
+  "projects.repository.failure.branchesLocked": "Nothing was saved. Your organization's rules fix the branches for this repository, so they cannot be changed here. An organization administrator can change that in Organization rules.",
+  "projects.repository.settings.worksFrom": "Works from",
+  "projects.repository.settings.folderWhole": "The whole repository",
+  "projects.repository.settings.folderSetByRules": "Set by this repository's rules. To change it, change the rules.",
+  "projects.repository.settings.branchesFixed": "Your organization's rules fix the branches for this repository. An organization administrator can change that in Organization rules.",
+  "projects.repository.settings.organizationRules": "Organization rules",
+  "projects.repository.use.rulesStop": "Version {version} does not include this repository's own rules, so they stop applying.",
+  "projects.repository.use.otherRules": "Version {version} has other rules of its own, so the ones in force now stop applying."
 }

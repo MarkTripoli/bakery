@@ -3735,6 +3735,12 @@
   "library.workflow.actionLine.agentFreeform": "⟦Àñ àĝëñŧ ƒôļļôŵš ïñšŧŕûçŧïôñš ŵŕïŧŧëñ ƒôŕ ŧĥïš šŧëþ. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "library.workflow.actionLine.qualityCheck": "⟦Ŕûñš ŧĥë ŕëþôšïŧôŕÿ'š ļïñŧ, ŧëšŧš àñð ƀûïļð. ŧëšŧ çôþÿ ŧëš⟧",
   "library.workflow.actionLine.deliveryMerge": "⟦Ṁëŕĝëš ŧĥë çĥàñĝëš ŵĥëñ çĥëçķš àñð ŕëṽïëŵ àļļôŵ ïŧ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
-  "projects.repository.failure.branchesLocked": "⟦Ŧĥïš ŕëþôšïŧôŕÿ'š þôļïçÿ ƒïẋëš ïŧš ƀŕàñçĥëš, šô ŧĥëÿ çàññôŧ ƀë çĥàñĝëð ĥëŕë. Ñôŧĥïñĝ ŵàš šàṽëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
-  "projects.repository.settings.folderFixed": "⟦Ŧĥë ŵôŕķïñĝ ƒôļðëŕ çàññôŧ ƀë çĥàñĝëð ĥëŕë. ŧëšŧ çôþÿ ŧë⟧"
+  "projects.repository.settings.worksFrom": "⟦Ŵôŕķš ƒŕôɱ ŧ⟧",
+  "projects.repository.settings.folderWhole": "⟦Ŧĥë ŵĥôļë ŕëþôšïŧôŕÿ ŧëšŧ⟧",
+  "projects.repository.settings.organizationRules": "⟦Ôŕĝàñïžàŧïôñ ŕûļëš ŧëšŧ⟧",
+  "projects.repository.use.rulesStop": "⟦Ṽëŕšïôñ {version} ðôëš ñôŧ ïñçļûðë ŧĥïš ŕëþôšïŧôŕÿ'š ôŵñ ŕûļëš, šô ŧĥëÿ šŧôþ àþþļÿïñĝ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "projects.repository.use.otherRules": "⟦Ṽëŕšïôñ {version} ĥàš ôŧĥëŕ ŕûļëš ôƒ ïŧš ôŵñ, šô ŧĥë ôñëš ïñ ƒôŕçë ñôŵ šŧôþ àþþļÿïñĝ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "projects.repository.failure.branchesLocked": "⟦Ñôŧĥïñĝ ŵàš šàṽëð. Ÿôûŕ ôŕĝàñïžàŧïôñ'š ŕûļëš ƒïẋ ŧĥë ƀŕàñçĥëš ƒôŕ ŧĥïš ŕëþôšïŧôŕÿ, šô ŧĥëÿ çàññôŧ ƀë çĥàñĝëð ĥëŕë. Àñ ôŕĝàñïžàŧïôñ àðɱïñïšŧŕàŧôŕ çàñ çĥàñĝë ŧĥàŧ ïñ Ôŕĝàñïžàŧïôñ ŕûļëš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
+  "projects.repository.settings.folderSetByRules": "⟦Šëŧ ƀÿ ŧĥïš ŕëþôšïŧôŕÿ'š ŕûļëš. Ŧô çĥàñĝë ïŧ, çĥàñĝë ŧĥë ŕûļëš. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧",
+  "projects.repository.settings.branchesFixed": "⟦Ÿôûŕ ôŕĝàñïžàŧïôñ'š ŕûļëš ƒïẋ ŧĥë ƀŕàñçĥëš ƒôŕ ŧĥïš ŕëþôšïŧôŕÿ. Àñ ôŕĝàñïžàŧïôñ àðɱïñïšŧŕàŧôŕ çàñ çĥàñĝë ŧĥàŧ ïñ Ôŕĝàñïžàŧïôñ ŕûļëš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧"
 }
