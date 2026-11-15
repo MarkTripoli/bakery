@@ -10,6 +10,10 @@ import { shot } from "./helpers/real-api.ts";
 
 registerPageHealth(test);
 
+// The text is checked after it rests and the answer comes from the server:
+// give the result longer than the default under load.
+const checked = expect.configure({ timeout: 15_000 });
+
 /**
  * Import a workflow definition (design-ux, #66, slice 3b): the text is read
  * and checked, only a definition the checker accepts can be imported, and
@@ -82,7 +86,7 @@ for (
     test("valid text is checked, says what it found, and imports as a draft that nothing runs", async ({ page }) => {
       const seen = await open(page);
       await paste(page, GOOD);
-      await expect(state(page)).toContainText("Looks good: 2 steps.");
+      await checked(state(page)).toContainText("Looks good: 2 steps.");
       // The name starts from what the definition calls itself.
       await expect(dialog(page).getByLabel("Name")).toHaveValue(
         "Nightly build",
@@ -128,7 +132,7 @@ for (
         ),
       });
       await expect(dialog(page)).toContainText("our-release-flow-v2.yaml");
-      await expect(state(page)).toContainText("Looks good: 1 step.");
+      await checked(state(page)).toContainText("Looks good: 1 step.");
       await expect(dialog(page).getByLabel("Name")).toHaveValue(
         "Our release flow",
       );
@@ -141,14 +145,14 @@ for (
     test("problems the checker finds say where and why, and block the import", async ({ page }) => {
       const seen = await open(page, { ...WORLD, validation: "errors" });
       await paste(page, GOOD);
-      await expect(state(page)).toContainText(
+      await checked(state(page)).toContainText(
         "This definition has 2 problems.",
       );
       // Each problem names what to fix (the action is read from the definition).
-      await expect(state(page)).toContainText(
+      await checked(state(page)).toContainText(
         "Step 2 uses an action Bakery does not have: harness.implement.",
       );
-      await expect(state(page)).toContainText(
+      await checked(state(page)).toContainText(
         "The definition is missing a required field.",
       );
       await expect(
@@ -163,10 +167,10 @@ for (
     test("a missing field is named, in a step and at the top of the definition", async ({ page }) => {
       await open(page, { ...WORLD, validation: "named" });
       await paste(page, GOOD);
-      await expect(state(page)).toContainText(
+      await checked(state(page)).toContainText(
         "Step 1 is missing a required field: id.",
       );
-      await expect(state(page)).toContainText(
+      await checked(state(page)).toContainText(
         "The definition is missing a required field: steps.",
       );
       await expect(
@@ -180,7 +184,7 @@ for (
     test("text that is not a definition is refused here, with where and why, without asking the server", async ({ page }) => {
       const seen = await open(page);
       await paste(page, "steps: [");
-      await expect(state(page)).toContainText(
+      await checked(state(page)).toContainText(
         "The definition: The definition is not valid YAML 1.2.",
       );
       await expect(
@@ -190,14 +194,14 @@ for (
       expect(seen.validations).toHaveLength(0);
       // Fixing the text checks it again.
       await dialog(page).getByLabel("Or paste the definition").fill(GOOD);
-      await expect(state(page)).toContainText("Looks good: 2 steps.");
+      await checked(state(page)).toContainText("Looks good: 2 steps.");
     });
 
     test("a warning is shown and does not block the import", async ({ page }) => {
       await open(page, { ...WORLD, validation: "warnings" });
       await paste(page, GOOD);
-      await expect(state(page)).toContainText("Looks good: 2 steps.");
-      await expect(state(page)).toContainText(
+      await checked(state(page)).toContainText("Looks good: 2 steps.");
+      await checked(state(page)).toContainText(
         "Step 1, uses: The step runs a model but no agent is bound.",
       );
       await expect(
@@ -209,7 +213,7 @@ for (
     test("when the checker cannot answer, the dialog says so and imports nothing", async ({ page }) => {
       const seen = await open(page, { ...WORLD, validation: "fail" });
       await paste(page, GOOD);
-      await expect(state(page)).toContainText(
+      await checked(state(page)).toContainText(
         "The definition could not be checked.",
       );
       await expect(
@@ -222,7 +226,7 @@ for (
     test("when the steps cannot be added the workflow exists and a retry only adds the steps", async ({ page }) => {
       const seen = await open(page, { ...WORLD, copy: "steps-fail-once" });
       await paste(page, GOOD);
-      await expect(state(page)).toContainText("Looks good: 2 steps.");
+      await checked(state(page)).toContainText("Looks good: 2 steps.");
       await dialog(page).getByRole("button", { name: "Import as draft" })
         .click();
       await expect(dialog(page)).toContainText(
@@ -238,7 +242,7 @@ for (
     test("a taken name is the Name field's problem, marked invalid and editable, and a new name imports", async ({ page }) => {
       const seen = await open(page, { ...WORLD, copy: "workflow-409-once" });
       await paste(page, GOOD);
-      await expect(state(page)).toContainText("Looks good: 2 steps.");
+      await checked(state(page)).toContainText("Looks good: 2 steps.");
       await dialog(page).getByRole("button", { name: "Import as draft" })
         .click();
       const name = dialog(page).getByLabel("Name");
@@ -258,7 +262,7 @@ for (
     test("a refused import says why when it is not allowed", async ({ page }) => {
       await open(page, { ...WORLD, copy: "workflow-403" });
       await paste(page, GOOD);
-      await expect(state(page)).toContainText("Looks good: 2 steps.");
+      await checked(state(page)).toContainText("Looks good: 2 steps.");
       await dialog(page).getByRole("button", { name: "Import as draft" })
         .click();
       await expect(dialog(page)).toContainText(
@@ -270,7 +274,7 @@ for (
     test("an empty name is refused where it is typed and nothing is created", async ({ page }) => {
       const seen = await open(page);
       await paste(page, "steps:\n  - id: brief\n    uses: task.brief\n");
-      await expect(state(page)).toContainText("Looks good: 1 step.");
+      await checked(state(page)).toContainText("Looks good: 1 step.");
       await dialog(page).getByLabel("Name").fill("");
       await dialog(page).getByRole("button", { name: "Import as draft" })
         .click();

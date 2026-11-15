@@ -962,10 +962,29 @@ test("a saved workflow whose newer version is in use says this run's version is 
   await shot(page, "task-origin-older");
   // In the wide header the workflow's link is line 2, under the title.
   if (test.info().project.name === "desktop") {
+    // The header's two lines share one element, so measure the text itself.
+    const line = (needle: string) =>
+      page.evaluate((text) => {
+        const walker = document.createTreeWalker(
+          document.body,
+          NodeFilter.SHOW_TEXT,
+        );
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          if (node.textContent?.includes(text)) {
+            const range = document.createRange();
+            range.selectNodeContents(node);
+            const box = range.getBoundingClientRect();
+            return { x: box.x, y: box.y, height: box.height };
+          }
+        }
+        return null;
+      }, needle);
     const link = await origin.getByRole("link").boundingBox();
-    const title = await page.getByText("Ship the contract change").first()
-      .boundingBox();
-    const plan = await page.getByText("Plan, version 2").first().boundingBox();
+    const title = await line("Ship the contract change");
+    const plan = await line("Plan, version 2");
+    expect(title, "the title's text").not.toBeNull();
+    expect(plan, "the plan label's text").not.toBeNull();
+    expect(link, "the workflow link").not.toBeNull();
     // Line 1: the title, then the plan's revision beside it.
     expect(Math.abs(plan!.y - title!.y)).toBeLessThanOrEqual(4);
     // Line 2: starts at the title's left edge, under it.
