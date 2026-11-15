@@ -8,6 +8,8 @@ Start with [bidirectional scopes](#integrations-section-9), [native integrations
 
 **Decisions:** shared GitHub App/installations with repository boundaries; Admin-selected actions/resources shared with Developers; trusted label admission; Slack first, using mentions and linked-thread replies. All chat clients share Bakery logic. Live OAuth, installation and Postgres recovery remain untested; see §8 and §11.
 
+The engine-level integration seams (provider-neutral families, pure adapters, readiness as a start source) are in [chapter 25, section 12](25-one-engine.md#12-integration-seams); the provider package architecture is section 12 of this chapter.
+
 ## 1. Decisions and capability flow
 
 | Decision | Chosen design | Reason and tradeoff |
