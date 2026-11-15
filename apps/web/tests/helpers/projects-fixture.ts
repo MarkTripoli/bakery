@@ -281,6 +281,12 @@ export async function projectsFixture(page: Page, options: Options = {}) {
           available: true,
           enabled: true,
           capabilitySnapshot: {},
+          // Served since #386: the repository's default branch and its latest check
+          // (unknown here, like a resource connected before that change).
+          defaultBranch: null,
+          latestCheckState: null,
+          latestCheckConclusion: null,
+          latestCheckAt: null,
           lastDiscoveryGeneration: 1,
           archivedAt: null,
           createdAt: STAMP,

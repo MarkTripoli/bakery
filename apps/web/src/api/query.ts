@@ -1689,6 +1689,53 @@ export function repositoryOnboardingQueryOptions(
   });
 }
 
+/**
+ * One readiness check of a repository, read by its own identity (the address
+ * carries it, so a reload or a shared link shows the same check). The check's
+ * progress is polled while it is queued or running.
+ */
+export function repositoryCheckQueryOptions(
+  client: Pick<BakeryApiClient, "getRepositoryOnboarding">,
+  scope: ApiScope,
+  repositoryId: string,
+  id: string,
+) {
+  return queryOptions<RepositoryOnboardingResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "repositoryChecks.get", {
+      repositoryId,
+      id,
+    }),
+    queryFn: async ({ signal }) => {
+      if (!scope.organizationId || !repositoryId || !id) {
+        throw { kind: "invalid-response", status: 0 } satisfies ApiFailure;
+      }
+      const check = unwrap(
+        await client.getRepositoryOnboarding({
+          organizationId: scope.organizationId,
+          id,
+          signal,
+        }),
+      );
+      if (
+        signal.aborted || check.id !== id || check.repositoryId !== repositoryId
+      ) {
+        throw { kind: "invalid-response", status: 200 } satisfies ApiFailure;
+      }
+      return check;
+    },
+    retry: retryNetworkOnce,
+    refetchInterval: (query) =>
+      query.state.status !== "error" &&
+        (query.state.data?.status === "queued" ||
+          query.state.data?.status === "running")
+        ? 1_500
+        : false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    staleTime: Infinity,
+  });
+}
+
 export function repositoryProfileObservationQueryOptions(
   client: Pick<BakeryApiClient, "getRepositoryProfileObservation">,
   scope: ApiScope,
