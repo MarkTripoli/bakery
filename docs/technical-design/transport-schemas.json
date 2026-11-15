@@ -19217,6 +19217,7 @@
         "target",
         "idempotencyKey",
         "status",
+        "failureCode",
         "remoteId",
         "lastCheckedAt",
         "requestingPrincipalId",
@@ -19237,6 +19238,7 @@
         "target": "string",
         "idempotencyKey": "string",
         "status": "enum(prepared|submitted|confirmed|uncertain|failed)",
+        "failureCode": "string|null",
         "remoteId": "string|null",
         "lastCheckedAt": "timestamp|null",
         "requestingPrincipalId": "uuid",
@@ -19256,7 +19258,8 @@
         "integrationConnectionId",
         "mcpConnectionId",
         "repositoryProfileId",
-        "credentialVersionId"
+        "credentialVersionId",
+        "failureCode"
       ],
       "fieldDescriptions": {
         "id": "Stable UUID identifying the external effect record.",
@@ -19265,6 +19268,7 @@
         "target": "External resource targeted by the effect.",
         "idempotencyKey": "Key used to deduplicate external effect attempts.",
         "status": "Current lifecycle status of the record.",
+        "failureCode": "Machine-readable reason the effect failed: a refusal the provider sent, or why Bakery abandoned it before sending (for example authorization_denied or adapter_changed). Null unless the status is failed (#68).",
         "remoteId": "Stable UUID linking this record to the related remote entity.",
         "lastCheckedAt": "UTC timestamp when the record was last checked.",
         "requestingPrincipalId": "Stable UUID linking this record to the related requesting principal entity.",
@@ -20089,6 +20093,7 @@
       "fields": [
         "id",
         "componentKey",
+        "paymentMethods",
         "kind",
         "actualVersion",
         "actualDigest",
@@ -20107,6 +20112,7 @@
       "fieldTypes": {
         "id": "uuid",
         "componentKey": "string",
+        "paymentMethods": "enum(subscription|api_metered|local)[]",
         "kind": "enum(worker|harness|toolchain)",
         "actualVersion": "string",
         "actualDigest": "sha256",
@@ -20121,6 +20127,7 @@
       "fieldDescriptions": {
         "id": "Stable UUID identifying the component record.",
         "componentKey": "Stable adapter/component key, unique per host.",
+        "paymentMethods": "Billing routes this component accepts when it is a coding agent (#68; the v1 rule from 05-runtime: Claude Code and Codex take subscription or api_metered, Pi takes api_metered or local); empty for any other component.",
         "kind": "Component kind: the worker binary, a harness, or a toolchain.",
         "actualVersion": "Actually installed version inspected by the adapter.",
         "actualDigest": "Digest of the installed binary when the adapter verified one.",
@@ -20185,6 +20192,7 @@
         "componentKey",
         "provider",
         "billingRoute",
+        "paymentMethodSupported",
         "enabled",
         "authMode",
         "credentialLocation",
@@ -20204,6 +20212,7 @@
         "componentKey": "string",
         "provider": "string",
         "billingRoute": "enum(subscription|api_metered|local)",
+        "paymentMethodSupported": "boolean",
         "enabled": "boolean",
         "authMode": "enum(host_native|api_secret)",
         "credentialLocation": "enum(harness_host|bakery_secret)",
@@ -20219,6 +20228,7 @@
         "componentKey": "Harness component key this binding authorizes.",
         "provider": "Provider key the binding routes work toward.",
         "billingRoute": "Billing route the work on this binding follows.",
+        "paymentMethodSupported": "Whether the binding's billing route is one its coding agent accepts (#68). False marks a binding saved before the rule that needs attention; new and changed bindings are refused instead.",
         "enabled": "Whether the binding may be used; disabling blocks new use immediately.",
         "authMode": "How credentials are obtained: the host-native harness account or a referenced Bakery secret.",
         "credentialLocation": "Where credentials live: local to the harness host, or referenced through a scoped secret.",

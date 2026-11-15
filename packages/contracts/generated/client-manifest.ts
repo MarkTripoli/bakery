@@ -30671,6 +30671,19 @@ export const clientManifest = {
                 "maxLength": 65536,
                 "description": "Stable adapter/component key, unique per host."
               },
+              "paymentMethods": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "subscription",
+                    "api_metered",
+                    "local"
+                  ],
+                  "description": "Billing routes this component accepts when it is a coding agent (#68; the v1 rule from 05-runtime: Claude Code and Codex take subscription or api_metered, Pi takes api_metered or local); empty for any other component. Each array item follows this format."
+                },
+                "description": "Billing routes this component accepts when it is a coding agent (#68; the v1 rule from 05-runtime: Claude Code and Codex take subscription or api_metered, Pi takes api_metered or local); empty for any other component."
+              },
               "kind": {
                 "type": "string",
                 "enum": [
@@ -30789,6 +30802,7 @@ export const clientManifest = {
             "required": [
               "id",
               "componentKey",
+              "paymentMethods",
               "kind",
               "actualVersion",
               "actualDigest",
@@ -31198,6 +31212,10 @@ export const clientManifest = {
                 ],
                 "description": "Billing route the work on this binding follows."
               },
+              "paymentMethodSupported": {
+                "type": "boolean",
+                "description": "Whether the binding's billing route is one its coding agent accepts (#68). False marks a binding saved before the rule that needs attention; new and changed bindings are refused instead."
+              },
               "enabled": {
                 "type": "boolean",
                 "description": "Whether the binding may be used; disabling blocks new use immediately."
@@ -31275,6 +31293,7 @@ export const clientManifest = {
               "componentKey",
               "provider",
               "billingRoute",
+              "paymentMethodSupported",
               "enabled",
               "authMode",
               "credentialLocation",
@@ -32546,6 +32565,20 @@ export const clientManifest = {
                 ],
                 "description": "Current lifecycle status of the record."
               },
+              "failureCode": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Machine-readable reason the effect failed: a refusal the provider sent, or why Bakery abandoned it before sending (for example authorization_denied or adapter_changed). Null unless the status is failed (#68)."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "ExternalEffect.failureCode may be null in this transport value."
+              },
               "remoteId": {
                 "anyOf": [
                   {
@@ -32672,6 +32705,7 @@ export const clientManifest = {
               "target",
               "idempotencyKey",
               "status",
+              "failureCode",
               "remoteId",
               "lastCheckedAt",
               "requestingPrincipalId",
@@ -45472,6 +45506,20 @@ export const clientManifest = {
           ],
           "description": "Current lifecycle status of the record."
         },
+        "failureCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Machine-readable reason the effect failed: a refusal the provider sent, or why Bakery abandoned it before sending (for example authorization_denied or adapter_changed). Null unless the status is failed (#68)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ExternalEffect.failureCode may be null in this transport value."
+        },
         "remoteId": {
           "anyOf": [
             {
@@ -45598,6 +45646,7 @@ export const clientManifest = {
         "target",
         "idempotencyKey",
         "status",
+        "failureCode",
         "remoteId",
         "lastCheckedAt",
         "requestingPrincipalId",
@@ -47941,6 +47990,10 @@ export const clientManifest = {
           ],
           "description": "Billing route the work on this binding follows."
         },
+        "paymentMethodSupported": {
+          "type": "boolean",
+          "description": "Whether the binding's billing route is one its coding agent accepts (#68). False marks a binding saved before the rule that needs attention; new and changed bindings are refused instead."
+        },
         "enabled": {
           "type": "boolean",
           "description": "Whether the binding may be used; disabling blocks new use immediately."
@@ -48018,6 +48071,7 @@ export const clientManifest = {
         "componentKey",
         "provider",
         "billingRoute",
+        "paymentMethodSupported",
         "enabled",
         "authMode",
         "credentialLocation",
