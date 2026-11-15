@@ -382,6 +382,16 @@ test(
   },
 );
 
+test("still: the New task panel", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  await mockComposer(page);
+  await page.goto("/tasks/new");
+  await field.repository(page).selectOption(repositoryId);
+  await field.title(page).fill("Add repository onboarding");
+  await expect(form(page)).toBeVisible();
+  await still(page, "new-task-panel");
+});
+
 test("a setup-required preset names every missing requirement and blocks submit", async ({ page }) => {
   await mockComposer(page, {
     availability: {

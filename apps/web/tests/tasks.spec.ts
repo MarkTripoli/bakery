@@ -7,6 +7,7 @@ import {
 import { revealShellNavigation } from "./helpers/shell-navigation.ts";
 import { registerPageHealth } from "./helpers/page-health.ts";
 import { firstRender } from "./helpers/first-render.ts";
+import { still } from "./helpers/stills.ts";
 
 registerPageHealth(test);
 
@@ -411,6 +412,62 @@ test("queue inspector answers the selected task's open question and the page has
     .toBeVisible();
   await expect(page.getByPlaceholder("Search titles and descriptions"))
     .toBeVisible();
+});
+
+// Evidence stills of the Work list (BAKERY_STILLS_DIR): the list with tasks,
+// a search with a term, and the empty list; skipped in a normal run.
+const stillTasks = [
+  ["Add repository onboarding", "waiting_input"],
+  ["Confirm error tracking provider", "waiting_input"],
+  ["Refine activity filters", "active"],
+  ["Preserve worker checkpoints", "active"],
+  ["Improve empty state copy", "active"],
+  ["Add notification preferences", "queued"],
+  ["Add webhook intake", "queued"],
+].map(([title, status], index) => ({
+  ...task,
+  id: `00000000-0000-4000-8000-0000000007${String(index).padStart(2, "0")}`,
+  title,
+  status,
+  updatedAt: `2026-01-01T00:0${index}:00.000Z`,
+}));
+
+async function stillQueue(page: Page, items: unknown[]) {
+  await page.route(
+    "**/v1/tasks?*",
+    (route) => route.fulfill({ json: { items, nextCursor: null } }),
+  );
+  await page.route(
+    "**/v1/artifacts?*",
+    (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
+  );
+  await page.goto("/tasks");
+}
+
+test("still: the Work list with tasks", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  await stillQueue(page, stillTasks);
+  await expect(page.getByRole("link", { name: stillTasks[0].title }))
+    .toBeVisible();
+  await still(page, "work-list");
+});
+
+test("still: the Work list with a search term", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  await stillQueue(page, stillTasks);
+  await expect(page.getByRole("link", { name: stillTasks[0].title }))
+    .toBeVisible();
+  const search = await searchField(page);
+  await search.fill("repository");
+  await dismissFilters(page);
+  await still(page, "work-list-search");
+});
+
+test("still: the empty Work list", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  await stillQueue(page, []);
+  await expect(page.getByText("There are no tasks yet.")).toBeVisible();
+  await still(page, "work-list-empty");
 });
 
 test("trailing slash task entry renders the canonical inbox", async ({ page }) => {
