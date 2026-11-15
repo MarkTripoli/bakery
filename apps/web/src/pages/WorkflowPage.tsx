@@ -34,8 +34,10 @@ import { useI18n } from "../i18n/I18nProvider.tsx";
 import { WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
 import { MakeCopyDialog } from "./library/MakeCopyDialog.tsx";
+import { stepSummary } from "./library/step-summary.tsx";
 import { versionSource } from "./library/copy-workflow.ts";
 import {
+  ACTION_LINES,
   ACTION_TITLES,
   agentBindings,
   canUse,
@@ -119,6 +121,11 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
   const stepTitle = (uses: string) => {
     const key = ACTION_TITLES[uses];
     return key === undefined ? uses : translate(key as never);
+  };
+  // The spec's sentence under a step's name, for the actions that have one.
+  const stepLine = (uses: string) => {
+    const key = ACTION_LINES[uses];
+    return key === undefined ? undefined : translate(key as never);
   };
   const refresh = () =>
     void queryClient.invalidateQueries({ queryKey: ["protected"] });
@@ -692,20 +699,23 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
                           { n: index + 1 },
                         )}
                         title={stepTitle(step.uses)}
-                        summary={binding === null ? undefined : (
-                          binding === undefined
-                            ? translate(
-                              (agentReads === "failed"
-                                ? "library.workflow.steps.agentUnreadable"
-                                : "library.workflow.steps.agentUnknown") as never,
-                            )
-                            : translate(
-                              "library.workflow.steps.agent" as never,
-                              {
-                                name: binding.agentName,
-                                version: binding.revision,
-                              },
-                            )
+                        summary={stepSummary(
+                          stepLine(step.uses),
+                          binding === null ? undefined : (
+                            binding === undefined
+                              ? translate(
+                                (agentReads === "failed"
+                                  ? "library.workflow.steps.agentUnreadable"
+                                  : "library.workflow.steps.agentUnknown") as never,
+                              )
+                              : translate(
+                                "library.workflow.steps.agent" as never,
+                                {
+                                  name: binding.agentName,
+                                  version: binding.revision,
+                                },
+                              )
+                          ),
                         )}
                       />
                     );
