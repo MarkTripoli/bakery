@@ -59,10 +59,11 @@ const PRESET_SLUGS = [
 ].sort((a, b) => b.length - a.length);
 
 /** A string literal that carries a preset slug as a whole word. */
+// A preset slug as a whole word anywhere on a non-comment line: a quote on
+// the same line isn't required, so a slug alone on a line inside a multi-line
+// template literal is caught too (qa-qa on #470).
 const SLUG_IN_STRING = new RegExp(
-  `(["'\`])[^"'\`]*(?<![\\w-])(?:${
-    PRESET_SLUGS.map(escape).join("|")
-  })(?![\\w-])[^"'\`]*\\1`,
+  `(?<![\\w-])(?:${PRESET_SLUGS.map(escape).join("|")})(?![\\w-])`,
 );
 
 /** An import or re-export of a presets module (contracts or server). */
@@ -309,6 +310,10 @@ Deno.test("the preset scanner finds a slug, an import and a preset name", async 
         "const b = WORKFLOW_PRESETS;",
         "// fixed-coding in a comment is prose",
         'const c = "not-fixed-coding-at-all";',
+        // A slug alone on a line inside a multi-line template literal.
+        "const d = `",
+        "fixed-coding",
+        "`;",
         "",
       ].join("\n"),
     );
@@ -317,6 +322,7 @@ Deno.test("the preset scanner finds a slug, an import and a preset name", async 
       'import { x } from "@bakery/contracts/workflow-presets";',
       'const a = "fixed-coding-reviewed";',
       "const b = WORKFLOW_PRESETS;",
+      "fixed-coding",
     ]);
   } finally {
     await Deno.remove(dir, { recursive: true });
