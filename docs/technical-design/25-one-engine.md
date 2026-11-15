@@ -3,7 +3,8 @@
 Status: design accepted by the product owner on 14 November 2026. Nothing here is
 implemented yet. This chapter is the canonical statement of the one-system design.
 Where another chapter disagrees with it, this chapter wins and the other chapter
-should be corrected.
+should be corrected. Decisions O23 to O33 (section 15) are **pending**: they
+wait for the owner's confirmation. Every other decision here is made.
 
 Companion documents, kept for their detail, live in [one-system/](one-system/):
 
@@ -121,7 +122,7 @@ result, effect, run end) plus compile time.
 
 | # | Primitive | Responsibility |
 | --- | --- | --- |
-| 1 | Work item (task) | Carries intent and continuity: brief, scope (repository links in the software-delivery pack),  tracker link, parent and children, priority, its named documents and its decisions ledger. Outlives runs |
+| 1 | Work item (task) | Carries intent and continuity: brief, scope (the workspaces its steps declare, which may be none; repository links are the software-delivery pack's workspace kind, pending O23), tracker link, parent and children, priority, its named documents and its decisions ledger. Outlives runs |
 | 2 | Definition (workflow and its immutable versions; listed or unlisted) | Steps, order rules, inputs and outputs, limits, default agents, seats and starts. A version never changes. Bounded before it runs |
 | 3 | Run | One execution of one pinned version on one work item, with snapshot, budget, status and a named outcome. Runs form a tree |
 | 4 | Step (with attempts) | One invocation of one action with a frozen input and a typed result. Exactly one completer finishes it: a worker job, a timer, a person, or child runs |
@@ -145,16 +146,18 @@ delivery, not guests.
 The user-facing vocabulary stays small (O12). "Workflow" (or "definition") is
 what the engine runs. "Plan" means only the document an agent writes.
 "Proposal" is what the coordinator suggests. "Split" and "lanes" replace
-"coordination plan". "Execution plan" stays internal.
+"coordination plan". "Execution plan" stays internal. Pending O32 adds "Connection" to the user
+vocabulary and says "revision" rather than "candidate" and "scope profile"
+rather than "repository profile" in the kernel.
 
 ## 4. The eight extension points
 
 | # | Extension point | What plugs in | Authored as |
 | --- | --- | --- | --- |
-| E1 | Actions | What a step does | Data (an agent step preset), a workflow (`call`), or code in a package |
+| E1 | Actions | What a step does, including `tool.call` on a connection's tool (pending O24) | Data (an agent step preset), a workflow (`call`), a granted tool, or code in a package |
 | E2 | Artifact kinds | What a document must contain and which facts it yields | Data: template, rules from platform rule types, fact schema |
 | E3 | Start sources | What begins a run | Data (schedule, generic signed webhook) or a provider module |
-| E4 | Integration families and providers | Trackers, chat, and pack-specific families such as code hosts and deploy (software delivery); later incidents and others | A provider module implementing a family port |
+| E4 | Connections (integration families and providers) | Native providers: trackers, chat, and pack-specific families such as code hosts and deploy (software delivery). MCP servers as a second connection kind (pending O24) | A provider module implementing a family port, or an MCP server definition with a pinned capability snapshot |
 | E5 | Library | Agents, skills, seats, workflows, templates, step presets | Data, one lifecycle: draft, immutable version, copy with lineage, "update available", used-by |
 | E6 | Decision actions | Who supplies a choice: route, assign, plan | An action whose output fits one of three contracts |
 | E7 | Guards and counters | Limits across runs | A closed guard library; counters as data from kernel events, family projections, or values a step publishes |
@@ -164,7 +167,7 @@ Closed on purpose, extended only by a platform release: node forms and the
 interpreter, step completers, guard types, validator rule types, feed item
 kinds, steer kinds, the effect ledger and the checkpoints.
 
-Extensions are data only for now (O6/O7, section 6).
+Extensions are data only for now (O6/O7, section 6). MCP needs no ninth extension point: under the pending O24 it is a connection kind (E4) whose tools are actions (E1) bound through the library (E5).
 
 ## 5. Coordination plans become split (O2)
 
@@ -264,8 +267,9 @@ refs, tear down, and report cost. Six v1 choices keep the door open:
    never a host-local socket. The usage ledger accepts a compute kind beside
    model usage.
 
-The repository, commit and candidate details above belong to the
-software-delivery pack; a non-code step's whole file contract is its context and
+Under the pending O23, "repository at a pinned commit" reads "each declared
+workspace at its pinned revision". The repository, commit and candidate details
+above belong to the software-delivery pack; a non-code step's whole file contract is its context and
 output directories.
 
 An ephemeral box needs the `api_metered` route, and the provider is a
@@ -382,6 +386,10 @@ count, set in the loop's panel.
 
 ## 12. Integration seams
 
+Under the pending O24, integrations and MCP servers are both **connections**
+(section 15.4): one broker, one grant model and one effect ledger.
+
+
 Issue handling is provider-neutral. Providers come in this order: GitHub, then
 Linear, then GitLab, then Jira. Users set up integrations in the UI.
 Self-hosted providers (GitLab self-managed, GitHub Enterprise Server, Jira Data
@@ -458,6 +466,8 @@ are the keystone: they make "one engine" true and remove four private paths.
 19. **Execution-environment seam.** Placement as data and the `compute` family
     contract; no provider in v1 (O22).
 
+Section 15.7 adds the domain-neutral slices (pending O23 to O33).
+
 The first customer-visible proof is Deliver shipped as a template after steps 1
 to 12.
 
@@ -476,3 +486,163 @@ to 12.
   not recorded.
 - Raw token streams relayed into chat.
 - A cloud VM provider in v1.
+
+## 15. Domain-neutral kernel, workspaces and MCP connections (pending O23 to O33)
+
+This section states section 10 of the kernel proposal (`one-system.md`). Its
+decisions, O23 to O33, are **pending** until the owner confirms them. It does not
+change any decided item above; where an earlier section now depends on it, that
+section says so.
+
+### 15.1 Code-only assumptions and their neutral form (O23)
+
+| Assumption today | Neutral form in the kernel | Software-delivery pack keeps |
+| --- | --- | --- |
+| A run needs a repository; four fixed task types | A run needs exactly the workspaces its steps declare, which may be none. Work type is an organization label the kernel never branches on | The four software work types as default labels |
+| Every session gets "the repository at a pinned revision" | Each declared workspace at a pinned **revision**, an opaque content address the workspace kind supplies | Git commits as the `repository` kind's revision |
+| Worktrees | A workspace **mount** per attempt: read-only or writable, prepared at a revision, captured into a new revision | Clones, worktrees and run refs |
+| One candidate per repository (O15) | One linear revision chain per workspace per run tree | "Candidate", `$delivery.*`, checks, review and merge gate |
+| Actions are code verbs | Neutral actions: the agent step, `tool.call`, `human.approval`, `workflow.stop`, `workflow.noop`, `task.brief`, `artifact.publish`, `counter.set`, `memory.promote`. Packs register others under their namespace | `harness.*`, `quality.check`, `review.independent`, `delivery.*`; `rpi.*` become step presets |
+| Artifacts are small text | Binary formats, large bytes in the object store, media rule types checked by a platform probe, a subject that names a workspace revision | Deliver's document kinds |
+| Lanes name a repository | A lane names a workspace alias, or none | Repository aliases and roles |
+| Step defaults come from the repository profile | A **scope profile** at project level; a repository profile is its code form | Check commands, repository rules |
+| Effect policy `repository_revision` | `workspace_revision` | none |
+| The review loop is about code | A neutral **review loop module** (O30): findings and status facts, rounds per checkpoint, a progress rule, caps and `limit` decisions | Repository checks as evidence; the merge gate |
+
+Readiness stays as decided (a label AND a workflow status, section 7). Section 10
+also allows a custom field of the work item as a readiness field; that
+widening is part of pending O23.
+
+### 15.2 The workspace
+
+A workspace is where a step reads or changes files. It is optional.
+
+| Kind | What it is | Revision |
+| --- | --- | --- |
+| `repository` (software-delivery pack) | A git checkout | A commit |
+| `files` (kernel) | A plain tree of files, such as a video project folder or a dataset | The digest of a manifest of paths, artifact versions and hashes |
+| none | Tool calls and documents only | n/a |
+
+A workspace kind implements four verbs: prepare a mount at a revision, capture a
+writable mount into a new revision, describe the difference between two
+revisions (for `file_change` feed items), and move a revision between machines.
+The kernel rules:
+
+- A step declares `workspace: {name, access: read | write}`. Reviewer-role steps
+  get read-only mounts.
+- One linear revision chain per workspace per run tree; a writer starts at the
+  current revision and names `{baseRevision, revision}`.
+- At most one writer at a time per workspace. This is the neutral form of the
+  decided parallel-writer rule (section 11).
+- `$workspace.<name>.revision` is the neutral reference root; `$delivery.*`
+  belongs to the software-delivery pack.
+
+Many non-code factories need no workspace: their evolving output is a named
+document on the work item, already versioned with compare-and-swap.
+
+### 15.3 Kernel, review loop module and packs
+
+| Layer | Owns |
+| --- | --- |
+| Kernel | The primitives, the workspace contract and the `files` kind, the revision chain and one-writer rule, roles and reviewer isolation, the neutral actions, blob-backed artifacts and media probes, the scope profile, connections, tools and bindings |
+| Review loop module (native, neutral; O30) | Findings convention, checkpoints and rounds, the progress rule, caps |
+| Software-delivery pack (native) | The `repository` workspace kind, candidates and `$delivery.*`, `harness.*`, `quality.check`, `review.independent`, `delivery.*`, repository profiles and rules, the `code` family port, Deliver's kinds and templates |
+| Other packs, later | For example a media pack: media kinds, a render check, a publish family |
+
+The boundary test: no kernel module imports the delivery pack, and no kernel
+table has a column that only means something for git (today `tasks.base_sha` and
+`artifact_versions.subject_head_sha` fail it).
+
+### 15.4 MCP servers as connections (O24 to O27, O31)
+
+MCP needs no new extension point (O24). E4 becomes **connections**, with two
+provider kinds: native providers (hand-written actions, webhooks and neutral
+events, family ports) and MCP servers (tools discovered and pinned as a
+snapshot; no events, so a start still needs a provider, a generic webhook or a
+schedule). An MCP server can stand in for a family port only through a declared
+mapping from port verbs to tools.
+
+| Concern | Rule |
+| --- | --- |
+| Registering | A server definition and connections. Global catalog of known servers (no credentials); Organization connections registered by an Admin; Personal connections usable in a member's own runs. A personal connection on a shared workflow needs the owner's explicit use grant, is labelled as acting for that person, and is refused for unattended starts (O27) |
+| Pinning | Server definition revision, capability snapshot digest (names, schemas, descriptions) and, for local servers, the launch artifact digest. A workflow version pins the snapshot. Drift on a used tool refuses admission and shows "update available"; nothing updates on its own |
+| Credentials | Only through the broker; no credential enters the session |
+| Grants | Exact tool names against the pinned schema, never wildcards: tools an Admin enabled, the subset a workflow, agent, seat or step binds, and what the run principal may invoke. A grant may fix arguments. Reviewer-role sessions get read tools only unless the definition says otherwise |
+| Reaching a session | Brokered only (O25). The worker exposes a **tool gateway**, a local MCP endpoint listing exactly the session's effective tools; every call goes through the lease-protected tool route. Native integration actions reach agents through the same gateway |
+| `tool.call` | A deterministic step with no agent. `with` is type-checked against the pinned input schema; output is typed when the tool declares a schema, otherwise opaque until published as an artifact of a kind. `tool.call` replaces `integration.action` |
+| Side effects | An Admin classifies each enabled tool (O26): read; write, idempotent (names its effect-key argument); write, reconcilable (paired with a read tool); write, opaque (default: at most once, an unknown outcome waits for a person). Server hints are suggestions only |
+| Long-running tools | The grant declares the asynchronous form; one step waits durably and the ledger's reconcile read polls |
+| Feed and cost | A `tool` feed item per call; produced files as `artifact` items. A per-call cost ceiling is reserved and settled like model usage |
+| Local or remote | Remote servers are called by the server-side broker; local (`stdio`) servers are launched by the worker from a pinned command, as a placement requirement. Third-party local servers run under the T1 sandbox or an operator allowlist |
+| Trust | Results never carry authority, are schema-validated and size-bounded. Tools only first (O31): resources later as read tools; sampling, elicitation and roots stay off |
+
+### 15.5 Skills, integrations and MCP tools in a workflow
+
+| Building block | Attaches to | Pinned by |
+| --- | --- | --- |
+| Skill | Agent version, seat, or step (adds to the agent's) | Skill version and digest |
+| Integration action | A `tool.call` step; an agent, seat or step as a tool; a start as its event source; the engine for family write-backs | Action id and version, connection and resource |
+| MCP tool | A `tool.call` step, or a binding on an agent, seat or step | Server revision and snapshot digest |
+| Workflow `tools` section | Named connections with allowed tools, referenced by steps and seats | The workflow digest |
+
+One record backs every binding: the designed `capability_bindings` table, with
+its repository owner generalised to a scope and seats addressed as a workflow
+version plus seat id.
+
+### 15.6 Example: a video-production factory
+
+Brief, script, script review (the review loop module), storyboard, a `forEach`
+over scenes calling image and image-to-video tools with `tool.call`, a voiceover
+tool call, assembly by a render tool, a person approving or requesting changes
+with an editor agent re-cutting, then publishing through a video platform
+integration with an effect key. It uses no repository and nothing from the
+software-delivery pack. Its document kinds (brief, script, storyboard, image,
+clip, audio, cut, review, publish receipt) are customer data; binary kinds are
+validated by platform probes (O29) and stored in Bakery's object store (O28).
+The same factory can be a team of producer, writer, editor, reviewer and owner
+seats. The worst-case cost is known before the run, every tool call is granted
+by name, recorded and keyed where it writes, and the person can watch and steer.
+
+### 15.7 Gaps and slices
+
+| Slice | Closes |
+| --- | --- |
+| A | Runs without a repository; scope profile defaults |
+| B | MCP connections: tables, discovery, snapshots, drift; `tool.call` for remote servers; effect classification; feed items. `paper` on `rpi.design` becomes an ordinary binding |
+| C | Tool gateway; bindings on agents, seats and steps; the `tools` section |
+| D | Blob-backed artifacts, binary kinds, probes, previews |
+| E | The workspace contract and the `files` kind; neutral names; kernel free of git columns |
+| F | Asynchronous tools, per-call cost, `forEach` with `collect` and parallel iterations |
+| G | Review loop module split from delivery (with #62) |
+| H | Local stdio servers; third-party local servers under the T1 sandbox |
+| I | The non-code proof: a text-only content factory first, then the video factory (O33) |
+
+Families stay `tickets`, `code`, `chat` and `deploy`; `storage` and `publish` are
+added when the first template needs them, and the long tail goes through MCP.
+
+## 16. Pending owner decisions (O23 to O33)
+
+These are the only pending items. Each is the architect's recommendation.
+
+- **O23:** the kernel is domain-neutral, with software delivery as a pack; the
+  kernel gains the workspace, the revision chain and the one-writer rule.
+- **O24:** MCP is a second connection kind under E4, with tools as actions (E1)
+  bound through the library (E5); no new extension point.
+- **O25:** harnesses never connect to MCP servers directly; tools reach a session
+  only through Bakery's gateway.
+- **O26:** an Admin classifies each tool's side effects when enabling it;
+  unclassified tools are writes that run at most once.
+- **O27:** personal MCP connections on shared workflows only with the owner's
+  explicit use grant, labelled as acting for that person, never for unattended
+  starts.
+- **O28:** large media files live in Bakery's object store as ordinary artifact
+  versions.
+- **O29:** binary documents are validated by platform probes run in the sandbox;
+  no customer code.
+- **O30:** a neutral review loop module, split from the software-delivery pack.
+- **O31:** MCP tools only first; resources later as read tools; sampling,
+  elicitation and roots off.
+- **O32:** add "Connection" to the vocabulary; say "revision" and "scope profile"
+  in the kernel.
+- **O33:** the first non-code proof is a text-only content factory, then the
+  video factory.
