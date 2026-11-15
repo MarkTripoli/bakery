@@ -9,6 +9,8 @@ export type RevisionSummaryProps = {
   summary: string | null;
   disclaimer: string;
   unknownLabel: string;
+  /** Said instead of the badges when no commit and no change count is known. */
+  noneRecorded?: string;
   diffLink?: { href: string; label: string };
   action?: ReactNode;
   children?: ReactNode;
@@ -22,11 +24,15 @@ export function RevisionSummary(
     summary,
     disclaimer,
     unknownLabel,
+    noneRecorded,
     diffLink,
     action,
     children,
   }: RevisionSummaryProps,
 ) {
+  // With no commit and no change count known there is nothing to show but that.
+  const nothingKnown = noneRecorded !== undefined && !baseRevision &&
+    !candidateRevision && !summary;
   return (
     <section
       aria-label={title}
@@ -36,14 +42,24 @@ export function RevisionSummary(
       data-state={candidateRevision ? "candidate" : "unknown"}
     >
       <h2>{title}</h2>
-      <div className="ui-run-card__row">
-        <span className="ui-run-card__badge">
-          <bdi>{baseRevision ?? unknownLabel}</bdi>
-          {" → "}
-          <bdi>{candidateRevision ?? unknownLabel}</bdi>
-        </span>
-        <span className="ui-run-card__badge">{summary ?? unknownLabel}</span>
-      </div>
+      {nothingKnown
+        ? <p className="ui-run-card__meta">{noneRecorded}</p>
+        : (
+          <div className="ui-run-card__row">
+            {baseRevision || candidateRevision
+              ? (
+                <span className="ui-run-card__badge">
+                  <bdi>{baseRevision ?? unknownLabel}</bdi>
+                  {" → "}
+                  <bdi>{candidateRevision ?? unknownLabel}</bdi>
+                </span>
+              )
+              : null}
+            {summary
+              ? <span className="ui-run-card__badge">{summary}</span>
+              : null}
+          </div>
+        )}
       <p className="ui-run-card__meta">{disclaimer}</p>
       {action
         ? <div className="ui-run-card__actions">{action}</div>

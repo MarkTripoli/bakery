@@ -319,6 +319,16 @@ test(
         "Observed repository state. No review or merge decision recorded.",
       ),
     ).toBeVisible();
+    // With no commit and no change count known the card says so, with no
+    // "Unknown" badges.
+    await expect(
+      page.getByText("Bakery has not recorded any changes for this run yet."),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "Changes" }).locator(
+        ".ui-run-card__badge",
+      ),
+    ).toHaveCount(0);
     await page.screenshot({
       path: testInfo.outputPath("task-run.png"),
       fullPage: true,

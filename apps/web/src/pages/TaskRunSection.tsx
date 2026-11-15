@@ -367,12 +367,14 @@ export function TaskRunSection(
                       )}
                     </UI.Text>
                     {!forbidden && (
-                      <UI.Button
-                        variant="outline"
-                        onClick={() => void steps.refetch()}
-                      >
-                        {t("tasks.live.retry")}
-                      </UI.Button>
+                      <UI.Inline gap="compact">
+                        <UI.Button
+                          variant="outline"
+                          onClick={() => void steps.refetch()}
+                        >
+                          {t("tasks.live.retry")}
+                        </UI.Button>
+                      </UI.Inline>
                     )}
                   </UI.Stack>
                 </UI.InlineNotice>

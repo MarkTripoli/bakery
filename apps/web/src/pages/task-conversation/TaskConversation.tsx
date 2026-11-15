@@ -541,15 +541,17 @@ export function TaskConversation(
           <UI.InlineNotice tone="warning">
             <UI.Stack gap="compact">
               <UI.Text>{t("tasks.conversation.sections.error")}</UI.Text>
-              <UI.Button
-                variant="outline"
-                onClick={() =>
-                  void Promise.all(
-                    sectionReads.map((read) => read.refetch()),
-                  )}
-              >
-                {t("tasks.conversation.retry")}
-              </UI.Button>
+              <UI.Inline gap="compact">
+                <UI.Button
+                  variant="outline"
+                  onClick={() =>
+                    void Promise.all(
+                      sectionReads.map((read) => read.refetch()),
+                    )}
+                >
+                  {t("tasks.conversation.retry")}
+                </UI.Button>
+              </UI.Inline>
             </UI.Stack>
           </UI.InlineNotice>
         </UI.PaneSection>
@@ -827,12 +829,14 @@ export function TaskConversation(
             <UI.InlineNotice tone="warning">
               <UI.Stack gap="compact">
                 <UI.Text>{t("tasks.conversation.error")}</UI.Text>
-                <UI.Button
-                  variant="outline"
-                  onClick={() => void messages.refetch()}
-                >
-                  {t("tasks.conversation.retry")}
-                </UI.Button>
+                <UI.Inline gap="compact">
+                  <UI.Button
+                    variant="outline"
+                    onClick={() => void messages.refetch()}
+                  >
+                    {t("tasks.conversation.retry")}
+                  </UI.Button>
+                </UI.Inline>
               </UI.Stack>
             </UI.InlineNotice>
           )

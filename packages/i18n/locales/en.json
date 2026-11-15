@@ -1491,6 +1491,7 @@
   "tasks.run.output.stream": "Output stream",
   "tasks.run.revision.artifact": "Which changes",
   "tasks.run.revision.unavailable": "The changes could not be loaded.",
+  "tasks.run.revision.noneRecorded": "Bakery has not recorded any changes for this run yet.",
   "tasks.run.revision.first": "First page",
   "tasks.run.revision.version": "Version {revision}",
   "tasks.run.revision.diff": "View diff",
