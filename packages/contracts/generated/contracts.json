@@ -431,7 +431,7 @@
       "output": "RepositoryProfile",
       "event": "repository.profile_created",
       "mcp": "bakery_repositoryProfiles_create",
-      "idempotency": "Idempotency-Key required",
+      "idempotency": "Idempotency-Key required; If-Match when the save activates the profile",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -199392,7 +199392,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:1761ce543c2948f552e4f84c2070e726bddc93284b7f15890f2eb48de466075e",
+  "compatibilityDigest": "sha256:972b947b538aeb52d3803a6a995747d73a162c1e9c37852fb0ca91400022ba63",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

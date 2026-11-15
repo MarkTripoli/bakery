@@ -174,7 +174,10 @@ export default defineConfig({
     ? { testMatch: selectedSpecs.map((spec) => `**/${spec}`) }
     : {}),
   outputDir: "../../artifacts/ui-baseline/test-results",
-  timeout: process.env.CI ? 45_000 : 15_000,
+  // 15s locally was shorter than the 20s a spec's first page load waits for,
+  // so a host under load failed the test on the load alone; 30s locally keeps
+  // that wait inside the test's own budget (CI runs 45s).
+  timeout: process.env.CI ? 45_000 : 30_000,
   fullyParallel: true,
   // The shared self-hosted CI runner also hosts Vite and the real API. Two browsers
   // leave capacity for cold fixture transforms and route navigation.
