@@ -407,6 +407,8 @@ Example IDs are placeholders; DTOs use UUIDs. Writes return `202 {"effectId":"�
 
 ## 7. Authoring an integration
 
+> Superseded in part by §12 (modular integrations architecture, 2026-11). The `providers/<slug>/` folder below is the **intermediate** home during the migration (§12.6). The final home is a workspace package `packages/integration-<slug>/` with entries `/manifest`, `/server`, `/web` and `/testing`, behind SDK interfaces and one registry per app.
+
 **Mandatory semantic metadata:** Every Zod schema/type and every field requires a meaningful description, without exceptions. Preserve it through composition and generated contracts; reject missing descriptions. See [schema description rails](04-backend-and-errors.md).
 
 Add a provider folder, consume the public SDK, register explicitly. Keep DTOs/generated clients in `packages/contracts`. Ordinary TypeScript suffices; no loader, decorators or base-class framework.
@@ -803,6 +805,8 @@ Example: `{ "type": "support.case.created.v1", "data": { "externalId": "case-42"
 
 ## 11. Integration SDK
 
+> §12 extends the SDK with `/provider` (server types), `/web` (types only) and `/testing` entries: provider manifests, connect and credential strategies, webhook ingress, and the Tickets and Code ports. The target tree below is superseded by §12.1.
+
 **`@bakery/integration-sdk`:** independently versioned, native-first. Specimen covers scopes, manifests, typed calls, broker and validation; checks cover native/third-party definitions. Not a published SDK or working sandbox. **Status:** `packages/integration-sdk` now exists (manifest, `defineAction`, request templates, description audit, `testing`); the server catalog gate (`apps/server/src/modules/catalog/integration-gate*.ts`) activates only deployed native integrations and fails on undeclared handlers, handler/manifest drift or undescribed Zod schemas, intersects provider and connection capabilities, authorizes exact action-version plus resource grants, and brokers requests through bound templates (no arbitrary URL, secret getter or wildcard grant). The server-side GitHub installation-token broker (`apps/server/src/modules/integrations/token-broker.ts`: per-mint key decryption, nine-minute RS256 App JWT, tokens narrowed to the selected repository ids and granted permissions, cached in memory until five minutes before expiry and dropped on every connection or resource edit) backs `integrationConnections.check`. Still deferred: brokered SDK action tokens, the durable effect ledger and recovery scheduling, untrusted plugin isolation. The specimen below stays illustrative.
 
 ```text
@@ -873,3 +877,371 @@ Host broker binds reviewed issuer/API origin, method/path and credential placeme
 **Distribution:** reuse `plugin_packages`, immutable `plugin_versions`, `plugin_installs` and R2/filesystem digests. Validate provenance, SDK/schema/action/recovery compatibility and scope changes. Pin in-flight package/actions; enforce live revocation. New required scopes block staged activation; optional scopes stay unavailable. Updates without broader access follow organization policy. No second marketplace/installer.
 
 **Release checks:** complete endpoint/scope/action/provider mappings; common native broker; org/resource isolation; unforgeable human identity; revocation blocks queued work/events; unknown actions fail closed; bounded request templates; recovery for every mutation; sandbox/resource/egress tests before public packages. SDK checks add six to the adapter’s six: **12 passed, 0 failed**. These prove neither live OAuth, DB recovery nor hostile-code containment.
+
+
+## 12. Modular integrations architecture (direction, 2026-11)
+
+> Status: **the owner approved the direction (2026-11-14). This revision folds in the outside architecture review** (`integrations-architecture-review-2026-11-14`, "right direction, request changes") and the owner's answers to its four questions (§12.7). It merges only after the owner signs off. No code moves before then. Where §7 or §11 disagree, this section wins.
+
+Integrations grew around GitHub. The catalog gate already registers providers declaratively, but the rest does not:
+- **Lifecycle:** connections, auth attempts, checks, discovery, reconcile and webhook intake in `apps/server/src/modules/integrations` hard-code `GITHUB_PROVIDER_ID`, GitHub App credentials or GitHub signatures.
+- **Work:** `work` reads tickets through a port (`TicketSourceReader`) but still imports GitHub-coupled files.
+- **Contracts and data shapes (the deepest coupling):** `ticket-admission` ids, `integrationAuth.github*` and `intake.github` operation ids, and `ticket_sources.provider default 'github'`.
+- **Broker:** it cannot yet express Linear, Jira or GitLab. Read-only `POST` (GraphQL) is refused at `request.ts`, bearer is the only credential placement, and every request goes to one fixed origin.
+
+The goal is that a provider becomes an addition, not a rewrite, and that a rail, not discipline, keeps it that way.
+
+### 12.1 Package layout
+
+Each provider is one workspace package, **`packages/integration-<slug>/`** with a `src/` layout, so the existing workspace, lint, format, change-classification and UI-architecture rails cover it unchanged. A top-level `integrations/` directory would escape `tests/rails/workspace_test.ts` and silently skip `deno lint`/`fmt`.
+
+```text
+packages/integration-github/            @bakery/integration-github
+  package.json                          exports: "./manifest", "./server", "./web", "./testing"  (no "./*")
+  tsconfig.web.json                     the web entry's type check (tsc), next to deno check for the rest
+  src/manifest.ts                       entry /manifest: ProviderManifest (12.2); zod only, no Deno, DOM or React
+  src/contracts/                        provider-internal, described Zod schemas; never public DTOs
+  src/server/mod.ts                     entry /server: defineServerProvider(manifest, impl)
+  src/server/app-registration.ts connect.ts credentials.ts ingress.ts discovery.ts lifecycle.ts health.ts
+  src/server/tickets.ts code.ts actions.ts
+  src/server/client/                    today's github-app.ts, github-transport.ts, github-app-key.ts: pure, transport injected
+  src/web/mod.ts                        entry /web: defineWebProvider(manifest, slots)
+  src/web/ConnectStep.tsx AppRegistrationPanel.tsx
+  src/testing/mod.ts                    entry /testing: conformance fixtures and a fake host transport
+packages/integration-slack/             the same shape (slack-scope.ts, slack-identity.ts)
+
+packages/integration-sdk/
+  src/mod.ts                            unchanged: portable, React-free (manifest, actions, requests, activation)
+  src/provider/                         entry @bakery/integration-sdk/provider: server types and validators (12.2)
+  src/web/                              entry @bakery/integration-sdk/web: types only (import type from react)
+  src/testing/                          the conformance harness and a fake host transport
+
+apps/server/src/modules/integrations/   the generic core
+  registry.ts                           the only importer of provider /server entries (12.4)
+  lifecycle/ intake/ facts/ credentials/ connect/ (core OAuth2 and API-token flows)
+  migrations/bakery/                    ALL integration tables (12.1, tables)
+apps/server/src/modules/projects/repository-binding.ts   resolveRepositoryId (it is SQL, not a provider concern)
+apps/web/src/integrations/registry.ts   the only importer of provider /web entries
+```
+
+Package exports alone enforce nothing, because relative imports bypass them (`apps/worker` already reaches into `packages/contracts/src`). The B1 rail (12.8) enforces the boundaries.
+
+**Pure adapters.** Provider packages contain no SQL and no `.sql` files. They never import `pg`, `postgres`, `@bakery/persistence`, `inngest` or `hono`, and never use `Deno.*`, `process.env` or a bare `fetch`. Each package has two tiers:
+- **Definition tier** (manifest, actions, request templates): never imports the driver tier.
+- **Driver tier** (strategies): receives only host-injected ports, namely an origin-bound provider transport, its *declared* secret slots (no `getSecret(name)`) and a clock.
+
+This is the SDK's existing rule, made mechanical: the host owns activation, credentials, origins, grants and the broker.
+
+**Tables.** Core owns every table. Provider state lives in core-owned `jsonb` columns, validated by provider-owned, described Zod schemas that carry a schema version:
+- `connections.config` with `config_schema_version`
+- `resources.capability_snapshot`
+- checkpoint cursors and fact summaries
+- the provider parts of `ticket_sources.policy`
+- a registration `provider_metadata`
+
+Migrations 0129–0157 stay where they are. The escape hatch, by ADR only, is a table named `bakery.integration_<slug>_*` with these rules:
+- foreign keys point only into core tables, and core never references it
+- it is registered in `MIGRATION_SOURCES`, in the one global sequence
+- only a declared store writes it
+- it is permanent once deployed
+
+**Co-location rules** (packages hold server and web code side by side):
+- Two type checkers per package: `deno check src/manifest.ts src/server/mod.ts`, and `tsc -p tsconfig.web.json`. `manifest.ts` and `contracts/` stay free of Deno globals, DOM and React.
+- Provider entries are mapped in `deno.json`; adding a package changes the lockfile.
+- Tests stay in the lane folders (`tests/provider`, `tests/integration` and so on), parameterised over the registry. `run-tests.ts` roots lanes at `tests/<lane>`, so tests inside a package would be silently skipped.
+- Web code keeps the `model.ts`/view split.
+- Strings stay in the central catalog under `integrations.<slug>.*`, not in a package-local `i18n/`. A namespace rail (B12) enforces it.
+
+### 12.2 Base abstractions (SDK)
+
+Interfaces plus `define*()`/`activate*()` validators, in the SDK's style. No base classes and no inheritance. This replaces §7's "no base-class framework" without contradicting it.
+
+```ts
+// @bakery/integration-sdk/provider
+type ProviderManifest = {
+  slug: string;                                   // "github"
+  integrationId: `bakery.${string}`;              // "bakery.github" (the gate's id)
+  providerUuid: string;                           // the stable provider row id
+  nameKey: string;                                // i18n key
+  families: readonly ("tickets" | "code")[];
+  appRegistration: null | { kind: "github-manifest" } | { kind: "client-credentials"; fields: CredentialField[] };
+  connect: { kind: "github-app" } | { kind: "oauth2"; siteSelection: boolean } | { kind: "api-token"; fields: CredentialField[] };
+  ingress: null | { scope: "app" | "connection" };
+  resourceKinds: readonly { id: string; nameKey: string; serves: readonly string[] }[];
+  tickets?: TicketsCapabilities;                  // present iff families includes "tickets"
+};
+type CredentialField = { id: string; labelKey: string; secret: boolean; format: "text" | "email" | "https-origin" };
+
+// Self-hosted (owner, 2026-11-14): in scope, not v1. Every installation carries
+// its own base URL now, so GitHub Enterprise Server, GitLab self-managed and
+// Jira Data Center need no interface change later.
+type InstallationOrigin = { apiBaseUrl: URL; webBaseUrl: URL };   // github.com defaults for cloud
+type DriverContext = { provider: ProviderRequestPort; origin: InstallationOrigin; signal: AbortSignal; now(): Date };
+
+// connect.kind "github-app": the only provider-specific connect code
+type ConnectStrategy = {
+  begin(i: { state: string; pkceChallenge: string; callbackUrl: URL; reconnect: boolean }): { steps: URL[] }; // the host re-checks the allowlist
+  complete(i: unknown, ctx: DriverContext & { secrets: SecretSlots }): Promise<VerifiedAuthorization | { failure: string }>; // no database
+};
+// connect.kind "oauth2": core runs one audited PKCE/state/refresh flow (integration_auth_attempts)
+type OAuth2Profile = { authorizeUrl: URL; tokenUrl: URL; scopes: string[]; tokenResponse: z.ZodType; identify(ctx: DriverContext): Promise<Identity> };
+// connect.kind "api-token": core stores and encrypts the token; the provider only probes it
+type ApiTokenProbe = { probe(token: string, ctx: DriverContext): Promise<VerifiedAuthorization | { failure: string }> };
+
+type VerifiedAuthorization = {
+  installation: { externalAuthorizationId: string; externalAccountId: string; accountLabel: string; grantedPermissions: Record<string, string>; origin: InstallationOrigin };
+  credential: { kind: "app-installation" } | { kind: "oauth2"; accessToken: string; refreshToken: string | null; expiresAt: Date | null } | { kind: "api-token"; token: string };
+};
+
+type CredentialStrategy = {
+  secretSlots: readonly string[];
+  mint(i: { binding: unknown; permissions: Record<string, string>; secrets: SecretSlots; ctx: DriverContext }):
+    Promise<{ token: string; expiresAt: Date; placement: "bearer" | "basic" | "raw-authorization" }>;
+};
+
+// Core reads the body first (intake-body.ts, bounded); the provider never sees an unbounded stream.
+type WebhookIngress = {
+  maxBodyBytes: number;                                         // at most 256 KiB
+  verify(i: { body: Uint8Array; headers: Headers; secrets: Uint8Array[]; now: Date }):
+    { ok: true; delivery: unknown } | { ok: false; reason: "signature" | "stale" | "malformed" };
+  classify(delivery: unknown): { kind: "ignored" } | { kind: "challenge"; response: unknown } |
+    { kind: "routed"; externalAuthorizationId: string; projection: unknown; intents: IntakeIntent[] };
+  ensureSubscriptions?(ctx: DriverContext): Promise<void>;     // Jira expiry, GitLab hook creation
+};
+type IntakeIntent =
+  | { kind: "lifecycle"; event: "installed" | "suspended" | "unsuspended" | "revoked" | "repositories_changed" }
+  | { kind: "discovery" }
+  | { kind: "refresh"; subject: "ticket" | "change" | "check"; resourceExternalId: string; subjectExternalId: string };
+
+type ServerImpl<M extends ProviderManifest> = {
+  connect: M["connect"]["kind"] extends "github-app" ? ConnectStrategy
+         : M["connect"]["kind"] extends "oauth2" ? OAuth2Profile : ApiTokenProbe;
+  credentials: CredentialStrategy;
+  ingress: M["ingress"] extends null ? undefined : WebhookIngress;
+  lifecycle: InstallationLifecycle;
+  discovery: ResourceDiscovery;                   // its own paged port, with search; not part of connect
+  health: HealthProbe;
+  hostProfile: string;                            // the host auth profile id the gate brokers through
+  tickets: "tickets" extends M["families"][number] ? TicketsPort : never;
+  code: "code" extends M["families"][number] ? CodePort : never;
+};
+declare function defineServerProvider<const M extends ProviderManifest>(manifest: M, impl: ServerImpl<M>): ServerProvider<M>;
+```
+
+```ts
+// @bakery/integration-sdk/web (types only)
+type ProviderWebModule<M extends ProviderManifest> = {
+  manifest: M;
+  ConnectStep: M["connect"]["kind"] extends "github-app" ? ComponentType<ConnectStepProps> : undefined; // required for an App
+  AppRegistrationPanel?: ComponentType<AppRegistrationPanelProps>;
+  ConnectionSection?: ComponentType<ConnectionSectionProps>;
+  describeResource?: (resource: IntegrationResource) => string;
+  describePermission?: (permission: string, level: string) => string;
+};
+type ConnectStepProps = { organizationId: string; reconnect: boolean; api: IntegrationsWebApi; onOutcome(o: ConnectOutcome): void }; // slots never call fetch
+```
+
+**Per-installation origin.** The broker binds every `ProviderRequestPort` to the installation's `apiBaseUrl`. Request templates stay relative to it, and the allowlist is per installation. For v1, only the provider's cloud origin is accepted. Accepting an Admin-supplied origin (self-hosted) later adds SSRF controls (https only, no private, link-local or loopback addresses after resolution, a pinned resolution per request) without changing these types. The origin is stored on the installation row with the core-owned provider metadata.
+
+Strategy semantics:
+- **App registration vs connect.** App registration (installation-level, for example the GitHub App manifest) is separate from connecting an organization.
+- **OAuth2.** Implemented once in core and parameterised by `OAuth2Profile`, so there is one audited PKCE, state and refresh path.
+- **API tokens.** Encrypted by core in the existing secret storage; the provider supplies only `probe`.
+- **Discovery.** Its own paged port, not a step of connect.
+
+The named stubs `InstallationLifecycle`, `ResourceDiscovery`, `HealthProbe`, `SecretSlots`, `Identity` and `ProviderRequestPort` are defined in slice 2 (12.6), after the Linear spike checks them.
+
+### 12.3 Family ports: Tickets and Code (no Chat yet)
+
+A family is a capability more than one provider serves; generic code depends on the port only. **There is no Chat port** until a message consumer exists. Identity links (`slack-identity-links.ts`, `slack-identity-attempts.ts`) become a core store with a provider parameter; only `slack-scope.ts` and `slack-identity.ts` move to `@bakery/integration-slack`. Identity linking is cross-family: Tickets needs it too, for "mapped member" authority. Today's provider-coupled imports in `work` move as follows (several are core, not provider, concerns):
+
+| Today | Moves to |
+|---|---|
+| `resolveRepositoryId` (`pull-requests.ts`; it is SQL) | core `projects/repository-binding.ts` |
+| `authorityVerdict`, `lockAuthority` (`fact-reads.ts`) | core `integrations/facts/authority.ts` |
+| `readIssueRouteTarget`, `createTicketFactIndex` | core intake |
+| ticket URL and key building (`ticket-store.ts`) | `TicketsPort.present()` |
+| ticket reads (`ticket-reads.ts`, `TicketSourceReader`) | `TicketsPort` |
+| PR/MR identity, current SHAs, check-run facts, merge state | `CodePort` (kept minimal) |
+
+```ts
+// Readiness (owner, 2026-11-14): a ticket is ready when a provider-declared rule
+// holds over its fields: today a label AND a workflow status. The rule names
+// fields, not fixed kinds, so a board column (Kanban epic #381) or any custom
+// field fits later without a port change.
+type ReadinessField = { id: string; kind: "label" | "status" | "field"; labelKey: string };
+type ReadinessRule = { fields: readonly ReadinessField[]; combine: "all" };   // "all" today; open to more
+type TicketsCapabilities = { readiness: ReadinessRule; links: boolean; roleLadder: boolean };
+type TicketRef = { externalId: string; ordinal: number | null };                 // dedup on externalId only
+type TicketsPort<C extends TicketsCapabilities = TicketsCapabilities> = {
+  present(ref: TicketRef, container: TicketSourceHandle["container"]): { key: string; url: string };
+  readTicket(ref: TicketRef, ctx: DriverContext): Promise<TicketRead>;   // present | not_a_ticket | gone | moved | TicketReadFailure
+  listChanged(cursor: unknown, ctx: DriverContext): Promise<SyncStream>;
+  cursorSchema: z.ZodType;
+  readTriggerProvenance(trigger: TriggerRef, ctx: DriverContext): Promise<TriggerProvenance>;
+  readReadinessFields(ref: TicketRef, ctx: DriverContext): Promise<Record<string, string | readonly string[] | null>>; // values for the rule's field ids
+  readActorAuthority(actor: string, ctx: DriverContext): Promise<{ rank: number; roleName: string } | { absent: true }>;
+  readResolution(ref: TicketRef, ctx: DriverContext): Promise<{ state: "done" | "open" | "canceled" | "unknown"; linkedChanges: ChangeRef[] }>;
+  links: C["links"] extends true ? TicketLinksPort : never;
+  writes: { progressComment: ExactRef };     // an SDK action through the effect ledger; writes are never port methods
+};
+type TicketSourceHandle = { container: { kind: string; externalId: string; displayName: string } };
+```
+
+**Blockers (owner, 2026-11-14):** a blocker whose `readResolution` is `done` admits the dependent work. A merged change is not required, so trackers without code (Linear, Jira) admit on Done. `linkedChanges` stays informational.
+
+**Port obligations, per provider:**
+- `readTicket` returns the body as normalised Markdown plus `bodyTooLarge`; converting Jira's ADF to Markdown is the provider's job, and acceptance-criteria parsing stays generic.
+- Visibility is `public | restricted`, and rate limits keep today's `TicketReadFailure.retryAfterSeconds`.
+- Delegated actors are opaque `externalActorIds: string[]`, never numeric GitHub ids.
+- The tickets port also needs status vocabulary discovery (statuses and labels with stable ids), set-status by transition id (an SDK write action, like the progress comment) and count reads, so readiness rules, boards and counters stay provider-neutral ([chapter 25](25-one-engine.md), sections 4 and 7).
+
+**Into the one start mechanism.** `classify` intents and the refreshed subjects feed the neutral `work_item.*`, `change_request.*` and `check.completed` events that the engine's single start mechanism matches ([chapter 25](25-one-engine.md), section 7). Ticket admission becomes the `work_item.ready` source; a provider never decides readiness, routing or status meaning, which the tickets module's source policy owns.
+
+**Worker git credentials.** `secrets/broker.ts` and `secrets/preflight.ts` verify project secrets only against `https://api.github.com/user`. That second, GitHub-only credential path belongs to the Code family and is lifted behind `CodePort` later.
+
+**Core branches on capability, never on slug.** A missing capability is a readiness reason such as `provider_capability_missing`. The comment-marker scheme stays GitHub-only. The port shapes are frozen only after the Linear spike (12.6, slice 12′), the "rule of two".
+
+### 12.4 One registry
+
+```ts
+// apps/server/src/modules/integrations/registry.ts: the only importer of /server entries
+export const SERVER_PROVIDERS = [github, slack] as const satisfies readonly ServerProvider[];
+export const providers = activateProviders(SERVER_PROVIDERS);       // fails startup on any defect (B8)
+// the gate's deployedIntegrations derives from providers; it is no longer listed separately
+```
+
+- **Web registry:** `apps/web/src/integrations/registry.ts` holds `WEB_PROVIDERS`, the only importer of `/web` entries, with a server/web slug parity check (B9).
+- **One manifest owns all three ids:** the gate id `bakery.github`, the stored provider `"github"` and the provider UUID.
+- **Provider list API:** `GET /v1/integration-providers` becomes a projection of the in-memory registry, with no table (see §3).
+- **Adding a provider:** its package plus one line in each registry.
+
+### 12.5 One lifecycle flow
+
+- **App registration** (installation-level, `appRegistration` kind) and **connect** (organization-level, `connect` kind) are separate flows in core.
+- **Connect, reconnect:**
+  - `github-app`: core drives the provider's `ConnectStrategy` (`begin` → allowlisted URLs, `complete` → `VerifiedAuthorization`, with no database access).
+  - `oauth2`: core runs its one PKCE/state/refresh flow with the `OAuth2Profile`.
+  - `api-token`: core stores and encrypts the token after the provider's `probe`.
+
+  Either way core stores the connection and audits it the same way, then runs discovery through the separate `ResourceDiscovery` port.
+- **Health:** core runs the provider's `HealthProbe` through the broker and folds it into the connection health (`enabled`, `degraded`, `auth_required`).
+- **Uninstall and remove:** `integrationConnections.remove` (#68). Provider revocation arrives as a `lifecycle` intent from `classify`, not as a normalised event.
+- **Webhook intake:** the route is `/v1/webhooks/:provider` (later `/v1/webhooks/{provider}/{endpointKey}` for per-tenant endpoints). GitHub's URL `/v1/webhooks/github` stays byte-identical, so no alias is needed. (§12's first draft wrongly said `/intake/github`; `intake.github` is an action id.) Core reads the bounded body, persists the receipt, then calls `verify` and `classify`. Subjects for existing `inbound_events` rows are computed on read via `classify` of the stored kind, so no data migration is needed. Endpoint scope is app-level for GitHub and per connection for the others.
+
+### 12.6 Migration plan: cut seams in place, then lift
+
+Principle: GitHub stays where it is while seams are cut around it. Pending provider files move first into `apps/server/src/modules/integrations/providers/<slug>/`, as §7 already prescribes, and only then into packages. Every slice lowers the B2 ledger (12.8) and never raises it.
+
+**Slices 0–12 and 15 are the GitHub migration and change no behaviour:** the API, events, tables, URLs and contracts stay identical, and tests change only import paths.
+
+| Slice | Change |
+|---|---|
+| 0 | This doc (merged after the owner signs off) |
+| 1 | Rails B1–B4 in ledger (report-only) mode, with baselines; PR #378 merges first so its counts are in the snapshot |
+| 2 | SDK types (`/provider`, `/web`, `/testing`), including the stubs in 12.2; no callers |
+| 3 | `registry.ts` in place with a slug/id/UUID map; `deployedIntegrations` derives from it |
+| 4 | Split mixed files: `resolveRepositoryId` → `projects/repository-binding.ts`; authority → `facts/authority.ts`; route target and fact index → core intake |
+| 5 | Ingress: GitHub signature and classification behind `WebhookIngress`; core keeps the bounded read and receipts |
+| 6 | Credentials: the token broker behind `CredentialStrategy` |
+| 7a / 7b | Connect: the GitHub App flow behind `ConnectStrategy` (two PRs) |
+| 8 | App registration behind `appRegistration` |
+| 9 | Lifecycle, discovery and health behind their ports |
+| 10 | Facts (`fact-reads.ts`, `fact-sweep.ts`) through core plus provider reads |
+| 11a | Slack pilot lift into `@bakery/integration-slack`; identity links into a core store |
+| 11b | GitHub lift into `@bakery/integration-github` (`git mv`) |
+| 12 | `TicketsPort`: `present()` returns the same strings as today; `pull_request` → `not_a_ticket` maps back to today's reason code |
+| 12′ | Linear spike on recorded fixtures, **unmerged**: checks the port shapes before they are frozen |
+| 15 | Delete the B2 ledger; the rules become strict |
+
+**Provider-readiness slices change the contract on purpose.** They are therefore outside the no-behaviour-change GitHub migration, and each is its own pre-approved breaking change with a re-bound contract migration:
+- **13. Breaking contract slice:**
+  - generalise `ticket-admission.ts`: opaque ids, a container, `externalActorIds`, trigger ids and a role rank
+  - generic operation ids replace `integrationAuth.github*` and `intake.github`; URLs are unchanged
+  - broker: a GraphQL request-template kind, path-prefix bindings, `basic`/`raw-authorization` placements, and requests bound to the installation's `InstallationOrigin` (cloud origins only in v1)
+  - a core migration generalising `integration_app_registrations` (nullable GitHub columns plus `provider_metadata jsonb`) and `inbound_events.registration_id`
+  - drop `ticket_sources.provider default 'github'`
+- **14. Web slice, after #378 merges:**
+  - move the connect step and app-registration panel into `@bakery/integration-github/web`
+  - rename `?githubConnection=` (`callbacks.ts` and `OrganizationIntegrationsPage.tsx`) in one PR
+  - neutralise the Issues pages (`issue-state.ts` `kind: "github"`, `issues.noGithub.*`)
+
+**After that,** Linear lands as its package, two registry lines and an `OAuth2Profile`. Linear is next in the product order: GitHub, then Linear, then GitLab, with Jira after that. Users set up every integration in the UI. The real cost of "Linear next" is slice 13's broker work, not the package.
+
+**PR #378:** not held. It is asked only for no new `github` identifiers in generic files, with `githubConnection` confined to the files above, and it merges before slice 1.
+
+### 12.7 Owner decisions (2026-11-14)
+
+The four open questions, answered by the owner and folded in above:
+1. **Self-hosted instances** (GitHub Enterprise Server, GitLab self-managed, Jira Data Center): **in scope, not v1.** Every installation carries `InstallationOrigin` now, and the broker binds requests to it (12.2), so self-hosted later needs only SSRF controls and an Admin-supplied origin, not new interfaces.
+2. **Readiness:** **label and status**, as a generic, provider-declared `ReadinessRule` over any ticket field (12.3). It stays open for a board column (Kanban epic #381).
+3. **Pasted API tokens:** **allowed.** `connect.kind: "api-token"`: core stores and encrypts the token, and the provider supplies `probe` (12.2).
+4. **Blocker resolution:** **"the blocker is Done" starts dependent work**; a merged change is not required (12.3).
+
+### 12.8 Enforcement
+
+Rails run in the `fast / backend rails` CI lane (`pnpm test:rails`). Ratchet ledgers can only shrink, and are checked against the merge base. Report-only mode lives in a ledger, not in lint, because Deno lint has no warning level.
+
+**P0 (slice 1):**
+- **B1 Import boundaries.** `tests/rails/integration-boundaries_test.ts` with `scripts/check-integration-boundaries.ts --base <sha>`; zones in `docs/technical-design/integration-baselines/zones.json`. It parses `import`, `export … from` and dynamic `import()` after stripping comments, and resolves relative paths.
+  - (a) Web zones (`apps/web/**`, `packages/ui/**`, `packages/integration-*/src/web/**`) never reach `apps/server/**`, `@bakery/integration-*/server` or `src/server/**`.
+  - (b) Only `apps/server/src/modules/integrations/registry.ts` imports `/server`, and only `apps/web/src/integrations/registry.ts` imports `/web`. Core may import `/manifest`.
+  - (c) No cross-provider imports.
+  - (d) No relative import leaves a package root (the existing `apps/worker` violation is baselined).
+  - (e) Allowlists:
+    - `server`: `@bakery/integration-sdk{,/provider}`, `@bakery/contracts/{http,integrations,ticket-admission}`, `zod`, own package.
+    - `web`: the server list plus `react`, `@bakery/ui`, `@bakery/i18n`, `@bakery/integration-sdk/web`.
+    - `manifest` and `contracts`: `zod`, `sdk/provider`, `@bakery/contracts/*`.
+  - (f) Deny `pg`, `postgres`, `@bakery/persistence`, `inngest`, `hono`, `node:*`, `npm:*`, `Deno.`, `process.env` and bare `fetch(`.
+  - (g) Neutral zones never import provider-pending files. Provider-pending files (`github-*.ts`, `callbacks.ts`, `slack-*.ts` and the others listed by the review) are exempt from (f) until they are lifted.
+- **B2 Neutral-zone ratchet.** It counts provider tokens in neutral zones:
+  - integrations core, minus provider-pending files
+  - `work/ticket-*.ts` and `coordination-plan.ts`
+  - `projects/**`
+  - `packages/contracts/src/{ticket-admission,integrations,implemented-actions}.ts`
+  - `apps/web/src/pages/integrations/**` minus `providers/`
+  - `pages/{Issue*,issue-*}.ts{,x}`
+  - `en.json` keys outside `integrations.<slug>.*`
+
+  The tokens are `github`, `gitlab` and `jira` (case-insensitive substrings); `linear` only as an identifier segment, `"linear"` or `linear.`; plus `octokit`, `x-hub-signature` and `api.github.com`. The ledger is `integration-baselines/provider-literals.json`. A stale entry fails, and at zero the file is deleted and the rule becomes strict.
+- **B3 `MIGRATION_SOURCES`.** Exported from `apps/server/src/migration-sources.ts` and consumed by `tasks.ts`, `postgresql-boundary.ts`, `no-row-level-security_test.ts` and `migration-source-registration_test.ts`.
+  - A glob rail asserts every `**/migrations/**/*.sql` directory is registered, and that the `--allow-read=` lists in `apps/server/package.json` equal the registry.
+  - There are no `.sql` files and no `insert into|update|delete from` strings under `packages/integration-*`.
+- **B4 Suppression ban.** `check-suppressions.ts` rejects any `deno-lint-ignore` naming the `bakery-boundaries/*` rules or `no-client-server-import`, which fails `pnpm lint`.
+
+**P1:**
+- **B5 Vite guard.** A `resolveId` plugin (`enforce: "pre"`) in `apps/web/vite.config.ts` fails the web build on any resolution into `/apps/server/` or `/packages/integration-*/src/server/`. A rail asserts it stays wired.
+- **B6 Lint.** `contract-quality.ts` treats `packages/integration-*/src/web` as a client root and `@bakery/integration-*/server` plus `/src/server/` as server-only. It adds `no-provider-internal-import` and `no-cross-provider-import` (the `bakery-boundaries/*` rules), each enabled per directory once its zone is clean.
+- **B7 Type conformance.** `defineServerProvider`, `defineWebProvider`, and registries declared `as const satisfies`, which fails `pnpm typecheck`.
+- **B8 `activateProviders`.** It fails startup on:
+  - a schema-invalid manifest
+  - a duplicate slug, integration id or UUID
+  - `manifest.integrationId !== integration.manifest.id`
+  - a family or capability without its port
+  - resource kinds not in the SDK manifest
+  - `tickets.writes` refs that aren't declared actions
+  - a missing host auth profile
+
+  A unit test runs it on the real registry.
+- **B9 Registry parity.** Every `packages/integration-*` package (not `-sdk`) is in both registries, or in an `excluded` list with a reason. It must also:
+  - be a dependency of `apps/server` and `apps/web`
+  - expose exactly the four entries, mapped in `deno.json`
+  - be in the conformance list
+
+  The server and web slug sets must be equal.
+- **B10 Conformance suite.** `tests/provider/integration-provider-conformance_test.ts` runs over `SERVER_PROVIDERS` in the `fast / provider conformance` lane, mirroring `harness-conformance.ts`, with fixtures from `/testing`. Cases:
+  - manifest and activation
+  - ingress: exact bytes accepted; tamper, a wrong secret, a stale timestamp and rotation overlap rejected; bounded, secret-free classification
+  - connect: `begin` returns only allowlisted URLs; `complete` rejects a foreign state and a replay
+  - credentials: mint narrowing honours resource and permission scope
+  - tickets: truncated labels fail closed; rate-limit mapping; `not_a_ticket`, gone and moved; cursor round-trips through its schema; outputs bounded; `present()` deterministic
+  - writes: each declared write has a `reconcile` that answers `uncertain` on absence or truncation
+
+  A rail asserts the conformance list equals the registry.
+
+**P2:**
+- **B11.** `APP_SOURCE_PREFIX` includes `packages/integration-*/src/web/`; a rail bans `fetch(` in provider web code.
+- **B12 i18n.** `integrations.<slug>.*` keys are used only by that package or through manifest-declared keys. Those keys exist in `en.json` and both pseudo-locales, and neutral zones never name a `*.<slug>.*` key literally.
+- **B13 Writer door.** Only core stores write `integration_*`, `inbound_*`, `pull_requests` and `external_identity_links`.
+- **B14 Change routing.** A `classify-changes.ts` row routes `packages/integration-*` to the provider and integration lanes, and `/web` to the browser lanes.
+- **B15 Contract neutrality.** B2 at zero on `ticket-admission.ts` (after slice 13).
