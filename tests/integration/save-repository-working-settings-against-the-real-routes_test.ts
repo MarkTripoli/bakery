@@ -12,9 +12,11 @@ import {
 } from "../../apps/web/src/pages/projects/repository-save.ts";
 import {
   configDigest,
+  folderOf,
   nextRevision,
   settingsProblem,
 } from "../../apps/web/src/pages/projects/repository-state.ts";
+import { overrideOf, titleEntry } from "../helpers/repository-rules-fixture.ts";
 
 /**
  * The repository page's working-settings save (#65), through the REAL
@@ -27,9 +29,10 @@ import {
  *  - a version whose base is not the default branch is also put in use by the
  *    server, with the same effect;
  *  - an ordinary save is put in use by the page, with the version it just read;
- *  - a version that states `repositoryRules` is refused with 428 (it needs the
- *    rules revision and a precondition the page does not hold), which the page
- *    meets by offering no save for such a repository;
+ *  - a version in use that carries rules of its own is saved with
+ *    `keepRepositoryRules` and the repository version as If-Match: the server
+ *    copies the rules into the new version, puts it in use itself, and refuses
+ *    a save that changes anything but the branches (422) or is stale (412);
  *  - a control character in a branch is a 400, which the page refuses first.
  */
 Deno.test("the page's save sequence against the real routes", async () => {
@@ -81,6 +84,7 @@ Deno.test("the page's save sequence against the real routes", async () => {
         result(
           await request("POST", `/v1/repositories/${o.repositoryId}/profiles`, {
             body: o.input,
+            ifMatch: o.ifMatch as string | undefined,
             key: o.idempotencyKey as string,
           }),
         ),
@@ -138,12 +142,14 @@ Deno.test("the page's save sequence against the real routes", async () => {
     const save = async (
       repositoryId: string,
       branches: string[],
+      over: { folder?: string; repositoryVersion?: number } = {},
     ) => {
       const repository =
         (await request("GET", `/v1/repositories/${repositoryId}`))
           .json as {
             id: string;
             defaultBranch: string;
+            version: number;
             activeProfileId: string | null;
           };
       const listed = (await request(
@@ -155,14 +161,17 @@ Deno.test("the page's save sequence against the real routes", async () => {
       ) ?? null;
       return await saveWorkingSettings(api, {
         organizationId: fx.organizationId,
-        repository,
+        repository: over.repositoryVersion === undefined
+          ? repository
+          : { ...repository, version: over.repositoryVersion },
         previous: previous as never,
         revision: nextRevision(
           listed.items as never,
           (repository as { nextProfileRevision?: number }).nextProfileRevision,
         ),
         branches,
-        folder: "",
+        // The sheet starts from the version in use's folder and keeps it.
+        folder: over.folder ?? folderOf(previous?.config),
         createKey: crypto.randomUUID(),
         useKey: () => crypto.randomUUID(),
       });
@@ -195,19 +204,113 @@ Deno.test("the page's save sequence against the real routes", async () => {
     assertEquals(renamedResult.putInUseBy, "server");
     assertEquals(await activeOf(renamed), renamedResult.profile.id);
 
-    // A repository with rules of its own: the server wants the rules revision and
-    // a precondition (428), so the page offers no save for it.
+    // A repository with rules of its own: the page's save keeps them
+    // (`keepRepositoryRules`, the repository version as If-Match). The server
+    // copies the rules into the new version and puts it in use itself.
+    const rules = {
+      entries: [{ ...overrideOf(titleEntry(72)), mode: "require" }],
+    };
     const withRules = await makeRepo("rules", {
-      profile: config({ repositoryRules: { entries: [] } }),
+      profile: config({ repositoryRules: rules }),
     });
     const rulesResult = await save(withRules, ["feature/*", "hotfix/*"]);
-    assertEquals(rulesResult.ok, false);
+    assert(rulesResult.ok, JSON.stringify(rulesResult));
+    assertEquals(rulesResult.putInUseBy, "server");
+    assertEquals(await activeOf(withRules), rulesResult.profile.id);
+    const keptConfig = rulesResult.profile.config as Record<string, unknown>;
     assertEquals(
-      !rulesResult.ok && rulesResult.step === "create" &&
-        (rulesResult.error as { problem: { status: number } }).problem.status,
-      428,
+      (keptConfig.branches as { allowedPatterns: string[] }).allowedPatterns,
+      ["feature/*", "hotfix/*"],
     );
+    assertEquals(keptConfig.repositoryRules, rules);
+    assertEquals(
+      (keptConfig.worktree as { root: string }).root,
+      ".bakery/worktrees",
+    );
+    // The carried version carries them on: a second save keeps them again.
+    const again = await save(withRules, ["feature/*"]);
+    assert(again.ok, JSON.stringify(again));
+    assertEquals(again.putInUseBy, "server");
+    assertEquals(
+      (again.profile.config as Record<string, unknown>).repositoryRules,
+      rules,
+    );
+    // Nothing but the branches may change: a different folder is a 422.
+    const folderRefused = await save(withRules, ["feature/*"], {
+      folder: "elsewhere",
+    });
+    assertEquals(folderRefused.ok, false);
+    assertEquals(
+      !folderRefused.ok && folderRefused.step === "create" &&
+        (folderRefused.error as { problem: { status: number } }).problem
+          .status,
+      422,
+    );
+    // A stale repository version is a 412, and nothing is saved.
+    const staleRefused = await save(withRules, ["feature/*"], {
+      repositoryVersion: 1,
+    });
+    assertEquals(staleRefused.ok, false);
+    assertEquals(
+      !staleRefused.ok && staleRefused.step === "create" &&
+        (staleRefused.error as { problem: { status: number } }).problem.status,
+      412,
+    );
+    assertEquals(await activeOf(withRules), again.profile.id);
+    // An explicit "no rules" (`entries: []`) carries nothing: the server does
+    // not put the new version in use, so the page does, and nothing states rules.
+    const noEntries = await makeRepo("no-entries", {
+      profile: config({ repositoryRules: { entries: [] } }),
+    });
+    const noEntriesResult = await save(noEntries, ["feature/*", "hotfix/*"]);
+    assert(noEntriesResult.ok, JSON.stringify(noEntriesResult));
+    assertEquals(noEntriesResult.putInUseBy, "page");
+    assertEquals(await activeOf(noEntries), noEntriesResult.profile.id);
 
+    // A fixed policy fixes what a *publication* may change, not which recorded
+    // version a person may put in use: the server allows switching to a version
+    // with other branches, so the page keeps "Use version" on those rows
+    // (design-ux, #475 review). A policy that also carried rules still refuses
+    // to publish new branches (the sheet's fixed-branches view).
+    const policyFixed = await makeRepo("policy-fixed", {
+      profile: config({
+        fixedPolicy: {
+          lockedConfiguration: {
+            branches: true,
+            worktree: true,
+            checker: true,
+          },
+        },
+      }),
+    });
+    const otherBranches = crypto.randomUUID();
+    const otherConfig = config();
+    (otherConfig.branches as { allowedPatterns: string[] }).allowedPatterns = [
+      "recorded/*",
+    ];
+    await owner`
+      insert into bakery.repository_profiles (
+        id, organization_id, application_id, repository_id, revision, config,
+        digest, created_by, version
+      ) values (${otherBranches}, ${fx.organizationId}, ${fx.applicationId},
+        ${policyFixed}, 2, ${owner.json(otherConfig as never)},
+        ${await configDigest(otherConfig)}, ${fx.admin.principalId}, 1)`;
+    const fixedNow = (await request("GET", `/v1/repositories/${policyFixed}`))
+      .json as { version: number };
+    const usedUnderPolicy = await request(
+      "PATCH",
+      `/v1/repositories/${policyFixed}`,
+      {
+        body: { activeProfileId: otherBranches },
+        ifMatch: `"${fixedNow.version}"`,
+      },
+    );
+    assertEquals(
+      usedUnderPolicy.status,
+      200,
+      JSON.stringify(usedUnderPolicy.json),
+    );
+    assertEquals(await activeOf(policyFixed), otherBranches);
     // A control character in a branch is a 400, and the page refuses it first.
     assertEquals(settingsProblem(["main\u0000x"], ""), "characters");
     const control = await makeRepo("control", { profile: config() });

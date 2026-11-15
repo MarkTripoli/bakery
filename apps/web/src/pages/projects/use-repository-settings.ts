@@ -21,7 +21,7 @@ export type SettingsFailure =
   | "conflict"
   | "offline"
   | "failed"
-  | "rules"
+  | "branchesLocked"
   | "rejected"
   | "savedNotUsed"
   | "useFailed";
@@ -34,16 +34,25 @@ export function failureOf(error: unknown): SettingsFailure {
     case 409:
     case 412:
       return "conflict";
-    // The repository has rules of its own, which a save from here cannot carry.
-    case 428:
-      return "rules";
+    // The repository's policy fixes its branches for the policy's revision.
+    case 422:
+      return issueCodesOf(error).includes("repository_branches_locked")
+        ? "branchesLocked"
+        : "rejected";
     // The server did not accept the values.
     case 400:
-    case 422:
       return "rejected";
     default:
       return "failed";
   }
+}
+
+/** The codes of the issues a refusal names, when it names any. */
+function issueCodesOf(error: unknown): readonly string[] {
+  if (typeof error !== "object" || error === null) return [];
+  const problem = (error as { problem?: { issueCodes?: readonly string[] } })
+    .problem;
+  return problem?.issueCodes ?? [];
 }
 
 /** Whether the server may have done a write although the answer was lost (no answer, or a server fault). */

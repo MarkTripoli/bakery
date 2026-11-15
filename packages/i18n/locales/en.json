@@ -3645,12 +3645,7 @@
   "projects.repository.use.body": "New tasks use version {version}. Tasks already running keep version {current}.",
   "projects.repository.use.bodyFirst": "New tasks use version {version}.",
   "projects.repository.settings.branchesControl": "Remove the control characters from the branch names.",
-  "projects.repository.settings.rulesInForce": "This repository has rules of its own. Its branches cannot be changed in Bakery yet.",
-  "projects.repository.failure.rules": "This repository has rules of its own. Its branches cannot be changed in Bakery yet.",
   "projects.repository.failure.rejected": "The server did not accept these settings. Check the branches and the folder.",
-  "projects.repository.settings.worksFrom": "Works from",
-  "projects.repository.settings.folderRow": "Working folder",
-  "projects.repository.step.settings.view": "View",
   "tasks.inbox.emptyNone": "There are no tasks yet.",
   "tasks.queue.searchTasks": "Search tasks",
   "tasks.queue.inspector.details": "Details",
@@ -3741,5 +3736,14 @@
   "library.workflow.actionLine.reviewIndependent": "A separate agent reviews the changes and lists what it found.",
   "library.workflow.actionLine.agentFreeform": "An agent follows instructions written for this step.",
   "library.workflow.actionLine.qualityCheck": "Runs the repository's lint, tests and build.",
-  "library.workflow.actionLine.deliveryMerge": "Merges the changes when checks and review allow it."
+  "library.workflow.actionLine.deliveryMerge": "Merges the changes when checks and review allow it.",
+  "projects.repository.failure.branchesLocked": "Nothing was saved. Your organization's rules fix the branches for this repository, so they cannot be changed here. An organization administrator can change that in {organizationRules}.",
+  "projects.repository.settings.worksFrom": "Works from",
+  "projects.repository.settings.folderWhole": "The whole repository",
+  "projects.repository.settings.folderSetByRules": "Set by this repository's rules. To change it, {rulesLink}.",
+  "projects.repository.settings.changeRules": "change the rules",
+  "projects.repository.settings.branchesFixed": "Your organization's rules fix the branches for this repository. An organization administrator can change that in {organizationRules}.",
+  "projects.repository.settings.organizationRules": "Organization rules",
+  "projects.repository.use.rulesStop": "Version {version} does not include this repository's own rules, so they stop applying.",
+  "projects.repository.use.otherRules": "Version {version} has other rules of its own, so the ones in force now stop applying."
 }

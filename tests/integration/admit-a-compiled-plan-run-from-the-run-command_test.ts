@@ -593,22 +593,93 @@ Deno.test("a published plan that no longer compiles is refused, not half started
     );
   }));
 
-Deno.test("a repository rule that requires a check stage refuses a plan, which the guard cannot read yet, and leaves nothing behind", () =>
+/** The plan of `plan()` with a check stage of the pinned rule after its implement step. */
+const checkedPlan = (over: { guarded?: boolean; before?: boolean } = {}) => {
+  const base = plan();
+  const flow = base.steps[0] as { steps: Record<string, unknown>[] };
+  const [brief, implement] = flow.steps;
+  const check = {
+    id: "check",
+    needs: [over.before === true ? "brief" : "implement"],
+    uses: "quality.check",
+    ...(over.guarded === true ? { if: '$input.note == "go"' } : {}),
+    with: {
+      repositoryId: "$input.repositoryId",
+      revision: over.before === true
+        ? "0000000000000000000000000000000000000000"
+        : "$step.flow.implement.headSha",
+      checks: ["magic.numbers"],
+    },
+  };
+  return {
+    ...base,
+    steps: [{
+      id: "flow",
+      steps: over.before === true
+        ? [brief, check, { ...implement, needs: ["check"] }]
+        : [brief, implement, check],
+    }],
+  };
+};
+
+Deno.test("a repository rule that requires a check is read against a plan's shape: a plan with its check after the last revision is admitted, and one without is refused naming the rule", () =>
   withWorkerFixture(async (fixture) => {
     const governed = await seedRulesRepository(fixture, fixture, "governed", {
       entries: [asOverride(numbersRule())],
     });
+    const refusal = async (
+      name: string,
+      document: unknown,
+      code: string,
+    ) => {
+      const { versionId } = await publishWorkflow(
+        fixture,
+        fixture,
+        name,
+        document,
+      );
+      const { task, response } = await start(fixture, governed, versionId);
+      const text = await response.text();
+      assertEquals(response.status, 422, text);
+      const body = JSON.parse(text) as {
+        code: string;
+        issues: { code: string; message: string }[];
+      };
+      assertEquals(body.code, "UNPROCESSABLE");
+      assertEquals(body.issues.map((issue) => issue.code), [code]);
+      assert(body.issues[0].message.includes("Rule code.magicNumbers "));
+      // Nothing was admitted: no run, the task stays a draft.
+      assertEquals(await facts(fixture, task.id), {
+        runs: 0,
+        status: "draft",
+        currentRun: null,
+      });
+    };
+    await refusal(
+      "plan-governed-missing",
+      plan(),
+      "repository_rule_stage_missing",
+    );
+    await refusal(
+      "plan-governed-guarded",
+      checkedPlan({ guarded: true }),
+      "repository_rule_stage_missing",
+    );
+    await refusal(
+      "plan-governed-reordered",
+      checkedPlan({ before: true }),
+      "repository_rule_stage_before_revision",
+    );
     const { versionId } = await publishWorkflow(
       fixture,
       fixture,
-      "plan-governed",
-      plan(),
+      "plan-governed-ok",
+      checkedPlan(),
     );
-    assertEquals(
-      (await refused(fixture, governed, versionId, 409)).reason,
-      "workflow_plan_rules_unsupported",
-    );
-    // (The same plan is admitted where no rule requires a stage: the first test.)
+    const { response } = await start(fixture, governed, versionId);
+    const run = await expectJson<RunBody>(response, 201);
+    assert(Object.hasOwn(await snapshotOf(fixture, run.id), "runtime"));
+    // (The same plan without a check is admitted where no rule requires one: the first test.)
   }));
 
 Deno.test("a compiler-grammar workflow that is a bare list of steps stays on the fixed executor, rows and all", () =>

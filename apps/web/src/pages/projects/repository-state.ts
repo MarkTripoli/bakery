@@ -60,11 +60,52 @@ export function nextRevision(
 
 /**
  * Whether a version of the settings states rules of its own (the Rules page
- * publishes such versions). A save from this page cannot carry them: the
- * server asks for the rules revision and a precondition the page does not hold.
+ * publishes such versions). A save from this page does not state rules: it
+ * asks the server to keep the ones in force, exactly as they are (#461).
  */
 export function hasOwnRules(config: unknown): boolean {
   return record(config).repositoryRules !== undefined;
+}
+
+/**
+ * Whether the rules of a version bind it: it states at least one entry. An
+ * explicit empty statement is "no overrides" and binds nothing (the server
+ * carries nothing forward for it either).
+ */
+export function rulesInForce(config: unknown): boolean {
+  const rules = record(record(config).repositoryRules).entries;
+  return Array.isArray(rules) && rules.length > 0;
+}
+
+/** The same JSON whatever the order of an object's keys, so two statements of rules compare. */
+function stable(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stable).join(",")}]`;
+  if (typeof value === "object" && value !== null) {
+    return `{${
+      Object.keys(value).sort().map((key) =>
+        `${JSON.stringify(key)}:${
+          stable((value as Record<string, unknown>)[key])
+        }`
+      ).join(",")
+    }}`;
+  }
+  return JSON.stringify(value) ?? "null";
+}
+
+/** Whether two versions state exactly the same rules. */
+export function sameRules(a: unknown, b: unknown): boolean {
+  return stable(record(a).repositoryRules ?? null) ===
+    stable(record(b).repositoryRules ?? null);
+}
+
+/**
+ * Whether the version's fixed policy locks its branches (a policy states the
+ * lock for every revision it carries): the branches change only with a new
+ * policy revision, never from a save of the working settings.
+ */
+export function fixesBranches(config: unknown): boolean {
+  const policy = record(record(config).fixedPolicy);
+  return record(policy.lockedConfiguration).branches === true;
 }
 
 /**
@@ -166,7 +207,14 @@ export function settingsConfig(
   // carries `checkPolicy`, the check's own evidence; it is dropped, because a
   // person-saved version has no check behind it (#65). The check evidence then
   // no longer applies until the check runs again.
-  const { checkPolicy: _checkEvidence, ...kept } = record(previous);
+  // Rules of the repository's own are never stated by a save from here: the
+  // server carries the ones in force forward (`keepRepositoryRules`), and
+  // refuses a save that states them as well.
+  const {
+    checkPolicy: _checkEvidence,
+    repositoryRules: _rulesInForce,
+    ...kept
+  } = record(previous);
   return {
     ...kept,
     schemaVersion: 1,

@@ -771,9 +771,8 @@ Deno.test("AC3: publishing or activating a workflow without a required stage is 
         "workflow_not_fixed",
       );
       assertEquals(await facts(id), beforeDynamic);
-      // A compiler-grammar plan with a container node is valid, only not
-      // executable yet: it is named as such, not as invalid (#108). It still
-      // fails closed, because the guard cannot read nested steps.
+      // A compiler-grammar plan is read through its shape (#398). This one
+      // changes no revision, so the rule does not bind it and it activates.
       const planId = crypto.randomUUID();
       await f.owner`
         insert into bakery.workflow_versions (
@@ -786,6 +785,8 @@ Deno.test("AC3: publishing or activating a workflow without a required stage is 
           apiVersion: "bakery.dev/v1",
           kind: "workflow",
           name: "plan-only",
+          description: "A plan that changes no revision.",
+          inputs: { target: { type: "string", required: true } },
           steps: [{
             id: "choose",
             branch: {
@@ -798,14 +799,66 @@ Deno.test("AC3: publishing or activating a workflow without a required stage is 
       },
           ${"c".repeat(64)}, 'published', ${f.adminA.principalId}, 1
         )`;
-      const beforePlan = await facts(id);
       const plan = await activate(id, planId);
-      assertEquals(plan.status, 409, await plan.clone().text());
-      assertEquals(
-        (await plan.json() as { reason?: string }).reason,
-        "workflow_not_executable",
+      assertEquals(plan.status, 200, await plan.clone().text());
+      assertEquals((await facts(id)).active.active, planId);
+    });
+
+    await test.step("a compiled plan is read through its shape on publish and activate", async () => {
+      const plan = (steps: unknown[]) => ({
+        apiVersion: "bakery.dev/v1",
+        kind: "workflow",
+        name: "plan-rules",
+        description: "A compiled plan read against a required check.",
+        agents: { "harness.implement": agentVersionId },
+        inputs: { repositoryId: { type: "uuid", required: true } },
+        steps: [{ id: "flow", steps }],
+      });
+      const implement = {
+        id: "implement",
+        uses: "harness.implement",
+        with: {
+          repositoryId: "$input.repositoryId",
+          planArtifact: "00000000-0000-4000-8000-0000000000b1",
+          instructions: "Go.",
+        },
+      };
+      const check = (needs: string | null, guarded = false) => ({
+        id: "check",
+        needs: needs === null ? [] : [needs],
+        uses: "quality.check",
+        ...(guarded ? { if: '$input.repositoryId != ""' } : {}),
+        with: {
+          repositoryId: "$input.repositoryId",
+          revision: "0000000000000000000000000000000000000000",
+          checks: [COMMAND],
+        },
+      });
+      const missing = [{
+        code: "repository_rule_stage_missing",
+        ruleKey: "code.magicNumbers",
+      }];
+      await refusedPublish("plan-missing", plan([implement]), missing);
+      await refusedPublish(
+        "plan-guarded",
+        plan([implement, check("implement", true)]),
+        missing,
       );
-      assertEquals(await facts(id), beforePlan);
+      await refusedPublish(
+        "plan-reordered",
+        plan([check(null), { ...implement, needs: ["check"] }]),
+        [{
+          code: "repository_rule_stage_before_revision",
+          ruleKey: "code.magicNumbers",
+        }],
+      );
+      const id = await createWorkflow("plan-compliant");
+      const draft = await newDraft(id, plan([implement, check("implement")]));
+      const published = await publish(id, draft);
+      assertEquals(published.status, 200, await published.clone().text());
+      const activated = await activate(id, draft);
+      assertEquals(activated.status, 200, await activated.clone().text());
+      assertEquals((await facts(id)).active.active, draft);
     });
 
     await test.step("unreadable stored rules fail the guard closed on publish and activate", async () => {
