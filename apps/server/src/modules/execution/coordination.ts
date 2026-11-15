@@ -407,8 +407,8 @@ export async function cancelQueuedJobsOfRun(
   transaction: PgTransactionClient,
   input: { organizationId: string; runId: string; traceId: string },
 ): Promise<void> {
-  const queued = await transaction.query<{ id: string }>(
-    `select job.id
+  const queued = await transaction.query<{ id: string; runStepId: string }>(
+    `select job.id, job.run_step_id as "runStepId"
        from bakery.jobs job
        join bakery.run_steps step
          on step.organization_id = job.organization_id
@@ -438,7 +438,7 @@ export async function cancelQueuedJobsOfRun(
   );
   const lifecycle = scope.rows[0];
   if (!lifecycle) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  for (const { id } of queued.rows) {
+  for (const { id, runStepId } of queued.rows) {
     const canceled = await transaction.query<{ version: number }>(
       `update bakery.jobs
           set status = 'canceled',
@@ -464,7 +464,9 @@ export async function cancelQueuedJobsOfRun(
     );
     await emitCanceledJobEvents(transaction, {
       organizationId: input.organizationId,
-      lifecycle,
+      // The event names the job's own step: a retry waiting for its turn has
+      // a last attempt, and `job.completed` requires the step id.
+      lifecycle: { ...lifecycle, runStepId },
       jobId: id,
       attemptId: last.rows[0]?.id ?? null,
       jobVersion: version,
