@@ -126,6 +126,7 @@ type RepositoryProfileCreateInput = {
   budgetCaps?: unknown;
   digest: string;
   expectedOrganizationRulesRevision?: number;
+  keepRepositoryRules?: boolean;
 };
 
 function toIso(value: Date | string): string {
@@ -1012,6 +1013,16 @@ export const createProfile = async (
     });
   }
   const publishesFixedPolicy = parsedConfig.data.fixedPolicy !== undefined;
+  // `keepRepositoryRules` carries the ACTIVE profile's overrides forward
+  // verbatim (a branches-only save from the repository page). It is not a
+  // statement about overrides, so stating them as well is contradictory.
+  const keepsRepositoryRules = value.keepRepositoryRules === true;
+  if (keepsRepositoryRules && parsedConfig.data.repositoryRules !== undefined) {
+    throw unprocessable(
+      ["config", "repositoryRules"],
+      "repository_rules_keep_conflict",
+    );
+  }
   // An explicit `repositoryRules` key (even `entries: []`, an explicit "no
   // overrides") is a statement about overrides and activates the profile.
   const statesRepositoryRules = parsedConfig.data.repositoryRules !== undefined;
@@ -1108,6 +1119,20 @@ export const createProfile = async (
   // An unparsable active config is never treated as carrying overrides.
   const activeCarriesRepositoryRules = parsedActiveConfig.success &&
     (parsedActiveConfig.data.repositoryRules?.entries.length ?? 0) > 0;
+  // With `keepRepositoryRules` the active overrides are copied unchanged, so
+  // the save is neither a rules statement nor a restore of the organization
+  // rules: no organization lock, no organization revision, no retention
+  // check. It still replaces an active profile carrying overrides, which must
+  // take effect for the carried overrides to stay effective, so it activates
+  // under the same If-Match and `repository:manage` as any replacing
+  // activation. No organization lock is needed: the carried overrides are
+  // read under the repository row lock, and any rules publication for this
+  // repository bumps the repository version, so a stale If-Match is refused.
+  const carriedRepositoryRules =
+    keepsRepositoryRules && activeCarriesRepositoryRules &&
+      parsedActiveConfig.success
+      ? parsedActiveConfig.data.repositoryRules
+      : undefined;
   const activatesOnPublish = publishesFixedPolicy || statesRepositoryRules ||
     activeCarriesRepositoryRules;
   // A strict-v1 active profile whose base branch no longer matches the
@@ -1162,6 +1187,7 @@ export const createProfile = async (
   //    onboarding is re-run, which is an accepted consequence.
   // 3. It fails closed on an active config that does not parse.
   const rulesCausedActivation = !publishesFixedPolicy && activatesOnPublish &&
+    carriedRepositoryRules === undefined &&
     repository.active_profile_id !== null;
   if (rulesCausedActivation) {
     if (!parsedActiveConfig.success) {
@@ -1189,6 +1215,42 @@ export const createProfile = async (
       });
     }
   }
+  // A branches-only save that carries the active overrides (#65) is still a
+  // retention save: only `branches` may change. Workflow, worktree and agent
+  // bindings are kept, and the active fixedPolicy must be carried; a fixed
+  // policy locks the branch boundary for its revision, so a branches change
+  // under one goes through a new policy revision instead.
+  if (carriedRepositoryRules !== undefined && parsedActiveConfig.success) {
+    const changed = changedRetainedFields(
+      parsedActiveConfig.data,
+      parsedConfig.data,
+    ).filter((field) => field !== "branches");
+    if (changed.length > 0) {
+      throw new StandardError({
+        code: "UNPROCESSABLE",
+        params: {
+          issues: [{
+            path: ["config"],
+            code: "repository_rules_must_retain_config",
+            message: `A branches-only save changed retained fields: ${
+              changed.join(", ")
+            }.`,
+          }],
+        },
+      });
+    }
+    const activeFixedPolicy = parsedActiveConfig.data.fixedPolicy;
+    if (
+      activeFixedPolicy?.lockedConfiguration.branches === true &&
+      canonicalJson(parsedActiveConfig.data.branches) !==
+        canonicalJson(parsedConfig.data.branches)
+    ) {
+      throw unprocessable(
+        ["config", "branches"],
+        "repository_branches_locked",
+      );
+    }
+  }
   if (repository.archived_at !== null) {
     throw new StandardError({
       code: "STATE_CONFLICT",
@@ -1211,10 +1273,33 @@ export const createProfile = async (
     );
   }
 
-  const digest = value.digest.toLowerCase();
-  if ((await profileDigest(parsedConfig.data)) !== digest) {
+  const submittedDigest = value.digest.toLowerCase();
+  if ((await profileDigest(parsedConfig.data)) !== submittedDigest) {
     throw unprocessable(["digest"], "digest_mismatch");
   }
+  // The digest verifies the submitted config in transit; a stored profile's
+  // digest always covers its stored config, so carrying overrides forward
+  // re-derives it over the config that is actually published.
+  const storedConfig = carriedRepositoryRules === undefined
+    ? parsedConfig.data
+    : RepositoryProfileConfigSchema.parse({
+      ...parsedConfig.data,
+      repositoryRules: carriedRepositoryRules,
+    });
+  if (
+    carriedRepositoryRules !== undefined &&
+    !profileConfigFitsInspectionBudget(
+      encodedByteLength(canonicalJson(storedConfig)),
+    )
+  ) {
+    throw unprocessable(
+      ["config", "repositoryRules"],
+      "repository_rules_too_large",
+    );
+  }
+  const digest = carriedRepositoryRules === undefined
+    ? submittedDigest
+    : await profileDigest(storedConfig);
 
   if (
     overrides !== undefined && expectedOrganizationRulesRevision !== undefined
@@ -1241,7 +1326,7 @@ export const createProfile = async (
         repository.application_id,
         repositoryId,
         value.revision,
-        JSON.stringify(parsedConfig.data),
+        JSON.stringify(storedConfig),
         value.budgetCaps === undefined
           ? null
           : JSON.stringify(value.budgetCaps),
