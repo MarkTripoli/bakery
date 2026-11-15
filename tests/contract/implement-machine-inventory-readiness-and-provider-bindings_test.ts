@@ -164,7 +164,7 @@ Deno.test("inventory report, components list and host projection match schemas",
         hostGeneration: worker.registration.registrationGeneration,
         expectedInventoryRevision: 1,
         components: [{
-          componentKey: "harness.bakery",
+          componentKey: "harness.claude",
           kind: "harness",
           actualVersion: "1.0",
           installOwner: "bakery",
@@ -176,7 +176,7 @@ Deno.test("inventory report, components list and host projection match schemas",
         checks: [{
           checkId: "capability:git",
           checkVersion: "1",
-          componentKey: "harness.bakery",
+          componentKey: "harness.claude",
           status: "pass",
           observedAt: OBSERVED,
         }],
@@ -206,13 +206,13 @@ Deno.test("inventory report, components list and host projection match schemas",
       await components.json(),
     ) as unknown as { items: { componentKey: string }[] }).items;
     assertEquals(componentItems.length, 1);
-    assertEquals(componentItems[0].componentKey, "harness.bakery");
+    assertEquals(componentItems[0].componentKey, "harness.claude");
 
     const binding = await adminRequest(
       fixture,
       `/v1/workers/${worker.registration.workerHostId}/provider-bindings`,
       {
-        componentKey: "harness.bakery",
+        componentKey: "harness.claude",
         provider: "anthropic",
         billingRoute: "subscription",
         enabled: true,
@@ -253,6 +253,219 @@ Deno.test("inventory report, components list and host projection match schemas",
     contractSchemas.WorkerProviderBinding.parse(await update.json());
   }));
 
+Deno.test("coding agents serve their payment methods; bindings keep to them (#68)", () =>
+  withWorkerFixture(async (fixture) => {
+    const worker = await registeredWorker(fixture, {
+      name: "issue68-payment-methods",
+      capabilities: ["git"],
+    });
+    const hostId = worker.registration.workerHostId;
+    const inventory = await workerRequest(
+      fixture,
+      worker.credential,
+      "/v1/worker/inventory",
+      {
+        reportId: crypto.randomUUID(),
+        hostGeneration: worker.registration.registrationGeneration,
+        expectedInventoryRevision: 1,
+        components: ["harness.claude", "harness.pi", "harness.bakery"].map((
+          componentKey,
+        ) => ({
+          componentKey,
+          kind: "harness",
+          actualVersion: "1.0",
+          installOwner: "bakery",
+          adapterVersion: "1.0",
+          observedAt: OBSERVED,
+          capabilities: ["git"],
+          maintenanceSupport: { remoteLogin: "device" },
+        })),
+        checks: [],
+      },
+      {
+        headers: { "X-Bakery-Worker-Protocol-Version": "2" },
+        idempotencyKey: crypto.randomUUID(),
+      },
+    );
+    assertEquals(inventory.status, 200);
+    const components = await adminRequest(
+      fixture,
+      `/v1/workers/${hostId}/components?limit=25`,
+      undefined,
+      { method: "GET" },
+    );
+    assertEquals(components.status, 200);
+    const methods = Object.fromEntries(
+      (contractSchemas["Page<WorkerComponent>"].parse(
+        await components.json(),
+      ) as unknown as {
+        items: { componentKey: string; paymentMethods: string[] }[];
+      }).items.map((item) => [item.componentKey, item.paymentMethods]),
+    );
+    assertEquals(methods, {
+      "harness.bakery": [],
+      "harness.claude": ["subscription", "api_metered"],
+      "harness.pi": ["api_metered", "local"],
+    });
+
+    const bind = (billingRoute: string) =>
+      adminRequest(
+        fixture,
+        `/v1/workers/${hostId}/provider-bindings`,
+        {
+          componentKey: "harness.pi",
+          provider: "openrouter",
+          billingRoute,
+          enabled: true,
+          authMode: "host_native",
+          credentialLocation: "harness_host",
+        },
+        { idempotencyKey: crypto.randomUUID() },
+      );
+    // Pi takes no subscription: a new binding on it is refused, with the reason.
+    const refused = await bind("subscription");
+    assertEquals(refused.status, 422);
+    const refusedBody = await refused.json() as Record<string, unknown>;
+    assertEquals(refusedBody.code, "VALIDATION_FAILED");
+    assertEquals(refusedBody.issues, [{
+      path: ["billingRoute"],
+      message: "This coding agent does not accept this way of paying.",
+      code: "payment_method_unsupported",
+    }]);
+
+    const accepted = await bind("api_metered");
+    assertEquals(accepted.status, 201);
+    const binding = contractSchemas.WorkerProviderBinding.parse(
+      await accepted.json(),
+    ) as unknown as { id: string; paymentMethodSupported: boolean };
+    assertEquals(binding.paymentMethodSupported, true);
+
+    // Changing the route to one Pi does not take is refused too.
+    const rerouted = await adminRequest(
+      fixture,
+      `/v1/workers/${hostId}/provider-bindings/${binding.id}`,
+      { billingRoute: "subscription" },
+      {
+        method: "PATCH",
+        idempotencyKey: crypto.randomUUID(),
+        headers: { "If-Match": '"1"' },
+      },
+    );
+    assertEquals(rerouted.status, 422);
+    assertEquals(
+      (await rerouted.json() as { issues: { code: string }[] }).issues[0]
+        .code,
+      "payment_method_unsupported",
+    );
+
+    // A binding saved before the rule still reads, flagged as needing attention.
+    await fixture.pgDatabase.query(
+      `update bakery.worker_provider_bindings set billing_route = 'subscription'
+        where id = $1`,
+      [binding.id],
+    );
+    const list = await adminRequest(
+      fixture,
+      `/v1/workers/${hostId}/provider-bindings?limit=25`,
+      undefined,
+      { method: "GET" },
+    );
+    assertEquals(list.status, 200);
+    const [legacy] = (contractSchemas["Page<WorkerProviderBinding>"].parse(
+      await list.json(),
+    ) as unknown as {
+      items: { billingRoute: string; paymentMethodSupported: boolean }[];
+    }).items;
+    assertEquals(legacy.billingRoute, "subscription");
+    assertEquals(legacy.paymentMethodSupported, false);
+
+    // Re-sending its own unchanged route is no change: a full-body save of the
+    // older binding succeeds (#68 ruling).
+    const resaved = await adminRequest(
+      fixture,
+      `/v1/workers/${hostId}/provider-bindings/${binding.id}`,
+      { billingRoute: "subscription", enabled: false },
+      {
+        method: "PATCH",
+        idempotencyKey: crypto.randomUUID(),
+        headers: { "If-Match": '"1"' },
+      },
+    );
+    assertEquals(resaved.status, 200, await resaved.clone().text());
+    // Re-sending only the unchanged route changes nothing: the version holds,
+    // so another editor's If-Match stays valid.
+    const versionOf = async () =>
+      (await fixture.pgDatabase.query<{ version: number }>(
+        `select version from bakery.worker_provider_bindings where id = $1`,
+        [binding.id],
+      )).rows[0].version;
+    const before = await versionOf();
+    const trail = async () =>
+      (await fixture.pgDatabase.query<{ events: number; audits: number }>(
+        `select
+           (select count(*)::int from bakery.domain_events
+             where aggregate_id = $1) as events,
+           (select count(*)::int from bakery.audit_events
+             where resource_id = $1::text) as audits`,
+        [binding.id],
+      )).rows[0];
+    const trailBefore = await trail();
+    const noop = await adminRequest(
+      fixture,
+      `/v1/workers/${hostId}/provider-bindings/${binding.id}`,
+      { billingRoute: "subscription" },
+      {
+        method: "PATCH",
+        idempotencyKey: crypto.randomUUID(),
+        headers: { "If-Match": `"${before}"` },
+      },
+    );
+    assertEquals(noop.status, 200, await noop.clone().text());
+    assertEquals(await versionOf(), before);
+    // ...and records nothing: no event, no audit row.
+    assertEquals(await trail(), trailBefore);
+
+    // A component the table does not know supports no route: refused on bind
+    // (fail closed), and an older binding on it reads as needing attention.
+    const unknown = await adminRequest(
+      fixture,
+      `/v1/workers/${hostId}/provider-bindings`,
+      {
+        componentKey: "harness.bakery",
+        provider: "anthropic",
+        billingRoute: "api_metered",
+        enabled: true,
+        authMode: "host_native",
+        credentialLocation: "harness_host",
+      },
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    assertEquals(unknown.status, 422);
+    assertEquals(
+      (await unknown.json() as { issues: { code: string }[] }).issues[0].code,
+      "payment_method_unsupported",
+    );
+    await fixture.pgDatabase.query(
+      `update bakery.worker_provider_bindings set component_key = 'harness.bakery'
+        where id = $1`,
+      [binding.id],
+    );
+    const unknownList = await adminRequest(
+      fixture,
+      `/v1/workers/${hostId}/provider-bindings?limit=25`,
+      undefined,
+      { method: "GET" },
+    );
+    assertEquals(unknownList.status, 200);
+    assertEquals(
+      (contractSchemas["Page<WorkerProviderBinding>"].parse(
+        await unknownList.json(),
+      ) as unknown as { items: { paymentMethodSupported: boolean }[] }).items[0]
+        .paymentMethodSupported,
+      false,
+    );
+  }));
+
 Deno.test("provider auth attempt entries round-trip create, read, report and cancel", () =>
   withWorkerFixture(async (fixture) => {
     const worker = await registeredWorker(fixture, {
@@ -269,7 +482,7 @@ Deno.test("provider auth attempt entries round-trip create, read, report and can
         hostGeneration: worker.registration.registrationGeneration,
         expectedInventoryRevision: 1,
         components: [{
-          componentKey: "harness.bakery",
+          componentKey: "harness.claude",
           kind: "harness",
           actualVersion: "1.0",
           installOwner: "bakery",
@@ -294,7 +507,7 @@ Deno.test("provider auth attempt entries round-trip create, read, report and can
       fixture,
       `/v1/workers/${hostId}/provider-bindings`,
       {
-        componentKey: "harness.bakery",
+        componentKey: "harness.claude",
         provider: "anthropic",
         billingRoute: "subscription",
         authMode: "host_native",

@@ -208,6 +208,8 @@ export type FakeRepository = {
   private: boolean;
   archived: boolean;
   permissions: FakeRepositoryPermissions | null;
+  /** The default branch GitHub reports; `"main"` when unset, `null` sends null. */
+  defaultBranch?: string | null;
 };
 
 /** One installation of a fake App, as GitHub's installation API returns it. */
@@ -794,7 +796,9 @@ export function createFakeGitHubApp(
       archived: repository.archived,
       disabled: false,
       visibility: repository.private ? "private" : "public",
-      default_branch: "main",
+      default_branch: repository.defaultBranch === undefined
+        ? "main"
+        : repository.defaultBranch,
       ...(repository.permissions === null
         ? {}
         : { permissions: repository.permissions }),

@@ -3138,6 +3138,12 @@ const transportSchemas = {
             "min": 0
           },
           "description": "Organization repository rules revision the caller validated the `config.repositoryRules` overrides against; 0 when none is published. Required when `config.repositoryRules` is present; publication fails with PRECONDITION_FAILED when the latest organization revision differs."
+        },
+        {
+          "name": "keepRepositoryRules",
+          "type": "boolean",
+          "required": false,
+          "description": "When true, copies the active profile's `repositoryRules` overrides unchanged into the published config (a branches-only save that neither restates nor restores the organization rules), so `expectedOrganizationRulesRevision` is not needed; `digest` still covers the submitted `config` and the stored digest is re-derived over the config with the carried overrides. With overrides on the active profile the save replaces it and activates under the repository `If-Match` version and `repository:manage`; with none it behaves like omitting the flag. Combining it with `config.repositoryRules` is refused with UNPROCESSABLE `repository_rules_keep_conflict`. Omitted or false keeps the default behaviour."
         }
       ],
       "description": "Publishes a new immutable repository profile revision carrying runtime, test, delivery-check, and budget-cap configuration used by every run against this repository. Overrides under `config.repositoryRules` are validated against the latest organization rules and rejected with UNPROCESSABLE naming every locked rule they replace or disable, and with UNPROCESSABLE `repository_rules_too_large` when they could never fit the repository inspection budget. A publication that states a `repositoryRules` key (even empty) or replaces an active profile carrying overrides also requires the repository `If-Match` version, activates itself like a `fixedPolicy` publication, and supersedes the inspection evidence of a replaced observed profile until onboarding is run again. Any publication that auto-activates over an existing active profile (fixed policy, rules key, restore, or default-branch mismatch; not the first profile) also requires `repository:manage` like PATCH activation, checked before the If-Match comparisons; a rules-caused activation, over any active profile the workflow, branches, worktree, agent bindings and fixed policy must be retained or the request is refused with UNPROCESSABLE `repository_rules_must_retain_config`. A config with `repositoryRules` must stay under about 14.6 KB of canonical bytes (the 32,000-byte worker result cap bounds the inspection report)."
@@ -19228,6 +19234,7 @@ const transportSchemas = {
         "target",
         "idempotencyKey",
         "status",
+        "failureCode",
         "remoteId",
         "lastCheckedAt",
         "requestingPrincipalId",
@@ -19248,6 +19255,7 @@ const transportSchemas = {
         "target": "string",
         "idempotencyKey": "string",
         "status": "enum(prepared|submitted|confirmed|uncertain|failed)",
+        "failureCode": "string|null",
         "remoteId": "string|null",
         "lastCheckedAt": "timestamp|null",
         "requestingPrincipalId": "uuid",
@@ -19267,7 +19275,8 @@ const transportSchemas = {
         "integrationConnectionId",
         "mcpConnectionId",
         "repositoryProfileId",
-        "credentialVersionId"
+        "credentialVersionId",
+        "failureCode"
       ],
       "fieldDescriptions": {
         "id": "Stable UUID identifying the external effect record.",
@@ -19276,6 +19285,7 @@ const transportSchemas = {
         "target": "External resource targeted by the effect.",
         "idempotencyKey": "Key used to deduplicate external effect attempts.",
         "status": "Current lifecycle status of the record.",
+        "failureCode": "Machine-readable reason the effect failed: a refusal the provider sent, or why Bakery abandoned it before sending (for example authorization_denied or adapter_changed). Null unless the status is failed (#68).",
         "remoteId": "Stable UUID linking this record to the related remote entity.",
         "lastCheckedAt": "UTC timestamp when the record was last checked.",
         "requestingPrincipalId": "Stable UUID linking this record to the related requesting principal entity.",
@@ -20100,6 +20110,7 @@ const transportSchemas = {
       "fields": [
         "id",
         "componentKey",
+        "paymentMethods",
         "kind",
         "actualVersion",
         "actualDigest",
@@ -20118,6 +20129,7 @@ const transportSchemas = {
       "fieldTypes": {
         "id": "uuid",
         "componentKey": "string",
+        "paymentMethods": "enum(subscription|api_metered|local)[]",
         "kind": "enum(worker|harness|toolchain)",
         "actualVersion": "string",
         "actualDigest": "sha256",
@@ -20132,6 +20144,7 @@ const transportSchemas = {
       "fieldDescriptions": {
         "id": "Stable UUID identifying the component record.",
         "componentKey": "Stable adapter/component key, unique per host.",
+        "paymentMethods": "Billing routes this component accepts when it is a coding agent (#68; the v1 rule from 05-runtime: Claude Code and Codex take subscription or api_metered, Pi takes api_metered or local); empty for any other component.",
         "kind": "Component kind: the worker binary, a harness, or a toolchain.",
         "actualVersion": "Actually installed version inspected by the adapter.",
         "actualDigest": "Digest of the installed binary when the adapter verified one.",
@@ -20196,6 +20209,7 @@ const transportSchemas = {
         "componentKey",
         "provider",
         "billingRoute",
+        "paymentMethodSupported",
         "enabled",
         "authMode",
         "credentialLocation",
@@ -20215,6 +20229,7 @@ const transportSchemas = {
         "componentKey": "string",
         "provider": "string",
         "billingRoute": "enum(subscription|api_metered|local)",
+        "paymentMethodSupported": "boolean",
         "enabled": "boolean",
         "authMode": "enum(host_native|api_secret)",
         "credentialLocation": "enum(harness_host|bakery_secret)",
@@ -20230,6 +20245,7 @@ const transportSchemas = {
         "componentKey": "Harness component key this binding authorizes.",
         "provider": "Provider key the binding routes work toward.",
         "billingRoute": "Billing route the work on this binding follows.",
+        "paymentMethodSupported": "Whether the binding's billing route is one its coding agent accepts (#68). False marks a binding saved before the rule that needs attention; new and changed bindings are refused instead.",
         "enabled": "Whether the binding may be used; disabling blocks new use immediately.",
         "authMode": "How credentials are obtained: the host-native harness account or a referenced Bakery secret.",
         "credentialLocation": "Where credentials live: local to the harness host, or referenced through a scoped secret.",
@@ -22244,6 +22260,10 @@ const transportSchemas = {
         "available",
         "enabled",
         "capabilitySnapshot",
+        "defaultBranch",
+        "latestCheckState",
+        "latestCheckConclusion",
+        "latestCheckAt",
         "lastDiscoveryGeneration",
         "archivedAt",
         "createdAt",
@@ -22263,6 +22283,10 @@ const transportSchemas = {
         "available": "boolean",
         "enabled": "boolean",
         "capabilitySnapshot": "json",
+        "defaultBranch": "string|null",
+        "latestCheckState": "string|null",
+        "latestCheckConclusion": "string|null",
+        "latestCheckAt": "timestamp|null",
         "lastDiscoveryGeneration": "integer",
         "archivedAt": "timestamp|null",
         "createdAt": "timestamp",
@@ -22271,7 +22295,11 @@ const transportSchemas = {
       },
       "nullableFields": [
         "safeUrl",
-        "archivedAt"
+        "archivedAt",
+        "defaultBranch",
+        "latestCheckState",
+        "latestCheckConclusion",
+        "latestCheckAt"
       ],
       "description": "One resource discovered or registered on a connection, such as a repository, team, project, channel, thread, or a registered webhook-destination endpoint; its selected/available/enabled flags and capability snapshot drive which grants and subscriptions it can back, while identity and authorization rely on externalId rather than the display label.",
       "fieldDescriptions": {
@@ -22287,6 +22315,10 @@ const transportSchemas = {
         "available": "Whether the last complete discovery scan still found the resource; partial or throttled scans never clear it.",
         "enabled": "Whether an Admin has enabled this resource; newly discovered resources start disabled.",
         "capabilitySnapshot": "Bounded provider facts recorded at discovery, such as whether a GitHub repository is private or archived; informational, never an authorization grant.",
+        "defaultBranch": "The repository's default branch name as the provider last reported it (#65), or null when unknown or not a repository.",
+        "latestCheckState": "Lifecycle state of the newest check run Bakery has observed on this repository (any branch; for example queued, in_progress or completed), or null when none is observed (#65).",
+        "latestCheckConclusion": "Conclusion of that newest check run when it has completed (for example success or failure), else null (#65).",
+        "latestCheckAt": "When the provider last updated that newest check run, or null when none is observed (#65).",
         "lastDiscoveryGeneration": "Generation of the most recent discovery scan that saw this resource; the scan at setup is generation 1.",
         "archivedAt": "Timestamp recording when the archived event occurred for this integration resource record. May be null when unavailable.",
         "createdAt": "Timestamp recording when the created event occurred for this integration resource record.",

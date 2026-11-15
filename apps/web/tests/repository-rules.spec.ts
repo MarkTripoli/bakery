@@ -805,6 +805,19 @@ test.describe("repository rules: the effective rules of one repository", () => {
     expect(widths[0] / total).toBeGreaterThan(0.45);
     expect(widths[1] / total).toBeLessThan(0.3);
     expect(widths[2] / total).toBeLessThan(0.3);
+    // The three header labels share one baseline, with or without a help button.
+    const baselines = await page.locator("thead th").evaluateAll((cells) =>
+      cells.map((cell) => {
+        const range = document.createRange();
+        const label = cell.querySelector("span") ?? cell;
+        range.selectNodeContents(label);
+        const box = range.getBoundingClientRect();
+        return box.top + box.height / 2;
+      })
+    );
+    expect(Math.max(...baselines) - Math.min(...baselines)).toBeLessThanOrEqual(
+      1,
+    );
     // No summary is clamped: what is drawn is what is there.
     const cut = await page.locator("tbody .ui-text").evaluateAll((nodes) =>
       nodes.filter((node) => node.scrollHeight > node.clientHeight + 1).length
@@ -844,6 +857,17 @@ test.describe("repository rules: the effective rules of one repository", () => {
     });
     expect(await badge.evaluate((node) => getComputedStyle(node).color))
       .toBe(warning);
+    // The row labels of the two lists are body weight; the values stay as they are.
+    for (
+      const label of [
+        checks(page).getByText("Bakery checks", { exact: true }),
+        details(page).getByText("Organization rules version", { exact: true }),
+      ]
+    ) {
+      expect(
+        await label.evaluate((node) => getComputedStyle(node).fontWeight),
+      ).toBe("400");
+    }
     // Version details: the label at the start, the value at the end, like Checks.
     const section = details(page);
     for (

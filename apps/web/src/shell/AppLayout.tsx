@@ -535,6 +535,8 @@ function ShellFrame() {
   const navigationPath = fixture ? workHref : pathname;
   const selectedId = activeId ?? undefined;
   const pageTitle = usePageTitle(pathname);
+  // The New task panel sits under Work, so the trail says so.
+  const creatingTask = pathname === "/tasks/new" || pathname === "/tasks/new/";
   const onNavigate = (
     event: MouseEvent<HTMLAnchorElement>,
     item: { readonly href: string },
@@ -773,7 +775,17 @@ function ShellFrame() {
                       href: WORK_HOME,
                       label: translate("shell.navigation.workspace"),
                     },
-                    ...(pageTitle ? [{ label: pageTitle }] : []),
+                    ...(creatingTask
+                      ? [
+                        {
+                          href: WORK_HOME,
+                          label: translate("shell.navigation.work"),
+                        },
+                        { label: translate("tasks.queue.newTask") },
+                      ]
+                      : pageTitle
+                      ? [{ label: pageTitle }]
+                      : []),
                   ]}
               />
             )}

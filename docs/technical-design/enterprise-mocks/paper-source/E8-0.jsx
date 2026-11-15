@@ -60,7 +60,7 @@
         </div>
         <div style={{ alignItems: 'center', backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-border)', borderRadius: 'var(--radius-4)', borderStyle: 'solid', borderWidth: '1px', boxSizing: 'border-box', display: 'flex', fontFamily: 'var(--font-sans)', gap: '8px', justifyContent: 'center', minHeight: '44px', paddingInline: '12px' }}>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', display: 'flex', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 500, lineHeight: '18px' }}>
-            Filter
+            Search
           </div>
         </div>
       </div>
@@ -70,6 +70,9 @@
         </div>
       </div>
       <div style={{ backgroundColor: 'var(--color-accent)', borderBottomColor: 'var(--color-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '2px', paddingBlock: '6px', paddingInline: '20px' }}>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', fontWeight: 500, lineHeight: '20px' }}>
+          Add repository onboarding
+        </div>
         <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', flexBasis: '0%', flexGrow: '1', fontFamily: 'var(--font-mono)', fontSize: '11px', lineHeight: '20px' }}>
             BKRY-104
@@ -77,9 +80,6 @@
           <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '12px', lineHeight: '20px' }}>
             2m
           </div>
-        </div>
-        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', fontWeight: 500, lineHeight: '20px' }}>
-          Add repository onboarding
         </div>
         <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', flexBasis: '0%', flexGrow: '1', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
@@ -94,6 +94,9 @@
         </div>
       </div>
       <div style={{ borderBottomColor: 'var(--color-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '2px', paddingBlock: '6px', paddingInline: '20px' }}>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', fontWeight: 500, lineHeight: '20px' }}>
+          Confirm error tracking provider
+        </div>
         <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', flexBasis: '0%', flexGrow: '1', fontFamily: 'var(--font-mono)', fontSize: '11px', lineHeight: '20px' }}>
             WEB-041
@@ -101,9 +104,6 @@
           <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '12px', lineHeight: '20px' }}>
             15m
           </div>
-        </div>
-        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', fontWeight: 500, lineHeight: '20px' }}>
-          Confirm error tracking provider
         </div>
         <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', flexBasis: '0%', flexGrow: '1', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
@@ -123,6 +123,9 @@
         </div>
       </div>
       <div style={{ borderBottomColor: 'var(--color-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '2px', paddingBlock: '6px', paddingInline: '20px' }}>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', fontWeight: 500, lineHeight: '20px' }}>
+          Refine activity filters
+        </div>
         <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', flexBasis: '0%', flexGrow: '1', fontFamily: 'var(--font-mono)', fontSize: '11px', lineHeight: '20px' }}>
             WEB-038
@@ -130,9 +133,6 @@
           <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '12px', lineHeight: '20px' }}>
             4m
           </div>
-        </div>
-        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', fontWeight: 500, lineHeight: '20px' }}>
-          Refine activity filters
         </div>
         <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', flexBasis: '0%', flexGrow: '1', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
@@ -147,6 +147,9 @@
         </div>
       </div>
       <div style={{ borderBottomColor: 'var(--color-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '2px', paddingBlock: '6px', paddingInline: '20px' }}>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', fontWeight: 500, lineHeight: '20px' }}>
+          Preserve worker checkpoints
+        </div>
         <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', flexBasis: '0%', flexGrow: '1', fontFamily: 'var(--font-mono)', fontSize: '11px', lineHeight: '20px' }}>
             BKRY-102
@@ -154,9 +157,6 @@
           <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '12px', lineHeight: '20px' }}>
             12m
           </div>
-        </div>
-        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', fontWeight: 500, lineHeight: '20px' }}>
-          Preserve worker checkpoints
         </div>
         <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', flexBasis: '0%', flexGrow: '1', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>
@@ -171,6 +171,9 @@
         </div>
       </div>
       <div style={{ borderBottomColor: 'var(--color-border)', borderBottomStyle: 'solid', borderBottomWidth: '1px', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '2px', paddingBlock: '6px', paddingInline: '20px' }}>
+        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', fontWeight: 500, lineHeight: '20px' }}>
+          Improve empty state copy
+        </div>
         <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', flexBasis: '0%', flexGrow: '1', fontFamily: 'var(--font-mono)', fontSize: '11px', lineHeight: '20px' }}>
             WEB-037
@@ -178,9 +181,6 @@
           <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', fontFamily: 'var(--font-sans)', fontSize: '12px', lineHeight: '20px' }}>
             19m
           </div>
-        </div>
-        <div style={{ boxSizing: 'border-box', color: 'var(--color-foreground)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-14)', fontWeight: 500, lineHeight: '20px' }}>
-          Improve empty state copy
         </div>
         <div style={{ alignItems: 'center', boxSizing: 'border-box', display: 'flex', gap: '12px' }}>
           <div style={{ boxSizing: 'border-box', color: 'var(--color-muted-foreground)', flexBasis: '0%', flexGrow: '1', fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: '20px' }}>

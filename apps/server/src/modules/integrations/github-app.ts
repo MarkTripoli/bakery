@@ -421,6 +421,25 @@ export const RepositoryFullNameSchema = z.string().max(141).regex(
   "GitHub repository full name: owner login, a slash, then the repository name.",
 );
 
+/** Longest default branch name kept; a longer one reads as unknown. */
+const MAX_DEFAULT_BRANCH_LENGTH = 255;
+
+/**
+ * A repository's default branch as GitHub lists it (#65). Absent, null, empty
+ * or over-long reads as null (unknown), so one odd repository never fails the
+ * page it is listed on.
+ */
+export const GitHubDefaultBranchSchema = z.string().nullish().transform((
+  value,
+) =>
+  value !== null && value !== undefined && value.length > 0 &&
+    value.length <= MAX_DEFAULT_BRANCH_LENGTH
+    ? value
+    : null
+).describe(
+  "The repository's default branch name; absent, null, empty or over 255 characters reads as null.",
+);
+
 export const GitHubRepositorySchema = z.object({
   id: PositiveIdSchema.describe("Numeric GitHub repository id."),
   full_name: RepositoryFullNameSchema,
@@ -428,6 +447,7 @@ export const GitHubRepositorySchema = z.object({
   archived: z.boolean().optional().describe(
     "Whether the repository is archived; absent counts as not archived.",
   ),
+  default_branch: GitHubDefaultBranchSchema,
   permissions: z.object({
     admin: z.boolean().optional().describe(
       "Whether the authenticated user administers the repository.",
@@ -442,6 +462,7 @@ export const GitHubRepositorySchema = z.object({
   fullName: wire.full_name,
   private: wire.private,
   archived: wire.archived === true,
+  defaultBranch: wire.default_branch,
   // Fail closed: only an explicit admin grant to this user counts.
   admin: wire.permissions?.admin === true,
 })).describe(
@@ -529,10 +550,13 @@ const GitHubTokenRepositoryPageSchema = z.object({
   repositories: z.array(
     z.object({
       id: PositiveIdSchema.describe("Numeric id of an accessible repository."),
-    }).describe("One repository the token can access; other fields dropped."),
+      default_branch: GitHubDefaultBranchSchema,
+    }).describe(
+      "One repository the token can access: its id and default branch; other fields dropped.",
+    ),
   ).max(100).describe("One page of repositories the token can access."),
 }).describe(
-  "Selected fields of one page of GET /installation/repositories; only repository ids are kept.",
+  "Selected fields of one page of GET /installation/repositories; only repository ids and default branches are kept.",
 );
 
 /** Items per issue or check-run list page Bakery asks GitHub for. */
@@ -1309,7 +1333,12 @@ export type GitHubAppClient = {
     token: string,
     page: number,
     signal: AbortSignal,
-  ): Promise<{ repositoryIds: number[]; hasNext: boolean }>;
+  ): Promise<{
+    repositoryIds: number[];
+    /** Each listed repository's default branch, null when unknown (#65). */
+    defaultBranches: ReadonlyMap<number, string | null>;
+    hasNext: boolean;
+  }>;
   /**
    * One page of 50 items of a repository's issue list
    * (`GET /repos/{owner}/{repo}/issues`), oldest update first. GitHub lists
@@ -1882,9 +1911,13 @@ export function createFetchGitHubAppClient(
         },
         signal,
       );
+      const repositories = parsed(GitHubTokenRepositoryPageSchema, body)
+        .repositories;
       return {
-        repositoryIds: parsed(GitHubTokenRepositoryPageSchema, body)
-          .repositories.map(({ id }) => id),
+        repositoryIds: repositories.map(({ id }) => id),
+        defaultBranches: new Map(
+          repositories.map(({ id, default_branch }) => [id, default_branch]),
+        ),
         // Only rel="next" is read, never followed.
         hasNext: link !== null && /<[^>]*>;\s*rel="next"/.test(link),
       };

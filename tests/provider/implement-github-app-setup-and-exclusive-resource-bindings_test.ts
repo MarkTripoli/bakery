@@ -575,6 +575,10 @@ Deno.test("repository listing pages every result with the user token and reports
       fullName: `${installation.account.login}/${repository.name}`,
       private: repository.private,
       archived: repository.archived,
+      // The fake lists "main" unless a repository names another (#65).
+      defaultBranch: repository.defaultBranch === undefined
+        ? "main"
+        : repository.defaultBranch,
       admin: repository.permissions?.admin === true,
     })),
   );
@@ -668,6 +672,8 @@ Deno.test("repository listing refuses unsafe names, bad pages and provider next 
     fullName: "bakery-org/ok.repo_1",
     private: true,
     archived: false,
+    // The fake page names no default branch: unknown (#65).
+    defaultBranch: null,
     admin: true,
   }]);
   assertEquals(urls, [

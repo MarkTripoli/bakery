@@ -24,6 +24,11 @@ export type TaskComposerPreset = {
   id: string;
   title: ReactNode;
   description?: ReactNode;
+  /**
+   * The whole choice as one plain line. With a single preset there is nothing
+   * to pick, so the form shows this line instead of a radio group.
+   */
+  line?: ReactNode;
 };
 
 export type TaskComposerValues = {
@@ -270,6 +275,8 @@ export function TaskComposerForm(
       />
       {planning
         ? null
+        : presets.length === 1 && presets[0].line !== undefined
+        ? <Text data-ui-region="preset-line">{presets[0].line}</Text>
         : (
           <fieldset className="ui-task-composer__presets" disabled={inert}>
             <legend>{labels.preset}</legend>
