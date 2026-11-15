@@ -25,7 +25,10 @@ import { useI18n } from "../i18n/I18nProvider.tsx";
 import { PROJECTS_HOME, WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
 import { useCursorPages } from "./projects-onboarding/useCursorPages.ts";
+import { NamesCard } from "./projects/NamesCard.tsx";
 import { ReadinessStep } from "./projects/ReadinessStep.tsx";
+import { SupportDetails } from "./projects/SupportDetails.tsx";
+import { TestNameDialog } from "./projects/TestNameDialog.tsx";
 import { WorkingSettingsSheet } from "./projects/WorkingSettingsSheet.tsx";
 import {
   activeProfile,
@@ -102,6 +105,8 @@ export function RepositoryPage(
   }, [hasNext, loadingMore, moreError, loadMore]);
 
   const [sheet, setSheet] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [testing, setTesting] = useState(false);
   const opener = useRef<HTMLElement | null>(null);
   const openSheet = () => {
     opener.current = document.activeElement instanceof HTMLElement
@@ -237,6 +242,55 @@ export function RepositoryPage(
       {translate("projects.repository.rules" as never)}
     </UI.Button>
   );
+  const moreMenu = (
+    <UI.Inline gap="compact" data-trailing-popover={phone ? "start" : ""}>
+      <UI.Popover
+        label={translate("projects.repository.moreNamed" as never, {
+          name: title,
+        })}
+        variant="interactive"
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        triggerAppearance="toolbar"
+        trigger={
+          <>
+            {translate("projects.repository.more" as never)}
+            <UI.VisuallyHidden>
+              {translate("projects.repository.moreAbout" as never, {
+                name: title,
+              })}
+            </UI.VisuallyHidden>
+          </>
+        }
+      >
+        <UI.Menu
+          aria-label={translate("projects.repository.moreNamed" as never, {
+            name: title,
+          })}
+          items={[{
+            id: "test",
+            label: translate("projects.repository.test.menu" as never),
+          }]}
+          onSelect={(id) => {
+            const trigger = document.querySelector<HTMLElement>(
+              '[data-testid="repository-page"] .ui-popover__trigger, .bakery-top-bar__actions .ui-popover__trigger',
+            );
+            setMenuOpen(false);
+            if (id === "test") {
+              opener.current = trigger;
+              setTesting(true);
+            }
+          }}
+        />
+      </UI.Popover>
+    </UI.Inline>
+  );
+  const actions = (
+    <UI.Inline gap="compact">
+      {rulesButton}
+      {moreMenu}
+    </UI.Inline>
+  );
   // The next action of the setup: at the end of the step's line, label-wide;
   // full width in the step's detail only on a phone.
   const choose = (
@@ -251,7 +305,7 @@ export function RepositoryPage(
   return (
     <>
       {breadcrumbs}
-      {!phone ? <ShellSlot name="actions">{rulesButton}</ShellSlot> : null}
+      {!phone ? <ShellSlot name="actions">{actions}</ShellSlot> : null}
       <UI.SettingsContent data-testid="repository-page" variant="wide">
         <UI.PageHeader
           variant="list"
@@ -274,7 +328,7 @@ export function RepositoryPage(
               )}
             </UI.Stack>
           }
-          actions={phone ? rulesButton : null}
+          actions={phone ? actions : null}
         />
         <UI.Stack gap="spacious">
           {access.isSuccess && !canManage
@@ -397,7 +451,24 @@ export function RepositoryPage(
           <UI.Text variant="muted">
             {translate("projects.repository.setup.footnote" as never)}
           </UI.Text>
+          <NamesCard repository={current} canManage={canManage} />
+          <SupportDetails
+            repository={current}
+            active={active}
+            checkId={checkId}
+          />
         </UI.Stack>
+        {testing
+          ? (
+            <TestNameDialog
+              repository={current}
+              onClose={() => {
+                setTesting(false);
+                focusAfterPaint(() => opener.current);
+              }}
+            />
+          )
+          : null}
         {sheet
           ? (
             <WorkingSettingsSheet
