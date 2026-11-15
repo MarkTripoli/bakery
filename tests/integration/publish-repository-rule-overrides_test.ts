@@ -1979,3 +1979,285 @@ Deno.test("#138: checker availability follows the active fixed policy and protec
     await f.close();
   }
 });
+
+Deno.test("#65: keepRepositoryRules saves branches and carries the active overrides forward", async (test) => {
+  const f = await openRepositoryRulesFixture();
+  const { send, runtime, organizationAId } = f;
+  const adminA = { cookie: f.cookies.adminA, organizationId: organizationAId };
+  const withRules = await f.seedRepository(organizationAId);
+  const withoutRules = await f.seedRepository(organizationAId);
+  const repositoryVersion = async (repositoryId: string) =>
+    (await runtime.query<{ version: number }>(
+      "select version from bakery.repositories where organization_id = $1 and id = $2",
+      [organizationAId, repositoryId],
+    )).rows[0].version;
+  const activeConfig = async (repositoryId: string) =>
+    (await runtime.query<{ config: Record<string, unknown>; digest: string }>(
+      `select p.config, p.digest
+         from bakery.repositories r
+         join bakery.repository_profiles p
+           on p.organization_id = r.organization_id
+          and p.id = r.active_profile_id
+        where r.organization_id = $1 and r.id = $2`,
+      [organizationAId, repositoryId],
+    )).rows[0];
+  /** `ifMatch` undefined sends the current version; null sends no header. */
+  const publish = async (
+    repositoryId: string,
+    revision: number,
+    config: Record<string, unknown>,
+    extra: Record<string, unknown> = {},
+    ifMatch?: string | null,
+  ) =>
+    send("POST", f.profilesPath(repositoryId), {
+      ...adminA,
+      idempotencyKey: crypto.randomUUID(),
+      ...(ifMatch === null ? {} : {
+        headers: {
+          "If-Match": ifMatch ?? `"${await repositoryVersion(repositoryId)}"`,
+        },
+      }),
+      body: { ...(await profileBody(revision, config)), ...extra },
+    });
+  const branches = (pattern: string) => ({
+    ...baseProfileConfig,
+    branches: { base: "main", allowedPatterns: [pattern] },
+  });
+  const rules = { entries: [titleOverride(72)] };
+  try {
+    await test.step("seed an active profile carrying overrides", async () => {
+      const seeded = await publish(withRules.repositoryId, 1, {
+        ...baseProfileConfig,
+        repositoryRules: rules,
+      }, { expectedOrganizationRulesRevision: 0 });
+      assertEquals(seeded.status, 201, await seeded.clone().text());
+    });
+
+    await test.step("without the flag a branches save is refused: 428 without If-Match, 422 with it", async () => {
+      const before = await profileFactCounts(
+        runtime,
+        organizationAId,
+        withRules.repositoryId,
+      );
+      // Omitting `repositoryRules` over active overrides is the restore of the
+      // organization rules: it activates (If-Match required) and, as a
+      // rules-caused activation, must retain the branches.
+      const noIfMatch = await publish(
+        withRules.repositoryId,
+        2,
+        branches("a/*"),
+        {},
+        null,
+      );
+      assertEquals(noIfMatch.status, 428);
+      const withIfMatch = await publish(
+        withRules.repositoryId,
+        2,
+        branches("a/*"),
+      );
+      assertEquals(withIfMatch.status, 422);
+      const problem = await withIfMatch.json() as {
+        issues?: Array<{ code: string }>;
+      };
+      assertEquals(problem.issues?.map(({ code }) => code), [
+        "repository_rules_must_retain_config",
+      ]);
+      assertEquals(
+        await profileFactCounts(
+          runtime,
+          organizationAId,
+          withRules.repositoryId,
+        ),
+        before,
+      );
+    });
+
+    await test.step("with the flag and If-Match the branches change and the overrides are identical", async () => {
+      const before = await activeConfig(withRules.repositoryId);
+      const version = await repositoryVersion(withRules.repositoryId);
+      const response = await publish(
+        withRules.repositoryId,
+        2,
+        branches("release/*"),
+        { keepRepositoryRules: true },
+      );
+      assertEquals(response.status, 201, await response.clone().text());
+      const after = await activeConfig(withRules.repositoryId);
+      assertEquals(
+        (after.config.branches as { allowedPatterns: string[] })
+          .allowedPatterns,
+        ["release/*"],
+      );
+      assertEquals(after.config.repositoryRules, before.config.repositoryRules);
+      assertEquals(after.config.repositoryRules, rules);
+      // The stored digest covers the stored config, carried overrides included.
+      assertEquals(
+        after.digest,
+        (await profileBody(2, after.config)).digest,
+      );
+      assertEquals(
+        await repositoryVersion(withRules.repositoryId),
+        version + 1,
+      );
+      // No organization revision was sent, and none was recorded.
+      const audit = await runtime.query<{ details: unknown }>(
+        `select details from bakery.audit_events
+          where organization_id = $1 and operation = 'repositoryProfiles.create'
+            and resource_id = $2`,
+        [organizationAId, ((await response.json()) as { id: string }).id],
+      );
+      assertEquals(
+        (audit.rows[0]?.details as Record<string, unknown> | null)
+          ?.organizationRulesRevision,
+        undefined,
+      );
+    });
+
+    await test.step("the flag still needs If-Match over an active profile carrying overrides", async () => {
+      const missing = await publish(
+        withRules.repositoryId,
+        3,
+        branches("c/*"),
+        { keepRepositoryRules: true },
+        null,
+      );
+      assertEquals(missing.status, 428);
+    });
+
+    await test.step("two saves on one If-Match commit exactly one; the other is 412", async () => {
+      const version = `"${await repositoryVersion(withRules.repositoryId)}"`;
+      const before = await profileFactCounts(
+        runtime,
+        organizationAId,
+        withRules.repositoryId,
+      );
+      const first = await publish(
+        withRules.repositoryId,
+        3,
+        branches("d/*"),
+        { keepRepositoryRules: true },
+        version,
+      );
+      assertEquals(first.status, 201, await first.clone().text());
+      const second = await publish(
+        withRules.repositoryId,
+        4,
+        branches("e/*"),
+        { keepRepositoryRules: true },
+        version,
+      );
+      assertEquals(second.status, 412);
+      const after = await profileFactCounts(
+        runtime,
+        organizationAId,
+        withRules.repositoryId,
+      );
+      assertEquals(after.profiles, before.profiles + 1);
+      assertEquals(
+        (await activeConfig(withRules.repositoryId)).config.branches,
+        { base: "main", allowedPatterns: ["d/*"] },
+      );
+    });
+
+    await test.step("a stale If-Match after another rules publication never overwrites the new rules", async () => {
+      const stale = `"${await repositoryVersion(withRules.repositoryId)}"`;
+      const newer = { entries: [titleOverride(66)] };
+      const rulesSave = await publish(withRules.repositoryId, 4, {
+        ...baseProfileConfig,
+        branches: { base: "main", allowedPatterns: ["d/*"] },
+        repositoryRules: newer,
+      }, { expectedOrganizationRulesRevision: 0 });
+      assertEquals(rulesSave.status, 201, await rulesSave.clone().text());
+      const branchesSave = await publish(
+        withRules.repositoryId,
+        5,
+        branches("f/*"),
+        { keepRepositoryRules: true },
+        stale,
+      );
+      assertEquals(branchesSave.status, 412);
+      const active = await activeConfig(withRules.repositoryId);
+      assertEquals(active.config.repositoryRules, newer);
+      assertEquals(active.config.branches, {
+        base: "main",
+        allowedPatterns: ["d/*"],
+      });
+    });
+
+    await test.step("the flag with explicit repositoryRules is refused with 422", async () => {
+      const before = await profileFactCounts(
+        runtime,
+        organizationAId,
+        withRules.repositoryId,
+      );
+      const response = await publish(withRules.repositoryId, 5, {
+        ...branches("g/*"),
+        repositoryRules: rules,
+      }, { keepRepositoryRules: true, expectedOrganizationRulesRevision: 0 });
+      assertEquals(response.status, 422);
+      const problem = await response.json() as {
+        issues?: Array<{ code: string; path: unknown[] }>;
+      };
+      assertEquals(
+        problem.issues?.map(({ code, path }) => ({ code, path })),
+        [{
+          code: "repository_rules_keep_conflict",
+          path: [
+            "config",
+            "repositoryRules",
+          ],
+        }],
+      );
+      assertEquals(
+        await profileFactCounts(
+          runtime,
+          organizationAId,
+          withRules.repositoryId,
+        ),
+        before,
+      );
+    });
+
+    await test.step("with no overrides on the active profile the flag carries nothing", async () => {
+      const first = await publish(
+        withoutRules.repositoryId,
+        1,
+        { ...baseProfileConfig },
+        {},
+        null,
+      );
+      assertEquals(first.status, 201, await first.clone().text());
+      const emptyRules = await publish(withoutRules.repositoryId, 2, {
+        ...baseProfileConfig,
+        repositoryRules: { entries: [] },
+      }, { expectedOrganizationRulesRevision: 0 });
+      assertEquals(emptyRules.status, 201, await emptyRules.clone().text());
+      for (const revision of [3, 4]) {
+        const response = await publish(
+          withoutRules.repositoryId,
+          revision,
+          branches(`h${revision}/*`),
+          { keepRepositoryRules: true },
+        );
+        assertEquals(response.status, 201, await response.clone().text());
+        const body = await response.json() as {
+          id: string;
+          digest: string;
+        };
+        const stored = await runtime.query<
+          { config: Record<string, unknown>; digest: string }
+        >(
+          "select config, digest from bakery.repository_profiles where organization_id = $1 and id = $2",
+          [organizationAId, body.id],
+        );
+        assertEquals(stored.rows[0].config.repositoryRules, undefined);
+        assertEquals(
+          stored.rows[0].digest,
+          (await profileBody(revision, branches(`h${revision}/*`))).digest,
+        );
+      }
+    });
+  } finally {
+    await f.close();
+  }
+});
