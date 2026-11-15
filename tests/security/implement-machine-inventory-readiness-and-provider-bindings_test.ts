@@ -39,7 +39,7 @@ async function reportInventory(
       hostGeneration: worker.registration.registrationGeneration,
       expectedInventoryRevision,
       components: [{
-        componentKey: "harness.bakery",
+        componentKey: "harness.claude",
         kind: "harness",
         actualVersion: "1.0",
         installOwner: "bakery",
@@ -67,7 +67,7 @@ async function createBinding(
     fixture,
     `/v1/workers/${hostId}/provider-bindings`,
     {
-      componentKey: "harness.bakery",
+      componentKey: "harness.claude",
       provider: "anthropic",
       billingRoute: "subscription",
       authMode: "host_native",

@@ -1,4 +1,5 @@
 import { type Context } from "hono";
+import { paymentMethodsOf } from "./coding-agent-payment.ts";
 import { StandardError } from "@bakery/contracts/http";
 import {
   connectivityState,
@@ -870,6 +871,7 @@ export async function listWorkerComponents(
       const items = visible.map(({ observed_at, ...component }) =>
         contractSchemas.WorkerComponent.parse({
           ...component,
+          paymentMethods: paymentMethodsOf(String(component.componentKey)),
           observedAt: iso(observed_at),
         })
       );

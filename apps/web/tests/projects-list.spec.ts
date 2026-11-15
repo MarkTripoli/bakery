@@ -110,16 +110,14 @@ for (
       await shot(page, "projects-list");
     });
 
-    test("a row's button opens that repository's setup", async ({ page }) => {
+    test("a row's button opens that repository's page", async ({ page }) => {
       await open(page);
       await section(page, "Payments").getByRole("button", {
         name: "Set up acme/ledger",
       }).click();
       await expect(page).toHaveURL(
         new RegExp(
-          `/projects/onboarding\\?.*repository=${
-            repository(1, PAYMENTS.id, "ledger").id
-          }`,
+          `/projects/repositories/${repository(1, PAYMENTS.id, "ledger").id}$`,
         ),
       );
     });
@@ -234,7 +232,7 @@ for (
         defaultBranch: "develop",
       });
       // It opens the new repository's own page.
-      await expect(page).toHaveURL(/\/projects\/onboarding\?/);
+      await expect(page).toHaveURL(/\/projects\/repositories\//);
     });
 
     test("with no application yet, Add repository goes straight to making the first one", async ({ page }) => {

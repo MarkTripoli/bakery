@@ -30675,6 +30675,19 @@ export const clientManifest = {
                 "maxLength": 65536,
                 "description": "Stable adapter/component key, unique per host."
               },
+              "paymentMethods": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "subscription",
+                    "api_metered",
+                    "local"
+                  ],
+                  "description": "Billing routes this component accepts when it is a coding agent (#68; the v1 rule from 05-runtime: Claude Code and Codex take subscription or api_metered, Pi takes api_metered or local); empty for any other component. Each array item follows this format."
+                },
+                "description": "Billing routes this component accepts when it is a coding agent (#68; the v1 rule from 05-runtime: Claude Code and Codex take subscription or api_metered, Pi takes api_metered or local); empty for any other component."
+              },
               "kind": {
                 "type": "string",
                 "enum": [
@@ -30793,6 +30806,7 @@ export const clientManifest = {
             "required": [
               "id",
               "componentKey",
+              "paymentMethods",
               "kind",
               "actualVersion",
               "actualDigest",
@@ -31202,6 +31216,10 @@ export const clientManifest = {
                 ],
                 "description": "Billing route the work on this binding follows."
               },
+              "paymentMethodSupported": {
+                "type": "boolean",
+                "description": "Whether the binding's billing route is one its coding agent accepts (#68). False marks a binding saved before the rule that needs attention; new and changed bindings are refused instead."
+              },
               "enabled": {
                 "type": "boolean",
                 "description": "Whether the binding may be used; disabling blocks new use immediately."
@@ -31279,6 +31297,7 @@ export const clientManifest = {
               "componentKey",
               "provider",
               "billingRoute",
+              "paymentMethodSupported",
               "enabled",
               "authMode",
               "credentialLocation",
@@ -32550,6 +32569,20 @@ export const clientManifest = {
                 ],
                 "description": "Current lifecycle status of the record."
               },
+              "failureCode": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Machine-readable reason the effect failed: a refusal the provider sent, or why Bakery abandoned it before sending (for example authorization_denied or adapter_changed). Null unless the status is failed (#68)."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "ExternalEffect.failureCode may be null in this transport value."
+              },
               "remoteId": {
                 "anyOf": [
                   {
@@ -32676,6 +32709,7 @@ export const clientManifest = {
               "target",
               "idempotencyKey",
               "status",
+              "failureCode",
               "remoteId",
               "lastCheckedAt",
               "requestingPrincipalId",
@@ -45476,6 +45510,20 @@ export const clientManifest = {
           ],
           "description": "Current lifecycle status of the record."
         },
+        "failureCode": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Machine-readable reason the effect failed: a refusal the provider sent, or why Bakery abandoned it before sending (for example authorization_denied or adapter_changed). Null unless the status is failed (#68)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "ExternalEffect.failureCode may be null in this transport value."
+        },
         "remoteId": {
           "anyOf": [
             {
@@ -45602,6 +45650,7 @@ export const clientManifest = {
         "target",
         "idempotencyKey",
         "status",
+        "failureCode",
         "remoteId",
         "lastCheckedAt",
         "requestingPrincipalId",
@@ -47945,6 +47994,10 @@ export const clientManifest = {
           ],
           "description": "Billing route the work on this binding follows."
         },
+        "paymentMethodSupported": {
+          "type": "boolean",
+          "description": "Whether the binding's billing route is one its coding agent accepts (#68). False marks a binding saved before the rule that needs attention; new and changed bindings are refused instead."
+        },
         "enabled": {
           "type": "boolean",
           "description": "Whether the binding may be used; disabling blocks new use immediately."
@@ -48022,6 +48075,7 @@ export const clientManifest = {
         "componentKey",
         "provider",
         "billingRoute",
+        "paymentMethodSupported",
         "enabled",
         "authMode",
         "credentialLocation",
@@ -53032,6 +53086,63 @@ export const clientManifest = {
           ],
           "description": "Bounded provider facts recorded at discovery, such as whether a GitHub repository is private or archived; informational, never an authorization grant."
         },
+        "defaultBranch": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "The repository's default branch name as the provider last reported it (#65), or null when unknown or not a repository."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationResource.defaultBranch may be null in this transport value."
+        },
+        "latestCheckState": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Lifecycle state of the newest check run Bakery has observed on this repository (any branch; for example queued, in_progress or completed), or null when none is observed (#65)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationResource.latestCheckState may be null in this transport value."
+        },
+        "latestCheckConclusion": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Conclusion of that newest check run when it has completed (for example success or failure), else null (#65)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationResource.latestCheckConclusion may be null in this transport value."
+        },
+        "latestCheckAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "When the provider last updated that newest check run, or null when none is observed (#65)."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "IntegrationResource.latestCheckAt may be null in this transport value."
+        },
         "lastDiscoveryGeneration": {
           "type": "integer",
           "minimum": -9007199254740991,
@@ -53085,6 +53196,10 @@ export const clientManifest = {
         "available",
         "enabled",
         "capabilitySnapshot",
+        "defaultBranch",
+        "latestCheckState",
+        "latestCheckConclusion",
+        "latestCheckAt",
         "lastDiscoveryGeneration",
         "archivedAt",
         "createdAt",
@@ -53328,6 +53443,63 @@ export const clientManifest = {
                 ],
                 "description": "Bounded provider facts recorded at discovery, such as whether a GitHub repository is private or archived; informational, never an authorization grant."
               },
+              "defaultBranch": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "The repository's default branch name as the provider last reported it (#65), or null when unknown or not a repository."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationResource.defaultBranch may be null in this transport value."
+              },
+              "latestCheckState": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Lifecycle state of the newest check run Bakery has observed on this repository (any branch; for example queued, in_progress or completed), or null when none is observed (#65)."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationResource.latestCheckState may be null in this transport value."
+              },
+              "latestCheckConclusion": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Conclusion of that newest check run when it has completed (for example success or failure), else null (#65)."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationResource.latestCheckConclusion may be null in this transport value."
+              },
+              "latestCheckAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                    "description": "When the provider last updated that newest check run, or null when none is observed (#65)."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "IntegrationResource.latestCheckAt may be null in this transport value."
+              },
               "lastDiscoveryGeneration": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -53381,6 +53553,10 @@ export const clientManifest = {
               "available",
               "enabled",
               "capabilitySnapshot",
+              "defaultBranch",
+              "latestCheckState",
+              "latestCheckConclusion",
+              "latestCheckAt",
               "lastDiscoveryGeneration",
               "archivedAt",
               "createdAt",

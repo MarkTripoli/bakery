@@ -761,6 +761,54 @@ Deno.test("AC4: a complete successful scan marks unlisted resources unavailable 
   });
 });
 
+Deno.test("#65: a complete scan refreshes a renamed default branch and keeps a known one when GitHub gives none", async () => {
+  await withFixture(async (f) => {
+    const { connectionId, installation, resources } = await enabledConnection(
+      f,
+      { repositories: fakeRepositories(2, ["admin"]) },
+    );
+    const branchOf = async (externalId: string) =>
+      (await f.pgDatabase.query<{ branch: string | null; version: number }>(
+        `select capability_snapshot->>'defaultBranch' as branch, version
+           from bakery.integration_resources
+          where connection_id = $1 and external_id = $2`,
+        [connectionId, externalId],
+      )).rows[0];
+    const [renamed, unknown] = resources;
+    const before = await branchOf(renamed.external_id);
+    assertEquals(before.branch, "main");
+    const fake = installation.repositories;
+    fake.find((repository) => String(repository.id) === renamed.external_id)!
+      .defaultBranch = "trunk";
+    fake.find((repository) => String(repository.id) === unknown.external_id)!
+      .defaultBranch = null;
+    const connectionState = async () =>
+      (await f.pgDatabase.query<{ version: number; events: number }>(
+        `select c.version,
+           (select count(*)::int from bakery.domain_events e
+             where e.aggregate_id = c.id
+               and e.event_type = 'integrationConnections.updated') as events
+           from bakery.integration_connections c where c.id = $1`,
+        [connectionId],
+      )).rows[0];
+    const connectionBefore = await connectionState();
+    const result = await f.discover(
+      await accepted(await postDiscovery(f, connectionId)),
+    );
+    assert(result.kind === "finished", JSON.stringify(result));
+    // A branch-only change is no availability transition: the scan restores
+    // nothing and the connection's version and events are unchanged.
+    assertEquals(result.restored, 0);
+    assertEquals(result.unavailable, 0);
+    assertEquals(await connectionState(), connectionBefore);
+    const after = await branchOf(renamed.external_id);
+    assertEquals(after.branch, "trunk");
+    assertEquals(after.version, before.version + 1);
+    // GitHub naming no branch is no evidence of a change.
+    assertEquals((await branchOf(unknown.external_id)).branch, "main");
+  });
+});
+
 Deno.test("AC4: a scan rate limited midway marks nothing unavailable", async () => {
   await withFixture(async (f) => {
     const { connectionId, installation } = await enabledConnection(f, {
