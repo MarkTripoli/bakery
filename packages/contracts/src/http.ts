@@ -117,7 +117,10 @@ export type Problem = {
   resetRequired?: boolean;
   retainedFrom?: string;
   retryWithoutAfter?: boolean;
-  /** Stable slug naming the state rule a STATE_CONFLICT refused on. */
+  /**
+   * Stable slug naming the state rule a STATE_CONFLICT refused on, or why a
+   * draft edit was refused (PRECONDITION_FAILED, AUTH_FORBIDDEN).
+   */
   reason?: string;
   /** Minimal access-token scope bundles that would allow the refused action. */
   requiredScopes?: readonly string[];
@@ -274,6 +277,30 @@ function safeUnavailableReason(value: unknown): string | undefined {
     ? value
     : undefined;
 }
+/**
+ * The only reasons a refused draft edit may name (#71): a 412
+ * PRECONDITION_FAILED says the anchored text changed or the draft moved on; a
+ * 403 AUTH_FORBIDDEN says an agent must suggest instead of editing a shared
+ * draft, or that suggestion decisions belong to people. An exact allowlist.
+ */
+export const DRAFT_EDIT_REFUSAL_REASONS = Object.freeze(
+  {
+    PRECONDITION_FAILED: new Set(["text_changed", "draft_moved_on"]),
+    AUTH_FORBIDDEN: new Set([
+      "agent_edit_requires_suggestion",
+      "suggestion_decision_requires_person",
+    ]),
+  } as const,
+);
+function safeRefusalReason(
+  code: "PRECONDITION_FAILED" | "AUTH_FORBIDDEN",
+  value: unknown,
+): string | undefined {
+  return typeof value === "string" &&
+      (DRAFT_EDIT_REFUSAL_REASONS[code] as ReadonlySet<string>).has(value)
+    ? value
+    : undefined;
+}
 function problemKey(
   code: ProblemCode,
   part: "title" | "description",
@@ -386,6 +413,9 @@ export function toProblem(
     ? safeConflictReason(rawParams?.reason)
     : standard?.code === "DEPENDENCY_UNAVAILABLE"
     ? safeUnavailableReason(rawParams?.reason)
+    : standard?.code === "PRECONDITION_FAILED" ||
+        standard?.code === "AUTH_FORBIDDEN"
+    ? safeRefusalReason(standard.code, rawParams?.reason)
     : undefined;
   const requiredScopes = code === "INSUFFICIENT_SCOPE" &&
       Array.isArray(rawParams?.requiredScopes)

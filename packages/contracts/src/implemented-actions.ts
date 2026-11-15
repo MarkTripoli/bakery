@@ -398,6 +398,10 @@ export const DraftImplementedAction = Object.freeze(
     Edit: "drafts.edit",
     PublicationCreate: "draftPublications.create",
     PublicationGet: "draftPublications.get",
+    SuggestionCreate: "draftSuggestions.create",
+    SuggestionList: "draftSuggestions.list",
+    SuggestionAccept: "draftSuggestions.accept",
+    SuggestionReject: "draftSuggestions.reject",
   } as const satisfies Record<string, CatalogActionName>,
 );
 

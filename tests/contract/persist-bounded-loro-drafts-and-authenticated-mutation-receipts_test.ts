@@ -35,6 +35,30 @@ const expected = [
     "/v1/drafts/{id}/publications/{checkpointId}",
     "bakery_draftPublications_get",
   ],
+  [
+    "draftSuggestions.create",
+    "POST",
+    "/v1/drafts/{id}/suggestions",
+    "bakery_draftSuggestions_create",
+  ],
+  [
+    "draftSuggestions.list",
+    "GET",
+    "/v1/drafts/{id}/suggestions",
+    "bakery_draftSuggestions_list",
+  ],
+  [
+    "draftSuggestions.accept",
+    "POST",
+    "/v1/drafts/{id}/suggestions/{suggestionId}/accept",
+    "bakery_draftSuggestions_accept",
+  ],
+  [
+    "draftSuggestions.reject",
+    "POST",
+    "/v1/drafts/{id}/suggestions/{suggestionId}/reject",
+    "bakery_draftSuggestions_reject",
+  ],
 ] as const;
 
 Deno.test("generated REST and scoped MCP catalogs own the guarded draft actions", () => {
