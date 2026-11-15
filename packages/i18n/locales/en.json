@@ -3709,5 +3709,11 @@
   "projects.repository.check.notInUse": "This check saved version {checked}. It is not in use, because the check did not pass. Version {current} stays in use.",
   "projects.repository.check.notInUseBare": "Version {checked} is not in use, because the check did not pass. Version {current} stays in use.",
   "projects.repository.check.savedInUse": "This check saved version {version}, and it is now in use.",
-  "projects.repository.versions.note": "A new version is saved when you save settings and each time the readiness check runs."
+  "projects.repository.versions.note": "A new version is saved when you save settings and each time the readiness check runs.",
+  "projects.repository.settings.savesAfterCheck": "This saves version {next} and puts it in use. Run the readiness check again afterwards: until it passes, tasks stop at the steps where Bakery runs its checks. Tasks already running keep version {current}.",
+  "projects.repository.use.afterCheck": "Run the readiness check again afterwards; until it passes, tasks stop at the steps where Bakery runs its checks.",
+  "projects.repository.badge.checkNeeded": "Check needed",
+  "projects.repository.setup.footnoteCheckNeeded": "Bakery can start tasks here. They stop at Bakery's checks until the readiness check passes again.",
+  "projects.repository.check.settingsChanged": "The settings changed. Run the check again: until it passes, tasks stop at the steps where Bakery runs its checks.",
+  "projects.repository.check.notInUseHidden": "The check did not pass, so the settings it tested are not in use. Version {current} stays in use."
 }

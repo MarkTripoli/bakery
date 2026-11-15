@@ -9,6 +9,7 @@ import {
   branchesOf,
   folderOf,
   hasOwnRules,
+  isCheckMade,
   newestFirst,
   nextRevision,
   parseBranches,
@@ -264,10 +265,12 @@ export function WorkingSettingsSheet(
               ? translate("projects.repository.settings.savesFirst" as never, {
                 next,
               })
-              : translate("projects.repository.settings.saves" as never, {
-                next,
-                current: active.revision,
-              })}
+              : translate(
+                (isCheckMade(active.config)
+                  ? "projects.repository.settings.savesAfterCheck"
+                  : "projects.repository.settings.saves") as never,
+                { next, current: active.revision },
+              )}
           </UI.Text>
           <UI.Inline gap="compact">
             <UI.Button
@@ -380,6 +383,13 @@ export function WorkingSettingsSheet(
                   version: confirming.revision,
                   current: active.revision,
                 })}
+              {
+                /* Leaving a check-made version for a person's drops the check's
+                   evidence until the check runs again. */
+              }
+              {isCheckMade(active?.config) && !isCheckMade(confirming.config)
+                ? ` ${translate("projects.repository.use.afterCheck" as never)}`
+                : ""}
             </UI.Text>
             {settings.failure === null ? null : (
               <UI.InlineNotice

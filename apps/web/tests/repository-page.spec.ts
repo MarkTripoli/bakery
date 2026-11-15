@@ -789,7 +789,7 @@ test.describe("where the setup stands, in the header and the footnote", () => {
     await expect(standing(page)).toHaveText("Check failed");
     await expect(page.getByTestId("setup-settings")).toContainText("version 2");
     await expect(page.getByTestId("check-not-in-use")).toContainText(
-      "This check saved version 3. It is not in use, because the check did not pass. Version 2 stays in use.",
+      "The check did not pass, so the settings it tested are not in use. Version 2 stays in use.",
     );
     await expect(
       page.locator('[data-check-id="tools"]'),
@@ -844,5 +844,130 @@ test.describe("where the setup stands, in the header and the footnote", () => {
       page.getByTestId("setup-check").getByText(/checked/),
     ).toBeVisible({ timeout: 15_000 });
     await expect(standing(page)).toHaveCount(0);
+  });
+});
+
+test.describe("after a check: a person's version over a check-made one, and a failed check's hidden candidate", () => {
+  const CHECKED: Options = {
+    profiles: [
+      { revision: 1, branches: ["main"] },
+      { revision: 2, branches: ["main"], checkMade: true },
+    ],
+    active: 2,
+  };
+  const standing = (page: Page) => page.getByTestId("repository-standing");
+
+  test("the sheet says a save after a check means running the check again, and the save is a person's plain version", async ({ page }) => {
+    const { seen } = await open(page, CHECKED);
+    await page.getByRole("button", { name: "Change" }).click();
+    await expect(
+      page.getByText(
+        "This saves version 3 and puts it in use. Run the readiness check again afterwards: until it passes, tasks stop at the steps where Bakery runs its checks. Tasks already running keep version 2.",
+      ),
+    ).toBeVisible();
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-settings-after-check");
+    await page.getByLabel("Branches Bakery may work from").fill(
+      "main\nrelease/*",
+    );
+    await page.getByRole("button", { name: "Save and use these settings" })
+      .click();
+    await expect(sheet(page)).toHaveCount(0);
+    // A person's version: the check's own key is not carried (the strict parser refuses it).
+    const sent = seen.createdProfiles[0] as {
+      config: Record<string, unknown>;
+    };
+    expect(sent.config.schemaVersion).toBe(1);
+    expect(sent.config.checkPolicy).toBeUndefined();
+    // The page after the save: Check needed, the step to do now, the new footnote.
+    await expect(standing(page)).toHaveText("Check needed");
+    await expect(page.getByTestId("setup-settings")).toContainText("version 3");
+    await expect(page.getByTestId("setup-check")).toContainText(
+      "The settings changed. Run the check again: until it passes, tasks stop at the steps where Bakery runs its checks.",
+    );
+    await expect(page.getByTestId("setup-check")).toHaveAttribute(
+      "data-state",
+      "running",
+    );
+    await expect(
+      page.getByText(
+        "Bakery can start tasks here. They stop at Bakery's checks until the readiness check passes again.",
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("setup-check").getByRole("button", {
+        name: "Run the check",
+      }),
+    ).toBeVisible();
+    await page.mouse.move(700, 700);
+    await shot(page, "repository-check-needed");
+  });
+
+  test("a check-made version in use is not 'Check needed' (it is its own evidence)", async ({ page }) => {
+    await open(page, CHECKED);
+    await expect(standing(page)).toHaveCount(0);
+    await expect(
+      page.getByText("Bakery can start tasks here once all three are done."),
+    ).toBeVisible();
+  });
+
+  test("a repository never checked says nothing about a check being needed", async ({ page }) => {
+    await open(page, { profiles: SETTINGS, active: 2 });
+    await expect(standing(page)).toHaveCount(0);
+  });
+
+  test("using a person's version over a check-made one adds the run-the-check sentence; using a check-made one does not", async ({ page }) => {
+    await open(page, CHECKED);
+    await page.getByRole("button", { name: "Change" }).click();
+    await page.getByRole("button", { name: "Use version 1" }).click();
+    const confirm = page.getByRole("alertdialog", { name: "Use version 1?" });
+    await expect(confirm).toContainText(
+      "Run the readiness check again afterwards; until it passes, tasks stop at the steps where Bakery runs its checks.",
+    );
+    await shot(page, "repository-use-version-after-check");
+    await confirm.getByRole("button", { name: "Cancel" }).click();
+  });
+
+  test("switching to a check-made version from a person's carries no such sentence", async ({ page }) => {
+    await open(page, {
+      profiles: [
+        { revision: 1, branches: ["main"] },
+        { revision: 2, branches: ["main"], checkMade: true },
+        { revision: 3, branches: ["main"] },
+      ],
+      active: 3,
+    });
+    await page.getByRole("button", { name: "Change" }).click();
+    await page.getByRole("button", { name: "Use version 2" }).click();
+    const confirm = page.getByRole("alertdialog", { name: "Use version 2?" });
+    await expect(confirm).toContainText("New tasks use version 2.");
+    await expect(confirm).not.toContainText("Run the readiness check again");
+  });
+
+  test("a failed check's candidate is not in the Versions list, holds a revision, and the next save takes the next free one", async ({ page }) => {
+    const { seen } = await open(page, {
+      profiles: SETTINGS,
+      active: 2,
+      check: "blocked",
+      completionPublishes: true,
+    });
+    await page.getByTestId("setup-check").getByRole("button", {
+      name: "Run the check",
+    }).click();
+    await expect(page.getByTestId("setup-check")).toContainText(
+      "2 of 3 required checks did not pass",
+      { timeout: 15_000 },
+    );
+    await page.getByRole("button", { name: "Change" }).click();
+    // Version 3 (the candidate) is stored but not listed; the next free number is 4.
+    await expect(page.getByTestId("profile-version-3")).toHaveCount(0);
+    await expect(page.getByTestId("profile-version-2")).toBeVisible();
+    await expect(page.getByText(/This saves version 4\./)).toBeVisible();
+    await page.getByRole("button", { name: "Save and use these settings" })
+      .click();
+    await expect(page.getByRole("dialog", { name: "Working settings" }))
+      .toHaveCount(0);
+    expect((seen.createdProfiles.at(-1) as { revision: number }).revision)
+      .toBe(4);
   });
 });

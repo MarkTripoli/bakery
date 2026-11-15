@@ -17,6 +17,10 @@ export type Profile = {
   folder?: string;
   /** The version states rules of its own (the Rules page publishes such versions). */
   rules?: boolean;
+  /** Made by a readiness check (schema 2 with its check policy); a person's version is schema 1. */
+  checkMade?: boolean;
+  /** A failed check's candidate: stored (it holds a revision) but not listed. */
+  hidden?: boolean;
 };
 
 export type Options = {
@@ -162,6 +166,7 @@ const configOf = (profile: Profile, base: string) => ({
   branches: { base, allowedPatterns: profile.branches },
   worktree: { root: profile.folder ?? "." },
   ...(profile.rules ? { repositoryRules: { entries: [] } } : {}),
+  ...(profile.checkMade ? { schemaVersion: 2, checkPolicy: {} } : {}),
 });
 
 /** Stubs the session, role and every read and write of the repository page; returns what it saw. */
@@ -210,6 +215,9 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
     name: "api-service",
     defaultBranch: base,
     activeProfileId: state.active === null ? null : profileId(state.active),
+    // The highest stored revision plus one: a hidden failed candidate holds one.
+    nextProfileRevision: Math.max(0, ...profiles.map((item) => item.revision)) +
+      1,
     archivedAt: state.archived ? STAMP : null,
     createdAt: STAMP,
     updatedAt: STAMP,
@@ -322,6 +330,12 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
         if (options.save === "rejected") {
           return route.fulfill(problem(400, "MALFORMED_REQUEST"));
         }
+        // The strict version-1 parser refuses the check's own key.
+        if (
+          (body.config as Record<string, unknown>).checkPolicy !== undefined
+        ) {
+          return route.fulfill(problem(422, "UNPROCESSABLE"));
+        }
         const created = {
           revision: body.revision,
           branches: body.config.branches.allowedPatterns,
@@ -341,11 +355,11 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
       const url = new URL(request.url());
       const size = options.pageSize ?? 100;
       const offset = Number(url.searchParams.get("cursor")?.slice(1) ?? 0);
+      // A failed check's candidate is stored but not listed.
+      const listed = profiles.filter((item) => !item.hidden);
       return route.fulfill(json({
-        items: profiles.slice(offset, offset + size).map(profileBody),
-        nextCursor: offset + size < profiles.length
-          ? `c${offset + size}`
-          : null,
+        items: listed.slice(offset, offset + size).map(profileBody),
+        nextCursor: offset + size < listed.length ? `c${offset + size}` : null,
       }));
     },
   );
@@ -412,6 +426,9 @@ export async function repositoryFixture(page: Page, options: Options = {}) {
           revision: Math.max(0, ...profiles.map((item) => item.revision)) + 1,
           branches: from?.branches ?? ["main"],
           folder: from?.folder,
+          // A check's candidate is check-made; one that did not pass is not listed.
+          checkMade: true,
+          hidden: mode === "blocked",
         };
         profiles.push(next);
         checkState.observed = next.revision;

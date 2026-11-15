@@ -25,16 +25,19 @@ import { useStartCheck } from "./use-readiness-check.ts";
  * other, and says "not checked yet" rather than guess.
  */
 export function ReadinessStep(
-  { repository, info, profiles, active, canManage, onStarted }: Readonly<{
-    repository: RepositoryResponse;
-    /** Every version of the settings, to tell whether the checked one was saved by the check. */
-    profiles: readonly RepositoryProfileResponse[];
-    /** What is known about the check the address names (shared with the page header). */
-    info: CheckInfo;
-    active: RepositoryProfileResponse | null;
-    canManage: boolean;
-    onStarted: (checkId: string) => void;
-  }>,
+  { repository, info, profiles, active, canManage, needsCheck, onStarted }:
+    Readonly<{
+      repository: RepositoryResponse;
+      /** Every version of the settings, to tell whether the checked one was saved by the check. */
+      profiles: readonly RepositoryProfileResponse[];
+      /** What is known about the check the address names (shared with the page header). */
+      info: CheckInfo;
+      active: RepositoryProfileResponse | null;
+      canManage: boolean;
+      /** A person's version is in use over one a check made, so the check's evidence no longer applies. */
+      needsCheck: boolean;
+      onStarted: (checkId: string) => void;
+    }>,
 ) {
   const { translate, locale, timeZone } = useI18n();
   const phone = useShellViewport() === "phone";
@@ -178,7 +181,12 @@ export function ReadinessStep(
     summary = translate("projects.repository.step.check.blocked" as never);
   } else if (view.kind === "none") {
     stepStatus = "running";
-    summary = translate("projects.repository.step.check.todo" as never);
+    // A person's version is in use over one a check made: say so, not "run the check to see".
+    summary = translate(
+      (needsCheck
+        ? "projects.repository.check.settingsChanged"
+        : "projects.repository.step.check.todo") as never,
+    );
     next = canManage
       ? run(translate("projects.repository.check.run" as never), true)
       : undefined;
@@ -226,12 +234,14 @@ export function ReadinessStep(
     info.observedRevision !== null && info.observedRevision < active.revision
   ) {
     // The result is for an older version of the settings than the one in use.
-    stepStatus = "unknown";
-    label = status("unknown");
-    summary = translate("projects.repository.check.otherVersion" as never, {
-      checked: info.observedRevision,
-      current: active.revision,
-    });
+    stepStatus = needsCheck ? "running" : "unknown";
+    label = status(needsCheck ? "todo" : "unknown");
+    summary = needsCheck
+      ? translate("projects.repository.check.settingsChanged" as never)
+      : translate("projects.repository.check.otherVersion" as never, {
+        checked: info.observedRevision,
+        current: active.revision,
+      });
     next = run(again, true);
   } else if (view.kind === "result") {
     const { outcome } = view;
@@ -274,6 +284,8 @@ export function ReadinessStep(
           {translate(
             (savedByCheck
               ? "projects.repository.check.notInUse"
+              : checked === undefined
+              ? "projects.repository.check.notInUseHidden"
               : "projects.repository.check.notInUseBare") as never,
             { checked: info.observedRevision, current: active.revision },
           )}

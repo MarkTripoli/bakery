@@ -33,6 +33,7 @@ import {
   activeProfile,
   branchesOf,
   hasOwnRules,
+  needsCheck as needsCheckOf,
   setupBadge,
 } from "./projects/repository-state.ts";
 
@@ -237,6 +238,10 @@ export function RepositoryPage(
   const standing = connectionWorks
     ? standingOf(info.view, info.observedRevision, active?.revision ?? null)
     : null;
+  // A person's version is in use over one a check made: tasks start, and stop at
+  // the steps where Bakery runs its checks until the check passes again.
+  const needsCheck = connectionWorks &&
+    needsCheckOf(active, profiles.items) && standing === null;
 
   // On a wide screen the page's actions are in the top bar; on a phone they
   // follow the title (the header's own actions row is for the phone only).
@@ -280,7 +285,7 @@ export function RepositoryPage(
                   branch: current.defaultBranch,
                 })}
               </UI.Text>
-              {setup === null && standing === null
+              {setup === null && standing === null && !needsCheck
                 ? null
                 : (
                   <UI.Inline gap="compact">
@@ -292,11 +297,17 @@ export function RepositoryPage(
                       )
                       : (
                         <UI.Badge
-                          tone={standing === "ready" ? "success" : "danger"}
+                          tone={needsCheck
+                            ? "warning"
+                            : standing === "ready"
+                            ? "success"
+                            : "danger"}
                           data-testid="repository-standing"
                         >
                           {translate(
-                            (standing === "ready"
+                            (needsCheck
+                              ? "projects.repository.badge.checkNeeded"
+                              : standing === "ready"
                               ? "projects.repository.badge.ready"
                               : "projects.repository.badge.checkFailed") as never,
                           )}
@@ -416,6 +427,7 @@ export function RepositoryPage(
                 repository={current}
                 info={info}
                 profiles={profiles.items}
+                needsCheck={needsCheckOf(active, profiles.items)}
                 active={active}
                 canManage={canManage}
                 onStarted={(id) =>
@@ -432,6 +444,8 @@ export function RepositoryPage(
             {translate(
               (standing === "ready"
                 ? "projects.repository.setup.footnoteReady"
+                : needsCheck
+                ? "projects.repository.setup.footnoteCheckNeeded"
                 : "projects.repository.setup.footnote") as never,
             )}
           </UI.Text>
