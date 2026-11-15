@@ -997,6 +997,8 @@
   "tasks.queue.filter.applications": "⟦All applications expansion ⟧",
   "tasks.queue.filter.repository": "⟦Repository filter expansion ⟧",
   "tasks.queue.filter.more": "⟦Šëàŕçĥ…⟧",
+  "tasks.queue.filter.searchWith": "⟦Šëàŕçĥ: {term} ŧë⟧",
+  "tasks.queue.filter.clearSearch": "⟦Çļëàŕ⟧",
   "tasks.queue.filter.search": "⟦Search filter expansion ⟧",
   "tasks.queue.filter.status": "⟦Status expansion ⟧",
   "tasks.queue.newTask": "⟦New task expansion ⟧",
@@ -3652,6 +3654,7 @@
   "tasks.queue.searchTasks": "⟦Šëàŕçĥ ŧàšķš ŧë⟧",
   "tasks.queue.inspector.details": "⟦Ðëŧàïļš…⟧",
   "tasks.queue.inspector.taskId": "⟦Ŧàšķ ÏÐ…⟧",
+  "tasks.queue.inspector.taskIdCopyFailed": "⟦Çôûļð ñôŧ çôþÿ ŧĥë ŧàšķ ÏÐ. Šëļëçŧ ïŧ àñð çôþÿ ïŧ ÿôûŕšëļƒ. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "tasks.preset.fixedCoding.line": "⟦Ŵôŕķƒļôŵ: ŵŕïŧë ŧĥë ƀŕïëƒ, ŧĥëñ ŕûñ ŧĥë çôðïñĝ àĝëñŧ ôñçë. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "tasks.preset.fixedCodingReviewed.line": "⟦Ŵôŕķƒļôŵ: ŵŕïŧë ŧĥë ƀŕïëƒ àñð ŕûñ ŧĥë çôðïñĝ àĝëñŧ, ŧĥëñ çĥëçķ àñð ïñðëþëñðëñŧļÿ ŕëṽïëŵ ŧĥë ŕëšûļŧ, ŕëþàïŕïñĝ ïŧ à ƀôûñðëð ñûɱƀëŕ ôƒ ŧïɱëš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧"
 }

@@ -999,6 +999,8 @@
   "tasks.queue.filter.applications": "‮All applications توسيع ‬",
   "tasks.queue.filter.repository": "‮Repository filter توسيع ‬",
   "tasks.queue.filter.more": "⟪Search⟫",
+  "tasks.queue.filter.searchWith": "⟪Search: {term}⟫",
+  "tasks.queue.filter.clearSearch": "⟪Clear⟫",
   "tasks.queue.filter.search": "‮Search filter توسيع ‬",
   "tasks.queue.filter.status": "‮Status توسيع ‬",
   "tasks.queue.newTask": "‮New task توسيع ‬",
@@ -3652,6 +3654,7 @@
   "tasks.queue.searchTasks": "⟪Search tasks⟫",
   "tasks.queue.inspector.details": "⟪Details⟫",
   "tasks.queue.inspector.taskId": "⟪Task ID⟫",
+  "tasks.queue.inspector.taskIdCopyFailed": "⟪Could not copy the task ID. Select it and copy it yourself.⟫",
   "tasks.preset.fixedCoding.line": "⟪Workflow: write the brief, then run the coding agent once.⟫",
   "tasks.preset.fixedCodingReviewed.line": "⟪Workflow: write the brief and run the coding agent, then check and independently review the result, repairing it a bounded number of times.⟫"
 }

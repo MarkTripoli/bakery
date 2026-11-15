@@ -23,6 +23,8 @@ import { useI18n } from "../i18n/I18nProvider.tsx";
 import { useConnectivity } from "../app/connectivity.ts";
 import { useShellViewport } from "../app/responsive.ts";
 import { ShellFlushMain, ShellSlot } from "../shell/shell-slots.tsx";
+import { focusAfterPaint } from "../app/focus.ts";
+import { FingerprintRow } from "./FingerprintRow.tsx";
 import { NewTaskComposer } from "./NewTaskComposer.tsx";
 import { TaskArtifactPane } from "./TaskArtifactPane.tsx";
 import { TaskRunSection } from "./TaskRunSection.tsx";
@@ -987,15 +989,16 @@ function WorkQueueInspector(
             {
               id: "details",
               label: t("tasks.queue.inspector.details"),
+              // The short form on screen, the whole id on the clipboard.
               content: (
-                <UI.DescriptionList>
-                  <UI.DescriptionItem
-                    action={
-                      <UI.DataText variant="code">{task.reference}</UI.DataText>
-                    }
-                    title={t("tasks.queue.inspector.taskId")}
-                  />
-                </UI.DescriptionList>
+                <FingerprintRow
+                  copyFailedText={t("tasks.queue.inspector.taskIdCopyFailed")}
+                  display={task.reference}
+                  fingerprint={task.id}
+                  label={t("tasks.queue.inspector.taskId")}
+                  noHelp
+                  testId="task-id-row"
+                />
               ),
             },
           ]}
@@ -1120,27 +1123,64 @@ export function WorkQueueFilters(
           />
         )
         : (
-          <UI.Popover
-            label={t("tasks.queue.filter.search")}
-            variant="interactive"
-            triggerAppearance="toolbar"
-            trigger={t("tasks.queue.filter.more")}
-          >
-            <UI.Stack gap="compact">
-              <UI.Field label={t("tasks.live.search")} htmlFor="tasks-search">
-                <UI.SearchField
-                  id="tasks-search"
-                  value={search}
-                  maxLength={200}
-                  onChange={(event) => onSearch(event.target.value)}
-                />
-              </UI.Field>
-              {statusFilter}
-            </UI.Stack>
-          </UI.Popover>
+          <>
+            <UI.Popover
+              data-search-popover=""
+              label={t("tasks.queue.filter.search")}
+              variant="interactive"
+              triggerAppearance="toolbar"
+              // A filter that is on always says so: the term, cut when long.
+              trigger={search
+                ? t("tasks.queue.filter.searchWith", {
+                  term: shortSearchTerm(search),
+                })
+                : t("tasks.queue.filter.more")}
+            >
+              <UI.Stack gap="compact">
+                <UI.Field label={t("tasks.live.search")} htmlFor="tasks-search">
+                  <UI.SearchField
+                    id="tasks-search"
+                    value={search}
+                    maxLength={200}
+                    onChange={(event) => onSearch(event.target.value)}
+                  />
+                </UI.Field>
+                {statusFilter}
+              </UI.Stack>
+            </UI.Popover>
+            {search
+              ? (
+                <UI.Button
+                  onClick={() => {
+                    onSearch("");
+                    // Clear goes with the term: focus returns to the Search button.
+                    focusAfterPaint(() =>
+                      document.querySelector<HTMLElement>(
+                        "[data-search-popover] button",
+                      )
+                    );
+                  }}
+                  type="button"
+                  variant="quiet"
+                >
+                  {t("tasks.queue.filter.clearSearch")}
+                </UI.Button>
+              )
+              : null}
+          </>
         )}
     </>
   );
+}
+
+/** How many characters of an applied search show on the phone's Search button. */
+const SEARCH_SHOWN = 16;
+/** The term cut to fit, by whole characters, with an ellipsis when it was long. */
+function shortSearchTerm(term: string): string {
+  const characters = Array.from(term);
+  return characters.length > SEARCH_SHOWN
+    ? `${characters.slice(0, SEARCH_SHOWN - 1).join("").trimEnd()}…`
+    : term;
 }
 
 function WorkQueueInspectorActions(

@@ -414,6 +414,67 @@ test("queue inspector answers the selected task's open question and the page has
     .toBeVisible();
 });
 
+test("queue inspector Details shows the short task id and copies the whole one", async ({ page, context }) => {
+  test.skip(
+    page.viewportSize()!.width <= 900,
+    "inspector rail is desktop only",
+  );
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await stillQueue(page, stillTasks);
+  const inspector = page.getByRole("complementary");
+  await inspector.getByRole("tab", { name: "Details" }).click();
+  const row = inspector.getByTestId("task-id-row");
+  await expect(row).toContainText("Task ID");
+  // Eight characters on screen, the whole id on the clipboard.
+  await expect(row).toContainText(stillTasks[0].id.slice(0, 8));
+  await expect(row).not.toContainText(stillTasks[0].id.slice(0, 9));
+  await row.getByRole("button", { name: "Copy" }).click();
+  await expect(row.getByRole("button", { name: "Copied" })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    stillTasks[0].id,
+  );
+});
+
+test("on a phone an applied search shows on the Search button, with Clear beside it", async ({ page }) => {
+  test.skip(
+    (page.viewportSize()?.width ?? 1280) > 743,
+    "on a wider screen the field itself is in the toolbar",
+  );
+  const requests: URL[] = [];
+  await page.route("**/v1/tasks?*", (route) => {
+    requests.push(new URL(route.request().url()));
+    return route.fulfill({
+      json: { items: stillTasks, nextCursor: null },
+    });
+  });
+  await page.route(
+    "**/v1/artifacts?*",
+    (route) => route.fulfill({ json: { items: [], nextCursor: null } }),
+  );
+  await page.goto("/tasks");
+  const searchButton = (name: string | RegExp) =>
+    page.getByRole("button", { name, exact: typeof name === "string" });
+  const clear = page.getByRole("button", { name: "Clear", exact: true });
+  await expect(searchButton("Search")).toBeVisible();
+  await expect(clear).toHaveCount(0);
+  const search = await searchField(page);
+  await search.fill("onboarding");
+  await dismissFilters(page);
+  await expect(searchButton("Search: onboarding")).toBeVisible();
+  await expect(clear).toBeVisible();
+  // A long term is cut by whole characters and ends in an ellipsis.
+  await (await searchField(page)).fill(
+    "a very long search term \u{1F9C1} indeed",
+  );
+  await dismissFilters(page);
+  await expect(searchButton(/^Search: a very long sea…$/)).toBeVisible();
+  await clear.click();
+  await expect(searchButton("Search")).toBeFocused();
+  await expect(clear).toHaveCount(0);
+  await expect.poll(() => requests.at(-1)?.searchParams.get("search") ?? "")
+    .toBe("");
+});
+
 // Evidence stills of the Work list (BAKERY_STILLS_DIR): the list with tasks,
 // a search with a term, and the empty list; skipped in a normal run.
 // The reference under a title is the first eight characters of the id, and the
@@ -471,6 +532,36 @@ test("still: the Work list with a search term", async ({ page }) => {
   await search.fill("repository");
   await dismissFilters(page);
   await still(page, "work-list-search");
+});
+
+test("still: the Details tab with the task id and Copy", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  test.skip(
+    page.viewportSize()!.width <= 900,
+    "inspector rail is desktop only",
+  );
+  await stillQueue(page, stillTasks);
+  const inspector = page.getByRole("complementary");
+  await inspector.getByRole("tab", { name: "Details" }).click();
+  await expect(inspector.getByTestId("task-id-row")).toBeVisible();
+  await still(page, "work-list-details");
+});
+
+test("still: the phone with a search term applied", async ({ page }) => {
+  test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
+  test.skip(
+    (page.viewportSize()?.width ?? 1280) > 743,
+    "the phone's Search button only",
+  );
+  await stillQueue(page, stillTasks);
+  await expect(page.getByRole("link", { name: stillTasks[0].title }))
+    .toBeVisible();
+  const search = await searchField(page);
+  await search.fill("repository");
+  await dismissFilters(page);
+  await expect(page.getByRole("button", { name: "Clear", exact: true }))
+    .toBeVisible();
+  await still(page, "work-list-search-applied");
 });
 
 test("still: the empty Work list", async ({ page }) => {
