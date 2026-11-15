@@ -80,6 +80,10 @@
     "path": "/projects/onboarding"
   },
   {
+    "id": "repository",
+    "path": "/projects/repositories/$repositoryId"
+  },
+  {
     "id": "repository-rules",
     "path": "/projects/repositories/$repositoryId/rules"
   },
