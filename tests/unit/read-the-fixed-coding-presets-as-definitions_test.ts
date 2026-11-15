@@ -3,7 +3,10 @@
 // written in the same grammar a customer publishes. This file pins the shape
 // while the definitions move from here into workflow-presets.ts.
 import { assert, assertEquals } from "@std/assert";
-import { compileWorkflowDocument } from "../../packages/contracts/src/workflow-compiler/mod.ts";
+import { compileWorkflowDocumentDetailed } from "../../packages/contracts/src/workflow-compiler/mod.ts";
+import {
+  FIXED_CODING_PRESET,
+} from "../../packages/contracts/src/workflow-presets.ts";
 import {
   extractFixedWorkflowSteps,
   WorkflowNotExecutableError,
@@ -154,7 +157,7 @@ for (
   ] as const
 ) {
   Deno.test(`${name} compiles as an ordinary definition and is a plan`, async () => {
-    const result = await compileWorkflowDocument(definition);
+    const { result } = await compileWorkflowDocumentDetailed(definition);
     assert(result.ok, result.ok ? "" : JSON.stringify(result.diagnostics));
     assertEquals(result.document.steps.length, definition.steps.length);
     let thrown: unknown;
@@ -166,3 +169,21 @@ for (
     assert(thrown instanceof WorkflowNotExecutableError, String(thrown));
   });
 }
+
+Deno.test("fixed-coding runs the same actions in the same order as the flat preset it replaces", async () => {
+  const flat = extractFixedWorkflowSteps(FIXED_CODING_PRESET.spec);
+  const { result, actionSites } = await compileWorkflowDocumentDetailed(
+    FIXED_CODING,
+  );
+  assert(result.ok, result.ok ? "" : JSON.stringify(result.diagnostics));
+  // The compiled definition is the flat preset's list wrapped in one sequence:
+  // same actions, same order, only the step keys gain the container's prefix.
+  assertEquals(
+    actionSites.map((site) => site.action),
+    flat.map((step) => step.action),
+  );
+  assertEquals(
+    actionSites.map((site) => site.qualifiedId.split(".").at(-1)),
+    flat.map((step) => step.key.split(".").at(-1)),
+  );
+});
