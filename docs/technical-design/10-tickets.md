@@ -105,8 +105,8 @@ it does not rewrite the saved routing rule. Editing the rule is a separate sourc
 setting. An unavailable required target remains blocked until access or an
 authorized scope revision resolves it.
 
-Persist the resolved set and match provenance in the readiness/coordination plan.
-Changes to labels or route settings re-evaluate that plan with CAS; they do not
+Persist the resolved set and match provenance in the readiness report and split.
+Changes to labels or route settings re-evaluate that split with CAS; they do not
 retarget already running jobs or erase completed work. Newly discovered authorized
 targets can be added within the active request's scope and budget; scope that
 cannot be established pauses only affected dispatch for clarification. Removing

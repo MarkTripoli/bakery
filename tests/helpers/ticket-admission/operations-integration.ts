@@ -57,6 +57,8 @@ type TicketView = {
     disposition: string;
     dispositionReason: string | null;
   } | null;
+  linkedTaskIds?: string[];
+  linkedTaskCount?: number;
 };
 type RequestView = {
   id: string;
@@ -1039,6 +1041,28 @@ Deno.test("issue 82 ops: ticketTaskLinks.create makes reference links only and r
       200,
     );
     assertEquals(linked.items.map((item) => item.id), [ticket.id]);
+    // #57: the ticket serves its linked tasks, newest link first, on both
+    // reads; an unlinked ticket serves none.
+    assertEquals(linked.items[0].linkedTaskIds, [taskId]);
+    assertEquals(linked.items[0].linkedTaskCount, 1);
+    const second = await fx.createPlainTask();
+    await read(
+      await post(fx, path, { taskId: second, role: "reference" }),
+      201,
+    );
+    const got = await read<TicketView>(
+      await ticketCall(fx, "GET", `${TICKETS}/${ticket.id}`),
+      200,
+    );
+    assertEquals(got.linkedTaskIds, [second, taskId]);
+    assertEquals(got.linkedTaskCount, 2);
+    const unlinked = await read<Page<TicketView>>(
+      await ticketCall(fx, "GET", `${TICKETS}?linked=false`),
+      200,
+    );
+    for (const item of unlinked.items) {
+      assertEquals([item.linkedTaskIds, item.linkedTaskCount], [[], 0]);
+    }
   });
 });
 

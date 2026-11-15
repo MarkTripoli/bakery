@@ -1590,6 +1590,38 @@ the exact next action. It reads state via REST and receives notification-only
 updates from `WS /v1/events`; all mutations use REST idempotency keys and
 preconditions.
 
+## Decision record: one interpreter (15 November 2026)
+
+Status: accepted. Source: [chapter 25](25-one-engine.md) sections 2, 3 and 5;
+[owner decisions](one-system/owner-decisions.md) O1, O2 and O12; backlog item 1
+(#396).
+
+1. **One interpreter (O1).** The compiled interpreter
+   (`packages/contracts/src/workflow-interpreter/`) is the only thing that
+   decides what runs next in a run. No new code path may pick a next step any
+   other way.
+2. **The flat preset executor is frozen (O1).** The flat loop that runs
+   `fixed-coding` and `fixed-coding-reviewed` (the "Fixed coding preset" section
+   below) gets no new features: only fixes that keep its existing runs correct.
+   The presets are republished as compiled definitions (#399) and the flat
+   executor is deleted once its runs drain (#400).
+3. **Coordination plans are the engine's split primitive (O2).** A coordination
+   plan is the stored form of a split: child work items joined by typed
+   artifacts. New work extends it as split (chapter 25 section 5; lanes run
+   definitions in #422), not as a second scheduler.
+4. **Vocabulary (O12).** "Workflow" or "definition" is what the engine runs.
+   "Plan" means only the document an agent writes. "Split" and "lanes" replace
+   "coordination plan" for people; the `coordination-plans` routes, tables and
+   contract keys keep their names, because renaming them is a breaking change
+   with no gain. "Execution plan" stays an internal term.
+
+Rails tests keep this honest (`tests/unit/workflow-kernel-rails_test.ts`):
+every built-in workflow definition compiles and declares `apiVersion`; engine
+modules never name a preset slug or import the presets module; ticket
+admission names no preset. Today's known violations are an explicit allow-list
+in that file, each naming the backlog issue that removes it, so no new one can
+be added.
+
 ## Fixed coding preset
 
 > Superseded direction: under [chapter 25](25-one-engine.md) (O1) this preset
@@ -2459,7 +2491,7 @@ through the existing rails, rather than hand-writing parallel DTOs.
 | Application repository roles | Add stable organization/application-scoped alias-to-repository mappings with real FKs. Support several roles per repository; multiple candidate matches require explicit resolution. |
 | Task coordination | Reuse parent/child tasks and acyclic dependencies; persist a versioned plan, required children, concrete bindings and typed handoff references. Materialize children idempotently from parent + plan revision + lane key. |
 | Run repository pins | Add relational run/repository/profile bindings and pinned base revisions. The old single profile field is only a single-repository compatibility projection. Each child job retains its one concrete repository. |
-| Ad hoc execution | Workflow selection is optional at intake. Pin an internal coordination plan and existing child execution presets; no user-authored workflow is required. A parent coordination run may have no catalog workflow version, but must have exactly one immutable plan source. |
+| Ad hoc execution | Workflow selection is optional at intake. Pin an internal split (stored as a coordination plan) and existing child execution presets; no user-authored workflow is required. A parent coordination run may have no catalog workflow version, but must have exactly one immutable split source. |
 | Ticket routing | Add per-source, stable-provider-label-ID → repository/role rules with tenant FKs, a route-policy revision and match provenance. The single source repository field becomes a default, not an exhaustive target set. |
 | Compiler | Add described parallel-group/alias contracts, cycle checks, repository scope/IO validation, finite concurrency/expansion limits and named join outputs. Unsupported compiler versions reject the construct without losing the source file. |
 
