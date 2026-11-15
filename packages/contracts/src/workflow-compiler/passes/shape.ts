@@ -1273,7 +1273,12 @@ function shapeInputs(
     checkKeys(context, entry, inputPath, INPUT_KEYS);
     const type = entry["type"];
     if (typeof type !== "string") {
-      report(context, [...inputPath, "type"], "field_missing");
+      // Absent is missing; present with the wrong type is invalid.
+      report(
+        context,
+        [...inputPath, "type"],
+        Object.hasOwn(entry, "type") ? "field_invalid" : "field_missing",
+      );
       failed = true;
       continue;
     }
@@ -1283,7 +1288,11 @@ function shapeInputs(
       continue;
     }
     if (typeof entry["required"] !== "boolean") {
-      report(context, [...inputPath, "required"], "field_missing");
+      report(
+        context,
+        [...inputPath, "required"],
+        Object.hasOwn(entry, "required") ? "field_invalid" : "field_missing",
+      );
       failed = true;
       continue;
     }

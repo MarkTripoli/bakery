@@ -574,21 +574,25 @@ export function AgentPage({ agentId }: { readonly agentId: string }) {
             {summary === null ? null : (
               <UI.DescriptionList>
                 <UI.DetailRow
+                  labelWidth="wide"
                   label={translate("library.agent.runsOn" as never)}
                 >
                   {harnessLabel(summary.harness)}
                 </UI.DetailRow>
-                <UI.DetailRow label={translate("library.agent.model" as never)}>
+                <UI.DetailRow
+                  labelWidth="wide"
+                  label={translate("library.agent.model" as never)}
+                >
                   {summary.model ??
                     translate("library.agent.notSet" as never)}
                 </UI.DetailRow>
-                <UI.DetailRow label={helpLabel("tools")}>
+                <UI.DetailRow labelWidth="wide" label={helpLabel("tools")}>
                   {names(summary.capabilities)}
                 </UI.DetailRow>
-                <UI.DetailRow label={helpLabel("prompts")}>
+                <UI.DetailRow labelWidth="wide" label={helpLabel("prompts")}>
                   {names(summary.prompts)}
                 </UI.DetailRow>
-                <UI.DetailRow label={helpLabel("skills")}>
+                <UI.DetailRow labelWidth="wide" label={helpLabel("skills")}>
                   {names(summary.skills)}
                 </UI.DetailRow>
               </UI.DescriptionList>

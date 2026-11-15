@@ -1,5 +1,6 @@
 import { assertEquals } from "@std/assert";
 import {
+  insideOf,
   nameFromFile,
   problemsOf,
   readImport,
@@ -136,4 +137,47 @@ Deno.test("a name the definition gives itself is cut without splitting an emoji"
     assertEquals(read.name, "a".repeat(199));
     assertEquals((read.name ?? "").length <= 200, true);
   }
+});
+
+Deno.test("the way into a nested step is named as written, with the nth step or branch", () => {
+  assertEquals(insideOf("/steps/0/id"), []);
+  assertEquals(insideOf("/steps/0/parallel/branches/1/steps"), [
+    { kind: "name", name: "parallel" },
+    { kind: "branch", number: 2 },
+  ]);
+  assertEquals(insideOf("/steps/0/branch/then/1/id"), [
+    { kind: "name", name: "branch" },
+    { kind: "name", name: "then" },
+    { kind: "step", number: 2 },
+  ]);
+  assertEquals(insideOf("/inputs/target/type"), []);
+  const [missing, unknown] = problemsOf(
+    [
+      {
+        path: "/steps/0/parallel/branches/0/steps",
+        code: "field_missing",
+        message: "x",
+      },
+      {
+        path: "/steps/0/branch/then/1/uses",
+        code: "action_unknown",
+        message: "y",
+      },
+    ],
+    {
+      steps: [{
+        id: "a",
+        branch: {
+          then: [{ id: "x", uses: "task.brief" }, {
+            id: "y",
+            uses: "nope.act",
+          }],
+        },
+      }],
+    },
+  );
+  assertEquals(missing?.field, "steps");
+  assertEquals(missing?.inside?.length, 2);
+  assertEquals(unknown?.detail, "nope.act");
+  assertEquals(unknown?.inside?.length, 3);
 });

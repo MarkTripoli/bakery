@@ -1439,6 +1439,10 @@
   min-inline-size: var(--space-0);
   overflow-wrap: anywhere;
 }
+/* Opt-in: room for a long label and a help button on one line. */
+.ui-detail-row[data-label-width="wide"] .ui-detail-row__label {
+  flex-basis: calc(var(--space-6) * 8);
+}
 .ui-detail-row__value {
   color: var(--color-fg);
   font: var(--type-caption);

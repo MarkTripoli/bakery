@@ -173,6 +173,10 @@ for (
       await checked(state(page)).toContainText(
         "The definition is missing a required field: steps.",
       );
+      // Inside a branch it says where: the names as written, the nth branch.
+      await checked(state(page)).toContainText(
+        "Step 1, in parallel, branch 2, is missing a required field: steps.",
+      );
       await expect(
         dialog(page).getByRole("button", { name: "Import as draft" }),
       )

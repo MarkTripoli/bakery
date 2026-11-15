@@ -171,30 +171,62 @@ export function ImportDialog(
       : problem.where.path;
   // A problem says what to fix when the checker's code and the definition
   // let it; otherwise the place and the checker's own sentence.
-  const sentence = (problem: ImportProblem): string | null =>
-    problem.code === "action_unknown" && problem.where.kind === "step" &&
+  const way = (problem: ImportProblem) =>
+    (problem.inside ?? []).map((part) =>
+      part.kind === "name" ? part.name : translate(
+        (part.kind === "step"
+          ? "library.import.part.step"
+          : "library.import.part.branch") as never,
+        { number: part.number },
+      )
+    ).join(", ");
+  const sentence = (problem: ImportProblem): string | null => {
+    const nested = problem.inside !== undefined && problem.inside.length > 0;
+    if (
+      problem.code === "action_unknown" && problem.where.kind === "step" &&
       problem.detail !== undefined
-      ? translate("library.import.problem.actionUnknown" as never, {
-        number: problem.where.number,
-        action: problem.detail,
-      })
-      : problem.code === "field_missing" && problem.where.kind === "step"
-      ? problem.field === undefined
-        ? translate("library.import.problem.stepFieldMissing" as never, {
+    ) {
+      return nested
+        ? translate("library.import.problem.actionUnknownIn" as never, {
           number: problem.where.number,
+          parts: way(problem),
+          action: problem.detail,
+        })
+        : translate("library.import.problem.actionUnknown" as never, {
+          number: problem.where.number,
+          action: problem.detail,
+        });
+    }
+    if (problem.code === "field_missing" && problem.where.kind === "step") {
+      if (problem.field === undefined) {
+        return translate("library.import.problem.stepFieldMissing" as never, {
+          number: problem.where.number,
+        });
+      }
+      return nested
+        ? translate("library.import.problem.stepFieldMissingIn" as never, {
+          number: problem.where.number,
+          parts: way(problem),
+          field: problem.field,
         })
         : translate("library.import.problem.stepFieldMissingNamed" as never, {
           number: problem.where.number,
           field: problem.field,
-        })
-      : problem.code === "field_missing" && problem.where.kind === "whole"
-      ? translate("library.import.problem.fieldMissing" as never)
-      : problem.code === "field_missing" && problem.field !== undefined &&
-          problem.where.kind === "path" && !problem.where.path.includes(".")
-      ? translate("library.import.problem.fieldMissingNamed" as never, {
+        });
+    }
+    if (problem.code === "field_missing" && problem.where.kind === "whole") {
+      return translate("library.import.problem.fieldMissing" as never);
+    }
+    if (
+      problem.code === "field_missing" && problem.field !== undefined &&
+      problem.where.kind === "path" && !problem.where.path.includes(".")
+    ) {
+      return translate("library.import.problem.fieldMissingNamed" as never, {
         field: problem.field,
-      })
-      : null;
+      });
+    }
+    return null;
+  };
   const lines = (problems: readonly ImportProblem[], label: string) => (
     <UI.Stack gap="compact" role="list" aria-label={label}>
       {problems.map((problem, index) => (

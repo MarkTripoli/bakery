@@ -21,7 +21,52 @@ export type ImportProblem = {
   readonly detail?: string;
   /** The name of the missing field, as the checker reports it (the last part of the pointer). */
   readonly field?: string;
+  /** Where inside the step it is, when it is not the step's own field (in then, step 2). */
+  readonly inside?: readonly ProblemPart[];
 };
+
+/** One part of the way into a step: a name as written in the file, or the nth step or branch of a list. */
+export type ProblemPart =
+  | { readonly kind: "name"; readonly name: string }
+  | { readonly kind: "step"; readonly number: number }
+  | { readonly kind: "branch"; readonly number: number };
+
+const unescape = (part: string) => part.replace(/~1/g, "/").replace(/~0/g, "~");
+
+/**
+ * The way into a step from a pointer ("/steps/0/parallel/branches/1/steps" is
+ * "parallel, branch 2" before the field "steps"): names as written, and an
+ * index shown as the nth step or branch.
+ */
+export function insideOf(path: string): ProblemPart[] {
+  const segments = path.split("/").slice(1).map(unescape);
+  if (segments[0] !== "steps" || !/^\d+$/.test(segments[1] ?? "")) return [];
+  const parts: ProblemPart[] = [];
+  for (const segment of segments.slice(2, -1)) {
+    if (/^\d+$/.test(segment)) {
+      const number = Number(segment) + 1;
+      const last = parts[parts.length - 1];
+      if (last?.kind === "name" && last.name === "branches") {
+        parts[parts.length - 1] = { kind: "branch", number };
+      } else if (last?.kind === "name" && last.name === "steps") {
+        parts[parts.length - 1] = { kind: "step", number };
+      } else parts.push({ kind: "step", number });
+    } else parts.push({ kind: "name", name: segment });
+  }
+  return parts;
+}
+
+/** What a pointer reaches in a definition, or undefined when it reaches nothing. */
+function valueAt(definition: unknown, path: string): unknown {
+  let node: unknown = definition;
+  for (const segment of path.split("/").slice(1).map(unescape)) {
+    if (Array.isArray(node)) node = node[Number(segment)];
+    else if (typeof node === "object" && node !== null) {
+      node = (node as Record<string, unknown>)[segment];
+    } else return undefined;
+  }
+  return node;
+}
 
 /** What reading a definition file or pasted text gave. */
 export type ImportRead =
@@ -64,13 +109,13 @@ export function problemsOf(
   }[],
   definition?: unknown,
 ): ImportProblem[] {
-  const steps = record(definition).steps;
   return issues.map((issue) => {
     const where = whereOf(issue.path);
-    const used = where.kind === "step" && where.field === "uses" &&
-        Array.isArray(steps)
-      ? record(steps[where.number - 1]).uses
+    // The action a step uses, however deep the step is: read from the definition.
+    const used = issue.path.endsWith("/uses") && where.kind === "step"
+      ? valueAt(definition, issue.path)
       : undefined;
+    const inside = where.kind === "step" ? insideOf(issue.path) : [];
     // A missing field is reported at the field itself, so the pointer names it.
     const field = issue.code === "field_missing" ? lastSegment(issue.path) : "";
     return {
@@ -79,6 +124,7 @@ export function problemsOf(
       message: issue.message,
       ...(typeof used === "string" && used !== "" ? { detail: used } : {}),
       ...(field !== "" ? { field } : {}),
+      ...(inside.length > 0 ? { inside } : {}),
     };
   });
 }
@@ -87,12 +133,6 @@ export function problemsOf(
 function lastSegment(path: string): string {
   const last = path.split("/").pop() ?? "";
   return path === "" ? "" : last.replace(/~1/g, "/").replace(/~0/g, "~");
-}
-
-function record(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
 }
 
 /** A file name as a name for the workflow: "release-train.yaml" is "Release train". */

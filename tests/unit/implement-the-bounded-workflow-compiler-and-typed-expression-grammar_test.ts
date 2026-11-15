@@ -1048,6 +1048,21 @@ Deno.test("workflow inputs reject bad names, types and secrets at the container"
       [{ path: "/inputs/target/required", code: "field_missing" }],
     ],
     [
+      "a missing type is missing",
+      withInputs({ target: { required: true } }),
+      [{ path: "/inputs/target/type", code: "field_missing" }],
+    ],
+    [
+      "a present type of the wrong kind is invalid, not missing",
+      withInputs({ target: { type: 5, required: true } }),
+      [{ path: "/inputs/target/type", code: "field_invalid" }],
+    ],
+    [
+      "a present required of the wrong kind is invalid, not missing",
+      withInputs({ target: { type: "string", required: "yes" } }),
+      [{ path: "/inputs/target/required", code: "field_invalid" }],
+    ],
+    [
       "inputs not an object",
       withInputs([]),
       [{ path: "/inputs", code: "field_invalid" }],

@@ -959,6 +959,11 @@ test("a saved workflow whose newer version is in use says this run's version is 
   const origin = page.locator("[data-plan-origin]");
   await expect(origin).toContainText("Workflow: Checkout fan-out, version 3");
   await expect(origin).toContainText("Older version");
+  // The tip is part of the badge: the two never separate when the line wraps.
+  await expect(
+    origin.locator('[data-ui-component="badge"]').getByRole("button"),
+  )
+    .toHaveCount(1);
   await shot(page, "task-origin-older");
   // In the wide header the workflow's link is line 2, under the title.
   if (test.info().project.name === "desktop") {

@@ -85,15 +85,18 @@ export function PlanProvenance(
         {olderVersion && (
           <>
             {" "}
+            {
+              /* The tip belongs to the badge: it sits inside it, so the two never separate when the line wraps. */
+            }
             <UI.Badge tone="neutral">
               {t("tasks.coordination.origin.older")}
+              <UI.HelpTip
+                closeLabel={t("core.actions.close")}
+                label={t("tasks.coordination.origin.older")}
+              >
+                {t("tasks.coordination.origin.olderHelp")}
+              </UI.HelpTip>
             </UI.Badge>
-            <UI.HelpTip
-              closeLabel={t("core.actions.close")}
-              label={t("tasks.coordination.origin.older")}
-            >
-              {t("tasks.coordination.origin.olderHelp")}
-            </UI.HelpTip>
           </>
         )}
       </span>

@@ -3507,5 +3507,9 @@
   "library.import.problem.fieldMissingNamed": "⟦Ŧĥë ðëƒïñïŧïôñ ïš ɱïššïñĝ à ŕëǫûïŕëð ƒïëļð: {field}. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "tasks.coordination.origin.workflowNoVersion": "⟦Ŵôŕķƒļôŵ: {name} ŧëš⟧",
   "library.workflow.versions.unknownInUse": "⟦Ŧĥàŧ ṽëŕšïôñ ðôëš ñôŧ ëẋïšŧ. Ŧĥïš ïš ŧĥë ṽëŕšïôñ ïñ ûšë. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
-  "library.workflow.versions.unknownNewest": "⟦Ŧĥàŧ ṽëŕšïôñ ðôëš ñôŧ ëẋïšŧ. Ŧĥïš ïš ŧĥë ñëŵëšŧ ṽëŕšïôñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧"
+  "library.workflow.versions.unknownNewest": "⟦Ŧĥàŧ ṽëŕšïôñ ðôëš ñôŧ ëẋïšŧ. Ŧĥïš ïš ŧĥë ñëŵëšŧ ṽëŕšïôñ. ŧëšŧ çôþÿ ŧëšŧ çô⟧",
+  "library.import.part.step": "⟦šŧëþ {number} ŧë⟧",
+  "library.import.part.branch": "⟦ƀŕàñçĥ {number} ŧëš⟧",
+  "library.import.problem.actionUnknownIn": "⟦Šŧëþ {number}, ïñ {parts}, ûšëš àñ àçŧïôñ Ɓàķëŕÿ ðôëš ñôŧ ĥàṽë: {action}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "library.import.problem.stepFieldMissingIn": "⟦Šŧëþ {number}, ïñ {parts}, ïš ɱïššïñĝ à ŕëǫûïŕëð ƒïëļð: {field}. ŧëšŧ çôþÿ ŧëšŧ çôþÿŧ⟧"
 }

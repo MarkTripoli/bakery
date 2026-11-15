@@ -87,6 +87,25 @@ for (
       await expect(details).toContainText("repo.read, repo.write");
       await expect(details).toContainText("system");
       await expect(details).toContainText("review");
+      // All five rows keep one height, and a help button stays on its label's line.
+      const heights = await details.locator('[data-ui-component="detailRow"]')
+        .evaluateAll((nodes) =>
+          nodes.map((node) => Math.round(node.getBoundingClientRect().height))
+        );
+      expect(heights).toHaveLength(5);
+      expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(
+        1,
+      );
+      // The identifiers say what they are: each label has its help.
+      await details.getByRole("button", { name: "Tools it may use" }).click();
+      await expect(
+        page.locator('[data-ui-component="helpTip"] .ui-help-tip__panel')
+          .filter({
+            has: page.getByText(
+              "What this agent is allowed to do in a repository.",
+            ),
+          }),
+      ).toBeVisible();
       const versions = page.getByTestId("agent-versions");
       await expect(versions).toContainText(
         "Workflows keep the agent version they were published with.",

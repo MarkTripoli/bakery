@@ -3507,5 +3507,9 @@
   "library.import.problem.fieldMissingNamed": "⟪The definition is missing a required field: {field}.⟫",
   "tasks.coordination.origin.workflowNoVersion": "⟪Workflow: {name}⟫",
   "library.workflow.versions.unknownInUse": "⟪That version does not exist. This is the version in use.⟫",
-  "library.workflow.versions.unknownNewest": "⟪That version does not exist. This is the newest version.⟫"
+  "library.workflow.versions.unknownNewest": "⟪That version does not exist. This is the newest version.⟫",
+  "library.import.part.step": "⟪step {number}⟫",
+  "library.import.part.branch": "⟪branch {number}⟫",
+  "library.import.problem.actionUnknownIn": "⟪Step {number}, in {parts}, uses an action Bakery does not have: {action}.⟫",
+  "library.import.problem.stepFieldMissingIn": "⟪Step {number}, in {parts}, is missing a required field: {field}.⟫"
 }

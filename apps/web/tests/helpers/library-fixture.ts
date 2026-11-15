@@ -467,6 +467,11 @@ export async function libraryFixture(page: Page, options: Options = {}) {
             code: "field_missing",
             message: "A required field is missing.",
           },
+          {
+            path: "/steps/0/parallel/branches/1/steps",
+            code: "field_missing",
+            message: "A required field is missing.",
+          },
         ]
         : options.validation === "errors"
         ? [
