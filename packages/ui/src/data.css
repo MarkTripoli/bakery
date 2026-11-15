@@ -448,7 +448,7 @@
   color: var(--color-fg);
   font: var(--type-heading-subsection);
 }
-/* Opt-in (`labels="quiet"`): a list of facts, where the label is quieter than its value. */
+/* Opt-in (`labels="quiet"`): each row's title in the body weight, not the heavy subsection weight. */
 .ui-description-list[data-labels="quiet"] .ui-description-item__title {
   font: var(--type-body);
 }

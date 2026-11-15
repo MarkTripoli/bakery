@@ -12,9 +12,9 @@ export type DescriptionListProps =
      */
     inset?: "page";
     /**
-     * Opt-in: `quiet` sets each row's title in the body weight, for a list of
-     * facts whose values are small, so the label is the quieter of the two. The
-     * default (the heavy subsection weight) is for a list of things to choose.
+     * Opt-in: `quiet` sets each row's title in the body weight, not the heavy
+     * subsection weight, for a list of facts rather than a list of things to
+     * choose. The default (the heavy weight) is unchanged.
      */
     labels?: "quiet";
   };
