@@ -11606,6 +11606,10 @@ export const clientManifest = {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991
+        },
+        "keepRepositoryRules": {
+          "description": "When true, copies the active profile's `repositoryRules` overrides unchanged into the published config (a branches-only save that neither restates nor restores the organization rules), so `expectedOrganizationRulesRevision` is not needed; `digest` still covers the submitted `config` and the stored digest is re-derived over the config with the carried overrides. With overrides on the active profile the save replaces it and activates under the repository `If-Match` version and `repository:manage`; with none it behaves like omitting the flag. Combining it with `config.repositoryRules` is refused with UNPROCESSABLE `repository_rules_keep_conflict`. Omitted or false keeps the default behaviour.",
+          "type": "boolean"
         }
       },
       "required": [
