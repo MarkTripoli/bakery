@@ -5778,11 +5778,12 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Delivery",
@@ -5800,13 +5801,15 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Delivery",
@@ -9269,6 +9272,8 @@
     "reviewFindings.list",
     "runDeliveryDecisions.list",
     "pullRequests.list",
+    "mergeEntries.list",
+    "mergeEntries.create",
     "pullRequests.merge",
     "mergeAttempts.reconcile",
     "ticketSources.list",
@@ -23715,6 +23720,18 @@
                 "minimum": 1,
                 "maximum": 100
               }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
             }
           ],
           "responses": {
@@ -23744,7 +23761,20 @@
         },
         "post": {
           "operationId": "mergeEntries.create",
-          "parameters": [],
+          "parameters": [
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
           "responses": {
             "200": {
               "description": "Successful response",
@@ -38898,6 +38928,7 @@
               "description": "Review cycle whose approval and findings this merge entry relies on; unresolved blocking findings on that cycle prevent merging."
             },
             "checkRunIds": {
+              "minItems": 1,
               "maxItems": 100,
               "type": "array",
               "items": {
@@ -201622,7 +201653,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:059f8e36ce9bbb851bbc018a09d9cb514466da3cf7e201f41ad1196e19f40990",
+  "compatibilityDigest": "sha256:51d027f5eaf15684db3485346558c5842f3f93e44ab1547e0c59ef66c6196c4b",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -208426,6 +208457,7 @@
           "description": "Review cycle whose approval and findings this merge entry relies on; unresolved blocking findings on that cycle prevent merging."
         },
         "checkRunIds": {
+          "minItems": 1,
           "maxItems": 100,
           "type": "array",
           "items": {
