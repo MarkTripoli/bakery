@@ -233,7 +233,17 @@ async function readActiveBranchLock(
     [organizationId, repositoryId, activeProfileId],
   )).rows[0];
   if (!row) return null;
-  const parsed = RepositoryVersionedProfileConfigSchema.safeParse(row.config);
+  // A stored version is either an observed (check-made) config or a person's
+  // saved one, so read both shapes the activation path accepts.
+  const versioned = RepositoryVersionedProfileConfigSchema.safeParse(
+    row.config,
+  );
+  const parsed = versioned.success
+    ? versioned
+    : RepositoryProfileConfigSchema.safeParse(row.config);
+  // An unreadable active config hides no lock this build can name. Activation
+  // of a version over an observed one is refused by its own rule, so this reads
+  // as "no fixed branches" rather than pre-empting that refusal.
   if (!parsed.success) return null;
   if (parsed.data.fixedPolicy?.lockedConfiguration.branches !== true) {
     return null;
