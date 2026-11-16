@@ -105,4 +105,5 @@
   <entry file="mise-wrapper-hangs-cli.xml" scope="project" />
   <entry file="ci-rerun-reuses-the-event-payload.xml" scope="project" />
   <entry file="pr-ci-runs-the-gate-route-only.xml" scope="project" />
+  <entry file="catalog-change-runs-both-generators.xml" scope="project" />
 </learnings>
