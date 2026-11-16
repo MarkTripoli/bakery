@@ -121,6 +121,14 @@ function resourceBody(resource: Resource) {
     available: resource.available,
     enabled: true,
     capabilitySnapshot: {},
+    // Served since #386/#65: the repository's default branch and its latest
+    // check. Unknown here, like a resource connected before that change, so
+    // the four fields are present and null rather than absent (Zod rejects a
+    // resource missing them).
+    defaultBranch: null,
+    latestCheckState: null,
+    latestCheckConclusion: null,
+    latestCheckAt: null,
     lastDiscoveryGeneration: 1,
     archivedAt: null,
     createdAt: STAMP,
