@@ -31,7 +31,11 @@ import {
   type VerifiedManifest,
   verifySignedManifest,
 } from "../../packages/worker-bootstrap/src/index.ts";
-import { runsAsRoot } from "../../packages/worker-bootstrap/src/install.ts";
+import {
+  installed,
+  runsAsRoot,
+  sweepPendingCurrent,
+} from "../../packages/worker-bootstrap/src/install.ts";
 import { hasDuplicateKeys } from "../../packages/worker-bootstrap/src/manifest.ts";
 
 // Local test signing keys only. No key here, or in the package, signs anything
@@ -1657,4 +1661,121 @@ Deno.test("repeated-key detection reads JSON the way a parser does", () => {
     JSON.parse(text);
     assertFalse(hasDuplicateKeys(text), text);
   }
+});
+
+// --- #169: a pending `current` link left by an interrupted activate() ---
+
+Deno.test("a stale .current- link left by an interrupted activate() is swept by recovery", async () => {
+  await withRoot(async (root) => {
+    await install(root, verified(), BINARY);
+    // The crash: activate() wrote its pending link and died before the rename,
+    // so `current` is missing and the pending name is what is left behind.
+    await rm(join(root, "current"));
+    const stale = join(root, ".current-0123456789ab");
+    await symlink(join("releases", "1.2.3-linux-x64"), stale);
+    assertEquals(await entries(root), [
+      ".current-0123456789ab",
+      "releases",
+      "staging",
+    ]);
+    await sweepPendingCurrent(root);
+    // Only the pending link goes: the release, the staging root and `current`
+    // (already missing here) are not this sweep's business.
+    assertEquals(await entries(root), ["releases", "staging"]);
+    // The release itself is untouched: only the link the installer was going to
+    // rename into place is removed.
+    assertEquals(await entries(join(root, "releases")), ["1.2.3-linux-x64"]);
+  });
+});
+
+Deno.test("recovery sweeps the stale link and then finishes the install without a download", async () => {
+  await withRoot(async (root) => {
+    await install(root, verified(), BINARY);
+    await rm(join(root, "current"));
+    await symlink(
+      join("releases", "1.2.3-linux-x64"),
+      join(root, ".current-deadbeef0000"),
+    );
+    let downloads = 0;
+    const result = await installRelease({
+      root,
+      manifest: verified(),
+      download: () => {
+        downloads += 1;
+        return chunked(BINARY);
+      },
+      uid: 1000,
+      now: NOW,
+    });
+    assertEquals(result.status, "installed");
+    assertEquals(downloads, 0);
+    assertEquals(await currentTarget(root), "releases/1.2.3-linux-x64");
+    const leftovers = (await entries(root)).filter((name) =>
+      name.startsWith(".current-")
+    );
+    assertEquals(leftovers, []);
+  });
+});
+
+Deno.test("a root with no pending link is swept to exactly what was there, byte for byte", async () => {
+  await withRoot(async (root) => {
+    await install(root, verified(), BINARY);
+    const snapshot = async () =>
+      await Promise.all(
+        (await entries(root)).map(async (name) =>
+          [
+            name,
+            await readlink(join(root, name)).catch(() => null),
+          ] as const
+        ),
+      );
+    const expected = await snapshot();
+    await sweepPendingCurrent(root);
+    const after = await snapshot();
+    assertEquals(after, expected);
+    assertEquals(after.map(([name]) => name), [
+      "current",
+      "releases",
+      "staging",
+    ]);
+  });
+});
+
+Deno.test("a directory that is not a pending link is not ours and survives the sweep", async () => {
+  await withRoot(async (root) => {
+    await install(root, verified(), BINARY);
+    // A name that only looks like ours: not a link, so a non-recursive rm
+    // cannot remove it, and nothing inside it is touched.
+    await mkdir(join(root, ".current-not-a-link"));
+    await writeFile(join(root, ".current-not-a-link", "kept"), "x");
+    await sweepPendingCurrent(root);
+    assertEquals(await entries(join(root, ".current-not-a-link")), ["kept"]);
+  });
+});
+
+// --- #170: `current` may not name releases/. or releases/.. ---
+
+Deno.test("a current pointing at releases/. or releases/.. is corruption, not a release", async () => {
+  await withRoot(async (root) => {
+    await install(root, verified(), BINARY);
+    for (const name of [".", ".."]) {
+      await rm(join(root, "current"), { force: true });
+      await symlink(join("releases", name), join(root, "current"));
+      assertEquals(
+        await codeOfAsync(() => installed(root)),
+        "INSTALL_CORRUPT",
+        `releases/${name}`,
+      );
+    }
+  });
+});
+
+Deno.test("a normal release name still reads as installed", async () => {
+  await withRoot(async (root) => {
+    const result = await install(root, verified(), BINARY);
+    const current = await installed(root);
+    assertEquals(current?.name, "1.2.3-linux-x64");
+    assertEquals(current?.record.sha256, sha(BINARY));
+    assertEquals(result.status, "installed");
+  });
 });

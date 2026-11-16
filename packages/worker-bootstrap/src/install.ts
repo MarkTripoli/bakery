@@ -82,6 +82,8 @@ export type InstallResult = Readonly<{
 const BINARY_NAME = "bakery-worker";
 const RECORD_NAME = "release.json";
 const LOCK_NAME = ".install.lock";
+/** Prefix of the pending `current` link `activate()` writes before its rename. */
+const CURRENT_PENDING_PREFIX = ".current-";
 const OWNER_NAME = "owner.json";
 const TAKEOVER_SUFFIX = ".takeover";
 /** A lock directory with no readable owner has this long to be filled in. */
@@ -186,8 +188,13 @@ export async function installed(
     if (code === "EINVAL") throw new BootstrapError("INSTALL_PATH_COLLISION");
     throw error;
   }
+  // The name is a release directory directly under `releases`. `.` and `..`
+  // match the character class but name that directory itself and its parent, so
+  // a `current` pointing at either is corruption, not a release (#170).
   const match = /^releases\/([A-Za-z0-9._-]+)$/.exec(target);
-  if (!match) throw new BootstrapError("INSTALL_CORRUPT");
+  if (!match || /^\.+$/.test(match[1]!)) {
+    throw new BootstrapError("INSTALL_CORRUPT");
+  }
   let record: unknown;
   try {
     record = JSON.parse(
@@ -455,6 +462,25 @@ async function sweepStaging(stagingRoot: string): Promise<void> {
 }
 
 /**
+ * The pending `current` links an `activate()` left when its process died between
+ * writing the link and renaming it into place (#169). They are links this
+ * installer made, so under the lock none is live: whatever a dead run left is
+ * removed, and nothing that is not one of ours is touched. The next `activate()`
+ * mints a fresh random name, so a leftover is never reused.
+ */
+export async function sweepPendingCurrent(root: string): Promise<void> {
+  const names = await readdir(root).catch(() => []);
+  for (const name of names) {
+    if (!name.startsWith(CURRENT_PENDING_PREFIX)) continue;
+    const pending = join(root, name);
+    // `rm` without `recursive` never follows a link and never removes a
+    // directory, so this removes the link itself and nothing it points at; a
+    // directory of that name is not ours to remove and is left alone.
+    await rm(pending, { force: true }).catch(() => {});
+  }
+}
+
+/**
  * The root must be a real directory owned by this user that no one else can
  * write to: a release is verified once and run later, and another user able to
  * write here could swap it in between.
@@ -472,7 +498,10 @@ export async function checkRoot(root: string): Promise<void> {
 
 /** Points `current` at a release in one atomic rename over the old link. */
 async function activate(root: string, name: string): Promise<void> {
-  const pending = join(root, `.current-${randomBytes(6).toString("hex")}`);
+  const pending = join(
+    root,
+    `${CURRENT_PENDING_PREFIX}${randomBytes(6).toString("hex")}`,
+  );
   try {
     await symlink(join("releases", name), pending);
     await rename(pending, join(root, "current"));
@@ -537,6 +566,7 @@ export async function installRelease(
     // looks at `releases` first thing).
     await requireOwnDirectory(stagingRoot);
     await sweepStaging(stagingRoot);
+    await sweepPendingCurrent(root);
     const current = await installed(root);
     if (current !== null) {
       const same = current.name === name &&
