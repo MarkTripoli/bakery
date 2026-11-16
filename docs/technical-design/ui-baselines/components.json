@@ -19939,6 +19939,286 @@
       "paperAbsentReason": "Designed in the #57 UX design comment (2026-11-12); no Paper frame names it."
     },
     {
+      "id": "ui.stepCard",
+      "name": "StepCard",
+      "description": "Summarizes the role or one external grant on the Your access page as a bordered card with a heading row and optional extra rows.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/StepCard",
+      "usage": {
+        "whenToUse": "Show the role or one external grant on the Your access page.",
+        "whenNotToUse": "Do not use for editable settings or for lists of rows; use ui.capabilityList for the latter.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "A list of what a role allows",
+            "use": "ui.capabilityList"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "variants": [
+        "card"
+      ],
+      "states": [
+        "default"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "Exercises every state of a card - ordinary, selected and needs-setup - and the connector that carries the + between cards.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "done",
+            "failed",
+            "running",
+            "waiting",
+            "upcoming",
+            "unknown"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.settings"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.accessCard.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.accessCard.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.accessCard.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paper": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "O-0",
+          "frameId": "KHJ-0",
+          "name": "Your access · Developer · Desktop · Dark"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "O-0",
+          "frameId": "MZJ-0",
+          "name": "Your access · Developer · Phone · Dark"
+        }
+      ],
+      "a11y": {
+        "accessibleName": "content",
+        "keyboard": [],
+        "notes": "Plain content; the title names the card and extra rows follow in reading order."
+      },
+      "tokens": [
+        "--border-default",
+        "--color-border",
+        "--color-fg-muted",
+        "--color-surface",
+        "--radius-surface",
+        "--space-1",
+        "--space-4",
+        "--space-5",
+        "--type-control",
+        "--type-hint"
+      ]
+    },
+    {
+      "id": "ui.stepConnector",
+      "name": "StepConnector",
+      "description": "The link between two step cards in the workflow diagram: one pixel of line with a small round + on it, 22px drawn and 44px to hit, which opens the step picker.",
+      "level": "molecule",
+      "owner": "Mark Tripoli",
+      "storyTitle": "Bakery/Molecules/StepCard",
+      "usage": {
+        "whenToUse": "Between two ui.stepCard in the workflow diagram, where a step can be added.",
+        "whenNotToUse": "Not as a general divider, and not without a card on at least one side.",
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "alternatives": [
+          {
+            "when": "A list of what a role allows",
+            "use": "ui.capabilityList"
+          }
+        ],
+        "replacesElements": [],
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ]
+      },
+      "variants": [
+        "card"
+      ],
+      "states": [
+        "default"
+      ],
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "requiredCases": [
+        {
+          "id": "contract",
+          "description": "The connector drawn between two cards, with the + on the line.",
+          "variants": [
+            "default"
+          ],
+          "states": [
+            "default",
+            "focus"
+          ],
+          "baselineIds": []
+        }
+      ],
+      "evidenceRefs": [
+        "design.settings"
+      ],
+      "status": "implemented",
+      "coverage": {
+        "automated": {
+          "theme:light": [
+            "runtime:ui.accessCard.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.accessCard.contract.desktop-light-fine"
+          ],
+          "pointer:fine": [
+            "runtime:ui.accessCard.contract.desktop-light-fine"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
+        ]
+      },
+      "paper": [
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "O-0",
+          "frameId": "KHJ-0",
+          "name": "Your access · Developer · Desktop · Dark"
+        },
+        {
+          "fileId": "01M1X504XVC45FC0VDK857A37D",
+          "pageId": "O-0",
+          "frameId": "MZJ-0",
+          "name": "Your access · Developer · Phone · Dark"
+        }
+      ],
+      "a11y": {
+        "accessibleName": "aria-label",
+        "keyboard": [
+          "Enter or Space opens the step picker"
+        ],
+        "notes": "The drawn circle and the hit area are separate declarations, so the target is comfortable without the line looking heavy.",
+        "role": "button",
+        "targetSize": "min 44px (coarse pointer); the drawn circle is 22px"
+      },
+      "tokens": [
+        "--border-default",
+        "--color-border",
+        "--color-fg-muted",
+        "--color-surface",
+        "--radius-surface",
+        "--space-1",
+        "--space-4",
+        "--space-5",
+        "--type-control",
+        "--type-hint"
+      ]
+    },
+    {
       "id": "ui.planRevisionSummary",
       "name": "PlanRevisionSummary",
       "description": "One plan revision with its title, revision and status line and numbered steps.",
