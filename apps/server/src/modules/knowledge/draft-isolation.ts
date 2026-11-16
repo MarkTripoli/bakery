@@ -8,6 +8,10 @@ import { DRAFT_LIMITS, type DraftCandidate } from "./drafts.ts";
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
 const READY = encoder.encode("READY\n");
+/** The range `RuntimeMaxSec` may take, as infra/server-exec/draft-systemd.sh enforces. */
+const SYSTEMD_BACKSTOP_MIN_SECONDS = 1;
+const SYSTEMD_BACKSTOP_MAX_SECONDS = 30;
+
 const WORKER_OUTPUT_LIMIT = DRAFT_LIMITS.stateBytes + DRAFT_LIMITS.bodyBytes +
   DRAFT_LIMITS.updateBytes + DRAFT_LIMITS.replacementBytes +
   DRAFT_LIMITS.metadataBytes + 64;
@@ -193,6 +197,19 @@ export type DraftIsolation = {
     signal?: AbortSignal,
     organizationId?: string,
   ): Promise<IsolatedDraftSlice>;
+  /**
+   * Checks a guarded edit's anchor without applying it (#71): the range must
+   * resolve to exactly the expected text in the source and current states. A
+   * failure is a `precondition` refusal, so a suggestion is recorded only
+   * when accepting it could later apply.
+   */
+  verify(
+    currentState: Uint8Array,
+    sourceState: Uint8Array,
+    input: IsolatedDraftEdit,
+    signal?: AbortSignal,
+    organizationId?: string,
+  ): Promise<void>;
   /** Imports one untrusted collaboration update into the committed state. */
   importUpdate(
     currentState: Uint8Array,
@@ -1279,6 +1296,19 @@ export function createDraftIsolation(
   const runtimeMaxSeconds = Math.ceil(
     (startupDeadlineMs + deadlineMs) / 1_000,
   ) + 1;
+  // The launcher (infra/server-exec/draft-systemd.sh) accepts RuntimeMaxSec only
+  // from 1 to 30 and exits 64 on anything else, which surfaces to the person as
+  // every draft failing `unavailable` with no reason given. Refuse the
+  // configuration instead, where the two deadlines are still in view (issue 271).
+  if (
+    runtimeMaxSeconds < SYSTEMD_BACKSTOP_MIN_SECONDS ||
+    runtimeMaxSeconds > SYSTEMD_BACKSTOP_MAX_SECONDS
+  ) {
+    throw new DraftIsolationError(
+      "precondition",
+      "SYSTEMD_BACKSTOP_OUT_OF_RANGE",
+    );
+  }
   const namespaceFileReader = options.namespaceFileReader ?? readBoundedFile;
 
   const limiter = options.workerLimiter ?? sharedWorkerLimiter;
@@ -1506,6 +1536,32 @@ export function createDraftIsolation(
           organizationId,
         ),
       );
+    },
+    async verify(currentState, sourceState, input, signal, organizationId) {
+      const frames = await run(
+        [
+          encoder.encode(JSON.stringify({
+            operation: "verify",
+            mutationId: input.mutationId,
+            startCursor: input.startCursor,
+            endCursor: input.endCursor,
+            expectedDigest: input.expectedDigest,
+          })),
+          sourceState,
+          currentState,
+          encoder.encode(input.expectedText),
+        ],
+        signal,
+        organizationId,
+      );
+      if (frames.length !== 1) {
+        throw new DraftIsolationError(
+          "unavailable",
+          "WORKER_FRAME_COUNT_INVALID",
+        );
+      }
+      const metadata = objectMetadata(frames[0]);
+      if (metadata.ok !== true) throwWorkerFailure(metadata);
     },
     async importUpdate(currentState, update, signal, organizationId) {
       return parseCandidate(

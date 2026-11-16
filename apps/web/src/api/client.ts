@@ -75,6 +75,7 @@ export type ReviewCycleListResponse = ClientOutputMap["Page<ReviewCycle>"];
 export type ReviewFindingListResponse = ClientOutputMap["Page<ReviewFinding>"];
 export type DeliveryDecisionListResponse =
   ClientOutputMap["Page<DeliveryDecision>"];
+export type PullRequestListResponse = ClientOutputMap["Page<PullRequest>"];
 export type SyncQuery = ClientInputMap["SyncQuery"];
 export type SyncResponse = ClientOutputMap["SyncSnapshot"];
 export type PrincipalIdentity = ClientOutputMap["PrincipalIdentity"];
@@ -1132,6 +1133,18 @@ export type BakeryApiClient = {
     readonly limit?: number;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<DeliveryDecisionListResponse>>;
+  /**
+   * The task's pull requests. `runId` narrows them to the ones a run opened;
+   * a pull request registered without a run never matches it.
+   */
+  readonly listPullRequests: (options: {
+    readonly organizationId: string;
+    readonly taskId: string;
+    readonly runId?: string;
+    readonly cursor?: string;
+    readonly limit?: number;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<PullRequestListResponse>>;
   readonly sync: (
     options: SyncQuery & {
       readonly organizationId: string;
@@ -3901,6 +3914,26 @@ export function createBakeryApiClient({
         const data = await client.actions["runDeliveryDecisions.list"](
           {
             id: options.runId,
+            ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+            ...(options.limit === undefined ? {} : { limit: options.limit }),
+          },
+          { signal: options.signal },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async listPullRequests(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["pullRequests.list"](
+          {
+            taskId: options.taskId,
+            ...(options.runId === undefined ? {} : { runId: options.runId }),
             ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
             ...(options.limit === undefined ? {} : { limit: options.limit }),
           },

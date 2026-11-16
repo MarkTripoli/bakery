@@ -32,7 +32,33 @@ import {
   SupersededRepositoryRuleOverrideSchema,
 } from "./repository-rules.ts";
 import { ContractQualityError } from "./exceptions.ts";
-import { assertWorkflowWorkerContract } from "./workflow-action-registry.ts";
+import {
+  assertWorkflowWorkerContract,
+  UnknownWorkerActionError,
+  WorkerActionContractError,
+} from "./workflow-action-registry.ts";
+
+export {
+  UnknownWorkerActionError,
+  WorkerActionContractError,
+  type WorkerActionDefect,
+} from "./workflow-action-registry.ts";
+
+import type { WorkerActionDefect } from "./workflow-action-registry.ts";
+
+/**
+ * The problem a worker-table defect is reported as. Both live in the INTERNAL
+ * family because neither is the caller's to fix; the two defects stay distinct
+ * so a reader can tell "the table's capabilities are unusable" from "the table
+ * drifted from the published contract" (issue 244).
+ */
+export function workerContractFaultCode(
+  defect: WorkerActionDefect,
+): "WORKER_ACTION_CAPABILITIES_INVALID" | "WORKER_ACTION_CONTRACT_DRIFT" {
+  return defect === "contract_drift"
+    ? "WORKER_ACTION_CONTRACT_DRIFT"
+    : "WORKER_ACTION_CAPABILITIES_INVALID";
+}
 import {
   RepositoryExecutionContextSchema,
   RepositoryInspectionJobInputSchema,
@@ -1848,18 +1874,44 @@ export function registeredWorkerActionInputSchema(action: string): z.ZodType {
   throw new Error(`worker action ${action} has no input schema`);
 }
 
+/**
+ * The capabilities a registered worker action declares. Each way the table can be
+ * unusable throws its own type, so a consumer never has to read a message to tell
+ * "the caller named nothing" from "Bakery's own table is broken".
+ */
 export function workerActionCapabilities(action: string): readonly string[] {
   const actions = record(transport.workerActions)
     ? transport.workerActions as JsonObject
     : {};
+  // The caller named nothing (`constructor`, `__proto__` and friends never reach
+  // the table as own properties) is the only unknown-action case.
+  if (!Object.hasOwn(actions, action)) {
+    throw new UnknownWorkerActionError(
+      `unsupported worker action capabilities: ${action}`,
+    );
+  }
   const definition = actions[action];
   if (
     !record(definition) || !Array.isArray(definition.capabilities) ||
     definition.capabilities.some((capability) => !text(capability))
   ) {
-    throw new Error(`unsupported worker action capabilities: ${action}`);
+    throw new WorkerActionContractError(
+      "capabilities_invalid",
+      `worker action ${action} declares unusable capabilities`,
+    );
   }
-  assertWorkflowWorkerContract(action, definition);
+  try {
+    assertWorkflowWorkerContract(action, definition);
+  } catch (error) {
+    if (error instanceof WorkerActionContractError) throw error;
+    if (error instanceof Error) {
+      throw new WorkerActionContractError(
+        "contract_drift",
+        `worker action ${action} does not match its published contract`,
+      );
+    }
+    throw error;
+  }
   return Object.freeze([...(definition.capabilities as string[])]);
 }
 

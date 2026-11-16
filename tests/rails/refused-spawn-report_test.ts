@@ -131,6 +131,11 @@ Deno.test("a PATH that changes after the start refuses a bare git, with the same
     assertStringIncludes(err, `PATH at lane start:      ${FIXTURE_PATH}`);
     assertStringIncludes(err, "lane --allow-run:        git,/usr/bin/git");
     assertStringIncludes(err, "shadow-bin/git -> /usr/bin/git");
+    // What changed the PATH, which is the fact #304 could not supply: the file
+    // and line that set it, so the next incident names its cause.
+    assertStringIncludes(err, "PATH changes in this process: 1");
+    assertStringIncludes(err, "fixture.ts:");
+    assertStringIncludes(err, "set by ");
   });
 });
 

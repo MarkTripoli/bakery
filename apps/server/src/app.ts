@@ -440,6 +440,7 @@ export function createApp(options: {
       // through PostgresAuthorityRunner, which enforces token scope.
       browserSession: tokenSession,
       publicBaseUrl: options.config.publicBaseUrl,
+      cursorSecret: options.config.auth.secret,
       isolation: draftIsolation,
       collaboration: collaborationRegistry,
     }),

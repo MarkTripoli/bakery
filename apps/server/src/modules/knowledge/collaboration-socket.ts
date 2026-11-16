@@ -260,11 +260,25 @@ export type CollaborationRegistry = {
     organizationId: string,
     publication: DraftPublicationNotice,
   ): void;
+  /**
+   * Pushes one committed suggestion change to everyone in that draft's room,
+   * so editors can update their review list. Best effort: a missed notice is
+   * recovered by reading `draftSuggestions.list`.
+   */
+  notifyDraftSuggestion(
+    organizationId: string,
+    suggestion: DraftSuggestionNotice,
+  ): void;
 };
 
 /** The publication a `published` frame carries. */
 export type DraftPublicationNotice = z.output<
   typeof contractSchemas.DraftPublication
+>;
+
+/** The suggestion a `suggestion` frame carries. */
+export type DraftSuggestionNotice = z.output<
+  typeof contractSchemas.DraftSuggestion
 >;
 
 type RegistryInternals = {
@@ -313,6 +327,29 @@ export function createCollaborationRegistry(): CollaborationRegistry {
         type: "published",
         room,
         publication,
+      });
+      if (!parsed.success) return;
+      const encoded = JSON.stringify(parsed.data);
+      for (
+        const participant of internals.rooms.get(roomKey(room))?.values() ?? []
+      ) {
+        const connection = participant.connection;
+        if (
+          connection.closed || connection.organizationId !== organizationId
+        ) continue;
+        try {
+          connection.socket.send(encoded);
+        } catch {
+          connection.close(1011, "socket error");
+        }
+      }
+    },
+    notifyDraftSuggestion(organizationId, suggestion) {
+      const room: Room = { kind: "draft", id: suggestion.draftId };
+      const parsed = contractSchemas.CollaborationFrame.safeParse({
+        type: "suggestion",
+        room,
+        suggestion,
       });
       if (!parsed.success) return;
       const encoded = JSON.stringify(parsed.data);

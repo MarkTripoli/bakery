@@ -1517,8 +1517,15 @@ async function countingZeroDelayTimers<T>(
   }
 }
 
-Deno.test("close flushes a full queue completely even with no time to spare", async () => {
-  for (const deadline of [0, 1, 50, 5_000]) {
+Deno.test("close flushes a full queue completely when the budget allows", async () => {
+  // A closing exporter never yields, so a synchronous sink drains as far as its
+  // budget lets it. A zero budget keeps its meaning — no timer can preempt the
+  // flush, so it drains everything — and a real budget drains a 1000-item queue
+  // comfortably (100 sink calls). What is no longer true, since #199, is that a
+  // budget too small to finish still drains: 1 ms was measured cutting this
+  // queue mid-flush, which is the point of having a deadline at all. That case
+  // is the test below.
+  for (const deadline of [0, 50, 5_000]) {
     const exported: number[] = [];
     const exporter = make<number>(
       (batch) => {
@@ -1536,6 +1543,31 @@ Deno.test("close flushes a full queue completely even with no time to spare", as
     assertEquals(exported[999], 999, "in order");
     conserved(exporter.stats());
   }
+});
+
+Deno.test("close stops mid-queue only when the budget is too small to finish", async () => {
+  // The other half of the same contract, and the one #199 was written for: a
+  // synchronous sink cannot be preempted, so before the deadline was read
+  // between batches a 100,000-item close(10) ran to completion in ~400 ms. Now
+  // it stops when the budget is spent — as long as it makes progress and
+  // accounts for everything it did not send.
+  const exported: number[] = [];
+  const exporter = make<number>(
+    (batch) => {
+      exported.push(...batch);
+    },
+    { capacity: 1000, batchSize: 10, intervalMs: 10_000, maxAttempts: 1 },
+  );
+  for (let item = 0; item < 1000; item += 1) exporter.offer(item);
+  await exporter.close(1);
+  const stats = exporter.stats();
+  conserved(stats);
+  assert(exported.length > 0, "it flushed nothing at all");
+  assertEquals(
+    exported.length + stats.dropped.shutdown,
+    1000,
+    "the rest was not accounted as shed",
+  );
 });
 
 Deno.test("a closing exporter never yields: no zero-delay timer is made while it flushes", async () => {
@@ -1587,4 +1619,46 @@ Deno.test("a running exporter yields exactly once between batches: one fewer tha
   // because nothing is left to wait for.
   assertEquals(zeroDelay, 3);
   await exporter.close(100);
+});
+
+// ---- #199: a synchronous sink cannot make close overshoot by more than the
+// batch in flight. A timer turn never arrives while such a sink is flushing, so
+// the deadline is read between batches instead.
+
+Deno.test("close stops at its deadline with a synchronous sink (#199)", async () => {
+  for (const batchSize of [1, 10, 100] as const) {
+    let calls = 0;
+    const exporter = createBoundedExporter<number>({
+      capacity: 100_000,
+      batchSize,
+      sendTimeoutMs: 200,
+      maxAttempts: 1,
+      retryDelayMs: 0,
+      intervalMs: 1,
+      send: () => {
+        calls += 1;
+        return Promise.resolve();
+      },
+    });
+    for (let index = 0; index < 100_000; index += 1) exporter.offer(index);
+    const started = performance.now();
+    await exporter.close(10);
+    const elapsed = performance.now() - started;
+    // The documented bound: the deadline, plus the batch already in flight.
+    // Before the deadline was read between batches this was 384 ms (Node) /
+    // 407 ms (Deno) at batch 1, because the flush never yielded.
+    assert(
+      elapsed <= 10 + 100,
+      `batch ${batchSize}: close(10) took ${elapsed.toFixed(1)}ms`,
+    );
+    const stats = exporter.stats();
+    conserved(stats);
+    assert(calls > 0, `batch ${batchSize}: the sink was never called`);
+    // Either it shed the rest at the deadline, or it finished inside it — both
+    // are within the bound; what may not happen is still flushing past it.
+    assert(
+      stats.dropped.shutdown > 0 || stats.exported === 100_000,
+      `batch ${batchSize}: neither shed nor finished (${stats.exported} exported)`,
+    );
+  }
 });

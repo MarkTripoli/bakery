@@ -286,6 +286,16 @@ const transportSchemas = {
       "retryable": false,
       "slug": "internal"
     },
+    "WORKER_ACTION_CAPABILITIES_INVALID": {
+      "status": 500,
+      "retryable": false,
+      "slug": "worker-action-capabilities-invalid"
+    },
+    "WORKER_ACTION_CONTRACT_DRIFT": {
+      "status": 500,
+      "retryable": false,
+      "slug": "worker-action-contract-drift"
+    },
     "SKILL_CONTENT_INTEGRITY_FAILED": {
       "status": 409,
       "retryable": false,
@@ -9771,6 +9781,133 @@ const transportSchemas = {
         }
       ],
       "description": "Publishes one exact committed draft checkpoint as the artifact's next immutable version through the shared artifact-version service. No content, actor, artifact, parent version or organization can be supplied by the caller."
+    },
+    "DraftSuggestionCreate": {
+      "fields": [
+        {
+          "name": "epoch",
+          "type": "integer",
+          "required": true,
+          "bounds": {
+            "min": 1,
+            "max": 2147483647
+          },
+          "description": "Draft epoch observed with the source checkpoint; a suggestion from any other epoch is refused with reason draft_moved_on."
+        },
+        {
+          "name": "sourceCheckpointId",
+          "type": "uuid",
+          "required": true,
+          "description": "Retained checkpoint whose full Loro history must contain both submitted cursors; the anchor is checked against it and against the current checkpoint before the suggestion is recorded."
+        },
+        {
+          "name": "startCursor",
+          "type": "base64",
+          "required": true,
+          "bounds": {
+            "maxBytes": 1024
+          },
+          "description": "Opaque encoded Loro cursor for the inclusive start of the range the suggestion replaces, read from draftSlices.get."
+        },
+        {
+          "name": "endCursor",
+          "type": "base64",
+          "required": true,
+          "bounds": {
+            "maxBytes": 1024
+          },
+          "description": "Opaque encoded Loro cursor for the exclusive end of the range the suggestion replaces, read from draftSlices.get."
+        },
+        {
+          "name": "expectedText",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxBytes": 65536
+          },
+          "description": "Exact text the suggestion replaces, as read at the source checkpoint; if it no longer matches the current draft the request is refused with reason text_changed and nothing is recorded."
+        },
+        {
+          "name": "expectedDigest",
+          "type": "sha256",
+          "required": true,
+          "description": "Lowercase SHA-256 of expectedText UTF-8 bytes, preventing alternate expected-text encodings from passing the guard."
+        },
+        {
+          "name": "replacement",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxBytes": 65536
+          },
+          "description": "Proposed plain text; it changes the draft only when a person accepts the suggestion. Unpaired UTF-16 surrogates and payloads over 65536 UTF-8 bytes are rejected."
+        },
+        {
+          "name": "mutationId",
+          "type": "uuid",
+          "required": true,
+          "description": "Caller-generated idempotency identifier; an exact retry answers with the same suggestion and a changed payload fails."
+        }
+      ],
+      "description": "Proposes one guarded text replacement in a collaborative draft as a waiting suggestion instead of editing it. This is how an agent changes a shared draft (chapter 25, O50): the requester, agent and request are taken from the authenticated call, never from the caller's input."
+    },
+    "DraftSuggestionQuery": {
+      "fields": [
+        {
+          "name": "cursor",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxBytes": 512
+          },
+          "description": "Opaque continuation token from a prior DraftSuggestionQuery page; bound to the same draft, state filter and principal."
+        },
+        {
+          "name": "limit",
+          "type": "integer",
+          "required": false,
+          "bounds": {
+            "min": 1,
+            "max": 100,
+            "default": 25
+          },
+          "description": "Maximum number of suggestions returned per page; defaults to 25 and cannot exceed 100."
+        },
+        {
+          "name": "state",
+          "type": "enum",
+          "required": false,
+          "enum": [
+            "waiting",
+            "accepted",
+            "rejected",
+            "no_longer_fits"
+          ],
+          "description": "Lists only suggestions in this state, for example waiting for the review list; omitted lists every state."
+        }
+      ],
+      "pagination": "pagination",
+      "rules": [
+        "Keyset (created_at,id) ascending; the cursor binds the draft and the state filter."
+      ],
+      "description": "Lists the suggestions proposed for one collaborative draft, oldest first, with keyset pagination."
+    },
+    "DraftSuggestionPath": {
+      "fields": [
+        {
+          "name": "id",
+          "type": "uuid",
+          "required": true,
+          "description": "Authorized active draft identifier from the route."
+        },
+        {
+          "name": "suggestionId",
+          "type": "uuid",
+          "required": true,
+          "description": "Suggestion of the same draft to decide."
+        }
+      ],
+      "description": "Route identifiers naming one suggestion of an authorized active draft."
     }
   },
   "projections": {
@@ -21261,6 +21398,14 @@ const transportSchemas = {
             "room",
             "publication"
           ]
+        },
+        {
+          "type": "suggestion",
+          "direction": "server",
+          "fields": [
+            "room",
+            "suggestion"
+          ]
         }
       ],
       "bounds": {
@@ -21285,9 +21430,10 @@ const transportSchemas = {
         "byteLength": "nonnegativeInteger",
         "mutationId": "uuid",
         "receipt": "DraftMutationReceipt|null",
-        "publication": "DraftPublication"
+        "publication": "DraftPublication",
+        "suggestion": "DraftSuggestion"
       },
-      "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, committed draft sync, and publication notices. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
+      "description": "Bounded JSON frames on /v1/collaboration: room join/leave, ephemeral presence, committed draft sync, publication notices and suggestion changes. Draft bytes travel in binary frames with a 52-byte big-endian header: version u8 (1), kind u8 (1 client update, 2 server snapshot, 3 server committed update), reserved u16 (0), epoch u32, draft id 16 bytes, mutation id 16 bytes (zero for a snapshot), server sequence u64 (zero for a client update), payload length u32; the declared length must equal the payload length and the payload is at most 64 KiB for an update. A client update is acknowledged only after its receipt commits. Presence is never durable, never replayed and never authority.",
       "fieldDescriptions": {
         "protocolVersion": "Collaboration protocol version reported by the server.",
         "connectionId": "Server-assigned identifier of this connection.",
@@ -21307,7 +21453,8 @@ const transportSchemas = {
         "byteLength": "Exact length of the binary frame that immediately follows this frame.",
         "mutationId": "Client mutation id the frame refers to.",
         "receipt": "Committed mutation receipt, replayed exactly for a duplicate; null when the update added nothing new to the committed state.",
-        "publication": "Publication committed for the room's draft, pushed to everyone in the room so editors can show who published which version."
+        "publication": "Publication committed for the room's draft, pushed to everyone in the room so editors can show who published which version.",
+        "suggestion": "Suggestion created, accepted, rejected or found no longer fitting for the room's draft, pushed to everyone in the room so editors can update the review list."
       }
     },
     "MetricPoint": {
@@ -21504,7 +21651,7 @@ const transportSchemas = {
         "resetRequired": "Whether the client must discard its local state and request a fresh snapshot.",
         "retainedFrom": "Earliest retained event sequence that can be used to establish a fresh sync position.",
         "retryWithoutAfter": "Whether the client should retry the sync request without its after cursor.",
-        "reason": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; absent when the conflict has no named rule."
+        "reason": "Stable lowercase snake_case slug naming the state rule a 409 STATE_CONFLICT refused on, such as approval_required or approval_unavailable; for a refused draft edit, why: text_changed or draft_moved_on on a 412, agent_edit_requires_suggestion or suggestion_decision_requires_person on a 403. Absent when the problem has no named rule."
       }
     },
     "ProviderUsageSummary": {
@@ -25261,6 +25408,96 @@ const transportSchemas = {
           "maxBytes": 1024
         }
       }
+    },
+    "DraftSuggestion": {
+      "fields": [
+        "id",
+        "draftId",
+        "epoch",
+        "sourceCheckpointId",
+        "startCursor",
+        "endCursor",
+        "expectedText",
+        "replacement",
+        "state",
+        "refusalReason",
+        "requestedById",
+        "requestedByName",
+        "actorKind",
+        "agentName",
+        "requestId",
+        "decidedById",
+        "decidedByName",
+        "decidedAt",
+        "appliedServerSequence",
+        "createdAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "draftId": "uuid",
+        "epoch": "integer",
+        "sourceCheckpointId": "uuid",
+        "startCursor": "base64",
+        "endCursor": "base64",
+        "expectedText": "string",
+        "replacement": "string",
+        "state": "enum(waiting|accepted|rejected|no_longer_fits|unknown)",
+        "refusalReason": "enum(text_changed|draft_moved_on)|null",
+        "requestedById": "uuid",
+        "requestedByName": "string",
+        "actorKind": "enum(person|agent)",
+        "agentName": "string|null",
+        "requestId": "string",
+        "decidedById": "uuid|null",
+        "decidedByName": "string|null",
+        "decidedAt": "timestamp|null",
+        "appliedServerSequence": "decimalString|null",
+        "createdAt": "timestamp"
+      },
+      "description": "One proposed replacement in a collaborative draft: what it replaces, the proposed text, who asked and from which request, and whether it is waiting, accepted, rejected or no longer fits. Accepting applies it through the same guarded edit as drafts.edit.",
+      "fieldDescriptions": {
+        "id": "Server-assigned suggestion identifier.",
+        "draftId": "Draft the suggestion proposes to change.",
+        "epoch": "Draft epoch the suggestion was made in; a later epoch means the draft moved on.",
+        "sourceCheckpointId": "Checkpoint the requester read the anchored text from.",
+        "startCursor": "Opaque Loro cursor for the inclusive start of the replaced range; editors resolve it to highlight the range.",
+        "endCursor": "Opaque Loro cursor for the exclusive end of the replaced range.",
+        "expectedText": "The text the suggestion replaces, as the requester read it.",
+        "replacement": "The proposed text.",
+        "state": "waiting until someone decides; accepted when it was applied through the normal edit path; rejected when a person declined it; no_longer_fits when, at accept time, the anchored text had changed or the draft had moved on, and nothing was applied; unknown for a stored state this server version does not recognise.",
+        "refusalReason": "Why a no_longer_fits suggestion could not be applied: text_changed when the anchored text no longer matches, draft_moved_on when the draft is in a later epoch or its source checkpoint is gone; null in every other state.",
+        "requestedById": "Principal the suggestion is attributed to: the person, or the principal an agent acted for (O50).",
+        "requestedByName": "Trusted display name of requestedById from the principal record.",
+        "actorKind": "agent when an agent proposed it through an access token or under its own service or worker identity; person when a person proposed it through a signed-in session.",
+        "agentName": "Name of the access token the agent presented, as the agent label; null for a person or a service identity without a token.",
+        "requestId": "Server request identifier of the call that proposed the suggestion, for tracing it to its request.",
+        "decidedById": "Person who accepted or rejected the suggestion, or tried to accept it when it no longer fit; null while waiting.",
+        "decidedByName": "Trusted display name of decidedById; null while waiting.",
+        "decidedAt": "UTC time of the decision; null while waiting.",
+        "appliedServerSequence": "Draft server sequence of the edit an accepted suggestion committed; null in every other state.",
+        "createdAt": "UTC time the suggestion was recorded."
+      },
+      "bounds": {
+        "expectedText": {
+          "maxBytes": 65536
+        },
+        "replacement": {
+          "maxBytes": 65536
+        },
+        "requestedByName": {
+          "maxBytes": 1024
+        },
+        "decidedByName": {
+          "maxBytes": 1024
+        },
+        "agentName": {
+          "maxBytes": 1024
+        }
+      }
+    },
+    "Page<DraftSuggestion>": {
+      "pageOf": "DraftSuggestion",
+      "description": "Cursor page of the suggestions proposed for one collaborative draft, oldest first, each with what it replaces, who asked and its state. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers or offsets."
     }
   },
   "pageEnvelope": {
@@ -26458,6 +26695,24 @@ const transportSchemas = {
       },
       "inngestTrigger": null,
       "description": "Authorized invalidation notification that a draft checkpoint was published; resourceId is the draft and resourceVersion the created version number. Fetch the publication through draftPublications.get or the version through artifactVersions.list."
+    },
+    "draft.suggestion_created": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification that a suggestion was proposed for a draft; resourceId is the suggestion. Fetch it through draftSuggestions.list."
+    },
+    "draft.suggestion_decided": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification that a suggestion was accepted, rejected or found no longer fitting; resourceId is the suggestion. Fetch it through draftSuggestions.list."
     }
   },
   "workerActions": {
@@ -26712,7 +26967,11 @@ const transportSchemas = {
       "bakery_draftSlices_get",
       "bakery_drafts_edit",
       "bakery_draftPublications_create",
-      "bakery_draftPublications_get"
+      "bakery_draftPublications_get",
+      "bakery_draftSuggestions_create",
+      "bakery_draftSuggestions_list",
+      "bakery_draftSuggestions_accept",
+      "bakery_draftSuggestions_reject"
     ],
     "discovery": "server/discover is optional. tools/list accepts standard cursor, filters current principal and enabled groups, and sorts deterministically. Initial cache TTL is zero; never share an authorization-filtered catalog between principals. No subscription capability is advertised.",
     "methods": [

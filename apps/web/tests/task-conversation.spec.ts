@@ -2190,6 +2190,7 @@ async function openRun(
   status: string,
   overrides: Partial<World> = {},
   steps: unknown[] = [stepFixture],
+  run: Record<string, unknown> = {},
 ) {
   const state = world({
     task: {
@@ -2206,7 +2207,7 @@ async function openRun(
   await mockWorld(page, state);
   await page.route(
     `**/v1/runs/${runId}`,
-    (route) => route.fulfill({ json: runFixture(status) }),
+    (route) => route.fulfill({ json: { ...runFixture(status), ...run } }),
   );
   await page.route(
     `**/v1/runs/${runId}/steps*`,
@@ -2492,6 +2493,47 @@ test("still: the task page at the window top and the very bottom", async ({ page
   }
 });
 
+test("still: a blocked run that waits on one task", async ({ page }) => {
+  await openRun(page, "blocked", {}, [], {
+    blockedReason: "dependency_incomplete",
+    blockingTasks: [blockingTask(1, "Charge the first payment")],
+  });
+  await expect(page.getByRole("link", { name: "Charge the first payment" }))
+    .toBeVisible();
+  await still(page, "task-page-blocked-one-task", undefined, {
+    scrollTo: page.getByRole("heading", { name: "Current run" }),
+  });
+});
+
+test("still: a blocked run that waits on several tasks", async ({ page }) => {
+  await openRun(page, "blocked", {}, [], {
+    blockedReason: "dependency_incomplete",
+    blockingTasks: [
+      blockingTask(1, "Charge the first payment"),
+      blockingTask(2, "Email the receipt"),
+      blockingTask(3, "Close the ledger"),
+    ],
+  });
+  await expect(page.getByText("Waiting for 3 tasks to finish:"))
+    .toBeVisible();
+  await still(page, "task-page-blocked-several-tasks", undefined, {
+    scrollTo: page.getByRole("heading", { name: "Current run" }),
+  });
+});
+
+test("still: a blocked run whose reason Bakery does not know", async ({ page }) => {
+  await openRun(page, "blocked", {}, [], {
+    blockedReason: "capacity_unavailable",
+    blockingTasks: [],
+  });
+  await expect(
+    page.getByText("This run is blocked. Bakery does not know why."),
+  ).toBeVisible();
+  await still(page, "task-page-blocked-unknown-reason", undefined, {
+    scrollTo: page.getByRole("heading", { name: "Current run" }),
+  });
+});
+
 test("still: a blocked run", async ({ page }) => {
   test.skip(!process.env.BAKERY_STILLS_DIR, "BAKERY_STILLS_DIR is not set");
   await openRun(page, "blocked", {}, []);
@@ -2581,3 +2623,75 @@ for (
     await still(page, `task-page-start-run-${name}`);
   });
 }
+
+// ---- what a blocked run says (design-ux, #57 item 13): the reason and the
+// tasks the server sends, said plainly, and unknown said as unknown.
+
+const blockingTask = (n: number, title: string) => ({
+  id: `00000000-0000-4000-8000-${String(900 + n).padStart(12, "0")}`,
+  title,
+  status: "active",
+});
+
+test("a blocked run that names one task waits on it, with the title as a link", async ({ page }) => {
+  const waiting = blockingTask(1, "Charge the first payment");
+  await openRun(page, "blocked", {}, [], {
+    blockedReason: "dependency_incomplete",
+    blockingTasks: [waiting],
+  });
+  const sentence = page.getByText("Waiting for", { exact: false }).first();
+  await expect(sentence).toContainText("to finish.");
+  const link = page.getByRole("link", { name: waiting.title });
+  await expect(link).toHaveAttribute("href", `/tasks/${waiting.id}`);
+  await expect(
+    page.getByText("This run is waiting for another task to finish."),
+  ).toHaveCount(0);
+});
+
+test("a blocked run that names several tasks counts them and lists each as a link", async ({ page }) => {
+  const waiting = [
+    blockingTask(1, "Charge the first payment"),
+    blockingTask(2, "Email the receipt"),
+    blockingTask(3, "Close the ledger"),
+  ];
+  await openRun(page, "blocked", {}, [], {
+    blockedReason: "dependency_incomplete",
+    blockingTasks: waiting,
+  });
+  await expect(page.getByText("Waiting for 3 tasks to finish:"))
+    .toBeVisible();
+  for (const task of waiting) {
+    await expect(page.getByRole("link", { name: task.title }))
+      .toHaveAttribute("href", `/tasks/${task.id}`);
+  }
+  // The server caps the list, so the page says there may be more instead of
+  // pretending the list is complete.
+  await expect(page.getByText("and more")).toHaveCount(0);
+});
+
+test("a blocked run whose list is at the server's cap says there may be more", async ({ page }) => {
+  const waiting = Array.from(
+    { length: 25 },
+    (_, index) => blockingTask(index + 1, `Waiting task ${index + 1}`),
+  );
+  await openRun(page, "blocked", {}, [], {
+    blockedReason: "dependency_incomplete",
+    blockingTasks: waiting,
+  });
+  await expect(page.getByText("Waiting for 25 tasks to finish:"))
+    .toBeVisible();
+  await expect(page.getByText("and more")).toBeVisible();
+});
+
+test("a blocked run whose reason the page does not know says it does not know", async ({ page }) => {
+  await openRun(page, "blocked", {}, [], {
+    blockedReason: "capacity_unavailable",
+    blockingTasks: [],
+  });
+  await expect(
+    page.getByText("This run is blocked. Bakery does not know why."),
+  ).toBeVisible();
+  await expect(
+    page.getByText("This run is waiting for another task to finish."),
+  ).toHaveCount(0);
+});
