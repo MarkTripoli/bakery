@@ -64,6 +64,7 @@ export type WorkflowPresetsListQuery =
 export type NamedDefinitionCreate = ClientInputMap["NamedDefinitionCreate"];
 export type WorkflowVersionCreate = ClientInputMap["WorkflowVersionCreate"];
 export type WorkflowValidationInput = ClientInputMap["WorkflowValidation"];
+export type WorkflowDraftUpdate = ClientInputMap["WorkflowDraftUpdate"];
 export type ValidationReportResponse = ClientOutputMap["ValidationReport"];
 export type TaskResponse = ClientOutputMap["Task"];
 export type RunListResponse = ClientOutputMap["Page<Run>"];
@@ -1236,6 +1237,16 @@ export type BakeryApiClient = {
     readonly organizationId: string;
     readonly workflowId: string;
     readonly input: WorkflowVersionCreate;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<WorkflowVersionResponse>>;
+  /** Saves this workflow's draft version (PATCH, with the version's own If-Match). */
+  readonly updateWorkflowVersion: (options: {
+    readonly organizationId: string;
+    readonly workflowId: string;
+    readonly versionId: string;
+    readonly input: WorkflowDraftUpdate;
+    readonly version: number;
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<WorkflowVersionResponse>>;
@@ -4219,6 +4230,29 @@ export function createBakeryApiClient({
         const data = await client.actions["workflowVersions.create"](
           { id: options.workflowId, ...options.input },
           {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async updateWorkflowVersion(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["workflowVersions.update"](
+          {
+            id: options.workflowId,
+            versionId: options.versionId,
+            ...options.input,
+          },
+          {
+            ifMatch: versionEtag(options.version),
             idempotencyKey: options.idempotencyKey,
             signal: options.signal,
           },
