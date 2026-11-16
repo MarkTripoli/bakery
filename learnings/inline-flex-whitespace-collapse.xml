@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="inline-flex-whitespace-collapse" project="bakery">
+  <title>A JSX space between an inline-flex link's text and its icon renders as nothing; the gap belongs on the variant</title>
+  <trigger>An arrow or icon inside an inline-flex link sits flush against its text, or a spacing attempt between the text and the icon has no visible effect in the browser or in a visual capture.</trigger>
+  <mistake>Left a whitespace expression between the text and the icon and expected it to render, then chased the missing space as a font, token or padding problem.</mistake>
+  <rule>An inline-flex container collapses the whitespace-only text nodes between its children, so a JSX space between an inline-flex link's text and its icon is dead on arrival. Express the space in CSS: put gap on the link variant that owns the icon instead of a per-instance wrapper. The shared variant is the place to look first, because one fix there clears every call site — the same variant fix cleared four pre-existing IssuePage arrows, so when one icon spacing looks wrong, check the variant before touching the call site.</rule>
+  <verification>
+    <command>grep -rn "inline-flex" apps/web/src packages/ui/src</command>
+    <requirement>Confirm the space comes from a gap on the variant, then prove it with the story check and a visual capture at the head SHA.</requirement>
+  </verification>
+</learning>

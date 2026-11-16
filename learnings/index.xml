@@ -20,6 +20,7 @@
   <entry file="native-artifact-formatting.xml" scope="project" />
   <entry file="verification-driver-boundaries.xml" scope="project" />
   <entry file="idle-workspace-consumers.xml" scope="project" />
+  <entry file="inline-flex-whitespace-collapse.xml" scope="project" />
   <entry file="oauth-provider-dependency-pin.xml" scope="project" />
   <entry file="paper-pinned-k0-inputs.xml" scope="project" />
   <entry file="lock-held-lane-waits-for-memory.xml" scope="project" />
