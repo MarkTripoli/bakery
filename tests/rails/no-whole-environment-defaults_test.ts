@@ -8,9 +8,19 @@ import { readCoordinatorEnv } from "../../apps/server/src/modules/conversation/c
 
 const ROOT = new URL("../../apps/server/src/", import.meta.url).pathname;
 
-/** Every `Deno.env.toObject()`, `= process.env` or `process.env =` in a file. */
+/**
+ * Every whole-environment read in a file: the Deno call, a spread of
+ * `process.env`, a `= process.env` default and an assignment to it.
+ */
 const WHOLE_ENV =
-  /Deno\.env\.toObject\(\)|=\s*process\.env\b|\bprocess\.env\s*=/;
+  /Deno\.env\.toObject\(\)|\.\.\.\s*process\.env(?!\w|\.)|=\s*process\.env(?!\w|\.)|\bprocess\.env\s*=/;
+
+/** A comment never runs; only prose that happens to name the pattern is skipped. */
+function isComment(line: string): boolean {
+  const text = line.trimStart();
+  return text.startsWith("*") || text.startsWith("//") ||
+    text.startsWith("/*");
+}
 
 async function* sources(
   directory: string,
@@ -30,8 +40,7 @@ Deno.test("apps/server never defaults to the whole environment (#322)", async ()
   const offenders: string[] = [];
   for await (const { path, text } of sources(ROOT)) {
     for (const [index, line] of text.split("\n").entries()) {
-      // A comment or a doc block never runs; the rail looks at code.
-      if (WHOLE_ENV.test(line) && !line.trimStart().startsWith("*")) {
+      if (WHOLE_ENV.test(line) && !isComment(line)) {
         offenders.push(`${path.slice(ROOT.length)}:${index + 1}`);
       }
     }
@@ -57,4 +66,26 @@ Deno.test("the coordinator executor reads only the three variables it selects on
     "BAKERY_SCRIPTED_COORDINATOR_DIR",
   ]);
   assertEquals(Object.keys(env).length, 3);
+});
+
+Deno.test("the whole-environment scan skips prose and catches a spread (#322)", () => {
+  // A comment documenting the rule must not turn the rail red (F2), while a
+  // spread of the whole environment must be caught (F1).
+  const probes: Array<[string, boolean]> = [
+    ["// we never read process.env = anything", false],
+    ["* a doc block naming process.env = is prose", false],
+    ["/* Deno.env.toObject() in a block comment */", false],
+    ["const whole = process.env;", true],
+    ["const copy = { ...process.env };", true],
+    ["const copy = { ...Deno.env.toObject() };", true],
+    ["const name = process.env.BAKERY_ENV;", false],
+    ["const name = Deno.env.get('BAKERY_ENV');", false],
+  ];
+  for (const [line, expected] of probes) {
+    assertEquals(
+      WHOLE_ENV.test(line) && !isComment(line),
+      expected,
+      line,
+    );
+  }
 });
