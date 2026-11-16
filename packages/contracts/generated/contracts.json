@@ -5781,8 +5781,8 @@
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Delivery",
@@ -5805,8 +5805,8 @@
         "PRECONDITION_FAILED",
         "IDEMPOTENCY_PAYLOAD_MISMATCH"
       ],
-      "organizationContext": "none",
-      "implemented": false
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     },
     {
       "group": "Delivery",
@@ -9221,6 +9221,8 @@
     "reviewFindings.list",
     "runDeliveryDecisions.list",
     "pullRequests.list",
+    "mergeEntries.list",
+    "mergeEntries.create",
     "ticketSources.list",
     "ticketSources.create",
     "ticketSources.get",
@@ -23665,6 +23667,18 @@
                 "minimum": 1,
                 "maximum": 100
               }
+            },
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
             }
           ],
           "responses": {
@@ -23694,7 +23708,20 @@
         },
         "post": {
           "operationId": "mergeEntries.create",
-          "parameters": [],
+          "parameters": [
+            {
+              "name": "Bakery-Organization-Id",
+              "in": "header",
+              "required": true,
+              "schema": {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Requested organization UUID that must match live authority; this header selects context and grants no access by itself."
+              }
+            }
+          ],
           "responses": {
             "200": {
               "description": "Successful response",
@@ -200908,7 +200935,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:319eff709f6b792269c951ba859b204b368d968d56a3671ce3db467e5b689fd5",
+  "compatibilityDigest": "sha256:4f3974990d85ddc3dac15218be63ff0128ef339cbaa59ba3ef4c231df8cdecbe",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
