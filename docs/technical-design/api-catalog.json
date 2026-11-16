@@ -8641,6 +8641,52 @@
         "SCOPE_REQUIRED"
       ],
       "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Delivery",
+      "method": "POST",
+      "path": "/v1/pull-requests/{id}/merge",
+      "action": "pullRequests.merge",
+      "access": "Developer",
+      "permission": "pullRequest:merge",
+      "input": "PullRequestMerge",
+      "output": "MergeAttempt",
+      "event": "merge.dispatched",
+      "mcp": "bakery_pullRequests_merge",
+      "idempotency": "natural",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "DEPENDENCY_UNAVAILABLE",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
+    },
+    {
+      "group": "Delivery",
+      "method": "POST",
+      "path": "/v1/merge-attempts/reconcile",
+      "action": "mergeAttempts.reconcile",
+      "access": "Developer",
+      "permission": "mergeAttempt:write",
+      "input": "MergeAttemptReconcile",
+      "output": "MergeReconciliation",
+      "event": "merge.reconciled",
+      "mcp": "bakery_mergeAttempts_reconcile",
+      "idempotency": "natural",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "DEPENDENCY_UNAVAILABLE",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context"
     }
   ]
 }

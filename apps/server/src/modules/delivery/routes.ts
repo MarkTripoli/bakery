@@ -4,6 +4,7 @@ import type { PgDatabase } from "../../platform/database.ts";
 import { type AuthVariables, createActionContext } from "../auth/middleware.ts";
 import { createDeliveryActionRegistry } from "./actions.ts";
 import { createDeliveryHandlers } from "./handlers.ts";
+import type { MergeDispatchDependencies } from "./merge-dispatch.ts";
 
 /**
  * Delivery evidence routes. They sit behind the token-accepting session
@@ -15,6 +16,7 @@ export function createDeliveryRoutes(options: {
   session: MiddlewareHandler<{ Variables: AuthVariables }>;
   publicBaseUrl: string;
   cursorSecret: string;
+  merge: MergeDispatchDependencies;
 }) {
   const app = new Hono<{ Variables: AuthVariables }>();
   app.use("/v1/runs/:id/checks", options.session);
@@ -23,12 +25,14 @@ export function createDeliveryRoutes(options: {
   app.use("/v1/reviews/:id/findings", options.session);
   app.use("/v1/pull-requests", options.session);
   app.use("/v1/merge-entries", options.session);
+  app.use("/v1/pull-requests/:id/merge", options.session);
+  app.use("/v1/merge-attempts/reconcile", options.session);
   app.route(
     "/",
     createApiRouter({
       registry: createDeliveryActionRegistry(
         options.database,
-        createDeliveryHandlers(options.cursorSecret),
+        createDeliveryHandlers(options.cursorSecret, options.merge),
       ),
       publicBaseUrl: options.publicBaseUrl,
       createContext: createActionContext,

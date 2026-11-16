@@ -9,6 +9,11 @@ import {
   type MergeEntryCreateInput,
 } from "./merge-entries.ts";
 import {
+  type MergeDispatchDependencies,
+  mergePullRequest,
+  reconcileMergeAttempts,
+} from "./merge-dispatch.ts";
+import {
   createChecksListHandler,
   createPullRequestsListHandler,
   createReviewFindingsListHandler,
@@ -16,7 +21,10 @@ import {
   createRunReviewsListHandler,
 } from "./postgres.ts";
 
-export function createDeliveryHandlers(secret: string): DeliveryActionHandlers {
+export function createDeliveryHandlers(
+  secret: string,
+  merge: MergeDispatchDependencies,
+): DeliveryActionHandlers {
   return {
     checksList: createChecksListHandler(secret),
     runReviewsList: createRunReviewsListHandler(secret),
@@ -50,5 +58,9 @@ export function createDeliveryHandlers(secret: string): DeliveryActionHandlers {
         }),
       );
     },
+    pullRequestsMerge: (context, input) =>
+      mergePullRequest(merge, context, input),
+    mergeAttemptsReconcile: (context, input) =>
+      reconcileMergeAttempts(merge, context, input),
   };
 }
