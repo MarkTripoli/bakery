@@ -111,11 +111,22 @@ Deno.test("a check that has not passed refuses it, including no checks at all", 
       "timed_out",
       "action_required",
       "stale",
+      "startup_failure",
+      "a_conclusion_from_a_later_build",
       null,
     ]
   ) {
     assertEquals(checksPassed([{ status: "completed", conclusion }]), false);
   }
+  // GitHub's own merge box counts a skipped or neutral check as satisfied.
+  assertEquals(
+    checksPassed([{ status: "completed", conclusion: "skipped" }]),
+    true,
+  );
+  assertEquals(
+    checksPassed([{ status: "completed", conclusion: "neutral" }]),
+    true,
+  );
   assertEquals(
     checksPassed([{ status: "in_progress", conclusion: null }]),
     false,

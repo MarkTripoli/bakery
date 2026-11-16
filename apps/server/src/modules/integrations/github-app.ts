@@ -678,7 +678,7 @@ const GitHubMergeResponseSchema = z.object({
  * reconcile with a read instead of sending a second merge.
  */
 export type GitHubMergeOutcome =
-  | { kind: "merged"; mergedSha: string }
+  | { kind: "merged"; mergedSha: string | null }
   | { kind: "refused"; status: number }
   | { kind: "unknown" };
 
@@ -691,6 +691,16 @@ export type GitHubMergeMethod = "merge" | "squash" | "rebase";
  * merge. None of them is a failure to retry.
  */
 const MERGE_REFUSAL_STATUSES = [405, 409, 422] as const;
+
+/**
+ * Every other status one merge attempt can see. GitHub answering 400 is a
+ * request it will never merge (a caller bug, not a refusal to read as one);
+ * 404 means the pull request is gone; 5xx is an answer that may follow a merge
+ * GitHub already performed, so it is uncertainty, never a retry. A 429 is not
+ * here: GitHub rate-limits a caller before doing the work, so a rate-limited
+ * merge provably did not happen and stays a typed failure to retry later.
+ */
+const MERGE_OTHER_STATUSES = [400, 404, 500, 502, 503, 504] as const;
 
 const GitHubPullRequestSchema = z.object({
   number: PositiveIdSchema.describe(
@@ -2079,7 +2089,10 @@ export function createFetchGitHubAppClient(
           {
             method: "PUT",
             expectedStatus: 200,
-            absentStatuses: MERGE_REFUSAL_STATUSES,
+            absentStatuses: [
+              ...MERGE_REFUSAL_STATUSES,
+              ...MERGE_OTHER_STATUSES,
+            ],
             classify: "token",
             authorization,
             body: { sha: headSha, merge_method: mergeMethod },
@@ -2108,17 +2121,27 @@ export function createFetchGitHubAppClient(
         }
         throw error;
       }
+      if (status === 400) {
+        // GitHub will not merge this request as asked: a caller bug, and
+        // nothing merged. A typed failure keeps it out of the refusal path.
+        throw new StandardError({ code: "UNPROCESSABLE" });
+      }
+      if (
+        status === 500 || status === 502 || status === 503 || status === 504
+      ) {
+        // A gateway or rate-limit answer on a merge write may follow a merge
+        // GitHub already performed: uncertainty, never a second request.
+        return { kind: "unknown" };
+      }
       if (status !== 200) return { kind: "refused", status };
       const parsed = GitHubMergeResponseSchema.safeParse(body);
       if (!parsed.success || parsed.data.merged !== true) {
         return { kind: "refused", status };
       }
-      const mergedSha = parsed.data.sha ?? null;
       // GitHub answering 200 without a merge commit proves the merge but not
-      // the commit it made; that is still a merge, reported as an unknown SHA.
-      return mergedSha === null
-        ? { kind: "merged", mergedSha: headSha }
-        : { kind: "merged", mergedSha };
+      // the commit it made; for a squash or rebase the merge commit is never
+      // the head, so no SHA is invented: the caller reconciles with a read.
+      return { kind: "merged", mergedSha: parsed.data.sha ?? null };
     },
     async listCheckRuns(request, signal) {
       const authorization = bearer(request.token);

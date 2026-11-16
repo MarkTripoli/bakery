@@ -120,6 +120,51 @@ Deno.test("a lost answer is unknown, never a silent failure and never a retry", 
   assertEquals(sent, 1);
 });
 
+Deno.test("a merge GitHub reports without a merge commit never invents one", async () => {
+  const github = scripted(() =>
+    Promise.resolve(Response.json({ merged: true, message: "merged" }))
+  );
+  // A squash or rebase merge commit is never the head: reporting the head here
+  // would record a SHA that is not the merge.
+  assertEquals(await github.merge(), { kind: "merged", mergedSha: null });
+});
+
+Deno.test("every other status a merge can see is classified, never a raw error", async () => {
+  // 404: the pull request is gone, and nothing merged.
+  const gone = scripted(() =>
+    Promise.resolve(Response.json({ message: "Not Found" }, { status: 404 }))
+  );
+  assertEquals(await gone.merge(), { kind: "refused", status: 404 });
+
+  // 400: GitHub will not merge this request as asked, and nothing merged.
+  const unprocessable = scripted(() =>
+    Promise.resolve(Response.json({ message: "Bad Request" }, { status: 400 }))
+  );
+  await assertRejects(() => unprocessable.merge(), StandardError);
+
+  // A rate-limited merge provably did not happen (GitHub rate-limits before
+  // doing the work), so it stays a typed failure to retry later, not
+  // uncertainty.
+  const limited = scripted(() =>
+    Promise.resolve(Response.json({ message: "rate limited" }, { status: 429 }))
+  );
+  const rateLimited = await assertRejects(
+    () => limited.merge(),
+    GitHubReadFailure,
+  );
+  assertEquals(rateLimited.kind, "rate_limited");
+
+  // 5xx: the answer may follow a merge GitHub already performed, so it is
+  // uncertainty and never a second request.
+  for (const status of [500, 502, 503, 504]) {
+    const uncertain = scripted(() =>
+      Promise.resolve(Response.json({ message: "Unavailable" }, { status }))
+    );
+    assertEquals(await uncertain.merge(), { kind: "unknown" }, String(status));
+    assertEquals(uncertain.seen.length, 1, String(status));
+  }
+});
+
 Deno.test("a refused credential is a failure, not an unknown outcome", async () => {
   const github = scripted(() =>
     Promise.resolve(Response.json({ message: "Bad credentials" }, {

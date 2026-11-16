@@ -82,9 +82,23 @@ export function decideMerge(
 }
 
 /**
- * The GitHub check-run state a merge needs: every run finished, and none
- * failed, cancelled, timed-out or action-required. A commit with no checks at
- * all is not proven and is not ready, the same rule the delivery gate applies.
+ * The conclusions GitHub treats as a satisfied merge check: a passing run, and
+ * the two "no objection" answers. Deliberately an allowlist: `startup_failure`,
+ * `stale`, `timed_out`, `action_required` and any conclusion this build has
+ * never seen all refuse the merge, because a merge box that cannot read a check
+ * must not merge over it. `skipped` counts as satisfied, as GitHub's own merge
+ * box treats it.
+ */
+const PASSING_CHECK_CONCLUSIONS: ReadonlySet<string> = new Set([
+  "success",
+  "neutral",
+  "skipped",
+]);
+
+/**
+ * The GitHub check-run state a merge needs: at least one run, every run
+ * completed, and every conclusion in the allowlist. A commit with no checks at
+ * all is not proven and is not ready.
  */
 export function checksPassed(
   runs: readonly { status: string; conclusion: string | null }[],
@@ -93,10 +107,6 @@ export function checksPassed(
   return runs.every((run) =>
     run.status === "completed" &&
     run.conclusion !== null &&
-    run.conclusion !== "failure" &&
-    run.conclusion !== "cancelled" &&
-    run.conclusion !== "timed_out" &&
-    run.conclusion !== "action_required" &&
-    run.conclusion !== "stale"
+    PASSING_CHECK_CONCLUSIONS.has(run.conclusion)
   );
 }
