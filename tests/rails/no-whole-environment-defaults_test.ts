@@ -9,11 +9,12 @@ import { readCoordinatorEnv } from "../../apps/server/src/modules/conversation/c
 const ROOT = new URL("../../apps/server/src/", import.meta.url).pathname;
 
 /**
- * Every whole-environment read in a file: the Deno call, a spread of
- * `process.env`, a `= process.env` default and an assignment to it.
+ * Every whole-environment read in a file: the Deno call by name, and a bare
+ * `process.env` in any position — assignment, spread, argument or default —
+ * while a member read (`process.env.BAKERY_ENV`) is not a whole-environment
+ * read and stays allowed.
  */
-const WHOLE_ENV =
-  /Deno\.env\.toObject\(\)|\.\.\.\s*process\.env(?!\w|\.)|=\s*process\.env(?!\w|\.)|\bprocess\.env\s*=/;
+const WHOLE_ENV = /Deno\.env\.toObject\(\)|\bprocess\.env(?!\w|\.)/;
 
 /** A comment never runs; only prose that happens to name the pattern is skipped. */
 function isComment(line: string): boolean {
@@ -77,6 +78,9 @@ Deno.test("the whole-environment scan skips prose and catches a spread (#322)", 
     ["/* Deno.env.toObject() in a block comment */", false],
     ["const whole = process.env;", true],
     ["const copy = { ...process.env };", true],
+    ["const copy = Object.assign({}, process.env);", true],
+    ["const copy = read(process.env);", true],
+    ["const copy = pick(process.env, 'HOME');", true],
     ["const copy = { ...Deno.env.toObject() };", true],
     ["const name = process.env.BAKERY_ENV;", false],
     ["const name = Deno.env.get('BAKERY_ENV');", false],
