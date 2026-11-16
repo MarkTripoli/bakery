@@ -18,7 +18,6 @@ import {
   presetBudgetEnv,
   presetBudgetPolicy,
   type PresetRepository,
-  presetRunBody,
   seedFundedCodingAgent,
 } from "../fixed-coding-preset.ts";
 import {
@@ -424,7 +423,7 @@ export async function openLoopWorld(
       reviewedPlanDocument({
         name: `plan-loop-${suffix}`,
         agents: bindings,
-        repairs: options.plan!.repairs,
+        repairs: options.plan?.repairs ?? 2,
       }),
     );
     return {
@@ -443,16 +442,13 @@ export async function openLoopWorld(
       },
     };
   };
+  // The reviewed preset is a compiled plan now, so the world runs the same
+  // plan document the #397 cases publish: its flat step ids keep the loop
+  // cases' logical names, and the preset's own document is covered by the
+  // preset integration cases.
   const run = await expectJson<{ id: string; workflowVersionId: string }>(
     await apiCall(fixture, fixture, "POST", `/v1/tasks/${task.id}/runs`, {
-      body: options.plan === undefined
-        ? presetRunBody(repository, {
-          presetId: REVIEWED_PRESET,
-          ...(options.budgetLimitUsd === undefined
-            ? {}
-            : { budgetLimitUsd: options.budgetLimitUsd }),
-        })
-        : await planBody(),
+      body: await planBody(),
     }),
     201,
   );
@@ -517,29 +513,17 @@ export async function openLoopWorld(
     logical: string,
     logicalIteration: number,
   ): Promise<AdmittedStep> => {
-    let stepKey = logical;
-    let iteration = logicalIteration;
-    let admitted;
-    if (options.plan === undefined) {
-      admitted = await engine.admit({
-        runId: run.id,
-        stepKey,
-        iteration,
-        actionVersion: run.workflowVersionId,
-      }, owner);
-    } else {
-      // A plan run has no rows up front: the engine appends the step the
-      // plan asks for, and that has to be the step this call names.
-      stepKey = planStepKey(
-        logical as Parameters<typeof planStepKey>[0],
-        logicalIteration,
-      );
-      iteration = 0;
-      const next = await engine.findNext(run.id, owner);
-      assertExists(next, `the plan asks for nothing; wanted ${stepKey}`);
-      assertEquals(next.stepKey, stepKey);
-      admitted = await engine.admit(next, owner);
-    }
+    // A plan run has no rows up front: the engine appends the step the plan
+    // asks for, and that has to be the step this call names.
+    const stepKey = planStepKey(
+      logical as Parameters<typeof planStepKey>[0],
+      logicalIteration,
+    );
+    const iteration = 0;
+    const next = await engine.findNext(run.id, owner);
+    assertExists(next, `the plan asks for nothing; wanted ${stepKey}`);
+    assertEquals(next.stepKey, stepKey);
+    const admitted = await engine.admit(next, owner);
     assert(admitted.jobId, `${stepKey}@${iteration} must admit a job`);
     const stepId = await stepIdOf(stepKey, iteration);
     const job = await database.query<

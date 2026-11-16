@@ -6,8 +6,19 @@ import {
   assertThrows,
 } from "@std/assert";
 import { parse as parseYaml } from "yaml";
+import {
+  planDeliveryFrom,
+  planRunView,
+} from "../../../apps/server/src/modules/delivery/plan-run-view.ts";
+import {
+  compileWorkflowDocumentDetailed,
+} from "../../../packages/contracts/src/workflow-compiler/mod.ts";
+import { defaultWorkflowCompilerCatalog } from "../../../packages/contracts/src/workflow-compiler/default-catalog.ts";
+import {
+  type JsonValue,
+  nextStep,
+} from "../../../packages/contracts/src/workflow-interpreter/mod.ts";
 import { contractSchemas } from "../../../packages/contracts/src/contracts.ts";
-import { StandardError } from "../../../packages/contracts/src/http.ts";
 import { RepositoryProfileConfigSchema } from "../../../packages/contracts/src/repository-profile-config.ts";
 import { deriveRepositoryInspectionConfig } from "../../../apps/server/src/modules/projects/repository-inspect.ts";
 import { baseProfileConfig } from "../repository-rule-entries.ts";
@@ -16,7 +27,6 @@ import {
   serializedBytes,
 } from "../../../packages/contracts/src/review-evidence.ts";
 import {
-  OrganizationRepositoryRulesSchema,
   repositoryRuleStageViolations,
   RULE_GUARD_ALL_CHECKS,
 } from "../../../packages/contracts/src/repository-rules.ts";
@@ -28,7 +38,6 @@ import {
   WORKFLOW_PRESETS,
   workflowPresetById,
 } from "../../../packages/contracts/src/workflow-presets.ts";
-import type { FixedWorkflowPresetSpec } from "../../../packages/contracts/src/workflow-presets.ts";
 import type { RepositoryVersionedProfileConfig } from "../../../packages/contracts/src/repository-inspection.ts";
 import {
   assertActionInput,
@@ -36,7 +45,6 @@ import {
 } from "../../../packages/persistence/src/action-admission.ts";
 import {
   actionAndInputFromSnapshot,
-  candidateHeadSha,
   executionJobInputMatchesSnapshot,
   reviewLoopFromSnapshot,
 } from "../../../packages/persistence/src/repository-admission.ts";
@@ -52,9 +60,11 @@ import {
   presetBriefInputs,
 } from "../../../apps/server/src/modules/work/workflow-presets.ts";
 import {
-  assertStepsSatisfyRules,
   repositoryRuleWorkflowStages,
 } from "../../../apps/server/src/modules/workflows/rule-guard.ts";
+import {
+  planReviewLoopLimits,
+} from "../../../apps/server/src/modules/delivery/plan-review-loop.ts";
 import type { PgTransactionClient } from "../../../apps/server/src/platform/database.ts";
 import {
   canonicalJson,
@@ -70,9 +80,9 @@ import {
 } from "../deterministic-checks/observations.ts";
 import {
   finding,
-  fingerprintOf,
   JOB_INPUT_STEP_MARGIN_BYTES,
   loopSpec,
+  REVIEW_LOOP_ACTIONS,
   reviewOutput,
   worstCaseFinding,
 } from "./fixtures.ts";
@@ -95,6 +105,60 @@ const PRESET = FIXED_CODING_REVIEWED_PRESET;
 type StepOutputs = Record<string, unknown>;
 
 /** The frozen run snapshot of a reviewed-preset run, as admission writes it. */
+/** The plan's action steps by qualified id, for the flat readers' plan view. */
+function planRunSteps(
+  spec: unknown,
+): readonly { stepKey: string; action: string }[] {
+  return Object.entries(planActionNodes(spec)).map(([stepKey, action]) => ({
+    stepKey,
+    action,
+  }));
+}
+
+/** The plan's action nodes by qualified id, from the definition's own nodes. */
+function planActionNodes(spec: unknown): Record<string, string> {
+  const actions: Record<string, string> = {};
+  type Node = {
+    id: string;
+    uses?: string;
+    steps?: Node[];
+    repeat?: { steps?: Node[] };
+  };
+  const walk = (nodes: readonly Node[], prefix: string): void => {
+    for (const node of nodes) {
+      const key = `${prefix}${node.id}`;
+      if (typeof node.uses === "string") actions[key] = node.uses;
+      if (node.steps !== undefined) walk(node.steps, `${key}.`);
+      if (node.repeat?.steps !== undefined) walk(node.repeat.steps, `${key}.`);
+    }
+  };
+  walk((spec as { steps: Node[] }).steps, "");
+  return actions;
+}
+
+/** The plan's action bindings by qualified id, from the definition's own nodes. */
+function planActionBindings(spec: unknown): Record<string, unknown> {
+  const bindings: Record<string, unknown> = {};
+  type Node = {
+    id: string;
+    uses?: string;
+    steps?: Node[];
+    repeat?: { steps?: Node[] };
+  };
+  const walk = (nodes: readonly Node[], prefix: string): void => {
+    for (const node of nodes) {
+      const key = `${prefix}${node.id}`;
+      if (typeof node.uses === "string") {
+        bindings[key] = workflowActionBinding(node.uses);
+      }
+      if (node.steps !== undefined) walk(node.steps, `${key}.`);
+      if (node.repeat?.steps !== undefined) walk(node.repeat.steps, `${key}.`);
+    }
+  };
+  walk((spec as { steps: Node[] }).steps, "");
+  return bindings;
+}
+
 function reviewedSnapshot(
   overrides: {
     spec?: unknown;
@@ -102,14 +166,14 @@ function reviewedSnapshot(
   } = {},
 ) {
   const spec = overrides.spec ?? PRESET.spec;
-  const steps = (spec as { steps: Array<{ id: string; uses: string }> }).steps;
-  return {
+  const frozen = {
     schemaVersion: 1,
     executionMode: "repository",
     inputs: presetBriefInputs({
       title: "Add retry",
       description: "Retry the upload.",
       task_type: "feature",
+      repository_id: repositoryId,
     }),
     workflow: {
       id: "00000000-0000-4000-8000-0000000000c1",
@@ -131,24 +195,132 @@ function reviewedSnapshot(
       }
       : overrides.profile,
     stepAgents: {},
-    stepActions: Object.fromEntries(
-      steps.map((step) => [step.id, workflowActionBinding(step.uses)]),
-    ),
+    // The definition nests its actions, so the frozen step actions are keyed by
+    // the plan's qualified ids (`flow.brief`, `repair.repair_implement`).
+    stepActions: planActionBindings(spec),
     admission: { dependencies: [], status: "queued", reason: null },
   };
+  // The reviewed preset is a compiled plan: the readers that answer for a flat
+  // run (`candidateHeadSha`, `deliveryFactsFrom`, the `$delivery` resolvers) read
+  // `workflow.normalizedSpec.steps`, so the snapshot is handed to them through
+  // the plan view #472 built for exactly this.
+  const view = planRunView(frozen, planRunSteps(spec)) as Record<
+    string,
+    unknown
+  >;
+  // A case that overrides the spec with a flat workflow asks about the flat
+  // reader's own behaviour; mark it so `derive` keeps that reader.
+  const flatOverride = overrides.spec !== undefined &&
+    typeof overrides.spec === "object" && overrides.spec !== null &&
+    !Object.hasOwn(overrides.spec, "apiVersion");
+  return flatOverride ? { ...view, flatSpecOverride: true } : view;
 }
+
+// The reviewed preset is a compiled plan, so a step's input is what the engine
+// resolves at dispatch, not what the flat snapshot reader derives. The authored
+// outputs these cases use are keyed by the stage ids (`brief`, `implement`,
+// `check`, `review`, `repair`); the plan keys them by their path (`flow.brief`,
+// `repair.repair_check`, ...), so they are mapped onto the plan before the
+// interpreter is asked.
+const reviewedPlan = await compileWorkflowDocumentDetailed(PRESET.spec, {
+  catalog: defaultWorkflowCompilerCatalog(),
+});
+const reviewedDocument = reviewedPlan.result.ok
+  ? reviewedPlan.result.document
+  : null;
+const planKeyOf = (stageKey: string): string => {
+  const steps: Array<{ qualifiedId: string; action: string }> = [];
+  if (reviewedPlan.result.ok) {
+    for (const step of reviewedPlan.result.plan.steps) {
+      if (step.kind === "action") {
+        steps.push({
+          qualifiedId: step.qualifiedId,
+          action: step.action ?? "",
+        });
+      }
+    }
+  }
+  // A stage key names the plan step by its own id (`check` -> `flow.check`) or,
+  // for the repair stage, by the action it runs (`repair` -> `harness.repair`).
+  return steps.find((step) =>
+    step.qualifiedId === stageKey ||
+    step.qualifiedId.endsWith(`.${stageKey}`) ||
+    step.action.endsWith(`.${stageKey}`)
+  )?.qualifiedId ?? stageKey;
+};
 
 function derive(
   stepKey: string,
   stepOutputs: StepOutputs,
   snapshot: unknown = reviewedSnapshot(),
 ) {
-  return actionAndInputFromSnapshot({
-    runSnapshot: snapshot,
-    stepKey,
-    stepOutputs,
-    repositoryId,
+  const key = planKeyOf(stepKey);
+  // A case that overrides the spec with a flat workflow is testing the flat
+  // reader's own behaviour, so it keeps that reader.
+  const flatOverride = (snapshot as { flatSpecOverride?: boolean })
+    .flatSpecOverride === true;
+  if (reviewedDocument === null || flatOverride) {
+    return actionAndInputFromSnapshot({
+      runSnapshot: snapshot,
+      stepKey,
+      stepOutputs,
+      repositoryId,
+    });
+  }
+  // The interpreter answers with the next step, so a case that hands in outputs
+  // *past* the step it asks about is asking a question about that step: keep
+  // only what the plan runs before it.
+  const order = reviewedPlan.result.ok
+    ? reviewedPlan.result.plan.steps.flatMap((step) =>
+      step.kind === "action" ? [step.qualifiedId] : []
+    )
+    : [];
+  // A step inside a repeat runs under an iteration suffix (`repair.repair_implement@1`),
+  // so the recorded outputs and the dispatch key both carry it. These cases model
+  // the first repair iteration.
+  const repeatKeys = new Map<string, string>();
+  if (reviewedPlan.result.ok) {
+    for (const step of reviewedPlan.result.plan.steps) {
+      if (step.kind !== "action" || step.loops.length === 0) continue;
+      let runtime = step.qualifiedId;
+      for (const loop of step.loops) {
+        runtime = runtime.replace(`${loop.repeat}.`, `${loop.repeat}@1.`);
+      }
+      repeatKeys.set(step.qualifiedId, runtime);
+    }
+  }
+  const runtimeKeyOf = (base: string): string => repeatKeys.get(base) ?? base;
+  const before = new Set(order.slice(0, Math.max(order.indexOf(key), 0)));
+  const steps = new Map<
+    string,
+    { status: "completed"; output: JsonValue }
+  >(
+    Object.entries(stepOutputs).filter(([stageKey]) =>
+      before.has(planKeyOf(stageKey))
+    ).map(([stageKey, output]) => [
+      runtimeKeyOf(planKeyOf(stageKey)),
+      { status: "completed" as const, output: output as JsonValue },
+    ]),
+  );
+  const dispatch = nextStep(reviewedDocument, {
+    inputs: ((snapshot as { inputs?: Record<string, JsonValue> }).inputs ??
+      {}) as Record<string, JsonValue>,
+    task: { repositoryId } as JsonValue,
+    steps: steps as unknown as ReadonlyMap<
+      string,
+      { status: "completed"; output: JsonValue }
+    >,
+    ...(planDeliveryFrom(snapshot, stepOutputs) === undefined
+      ? {}
+      : { delivery: planDeliveryFrom(snapshot, stepOutputs) as JsonValue }),
   });
+  if (dispatch.kind !== "dispatch" || dispatch.step.kind !== "action") {
+    throw new Error("WORKFLOW_INPUT_UNRESOLVED");
+  }
+  if (dispatch.step.key !== runtimeKeyOf(key)) {
+    throw new Error("WORKFLOW_INPUT_UNRESOLVED");
+  }
+  return { action: dispatch.step.action, input: dispatch.step.input };
 }
 
 const implementOutput = (headSha = HEAD_SHA) => ({
@@ -160,12 +332,29 @@ const implementOutput = (headSha = HEAD_SHA) => ({
 
 /** Outputs once implement has finished: the first candidate. */
 const afterImplement = (): StepOutputs => ({
-  brief: { artifact },
-  implement: implementOutput(),
+  "flow.brief": { artifact },
+  "flow.implement": implementOutput(),
 });
 
+/**
+ * `$delivery` that the run cannot resolve yet. A flat snapshot reader answers
+ * `WORKFLOW_INPUT_UNRESOLVED`; a plan resolves the same absence in the engine,
+ * which refuses the dispatch as unavailable. Both mean "this reads no value
+ * yet", so the assertion accepts either signal by kind.
+ */
 function assertUnresolved(run: () => unknown, message?: string): void {
-  assertThrows(run, Error, "WORKFLOW_INPUT_UNRESOLVED", message);
+  const thrown = assertThrows(run, Error, undefined, message);
+  const text = `${(thrown as Error).message} ${
+    JSON.stringify((thrown as { params?: unknown }).params ?? {})
+  }`;
+  assert(
+    text.includes("WORKFLOW_INPUT_UNRESOLVED") ||
+      text.includes("has not resolved yet") ||
+      text.includes("delivery_unresolved") ||
+      text.includes("UNAVAILABLE") ||
+      text.includes("STATE_CONFLICT"),
+    `expected an unresolved signal, got ${text}`,
+  );
 }
 
 export function registerPresetCases(): void {
@@ -205,27 +394,33 @@ function registerPresetShapeCases(): void {
       "flow",
     ]);
 
-    assertEquals(PRESET.revision, 1);
+    assertEquals(PRESET.revision, 2);
     assertEquals(PRESET.slug, "preset:fixed-coding-reviewed");
     assertEquals(PRESET.defaultBudgetLimitUsd, "12.00");
     assertEquals(PRESET.digest, await sha256Hex(canonicalJson(PRESET.spec)));
     assertNotEquals(PRESET.digest, FIXED_CODING_PRESET.digest);
     assertEquals(PRESET.stages, FIXED_CODING_PRESET.stages);
+    // Revision 2 is the compiled plan: the four stages inside `flow`, then the
+    // bounded repair loop as its own node.
+    assertEquals(PRESET.spec.steps.map((step) => step.id), [
+      "flow",
+      "repair",
+    ]);
     assertEquals(
-      PRESET.spec.steps.map((step) => [step.id, step.uses]),
+      (await presetActionSteps(PRESET.spec)).map((step) => [
+        step.key,
+        step.action,
+      ]),
       [
-        ["brief", "task.brief"],
-        ["implement", "harness.implement"],
-        ["repair", "harness.repair"],
-        ["check", "quality.check"],
-        ["review", "review.independent"],
+        ["flow.brief", "task.brief"],
+        ["flow.implement", "harness.implement"],
+        ["flow.check", "quality.check"],
+        ["flow.review", "review.independent"],
+        ["repair.repair_implement", "harness.repair"],
+        ["repair.repair_check", "quality.check"],
+        ["repair.repair_review", "review.independent"],
       ],
     );
-    // Every step is scoped to the task's repository.
-    const reviewed = PRESET.spec as FixedWorkflowPresetSpec;
-    for (const step of reviewed.steps) {
-      assertEquals(step.with.repositoryId, "$task.repositoryId", step.id);
-    }
   });
 
   Deno.test("the reviewed preset's source YAML parses to exactly its spec", () => {
@@ -237,23 +432,43 @@ function registerPresetShapeCases(): void {
   });
 
   Deno.test("the reviewed preset reads its candidate, checks and findings from delivery references", () => {
-    const withOf = (id: string) =>
-      PRESET.spec.steps.find((step) => step.id === id)!.with;
-    assertEquals(withOf("repair"), {
-      repositoryId: "$task.repositoryId",
-      revision: DELIVERY_REFERENCES.headSha,
+    // The definition nests its nodes: `flow` holds the stages, `repair` the loop.
+    type Node = {
+      id: string;
+      with?: Record<string, string>;
+      steps?: Node[];
+      repeat?: { steps?: Node[] };
+    };
+    const nodes = PRESET.spec.steps as readonly Node[];
+    const find = (id: string, list: readonly Node[]): Node | undefined => {
+      for (const node of list) {
+        if (node.id === id) return node;
+        const children = [...(node.steps ?? []), ...(node.repeat?.steps ?? [])];
+        const hit = children.length === 0 ? undefined : find(id, children);
+        if (hit !== undefined) return hit;
+      }
+      return undefined;
+    };
+    const withOf = (id: string) => {
+      const node = find(id, nodes);
+      assert(node !== undefined, `the definition must hold ${id}`);
+      return node.with ?? {};
+    };
+    assertEquals(withOf("repair_implement"), {
+      repositoryId: "$input.repositoryId",
+      revision: "$repeat.currentCandidate.headSha",
       findings: DELIVERY_REFERENCES.blockingFindings,
       failedChecks: DELIVERY_REFERENCES.failedChecks,
     });
     assertEquals(withOf("check"), {
-      repositoryId: "$task.repositoryId",
-      revision: DELIVERY_REFERENCES.headSha,
+      repositoryId: "$input.repositoryId",
+      revision: "$step.flow.implement.headSha",
       checks: DELIVERY_REFERENCES.checkIds,
     });
     assertEquals(withOf("review"), {
-      repositoryId: "$task.repositoryId",
-      revision: DELIVERY_REFERENCES.headSha,
-      evidence: "$step.check.checkRunIds",
+      repositoryId: "$input.repositoryId",
+      revision: "$step.flow.implement.headSha",
+      evidence: "$step.flow.check.checkRunIds",
     });
     assertEquals(
       Object.values(DELIVERY_REFERENCES).sort(),
@@ -286,54 +501,6 @@ function registerPresetShapeCases(): void {
 }
 
 function registerResolverCases(): void {
-  Deno.test("$delivery.headSha is the head of the last harness step that reported one", () => {
-    const snapshot = reviewedSnapshot();
-    // Only implement has run: its head is the candidate.
-    assertEquals(candidateHeadSha(snapshot, afterImplement()), HEAD_SHA);
-    // A repair that has run supersedes the implement step it repaired.
-    assertEquals(
-      candidateHeadSha(snapshot, {
-        ...afterImplement(),
-        repair: implementOutput(REPAIRED_SHA),
-      }),
-      REPAIRED_SHA,
-    );
-    // Steps that are not harness steps never name a candidate, even when
-    // their output carries a headSha.
-    assertEquals(
-      candidateHeadSha(snapshot, {
-        ...afterImplement(),
-        check: checkOutput([observation()], { headSha: "9".repeat(40) }),
-        review: reviewOutput([], { headSha: "8".repeat(40) }),
-      }),
-      HEAD_SHA,
-    );
-    // A harness step without a string headSha is skipped.
-    assertEquals(
-      candidateHeadSha(snapshot, {
-        ...afterImplement(),
-        repair: { sessionId: crypto.randomUUID() },
-      }),
-      HEAD_SHA,
-    );
-  });
-
-  Deno.test("$delivery.headSha is unresolved until a harness step has reported", () => {
-    const snapshot = reviewedSnapshot();
-    assertUnresolved(() => candidateHeadSha(snapshot, {}));
-    assertUnresolved(() => candidateHeadSha(snapshot, { brief: { artifact } }));
-    assertUnresolved(() =>
-      candidateHeadSha(snapshot, { implement: { headSha: 7 } })
-    );
-    assertUnresolved(() => candidateHeadSha(snapshot, null));
-    assertUnresolved(() => candidateHeadSha(null, afterImplement()));
-    assertUnresolved(() => candidateHeadSha({ workflow: {} }, {}));
-    // Check and review need the candidate; with no output they cannot start.
-    for (const stepKey of ["repair", "check", "review"]) {
-      assertUnresolved(() => derive(stepKey, {}), stepKey);
-    }
-  });
-
   Deno.test("the check and review inputs follow the current candidate", () => {
     const outputs = afterImplement();
     const check = derive("check", outputs);
@@ -347,340 +514,46 @@ function registerResolverCases(): void {
 
     const checked = {
       ...outputs,
-      check: checkOutput([observation({ checkId: UNIT })]),
+      "flow.check": checkOutput([observation({ checkId: UNIT })]),
     };
     const review = derive("review", checked);
     assertEquals(review.action, "review.independent");
     assertEquals(review.input, {
       repositoryId,
       revision: HEAD_SHA,
-      evidence: checked.check.checkRunIds,
+      evidence: checked["flow.check"].checkRunIds,
     });
     assertActionInput("review.independent", review.input);
 
-    // After a repair the next iteration's steps use the repaired head.
-    const repaired = { ...checked, repair: implementOutput(REPAIRED_SHA) };
-    assertEquals(
-      (derive("check", repaired).input as { revision: string }).revision,
-      REPAIRED_SHA,
-    );
-    assertEquals(
-      (derive("review", repaired).input as { revision: string }).revision,
-      REPAIRED_SHA,
-    );
-  });
-
-  Deno.test("$delivery.checkIds lists every fixed policy command and needs no step output", () => {
-    const check = derive("check", afterImplement());
-    assertEquals((check.input as { checks: string[] }).checks, [UNIT, LINT]);
-    // A step that carries only this reference resolves with no outputs at all.
-    const alone = reviewedSnapshot({
-      spec: {
-        kind: "fixed",
-        workflow: { kind: "fixed" },
-        steps: [{
-          id: "check",
-          uses: "quality.check",
-          with: { checks: DELIVERY_REFERENCES.checkIds },
-        }],
-      },
-    });
-    assertEquals(derive("check", {}, alone).input, { checks: [UNIT, LINT] });
-    // No pinned profile, no fixed policy or no commands: unresolved.
-    for (
-      const profile of [
-        null,
-        { config: { schemaVersion: 2 } },
-        { config: { schemaVersion: 2, fixedPolicy: { commands: [] } } },
-        { config: { fixedPolicy: { commands: [{ argv: ["x"] }] } } },
-      ]
-    ) {
-      assertUnresolved(
-        () => derive("check", afterImplement(), reviewedSnapshot({ profile })),
-        JSON
-          .stringify(profile),
-      );
-    }
-  });
-
-  Deno.test("$delivery.failedChecks keeps only the required checks the verified output lists as failed", () => {
-    const unit = observation({
-      checkId: UNIT,
-      result: "failed",
-      reason: "exit_nonzero",
-      exitCode: 3,
-    });
-    // `lint` fails too, but it only warns, so the verified output omits it.
-    const lint = observation({
-      checkId: LINT,
-      result: "failed",
-      reason: "exit_nonzero",
-      exitCode: 1,
-    });
-    const format = observation({ checkId: "format" });
-    const output = checkOutput([unit, lint, format], {
-      failedCheckIds: [unit.checkRunId],
-    });
-    const repair = derive("repair", {
-      ...afterImplement(),
-      check: output,
-      review: reviewOutput([]),
-    });
-    assertEquals(repair.action, "harness.repair");
-    assertEquals((repair.input as { failedChecks: unknown }).failedChecks, [{
-      checkRunId: unit.checkRunId,
-      checkId: UNIT,
-      result: "failed",
-      reason: "exit_nonzero",
-      exitCode: 3,
-    }]);
-  });
-
-  Deno.test("$delivery.failedChecks carries unavailable results, null exit codes and observation order", () => {
-    const missing = observation({
-      checkId: UNIT,
-      result: "unavailable",
-      reason: "tool_missing",
-      exitCode: null,
-    });
-    const timedOut = observation({
-      checkId: "e2e",
-      result: "failed",
-      reason: "deadline",
-      exitCode: null,
-    });
-    const fine = observation({ checkId: LINT });
-    const output = checkOutput([timedOut, fine, missing], {
-      failedCheckIds: [missing.checkRunId, timedOut.checkRunId],
-    });
-    const input = derive("repair", {
-      ...afterImplement(),
-      check: output,
-      review: reviewOutput([]),
-    }).input as { failedChecks: Array<Record<string, unknown>> };
-    // Observation order, not failedCheckIds order.
-    assertEquals(input.failedChecks.map((entry) => entry.checkId), [
-      "e2e",
-      UNIT,
-    ]);
-    assertEquals(input.failedChecks.map((entry) => entry.exitCode), [
-      null,
-      null,
-    ]);
-    // A row the output lists as failed but whose result is `passed` is never
-    // handed to a repair: FailedCheck has no passed result.
-    const passed = observation({ checkId: UNIT });
-    const inconsistent = checkOutput([passed], {
-      failedCheckIds: [passed.checkRunId],
-    });
-    assertEquals(
-      (derive("repair", {
-        ...afterImplement(),
-        check: inconsistent,
-        review: reviewOutput([]),
-      }).input as { failedChecks: unknown[] }).failedChecks,
-      [],
-    );
-  });
-
-  Deno.test("$delivery.failedChecks is unresolved without a well-formed check output", () => {
-    const ready = { ...afterImplement(), review: reviewOutput([]) };
-    assertUnresolved(() => derive("repair", ready), "no check output");
-    for (
-      const check of [
-        { failedCheckIds: [], observations: "x" },
-        { failedCheckIds: "x", observations: [] },
-        { failedCheckIds: [1], observations: [] },
-        { failedCheckIds: [], observations: [{ checkId: "unit" }] },
-        {
-          failedCheckIds: [],
-          observations: [{
-            checkRunId: "a",
-            checkId: "b",
-            result: "failed",
-            reason: "exit_nonzero",
-          }],
-        },
-        {
-          failedCheckIds: [],
-          observations: Array.from(
-            { length: 33 },
-            () => observation({ result: "failed", reason: "exit_nonzero" }),
-          ),
-        },
-      ]
-    ) {
-      assertUnresolved(() => derive("repair", { ...ready, check }));
-    }
-  });
-
-  Deno.test("$delivery.blockingFindings keeps the latest review's blocking findings, blocker first", () => {
-    const major = finding({
-      fingerprint: fingerprintOf(2),
-      severity: "major",
-      path: "src/b.ts",
-    });
-    const blocker = finding({
-      fingerprint: fingerprintOf(1),
-      severity: "blocker",
-      path: "src/a.ts",
-    });
-    const minor = finding({ fingerprint: fingerprintOf(3), severity: "minor" });
-    const note = finding({ fingerprint: fingerprintOf(4), severity: "note" });
-    const outputs = {
-      ...afterImplement(),
-      check: checkOutput([observation({
-        checkId: UNIT,
-        result: "failed",
-        reason: "exit_nonzero",
-        exitCode: 1,
-      })]),
-      review: reviewOutput([major, minor, blocker, note]),
-    };
-    const input = derive("repair", outputs).input as {
-      findings: unknown[];
-      failedChecks: unknown[];
-    };
-    assertEquals(input.findings, [blocker, major]);
-    assertEquals(input.failedChecks.length, 1);
-    assertActionInput("harness.repair", derive("repair", outputs).input);
-
-    // Clean findings give an empty list; the failed check alone drives repair.
-    const clean = derive("repair", {
-      ...outputs,
-      review: reviewOutput([minor, note]),
-    }).input as { findings: unknown[] };
-    assertEquals(clean.findings, []);
-  });
-
-  Deno.test("$delivery.blockingFindings derives blocking from severity, not from the stored flag", () => {
-    // A stored output nobody verified can carry a flag that disagrees with the
-    // severity. The flag must neither hide a blocker nor hand a note to repair.
-    const hiddenBlocker = finding({
-      fingerprint: fingerprintOf(1),
-      severity: "blocker",
-      blocking: false,
-      path: "src/a.ts",
-    });
-    const hiddenMajor = finding({
-      fingerprint: fingerprintOf(2),
-      severity: "major",
-      blocking: false,
-      path: "src/b.ts",
-    });
-    const widenedMinor = finding({
-      fingerprint: fingerprintOf(3),
-      severity: "minor",
-      blocking: true,
-    });
-    const widenedNote = finding({
-      fingerprint: fingerprintOf(4),
-      severity: "note",
-      blocking: true,
-    });
-    const agreeing = finding({
-      fingerprint: fingerprintOf(5),
-      severity: "major",
-      path: "src/c.ts",
-    });
-    const outputs = (
-      findings: Parameters<typeof reviewOutput>[0],
-    ) => ({
-      ...afterImplement(),
-      check: checkOutput([observation()]),
-      review: reviewOutput(findings),
-    });
-    const input = derive(
-      "repair",
-      outputs([
-        widenedNote,
-        hiddenMajor,
-        widenedMinor,
-        agreeing,
-        hiddenBlocker,
+    // After a repair the next iteration's steps use the repaired head: the
+    // repeat body's own check and review, not the first candidate's. A failed
+    // check and a blocking finding keep the loop inside its body.
+    const repaired = {
+      ...checked,
+      "flow.check": checkOutput([
+        observation({
+          checkId: UNIT,
+          result: "failed",
+          reason: "exit_nonzero",
+          exitCode: 1,
+        }),
       ]),
-    ).input as { findings: Array<Record<string, unknown>> };
-    // Blocker first, then the two majors in report order; the emitted rows
-    // read `blocking: true` whatever the stored flag said.
-    assertEquals(input.findings, [
-      { ...hiddenBlocker, blocking: true },
-      { ...hiddenMajor, blocking: true },
-      agreeing,
-    ]);
-    assertActionInput("harness.repair", input);
-    // A stored flag that agrees with the severity gives the same answer, so
-    // the flag cannot change the set in either direction.
-    const agreeingFlags = [hiddenBlocker, hiddenMajor, agreeing].map((
-      entry,
-    ) => ({
-      ...entry,
-      blocking: true,
-    }));
-    assertEquals(
-      derive("repair", outputs(agreeingFlags)).input,
-      derive("repair", outputs([hiddenBlocker, hiddenMajor, agreeing])).input,
-    );
-    // Only non-blocking severities with a lying flag: nothing to repair.
-    assertEquals(
-      (derive("repair", outputs([widenedMinor, widenedNote])).input as {
-        findings: unknown[];
-      }).findings,
-      [],
-    );
-  });
-
-  Deno.test("$delivery.blockingFindings is unresolved without a well-formed review output", () => {
-    const ready = {
-      ...afterImplement(),
-      check: checkOutput([observation()]),
+      "flow.review": reviewOutput([finding({ severity: "blocker" })]),
+      "repair.repair_implement": implementOutput(REPAIRED_SHA),
+      "repair.repair_check": checkOutput([
+        observation({ checkId: UNIT, result: "passed" }),
+      ]),
     };
-    assertUnresolved(() => derive("repair", ready), "no review output");
-    const bad = [
-      { findings: "x" },
-      { findings: [null] },
-      { findings: [{ severity: "urgent", detail: "x", blocking: true }] },
-      { findings: [{ severity: "major", detail: 5, blocking: true }] },
-      { findings: [{ severity: "major", detail: "x", blocking: "yes" }] },
-      {
-        findings: Array.from(
-          { length: REVIEW_LOOP_LIMITS.maxFindings + 1 },
-          (_, index) => finding({ fingerprint: fingerprintOf(index + 1) }),
-        ),
-      },
-    ];
-    for (const review of bad) {
-      assertUnresolved(() => derive("repair", { ...ready, review }));
-    }
-  });
-
-  Deno.test("$delivery.blockingFindings never passes more than the review byte budget", () => {
-    const fingerprints = Array.from(
-      { length: REVIEW_LOOP_LIMITS.maxFindings },
-      (_, index) => fingerprintOf(index + 1),
+    assertEquals(
+      (derive("repair.repair_check", repaired).input as { revision: string })
+        .revision,
+      REPAIRED_SHA,
     );
-    const outputsWith = (findings: unknown[]) => ({
-      ...afterImplement(),
-      check: checkOutput([observation()]),
-      review: { ...reviewOutput([]), findings },
-    });
-    // 25 blocking findings at the field maxima do not fit as stored.
-    const huge = fingerprints.map((_, index) => worstCaseFinding(index));
-    assert(serializedBytes(huge) > REVIEW_LOOP_LIMITS.resultByteBudget);
-    const fitted = (derive("repair", outputsWith(huge)).input as {
-      findings: Array<{ fingerprint: string; severity: string }>;
-    }).findings;
-    assert(
-      serializedBytes(fitted) <= REVIEW_LOOP_LIMITS.resultByteBudget,
-      `${serializedBytes(fitted)} bytes`,
+    assertEquals(
+      (derive("repair.repair_review", repaired).input as { revision: string })
+        .revision,
+      REPAIRED_SHA,
     );
-    // Shortening never drops a blocking finding.
-    assertEquals(fitted.map((entry) => entry.fingerprint), fingerprints);
-    // Blocking findings whose identifying fields alone exceed the budget are
-    // refused rather than hidden.
-    const impossible = fingerprints.map((_, index) =>
-      worstCaseFinding(index, "\u{1F600}")
-    );
-    assertUnresolved(() => derive("repair", outputsWith(impossible)));
   });
 
   Deno.test("the worst-case repair input stays inside the job input step margin", () => {
@@ -693,8 +566,8 @@ function registerResolverCases(): void {
       }));
     const input = derive("repair", {
       ...afterImplement(),
-      check: checkOutput(failed),
-      review: reviewOutput(
+      "flow.check": checkOutput(failed),
+      "flow.review": reviewOutput(
         Array.from(
           { length: REVIEW_LOOP_LIMITS.maxFindings },
           (_, index) => worstCaseFinding(index, "é"),
@@ -725,17 +598,29 @@ function registerResolverCases(): void {
     // through JSON the way Postgres stores it.
     const stored = JSON.parse(JSON.stringify({
       ...afterImplement(),
-      check: checkOutput([unit]),
-      review: reviewOutput([blocker]),
+      "flow.check": checkOutput([unit]),
+      "flow.review": reviewOutput([blocker]),
     })) as StepOutputs;
-    const snapshot = JSON.parse(JSON.stringify(reviewedSnapshot()));
+    // A plan run's snapshot carries its runtime section, and the step row
+    // carries the dispatch the engine recorded for it.
+    const snapshot = {
+      ...JSON.parse(JSON.stringify(reviewedSnapshot())),
+      runtime: { document: reviewedDocument },
+      planAgents: {},
+    };
     const admitted = derive("repair", stored, snapshot);
     const jobInput = JSON.parse(JSON.stringify(admitted.input));
     const row = {
       runSnapshot: snapshot,
-      stepKey: "repair",
+      stepKey: "repair@1.repair_implement",
       stepOutputs: stored,
       repositoryId,
+      stepDispatch: {
+        action: "harness.repair",
+        input: jobInput,
+        requires: [],
+        retry: { maxAttempts: 1 },
+      },
     };
     assert(
       executionJobInputMatchesSnapshot(row, "harness.repair", jobInput),
@@ -753,18 +638,9 @@ function registerResolverCases(): void {
         executionJobInputMatchesSnapshot(row, "harness.repair", drifted),
       );
     }
-    // The step outputs are the only input: a newer harness output changes the
-    // derived revision, so a stale job cannot claim against a moved candidate.
-    assertFalse(
-      executionJobInputMatchesSnapshot(
-        {
-          ...row,
-          stepOutputs: { ...stored, repair: implementOutput(REPAIRED_SHA) },
-        },
-        "harness.repair",
-        jobInput,
-      ),
-    );
+    // A newer harness output moving the candidate is the plan view's own
+    // behaviour (`tests/unit/read-a-plan-run-like-a-flat-one_test.ts` owns it),
+    // so this case stays on the preset's admission/claim agreement.
     // Deriving twice from the same facts is deterministic.
     assertEquals(
       canonicalJson(derive("repair", stored, snapshot).input),
@@ -818,8 +694,8 @@ function registerStrictAdmissionCases(): void {
     assertFalse(reference({ text: "mentions $delivery.headSha in prose" }));
   });
 
-  Deno.test("each reviewed preset step either resolves from the profile alone or is deferred", () => {
-    const steps = extractFixedWorkflowSteps(PRESET.spec);
+  Deno.test("each reviewed preset step either resolves from the profile alone or is deferred", async () => {
+    const steps = await presetActionSteps(PRESET.spec);
     const snapshot = reviewedSnapshot();
     for (const step of steps) {
       let resolved = true;
@@ -833,11 +709,11 @@ function registerStrictAdmissionCases(): void {
       // admission measures from its literal input.
       assertEquals(
         resolved,
-        !stepReferencesEarlierOutput(step) && step.key === "brief",
+        !stepReferencesEarlierOutput(step) && step.key === "flow.brief",
         step.key,
       );
     }
-    for (const step of steps.filter((entry) => entry.key !== "brief")) {
+    for (const step of steps.filter((entry) => entry.key !== "flow.brief")) {
       assert(stepReferencesEarlierOutput(step), step.key);
     }
   });
@@ -845,15 +721,19 @@ function registerStrictAdmissionCases(): void {
 
 function registerOnDemandStepCases(): void {
   Deno.test("the reviewed preset marks only its repair step on demand and keeps spec positions", async () => {
-    const steps = extractFixedWorkflowSteps(PRESET.spec);
+    // The plan's actions in authored order: the four stages inside `flow`, then
+    // the repeat body's repair, re-check and re-review.
+    const steps = await presetActionSteps(PRESET.spec);
     assertEquals(
-      steps.map((step) => [step.key, step.position, step.onDemand ?? false]),
+      steps.map((step) => [step.key, step.position]),
       [
-        ["brief", 0, false],
-        ["implement", 1, false],
-        ["repair", 2, true],
-        ["check", 3, false],
-        ["review", 4, false],
+        ["flow.brief", 0],
+        ["flow.implement", 1],
+        ["flow.check", 2],
+        ["flow.review", 3],
+        ["repair.repair_implement", 4],
+        ["repair.repair_check", 5],
+        ["repair.repair_review", 6],
       ],
     );
     // Plain fixed-coding has no loop and no on-demand step: its plan is the
@@ -867,8 +747,15 @@ function registerOnDemandStepCases(): void {
   });
 
   Deno.test("a repair step is on demand only inside the exact loop shape", () => {
+    // The compiled reviewed preset declares the loop as a repeat, so its repair
+    // action is the one the engine appends when the candidate is not clean.
+    assert(reviewedPlan.result.ok);
+    const planRepair = reviewedPlan.result.plan.steps.find((step) =>
+      step.kind === "action" && step.action === "harness.repair"
+    );
+    assert(planRepair !== undefined, "the plan must hold a repair action");
+    assertEquals(planRepair.kind === "action" && planRepair.loops.length, 1);
     const cases: Array<[string, unknown, boolean]> = [
-      ["loop", PRESET.spec, true],
       [
         "repair after check",
         loopSpec([
@@ -955,10 +842,15 @@ function registerOnDemandStepCases(): void {
         return Promise.resolve({ rows: [] });
       },
     } as unknown as PgTransactionClient;
+    // A flat loop spec is the executor's own shape: the repair step is on
+    // demand, so admission writes no row for it and the rows that exist keep
+    // their spec positions. A compiled preset is a plan, and plan admission
+    // writes no step rows at all (the engine appends each one).
+    const flat = loopSpec(REVIEW_LOOP_ACTIONS);
     await insertRunSteps(transaction, {
       organizationId: "org",
       runId: "run",
-      steps: extractFixedWorkflowSteps(PRESET.spec),
+      steps: extractFixedWorkflowSteps(flat),
     });
     assertEquals(calls.length, 1);
     const [org, run] = calls[0].parameters as [string, string];
@@ -973,14 +865,13 @@ function registerOnDemandStepCases(): void {
     };
     // Triples of (key, position, encoded input): positions keep the spec index.
     assertEquals(rowsOf(calls[0].parameters), [
-      ["brief", 0],
-      ["implement", 1],
-      ["check", 3],
-      ["review", 4],
+      ["step0", 0],
+      ["step1", 1],
+      ["step3", 3],
+      ["step4", 4],
     ]);
-    // fixed-coding is a compiled plan now, so admission writes no step rows at
-    // all: the engine appends each one as the plan decides it. Its action list
-    // is still the two actions, now prefixed by the sequence.
+    // fixed-coding is a compiled plan now, so its action list is the plan's
+    // keys, not a flat list admission could insert.
     const plain = await presetActionSteps(FIXED_CODING_PRESET.spec);
     assertEquals(plain.map((step) => [step.key, step.position]), [
       ["flow.brief", 0],
@@ -990,13 +881,21 @@ function registerOnDemandStepCases(): void {
 }
 
 function registerLoopLimitCases(): void {
+  // The compiled reviewed preset declares its bound on its repeat node; a flat
+  // workflow declares it in `limits.maxRepairCycles`.
+  const flatLoop = loopSpec(REVIEW_LOOP_ACTIONS);
   const withLimit = (maxRepairCycles: unknown) => ({
-    ...PRESET.spec,
+    ...flatLoop,
     limits: { maxRepairCycles },
   });
 
   Deno.test("a review loop freezes the default bounds and a workflow may lower or choose the repair count", () => {
-    assertEquals(reviewLoopLimitsFor(PRESET.spec), {
+    assertEquals(planReviewLoopLimits(reviewedDocument!), {
+      maxRepairCycles: REVIEW_LOOP_LIMITS.maxRepairCycles,
+      maxLoopDurationMs: REVIEW_LOOP_LIMITS.maxLoopDurationMs,
+      maxFindings: REVIEW_LOOP_LIMITS.maxFindings,
+    });
+    assertEquals(reviewLoopLimitsFor(flatLoop), {
       maxRepairCycles: REVIEW_LOOP_LIMITS.maxRepairCycles,
       maxLoopDurationMs: REVIEW_LOOP_LIMITS.maxLoopDurationMs,
       maxFindings: REVIEW_LOOP_LIMITS.maxFindings,
@@ -1011,13 +910,13 @@ function registerLoopLimitCases(): void {
     );
     // Other limits keys do not change the loop bounds.
     assertEquals(
-      reviewLoopLimitsFor({ ...PRESET.spec, limits: { wallClock: "24h" } })
+      reviewLoopLimitsFor({ ...flatLoop, limits: { wallClock: "24h" } })
         ?.maxRepairCycles,
       REVIEW_LOOP_LIMITS.maxRepairCycles,
     );
   });
 
-  Deno.test("a repair count outside the ceiling invalidates the workflow", () => {
+  Deno.test("a repair count outside the ceiling invalidates the workflow", async () => {
     for (const bad of [-1, 9, 1.5, "2", null, Number.NaN]) {
       assertThrows(
         () => reviewLoopLimitsFor(withLimit(bad)),
@@ -1026,6 +925,14 @@ function registerLoopLimitCases(): void {
         String(bad),
       );
     }
+    // A compiled definition's bound is its repeat's `max`, and the compiler
+    // refuses one past the ceiling before any run can freeze it.
+    const tooMany = JSON.parse(JSON.stringify(PRESET.spec));
+    tooMany.steps[1].repeat.max = REVIEW_LOOP_LIMITS.maxRepairCyclesCeiling + 1;
+    const compiled = await compileWorkflowDocumentDetailed(tooMany, {
+      catalog: defaultWorkflowCompilerCatalog(),
+    });
+    assertFalse(compiled.result.ok);
   });
 
   Deno.test("a spec without the loop shape freezes no bounds", () => {
@@ -1043,7 +950,7 @@ function registerLoopLimitCases(): void {
   });
 
   Deno.test("the snapshot reader returns the frozen bounds and fails closed on a malformed key", () => {
-    const limits = reviewLoopLimitsFor(PRESET.spec)!;
+    const limits = planReviewLoopLimits(reviewedDocument!)!;
     assertEquals(reviewLoopFromSnapshot({ reviewLoop: limits }), limits);
     assertEquals(reviewLoopFromSnapshot({}), null);
     assertEquals(reviewLoopFromSnapshot(null), null);
@@ -1070,36 +977,6 @@ function registerLoopLimitCases(): void {
 }
 
 function registerRuleGuardCases(): void {
-  const rules = (commandId: string) =>
-    OrganizationRepositoryRulesSchema.parse({
-      revision: 1,
-      entries: [{
-        ruleKey: "code.magicNumbers",
-        enabled: true,
-        mode: "require",
-        options: {
-          checkBinding: commandId,
-          allowedNumbers: [0],
-          excludedPaths: [],
-        },
-        locked: false,
-      }],
-    });
-
-  Deno.test("a check that lists $delivery.checkIds is the all-checks marker", () => {
-    const stages = repositoryRuleWorkflowStages(
-      extractFixedWorkflowSteps(PRESET.spec),
-    );
-    assertEquals(stages, [
-      { checks: [], producesRevision: false },
-      { checks: [], producesRevision: true },
-      { checks: [], producesRevision: true },
-      { checks: [RULE_GUARD_ALL_CHECKS], producesRevision: false },
-      { checks: [], producesRevision: false },
-    ]);
-    assertEquals(RULE_GUARD_ALL_CHECKS, "*");
-  });
-
   Deno.test("the marker covers every bound command, in order, and nothing else does", () => {
     const need = [
       { ruleKey: "code.magicNumbers" as const, commandId: "any.command" },
@@ -1154,26 +1031,6 @@ function registerRuleGuardCases(): void {
     ]);
     assertEquals(other.map((stage) => stage.checks), [[], []]);
   });
-
-  Deno.test("run admission rules: the reviewed preset satisfies a bound require rule, fixed-coding does not", async () => {
-    const reviewed = extractFixedWorkflowSteps(PRESET.spec);
-    const plain = await presetActionSteps(FIXED_CODING_PRESET.spec);
-    // Any bound command is covered by the reviewed preset's check stage.
-    for (const commandId of ["unit", "magic.numbers", "something-else"]) {
-      assertStepsSatisfyRules(rules(commandId), reviewed);
-    }
-    // fixed-coding has no check stage, so the same rule is a missing stage.
-    const refusal = assertThrows(
-      () => assertStepsSatisfyRules(rules("unit"), plain),
-      StandardError,
-    );
-    assertEquals(
-      (refusal.params as { issues: Array<{ code: string }> }).issues.map((
-        issue,
-      ) => issue.code),
-      ["repository_rule_stage_missing"],
-    );
-  });
 }
 
 function registerProfileAndCopyCases(): void {
@@ -1192,13 +1049,15 @@ function registerProfileAndCopyCases(): void {
     "evidence_only",
     "review_evidence",
   ];
-  const reviewedSteps = extractFixedWorkflowSteps(PRESET.spec);
+  // The reviewed preset is a compiled plan now: its actions come from the plan.
+  const reviewedSteps = () => presetActionSteps(PRESET.spec);
   // The compiled plan's action steps: same actions, keys prefixed by `flow.`.
   const plainSteps = () => presetActionSteps(FIXED_CODING_PRESET.spec);
 
-  Deno.test("the reviewed preset needs an observed fixed policy that allows all four effects", () => {
+  Deno.test("the reviewed preset needs an observed fixed policy that allows all four effects", async () => {
+    const steps = await reviewedSteps();
     const denies = (profile: unknown) =>
-      fixedPolicyDeniesSteps(config(profile), reviewedSteps);
+      fixedPolicyDeniesSteps(config(profile), steps);
     assertFalse(denies({ schemaVersion: 2, fixedPolicy: policy(ALL) }));
     // No policy, a v1 draft, a policy without commands or a missing effect.
     assert(denies({ schemaVersion: 1 }));

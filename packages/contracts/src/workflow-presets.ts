@@ -120,30 +120,6 @@ export type WorkflowPresetDefinition = Readonly<{
   stages: readonly WorkflowStageDefinition[];
 }>;
 
-const FIXED_CODING_SPEC: WorkflowPresetSpec = Object.freeze({
-  kind: "fixed",
-  workflow: Object.freeze({ kind: "fixed" as const }),
-  steps: Object.freeze([
-    Object.freeze({
-      id: "brief",
-      uses: "task.brief",
-      with: Object.freeze({
-        brief: "$input.brief",
-        repositoryId: "$task.repositoryId",
-      }),
-    }),
-    Object.freeze({
-      id: "implement",
-      uses: "harness.implement",
-      with: Object.freeze({
-        repositoryId: "$task.repositoryId",
-        planArtifact: "$step.brief.artifact.versionId",
-        instructions: "$input.instructions",
-      }),
-    }),
-  ]),
-});
-
 /** Longest instruction text, in UTF-16 code units, the implement step accepts. */
 export const IMPLEMENT_INSTRUCTIONS_MAX_LENGTH = 4000;
 
@@ -304,41 +280,141 @@ const FIXED_CODING_STAGES = FIXED_CODING_PRESET.stages;
  * `$delivery.*` references resolved from the frozen snapshot and the recorded
  * step outputs.
  */
-const FIXED_CODING_REVIEWED_SPEC: WorkflowPresetSpec = Object.freeze({
-  kind: "fixed",
-  workflow: Object.freeze({ kind: "fixed" as const }),
-  steps: Object.freeze([
-    ...FIXED_CODING_SPEC.steps,
-    Object.freeze({
-      id: "repair",
-      uses: "harness.repair",
-      with: Object.freeze({
-        repositoryId: "$task.repositoryId",
-        revision: DELIVERY_REFERENCES.headSha,
-        findings: DELIVERY_REFERENCES.blockingFindings,
-        failedChecks: DELIVERY_REFERENCES.failedChecks,
-      }),
+
+/**
+ * `fixed-coding-reviewed` in the published grammar: the same two stages, then a
+ * check and an independent review, then the bounded repair loop of chapter 6 as
+ * a repeat whose body repairs, checks and reviews again until the candidate is
+ * clean. It reads the checks the pinned profile binds through `$delivery`, so a
+ * run of it is a plan the engine decides, like `fixed-coding`.
+ */
+export const FIXED_CODING_REVIEWED_DEFINITION: WorkflowPresetDocument = Object
+  .freeze({
+    apiVersion: "bakery.dev/v1" as const,
+    kind: "workflow" as const,
+    name: "fixed-coding-reviewed",
+    description:
+      "Freeze the brief, implement it, then check, review and repair it a bounded number of times.",
+    inputs: Object.freeze({
+      repositoryId: Object.freeze({ type: "uuid", required: true }),
+      brief: Object.freeze({ type: "TaskBrief", required: true }),
+      instructions: Object.freeze({ type: "string", required: true }),
     }),
-    Object.freeze({
-      id: "check",
-      uses: "quality.check",
-      with: Object.freeze({
-        repositoryId: "$task.repositoryId",
-        revision: DELIVERY_REFERENCES.headSha,
-        checks: DELIVERY_REFERENCES.checkIds,
+    steps: Object.freeze([
+      Object.freeze({
+        id: "flow",
+        steps: Object.freeze([
+          Object.freeze({
+            id: "brief",
+            uses: "task.brief",
+            with: Object.freeze({
+              brief: "$input.brief",
+              repositoryId: "$input.repositoryId",
+            }),
+          }),
+          Object.freeze({
+            id: "implement",
+            needs: Object.freeze(["brief"]),
+            uses: "harness.implement",
+            with: Object.freeze({
+              repositoryId: "$input.repositoryId",
+              planArtifact: "$step.flow.brief.artifact.versionId",
+              instructions: "$input.instructions",
+            }),
+          }),
+          Object.freeze({
+            id: "check",
+            needs: Object.freeze(["implement"]),
+            uses: "quality.check",
+            with: Object.freeze({
+              repositoryId: "$input.repositoryId",
+              revision: "$step.flow.implement.headSha",
+              checks: "$delivery.checkIds",
+            }),
+          }),
+          Object.freeze({
+            id: "review",
+            needs: Object.freeze(["check"]),
+            uses: "review.independent",
+            with: Object.freeze({
+              repositoryId: "$input.repositoryId",
+              revision: "$step.flow.implement.headSha",
+              evidence: "$step.flow.check.checkRunIds",
+            }),
+          }),
+        ]),
       }),
-    }),
-    Object.freeze({
-      id: "review",
-      uses: "review.independent",
-      with: Object.freeze({
-        repositoryId: "$task.repositoryId",
-        revision: DELIVERY_REFERENCES.headSha,
-        evidence: "$step.check.checkRunIds",
+      Object.freeze({
+        id: "repair",
+        needs: Object.freeze(["flow"]),
+        repeat: Object.freeze({
+          max: 2,
+          seed: Object.freeze({
+            currentCandidate: Object.freeze({
+              headSha: "$step.flow.implement.headSha",
+              baseSha: "$step.flow.check.baseSha",
+              policyDigest: "$step.flow.check.policyDigest",
+              checksPassed: "$step.flow.check.allRequired",
+              blockingFindings: "$step.flow.review.blockingFindings",
+              reviewId: "$step.flow.review.reviewId",
+              findings: "$step.flow.review.findings",
+              checkRunIds: "$step.flow.check.checkRunIds",
+              failedCheckIds: "$step.flow.check.failedCheckIds",
+            }),
+          }),
+          until:
+            "$repeat.currentCandidate.blockingFindings == 0 && $repeat.currentCandidate.checksPassed == true",
+          steps: Object.freeze([
+            Object.freeze({
+              id: "repair_implement",
+              uses: "harness.repair",
+              with: Object.freeze({
+                repositoryId: "$input.repositoryId",
+                revision: "$repeat.currentCandidate.headSha",
+                // `$delivery` carries the repair input's own schemas, so the
+                // read and the field it fills agree by construction.
+                findings: "$delivery.blockingFindings",
+                failedChecks: "$delivery.failedChecks",
+              }),
+            }),
+            Object.freeze({
+              id: "repair_check",
+              needs: Object.freeze(["repair_implement"]),
+              uses: "quality.check",
+              with: Object.freeze({
+                repositoryId: "$input.repositoryId",
+                revision: "$step.repair.repair_implement.headSha",
+                checks: "$delivery.checkIds",
+              }),
+            }),
+            Object.freeze({
+              id: "repair_review",
+              needs: Object.freeze(["repair_check"]),
+              uses: "review.independent",
+              with: Object.freeze({
+                repositoryId: "$input.repositoryId",
+                revision: "$step.repair.repair_implement.headSha",
+                evidence: "$step.repair.repair_check.checkRunIds",
+              }),
+            }),
+          ]),
+          outputs: Object.freeze({
+            currentCandidate: Object.freeze({
+              headSha: "$step.repair.repair_implement.headSha",
+              baseSha: "$step.repair.repair_check.baseSha",
+              policyDigest: "$step.repair.repair_check.policyDigest",
+              checksPassed: "$step.repair.repair_check.allRequired",
+              blockingFindings: "$step.repair.repair_review.blockingFindings",
+              reviewId: "$step.repair.repair_review.reviewId",
+              findings: "$step.repair.repair_review.findings",
+              checkRunIds: "$step.repair.repair_check.checkRunIds",
+              failedCheckIds: "$step.repair.repair_check.failedCheckIds",
+            }),
+          }),
+        }),
       }),
-    }),
-  ]),
-});
+    ]),
+  });
 
 /**
  * The fixed coding workflow with an independent review and a bounded repair
@@ -349,33 +425,79 @@ const FIXED_CODING_REVIEWED_SPEC: WorkflowPresetSpec = Object.freeze({
 export const FIXED_CODING_REVIEWED_PRESET: WorkflowPresetDefinition = Object
   .freeze({
     id: "fixed-coding-reviewed",
-    revision: 1,
+    revision: 2,
     slug: "preset:fixed-coding-reviewed",
     nameKey: "workflowPresets.fixedCodingReviewed.name",
     defaultBudgetLimitUsd: "12.00",
-    digest: "865035049a6b7cb147618eadcd43366ae4a315747af337d7f23e0a90f1135f6c",
+    digest: "4d58f2ae7bf98aa4fa7a51b2e087266e0e4c6985baa785eb2bdb985e4908b4b2",
     sourceYaml: [
-      "kind: fixed",
-      "workflow: { kind: fixed }",
+      "apiVersion: bakery.dev/v1",
+      "kind: workflow",
+      "name: fixed-coding-reviewed",
+      "description: Freeze the brief, implement it, then check, review and repair it a bounded number of times.",
+      "inputs:",
+      "  repositoryId: { type: uuid, required: true }",
+      "  brief: { type: TaskBrief, required: true }",
+      "  instructions: { type: string, required: true }",
       "steps:",
-      "  - id: brief",
-      "    uses: task.brief",
-      "    with: { brief: $input.brief, repositoryId: $task.repositoryId }",
-      "  - id: implement",
-      "    uses: harness.implement",
-      "    with: { repositoryId: $task.repositoryId, planArtifact: $step.brief.artifact.versionId, instructions: $input.instructions }",
+      "  - id: flow",
+      "    steps:",
+      "      - id: brief",
+      "        uses: task.brief",
+      "        with: { brief: $input.brief, repositoryId: $input.repositoryId }",
+      "      - id: implement",
+      "        needs: [brief]",
+      "        uses: harness.implement",
+      "        with: { repositoryId: $input.repositoryId, planArtifact: $step.flow.brief.artifact.versionId, instructions: $input.instructions }",
+      "      - id: check",
+      "        needs: [implement]",
+      "        uses: quality.check",
+      "        with: { repositoryId: $input.repositoryId, revision: $step.flow.implement.headSha, checks: $delivery.checkIds }",
+      "      - id: review",
+      "        needs: [check]",
+      "        uses: review.independent",
+      "        with: { repositoryId: $input.repositoryId, revision: $step.flow.implement.headSha, evidence: $step.flow.check.checkRunIds }",
       "  - id: repair",
-      "    uses: harness.repair",
-      "    with: { repositoryId: $task.repositoryId, revision: $delivery.headSha, findings: $delivery.blockingFindings, failedChecks: $delivery.failedChecks }",
-      "  - id: check",
-      "    uses: quality.check",
-      "    with: { repositoryId: $task.repositoryId, revision: $delivery.headSha, checks: $delivery.checkIds }",
-      "  - id: review",
-      "    uses: review.independent",
-      "    with: { repositoryId: $task.repositoryId, revision: $delivery.headSha, evidence: $step.check.checkRunIds }",
-      "",
+      "    needs: [flow]",
+      "    repeat:",
+      "      max: 2",
+      "      seed:",
+      "        currentCandidate:",
+      "          headSha: $step.flow.implement.headSha",
+      "          baseSha: $step.flow.check.baseSha",
+      "          policyDigest: $step.flow.check.policyDigest",
+      "          checksPassed: $step.flow.check.allRequired",
+      "          blockingFindings: $step.flow.review.blockingFindings",
+      "          reviewId: $step.flow.review.reviewId",
+      "          findings: $step.flow.review.findings",
+      "          checkRunIds: $step.flow.check.checkRunIds",
+      "          failedCheckIds: $step.flow.check.failedCheckIds",
+      "      until: $repeat.currentCandidate.blockingFindings == 0 && $repeat.currentCandidate.checksPassed == true",
+      "      steps:",
+      "        - id: repair_implement",
+      "          uses: harness.repair",
+      "          with: { repositoryId: $input.repositoryId, revision: $repeat.currentCandidate.headSha, findings: $delivery.blockingFindings, failedChecks: $delivery.failedChecks }",
+      "        - id: repair_check",
+      "          needs: [repair_implement]",
+      "          uses: quality.check",
+      "          with: { repositoryId: $input.repositoryId, revision: $step.repair.repair_implement.headSha, checks: $delivery.checkIds }",
+      "        - id: repair_review",
+      "          needs: [repair_check]",
+      "          uses: review.independent",
+      "          with: { repositoryId: $input.repositoryId, revision: $step.repair.repair_implement.headSha, evidence: $step.repair.repair_check.checkRunIds }",
+      "      outputs:",
+      "        currentCandidate:",
+      "          headSha: $step.repair.repair_implement.headSha",
+      "          baseSha: $step.repair.repair_check.baseSha",
+      "          policyDigest: $step.repair.repair_check.policyDigest",
+      "          checksPassed: $step.repair.repair_check.allRequired",
+      "          blockingFindings: $step.repair.repair_review.blockingFindings",
+      "          reviewId: $step.repair.repair_review.reviewId",
+      "          findings: $step.repair.repair_review.findings",
+      "          checkRunIds: $step.repair.repair_check.checkRunIds",
+      "          failedCheckIds: $step.repair.repair_check.failedCheckIds",
     ].join("\n"),
-    spec: FIXED_CODING_REVIEWED_SPEC,
+    spec: FIXED_CODING_REVIEWED_DEFINITION,
     stages: FIXED_CODING_STAGES,
   });
 
