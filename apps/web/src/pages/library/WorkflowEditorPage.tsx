@@ -104,6 +104,7 @@ export function WorkflowEditorPage(
   );
   const [saveState, setSaveState] = useState<SaveState>({ kind: "saved" });
   const [codeOpen, setCodeOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
   const lastSaved = useRef<string>("");
 
   // A different version being edited starts the editor again.
@@ -155,6 +156,37 @@ export function WorkflowEditorPage(
       void queryClient.invalidateQueries({ queryKey: ["protected"] });
     },
     onError: () => setSaveState({ kind: "failed" }),
+  });
+
+  // Publishing the draft, and optionally making it the version in use: two
+  // forms of one action, decided by the button the person presses.
+  const publish = useMutation({
+    mutationKey: ["workflowVersions.publish"],
+    mutationFn: async (alsoUse: boolean) => {
+      if (draft === null) throw new Error("no draft version");
+      const published = await api.publishWorkflowVersion({
+        organizationId: scope.organizationId as string,
+        workflowId,
+        versionId: draft.id,
+        expectedDigest: draft.digest,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      if (!published.ok) throw published.error;
+      if (!alsoUse) return published.data;
+      const used = await api.activateWorkflowVersion({
+        organizationId: scope.organizationId as string,
+        id: workflowId,
+        versionId: published.data.id,
+        version: workflow.data?.version ?? 0,
+        idempotencyKey: crypto.randomUUID(),
+      });
+      if (!used.ok) throw used.error;
+      return published.data;
+    },
+    onSuccess: () => {
+      setPublishOpen(false);
+      void queryClient.invalidateQueries({ queryKey: ["protected"] });
+    },
   });
 
   const steps = editor.steps;
@@ -326,6 +358,12 @@ export function WorkflowEditorPage(
               >
                 {translate("library.editor.viewAsCode" as never)}
               </UI.Button>
+              <UI.Button
+                variant="primary"
+                onClick={() => setPublishOpen(true)}
+              >
+                {translate("library.editor.publish" as never)}
+              </UI.Button>
             </UI.Inline>
           </ShellSlot>
         )
@@ -342,6 +380,70 @@ export function WorkflowEditorPage(
       />
       {back}
       {body}
+      {publishOpen && draft !== null
+        ? (
+          <UI.AlertDialog
+            open
+            variant="destructive"
+            title={changed
+              ? translate("library.editor.publish.title" as never)
+              : translate("library.editor.publish.nothing" as never)}
+            state={publish.isPending ? "confirming" : "open"}
+            onOpenChange={(open) => {
+              if (!open) setPublishOpen(false);
+            }}
+            cancelAction={
+              <UI.Button
+                variant="outline"
+                disabled={publish.isPending}
+                onClick={() => setPublishOpen(false)}
+              >
+                {changed
+                  ? translate("library.editor.publish.cancel" as never)
+                  : translate("library.editor.publish.close" as never)}
+              </UI.Button>
+            }
+            confirmAction={changed
+              ? (
+                <UI.Inline gap="compact">
+                  <UI.Button
+                    variant="secondary"
+                    disabled={publish.isPending}
+                    loading={publish.isPending}
+                    onClick={() => publish.mutate(false)}
+                  >
+                    {translate("library.editor.publish.only" as never)}
+                  </UI.Button>
+                  <UI.Button
+                    variant="primary"
+                    disabled={publish.isPending}
+                    onClick={() => publish.mutate(true)}
+                  >
+                    {translate("library.editor.publish.andUse" as never)}
+                  </UI.Button>
+                </UI.Inline>
+              )
+              : undefined}
+          >
+            {changed
+              ? (
+                <UI.Stack gap="tight">
+                  <UI.Text>
+                    {translate("library.editor.publish.body" as never)}
+                  </UI.Text>
+                  <UI.Text variant="muted">
+                    {translate("library.workflow.steps.never" as never)}
+                  </UI.Text>
+                </UI.Stack>
+              )
+              : (
+                <UI.Text>
+                  {translate("library.editor.publish.nothingBody" as never)}
+                </UI.Text>
+              )}
+          </UI.AlertDialog>
+        )
+        : null}
       {codeOpen && draft !== null
         ? (
           <UI.Dialog

@@ -3856,5 +3856,10 @@
   "library.editor.save.tryAgain": "Try again",
   "library.editor.viewAsCode": "View as code",
   "library.editor.version.inUse": "Version {version} is in use",
-  "library.editor.version.draft": "Nothing is in use yet"
+  "library.editor.version.draft": "Nothing is in use yet",
+  "library.editor.publish.nothing": "Nothing to publish",
+  "library.editor.publish.nothingBody": "The steps have not changed since this draft was saved, so there is nothing to publish.",
+  "library.editor.publish.only": "Publish only",
+  "library.editor.publish.andUse": "Publish and use",
+  "library.editor.publish.close": "Close"
 }

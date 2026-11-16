@@ -1240,6 +1240,15 @@ export type BakeryApiClient = {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }) => Promise<ApiResult<WorkflowVersionResponse>>;
+  /** Publishes a draft version (its digest expected back, so a stale page cannot publish). */
+  readonly publishWorkflowVersion: (options: {
+    readonly organizationId: string;
+    readonly workflowId: string;
+    readonly versionId: string;
+    readonly expectedDigest: string;
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }) => Promise<ApiResult<WorkflowVersionResponse>>;
   /** Saves this workflow's draft version (PATCH, with the version's own If-Match). */
   readonly updateWorkflowVersion: (options: {
     readonly organizationId: string;
@@ -4229,6 +4238,28 @@ export function createBakeryApiClient({
       try {
         const data = await client.actions["workflowVersions.create"](
           { id: options.workflowId, ...options.input },
+          {
+            idempotencyKey: options.idempotencyKey,
+            signal: options.signal,
+          },
+        );
+        return { ok: true, data };
+      } catch (error) {
+        return failed(error);
+      } finally {
+        organizationId = undefined;
+      }
+    },
+
+    async publishWorkflowVersion(options) {
+      organizationId = options.organizationId;
+      try {
+        const data = await client.actions["workflowVersions.publish"](
+          {
+            id: options.workflowId,
+            versionId: options.versionId,
+            expectedDigest: options.expectedDigest,
+          },
           {
             idempotencyKey: options.idempotencyKey,
             signal: options.signal,
