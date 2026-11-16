@@ -3859,5 +3859,15 @@
   "library.editor.howItStartsLine": "⟪From a task⟫",
   "library.editor.startsByHand": "⟪Someone picks this workflow when they start a task.⟫",
   "library.editor.ready": "⟪Ready to publish⟫",
-  "library.editor.problems": "⟪{count} problems⟫"
+  "library.editor.problems": "⟪{count} problems⟫",
+  "library.editor.group.noSteps": "⟪No steps⟫",
+  "library.editor.panel.codeOnly": "⟪This part of the workflow is written in code. You cannot change it here.⟫",
+  "library.editor.unreadable.title": "⟪Bakery cannot draw this workflow's steps⟫",
+  "library.editor.unreadable.body": "⟪The steps are written in a way Bakery cannot read. Open the code to see them.⟫",
+  "library.editor.problem.unknown": "⟪Bakery does not know this kind of step.⟫",
+  "library.editor.problem.unreadable": "⟪Bakery cannot read this step.⟫",
+  "library.editor.problem.stepsUnreadable": "⟪The steps cannot be read.⟫",
+  "library.editor.problem.one": "⟪1 problem⟫",
+  "library.editor.problem.showMe": "⟪Show me⟫",
+  "library.editor.problem.list": "⟪Problems to fix⟫"
 }

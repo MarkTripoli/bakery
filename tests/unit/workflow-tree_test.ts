@@ -111,3 +111,63 @@ Deno.test("a node that is not an object is drawn as unreadable, and nothing cras
   assertEquals(treeOf({}).stepCount, 0);
   assertEquals(treeOf(null).stepCount, 0);
 });
+
+Deno.test("an empty arm is still drawn, so a person can tell it from a missing one", () => {
+  // design-ux's ruling (comment 6917906748): both arms of a condition are
+  // always drawn, and a group with no steps inside keeps its place.
+  const tree = treeOf({
+    steps: [{ kind: "branch", then: [step("yes-1")], else: [] }],
+  });
+  assertEquals(tree.nodes.length, 2);
+  const arms = tree.nodes.map((node) =>
+    node.kind === "group" ? [node.label, node.children.length] : null
+  );
+  assertEquals(arms, [["yes", 1], ["otherwise", 0]]);
+  const parallel = treeOf({ steps: [{ kind: "parallel", lanes: [] }] });
+  assertEquals(parallel.nodes.length, 1);
+  assertEquals(parallel.stepCount, 0);
+});
+
+Deno.test("a step with no id and no type is drawn as unreadable, not dropped", () => {
+  const tree = treeOf({ steps: [{ kind: "action" }] });
+  assertEquals(tree.nodes.length, 1);
+  const card = tree.nodes[0];
+  assertEquals(card.kind === "step" ? card.problem : null, "unreadable");
+  assertEquals(tree.stepCount, 1);
+});
+
+Deno.test("a step Bakery knows but the picker does not offer is edited in code", () => {
+  // A type the "Add a step" list does not offer, and a step carrying a setting
+  // the panel cannot show, are drawn as cards marked "Edited in code" — not as
+  // problems, and never as ordinary editable steps.
+  const codeOnly = treeOf({
+    steps: [step("brief", "task.brief"), step("add", "harness.implement")],
+  });
+  assertEquals(
+    stepsOfTree(codeOnly).map((one) => one.codeOnly === true),
+    [true, false],
+  );
+  const ownIf = treeOf({
+    steps: [{ ...step("add", "harness.implement"), if: { kind: "literal" } }],
+  });
+  assertEquals(stepsOfTree(ownIf)[0].codeOnly, true);
+  const customRetry = treeOf({
+    steps: [{
+      ...step("add", "harness.implement"),
+      retry: { maxAttempts: 3, backoffMs: 1000, on: [] },
+    }],
+  });
+  assertEquals(stepsOfTree(customRetry)[0].codeOnly, true);
+});
+
+Deno.test("only an unreadable list of steps draws no steps at all", () => {
+  // Case 3 of the ruling: the page says so in a notice. An empty list is a new
+  // workflow, not an unreadable one.
+  assertEquals(treeOf({}).unreadable, true);
+  assertEquals(treeOf(null).unreadable, true);
+  assertEquals(treeOf({ steps: "written in code" }).unreadable, true);
+  const empty = treeOf({ steps: [] });
+  assertEquals(empty.unreadable, false);
+  assertEquals(empty.nodes.length, 0);
+  assertEquals(empty.straightLine, true);
+});

@@ -594,9 +594,12 @@ for (
       await page.getByTestId("step-picker").getByRole("button", {
         name: "Review",
       }).click();
+      // The step the picker added is the one slice 1 can move: a step type the
+      // picker does not offer (task.brief) is drawn "Edited in code" and its
+      // panel offers no Move or Remove (design-ux's ruling, comment 6917906748).
       await page
         .locator("[data-card]")
-        .filter({ hasText: "Write the task brief" })
+        .filter({ hasText: "Review" })
         .getByRole("button")
         .first()
         .click();
@@ -604,13 +607,13 @@ for (
         name: "The selected step",
       });
       await expect(panel).toBeVisible();
-      await expect(panel.getByRole("button", { name: "Move down" }))
+      await expect(panel.getByRole("button", { name: "Move up" }))
         .toBeEnabled();
       await page.mouse.move(600, 700);
       await shot(page, "workflow-editor-card-selected");
-      await panel.getByRole("button", { name: "Move down" }).click();
-      await expect(page.locator("[data-card]").nth(2)).toContainText(
-        "Write the task brief",
+      await panel.getByRole("button", { name: "Move up" }).click();
+      await expect(page.locator("[data-card]").nth(1)).toContainText(
+        "Review",
       );
       // The draft saves after the person stops; the header says so.
       // The draft save is a PATCH on the draft version, with its own If-Match.
@@ -740,13 +743,196 @@ test("the leave warning is armed only while a change is unsaved", async ({ page 
 
 test("a step with a problem keeps its card and shows the sentence", async ({ page }) => {
   // (4) the problem card: the report's pointer lands on its step, and the card
-  // stays a card with the sentence under it.
-  await libraryFixture(page, { ...WORLD, validation: "errors" });
+  // stays a card with the sentence under it. The warning points at the drawn
+  // step, so the chip counts it and its row can select that card.
+  await libraryFixture(page, { ...WORLD, validation: "warnings" });
   await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
   await expect(page.locator("[data-card='start']")).toBeVisible();
   await expect(page.locator("[data-card]").nth(1)).toContainText(
-    "The action is not registered.",
+    "The step runs a model but no agent is bound.",
   );
+  const chip = page.getByTestId("editor-problems");
+  await expect(chip).toHaveText("1 problem");
+  await chip.click();
+  const list = page.getByTestId("editor-problem-list");
+  await expect(list).toContainText(
+    "The step runs a model but no agent is bound.",
+  );
+  await list.getByRole("button", { name: "Show me" }).click();
+  await expect(
+    page.getByRole("complementary", { name: "The selected step" }),
+  ).toBeVisible();
   await page.mouse.move(600, 700);
   await shot(page, "workflow-editor-card-problem");
 });
+
+test("a problem that points at no drawn step is counted and answered in code", async ({ page }) => {
+  // design-ux's ruling: a checker problem with no place in the drawing is in
+  // the chip and has no card, so its row offers "View as code" — never a
+  // "Show me" that selects nothing.
+  await libraryFixture(page, { ...WORLD, validation: "errors" });
+  await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+  await expect(page.locator("[data-card='start']")).toBeVisible();
+  const chip = page.getByTestId("editor-problems");
+  await expect(chip).toHaveText("2 problems");
+  await chip.click();
+  const list = page.getByTestId("editor-problem-list");
+  await expect(list).toContainText("The action is not registered.");
+  await expect(list).toContainText("A required field is missing.");
+  await expect(list.getByRole("button", { name: "Show me" })).toHaveCount(0);
+  await expect(list.getByRole("button", { name: "View as code" }))
+    .toHaveCount(2);
+  await page.mouse.move(600, 700);
+  await shot(page, "workflow-editor-problems-list");
+});
+
+/**
+ * design-ux's ruling on the three cases a definition can be in (issue 67
+ * comment 6917906748): a part only changeable in code is marked, an unreadable
+ * step keeps a card, and a definition whose steps cannot be read says so in
+ * place of the drawing. Nothing is ever dropped.
+ */
+const RULED: Options = {
+  ...WORLD,
+  versions: [
+    ...VERSIONS.filter((row) => row.status !== "draft"),
+    {
+      ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+      spec: [
+        { kind: "action", id: "brief", uses: "task.brief" },
+        { kind: "action", id: "add", uses: "harness.implement" },
+        {
+          kind: "branch",
+          then: [],
+          else: [{ kind: "action", id: "rev", uses: "agent.review" }],
+        },
+        { kind: "wait" },
+        { kind: "repeat", steps: [] },
+      ],
+    },
+  ],
+};
+
+const UNREADABLE: Options = {
+  ...WORLD,
+  versions: [
+    ...VERSIONS.filter((row) => row.status !== "draft"),
+    {
+      ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+      spec: "written in code",
+    },
+  ],
+};
+
+for (
+  const viewport of [
+    { name: "desktop", width: 1440, height: 900 },
+    { name: "phone", width: 390, height: 844 },
+  ]
+) {
+  test.describe(`${viewport.name}: the ruled three cases`, () => {
+    test.use({ viewport: { width: viewport.width, height: viewport.height } });
+
+    test("a part only changeable in code is marked and is not a problem", async ({ page }) => {
+      await libraryFixture(page, RULED);
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      const brief = page.locator("[data-card='brief']");
+      await expect(brief).toContainText("Write the task brief");
+      await expect(brief).toContainText("Edited in code");
+      // A known type the picker does not offer is not a problem.
+      await expect(brief).not.toContainText("Needs setup");
+      // Groups are marked the same way, and an empty one keeps its place.
+      await expect(page.locator("[data-group='yes']")).toContainText(
+        "Edited in code",
+      );
+      await expect(page.locator("[data-group='yes']")).toContainText(
+        "No steps",
+      );
+      // Labels are the ruling's words, not the old ones.
+      await expect(page.locator("[data-group='wait']")).toContainText("Wait");
+      await expect(page.locator("[data-group='repeat']")).toContainText(
+        "Repeat",
+      );
+      // Nothing above is a problem: the chip says the workflow is ready.
+      await expect(page.getByTestId("editor-problems")).toHaveText(
+        "Ready to publish",
+      );
+      // Selecting a code-only step offers the code, never Move or Remove.
+      await brief.getByRole("button").first().click();
+      const panel = page.getByRole("complementary", {
+        name: "The selected step",
+      });
+      await expect(panel).toContainText(
+        "This part of the workflow is written in code.",
+      );
+      await expect(panel.getByRole("button", { name: "View as code" }))
+        .toBeVisible();
+      await expect(panel.getByRole("button", { name: "Remove" })).toHaveCount(
+        0,
+      );
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-editor-code-only");
+    });
+
+    test("a step with no id and no type keeps a card and one problem", async ({ page }) => {
+      // Case 2 of the ruling: an unreadable step is a card marked "Needs setup",
+      // one chip problem, and "Show me" selects it.
+      await libraryFixture(page, {
+        ...WORLD,
+        versions: [
+          ...VERSIONS.filter((row) => row.status !== "draft"),
+          {
+            ...version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
+            spec: [{ kind: "action" }],
+          },
+        ],
+      });
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      const card = page.locator("[data-card^='unreadable']");
+      await expect(card).toContainText("Unreadable step");
+      await expect(card).toContainText("Needs setup");
+      const chip = page.getByTestId("editor-problems");
+      await expect(chip).toHaveText("1 problem");
+      await chip.click();
+      const list = page.getByTestId("editor-problem-list");
+      await expect(list).toContainText("Bakery cannot read this step.");
+      await list.getByRole("button", { name: "Show me" }).click();
+      await expect(
+        page.getByRole("complementary", { name: "The selected step" }),
+      ).toContainText("Bakery cannot read this step.");
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-editor-unreadable-step");
+    });
+
+    test("steps that cannot be read are said in place of the drawing", async ({ page }) => {
+      await libraryFixture(page, UNREADABLE);
+      await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+      await expect(page.locator("[data-card='start']")).toBeVisible();
+      const notice = page.locator('[data-ui-region="workflow-diagram"]');
+      await expect(notice).toContainText(
+        "Bakery cannot draw this workflow's steps",
+      );
+      await expect(notice).toContainText(
+        "The steps are written in a way Bakery cannot read. Open the code to see them.",
+      );
+      await expect(notice.getByRole("button", { name: "View as code" }))
+        .toBeVisible();
+      // No "+" under the start card: there is nothing to add to.
+      await expect(page.getByRole("button", { name: /Add a step after/ }))
+        .toHaveCount(0);
+      // One problem, and its row can only be answered in the code.
+      const chip = page.getByTestId("editor-problems");
+      await expect(chip).toHaveText("1 problem");
+      await chip.click();
+      const list = page.getByTestId("editor-problem-list");
+      await expect(list).toContainText("The steps cannot be read.");
+      await expect(list.getByRole("button", { name: "View as code" }))
+        .toBeVisible();
+      await expect(list.getByRole("button", { name: "Show me" })).toHaveCount(
+        0,
+      );
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-editor-steps-unreadable");
+    });
+  });
+}

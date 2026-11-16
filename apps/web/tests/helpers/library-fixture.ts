@@ -29,6 +29,8 @@ export type VersionRow = {
   revision: number;
   status: "draft" | "published" | "retired";
   steps: { id: string; uses: string; agentVersionId?: string }[];
+  /** The definition's own `steps` value, when a test needs nodes beyond plain actions. */
+  spec?: unknown;
   /** The workflow's agent bindings by action. */
   agents?: Record<string, string>;
   createdAt?: string;
@@ -132,7 +134,7 @@ const versionBody = (row: VersionRow) => ({
   normalizedSpec: {
     kind: "fixed",
     workflow: { kind: "fixed" },
-    steps: row.steps,
+    steps: row.spec ?? row.steps,
     ...(row.agents ? { agents: row.agents } : {}),
   },
   digest: String(row.revision).padStart(2, "0").repeat(32),

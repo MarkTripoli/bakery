@@ -116,6 +116,22 @@ export function exportFileName(slug: string, revision: number): string {
 }
 
 /**
+ * The step types the editor's "Add a step" list offers, in the order the
+ * design lists them (design-ux, #67). A type Bakery knows but this list does
+ * not offer is drawn as a card marked "Edited in code".
+ */
+export const PICKER_STEPS: readonly string[] = [
+  "rpi.research",
+  "rpi.design",
+  "rpi.plan",
+  "harness.implement",
+  "harness.repair",
+  "quality.check",
+  "review.independent",
+  "delivery.merge",
+];
+
+/**
  * The names of the actions a step can run: the workflow editor spec's, so the
  * Library and the editor say the same thing (design-ux, #432). An action with
  * no name here keeps showing its own identifier.

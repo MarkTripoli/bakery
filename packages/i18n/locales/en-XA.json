@@ -3859,5 +3859,15 @@
   "library.editor.howItStartsLine": "⟦Ƒŕôɱ à ŧàšķ ŧ⟧",
   "library.editor.startsByHand": "⟦Šôɱëôñë þïçķš ŧĥïš ŵôŕķƒļôŵ ŵĥëñ ŧĥëÿ šŧàŕŧ à ŧàšķ. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "library.editor.ready": "⟦Ŕëàðÿ ŧô þûƀļïšĥ ŧëš⟧",
-  "library.editor.problems": "⟦{count} þŕôƀļëɱš ŧëš⟧"
+  "library.editor.problems": "⟦{count} þŕôƀļëɱš ŧëš⟧",
+  "library.editor.group.noSteps": "⟦Ñô šŧëþš…⟧",
+  "library.editor.panel.codeOnly": "⟦Ŧĥïš þàŕŧ ôƒ ŧĥë ŵôŕķƒļôŵ ïš ŵŕïŧŧëñ ïñ çôðë. Ÿôû çàññôŧ çĥàñĝë ïŧ ĥëŕë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
+  "library.editor.unreadable.title": "⟦Ɓàķëŕÿ çàññôŧ ðŕàŵ ŧĥïš ŵôŕķƒļôŵ'š šŧëþš ŧëšŧ çôþÿ ŧ⟧",
+  "library.editor.unreadable.body": "⟦Ŧĥë šŧëþš àŕë ŵŕïŧŧëñ ïñ à ŵàÿ Ɓàķëŕÿ çàññôŧ ŕëàð. Ôþëñ ŧĥë çôðë ŧô šëë ŧĥëɱ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "library.editor.problem.unknown": "⟦Ɓàķëŕÿ ðôëš ñôŧ ķñôŵ ŧĥïš ķïñð ôƒ šŧëþ. ŧëšŧ çôþÿ ŧ⟧",
+  "library.editor.problem.unreadable": "⟦Ɓàķëŕÿ çàññôŧ ŕëàð ŧĥïš šŧëþ. ŧëšŧ çôþ⟧",
+  "library.editor.problem.stepsUnreadable": "⟦Ŧĥë šŧëþš çàññôŧ ƀë ŕëàð. ŧëšŧ ç⟧",
+  "library.editor.problem.one": "⟦1 þŕôƀļëɱ ŧ⟧",
+  "library.editor.problem.showMe": "⟦Šĥôŵ ɱë…⟧",
+  "library.editor.problem.list": "⟦Þŕôƀļëɱš ŧô ƒïẋ ŧëš⟧"
 }

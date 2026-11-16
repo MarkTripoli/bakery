@@ -53,7 +53,7 @@ export function StepCard(
     <button
       {...props}
       aria-controls={selected ? controls : undefined}
-      aria-expanded={selected}
+      aria-expanded={controls === undefined ? undefined : selected}
       className={[
         "ui-step-card",
         selected ? "ui-step-card--selected" : "",
