@@ -92,6 +92,51 @@ export type ApprovalStatus =
 
 export type ApprovalChoice = "approve" | "request_changes" | "reject";
 
+/** A pull request as the delivery section reads it, before one is chosen. */
+export type DeliveryPullRequest = Readonly<{
+  id: string;
+  /** The run that opened it, else null when it was registered without one. */
+  runId: string | null;
+  providerNumber: number;
+  url: string;
+  status: PullRequestStatus;
+  mergedSha: string | null;
+  createdAt: string;
+}>;
+
+/** The three statuses `PullRequest.status` carries; there are no others. */
+export type PullRequestStatus = "open" | "merged" | "closed";
+
+/**
+ * The "After approval" group: the pull request this trace ends at, the merge
+ * GitHub confirmed for it, and the section badge that follows from both.
+ */
+export type AfterApproval = Readonly<{
+  /** The pull request shown, else null when the task has none recorded. */
+  pullRequest:
+    | Readonly<{
+      providerNumber: number;
+      url: string;
+      status: PullRequestStatus;
+      /** The merge commit GitHub reported, else null. */
+      mergedSha: string | null;
+    }>
+    | null;
+  /** Other pull requests this task has, shown as "and {n} earlier". */
+  earlier: number;
+  badge: AfterApprovalBadge;
+}>;
+
+/**
+ * `waitingForMerge` while the pull request is open, `merged` only once a merge
+ * commit is recorded, `notMerged` when it was closed, else `approved`.
+ */
+export type AfterApprovalBadge =
+  | "waitingForMerge"
+  | "merged"
+  | "notMerged"
+  | "approved";
+
 /** A run-stage approval as the delivery section reads it. */
 export type DeliveryApproval = Readonly<{
   id: string;
@@ -151,6 +196,8 @@ export function approvalsForRun(
 }
 
 export type DeliveryInput = Readonly<{
+  /** The run this section is about; selects the pull request it opened. */
+  runId: string;
   checks: readonly DeliveryCheck[];
   reviews: readonly DeliveryReview[];
   /** The findings of the latest review cycle, as the server lists them. */
@@ -164,6 +211,11 @@ export type DeliveryInput = Readonly<{
   revisionHeadSha: string | null;
   /** The run's base sha (`workspaceBaseSha`, else `baseSha`). */
   baseSha: string | null;
+  /**
+   * The task's pull requests, as `pullRequests.list` returns them (oldest
+   * first). Choosing this run's one is the model's job, not the read's.
+   */
+  pullRequests: readonly DeliveryPullRequest[];
   paused: boolean;
 }>;
 
@@ -262,6 +314,8 @@ export type DeliveryModel = Readonly<{
   >;
   /** The approval asked about the latest decision, else null. */
   approval: ApprovalView | null;
+  /** The pull request and merge the trace ends at (the design's group). */
+  afterApproval: AfterApproval;
   now: NowCard;
 }>;
 
@@ -298,6 +352,42 @@ export function findingTitle(body: string): string {
   const line = body.split("\n").find((entry) => entry.trim() !== "")?.trim() ??
     "";
   return line.length > 80 ? `${line.slice(0, 79)}…` : line;
+}
+
+/**
+ * The pull request the trace ends at: this run's own when the read names one,
+ * else the task's most recent (registered without a run), else none. Other
+ * pull requests of the task are counted, never listed, and nothing is derived
+ * that the read did not report.
+ */
+export function afterApproval(
+  pullRequests: readonly DeliveryPullRequest[],
+  runId: string,
+): AfterApproval {
+  const ordered = [...pullRequests].sort(byCreatedAt);
+  const chosen = ordered.filter((entry) => entry.runId === runId).at(-1) ??
+    ordered.at(-1);
+  if (chosen === undefined) {
+    return { pullRequest: null, earlier: 0, badge: "approved" };
+  }
+  return {
+    pullRequest: {
+      providerNumber: chosen.providerNumber,
+      url: chosen.url,
+      status: chosen.status,
+      mergedSha: chosen.mergedSha,
+    },
+    earlier: Math.max(0, pullRequests.length - 1),
+    // Never "merged" without the merge commit GitHub reported, and never
+    // "merged" for a pull request that was closed instead.
+    badge: chosen.status === "open"
+      ? "waitingForMerge"
+      : chosen.status === "closed"
+      ? "notMerged"
+      : chosen.mergedSha === null
+      ? "approved"
+      : "merged",
+  };
 }
 
 function approvalState(approval: DeliveryApproval): ApprovalState {
@@ -424,6 +514,7 @@ export function deliveryModel(input: DeliveryInput): DeliveryModel {
     review,
     fixing,
     approval,
+    afterApproval: afterApproval(input.pullRequests, input.runId),
     now: nowCard({
       input,
       latestDecision,

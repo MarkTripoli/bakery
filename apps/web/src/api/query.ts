@@ -48,6 +48,7 @@ import type {
   OrganizationRepositoryRulesResponse,
   OrganizationRepositoryRuleVersionListResponse,
   PlanRevisionListResponse,
+  PullRequestListResponse,
   QuestionListResponse,
   RepositoryEffectiveRulesResponse,
   RepositoryListResponse,
@@ -2200,6 +2201,31 @@ export function approvalsQueryOptions(
     queryFn: async ({ signal }) =>
       unwrap(
         await client.listApprovals({
+          organizationId: requireOrganization(scope),
+          taskId,
+          limit: 25,
+          signal,
+        }),
+      ),
+    retry: retryNetworkOnce,
+  });
+}
+
+/**
+ * The task's pull requests, oldest first. Read by task rather than by run: a
+ * pull request registered without a run would never match a run filter, and
+ * choosing this run's one is the view model's job.
+ */
+export function pullRequestsQueryOptions(
+  client: Pick<BakeryApiClient, "listPullRequests">,
+  scope: ApiScope,
+  taskId: string,
+) {
+  return queryOptions<PullRequestListResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "pullRequests.list", { taskId }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.listPullRequests({
           organizationId: requireOrganization(scope),
           taskId,
           limit: 25,

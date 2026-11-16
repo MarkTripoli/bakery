@@ -7,6 +7,7 @@ import {
   type DeliveryFinding,
   type DeliveryInput,
   deliveryModel,
+  type DeliveryPullRequest,
   type DeliveryReview,
   findingTitle,
   type ListedApproval,
@@ -14,6 +15,8 @@ import {
 
 const OLD = "4be19c2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const NEW = "91d0aa3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const RUN = "3f0d1c2e-0000-4000-8000-0000000000a1";
+const OTHER_RUN = "3f0d1c2e-0000-4000-8000-0000000000b2";
 
 const check = (
   over: Partial<DeliveryCheck> & Pick<DeliveryCheck, "id" | "checkId">,
@@ -63,11 +66,13 @@ const decision = (
 });
 
 const input = (over: Partial<DeliveryInput> = {}): DeliveryInput => ({
+  runId: RUN,
   checks: [],
   reviews: [],
   findings: [],
   decisions: [],
   approvals: [],
+  pullRequests: [],
   approvalsUnavailable: false,
   revisionHeadSha: null,
   baseSha: "a7254e7cccccccccccccccccccccccccccccccc",
@@ -613,4 +618,76 @@ Deno.test("a failed approvals read says nothing while the run is still being che
     approvalsUnavailable: true,
   }));
   assertEquals(model.now, { kind: "checking" });
+});
+
+// ---- the "After approval" group: the pull request and the merge GitHub saw.
+
+const pullRequest = (
+  over:
+    & Partial<DeliveryPullRequest>
+    & Pick<DeliveryPullRequest, "providerNumber">,
+): DeliveryPullRequest => ({
+  id: `p${over.providerNumber}`,
+  runId: null,
+  url: `https://github.com/o/r/pull/${over.providerNumber}`,
+  status: "open",
+  mergedSha: null,
+  createdAt: `2026-11-13T10:0${over.providerNumber}:00.000Z`,
+  ...over,
+});
+
+Deno.test("no pull request recorded reads as unknown, never as merged", () => {
+  const { afterApproval } = deliveryModel(clean({}));
+  assertEquals(afterApproval.pullRequest, null);
+  assertEquals(afterApproval.earlier, 0);
+  assertEquals(afterApproval.badge, "approved");
+});
+
+Deno.test("this run's pull request wins over a newer one from another run", () => {
+  const { afterApproval } = deliveryModel(clean({
+    pullRequests: [
+      pullRequest({ providerNumber: 1, runId: RUN, status: "open" }),
+      pullRequest({ providerNumber: 2, runId: OTHER_RUN, status: "merged" }),
+    ],
+  }));
+  assertEquals(afterApproval.pullRequest?.providerNumber, 1);
+  assertEquals(afterApproval.earlier, 1);
+  assertEquals(afterApproval.badge, "waitingForMerge");
+});
+
+Deno.test("a task whose pull requests carry no run shows the most recent", () => {
+  const { afterApproval } = deliveryModel(clean({
+    pullRequests: [
+      pullRequest({ providerNumber: 4, status: "closed" }),
+      pullRequest({ providerNumber: 5, status: "open" }),
+    ],
+  }));
+  assertEquals(afterApproval.pullRequest?.providerNumber, 5);
+  assertEquals(afterApproval.earlier, 1);
+});
+
+Deno.test("the badge never says merged without the merge commit GitHub reported", () => {
+  const merged = pullRequest({
+    providerNumber: 7,
+    status: "merged",
+    mergedSha: "9be04c1dddddddddddddddddddddddddddddddd",
+  });
+  assertEquals(
+    deliveryModel(clean({ pullRequests: [merged] })).afterApproval.badge,
+    "merged",
+  );
+  assertEquals(
+    deliveryModel(clean({
+      pullRequests: [{ ...merged, mergedSha: null }],
+    })).afterApproval.badge,
+    "approved",
+  );
+});
+
+Deno.test("a pull request closed without merging is not merged", () => {
+  const { afterApproval } = deliveryModel(clean({
+    pullRequests: [pullRequest({ providerNumber: 9, status: "closed" })],
+  }));
+  assertEquals(afterApproval.pullRequest?.status, "closed");
+  assertEquals(afterApproval.badge, "notMerged");
 });

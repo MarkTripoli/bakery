@@ -281,6 +281,14 @@ const SEVERITY_TONE = {
   note: "neutral",
 } as const;
 
+/** The badge beside "Delivery" once the work is approved, and the tone it takes. */
+const AFTER_APPROVAL_TONE = {
+  waitingForMerge: "information",
+  merged: "success",
+  notMerged: "warning",
+  approved: "neutral",
+} as const;
+
 export function DeliverySectionView(
   {
     decisionPhase,
@@ -297,12 +305,25 @@ export function DeliverySectionView(
 ) {
   const { translate: t } = useI18n();
   const heading = t("tasks.delivery.heading");
+  // The badge is the verdict on the whole trace, so it appears with the group
+  // that ends it: never before the work is approved.
+  const approved = model?.approval?.state === "approved";
   return (
     <UI.PaneSection
       aria-label={heading}
       data-testid="delivery-section"
       heading="strong"
       title={heading}
+      trailing={!approved || model === null ? undefined : (
+        <UI.Badge
+          data-testid="delivery-outcome-badge"
+          tone={AFTER_APPROVAL_TONE[model.afterApproval.badge]}
+        >
+          {t(
+            `tasks.delivery.afterApproval.badge.${model.afterApproval.badge}` as MessageKey,
+          )}
+        </UI.Badge>
+      )}
     >
       <UI.Stack>
         <UI.Text>{t("tasks.delivery.purpose")}</UI.Text>
@@ -741,7 +762,29 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
   const { translate: t } = useI18n();
   const [showAllChecks, setShowAllChecks] = useState(false);
   const [showAllFindings, setShowAllFindings] = useState(false);
+  const [copied, setCopied] = useState<"idle" | "copied" | "failed">("idle");
+  useEffect(() => {
+    if (copied !== "copied") return;
+    const timer = globalThis.setTimeout(() => setCopied("idle"), 2500);
+    return () => globalThis.clearTimeout(timer);
+  }, [copied]);
   const { checks, review, fixing } = model;
+  // The group ends the trace, so it appears once the work is approved and
+  // never before (design rule 5).
+  const after = model.approval?.state === "approved"
+    ? model.afterApproval
+    : null;
+  const pullRequest = after?.pullRequest ?? null;
+  const mergeCommit = pullRequest?.mergedSha ?? null;
+  const copyMergeCommit = async () => {
+    if (mergeCommit === null) return;
+    try {
+      await navigator.clipboard.writeText(mergeCommit);
+      setCopied("copied");
+    } catch {
+      setCopied("failed");
+    }
+  };
 
   const changesSummary = model.headSha === null
     ? t("tasks.delivery.changes.preparing")
@@ -795,55 +838,113 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
   );
 
   return (
-    <UI.StepList label={t("tasks.delivery.steps")}>
-      <UI.StepItem
-        status={model.headSha === null ? "running" : "done"}
-        statusLabel={label(model.headSha === null ? "running" : "done")}
-        summary={changesSummary}
-        title={t("tasks.delivery.changes.title")}
-      />
-      <UI.StepItem
-        status={checksStatus}
-        statusLabel={label(checksStatus)}
-        summary={checks.rows.length === 0
-          ? t("tasks.delivery.checks.none")
-          : olderRows.length > 0 && headShort !== null
-          ? t("tasks.delivery.checks.runningAgain", { sha: headShort })
-          : failedAny
-          ? t("tasks.delivery.checks.failedOf", {
-            failed: checks.failed,
-            total: checks.total,
-          })
-          : t("tasks.delivery.checks.passedOf", {
-            passed: checks.passed,
-            total: checks.total,
-          })}
-        title={<>{t("tasks.delivery.checks.title")}{helpTip("checks")}</>}
-      >
-        {checksStatus === "done" || checks.rows.length === 0
-          ? null
-          : (
+    <>
+      <UI.StepList label={t("tasks.delivery.steps")}>
+        <UI.StepItem
+          status={model.headSha === null ? "running" : "done"}
+          statusLabel={label(model.headSha === null ? "running" : "done")}
+          summary={changesSummary}
+          title={t("tasks.delivery.changes.title")}
+        />
+        <UI.StepItem
+          status={checksStatus}
+          statusLabel={label(checksStatus)}
+          summary={checks.rows.length === 0
+            ? t("tasks.delivery.checks.none")
+            : olderRows.length > 0 && headShort !== null
+            ? t("tasks.delivery.checks.runningAgain", { sha: headShort })
+            : failedAny
+            ? t("tasks.delivery.checks.failedOf", {
+              failed: checks.failed,
+              total: checks.total,
+            })
+            : t("tasks.delivery.checks.passedOf", {
+              passed: checks.passed,
+              total: checks.total,
+            })}
+          title={<>{t("tasks.delivery.checks.title")}{helpTip("checks")}</>}
+        >
+          {checksStatus === "done" || checks.rows.length === 0
+            ? null
+            : (
+              <UI.Stack gap="compact">
+                {shownChecks.map((row) => (
+                  <UI.Text key={row.id}>
+                    {row.name} {row.olderSha === null
+                      ? (
+                        <UI.Badge tone={CHECK_TONE[row.result]}>
+                          {t(CHECK_LABEL[row.result])}
+                        </UI.Badge>
+                      )
+                      : (
+                        <UI.Badge>
+                          {t(OLDER_RESULT_LABEL[row.result], {
+                            sha: row.olderSha,
+                          })}
+                        </UI.Badge>
+                      )}
+                  </UI.Text>
+                ))}
+                {!showAllChecks && sortedChecks.length > SHOWN && (
+                  <UI.Button
+                    onClick={() => setShowAllChecks(true)}
+                    variant="text"
+                  >
+                    {t("tasks.delivery.showAll")}
+                  </UI.Button>
+                )}
+              </UI.Stack>
+            )}
+        </UI.StepItem>
+        <UI.StepItem
+          status={reviewStatus}
+          statusLabel={label(reviewStatus)}
+          summary={review === null ? t("tasks.delivery.review.none") : (
+            <>
+              {review.status === "approved"
+                ? t("tasks.delivery.review.approved", { count: review.others })
+                : review.status === "running"
+                ? t("tasks.delivery.review.running")
+                : review.status === "failed"
+                ? t("tasks.delivery.review.failed")
+                : review.others === 0
+                ? t("tasks.delivery.review.changesBlockingOnly", {
+                  blocking: review.blocking,
+                })
+                : t("tasks.delivery.review.changes", {
+                  blocking: review.blocking,
+                  others: review.others,
+                })}
+              {review.olderSha !== null && (
+                <>
+                  {" "}
+                  <UI.Badge>
+                    {t("tasks.delivery.olderCommit", { sha: review.olderSha })}
+                  </UI.Badge>
+                </>
+              )}
+            </>
+          )}
+          title={<>{t("tasks.delivery.review.title")}{helpTip("review")}</>}
+        >
+          {findings.length === 0 ? null : (
             <UI.Stack gap="compact">
-              {shownChecks.map((row) => (
-                <UI.Text key={row.id}>
-                  {row.name} {row.olderSha === null
-                    ? (
-                      <UI.Badge tone={CHECK_TONE[row.result]}>
-                        {t(CHECK_LABEL[row.result])}
-                      </UI.Badge>
-                    )
-                    : (
-                      <UI.Badge>
-                        {t(OLDER_RESULT_LABEL[row.result], {
-                          sha: row.olderSha,
-                        })}
-                      </UI.Badge>
-                    )}
+              {shownFindings.map((finding) => (
+                <UI.Text key={finding.id}>
+                  <UI.Badge tone={SEVERITY_TONE[finding.severity]}>
+                    {t(SEVERITY_LABEL[finding.severity])}
+                  </UI.Badge>{" "}
+                  {finding.body}{" "}
+                  <UI.DataText variant="code">
+                    {finding.line === null
+                      ? finding.path
+                      : `${finding.path}:${finding.line}`}
+                  </UI.DataText>
                 </UI.Text>
               ))}
-              {!showAllChecks && sortedChecks.length > SHOWN && (
+              {!showAllFindings && findings.length > SHOWN && (
                 <UI.Button
-                  onClick={() => setShowAllChecks(true)}
+                  onClick={() => setShowAllFindings(true)}
                   variant="text"
                 >
                   {t("tasks.delivery.showAll")}
@@ -851,113 +952,159 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
               )}
             </UI.Stack>
           )}
-      </UI.StepItem>
-      <UI.StepItem
-        status={reviewStatus}
-        statusLabel={label(reviewStatus)}
-        summary={review === null ? t("tasks.delivery.review.none") : (
-          <>
-            {review.status === "approved"
-              ? t("tasks.delivery.review.approved", { count: review.others })
-              : review.status === "running"
-              ? t("tasks.delivery.review.running")
-              : review.status === "failed"
-              ? t("tasks.delivery.review.failed")
-              : review.others === 0
-              ? t("tasks.delivery.review.changesBlockingOnly", {
-                blocking: review.blocking,
-              })
-              : t("tasks.delivery.review.changes", {
-                blocking: review.blocking,
-                others: review.others,
-              })}
-            {review.olderSha !== null && (
-              <>
-                {" "}
-                <UI.Badge>
-                  {t("tasks.delivery.olderCommit", { sha: review.olderSha })}
-                </UI.Badge>
-              </>
+        </UI.StepItem>
+        {fixing !== null && (
+          <UI.StepItem
+            status={fixing.stopped
+              ? "failed"
+              : fixing.running
+              ? "running"
+              : "done"}
+            statusLabel={label(
+              fixing.stopped ? "failed" : fixing.running ? "running" : "done",
             )}
-          </>
+            summary={fixing.stopped
+              ? t("tasks.delivery.fixing.stopped", {
+                attempt: fixing.attempt,
+                count: fixing.blocking,
+              })
+              : fixing.running
+              ? t("tasks.delivery.fixing.running", {
+                attempt: fixing.attempt,
+                max: fixing.max,
+              })
+              : t("tasks.delivery.fixing.done", {
+                attempt: fixing.attempt,
+                max: fixing.max,
+              })}
+            title={
+              <>
+                {t("tasks.delivery.fixing.title")}
+                {helpTip("fixing", { max: fixing.max })}
+              </>
+            }
+          />
         )}
-        title={<>{t("tasks.delivery.review.title")}{helpTip("review")}</>}
-      >
-        {findings.length === 0 ? null : (
-          <UI.Stack gap="compact">
-            {shownFindings.map((finding) => (
-              <UI.Text key={finding.id}>
-                <UI.Badge tone={SEVERITY_TONE[finding.severity]}>
-                  {t(SEVERITY_LABEL[finding.severity])}
-                </UI.Badge>{" "}
-                {finding.body}{" "}
-                <UI.DataText variant="code">
-                  {finding.line === null
-                    ? finding.path
-                    : `${finding.path}:${finding.line}`}
-                </UI.DataText>
-              </UI.Text>
-            ))}
-            {!showAllFindings && findings.length > SHOWN && (
-              <UI.Button
-                onClick={() => setShowAllFindings(true)}
-                variant="text"
+        {model.approval !== null && (
+          <UI.StepItem
+            data-testid="delivery-approval-step"
+            status={APPROVAL_STEP[model.approval.state].status}
+            statusLabel={APPROVAL_STEP[model.approval.state].label === null
+              ? label(APPROVAL_STEP[model.approval.state].status)
+              : t(APPROVAL_STEP[model.approval.state].label as MessageKey)}
+            summary={t(
+              `tasks.delivery.approval.step.${model.approval.state}` as MessageKey,
+            )}
+            title={
+              <>
+                {t("tasks.delivery.approval.title")}
+                {helpTip("approval")}
+              </>
+            }
+          />
+        )}
+        {after !== null && (
+          <UI.StepItem
+            action={pullRequest === null ? undefined : (
+              <UI.Link
+                href={pullRequest.url}
+                rel="noreferrer"
+                target="_blank"
+                variant="button"
               >
-                {t("tasks.delivery.showAll")}
+                {t("tasks.delivery.afterApproval.openOnGitHub")}
+                <span aria-hidden="true">↗</span>
+              </UI.Link>
+            )}
+            data-testid="delivery-pull-request-step"
+            group={t("tasks.delivery.afterApproval.group")}
+            status={pullRequest === null
+              ? "unknown"
+              : pullRequest.status === "closed"
+              ? "failed"
+              : "done"}
+            statusLabel={label(
+              pullRequest === null
+                ? "unknown"
+                : pullRequest.status === "closed"
+                ? "failed"
+                : "done",
+            )}
+            summary={pullRequest === null
+              ? t("tasks.delivery.afterApproval.pullRequest.none")
+              : pullRequest.status === "open"
+              ? t("tasks.delivery.afterApproval.pullRequest.open", {
+                number: pullRequest.providerNumber,
+              })
+              : pullRequest.status === "merged"
+              ? t("tasks.delivery.afterApproval.pullRequest.merged", {
+                number: pullRequest.providerNumber,
+              })
+              : t("tasks.delivery.afterApproval.pullRequest.closed", {
+                number: pullRequest.providerNumber,
+              })}
+            title={t("tasks.delivery.afterApproval.pullRequest.title")}
+          >
+            {after.earlier === 0 ? null : (
+              // The design asks for a link that lists the other pull requests.
+              // There is no such list yet, and a link to nowhere is worse than a
+              // count, so this stays plain text until the list exists.
+              <UI.Text variant="muted">
+                {t("tasks.delivery.afterApproval.earlier", {
+                  count: after.earlier,
+                })}
+              </UI.Text>
+            )}
+          </UI.StepItem>
+        )}
+        {after !== null && (
+          <UI.StepItem
+            action={mergeCommit === null ? undefined : (
+              <UI.Button
+                onClick={() => void copyMergeCommit()}
+                type="button"
+                variant="secondary"
+              >
+                {t(
+                  copied === "copied"
+                    ? "tasks.delivery.afterApproval.merge.copied"
+                    : copied === "failed"
+                    ? "tasks.delivery.afterApproval.merge.copyFailed"
+                    : "tasks.delivery.afterApproval.merge.copy",
+                )}
               </UI.Button>
             )}
-          </UI.Stack>
+            data-testid="delivery-merge-step"
+            status={mergeCommit !== null
+              ? "done"
+              : pullRequest === null || pullRequest.status === "merged"
+              ? "unknown"
+              : "upcoming"}
+            statusLabel={label(
+              mergeCommit !== null
+                ? "done"
+                : pullRequest === null || pullRequest.status === "merged"
+                ? "unknown"
+                : "upcoming",
+            )}
+            summary={mergeCommit !== null
+              ? t("tasks.delivery.afterApproval.merge.merged", {
+                commit: mergeCommit.slice(0, 7),
+              })
+              : pullRequest === null || pullRequest.status === "merged"
+              ? t("tasks.delivery.afterApproval.merge.unknown")
+              : pullRequest.status === "open"
+              ? t("tasks.delivery.afterApproval.merge.notYet")
+              : t("tasks.delivery.afterApproval.merge.notMerged")}
+            title={t("tasks.delivery.afterApproval.merge.title")}
+          />
         )}
-      </UI.StepItem>
-      {fixing !== null && (
-        <UI.StepItem
-          status={fixing.stopped
-            ? "failed"
-            : fixing.running
-            ? "running"
-            : "done"}
-          statusLabel={label(
-            fixing.stopped ? "failed" : fixing.running ? "running" : "done",
-          )}
-          summary={fixing.stopped
-            ? t("tasks.delivery.fixing.stopped", {
-              attempt: fixing.attempt,
-              count: fixing.blocking,
-            })
-            : fixing.running
-            ? t("tasks.delivery.fixing.running", {
-              attempt: fixing.attempt,
-              max: fixing.max,
-            })
-            : t("tasks.delivery.fixing.done", {
-              attempt: fixing.attempt,
-              max: fixing.max,
-            })}
-          title={
-            <>
-              {t("tasks.delivery.fixing.title")}
-              {helpTip("fixing", { max: fixing.max })}
-            </>
-          }
-        />
+      </UI.StepList>
+      {after === null ? null : (
+        <UI.Text variant="muted">
+          {t("tasks.delivery.afterApproval.note")}
+        </UI.Text>
       )}
-      {model.approval !== null && (
-        <UI.StepItem
-          status={APPROVAL_STEP[model.approval.state].status}
-          statusLabel={APPROVAL_STEP[model.approval.state].label === null
-            ? label(APPROVAL_STEP[model.approval.state].status)
-            : t(APPROVAL_STEP[model.approval.state].label as MessageKey)}
-          summary={t(
-            `tasks.delivery.approval.step.${model.approval.state}` as MessageKey,
-          )}
-          title={
-            <>
-              {t("tasks.delivery.approval.title")}
-              {helpTip("approval")}
-            </>
-          }
-        />
-      )}
-    </UI.StepList>
+    </>
   );
 }
