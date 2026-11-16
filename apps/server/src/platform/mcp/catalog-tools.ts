@@ -304,7 +304,9 @@ export function createMcpCatalogTools(options: {
           };
         }
       }
-      seeds.set(request, { principal } as ActionContextSeed);
+      // Marked so the authority refuses a session-only action even if one is ever
+      // dispatched here: the skip above is a catalog decision, not enforcement.
+      seeds.set(request, { principal, transport: "mcp" } as ActionContextSeed);
       const response = await routerFor.get(tool.action)!(request);
       const text = await response.text();
       if (new TextEncoder().encode(text).byteLength > MAX_TOOL_RESULT_BYTES) {

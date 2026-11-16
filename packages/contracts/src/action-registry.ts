@@ -112,6 +112,14 @@ export type ActionContext = {
    */
   sessionId?: string;
   /**
+   * How the request reached the action. `mcp` marks a tool call dispatched by
+   * the MCP catalog runner, which authenticates with an MCP principal and
+   * carries neither a browser session nor an access token: a session-only
+   * action must be refused for it on that ground alone (issue 287), not only
+   * because the catalog declines to publish session-only actions as tools.
+   */
+  transport?: "http" | "mcp";
+  /**
    * The organization-bound access token that authenticated this request, when
    * one did. Scopes only narrow the principal's live permissions.
    */

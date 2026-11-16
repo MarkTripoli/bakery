@@ -471,7 +471,14 @@ export class PostgresAuthorityRunner implements ActionAuthorityRunner {
       : undefined;
 
     const token = context.accessToken;
-    if (token !== undefined && action.policy.sessionOnly === true) {
+    // A session-only action needs a browser session. A bearer token is refused,
+    // and so is an MCP tool call: it carries an MCP principal, no session and no
+    // token, so without this it would pass on the absence of a token (issue 287).
+    const dispatchedByMcp = context.transport === "mcp";
+    if (
+      (token !== undefined || dispatchedByMcp) &&
+      action.policy.sessionOnly === true
+    ) {
       throw new StandardError({ code: "SESSION_REQUIRED" });
     }
     if (token !== undefined) {
