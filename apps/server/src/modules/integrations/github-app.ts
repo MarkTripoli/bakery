@@ -2135,7 +2135,13 @@ export function createFetchGitHubAppClient(
       }
       if (status !== 200) return { kind: "refused", status };
       const parsed = GitHubMergeResponseSchema.safeParse(body);
-      if (!parsed.success || parsed.data.merged !== true) {
+      if (!parsed.success) {
+        // A 200 whose body we cannot read may still follow a merge GitHub
+        // performed: uncertainty the caller reconciles, never a refusal that
+        // invites a second request.
+        return { kind: "unknown" };
+      }
+      if (parsed.data.merged !== true) {
         return { kind: "refused", status };
       }
       // GitHub answering 200 without a merge commit proves the merge but not

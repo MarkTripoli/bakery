@@ -83,6 +83,17 @@ Deno.test("a merge GitHub answers 200 on without merging is still a refusal", as
   assertEquals(await github.merge(), { kind: "refused", status: 200 });
 });
 
+Deno.test("a 200 whose body cannot be read is unknown, never a refusal", async () => {
+  // The status says GitHub took the request; the body is our only proof of
+  // whether it merged. Unreadable, that proof is missing, so the caller must
+  // reconcile rather than treat it as a refusal and send a second request.
+  const github = scripted(() =>
+    Promise.resolve(new Response("not json", { status: 200 }))
+  );
+  assertEquals(await github.merge(), { kind: "unknown" });
+  assertEquals(github.seen.length, 1);
+});
+
 Deno.test("a lost answer is unknown, never a silent failure and never a retry", async () => {
   // A dropped connection: the request may have arrived, so nothing here says
   // the merge did not happen.
