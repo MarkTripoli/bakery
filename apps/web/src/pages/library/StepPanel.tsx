@@ -12,6 +12,7 @@ import { ACTION_LINES, ACTION_TITLES } from "./workflow-state.ts";
 export function StepPanel(
   {
     uses,
+    code,
     problem,
     canMoveUp,
     canMoveDown,
@@ -21,6 +22,8 @@ export function StepPanel(
     onRemove,
   }: {
     readonly uses: string;
+    /** What the definition states, when the step could not be drawn as an action. */
+    readonly code: string | undefined;
     readonly problem: string | undefined;
     readonly canMoveUp: boolean;
     readonly canMoveDown: boolean;
@@ -83,6 +86,13 @@ export function StepPanel(
               {problem}
             </UI.InlineNotice>
           )}
+        {code === undefined ? null : (
+          <UI.Text variant="caption">
+            {translate("library.editor.card.writtenInCode" as never, {
+              code,
+            })}
+          </UI.Text>
+        )}
       </UI.Stack>
     </UI.InspectorPanel>
   );
