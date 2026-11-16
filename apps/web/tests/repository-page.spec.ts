@@ -1246,6 +1246,8 @@ test.describe("a locked repository's versions", () => {
     await expect(
       page.getByTestId("profile-version-2").getByRole("button"),
     ).toHaveCount(0);
+    await page.mouse.move(700, 700);
+    await shot(page, "locked-branch-versions", [], { windowOnly: true });
   });
 
   test("keeps Use on a version whose branches match the fixed set", async ({ page }) => {
@@ -1268,10 +1270,20 @@ test.describe("a locked repository's versions", () => {
         "Works from other branches",
       ),
     ).toBeVisible();
+    await page.mouse.move(700, 700);
+    await shot(page, "locked-branch-versions-matching", [], {
+      windowOnly: true,
+    });
   });
 
   test("leaves an unlocked repository's rows unchanged", async ({ page }) => {
-    await open(page, WORLD);
+    await open(page, {
+      profiles: [
+        { revision: 1, branches: ["main"] },
+        { revision: 2, branches: ["main", "release/*"] },
+      ],
+      active: 2,
+    });
     await page.getByRole("button", { name: "Change" }).click();
     await expect(
       page.getByTestId("profile-version-1").getByRole("button", {
@@ -1279,5 +1291,7 @@ test.describe("a locked repository's versions", () => {
       }),
     ).toBeVisible();
     await expect(page.getByText("Works from other branches")).toHaveCount(0);
+    await page.mouse.move(700, 700);
+    await shot(page, "unlocked-version-rows", [], { windowOnly: true });
   });
 });
