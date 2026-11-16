@@ -8,6 +8,10 @@ import { DRAFT_LIMITS, type DraftCandidate } from "./drafts.ts";
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
 const READY = encoder.encode("READY\n");
+/** The range `RuntimeMaxSec` may take, as infra/server-exec/draft-systemd.sh enforces. */
+const SYSTEMD_BACKSTOP_MIN_SECONDS = 1;
+const SYSTEMD_BACKSTOP_MAX_SECONDS = 30;
+
 const WORKER_OUTPUT_LIMIT = DRAFT_LIMITS.stateBytes + DRAFT_LIMITS.bodyBytes +
   DRAFT_LIMITS.updateBytes + DRAFT_LIMITS.replacementBytes +
   DRAFT_LIMITS.metadataBytes + 64;
@@ -1308,6 +1312,19 @@ export function createDraftIsolation(
   const runtimeMaxSeconds = Math.ceil(
     (startupDeadlineMs + deadlineMs) / 1_000,
   ) + 1;
+  // The launcher (infra/server-exec/draft-systemd.sh) accepts RuntimeMaxSec only
+  // from 1 to 30 and exits 64 on anything else, which surfaces to the person as
+  // every draft failing `unavailable` with no reason given. Refuse the
+  // configuration instead, where the two deadlines are still in view (issue 271).
+  if (
+    runtimeMaxSeconds < SYSTEMD_BACKSTOP_MIN_SECONDS ||
+    runtimeMaxSeconds > SYSTEMD_BACKSTOP_MAX_SECONDS
+  ) {
+    throw new DraftIsolationError(
+      "precondition",
+      "SYSTEMD_BACKSTOP_OUT_OF_RANGE",
+    );
+  }
   const namespaceFileReader = options.namespaceFileReader ?? readBoundedFile;
 
   const limiter = options.workerLimiter ?? sharedWorkerLimiter;

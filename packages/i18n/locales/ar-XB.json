@@ -3796,5 +3796,6 @@
   "problems.WORKER_ACTION_CAPABILITIES_INVALID.description": "⟪Bakery's table of worker actions declares capabilities this build cannot use.⟫",
   "problems.WORKER_ACTION_CAPABILITIES_INVALID.title": "⟪Worker action registration is invalid⟫",
   "problems.WORKER_ACTION_CONTRACT_DRIFT.description": "⟪A worker action does not match the contract Bakery published for it.⟫",
-  "problems.WORKER_ACTION_CONTRACT_DRIFT.title": "⟪Worker action contract has drifted⟫"
+  "problems.WORKER_ACTION_CONTRACT_DRIFT.title": "⟪Worker action contract has drifted⟫",
+  "projects.repository.earlier.otherBranches": "⟪Works from other branches⟫"
 }

@@ -109,6 +109,26 @@ export function fixesBranches(config: unknown): boolean {
 }
 
 /**
+ * Whether putting `candidateConfig` in use would leave the branches a locked
+ * policy fixes (#65). The server refuses that activation with
+ * repository_branches_locked, and it compares the branches through its own
+ * canonical JSON, so this does too: two configs that hold the same branches
+ * under a different key order are the same branches.
+ *
+ * An unpinned active version fixes nothing, so every row stays usable; a
+ * repository with no version in force answers false rather than throwing.
+ */
+export function usesOtherBranches(
+  activeConfig: unknown,
+  candidateConfig: unknown,
+): boolean {
+  if (activeConfig === null || activeConfig === undefined) return false;
+  if (!fixesBranches(activeConfig)) return false;
+  return canonicalJson(branchesOf(activeConfig)) !==
+    canonicalJson(branchesOf(candidateConfig));
+}
+
+/**
  * Whether a version of the settings was made by a readiness check: its config
  * is the check's own (schema 2, with the check policy), and a check only puts
  * its version in use when it passed. A person's version is schema 1.

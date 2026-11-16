@@ -1,4 +1,5 @@
 import { basename, join } from "node:path";
+import { startupProgram } from "./lane-program.ts";
 
 /** A real Git worktree shared by every bounded coding-harness conformance lane. */
 export type ScratchRepository = {
@@ -8,7 +9,10 @@ export type ScratchRepository = {
 };
 
 export async function gitText(cwd: string, args: string[]): Promise<string> {
-  const command = new Deno.Command("git", {
+  // The absolute path the lane started with, not the bare name: a grant names
+  // `git` as it resolved at startup, so resolving it again here repeats that
+  // decision instead of trusting a PATH that a test may have changed since (#229).
+  const command = new Deno.Command(startupProgram("git"), {
     args,
     cwd,
     stdin: "null",
