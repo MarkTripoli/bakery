@@ -3839,5 +3839,10 @@
   "library.editor.group.together": "At the same time",
   "library.editor.group.repeat": "Fix until it passes",
   "library.editor.group.wait": "Wait for approval",
-  "library.editor.group.codeOnly": "Edited in code"
+  "library.editor.group.codeOnly": "Edited in code",
+  "library.editor.panel.label": "The selected step",
+  "library.editor.panel.nameIsType": "Its name is the step type's name until a step can be named.",
+  "library.editor.panel.moveUp": "Move up",
+  "library.editor.panel.moveDown": "Move down",
+  "library.editor.panel.remove": "Remove"
 }

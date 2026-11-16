@@ -3787,5 +3787,10 @@
   "library.editor.group.together": "⟦Àŧ ŧĥë šàɱë ŧïɱë ŧëš⟧",
   "library.editor.group.repeat": "⟦Ƒïẋ ûñŧïļ ïŧ þàššëš ŧëšŧ⟧",
   "library.editor.group.wait": "⟦Ŵàïŧ ƒôŕ àþþŕôṽàļ ŧëš⟧",
-  "library.editor.group.codeOnly": "⟦Ëðïŧëð ïñ çôðë ŧë⟧"
+  "library.editor.group.codeOnly": "⟦Ëðïŧëð ïñ çôðë ŧë⟧",
+  "library.editor.panel.label": "⟦Ŧĥë šëļëçŧëð šŧëþ ŧëš⟧",
+  "library.editor.panel.nameIsType": "⟦Ïŧš ñàɱë ïš ŧĥë šŧëþ ŧÿþë'š ñàɱë ûñŧïļ à šŧëþ çàñ ƀë ñàɱëð. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
+  "library.editor.panel.moveUp": "⟦Ṁôṽë ûþ…⟧",
+  "library.editor.panel.moveDown": "⟦Ṁôṽë ðôŵñ ŧ⟧",
+  "library.editor.panel.remove": "⟦Ŕëɱôṽë…⟧"
 }
