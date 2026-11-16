@@ -1623,3 +1623,53 @@ for (const [name, scenario] of AFTER_APPROVAL_STILLS) {
     }
   });
 }
+
+test("still: the task's other pull requests, closed and opened", async ({ page }) => {
+  test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+  test.setTimeout(120_000);
+  const earlier = [
+    pullRequestRow(480, {
+      createdAt: "2026-01-01T00:00:01.000Z",
+      status: "closed",
+    }),
+    pullRequestRow(481, {
+      createdAt: "2026-01-01T00:00:02.000Z",
+      status: "merged",
+      mergedSha: sha("9"),
+    }),
+    pullRequestRow(482),
+  ];
+  for (
+    const [size, width, height] of [["1440", 1440, 900], [
+      "390",
+      390,
+      844,
+    ]] as const
+  ) {
+    const fresh = await page.context().newPage();
+    await fresh.setViewportSize({ width, height });
+    await mockRun(fresh);
+    await mockDelivery(fresh, { ...CLEAN, pullRequests: earlier });
+    await mockApprovals(fresh, [approvedRow()]);
+    await fresh.goto(`/tasks/${id}`);
+    const disclosure = fresh.getByTestId("delivery-earlier-pull-requests");
+    await expect(disclosure).toBeVisible();
+    // Closed first, then opened, both framed on the step that carries them.
+    for (const scheme of ["light", "dark"] as const) {
+      await fresh.emulateMedia({ colorScheme: scheme });
+      await disclosure.scrollIntoViewIfNeeded();
+      await fresh.screenshot({
+        path: `${STILLS}/after-approval-earlier-closed-${size}-${scheme}.png`,
+        animations: "disabled",
+      });
+      await disclosure.locator("summary").click();
+      await expect(disclosure.getByRole("listitem").first()).toBeVisible();
+      await fresh.screenshot({
+        path: `${STILLS}/after-approval-earlier-open-${size}-${scheme}.png`,
+        animations: "disabled",
+      });
+      await disclosure.locator("summary").click();
+    }
+    await fresh.close();
+  }
+});

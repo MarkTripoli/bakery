@@ -2500,7 +2500,9 @@ test("still: a blocked run that waits on one task", async ({ page }) => {
   });
   await expect(page.getByRole("link", { name: "Charge the first payment" }))
     .toBeVisible();
-  await still(page, "task-page-blocked-one-task");
+  await still(page, "task-page-blocked-one-task", undefined, {
+    scrollTo: page.getByRole("heading", { name: "Current run" }),
+  });
 });
 
 test("still: a blocked run that waits on several tasks", async ({ page }) => {
@@ -2514,7 +2516,9 @@ test("still: a blocked run that waits on several tasks", async ({ page }) => {
   });
   await expect(page.getByText("Waiting for 3 tasks to finish:"))
     .toBeVisible();
-  await still(page, "task-page-blocked-several-tasks");
+  await still(page, "task-page-blocked-several-tasks", undefined, {
+    scrollTo: page.getByRole("heading", { name: "Current run" }),
+  });
 });
 
 test("still: a blocked run whose reason Bakery does not know", async ({ page }) => {
@@ -2525,7 +2529,9 @@ test("still: a blocked run whose reason Bakery does not know", async ({ page }) 
   await expect(
     page.getByText("This run is blocked. Bakery does not know why."),
   ).toBeVisible();
-  await still(page, "task-page-blocked-unknown-reason");
+  await still(page, "task-page-blocked-unknown-reason", undefined, {
+    scrollTo: page.getByRole("heading", { name: "Current run" }),
+  });
 });
 
 test("still: a blocked run", async ({ page }) => {

@@ -1068,11 +1068,11 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
                       key={other.providerNumber}
                       role="listitem"
                     >
-                      <UI.DataText variant="code">
+                      <UI.Text>
                         {t("tasks.delivery.afterApproval.earlierRow", {
                           number: other.providerNumber,
                         })}
-                      </UI.DataText>
+                      </UI.Text>
                       <UI.Badge tone={PULL_REQUEST_TONE[other.status]}>
                         {t(
                           `tasks.delivery.afterApproval.status.${other.status}` as MessageKey,
@@ -1084,7 +1084,7 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
                         target="_blank"
                         variant="quiet"
                       >
-                        {t("tasks.delivery.afterApproval.openOnGitHub")}
+                        {t("tasks.delivery.afterApproval.openOnGitHub")}{" "}
                         <span aria-hidden="true">↗</span>
                       </UI.Link>
                     </UI.Inline>
