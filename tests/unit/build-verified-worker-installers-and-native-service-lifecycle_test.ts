@@ -1755,12 +1755,30 @@ Deno.test("a directory that is not a pending link is not ours and survives the s
 
 // --- #170: `current` may not name releases/. or releases/.. ---
 
-Deno.test("a current pointing at releases/. or releases/.. is corruption, not a release", async () => {
+Deno.test("a current pointing at releases/. or releases/.. is refused by its name, however good a record is there", async () => {
+  // `.` and `..` name directories, so a record read through them can find a
+  // record that belongs to something else. A root carrying a well-formed record
+  // exactly where `releases/..` and `releases/.` lead is the case that separates
+  // a guard refusing the name from a matcher that merely happens to fail later.
   await withRoot(async (root) => {
-    await install(root, verified(), BINARY);
+    const record = JSON.stringify({
+      release: "9.9.9",
+      target: "linux-x64",
+      sha256: sha(BINARY),
+    });
+    await mkdir(join(root, "releases"), { mode: 0o755 });
+    // `releases/..` is the root, and `releases/.` is `releases` itself.
+    await writeFile(join(root, "release.json"), record);
+    await writeFile(join(root, "releases", "release.json"), record);
     for (const name of [".", ".."]) {
       await rm(join(root, "current"), { force: true });
-      await symlink(join("releases", name), join(root, "current"));
+      // Literal, not join("releases", name): join normalises `releases/..` to
+      // `.`, which would test a different link than the one in the issue.
+      await symlink(`releases/${name}`, join(root, "current"));
+      assertEquals(
+        await readlink(join(root, "current")),
+        `releases/${name}`,
+      );
       assertEquals(
         await codeOfAsync(() => installed(root)),
         "INSTALL_CORRUPT",
