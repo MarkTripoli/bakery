@@ -125,6 +125,13 @@ input:not([type="hidden"]) {
 }
 .ui-link--quiet {
   color: var(--color-fg-muted);
+  /* A quiet link often carries a glyph after its words ("Open on GitHub ^").
+     The button variants get their gap from `.ui-button`; without this the
+     glyph sat flush against the last letter (qa3, PR 482).
+     Note: the UI css rail scans comments too, and an issue reference written
+     as a hash plus digits reads as a hex colour there, so PR 482 is spelled
+     without one. */
+  gap: var(--space-1);
 }
 .ui-link[data-state="visited"] {
   color: var(--color-fg-muted);
