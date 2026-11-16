@@ -15,6 +15,13 @@
  * Nothing here changes what a test can observe except that stderr gains this
  * text, on a failure that was going to throw anyway.
  */
+import { candidatePaths } from "./lane-program.ts";
+import {
+  describePathMutations,
+  droppedPathMutations,
+  type PathMutation,
+  pathMutations,
+} from "./path-mutation-log.ts";
 
 export type SpawnCandidate = {
   /** Where the program was found: a directory of the PATH joined to its name. */
@@ -36,6 +43,10 @@ export type SpawnFacts = {
   readonly candidatesNow: readonly SpawnCandidate[];
   readonly permissions: readonly { command: string; state: string }[];
   readonly processInfo: { pid: number; cwd: string; deno: string };
+  /** In-process PATH changes, which name what moved the PATH the grant was resolved against. */
+  readonly pathMutations: readonly PathMutation[];
+  /** How many changes the bounded log dropped before these. */
+  readonly droppedPathMutations: number;
 };
 
 const MAX_VALUE = 400;
@@ -125,6 +136,12 @@ export function describeSpawnCapability(facts: SpawnFacts): string {
       line(facts.processInfo.deno)
     }, cwd ${line(facts.processInfo.cwd)}`,
   ];
+  // Only when there were any: a healthy run prints no part of this section.
+  const mutations = describePathMutations(
+    facts.pathMutations,
+    facts.droppedPathMutations,
+  );
+  if (mutations.length > 0) lines.push(mutations);
   return lines.join("\n");
 }
 
@@ -138,13 +155,10 @@ export function candidatesAlong(
   path: string | undefined,
   program: string | undefined,
 ): SpawnCandidate[] {
-  if (path === undefined || program === undefined || program.includes("/")) {
-    return [];
-  }
+  if (path === undefined || program === undefined) return [];
   const found: SpawnCandidate[] = [];
-  for (const directory of path.split(":")) {
-    if (directory === "" || found.length >= MAX_CANDIDATES + 1) continue;
-    const candidate = `${directory.replace(/\/+$/, "")}/${program}`;
+  for (const candidate of candidatePaths(path, program)) {
+    if (found.length >= MAX_CANDIDATES + 1) break;
     try {
       const info = Deno.statSync(candidate);
       if (!info.isFile) continue;
@@ -229,6 +243,8 @@ export function gatherSpawnFacts(
   return {
     message: error.message.split("\n")[0] ?? error.message,
     program,
+    pathMutations: pathMutations(),
+    droppedPathMutations: droppedPathMutations(),
     ...environment,
     candidatesAtStart,
     candidatesNow,
