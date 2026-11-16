@@ -15,7 +15,10 @@ export async function still(
   name: string,
   target?: Locator,
 ): Promise<void> {
-  const directory = process.env.BAKERY_STILLS_DIR;
+  // The evidence pass names the directory BAKERY_EVIDENCE_DIR; the longer
+  // standing name stays supported so older runs and habits keep working.
+  const directory = process.env.BAKERY_EVIDENCE_DIR ??
+    process.env.BAKERY_STILLS_DIR;
   if (directory === undefined || directory === "") return;
   const width = page.viewportSize()?.width ?? 1280;
   const phone = width <= 743;

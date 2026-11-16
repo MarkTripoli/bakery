@@ -3788,5 +3788,9 @@
   "tasks.delivery.afterApproval.earlierRow": "⟦#{number} ŧ⟧",
   "tasks.delivery.afterApproval.status.open": "⟦Ôþëñ⟧",
   "tasks.delivery.afterApproval.status.merged": "⟦Ṁëŕĝëð…⟧",
-  "tasks.delivery.afterApproval.status.closed": "⟦Çļôšëð…⟧"
+  "tasks.delivery.afterApproval.status.closed": "⟦Çļôšëð…⟧",
+  "tasks.run.blockedUnknownWhy": "⟦Ŧĥïš ŕûñ ïš ƀļôçķëð. Ɓàķëŕÿ ðôëš ñôŧ ķñôŵ ŵĥÿ. ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "tasks.run.blockedWaitingForMany": "⟦Ŵàïŧïñĝ ƒôŕ {count} ŧàšķš ŧô ƒïñïšĥ: ŧëšŧ çôþÿŧ⟧",
+  "tasks.run.blockedWaitingForOne": "⟦Ŵàïŧïñĝ ƒôŕ {task} ŧô ƒïñïšĥ. ŧëšŧ çôþ⟧",
+  "tasks.run.blockedWaitingMore": "⟦àñð ɱôŕë…⟧"
 }

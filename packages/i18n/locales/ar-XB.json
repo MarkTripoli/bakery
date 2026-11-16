@@ -3788,5 +3788,9 @@
   "tasks.delivery.afterApproval.earlierRow": "⟪#{number}⟫",
   "tasks.delivery.afterApproval.status.open": "⟪Open⟫",
   "tasks.delivery.afterApproval.status.merged": "⟪Merged⟫",
-  "tasks.delivery.afterApproval.status.closed": "⟪Closed⟫"
+  "tasks.delivery.afterApproval.status.closed": "⟪Closed⟫",
+  "tasks.run.blockedUnknownWhy": "⟪This run is blocked. Bakery does not know why.⟫",
+  "tasks.run.blockedWaitingForMany": "⟪Waiting for {count} tasks to finish:⟫",
+  "tasks.run.blockedWaitingForOne": "⟪Waiting for {task} to finish.⟫",
+  "tasks.run.blockedWaitingMore": "⟪and more⟫"
 }
