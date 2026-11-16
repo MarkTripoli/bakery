@@ -191,6 +191,21 @@ export function WorkflowEditorPage(
   });
 
   const steps = editor.steps;
+  const inUseSteps = useMemo<readonly EditorStep[]>(() => {
+    const spec = (inUse?.normalizedSpec ?? {}) as { steps?: unknown };
+    const held = Array.isArray(spec.steps) ? spec.steps : [];
+    return held.flatMap((raw) => {
+      const step = raw as { id?: unknown; uses?: unknown };
+      const id = typeof step.id === "string" ? step.id : "";
+      return id === "" ? [] : [{
+        id,
+        uses: typeof step.uses === "string" ? step.uses : "",
+        agentVersionId: null,
+      }];
+    });
+  }, [inUse]);
+  const draftDiffers = draft !== null &&
+    JSON.stringify(steps) !== JSON.stringify(inUseSteps);
   // Checking is continuous: the draft is checked against the server as it
   // changes, and each problem lands on the step its pointer names.
   const [problems, setProblems] = useState<ReadonlyMap<string, string>>(
@@ -335,7 +350,7 @@ export function WorkflowEditorPage(
             canManage={canManage}
             onAdd={(afterId) => setPickerAfter(afterId)}
             onSelect={setSelectedId}
-            pickerOpen={pickerAfter !== undefined}
+            pickerAt={pickerAfter}
             onPick={(uses) => {
               const afterId = pickerAfter ?? null;
               const id = freeStepId(editor, uses.replaceAll(".", "-"));
@@ -434,7 +449,7 @@ export function WorkflowEditorPage(
           <UI.AlertDialog
             open
             variant="destructive"
-            title={changed
+            title={draftDiffers
               ? translate("library.editor.publish.title" as never)
               : translate("library.editor.publish.nothing" as never)}
             state={publish.isPending ? "confirming" : "open"}
@@ -447,12 +462,12 @@ export function WorkflowEditorPage(
                 disabled={publish.isPending}
                 onClick={() => setPublishOpen(false)}
               >
-                {changed
+                {draftDiffers
                   ? translate("library.editor.publish.cancel" as never)
                   : translate("library.editor.publish.close" as never)}
               </UI.Button>
             }
-            confirmAction={changed
+            confirmAction={draftDiffers
               ? (
                 <UI.Inline gap="compact">
                   <UI.Button
@@ -474,7 +489,7 @@ export function WorkflowEditorPage(
               )
               : undefined}
           >
-            {changed
+            {draftDiffers
               ? (
                 <UI.Stack gap="tight">
                   <UI.Text>

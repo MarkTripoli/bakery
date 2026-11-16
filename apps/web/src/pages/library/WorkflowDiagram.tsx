@@ -32,7 +32,8 @@ export type DiagramProps = {
   /** Open the picker after the step with this id, or at the start when null. */
   readonly onAdd: (afterId: string | null) => void;
   readonly onSelect: (id: string) => void;
-  readonly pickerOpen: boolean;
+  /** The connector whose picker is open: a step id, `null` for the start, or absent. */
+  readonly pickerAt?: string | null;
   readonly onPick: (uses: string) => void;
   readonly onPickClose: () => void;
 };
@@ -52,7 +53,7 @@ export function WorkflowDiagram(
     onPick,
     onPickClose,
     onSelect,
-    pickerOpen,
+    pickerAt,
     problems,
     selectedId,
     tree,
@@ -89,28 +90,31 @@ export function WorkflowDiagram(
   );
 
   // The connector between two cards: the "+" a person presses to add a step.
-  const connector = (afterId: string | null): ReactNode => (
-    <UI.Stack gap="tight" data-connector={afterId ?? "start"}>
-      {pickerOpen ? picker : null}
-      {canManage && !pickerOpen
-        ? (
-          <UI.Button
-            variant="secondary"
-            aria-label={translate("library.editor.addHere" as never, {
-              after: afterId === null
-                ? translate("library.editor.startsHere" as never)
-                : title(
-                  treeStepUses(tree, afterId) ?? afterId,
-                ),
-            })}
-            onClick={() => onAdd(afterId)}
-          >
-            +
-          </UI.Button>
-        )
-        : null}
-    </UI.Stack>
-  );
+  const connector = (afterId: string | null): ReactNode => {
+    const open = pickerAt !== undefined && pickerAt === afterId;
+    return (
+      <UI.Stack gap="tight" data-connector={afterId ?? "start"}>
+        {open ? picker : null}
+        {canManage && !open
+          ? (
+            <UI.Button
+              variant="secondary"
+              aria-label={translate("library.editor.addHere" as never, {
+                after: afterId === null
+                  ? translate("library.editor.startsHere" as never)
+                  : title(
+                    treeStepUses(tree, afterId) ?? afterId,
+                  ),
+              })}
+              onClick={() => onAdd(afterId)}
+            >
+              +
+            </UI.Button>
+          )
+          : null}
+      </UI.Stack>
+    );
+  };
 
   const cardName = (node: TreeStep): string => {
     if (node.problem === "unknown") {

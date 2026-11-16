@@ -536,136 +536,122 @@ for (
       } else {
         await page.getByRole("link", { name: "Edit" }).click();
       }
-      await expect(page).toHaveURL(
-        `/library/workflows/${WORKFLOW.id}/edit`,
-      );
+      await expect(page).toHaveURL(`/library/workflows/${WORKFLOW.id}/edit`);
       return seen;
     };
+    const card = (page: Page, name: string) =>
+      page.locator("[data-card]").filter({ hasText: name });
 
-    test("Edit opens the editor on the version in use: its steps and its code", async ({ page }) => {
+    test("Edit draws the workflow: how it starts, then a card per step", async ({ page }) => {
       await openEditor(page);
-      // The version in use is the one an edit starts from.
-      await expect(page.getByText("Editing version 3")).toBeVisible();
-      // Steps is the default view, and it shows the version's steps in order.
-      const steps = page.getByRole("list", { name: "Steps being edited" });
-      await expect(steps.getByText("Write the task brief")).toBeVisible();
-      await expect(steps.getByText("Implement")).toBeVisible();
-      await expect(steps.getByText("Review", { exact: true })).toBeVisible();
-      // Code is the other view the design allows, and only those two exist.
-      await expect(page.getByRole("tab", { name: "Code" })).toBeVisible();
-      await expect(page.getByRole("tab", { name: "Diagram" })).toHaveCount(0);
-      await expect(page.getByRole("tab", { name: "Schedule" }))
+      await expect(page.locator("[data-card='start']")).toContainText(
+        "How it starts",
+      );
+      // The editor edits the workflow's DRAFT when there is one (revision 4 of
+      // this fixture holds a single step), so the drawing is the start plus one
+      // card — and the header still says which version new tasks get.
+      await expect(page.locator("[data-card]")).toHaveCount(2);
+      await expect(page.locator("[data-card]").nth(1)).toContainText(
+        "Write the task brief",
+      );
+      await expect(page.getByText("Version 3 is in use")).toBeVisible();
+      // There is no list editor and no tab strip: the design's own shape.
+      await expect(page.getByRole("tab")).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Check the steps" }))
         .toHaveCount(0);
-      await page.getByRole("tab", { name: "Code" }).click();
-      await expect(page.getByTestId("editor-code")).toBeVisible();
-      await shot(page, "workflow-editor-steps-and-code");
+      // The header says the draft is saved, not that it is unsaved.
+      await expect(page.getByRole("status")).toContainText("Saved");
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-editor-diagram");
     });
 
-    test("the steps can be moved, removed and added, and undone", async ({ page }) => {
+    test("the + on a connector opens the picker and adds the step picked", async ({ page }) => {
       await openEditor(page);
-      const rows = () => page.locator("[data-step-row]");
-      const order = async () =>
-        await page.locator("[data-step-row] [data-step-id]").evaluateAll(
-          (nodes) => nodes.map((node) => node.getAttribute("data-step-id")),
-        );
-      expect(await order()).toEqual(["brief", "implement", "review"]);
-
-      // Down moves the first step one place, and the editor says it is unsaved.
+      const connectors = page.locator("[data-connector]");
+      await expect(connectors.first()).toBeVisible();
       await page
-        .getByRole("button", { name: "Move Write the task brief down" })
+        .getByRole("button", { name: /Add a step after/ })
+        .first()
         .click();
-      expect(await order()).toEqual(["implement", "brief", "review"]);
-      await expect(page.getByText("Unsaved changes")).toBeVisible();
-
-      // Alt+Arrow does the same move from the keyboard.
-      await page.locator("[data-step-row]").nth(1).press("Alt+ArrowDown");
-      expect(await order()).toEqual(["implement", "review", "brief"]);
-
-      // Removing a step takes it out.
-      await page.getByRole("button", { name: "Remove Review" }).click();
-      expect(await order()).toEqual(["implement", "brief"]);
-      await expect(rows()).toHaveCount(2);
-
-      // Undo walks back one change at a time, all the way to the version.
-      await page.getByRole("button", { name: "Undo" }).click();
-      expect(await order()).toEqual(["implement", "review", "brief"]);
-      await page.getByRole("button", { name: "Undo" }).click();
-      await page.getByRole("button", { name: "Undo" }).click();
-      expect(await order()).toEqual(["brief", "implement", "review"]);
-      await expect(page.getByText("Unsaved changes")).toHaveCount(0);
-
-      // Redo puts the last change back.
-      await page.getByRole("button", { name: "Redo" }).click();
-      expect(await order()).toEqual(["implement", "brief", "review"]);
-      await page.getByRole("button", { name: "Add a step" }).click();
-      await expect(rows()).toHaveCount(4);
-      await shot(page, "workflow-editor-editing");
+      const picker = page.getByTestId("step-picker");
+      await expect(picker).toBeVisible();
+      await picker.getByRole("button", { name: "Review" }).click();
+      // The picked step type is what got added — never a fixed one.
+      await expect(page.locator("[data-card]")).toHaveCount(3);
+      await expect(page.locator("[data-card]").nth(2)).toContainText("Review");
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-editor-picker");
     });
 
-    test("Check the steps puts the server's problems on the steps they belong to", async ({ page }) => {
-      await openEditor(page, {
-        ...WORLD,
-        validation: "errors",
-      });
-      await page.getByRole("button", { name: "Check the steps" }).click();
-      // The report's "/steps/1/uses" is the second step's problem, and its
-      // workflow-level problem is not pinned on any step.
-      const second = page.locator("[data-step-row]").nth(1);
-      await expect(second).toContainText("The action is not registered.");
-      await expect(page.getByTestId("editor-check")).toContainText(
-        "Steps need attention: 1.",
-      );
-      const first = page.locator("[data-step-row]").first();
-      await expect(first).not.toContainText("The action is not registered.");
-      await shot(page, "workflow-editor-check");
-    });
-
-    test("a definition the checker likes says so, and marks no step", async ({ page }) => {
-      await openEditor(page);
-      await page.getByRole("button", { name: "Check the steps" }).click();
-      await expect(page.getByTestId("editor-check")).toContainText(
-        "Nothing to fix in these steps.",
-      );
-      await expect(page.locator('[data-step-row] [data-step-status="failed"]'))
-        .toHaveCount(0);
-    });
-
-    test("Publish writes the steps as a new version, makes it the one in use, and clears the draft", async ({ page }) => {
+    test("the panel moves and removes the selected step, and the draft saves itself", async ({ page }) => {
       const seen = await openEditor(page);
-      // Nothing to publish until something changes.
-      await expect(page.getByRole("button", { name: "Publish" }))
-        .toBeDisabled();
-      await page
-        .getByRole("button", { name: "Move Write the task brief down" })
+      // The draft holds one step; add a second through the picker so there is
+      // somewhere to move it to.
+      await page.getByRole("button", { name: /Add a step after/ }).first()
         .click();
-      await expect(page.getByRole("button", { name: "Publish" })).toBeEnabled();
+      await page.getByTestId("step-picker").getByRole("button", {
+        name: "Review",
+      }).click();
+      await card(page, "Write the task brief").click();
+      const panel = page.getByRole("complementary", {
+        name: "The selected step",
+      });
+      await expect(panel).toBeVisible();
+      await panel.getByRole("button", { name: "Move down" }).click();
+      await expect(page.locator("[data-card]").nth(2)).toContainText(
+        "Write the task brief",
+      );
+      // The draft saves after the person stops; the header says so.
+      // The draft save is a PATCH on the draft version, with its own If-Match.
+      await expect.poll(() => seen.draftSaves.length, { timeout: 10_000 })
+        .toBeGreaterThan(0);
+      expect(seen.draftSaves[0].ifMatch).not.toBeNull();
+      await expect(page.getByRole("status")).toContainText("Saved");
+    });
+
+    test("publish offers both forms when the draft differs from the version in use", async ({ page }) => {
+      await openEditor(page);
       await page.getByRole("button", { name: "Publish" }).click();
       const dialog = page.getByRole("alertdialog", {
-        name: "Publish these steps?",
+        name: /Publish version/,
       });
-      await expect(dialog).toContainText(
-        "This saves the steps as a new version and makes it the one new tasks get.",
-      );
-      // What the version never does is said here, as the page says it elsewhere.
-      await expect(dialog).toContainText("A version never changes after");
-      await expect(dialog.getByRole("button", { name: "Keep editing" }))
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole("button", { name: "Publish only" }))
         .toBeVisible();
-      await dialog.getByRole("button", { name: "Publish" }).click();
-      // The steps went out in their edited order, and the new version is used.
-      await expect.poll(() => seen.stepWrites).toBeGreaterThan(0);
-      await expect(page.getByText("Unsaved changes")).toHaveCount(0);
+      await expect(dialog.getByRole("button", { name: "Publish and use" }))
+        .toBeVisible();
+      await page.mouse.move(600, 700);
       await shot(page, "workflow-editor-publish");
     });
 
-    test("a member who may not change workflows sees the editor read only", async ({ page }) => {
+    test("a member who may not change workflows sees no plus, no panel footer and no Publish", async ({ page }) => {
       await libraryFixture(page, { ...WORLD, role: "member" });
-      await page.goto(`/library/workflows/${WORKFLOW.id}`);
-      // No Edit action for someone who cannot change workflows...
-      await expect(page.getByRole("link", { name: "Edit" })).toHaveCount(0);
-      // ...and the address itself still answers, read only rather than refused.
       await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
-      await expect(page.getByText("Read only")).toBeVisible();
-      await expect(page.getByText("Editing version 3")).toBeVisible();
+      await expect(page.locator("[data-card='start']")).toBeVisible();
+      await expect(page.getByRole("button", { name: /Add a step after/ }))
+        .toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Publish" })).toHaveCount(
+        0,
+      );
+      await shot(page, "workflow-editor-read-only");
     });
   });
 }
+
+test("a draft that matches the version in use has nothing to publish", async ({ page }) => {
+  // One published version, in use, and no separate draft: the draft the editor
+  // shows is that version, so publishing it would change nothing.
+  const same = [
+    version(2, 2, "published", [{ id: "brief", uses: "task.brief" }]),
+  ];
+  await libraryFixture(page, { ...WORLD, versions: same });
+  await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+  await expect(page.locator("[data-card='start']")).toBeVisible();
+  await page.getByRole("button", { name: "Publish" }).click();
+  const nothing = page.getByRole("alertdialog", { name: "Nothing to publish" });
+  await expect(nothing).toBeVisible();
+  await expect(nothing).toContainText(
+    "The steps have not changed since this draft was saved",
+  );
+  await nothing.getByRole("button", { name: "Close" }).click();
+});
