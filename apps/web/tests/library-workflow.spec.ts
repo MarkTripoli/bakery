@@ -50,6 +50,27 @@ const VERSIONS: VersionRow[] = [
   ]),
   version(4, 4, "draft", [{ id: "brief", uses: "task.brief" }]),
 ];
+/**
+ * A version whose steps Bakery cannot fully read (design-ux's ruling on #67,
+ * comment 6917906748): one step it can read, one with no id and no type, and
+ * one that is not a step at all. None may be dropped from the page.
+ */
+const BROKEN: Options = {
+  workflows: [WORKFLOW],
+  agents: [AGENT],
+  agentVersions: AGENT_VERSIONS,
+  versions: [
+    ...VERSIONS,
+    {
+      ...version(5, 5, "published", [{ id: "brief", uses: "task.brief" }]),
+      spec: [
+        { id: "brief", uses: "task.brief" },
+        { kind: "action" },
+        "not a step",
+      ],
+    },
+  ],
+};
 const WORLD: Options = {
   workflows: [WORKFLOW],
   agents: [AGENT],
@@ -457,6 +478,22 @@ for (
       await expect(page.getByText("version not found")).toHaveCount(0);
       seen.releaseAgents();
       await expect(implement).toContainText("Agent: Code writer, version 2");
+    });
+
+    test("a version with steps it cannot read keeps every step, and never says it has none", async ({ page }) => {
+      await libraryFixture(page, BROKEN);
+      await page.goto(
+        `/library/workflows/${WORKFLOW.id}?version=${uuid(1005)}`,
+      );
+      const steps = page.getByTestId("workflow-steps");
+      await expect(steps).not.toContainText("This version has no steps.");
+      // The readable step, and two cards for the two it cannot read.
+      await expect(steps).toContainText("Write the task brief");
+      await expect(steps.getByText("Unreadable step")).toHaveCount(2);
+      await expect(steps).toContainText(
+        "This step cannot be read, so it cannot run as it is.",
+      );
+      await shot(page, "workflow-unreadable-steps", [], { windowOnly: true });
     });
 
     test("a failed agents read says the agent could not be read, not that its version is missing", async ({ page }) => {

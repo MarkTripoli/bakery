@@ -45,9 +45,9 @@ import {
   defaultVersion,
   exportFileName,
   newestFirst,
-  stepsOf,
   versionState,
 } from "./library/workflow-state.ts";
+import { stepsOfTree, treeOf } from "./library/workflow-tree.ts";
 
 /** How many versions the Versions card lists before "Show all". */
 const CARD_VERSIONS = 5;
@@ -486,7 +486,10 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
     );
   }
 
-  const steps = shown === null ? [] : stepsOf(shown);
+  // The same tree the editor draws, so a step Bakery cannot read keeps its
+  // place here instead of vanishing (design-ux's ruling on #67).
+  const tree = treeOf(shown?.normalizedSpec);
+  const steps = stepsOfTree(tree);
   const badge = !current.enabled
     ? (
       <UI.Badge tone="neutral">
@@ -705,7 +708,20 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
               })}
             variant="list"
           >
-            {steps.length === 0
+            {tree.unreadable
+              ? (
+                <UI.InlineNotice tone="error">
+                  <UI.Stack gap="tight">
+                    <UI.Text variant="strong">
+                      {translate("library.editor.unreadable.title" as never)}
+                    </UI.Text>
+                    <UI.Text>
+                      {translate("library.editor.unreadable.body" as never)}
+                    </UI.Text>
+                  </UI.Stack>
+                </UI.InlineNotice>
+              )
+              : steps.length === 0
               ? (
                 <UI.Text variant="muted">
                   {translate("library.workflow.steps.none" as never)}
@@ -730,25 +746,33 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
                           "library.workflow.steps.number" as never,
                           { n: index + 1 },
                         )}
-                        title={stepTitle(step.uses)}
-                        summary={stepSummary(
-                          stepLine(step.uses),
-                          binding === null ? undefined : (
-                            binding === undefined
-                              ? translate(
-                                (agentReads === "failed"
-                                  ? "library.workflow.steps.agentUnreadable"
-                                  : "library.workflow.steps.agentUnknown") as never,
-                              )
-                              : translate(
-                                "library.workflow.steps.agent" as never,
-                                {
-                                  name: binding.agentName,
-                                  version: binding.revision,
-                                },
-                              )
-                          ),
-                        )}
+                        title={step.problem === undefined
+                          ? stepTitle(step.uses)
+                          : translate(
+                            "library.editor.card.unreadable" as never,
+                          )}
+                        summary={step.problem === undefined
+                          ? stepSummary(
+                            stepLine(step.uses),
+                            binding === null ? undefined : (
+                              binding === undefined
+                                ? translate(
+                                  (agentReads === "failed"
+                                    ? "library.workflow.steps.agentUnreadable"
+                                    : "library.workflow.steps.agentUnknown") as never,
+                                )
+                                : translate(
+                                  "library.workflow.steps.agent" as never,
+                                  {
+                                    name: binding.agentName,
+                                    version: binding.revision,
+                                  },
+                                )
+                            ),
+                          )
+                          : translate(
+                            "library.editor.card.needsSetupLine" as never,
+                          )}
                       />
                     );
                   })}

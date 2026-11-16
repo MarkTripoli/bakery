@@ -18,6 +18,7 @@ import { WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
 import { MakeCopyDialog } from "./library/MakeCopyDialog.tsx";
 import { presetSource } from "./library/copy-workflow.ts";
+import { stepsOfTree, treeOf } from "./library/workflow-tree.ts";
 import { ACTION_LINES, ACTION_TITLES } from "./library/workflow-state.ts";
 import { stepSummary } from "./library/step-summary.tsx";
 import { presetCopy } from "./task-composer-labels.ts";
@@ -44,6 +45,12 @@ export function BuiltInWorkflowPage(
   const opener = useRef<HTMLElement | null>(null);
 
   const preset = presets.data?.items.find((row) => row.id === presetId);
+  // The same tree the editor draws, so no step is dropped from this page.
+  const tree = treeOf({
+    steps: preset === undefined
+      ? []
+      : preset.steps.map((step) => ({ id: step.id, uses: step.uses })),
+  });
   const labels = preset === undefined
     ? undefined
     : presetCopy(translate, preset.id);
@@ -219,20 +226,39 @@ export function BuiltInWorkflowPage(
             <UI.StepList
               label={translate("library.workflow.steps.label" as never)}
             >
-              {preset.steps.map((step, index) => (
-                <UI.StepItem
-                  key={step.id}
-                  data-step-id={step.id}
-                  number={index + 1}
-                  status="upcoming"
-                  statusLabel={translate(
-                    "library.workflow.steps.number" as never,
-                    { n: index + 1 },
-                  )}
-                  title={stepTitle(step.uses)}
-                  summary={stepSummary(stepLine(step.uses), undefined)}
-                />
-              ))}
+              {tree.unreadable
+                ? (
+                  <UI.InlineNotice tone="error">
+                    <UI.Stack gap="tight">
+                      <UI.Text variant="strong">
+                        {translate("library.editor.unreadable.title" as never)}
+                      </UI.Text>
+                      <UI.Text>
+                        {translate("library.editor.unreadable.body" as never)}
+                      </UI.Text>
+                    </UI.Stack>
+                  </UI.InlineNotice>
+                )
+                : stepsOfTree(tree).map((step, index) => (
+                  <UI.StepItem
+                    key={step.id}
+                    data-step-id={step.id}
+                    number={index + 1}
+                    status="upcoming"
+                    statusLabel={translate(
+                      "library.workflow.steps.number" as never,
+                      { n: index + 1 },
+                    )}
+                    title={step.problem === undefined
+                      ? stepTitle(step.uses)
+                      : translate("library.editor.card.unreadable" as never)}
+                    summary={step.problem === undefined
+                      ? stepSummary(stepLine(step.uses), undefined)
+                      : translate(
+                        "library.editor.card.needsSetupLine" as never,
+                      )}
+                  />
+                ))}
             </UI.StepList>
           </UI.ListSection>
         </UI.Stack>
