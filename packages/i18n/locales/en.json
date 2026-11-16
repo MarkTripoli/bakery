@@ -3828,8 +3828,8 @@
   "library.editor.publish.body": "This saves the steps as a new version and makes it the one new tasks get.",
   "library.editor.publish.confirm": "Publish",
   "library.editor.publish.cancel": "Keep editing",
-  "library.editor.howItStarts": "How it starts",
-  "library.editor.howItStartsLine": "When a run starts from the work it is given.",
+  "library.editor.howItStarts": "Started by hand",
+  "library.editor.howItStartsLine": "From a task",
   "library.editor.startsHere": "the start",
   "library.editor.addHere": "Add a step after {after}",
   "library.editor.picker.title": "Add a step",
@@ -3861,5 +3861,8 @@
   "library.editor.publish.nothingBody": "The steps have not changed since this draft was saved, so there is nothing to publish.",
   "library.editor.publish.only": "Publish only",
   "library.editor.publish.andUse": "Publish and use",
-  "library.editor.publish.close": "Close"
+  "library.editor.publish.close": "Close",
+  "library.editor.startsByHand": "Someone picks this workflow when they start a task.",
+  "library.editor.ready": "Ready to publish",
+  "library.editor.problems": "{count} problems"
 }

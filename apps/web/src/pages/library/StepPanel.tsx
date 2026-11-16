@@ -40,60 +40,62 @@ export function StepPanel(
   const line = lineKey === undefined ? undefined : translate(lineKey as never);
 
   return (
-    <UI.InspectorPanel
-      label={translate("library.editor.panel.label" as never)}
-      variant="column"
-      header={
-        <UI.Stack gap="tight">
-          <UI.Text variant="strong">{name}</UI.Text>
-          <UI.Text variant="muted">
-            {translate("library.editor.panel.nameIsType" as never)}
-          </UI.Text>
-        </UI.Stack>
-      }
-      footer={
-        <UI.Inline gap="compact">
-          <UI.Button
-            variant="secondary"
-            disabled={disabled || !canMoveUp}
-            onClick={onMoveUp}
-          >
-            {translate("library.editor.panel.moveUp" as never)}
-          </UI.Button>
-          <UI.Button
-            variant="secondary"
-            disabled={disabled || !canMoveDown}
-            onClick={onMoveDown}
-          >
-            {translate("library.editor.panel.moveDown" as never)}
-          </UI.Button>
-          <UI.Button
-            variant="destructive"
-            disabled={disabled}
-            onClick={onRemove}
-          >
-            {translate("library.editor.panel.remove" as never)}
-          </UI.Button>
-        </UI.Inline>
-      }
-    >
-      <UI.Stack gap="compact">
-        {line === undefined ? null : <UI.Text>{line}</UI.Text>}
-        {problem === undefined
-          ? null
-          : (
-            <UI.InlineNotice role="status" tone="error">
-              {problem}
-            </UI.InlineNotice>
+    <>
+      <UI.InspectorPanel
+        label={translate("library.editor.panel.label" as never)}
+        variant="column"
+        header={
+          <UI.Stack gap="tight">
+            <UI.Text variant="strong">{name}</UI.Text>
+            <UI.Text variant="muted">
+              {translate("library.editor.panel.nameIsType" as never)}
+            </UI.Text>
+          </UI.Stack>
+        }
+        footer={
+          <UI.Inline gap="compact">
+            <UI.Button
+              variant="secondary"
+              disabled={disabled || !canMoveUp}
+              onClick={onMoveUp}
+            >
+              {translate("library.editor.panel.moveUp" as never)}
+            </UI.Button>
+            <UI.Button
+              variant="secondary"
+              disabled={disabled || !canMoveDown}
+              onClick={onMoveDown}
+            >
+              {translate("library.editor.panel.moveDown" as never)}
+            </UI.Button>
+            <UI.Button
+              variant="destructive"
+              disabled={disabled}
+              onClick={onRemove}
+            >
+              {translate("library.editor.panel.remove" as never)}
+            </UI.Button>
+          </UI.Inline>
+        }
+      >
+        <UI.Stack gap="compact">
+          {line === undefined ? null : <UI.Text>{line}</UI.Text>}
+          {problem === undefined
+            ? null
+            : (
+              <UI.InlineNotice role="status" tone="error">
+                {problem}
+              </UI.InlineNotice>
+            )}
+          {code === undefined ? null : (
+            <UI.Text variant="caption">
+              {translate("library.editor.card.writtenInCode" as never, {
+                code,
+              })}
+            </UI.Text>
           )}
-        {code === undefined ? null : (
-          <UI.Text variant="caption">
-            {translate("library.editor.card.writtenInCode" as never, {
-              code,
-            })}
-          </UI.Text>
-        )}
-      </UI.Stack>
-    </UI.InspectorPanel>
+        </UI.Stack>
+      </UI.InspectorPanel>
+    </>
   );
 }

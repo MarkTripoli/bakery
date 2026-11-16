@@ -435,6 +435,13 @@ export function WorkflowEditorPage(
               <UI.Text variant="muted" role="status">
                 {stateWord}
               </UI.Text>
+              <UI.Text variant="muted" data-testid="editor-problems">
+                {problems.size === 0
+                  ? translate("library.editor.ready" as never)
+                  : translate("library.editor.problems" as never, {
+                    count: String(problems.size),
+                  })}
+              </UI.Text>
               <UI.Button
                 variant="secondary"
                 onClick={() => setCodeOpen(true)}

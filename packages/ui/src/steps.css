@@ -277,15 +277,23 @@
   color: var(--color-fg);
   cursor: pointer;
   display: inline-flex;
-  /* Drawn small (design-ux: 22px drawn) and comfortable to hit (44px): the two
-     are separate values, and --target-coarse is the root token that exists
-     here. --target-min is scoped to the inbox, artifact and session panes, so
-     consuming it in this file would silently do nothing. */
+  /* 44px to hit and 22px drawn: the button is the hit area and the circle is
+     drawn inside it, so no minimum can win over the drawn size. */
+  background: transparent;
+  block-size: var(--target-coarse);
+  border: var(--border-none);
+  inline-size: var(--target-coarse);
+  justify-content: center;
+}
+.ui-step-connector__button > span {
+  align-items: center;
+  background: var(--color-surface);
+  border: var(--border-default) solid var(--color-border);
+  border-radius: var(--radius-circle);
   block-size: var(--size-step-connector);
+  display: inline-flex;
   inline-size: var(--size-step-connector);
   justify-content: center;
-  min-block-size: var(--target-coarse);
-  min-inline-size: var(--target-coarse);
 }
 .ui-step-connector__button:hover {
   border-color: var(--color-border-strong);
@@ -293,4 +301,12 @@
 .ui-step-connector__button:focus-visible {
   outline: var(--border-emphasis) solid var(--color-selection);
   outline-offset: var(--space-1);
+}
+
+/* The step panel beside the diagram is the width the owner's spec names: the
+   work surface gives its second column that width, so no component needs a
+   one-off class. */
+[data-ui-region="editor-work-surface"] > *:last-child {
+  inline-size: var(--layout-step-panel);
+  max-inline-size: var(--layout-step-panel);
 }

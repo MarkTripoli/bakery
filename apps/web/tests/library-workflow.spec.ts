@@ -542,8 +542,12 @@ for (
 
     test("Edit draws the workflow: how it starts, then a card per step", async ({ page }) => {
       await openEditor(page);
+      // The ruled wording, and it is a card like any other so its sentence is reachable.
       await expect(page.locator("[data-card='start']")).toContainText(
-        "How it starts",
+        "Started by hand",
+      );
+      await expect(page.locator("[data-card='start']")).toContainText(
+        "From a task",
       );
       // The editor edits the workflow's DRAFT when there is one (revision 4 of
       // this fixture holds a single step), so the drawing is the start plus one

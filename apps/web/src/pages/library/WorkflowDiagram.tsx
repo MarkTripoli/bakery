@@ -14,11 +14,13 @@ import type { GroupLabel, Tree, TreeNode, TreeStep } from "./workflow-tree.ts";
 
 /** The step types the picker offers, in the order the design lists them. */
 export const PICKER_STEPS: readonly string[] = [
-  "task.brief",
+  "rpi.research",
+  "rpi.design",
   "rpi.plan",
   "harness.implement",
+  "harness.repair",
   "quality.check",
-  "agent.review",
+  "review.independent",
   "delivery.merge",
 ];
 
@@ -180,14 +182,16 @@ export function WorkflowDiagram(
 
   return (
     <UI.Stack gap="standard" data-ui-region="workflow-diagram">
-      <UI.Stack gap="tight" data-card="start">
-        <UI.Text variant="muted">
-          {translate("library.editor.howItStarts" as never)}
-        </UI.Text>
-        <UI.Text variant="strong">
-          {translate("library.editor.howItStartsLine" as never)}
-        </UI.Text>
-      </UI.Stack>
+      <div data-card="start">
+        <UI.StepCard
+          icon={<UI.IconGlyph name="lightning" size="small" />}
+          title={translate("library.editor.howItStarts" as never)}
+          summary={translate("library.editor.howItStartsLine" as never)}
+          selected={selectedId === "start"}
+          controls="editor-step-panel"
+          onClick={() => onSelect("start")}
+        />
+      </div>
       {connector(null)}
       {nodes(tree.nodes)}
     </UI.Stack>

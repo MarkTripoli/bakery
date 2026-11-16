@@ -149,6 +149,7 @@ export const ACTION_ICONS: Readonly<Record<string, string>> = {
   "harness.repair": "refresh",
   "quality.check": "check",
   "agent.review": "shield",
+  "review.independent": "shield",
   "delivery.merge": "integration",
 };
 
