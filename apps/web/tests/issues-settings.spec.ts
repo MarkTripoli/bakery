@@ -299,11 +299,11 @@ for (
     test("the list says who can change the settings to someone who cannot", async ({ page }) => {
       await settingsFixture(page, { role: "developer" });
       await page.goto("/issues/settings");
+      // The list is still readable: this is not an error page.
+      await expect(page.getByTestId("issue-settings-row")).toHaveCount(2);
       await expect(page.getByText(
         "Only organization administrators can change issue settings.",
       )).toBeVisible();
-      // The list is still readable: this is not an error page.
-      await expect(page.getByTestId("issue-settings-row")).toHaveCount(2);
     });
 
     test("the list says so when no repository is connected", async ({ page }) => {
@@ -313,6 +313,7 @@ for (
         (route) => route.fulfill(json({ items: [], nextCursor: null })),
       );
       await page.goto("/issues/settings");
+      await expect(page.getByTestId("issue-settings-list")).toBeVisible();
       await expect(page.getByText("No repositories are connected"))
         .toBeVisible();
       await expect(page.getByText(
