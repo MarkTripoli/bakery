@@ -1588,3 +1588,45 @@ Deno.test("a running exporter yields exactly once between batches: one fewer tha
   assertEquals(zeroDelay, 3);
   await exporter.close(100);
 });
+
+// ---- #199: a synchronous sink cannot make close overshoot by more than the
+// batch in flight. A timer turn never arrives while such a sink is flushing, so
+// the deadline is read between batches instead.
+
+Deno.test("close stops at its deadline with a synchronous sink (#199)", async () => {
+  for (const batchSize of [1, 10, 100] as const) {
+    let calls = 0;
+    const exporter = createBoundedExporter<number>({
+      capacity: 100_000,
+      batchSize,
+      sendTimeoutMs: 200,
+      maxAttempts: 1,
+      retryDelayMs: 0,
+      intervalMs: 1,
+      send: () => {
+        calls += 1;
+        return Promise.resolve();
+      },
+    });
+    for (let index = 0; index < 100_000; index += 1) exporter.offer(index);
+    const started = performance.now();
+    await exporter.close(10);
+    const elapsed = performance.now() - started;
+    // The documented bound: the deadline, plus the batch already in flight.
+    // Before the deadline was read between batches this was 384 ms (Node) /
+    // 407 ms (Deno) at batch 1, because the flush never yielded.
+    assert(
+      elapsed <= 10 + 100,
+      `batch ${batchSize}: close(10) took ${elapsed.toFixed(1)}ms`,
+    );
+    const stats = exporter.stats();
+    conserved(stats);
+    assert(calls > 0, `batch ${batchSize}: the sink was never called`);
+    // Either it shed the rest at the deadline, or it finished inside it — both
+    // are within the bound; what may not happen is still flushing past it.
+    assert(
+      stats.dropped.shutdown > 0 || stats.exported === 100_000,
+      `batch ${batchSize}: neither shed nor finished (${stats.exported} exported)`,
+    );
+  }
+});
