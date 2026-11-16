@@ -8,6 +8,7 @@
   <entry file="websocket-backpressure-modelled-buffer.xml" scope="project" />
   <entry file="storybook-a11y-playwright.xml" scope="project" />
   <entry file="ui-catalog.xml" scope="project" />
+  <entry file="ui-token-manifest-digest.xml" scope="project" />
   <entry file="paper-export-dimensions.xml" scope="project" />
   <entry file="reference-proof-working-tree.xml" scope="project" />
   <entry file="verification-memory-floor.xml" scope="project" />

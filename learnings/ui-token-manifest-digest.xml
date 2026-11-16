@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="ui-token-manifest-digest" project="bakery">
+  <title>A new UI token is added to the registry's manifest, and the manifest's own digest has to be recomputed by hand</title>
+  <trigger>`pnpm ui:tokens:generate` or `pnpm ui:tokens:check` fails with `Token source digest mismatch` after a token was added, and the CSS or TS file that was edited by hand has reverted.</trigger>
+  <mistake>Edited packages/ui/src/foundations/tokens.css and tokens.ts directly, ran the generator, and lost both edits; then read the digest mismatch as a validation failure to work around rather than as the manifest's integrity check on itself.</mistake>
+  <rule>tokens.css, tokens.ts and theme.css are generated: `scripts/generate-ui-tokens.ts` rewrites all three from docs/technical-design/ui-baselines/tokens.json, so a hand edit to any of them is overwritten. Add the token to `roles` in that manifest (id, cssVariable, category, values), then recompute `source.digest`, which is SHA-256 over a canonicalised JSON of `roles` — stable key order, no spaces — because validateManifest compares it with the roles it just read, and it fails before writing anything. Then run `pnpm ui:tokens:generate` and `pnpm ui:tokens:check`. Nothing in the failure text says the digest covers the roles you are editing.</rule>
+  <verification>
+    <command>pnpm ui:tokens:generate && pnpm ui:tokens:check</command>
+    <requirement>Confirm the new variable appears in the generated tokens.css, then run the stylesheet rails case (`deno test -A tests/rails/ui-foundations_test.ts --filter "stylesheets consume generated semantic roles"`) so a rule cannot consume a variable the registry does not define.</requirement>
+  </verification>
+</learning>

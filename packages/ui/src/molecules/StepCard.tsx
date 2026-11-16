@@ -25,6 +25,8 @@ export type StepCardProps =
     icon?: ReactNode;
     /** Whether the panel beside the diagram is showing this step. */
     selected?: boolean;
+    /** The id of the panel this card opens, so the expansion says what it opens. */
+    controls?: string;
     /** The step cannot be read, or is a kind the editor does not know. */
     needsSetup?: boolean;
     /** The words for the needs-setup state, translated by the caller. */
@@ -36,6 +38,7 @@ export type StepCardProps =
 /** A step drawn as a card, selectable, for the workflow diagram. */
 export function StepCard(
   {
+    controls,
     icon,
     needsSetup = false,
     needsSetupLabel,
@@ -49,6 +52,7 @@ export function StepCard(
   return (
     <button
       {...props}
+      aria-controls={selected ? controls : undefined}
       aria-expanded={selected}
       className={[
         "ui-step-card",
