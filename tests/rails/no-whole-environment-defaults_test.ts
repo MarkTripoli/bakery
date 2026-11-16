@@ -53,7 +53,7 @@ Deno.test("apps/server never defaults to the whole environment (#322)", async ()
   );
 });
 
-Deno.test("the coordinator executor reads only the three variables it selects on", () => {
+Deno.test("the coordinator executor reads only the five variables it uses", () => {
   // The reader is handed a `read` function so the test sees exactly which
   // names are asked for: a whole-environment read could not be inspected.
   const asked: string[] = [];
@@ -62,11 +62,13 @@ Deno.test("the coordinator executor reads only the three variables it selects on
     return undefined;
   });
   assertEquals([...asked].sort(), [
+    "BAKERY_COORDINATOR_CLAIM_TIMEOUT_MS",
     "BAKERY_COORDINATOR_EXECUTOR",
+    "BAKERY_COORDINATOR_TURN_TIMEOUT_MS",
     "BAKERY_ENV",
     "BAKERY_SCRIPTED_COORDINATOR_DIR",
   ]);
-  assertEquals(Object.keys(env).length, 3);
+  assertEquals(Object.keys(env).length, 5);
 });
 
 Deno.test("the whole-environment scan skips prose and catches a spread (#322)", () => {
