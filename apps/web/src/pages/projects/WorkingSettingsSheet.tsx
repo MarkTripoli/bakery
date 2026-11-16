@@ -109,6 +109,15 @@ export function WorkingSettingsSheet(
     ),
     organizationRulesLink,
   );
+  // #65: a version whose branches differ from the set the version in use fixes
+  // cannot be activated; the server refuses it with repository_branches_locked.
+  // The row says so up front, keyed off the in-use version's own fixed policy.
+  const activationWouldRefuse = (profile: RepositoryProfileResponse) =>
+    branchesFixed && active !== null && canonicalBranches(profile) !==
+      canonicalBranches(active);
+  // The branches a version records, compared as the server compares them.
+  const canonicalBranches = (version: RepositoryProfileResponse) =>
+    JSON.stringify(branchesOf(version.config));
   const folderText = active === null ? "" : folderOf(active.config);
   // A folder is a path and reads in the code face; "The whole repository" is a
   // sentence about the folder, so it reads in the body face (design-ux, #475).
@@ -372,6 +381,17 @@ export function WorkingSettingsSheet(
                         <UI.Badge tone="success">
                           {translate(
                             "projects.repository.earlier.inUse" as never,
+                          )}
+                        </UI.Badge>
+                      )
+                      : activationWouldRefuse(profile)
+                      ? (
+                        // The organization's rules fix the branches, so putting
+                        // this version in use would be refused: say so on the
+                        // row instead of offering a button that cannot work.
+                        <UI.Badge tone="neutral">
+                          {translate(
+                            "projects.repository.earlier.otherBranches" as never,
                           )}
                         </UI.Badge>
                       )

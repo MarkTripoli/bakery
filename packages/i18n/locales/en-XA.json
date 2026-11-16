@@ -3585,6 +3585,7 @@
   "projects.repository.earlier.row": "⟦Ṽëŕšïôñ {version} · {date} ŧëšŧ çô⟧",
   "projects.repository.earlier.inUse": "⟦Ïñ ûšë…⟧",
   "projects.repository.earlier.use": "⟦Ûšë ṽëŕšïôñ {version} ŧëšŧŧ⟧",
+  "projects.repository.earlier.otherBranches": "[Works from other branchesƒƒƒƒƒƒƒƒƒƒƒ]",
   "projects.repository.failure.forbidden": "⟦Ôñļÿ ôŕĝàñïžàŧïôñ àðɱïñïšŧŕàŧôŕš çàñ çĥàñĝë ŧĥëšë šëŧŧïñĝš. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "projects.repository.failure.conflict": "⟦Šôɱëôñë ëļšë çĥàñĝëð ŧĥïš ŕëþôšïŧôŕÿ ĵûšŧ ñôŵ. Ŧĥë ļàŧëšŧ šëŧŧïñĝš àŕë šĥôŵñ; ñôŧĥïñĝ ŵàš àþþļïëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "projects.repository.failure.offline": "⟦Ÿôû àŕë ôƒƒļïñë. Ñôŧĥïñĝ ŵàš šàṽëð. ŧëšŧ çôþÿŧ⟧",

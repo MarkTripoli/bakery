@@ -3585,6 +3585,7 @@
   "projects.repository.earlier.row": "⟪Version {version} · {date}⟫",
   "projects.repository.earlier.inUse": "⟪In use⟫",
   "projects.repository.earlier.use": "⟪Use version {version}⟫",
+  "projects.repository.earlier.otherBranches": "يعمل من فروع أخرى",
   "projects.repository.failure.forbidden": "⟪Only organization administrators can change these settings.⟫",
   "projects.repository.failure.conflict": "⟪Someone else changed this repository just now. The latest settings are shown; nothing was applied.⟫",
   "projects.repository.failure.offline": "⟪You are offline. Nothing was saved.⟫",
