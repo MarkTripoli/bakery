@@ -121,7 +121,9 @@ export function WorkflowEditorPage(
   const [saveState, setSaveState] = useState<SaveState>({ kind: "saved" });
   const [codeOpen, setCodeOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
-  const lastSaved = useRef<string>("");
+  // null until the version being edited is known: an unknown baseline is not a
+  // change, so the leave warning is never armed on a page nobody has touched.
+  const lastSaved = useRef<string | null>(null);
 
   // A different version being edited starts the editor again.
   useEffect(() => {
@@ -269,7 +271,8 @@ export function WorkflowEditorPage(
     const timer = setTimeout(() => check.mutate(steps), SAVE_AFTER_MS);
     return () => clearTimeout(timer);
   }, [steps]);
-  const changed = JSON.stringify(steps) !== lastSaved.current;
+  const changed = lastSaved.current !== null &&
+    JSON.stringify(steps) !== lastSaved.current;
 
   // A change saves itself once the person stops typing; a failed save waits for
   // "Try again" rather than looping.
