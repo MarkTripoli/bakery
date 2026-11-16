@@ -22,6 +22,7 @@ export function createDeliveryRoutes(options: {
   app.use("/v1/runs/:id/delivery-decisions", options.session);
   app.use("/v1/reviews/:id/findings", options.session);
   app.use("/v1/pull-requests", options.session);
+  app.use("/v1/merge-entries", options.session);
   app.route(
     "/",
     createApiRouter({

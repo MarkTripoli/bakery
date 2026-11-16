@@ -1,4 +1,13 @@
 import type { DeliveryActionHandlers } from "./actions.ts";
+import type { ActionContext } from "@bakery/contracts/action-registry";
+import type { z } from "zod";
+import { contractSchemas } from "@bakery/contracts/contracts";
+import { requireWorkTransaction } from "../work/work-transaction.ts";
+import {
+  createMergeEntry,
+  listMergeEntries,
+  type MergeEntryCreateInput,
+} from "./merge-entries.ts";
 import {
   createChecksListHandler,
   createPullRequestsListHandler,
@@ -14,5 +23,32 @@ export function createDeliveryHandlers(secret: string): DeliveryActionHandlers {
     reviewFindingsList: createReviewFindingsListHandler(secret),
     runDeliveryDecisionsList: createRunDeliveryDecisionsListHandler(secret),
     pullRequestsList: createPullRequestsListHandler(secret),
+    mergeEntriesList: async (context, input) => {
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      return contractSchemas["Page<MergeEntry>"].parse(
+        await listMergeEntries(
+          transaction,
+          organizationId,
+          principalId,
+          secret,
+          input,
+        ),
+      );
+    },
+    mergeEntriesCreate: async (
+      context: ActionContext,
+      input: z.output<typeof contractSchemas.MergeEntryCreate>,
+    ) => {
+      const { transaction, organizationId, principalId } =
+        requireWorkTransaction(context);
+      return contractSchemas.MergeEntry.parse(
+        await createMergeEntry(transaction, organizationId, principalId, {
+          requestId: context.requestId,
+          traceId: context.traceId,
+          create: input as MergeEntryCreateInput,
+        }),
+      );
+    },
   };
 }

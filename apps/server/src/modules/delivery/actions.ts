@@ -23,6 +23,8 @@ import type { PgDatabase } from "../../platform/database.ts";
 
 type CursorQuery = z.output<typeof contractSchemas.CursorQuery>;
 type PullRequestQuery = z.output<typeof contractSchemas.PullRequestQuery>;
+type RepositoryQuery = z.output<typeof contractSchemas.RepositoryQuery>;
+type MergeEntryCreate = z.output<typeof contractSchemas.MergeEntryCreate>;
 
 export type DeliveryActionHandlers = {
   checksList: (
@@ -45,6 +47,14 @@ export type DeliveryActionHandlers = {
     context: ActionContext,
     input: PullRequestQuery,
   ) => Promise<z.output<typeof contractSchemas["Page<PullRequest>"]>>;
+  mergeEntriesList: (
+    context: ActionContext,
+    input: RepositoryQuery,
+  ) => Promise<z.output<typeof contractSchemas["Page<MergeEntry>"]>>;
+  mergeEntriesCreate: (
+    context: ActionContext,
+    input: MergeEntryCreate,
+  ) => Promise<z.output<typeof contractSchemas.MergeEntry>>;
 };
 
 export function createDeliveryActionRegistry(
@@ -60,6 +70,7 @@ export function createDeliveryActionRegistry(
     access: ActionAccess.Developer,
     organizationContext: OrganizationContextPolicy.RequiredAuthenticatedContext,
   } as const;
+  const commandPolicy = { ...queryPolicy, type: ActionKind.Command } as const;
 
   registry.register({
     name: DeliveryImplementedAction.ChecksList,
@@ -112,6 +123,28 @@ export function createDeliveryActionRegistry(
     policy: queryPolicy,
     transactionIsolation: TransactionIsolation.RepeatableRead,
     handler: handlers.pullRequestsList,
+  });
+
+  registry.register({
+    name: DeliveryImplementedAction.MergeEntriesList,
+    method: HttpMethod.Get,
+    path: "/v1/merge-entries",
+    input: contractSchemas.RepositoryQuery,
+    output: contractSchemas["Page<MergeEntry>"],
+    policy: queryPolicy,
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: handlers.mergeEntriesList,
+  });
+
+  registry.register({
+    name: DeliveryImplementedAction.MergeEntriesCreate,
+    method: HttpMethod.Post,
+    path: "/v1/merge-entries",
+    input: contractSchemas.MergeEntryCreate,
+    output: contractSchemas.MergeEntry,
+    policy: commandPolicy,
+    explicitIdempotency: "key",
+    handler: handlers.mergeEntriesCreate,
   });
 
   assertRegisteredActions(registry);
