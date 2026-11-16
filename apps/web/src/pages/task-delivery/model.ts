@@ -122,8 +122,12 @@ export type AfterApproval = Readonly<{
       mergedSha: string | null;
     }>
     | null;
-  /** Other pull requests this task has, shown as "and {n} earlier". */
-  earlier: number;
+  /** Other pull requests this task has, newest first, listed when asked. */
+  others: readonly Readonly<{
+    providerNumber: number;
+    url: string;
+    status: PullRequestStatus;
+  }>[];
   badge: AfterApprovalBadge;
 }>;
 
@@ -368,7 +372,7 @@ export function afterApproval(
   const chosen = ordered.filter((entry) => entry.runId === runId).at(-1) ??
     ordered.at(-1);
   if (chosen === undefined) {
-    return { pullRequest: null, earlier: 0, badge: "approved" };
+    return { pullRequest: null, others: [], badge: "approved" };
   }
   return {
     pullRequest: {
@@ -377,7 +381,16 @@ export function afterApproval(
       status: chosen.status,
       mergedSha: chosen.mergedSha,
     },
-    earlier: Math.max(0, pullRequests.length - 1),
+    // Newest first: the list opens from the count, so the most recent thing
+    // the person may care about is the first thing they read.
+    others: ordered
+      .filter((entry) => entry.id !== chosen.id)
+      .reverse()
+      .map((entry) => ({
+        providerNumber: entry.providerNumber,
+        url: entry.url,
+        status: entry.status,
+      })),
     // Never "merged" without the merge commit GitHub reported, and never
     // "merged" for a pull request that was closed instead.
     badge: chosen.status === "open"

@@ -3784,5 +3784,9 @@
   "tasks.delivery.afterApproval.badge.waitingForMerge": "⟦Ŵàïŧïñĝ ƒôŕ ɱëŕĝë ŧëš⟧",
   "tasks.delivery.afterApproval.badge.merged": "⟦Ṁëŕĝëð…⟧",
   "tasks.delivery.afterApproval.badge.notMerged": "⟦Ñôŧ ɱëŕĝëð ŧ⟧",
-  "tasks.delivery.afterApproval.badge.approved": "⟦Àþþŕôṽëð…⟧"
+  "tasks.delivery.afterApproval.badge.approved": "⟦Àþþŕôṽëð…⟧",
+  "tasks.delivery.afterApproval.earlierRow": "⟦#{number} ŧ⟧",
+  "tasks.delivery.afterApproval.status.open": "⟦Ôþëñ⟧",
+  "tasks.delivery.afterApproval.status.merged": "⟦Ṁëŕĝëð…⟧",
+  "tasks.delivery.afterApproval.status.closed": "⟦Çļôšëð…⟧"
 }

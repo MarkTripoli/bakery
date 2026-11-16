@@ -3784,5 +3784,9 @@
   "tasks.delivery.afterApproval.badge.waitingForMerge": "⟪Waiting for merge⟫",
   "tasks.delivery.afterApproval.badge.merged": "⟪Merged⟫",
   "tasks.delivery.afterApproval.badge.notMerged": "⟪Not merged⟫",
-  "tasks.delivery.afterApproval.badge.approved": "⟪Approved⟫"
+  "tasks.delivery.afterApproval.badge.approved": "⟪Approved⟫",
+  "tasks.delivery.afterApproval.earlierRow": "⟪#{number}⟫",
+  "tasks.delivery.afterApproval.status.open": "⟪Open⟫",
+  "tasks.delivery.afterApproval.status.merged": "⟪Merged⟫",
+  "tasks.delivery.afterApproval.status.closed": "⟪Closed⟫"
 }

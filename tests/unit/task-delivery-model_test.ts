@@ -639,7 +639,7 @@ const pullRequest = (
 Deno.test("no pull request recorded reads as unknown, never as merged", () => {
   const { afterApproval } = deliveryModel(clean({}));
   assertEquals(afterApproval.pullRequest, null);
-  assertEquals(afterApproval.earlier, 0);
+  assertEquals(afterApproval.others, []);
   assertEquals(afterApproval.badge, "approved");
 });
 
@@ -651,7 +651,7 @@ Deno.test("this run's pull request wins over a newer one from another run", () =
     ],
   }));
   assertEquals(afterApproval.pullRequest?.providerNumber, 1);
-  assertEquals(afterApproval.earlier, 1);
+  assertEquals(afterApproval.others.map((one) => one.providerNumber), [2]);
   assertEquals(afterApproval.badge, "waitingForMerge");
 });
 
@@ -663,7 +663,8 @@ Deno.test("a task whose pull requests carry no run shows the most recent", () =>
     ],
   }));
   assertEquals(afterApproval.pullRequest?.providerNumber, 5);
-  assertEquals(afterApproval.earlier, 1);
+  // Newest first, and the shown one is not repeated in the list.
+  assertEquals(afterApproval.others.map((one) => one.providerNumber), [4]);
 });
 
 Deno.test("the badge never says merged without the merge commit GitHub reported", () => {

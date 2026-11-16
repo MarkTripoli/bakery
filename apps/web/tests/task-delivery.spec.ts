@@ -1206,7 +1206,8 @@ test("the approval card and its dialogs have no accessibility violations and fit
 
 // Evidence stills for the PR description (desktop and phone, light and dark), only
 // when BAKERY_STILLS_DIR is set.
-const STILLS = process.env.BAKERY_STILLS_DIR;
+const STILLS = process.env.BAKERY_EVIDENCE_DIR ??
+  process.env.BAKERY_STILLS_DIR;
 for (
   const [name, scenario] of [["clean", CLEAN], ["fixing", FIXING], [
     "stopped",
@@ -1503,18 +1504,46 @@ test("with no pull request the group says Bakery has seen none and cannot tell w
   await expect(pullRequestStep(page).getByRole("link")).toHaveCount(0);
 });
 
-test("this run's pull request wins, and the task's others are counted as earlier", async ({ page }) => {
+test("this run's pull request wins, and the task's others open in place, newest first", async ({ page }) => {
   await openApproved(page, {
     pullRequests: [
-      pullRequestRow(480, { runId: null }),
-      pullRequestRow(481, { runId: null }),
+      pullRequestRow(480, {
+        createdAt: "2026-01-01T00:00:01.000Z",
+        status: "closed",
+      }),
+      pullRequestRow(481, {
+        createdAt: "2026-01-01T00:00:02.000Z",
+        status: "merged",
+        mergedSha: sha("9"),
+      }),
       pullRequestRow(482),
     ],
   });
   await expect(pullRequestStep(page)).toContainText(
     "Pull request #482 is open.",
   );
-  await expect(pullRequestStep(page)).toContainText("and 2 earlier");
+  const earlier = page.getByTestId("delivery-earlier-pull-requests");
+  // A count the person can open, and nothing listed until they do.
+  const control = earlier.getByText("and 2 earlier", { exact: true });
+  await expect(control).toBeVisible();
+  // A native disclosure: closed, so the rows are neither read nor reached.
+  await expect(earlier).not.toHaveAttribute("open");
+  const rows = earlier.getByRole("listitem");
+  await expect(rows).toHaveCount(0);
+  await earlier.locator("summary").click();
+  await expect(earlier).toHaveAttribute("open", "");
+  await expect(rows).toHaveCount(2);
+  // Newest first: #481 before #480, each with its status and its own link.
+  await expect(rows.nth(0)).toContainText("#481");
+  await expect(rows.nth(0)).toContainText("Merged");
+  await expect(rows.nth(1)).toContainText("#480");
+  await expect(rows.nth(1)).toContainText("Closed");
+  await expect(rows.nth(1).getByRole("link", { name: /Open on GitHub/ }))
+    .toHaveAttribute("href", "https://github.com/o/r/pull/480");
+  // Pressing it again closes the list.
+  await earlier.locator("summary").click();
+  await expect(earlier).not.toHaveAttribute("open");
+  await expect(rows).toHaveCount(0);
 });
 
 test("the after-approval group has no accessibility violations and fits a 390px screen", async ({ page }) => {

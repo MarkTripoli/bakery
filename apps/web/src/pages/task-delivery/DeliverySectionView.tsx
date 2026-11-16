@@ -289,6 +289,13 @@ const AFTER_APPROVAL_TONE = {
   approved: "neutral",
 } as const;
 
+/** A pull request's status in the list of the task's other pull requests. */
+const PULL_REQUEST_TONE = {
+  open: "information",
+  merged: "success",
+  closed: "neutral",
+} as const;
+
 export function DeliverySectionView(
   {
     decisionPhase,
@@ -1045,15 +1052,45 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
               })}
             title={t("tasks.delivery.afterApproval.pullRequest.title")}
           >
-            {after.earlier === 0 ? null : (
-              // The design asks for a link that lists the other pull requests.
-              // There is no such list yet, and a link to nowhere is worse than a
-              // count, so this stays plain text until the list exists.
-              <UI.Text variant="muted">
-                {t("tasks.delivery.afterApproval.earlier", {
-                  count: after.earlier,
+            {after.others.length === 0 ? null : (
+              // One control that leads somewhere: the task's other pull requests,
+              // newest first, opened in place (design-ux, 2026-11-16).
+              <UI.Disclosure
+                data-testid="delivery-earlier-pull-requests"
+                summary={t("tasks.delivery.afterApproval.earlier", {
+                  count: after.others.length,
                 })}
-              </UI.Text>
+              >
+                <UI.Stack gap="compact" role="list">
+                  {after.others.map((other) => (
+                    <UI.Inline
+                      gap="compact"
+                      key={other.providerNumber}
+                      role="listitem"
+                    >
+                      <UI.DataText variant="code">
+                        {t("tasks.delivery.afterApproval.earlierRow", {
+                          number: other.providerNumber,
+                        })}
+                      </UI.DataText>
+                      <UI.Badge tone={PULL_REQUEST_TONE[other.status]}>
+                        {t(
+                          `tasks.delivery.afterApproval.status.${other.status}` as MessageKey,
+                        )}
+                      </UI.Badge>
+                      <UI.Link
+                        href={other.url}
+                        rel="noreferrer"
+                        target="_blank"
+                        variant="quiet"
+                      >
+                        {t("tasks.delivery.afterApproval.openOnGitHub")}
+                        <span aria-hidden="true">↗</span>
+                      </UI.Link>
+                    </UI.Inline>
+                  ))}
+                </UI.Stack>
+              </UI.Disclosure>
             )}
           </UI.StepItem>
         )}
