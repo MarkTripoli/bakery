@@ -2511,6 +2511,27 @@ export function connectionRepositoriesQueryOptions(
   });
 }
 
+/** One repository's issue settings, by id. */
+export function ticketSourceQueryOptions(
+  client: Pick<BakeryApiClient, "tickets">,
+  scope: ApiScope,
+  id: string,
+) {
+  return queryOptions<TicketSourceResponse, ApiFailure>({
+    queryKey: protectedQueryKey(scope, "ticketSources.get", { id }),
+    queryFn: async ({ signal }) =>
+      unwrap(
+        await client.tickets.source({
+          organizationId: requireOrganization(scope),
+          id,
+          signal,
+        }),
+      ),
+    enabled: Boolean(scope.organizationId) && id !== "",
+    retry: retryNetworkOnce,
+  });
+}
+
 /**
  * Every repository source of issues, collected 100 at a time up to a bound,
  * for the Choose repositories sheet (it needs each repository's source and

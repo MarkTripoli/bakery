@@ -6,18 +6,22 @@ import { useI18n } from "../../i18n/I18nProvider.tsx";
 export const RULES_PATH = "/settings/organization/repository-rules";
 
 /**
- * Asks before a person leaves the repository rules pages with unpublished
- * edits. Moving between the list and a rule's editor never asks: the draft
- * is kept for that. Leaving throws the draft away, because it is stored
- * nowhere else, and a reload or a closed tab gets the browser's own prompt.
+ * Asks before a person leaves pages with unsaved edits. Moving between the
+ * pages that share the draft's `path` never asks: the draft is kept for that.
+ * Leaving throws the draft away, because it is stored nowhere else, and a
+ * reload or a closed tab gets the browser's own prompt.
  */
 export function LeaveGuard(
-  { count, discard }: { count: number; discard: () => void },
+  { count, discard, path = RULES_PATH }: {
+    count: number;
+    discard: () => void;
+    /** The prefix whose pages share this draft; `/settings/organization/repository-rules` by default. */
+    path?: string;
+  },
 ) {
   const { translate } = useI18n();
   const blocker = useBlocker({
-    shouldBlockFn: ({ next }) =>
-      count > 0 && !next.pathname.startsWith(RULES_PATH),
+    shouldBlockFn: ({ next }) => count > 0 && !next.pathname.startsWith(path),
     enableBeforeUnload: () => count > 0,
     withResolver: true,
   });
