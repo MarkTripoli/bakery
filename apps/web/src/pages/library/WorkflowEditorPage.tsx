@@ -489,6 +489,8 @@ export function WorkflowEditorPage(
     const index = live === undefined ? -1 : steps.indexOf(live);
     return {
       kind: "step",
+      name: stepName(step, translate),
+      named: ACTION_TITLES[step.uses] !== undefined,
       uses: step.uses,
       code: step.code,
       problem: step.problem === undefined
@@ -665,7 +667,7 @@ export function WorkflowEditorPage(
                 )
                 : (
                   <UI.Button
-                    variant="text"
+                    variant="destructive-quiet"
                     data-testid="editor-problems"
                     onClick={() => setProblemsOpen(true)}
                   >

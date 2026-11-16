@@ -1,6 +1,6 @@
 import * as UI from "@bakery/ui";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
-import { ACTION_LINES, ACTION_TITLES } from "./workflow-state.ts";
+import { ACTION_LINES } from "./workflow-state.ts";
 
 /**
  * The panel beside the diagram (#67, slice 1): what the person selected, and
@@ -24,6 +24,10 @@ export type PanelTarget =
   | { readonly kind: "codeOnly"; readonly name: string }
   | {
     readonly kind: "step";
+    /** The card's name: the step type's own name, or "Unreadable step". */
+    readonly name: string;
+    /** Whether the name is the step type's, so the panel can say so. */
+    readonly named: boolean;
     readonly uses: string;
     /** What the definition states, when the step could not be drawn as an action. */
     readonly code: string | undefined;
@@ -84,10 +88,6 @@ export function StepPanel(
     );
   }
 
-  const titleKey = ACTION_TITLES[target.uses];
-  const name = titleKey === undefined
-    ? target.uses
-    : translate(titleKey as never);
   const lineKey = ACTION_LINES[target.uses];
   const line = lineKey === undefined ? undefined : translate(lineKey as never);
 
@@ -98,10 +98,14 @@ export function StepPanel(
       variant="column"
       header={
         <UI.Stack gap="tight">
-          <UI.Text variant="strong">{name}</UI.Text>
-          <UI.Text variant="muted">
-            {translate("library.editor.panel.nameIsType" as never)}
-          </UI.Text>
+          <UI.Text variant="strong">{target.name}</UI.Text>
+          {target.named
+            ? (
+              <UI.Text variant="muted">
+                {translate("library.editor.panel.nameIsType" as never)}
+              </UI.Text>
+            )
+            : null}
         </UI.Stack>
       }
       footer={

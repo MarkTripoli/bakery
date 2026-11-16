@@ -306,8 +306,19 @@
 
 /* The step panel beside the diagram is the width the owner's spec names: the
    work surface gives its second column that width, so no component needs a
-   one-off class. */
+   one-off class. The diagram takes what is left and the panel sits at the top
+   of it; on a phone the columns wrap and the panel takes the full width. */
+[data-ui-region="editor-work-surface"] {
+  align-items: flex-start;
+}
 [data-ui-region="editor-work-surface"] > *:last-child {
+  flex: 0 0 auto;
   inline-size: var(--layout-step-panel);
-  max-inline-size: var(--layout-step-panel);
+  max-inline-size: 100%;
+}
+
+/* The problems list is a dialog of sentences and their one action: it needs a
+   reading width, not the width of its longest line. */
+[data-ui-component="dialog"]:has([data-testid="editor-problem-list"]) {
+  inline-size: min(32rem, calc(100dvi - var(--space-8)));
 }
