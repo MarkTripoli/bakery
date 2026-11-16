@@ -26,6 +26,8 @@ const baseFacts: SpawnFacts = {
   candidatesNow: [{ path: "/usr/bin/git", realPath: "/usr/bin/git" }],
   permissions: [{ command: "git", state: "granted" }],
   processInfo: { pid: 4242, cwd: "/work", deno: "2.9.1" },
+  pathMutations: [],
+  droppedPathMutations: 0,
 };
 
 Deno.test("a PATH that changed since the lane started is named, with where git resolved in each", () => {

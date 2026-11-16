@@ -1,4 +1,5 @@
 import { removeTreeSync } from "../../scripts/ci/temp-tree.ts";
+import { mutationSite, recordPathMutation } from "./path-mutation-log.ts";
 import { createSpawnFailureReporter } from "./spawn-capability-report.ts";
 
 /**
@@ -12,7 +13,9 @@ import { createSpawnFailureReporter } from "./spawn-capability-report.ts";
  * fail, including a directory a test locked on purpose. It changes nothing a
  * test can observe while it runs: paths, options and results are the originals.
  *
- * It also reports, on stderr, a spawn that the lane's --allow-run refuses (#229).
+ * It also reports, on stderr, a spawn that the lane's --allow-run refuses (#229)
+ * and records every in-process change to PATH, so that report can name what
+ * moved the PATH the grant was resolved against.
  *
  * It cannot help a process that is killed outright; the lane runner sweeps the
  * run's own temp root for that, and for anything made another way (Node's
@@ -40,6 +43,36 @@ if (holder[INSTALLED] === undefined) {
   wrap("makeTempFile", false);
   wrap("makeTempDirSync", true);
   wrap("makeTempFileSync", true);
+
+  // #229: the lane's grant is resolved against the startup PATH; a spawn
+  // resolves against PATH now. Nothing in the tree changes PATH today, so the
+  // incident of 2026-11-12 cannot be reproduced — but the next one names its
+  // cause instead of costing another hunt. Observation only: the value written,
+  // the error thrown and the timing are the caller's.
+  const env = Deno.env as unknown as Record<string, unknown>;
+  for (const name of ["set", "delete"] as const) {
+    const original = (env[name] as (...args: unknown[]) => unknown).bind(
+      Deno.env,
+    );
+    env[name] = {
+      [name](...args: unknown[]): unknown {
+        if (args[0] === "PATH") {
+          try {
+            recordPathMutation({
+              at: new Date().toISOString(),
+              action: name,
+              previous: Deno.env.get("PATH"),
+              next: name === "set" ? String(args[1]) : undefined,
+              site: mutationSite(new Error().stack),
+            });
+          } catch {
+            // A diagnostic never replaces the change it describes.
+          }
+        }
+        return original(...args);
+      },
+    }[name];
+  }
 
   // #229: a spawn the lane's --allow-run refuses prints what the process saw
   // (spawn-capability-report.ts), then throws the same error it was going to.
