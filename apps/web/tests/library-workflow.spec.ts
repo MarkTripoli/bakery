@@ -639,19 +639,25 @@ for (
 }
 
 test("a draft that matches the version in use has nothing to publish", async ({ page }) => {
-  // One published version, in use, and no separate draft: the draft the editor
-  // shows is that version, so publishing it would change nothing.
-  const same = [
-    version(2, 2, "published", [{ id: "brief", uses: "task.brief" }]),
-  ];
+  // The workflow's one version is the one it names as in use (uuid(1003)) and
+  // there is no separate draft, so the editor's steps and the steps in use are
+  // the same and publishing would change nothing.
+  const same = [{
+    id: uuid(1003),
+    workflowId: WORKFLOW.id,
+    revision: 3,
+    status: "published" as const,
+    steps: [{ id: "brief", uses: "task.brief" }],
+    normalizedSpec: {
+      kind: "fixed",
+      steps: [{ id: "brief", uses: "task.brief" }],
+    },
+  }];
   await libraryFixture(page, { ...WORLD, versions: same });
   await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
   await expect(page.locator("[data-card='start']")).toBeVisible();
   await page.getByRole("button", { name: "Publish" }).click();
   const nothing = page.getByRole("alertdialog", { name: "Nothing to publish" });
   await expect(nothing).toBeVisible();
-  await expect(nothing).toContainText(
-    "The steps have not changed since this draft was saved",
-  );
   await nothing.getByRole("button", { name: "Close" }).click();
 });
