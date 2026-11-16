@@ -29,7 +29,8 @@
      another. The row's extra height above the text comes out of the top
      padding, so the title stays where it was. */
   padding-block-start: calc(
-    var(--space-4) - (var(--target-min) - var(--space-5)) / 2
+    var(--space-4) - (var(--target-min, var(--target-coarse)) - var(--space-5))
+    / 2
   );
 }
 
@@ -45,7 +46,8 @@
   inline-size: var(--space-5);
   justify-content: center;
   margin-block-start: calc(
-    (var(--target-min) - var(--space-5)) / 2 + var(--space-0-5)
+    (var(--target-min, var(--target-coarse)) - var(--space-5)) / 2 +
+    var(--space-0-5)
   );
 }
 
@@ -90,7 +92,7 @@
   flex-wrap: wrap;
   font: var(--type-control);
   gap: var(--space-1);
-  min-block-size: var(--target-min);
+  min-block-size: var(--target-min, var(--target-coarse));
 }
 
 .ui-step-item__summary {
@@ -119,7 +121,8 @@
 .ui-step-item__action {
   display: flex;
   justify-self: end;
-  margin-block-start: calc((var(--target-min) - var(--space-5)) / 2);
+  margin-block-start: calc((var(--target-min, var(--target-coarse)) -
+    var(--space-5)) / 2);
   min-inline-size: 0;
 }
 
@@ -277,8 +280,8 @@
      are separate values, and --target-coarse is the root token that exists
      here. --target-min is scoped to the inbox, artifact and session panes, so
      consuming it in this file would silently do nothing. */
-  block-size: var(--size-dismiss);
-  inline-size: var(--size-dismiss);
+  block-size: var(--size-step-connector);
+  inline-size: var(--size-step-connector);
   justify-content: center;
   min-block-size: var(--target-coarse);
   min-inline-size: var(--target-coarse);
