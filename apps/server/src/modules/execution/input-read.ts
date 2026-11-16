@@ -144,10 +144,7 @@ export async function inputReadRoute(
           digest !== row.pinned_sha256 || digits(row.size_bytes) !==
             digits(row.pinned_size_bytes)
         ) {
-          throw new StandardError({
-            code: "PRECONDITION_FAILED",
-            params: { reason: "input_digest_mismatch" },
-          });
+          throw new StandardError({ code: "PRECONDITION_FAILED" });
         }
         items.push({
           artifactVersionId: row.artifact_version_id,
