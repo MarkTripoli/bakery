@@ -504,10 +504,12 @@ Deno.test("a side-effecting chain with no `needs` is ordered by the plan, which 
 });
 
 Deno.test("a read that names a step which is not a sibling is refused, never implied", async () => {
-  // The decision recorded on #157: a read must name a step that exists, is a
-  // sibling, and precedes the reader. A name that matches nothing in that scope
-  // is a compile error — the compiler never invents an edge to a step it cannot
-  // see, so a nested step's id is not silently resolved from an outer scope.
+  // The decision recorded on #157: a read's first segment resolves among the
+  // reader's siblings and ancestors, and what it names must complete first (doc
+  // 06: an earlier sibling, or a descendant of one, or of an ancestor). A name
+  // that resolves to nothing in that scope is a compile error — the compiler
+  // never invents an edge, so a nested step's bare id is not silently picked up
+  // from an outer scope.
   const nested: Step = { id: "early", steps: [brief] };
   assertEquals(
     await diagnose([nested, {
@@ -520,6 +522,29 @@ Deno.test("a read that names a step which is not a sibling is refused, never imp
       },
     }]),
     [{ path: "/steps/1/with/planArtifact", code: "reference_step_unknown" }],
+  );
+});
+
+Deno.test("a read of a step inside an earlier sibling is ordered by the plan, as doc 06 allows", async () => {
+  // The accepted half of the rule, wider than "an ancestor": doc 06 allows a
+  // read of an earlier sibling or of a descendant of one. The plan orders the
+  // descendant's step before the reader, so the guarantee holds for it too.
+  const result = await compile([
+    { id: "early", steps: [brief] },
+    {
+      id: "reader",
+      uses: "harness.implement",
+      with: {
+        repositoryId: REPO,
+        planArtifact: "$step.early.brief.artifact.versionId",
+        instructions: "$input.instructions",
+      },
+    },
+  ]);
+  assert(result.ok, result.ok ? "" : JSON.stringify(result.diagnostics));
+  assertEquals(
+    result.plan.steps.map((step) => step.qualifiedId),
+    ["early.brief", "reader"],
   );
 });
 
