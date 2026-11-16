@@ -1071,8 +1071,10 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
               // the button and the list are handed over together to keep the
               // design's order: sentence, button, then the list.
               ? (
+                // The button keeps its label's width in both states: a column
+                // would stretch it to the opened list's width (design-ux, #482).
                 <UI.Stack gap="compact">
-                  {pullRequestLink}
+                  <UI.Inline>{pullRequestLink}</UI.Inline>
                   {earlierList}
                 </UI.Stack>
               )
