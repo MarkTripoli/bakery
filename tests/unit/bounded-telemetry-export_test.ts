@@ -1517,8 +1517,15 @@ async function countingZeroDelayTimers<T>(
   }
 }
 
-Deno.test("close flushes a full queue completely even with no time to spare", async () => {
-  for (const deadline of [0, 1, 50, 5_000]) {
+Deno.test("close flushes a full queue completely when the budget allows", async () => {
+  // A closing exporter never yields, so a synchronous sink drains as far as its
+  // budget lets it. A zero budget keeps its meaning — no timer can preempt the
+  // flush, so it drains everything — and a real budget drains a 1000-item queue
+  // comfortably (100 sink calls). What is no longer true, since #199, is that a
+  // budget too small to finish still drains: 1 ms was measured cutting this
+  // queue mid-flush, which is the point of having a deadline at all. That case
+  // is the test below.
+  for (const deadline of [0, 50, 5_000]) {
     const exported: number[] = [];
     const exporter = make<number>(
       (batch) => {
@@ -1536,6 +1543,31 @@ Deno.test("close flushes a full queue completely even with no time to spare", as
     assertEquals(exported[999], 999, "in order");
     conserved(exporter.stats());
   }
+});
+
+Deno.test("close stops mid-queue only when the budget is too small to finish", async () => {
+  // The other half of the same contract, and the one #199 was written for: a
+  // synchronous sink cannot be preempted, so before the deadline was read
+  // between batches a 100,000-item close(10) ran to completion in ~400 ms. Now
+  // it stops when the budget is spent — as long as it makes progress and
+  // accounts for everything it did not send.
+  const exported: number[] = [];
+  const exporter = make<number>(
+    (batch) => {
+      exported.push(...batch);
+    },
+    { capacity: 1000, batchSize: 10, intervalMs: 10_000, maxAttempts: 1 },
+  );
+  for (let item = 0; item < 1000; item += 1) exporter.offer(item);
+  await exporter.close(1);
+  const stats = exporter.stats();
+  conserved(stats);
+  assert(exported.length > 0, "it flushed nothing at all");
+  assertEquals(
+    exported.length + stats.dropped.shutdown,
+    1000,
+    "the rest was not accounted as shed",
+  );
 });
 
 Deno.test("a closing exporter never yields: no zero-delay timer is made while it flushes", async () => {
