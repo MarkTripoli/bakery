@@ -3803,11 +3803,11 @@
   "library.editor.version.inUse": "⟪Version {version} is in use⟫",
   "library.editor.version.draft": "⟪Nothing is in use yet⟫",
   "library.editor.publish": "⟪Publish⟫",
-  "library.editor.publish.title": "⟪Publish these steps?⟫",
   "library.editor.publish.body": "⟪This saves the steps as a new version and makes it the one new tasks get.⟫",
   "library.editor.publish.nothing": "⟪Nothing to publish⟫",
   "library.editor.publish.nothingBody": "⟪The steps have not changed since this draft was saved, so there is nothing to publish.⟫",
   "library.editor.publish.only": "⟪Publish only⟫",
   "library.editor.publish.andUse": "⟪Publish and use⟫",
-  "library.editor.publish.close": "⟪Close⟫"
+  "library.editor.publish.close": "⟪Close⟫",
+  "library.editor.publish.title": "⟪Publish version {version}⟫"
 }

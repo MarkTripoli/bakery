@@ -450,7 +450,9 @@ export function WorkflowEditorPage(
             open
             variant="destructive"
             title={draftDiffers
-              ? translate("library.editor.publish.title" as never)
+              ? translate("library.editor.publish.title" as never, {
+                version: String((inUse?.revision ?? 0) + 1),
+              })
               : translate("library.editor.publish.nothing" as never)}
             state={publish.isPending ? "confirming" : "open"}
             onOpenChange={(open) => {

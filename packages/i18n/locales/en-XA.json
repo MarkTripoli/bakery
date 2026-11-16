@@ -3803,11 +3803,11 @@
   "library.editor.version.inUse": "⟦Ṽëŕšïôñ {version} ïš ïñ ûšë ŧëšŧ çô⟧",
   "library.editor.version.draft": "⟦Ñôŧĥïñĝ ïš ïñ ûšë ÿëŧ ŧëšŧŧ⟧",
   "library.editor.publish": "⟦Þûƀļïšĥ…⟧",
-  "library.editor.publish.title": "⟦Þûƀļïšĥ ŧĥëšë šŧëþš? ŧëšŧ⟧",
   "library.editor.publish.body": "⟦Ŧĥïš šàṽëš ŧĥë šŧëþš àš à ñëŵ ṽëŕšïôñ àñð ɱàķëš ïŧ ŧĥë ôñë ñëŵ ŧàšķš ĝëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "library.editor.publish.nothing": "⟦Ñôŧĥïñĝ ŧô þûƀļïšĥ ŧëšŧ⟧",
   "library.editor.publish.nothingBody": "⟦Ŧĥë šŧëþš ĥàṽë ñôŧ çĥàñĝëð šïñçë ŧĥïš ðŕàƒŧ ŵàš šàṽëð, šô ŧĥëŕë ïš ñôŧĥïñĝ ŧô þûƀļïšĥ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "library.editor.publish.only": "⟦Þûƀļïšĥ ôñļÿ ŧë⟧",
   "library.editor.publish.andUse": "⟦Þûƀļïšĥ àñð ûšë ŧëš⟧",
-  "library.editor.publish.close": "⟦Çļôšë⟧"
+  "library.editor.publish.close": "⟦Çļôšë⟧",
+  "library.editor.publish.title": "⟦Þûƀļïšĥ ṽëŕšïôñ {version} ŧëšŧ ç⟧"
 }
