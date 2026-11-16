@@ -1019,7 +1019,7 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
                 target="_blank"
                 variant="button"
               >
-                {t("tasks.delivery.afterApproval.openOnGitHub")}
+                {t("tasks.delivery.afterApproval.openOnGitHub")}{" "}
                 <span aria-hidden="true">↗</span>
               </UI.Link>
             )}
