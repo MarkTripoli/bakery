@@ -5778,6 +5778,7 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
       ],
@@ -5800,6 +5801,8 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",
@@ -200935,7 +200938,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:4f3974990d85ddc3dac15218be63ff0128ef339cbaa59ba3ef4c231df8cdecbe",
+  "compatibilityDigest": "sha256:579cfa254182d9ee4b57d0ea311aaeee3a906fe0eeceaf9e44696ba65085edd6",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

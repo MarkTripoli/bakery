@@ -5535,16 +5535,17 @@
       "organizationContext": "required_authenticated_context",
       "input": "RepositoryQuery",
       "output": "Page<MergeEntry>",
-      "event": "",
-      "mcp": "bakery_mergeEntries_list",
-      "idempotency": "read",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "INVALID_CURSOR",
         "MALFORMED_REQUEST"
-      ]
+      ],
+      "event": "",
+      "mcp": "bakery_mergeEntries_list",
+      "idempotency": "read"
     },
     {
       "group": "Delivery",
@@ -5563,6 +5564,8 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
         "PRECONDITION_FAILED",

@@ -10,11 +10,9 @@ create table bakery.merge_entries (
   organization_id uuid not null,
   pull_request_id uuid not null,
   repository_id uuid not null,
-  target_branch text not null check (btrim(target_branch) <> ''),
-  expected_head_sha text not null
-    check (expected_head_sha ~ '^[0-9a-f]{40}$'),
-  expected_base_sha text not null
-    check (expected_base_sha ~ '^[0-9a-f]{40}$'),
+  target_branch text not null,
+  expected_head_sha text not null,
+  expected_base_sha text not null,
   -- queued, validating, merging, merged, blocked or canceled.
   status text not null default 'queued',
   external_effect_id uuid,
