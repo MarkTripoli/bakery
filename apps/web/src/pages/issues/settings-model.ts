@@ -277,9 +277,9 @@ export type PreviewCounts = {
   readonly evaluatedAt: string | null;
 };
 
-/** A saved issue, as far as the counts need it. */
+/** A saved issue, as far as the counts need it: an issue nobody judged has none. */
 export type CountableIssue = {
-  readonly latestReadiness: unknown;
+  readonly latestReadiness?: unknown;
 };
 
 /** One issue's verdict: ready, waiting or rejected, as the report stores it. */
