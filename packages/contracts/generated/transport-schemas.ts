@@ -2698,6 +2698,7 @@ const transportSchemas = {
           "type": "uuid[]",
           "required": true,
           "bounds": {
+            "minItems": 1,
             "maxItems": 100
           },
           "description": "Check runs supplying the required-checks-passed evidence for this merge entry; each linked run must share this entry's exact head, base and policy digest."

@@ -211,8 +211,27 @@ export type CoordinatorExecutorDeps = Readonly<{
  * - Unset: `worker` outside `BAKERY_ENV=test` when a database is given, else
  *   `unavailable`, so test stacks without a script never wait on a claim.
  */
+/**
+ * The five variables the coordinator executor reads, and only those: the three
+ * it selects on plus the two worker timeouts, which `readCoordinatorExecutor`
+ * reads through `readTimeout`. A named `Deno.env.get` is allowed under a lane's
+ * scoped `--allow-env`, where reading the whole environment throws NotCapable
+ * (#322).
+ */
+export function readCoordinatorEnv(
+  read: (name: string) => string | undefined = (name) => Deno.env.get(name),
+): Record<string, string | undefined> {
+  return {
+    [COORDINATOR_EXECUTOR_ENV]: read(COORDINATOR_EXECUTOR_ENV),
+    [SCRIPTED_COORDINATOR_DIR_ENV]: read(SCRIPTED_COORDINATOR_DIR_ENV),
+    BAKERY_ENV: read("BAKERY_ENV"),
+    [COORDINATOR_CLAIM_TIMEOUT_ENV]: read(COORDINATOR_CLAIM_TIMEOUT_ENV),
+    [COORDINATOR_TURN_TIMEOUT_ENV]: read(COORDINATOR_TURN_TIMEOUT_ENV),
+  };
+}
+
 export function readCoordinatorExecutor(
-  env: Record<string, string | undefined> = Deno.env.toObject(),
+  env: Record<string, string | undefined>,
   deps: CoordinatorExecutorDeps = {},
 ): CoordinatorTurnExecutor {
   const selected = env[COORDINATOR_EXECUTOR_ENV]?.trim() || undefined;
