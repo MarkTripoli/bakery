@@ -103,6 +103,7 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
   };
 
   const save = useMutation({
+    mutationKey: ["ticketSources.update"],
     mutationFn: async (form: SettingsForm) => {
       if (saved === null) throw new Error("no source");
       const result = await api.tickets.updateSource({
@@ -134,6 +135,7 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
   });
 
   const preview = useMutation({
+    mutationKey: ["ticketSources.preview"],
     mutationFn: async () => {
       const receipt = await api.tickets.preview({
         organizationId: scope.organizationId ?? "",
@@ -160,6 +162,7 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
   });
 
   const lookup = useMutation({
+    mutationKey: ["tickets.lookupPerson"],
     mutationFn: async (login: string) => {
       const result = await api.tickets.lookupPerson({
         organizationId: scope.organizationId ?? "",
