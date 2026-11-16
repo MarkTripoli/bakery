@@ -5,6 +5,7 @@ import {
   createDeliveryActionRegistry,
   createDeliveryHandlers,
 } from "../../../apps/server/src/modules/delivery/index.ts";
+import { mergeDispatchStub } from "../merge-dispatch-stub.ts";
 import {
   closePgDatabase,
   openPgDatabase,
@@ -93,7 +94,7 @@ export async function openChecksFixture(): Promise<ChecksFixture> {
   const principalId = await addPrincipal(fixture.organizationId, "developer");
   const registry = createDeliveryActionRegistry(
     fixture.appPg,
-    createDeliveryHandlers(cursorSecret),
+    createDeliveryHandlers(cursorSecret, mergeDispatchStub("checks-fixture")),
   );
   return {
     fixture,

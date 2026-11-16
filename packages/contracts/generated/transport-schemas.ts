@@ -2698,6 +2698,7 @@ const transportSchemas = {
           "type": "uuid[]",
           "required": true,
           "bounds": {
+            "minItems": 1,
             "maxItems": 100
           },
           "description": "Check runs supplying the required-checks-passed evidence for this merge entry; each linked run must share this entry's exact head, base and policy digest."
@@ -9908,6 +9909,45 @@ const transportSchemas = {
         }
       ],
       "description": "Route identifiers naming one suggestion of an authorized active draft."
+    },
+    "PullRequestMerge": {
+      "fields": [
+        {
+          "name": "expectedHeadSha",
+          "type": "gitSha",
+          "required": true,
+          "description": "Head commit the caller verified and expects to merge; a pull request whose head has moved since is refused before any provider write."
+        },
+        {
+          "name": "expectedBaseSha",
+          "type": "gitSha",
+          "required": false,
+          "description": "Target-branch commit the caller verified, when it verified one; a base that has moved since refuses the merge because the checks it read belong to the old base."
+        },
+        {
+          "name": "mergeMethod",
+          "type": "enum",
+          "required": true,
+          "enum": [
+            "merge",
+            "squash",
+            "rebase"
+          ],
+          "description": "How GitHub should combine the commits: a merge commit, a squashed commit, or a rebase; any other value is refused before the request is sent."
+        }
+      ],
+      "description": "Dispatches one merge for a pull request at an exact expected head and base; the server re-reads the pull request live, refuses a moved head or base, a closed pull request or a check that has not passed, and records the attempt in the same transaction that sends it."
+    },
+    "MergeAttemptReconcile": {
+      "fields": [
+        {
+          "name": "pullRequestId",
+          "type": "uuid",
+          "required": true,
+          "description": "Pull request whose unknown merge attempts are settled from a live provider read; an attempt already settled answers as itself and is never rewritten."
+        }
+      ],
+      "description": "Settles every unknown merge attempt of one pull request by re-reading it from GitHub; a merge that happened is recorded as merged and one that did not as refused, without ever sending a second merge."
     }
   },
   "projections": {
@@ -15022,6 +15062,66 @@ const transportSchemas = {
         "createdAt": "Timestamp recording when the created event occurred for this budget reservation record.",
         "updatedAt": "Timestamp recording the last update to this budget reservation record.",
         "version": "Monotonic revision used to order or conditionally update this budget reservation record."
+      }
+    },
+    "pull_request_merge_attempts": {
+      "fields": [
+        "id",
+        "pullRequestId",
+        "providerNumber",
+        "repositoryId",
+        "baseBranch",
+        "expectedHeadSha",
+        "state",
+        "providerStatus",
+        "mergedSha",
+        "createdAt",
+        "settledAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "pullRequestId": "uuid",
+        "providerNumber": "integer",
+        "repositoryId": "uuid",
+        "baseBranch": "string",
+        "expectedHeadSha": "string",
+        "state": "enum(merged|refused|unknown)",
+        "providerStatus": "integer|null",
+        "mergedSha": "string|null",
+        "createdAt": "timestamp",
+        "settledAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "providerStatus",
+        "mergedSha",
+        "settledAt"
+      ],
+      "sourceColumns": {
+        "id": "id",
+        "pullRequestId": "pull_request_id",
+        "providerNumber": "provider_number",
+        "repositoryId": "repository_id",
+        "baseBranch": "base_branch",
+        "expectedHeadSha": "expected_head_sha",
+        "state": "state",
+        "providerStatus": "provider_status",
+        "mergedSha": "merged_sha",
+        "createdAt": "created_at",
+        "settledAt": "settled_at"
+      },
+      "description": "Explicit safe projection list for merge attempts. Runtime serializers use this allowlist; never auto-export new database columns.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the merge attempt record.",
+        "pullRequestId": "Stable UUID linking this attempt to the pull request it merges.",
+        "providerNumber": "GitHub's pull request number for the attempt.",
+        "repositoryId": "Stable UUID linking this attempt to the repository it merges into.",
+        "baseBranch": "Target branch the merge was dispatched against.",
+        "expectedHeadSha": "Head commit the caller verified and the attempt was dispatched against.",
+        "state": "Outcome of the attempt: merged, refused, or unknown while a lost provider answer waits for reconciliation.",
+        "providerStatus": "GitHub's HTTP status for a refused or merged answer; null when no provider call was made or the answer was lost.",
+        "mergedSha": "Commit GitHub reports for a merged attempt; null otherwise.",
+        "createdAt": "UTC timestamp when the attempt was recorded.",
+        "settledAt": "UTC timestamp when an unknown attempt was settled by reconciliation; null while unknown."
       }
     }
   },
@@ -25498,6 +25598,72 @@ const transportSchemas = {
     "Page<DraftSuggestion>": {
       "pageOf": "DraftSuggestion",
       "description": "Cursor page of the suggestions proposed for one collaborative draft, oldest first, each with what it replaces, who asked and its state. items and nextCursor are always present, with nextCursor=null marking the last page; there are no page numbers or offsets."
+    },
+    "MergeAttempt": {
+      "projection": "pull_request_merge_attempts",
+      "fields": [
+        "id",
+        "pullRequestId",
+        "providerNumber",
+        "repositoryId",
+        "baseBranch",
+        "expectedHeadSha",
+        "state",
+        "providerStatus",
+        "mergedSha",
+        "createdAt",
+        "settledAt"
+      ],
+      "fieldTypes": {
+        "id": "uuid",
+        "pullRequestId": "uuid",
+        "providerNumber": "integer",
+        "repositoryId": "uuid",
+        "baseBranch": "string",
+        "expectedHeadSha": "string",
+        "state": "enum(merged|refused|unknown)",
+        "providerStatus": "integer|null",
+        "mergedSha": "string|null",
+        "createdAt": "timestamp",
+        "settledAt": "timestamp|null"
+      },
+      "nullableFields": [
+        "providerStatus",
+        "mergedSha",
+        "settledAt"
+      ],
+      "description": "One recorded merge attempt: the exact head it was dispatched against, the outcome, and the provider status or merged commit when GitHub answered.",
+      "fieldDescriptions": {
+        "id": "Stable UUID identifying the merge attempt record.",
+        "pullRequestId": "Stable UUID linking this attempt to the pull request it merges.",
+        "providerNumber": "GitHub's pull request number for the attempt.",
+        "repositoryId": "Stable UUID linking this attempt to the repository it merges into.",
+        "baseBranch": "Target branch the merge was dispatched against.",
+        "expectedHeadSha": "Head commit the caller verified and the attempt was dispatched against.",
+        "state": "Outcome of the attempt: merged, refused, or unknown while a lost provider answer waits for reconciliation.",
+        "providerStatus": "GitHub's HTTP status for a refused or merged answer; null when no provider call was made or the answer was lost.",
+        "mergedSha": "Commit GitHub reports for a merged attempt; null otherwise.",
+        "createdAt": "UTC timestamp when the attempt was recorded.",
+        "settledAt": "UTC timestamp when an unknown attempt was settled by reconciliation; null while unknown."
+      }
+    },
+    "MergeReconciliation": {
+      "fields": [
+        "reconciled",
+        "merged",
+        "refused"
+      ],
+      "fieldTypes": {
+        "reconciled": "integer",
+        "merged": "integer",
+        "refused": "integer"
+      },
+      "description": "What one reconciliation read settled for a pull request: the number of unknown attempts moved, split by whether GitHub reports the pull request merged.",
+      "fieldDescriptions": {
+        "reconciled": "Total unknown attempts the read settled.",
+        "merged": "Attempts settled as merged because GitHub reports the pull request merged.",
+        "refused": "Attempts settled as refused because GitHub reports the pull request not merged."
+      }
     }
   },
   "pageEnvelope": {
