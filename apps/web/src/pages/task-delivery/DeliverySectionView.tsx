@@ -775,6 +775,7 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
     const timer = globalThis.setTimeout(() => setCopied("idle"), 2500);
     return () => globalThis.clearTimeout(timer);
   }, [copied]);
+  const phone = useShellViewport() === "phone";
   const { checks, review, fixing } = model;
   // The group ends the trace, so it appears once the work is approved and
   // never before (design rule 5).
@@ -844,6 +845,59 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
     </UI.HelpTip>
   );
 
+  const pullRequestLink = pullRequest === null ? undefined : (
+    <UI.Link
+      href={pullRequest.url}
+      rel="noreferrer"
+      target="_blank"
+      variant="button"
+    >
+      {t("tasks.delivery.afterApproval.openOnGitHub")}{" "}
+      <span aria-hidden="true">↗</span>
+    </UI.Link>
+  );
+  // One control that leads somewhere: the task's other pull requests, newest
+  // first, opened in place (design-ux, 2026-11-16).
+  const earlierList = after === null || after.others.length === 0
+    ? null
+    : (
+      <UI.Disclosure
+        data-testid="delivery-earlier-pull-requests"
+        summary={t("tasks.delivery.afterApproval.earlier", {
+          count: after.others.length,
+        })}
+      >
+        <UI.Stack gap="compact" role="list">
+          {after.others.map((other) => (
+            <UI.Inline
+              gap="compact"
+              key={other.providerNumber}
+              role="listitem"
+            >
+              <UI.Text>
+                {t("tasks.delivery.afterApproval.earlierRow", {
+                  number: other.providerNumber,
+                })}
+              </UI.Text>
+              <UI.Badge tone={PULL_REQUEST_TONE[other.status]}>
+                {t(
+                  `tasks.delivery.afterApproval.status.${other.status}` as MessageKey,
+                )}
+              </UI.Badge>
+              <UI.Link
+                href={other.url}
+                rel="noreferrer"
+                target="_blank"
+                variant="quiet"
+              >
+                {t("tasks.delivery.afterApproval.openOnGitHub")}{" "}
+                <span aria-hidden="true">↗</span>
+              </UI.Link>
+            </UI.Inline>
+          ))}
+        </UI.Stack>
+      </UI.Disclosure>
+    );
   return (
     <>
       <UI.StepList label={t("tasks.delivery.steps")}>
@@ -1012,17 +1066,17 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
         )}
         {after !== null && (
           <UI.StepItem
-            action={pullRequest === null ? undefined : (
-              <UI.Link
-                href={pullRequest.url}
-                rel="noreferrer"
-                target="_blank"
-                variant="button"
-              >
-                {t("tasks.delivery.afterApproval.openOnGitHub")}{" "}
-                <span aria-hidden="true">↗</span>
-              </UI.Link>
-            )}
+            action={phone && earlierList !== null
+              // On a phone the action column comes after the step's detail, so
+              // the button and the list are handed over together to keep the
+              // design's order: sentence, button, then the list.
+              ? (
+                <UI.Stack gap="compact">
+                  {pullRequestLink}
+                  {earlierList}
+                </UI.Stack>
+              )
+              : pullRequestLink}
             data-testid="delivery-pull-request-step"
             group={t("tasks.delivery.afterApproval.group")}
             status={pullRequest === null
@@ -1052,46 +1106,7 @@ function Steps({ model }: Readonly<{ model: DeliveryModel }>) {
               })}
             title={t("tasks.delivery.afterApproval.pullRequest.title")}
           >
-            {after.others.length === 0 ? null : (
-              // One control that leads somewhere: the task's other pull requests,
-              // newest first, opened in place (design-ux, 2026-11-16).
-              <UI.Disclosure
-                data-testid="delivery-earlier-pull-requests"
-                summary={t("tasks.delivery.afterApproval.earlier", {
-                  count: after.others.length,
-                })}
-              >
-                <UI.Stack gap="compact" role="list">
-                  {after.others.map((other) => (
-                    <UI.Inline
-                      gap="compact"
-                      key={other.providerNumber}
-                      role="listitem"
-                    >
-                      <UI.Text>
-                        {t("tasks.delivery.afterApproval.earlierRow", {
-                          number: other.providerNumber,
-                        })}
-                      </UI.Text>
-                      <UI.Badge tone={PULL_REQUEST_TONE[other.status]}>
-                        {t(
-                          `tasks.delivery.afterApproval.status.${other.status}` as MessageKey,
-                        )}
-                      </UI.Badge>
-                      <UI.Link
-                        href={other.url}
-                        rel="noreferrer"
-                        target="_blank"
-                        variant="quiet"
-                      >
-                        {t("tasks.delivery.afterApproval.openOnGitHub")}{" "}
-                        <span aria-hidden="true">↗</span>
-                      </UI.Link>
-                    </UI.Inline>
-                  ))}
-                </UI.Stack>
-              </UI.Disclosure>
-            )}
+            {phone || after.others.length === 0 ? null : earlierList}
           </UI.StepItem>
         )}
         {after !== null && (

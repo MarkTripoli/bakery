@@ -1530,6 +1530,17 @@ test("this run's pull request wins, and the task's others open in place, newest 
   await expect(earlier).not.toHaveAttribute("open");
   const rows = earlier.getByRole("listitem");
   await expect(rows).toHaveCount(0);
+  // On a phone the step's own button must not read as the button for the last
+  // row: it comes before the list (design-ux, 2026-11-16).
+  if ((page.viewportSize()?.width ?? 1280) <= 743) {
+    const ownButton = pullRequestStep(page).getByRole("link", {
+      name: /Open on GitHub/,
+    });
+    await expect(ownButton).toHaveCount(1);
+    const buttonTop = (await ownButton.boundingBox())?.y ?? 0;
+    const controlTop = (await earlier.locator("summary").boundingBox())?.y ?? 0;
+    expect(buttonTop).toBeLessThan(controlTop);
+  }
   await earlier.locator("summary").click();
   await expect(earlier).toHaveAttribute("open", "");
   await expect(rows).toHaveCount(2);
