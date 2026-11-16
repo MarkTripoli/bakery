@@ -3792,5 +3792,10 @@
   "library.editor.panel.nameIsType": "⟦Ïŧš ñàɱë ïš ŧĥë šŧëþ ŧÿþë'š ñàɱë ûñŧïļ à šŧëþ çàñ ƀë ñàɱëð. ŧëšŧ çôþÿ ŧëšŧ çôþ⟧",
   "library.editor.panel.moveUp": "⟦Ṁôṽë ûþ…⟧",
   "library.editor.panel.moveDown": "⟦Ṁôṽë ðôŵñ ŧ⟧",
-  "library.editor.panel.remove": "⟦Ŕëɱôṽë…⟧"
+  "library.editor.panel.remove": "⟦Ŕëɱôṽë…⟧",
+  "library.editor.card.unknown": "⟦Ûñķñôŵñ šŧëþ ŧë⟧",
+  "library.editor.card.unreadable": "⟦Ûñŕëàðàƀļë šŧëþ ŧëš⟧",
+  "library.editor.card.needsSetup": "⟦Ñëëðš šëŧûþ ŧ⟧",
+  "library.editor.card.needsSetupLine": "⟦Ŧĥïš šŧëþ çàññôŧ ƀë ŕëàð, šô ïŧ çàññôŧ ŕûñ àš ïŧ ïš. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "library.editor.card.writtenInCode": "⟦Ŵŕïŧŧëñ ïñ çôðë àš {code} ŧëšŧ ç⟧"
 }

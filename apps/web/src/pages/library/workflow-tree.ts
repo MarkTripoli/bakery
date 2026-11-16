@@ -10,14 +10,25 @@
  * straight line; a group a person cannot change says "Edited in code".
  */
 
+/**
+ * A step the editor could not read or does not know. The owner's spec says a
+ * node is never dropped (section 8), so it is drawn as a card that needs setup
+ * rather than left out: dropping it would hide a step a run would still take.
+ */
+export type StepProblem = "unknown" | "unreadable";
+
 /** One card in the drawing: a step type, and the step it came from. */
 export type TreeStep = {
   readonly kind: "step";
   /** The step's id in the definition, which is how a problem points at it. */
   readonly id: string;
-  /** The action it runs, e.g. `task.brief`. */
+  /** The action it runs, e.g. `task.brief`; empty when the step is unreadable. */
   readonly uses: string;
   readonly agentVersionId: string | null;
+  /** Why the card needs setup, when the step could not be drawn as an action. */
+  readonly problem?: StepProblem;
+  /** What the definition states in code, shown on the card (`Written in code as`). */
+  readonly code?: string;
 };
 
 /** A group the editor draws but does not let anyone change in slice 1. */
@@ -68,8 +79,22 @@ function drawNodes(nodes: readonly unknown[]): readonly TreeNode[] {
   return nodes.flatMap((node) => drawNode(node));
 }
 
-/** One definition node as one drawing node; an unknown shape draws nothing. */
+/**
+ * One definition node as one drawing node. A node the editor cannot read is
+ * still drawn — never dropped — as a card that needs setup (design ruling on
+ * G2, #67): a step a run would take must not disappear from the page.
+ */
 function drawNode(raw: unknown): readonly TreeNode[] {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    return [{
+      kind: "step",
+      id: `unreadable-${text(record(raw).id) || "step"}`,
+      uses: "",
+      agentVersionId: null,
+      problem: "unreadable",
+      code: JSON.stringify(raw).slice(0, 120),
+    }];
+  }
   const node = record(raw);
   const kind = text(node.kind);
   if (kind === "action" || kind === "") {
@@ -148,7 +173,19 @@ function drawNode(raw: unknown): readonly TreeNode[] {
       editedInCode: true,
     }];
   }
-  return [];
+  // A kind the editor does not know is drawn as an unknown step, in place.
+  const id = text(node.id);
+  const uses = text(node.uses);
+  return [{
+    kind: "step",
+    id: id === "" ? `unknown-${kind}` : id,
+    uses,
+    agentVersionId: text(node.agentVersionId) === ""
+      ? null
+      : text(node.agentVersionId),
+    problem: "unknown",
+    code: kind === "" ? JSON.stringify(raw).slice(0, 120) : kind,
+  }];
 }
 
 /** How many steps a node holds, counting the ones inside a group. */

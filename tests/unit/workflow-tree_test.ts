@@ -86,8 +86,28 @@ Deno.test("a wait draws as a group with nothing inside it, and counts no steps",
   assertEquals(countSteps(tree.nodes[0]), 0);
 });
 
-Deno.test("an unknown node shape draws nothing rather than guessing", () => {
-  assertEquals(treeOf({ steps: [{ kind: "something-new" }] }).nodes.length, 0);
+Deno.test("an unknown node is drawn as an unknown step, never dropped", () => {
+  // The owner's spec says a node is never dropped (section 8); design-ux ruled
+  // the same on G2: a step a run would take must not vanish from the page.
+  const tree = treeOf({
+    steps: [{ kind: "something-new", id: "x", uses: "a.b" }],
+  });
+  assertEquals(tree.nodes.length, 1);
+  const card = tree.nodes[0];
+  assertEquals(card.kind === "step" ? card.problem : null, "unknown");
+  assertEquals(card.kind === "step" ? card.code : null, "something-new");
+  assertEquals(tree.stepCount, 1);
+});
+
+Deno.test("a node that is not an object is drawn as unreadable, and nothing crashes", () => {
+  const tree = treeOf({ steps: ["not-a-node", 42] });
+  assertEquals(tree.nodes.length, 2);
+  assertEquals(
+    tree.nodes.every((node) =>
+      node.kind === "step" && node.problem === "unreadable"
+    ),
+    true,
+  );
   assertEquals(treeOf({}).stepCount, 0);
   assertEquals(treeOf(null).stepCount, 0);
 });

@@ -3792,5 +3792,10 @@
   "library.editor.panel.nameIsType": "⟪Its name is the step type's name until a step can be named.⟫",
   "library.editor.panel.moveUp": "⟪Move up⟫",
   "library.editor.panel.moveDown": "⟪Move down⟫",
-  "library.editor.panel.remove": "⟪Remove⟫"
+  "library.editor.panel.remove": "⟪Remove⟫",
+  "library.editor.card.unknown": "⟪Unknown step⟫",
+  "library.editor.card.unreadable": "⟪Unreadable step⟫",
+  "library.editor.card.needsSetup": "⟪Needs setup⟫",
+  "library.editor.card.needsSetupLine": "⟪This step cannot be read, so it cannot run as it is.⟫",
+  "library.editor.card.writtenInCode": "⟪Written in code as {code}⟫"
 }

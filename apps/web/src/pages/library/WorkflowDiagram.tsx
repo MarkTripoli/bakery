@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import * as UI from "@bakery/ui";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
 import { ACTION_LINES, ACTION_TITLES } from "./workflow-state.ts";
-import type { GroupLabel, Tree, TreeNode } from "./workflow-tree.ts";
+import type { GroupLabel, Tree, TreeNode, TreeStep } from "./workflow-tree.ts";
 
 /**
  * The workflow drawn top to bottom (#67, slice 1 of the owner's spec): "How it
@@ -112,10 +112,28 @@ export function WorkflowDiagram(
     </UI.Stack>
   );
 
-  const card = (id: string, uses: string, selectable: boolean) => {
-    const problem = problems.get(id);
+  const cardName = (node: TreeStep): string => {
+    if (node.problem === "unknown") {
+      return translate("library.editor.card.unknown" as never);
+    }
+    if (node.problem === "unreadable") {
+      return translate("library.editor.card.unreadable" as never);
+    }
+    return title(node.uses);
+  };
+
+  const card = (node: TreeStep, selectable: boolean) => {
+    const id = node.id;
+    const drawing = node.problem !== undefined;
+    const problem = drawing
+      ? translate("library.editor.card.needsSetup" as never)
+      : problems.get(id);
     return (
-      <UI.Stack gap="tight" data-card={id}>
+      <UI.Stack
+        gap="tight"
+        data-card={id}
+        data-needs-setup={drawing ? "true" : undefined}
+      >
         <UI.Button
           variant="text"
           aria-pressed={selectedId === id}
@@ -125,13 +143,27 @@ export function WorkflowDiagram(
           onClick={() => onSelect(id)}
         >
           <UI.Stack gap="tight">
-            <UI.Text variant="strong">{title(uses)}</UI.Text>
-            {line(uses) === undefined
+            <UI.Text variant="strong">{cardName(node)}</UI.Text>
+            {node.problem !== undefined
               ? null
-              : <UI.Text variant="muted">{line(uses)}</UI.Text>}
+              : line(node.uses) === undefined
+              ? null
+              : <UI.Text variant="muted">{line(node.uses)}</UI.Text>}
+            {node.code === undefined ? null : (
+              <UI.Text variant="caption">
+                {translate("library.editor.card.writtenInCode" as never, {
+                  code: node.code,
+                })}
+              </UI.Text>
+            )}
             {problem === undefined
               ? null
               : <UI.Text variant="error">{problem}</UI.Text>}
+            {node.problem === undefined ? null : (
+              <UI.Text variant="caption">
+                {translate("library.editor.card.needsSetupLine" as never)}
+              </UI.Text>
+            )}
           </UI.Stack>
         </UI.Button>
       </UI.Stack>
@@ -140,12 +172,11 @@ export function WorkflowDiagram(
 
   const nodes = (held: readonly TreeNode[]): ReactNode =>
     held.map((node, index) => {
-      const last = index === held.length - 1;
       if (node.kind === "step") {
         return (
-          <div key={`step-${node.id}`}>
-            {card(node.id, node.uses, canManage)}
-            {last ? connector(node.id) : null}
+          <div key={`step-${node.id}`} data-node-index={index}>
+            {card(node, canManage)}
+            {connector(node.id)}
           </div>
         );
       }
