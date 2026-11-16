@@ -38,3 +38,52 @@ export function assertSkillObjectKey(key: string): void {
     throw new SkillFileStoreError("SKILL_FILE_KEY_INVALID");
   }
 }
+
+/**
+ * The organisation is the first segment of every key, which is what makes
+ * tenancy structural rather than a filter someone can forget to add. A key
+ * that starts anywhere else, or that carries any extra segment, is refused
+ * before a store call is made.
+ */
+const BLOB_KEY =
+  /^organizations\/([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})\/blobs\/sha256\/([0-9a-f]{64})$/;
+
+/**
+ * A blob is one organisation's bytes under their SHA-256.
+ *
+ * The digest is in the key on purpose: it is what makes the write idempotent
+ * (two writers of the same bytes address the same object) and it is what a
+ * reader verifies against. The organisation is a separate segment so the same
+ * digest in two organisations is two objects — deduplication within one
+ * organisation, never across (O43).
+ */
+export function blobObjectKey(organizationId: string, sha256: string): string {
+  const key = `organizations/${organizationId}/blobs/sha256/${sha256}`;
+  assertBlobObjectKey(key);
+  return key;
+}
+
+/**
+ * Refuses anything that is not exactly `organizations/{org}/blobs/sha256/{64}`.
+ *
+ * A digest or organisation id arriving from a caller is never concatenated
+ * blindly: a `..`, an extra slash, a NUL or a trailing space would otherwise
+ * address an object outside this organisation's prefix.
+ */
+export function assertBlobObjectKey(key: string): void {
+  if (!BLOB_KEY.test(key)) {
+    throw new SkillFileStoreError("BLOB_KEY_INVALID");
+  }
+}
+
+/** The organisation a blob key belongs to, after the key has been asserted. */
+export function blobKeyOrganization(key: string): string {
+  assertBlobObjectKey(key);
+  return BLOB_KEY.exec(key)![1];
+}
+
+/** The digest a blob key names, after the key has been asserted. */
+export function blobKeyDigest(key: string): string {
+  assertBlobObjectKey(key);
+  return BLOB_KEY.exec(key)![2];
+}
