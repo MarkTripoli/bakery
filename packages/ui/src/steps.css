@@ -288,6 +288,7 @@
 .ui-step-connector__button > span {
   align-items: center;
   background: var(--color-surface);
+  box-sizing: border-box;
   border: var(--border-default) solid var(--color-border);
   border-radius: var(--radius-circle);
   block-size: var(--size-step-connector);
