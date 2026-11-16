@@ -326,7 +326,7 @@ export async function createMergeEntry(
   }
 
   const inserted = await transaction.query<EntryRow>(
-    `insert into bakery.merge_entries (
+    `insert into bakery.merge_entries as entry (
        organization_id,pull_request_id,repository_id,target_branch,
        expected_head_sha,expected_base_sha,status,run_id,policy_digest,
        review_cycle_id,requested_by_id,request_id,trace_id
