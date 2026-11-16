@@ -15,6 +15,7 @@ import {
   settingsConfig,
   settingsProblem,
   setupBadge,
+  usesOtherBranches,
 } from "../../apps/web/src/pages/projects/repository-state.ts";
 import {
   canonicalJson as serverCanonical,
@@ -183,4 +184,32 @@ Deno.test("a fixed policy fixes the branches of its version", () => {
   );
   assertEquals(fixesBranches({ schemaVersion: 1 }), false);
   assertEquals(fixesBranches(null), false);
+});
+
+Deno.test("usesOtherBranches follows the server's locked-branch rule (#65)", () => {
+  const pinned = {
+    schemaVersion: 1,
+    branches: { base: "main", allowedPatterns: ["locked/*"] },
+    fixedPolicy: { lockedConfiguration: { branches: true, worktree: true } },
+  };
+  const diverging = {
+    schemaVersion: 1,
+    branches: { base: "main", allowedPatterns: ["earlier/*"] },
+  };
+  // A locked version in use refuses a version with other branches...
+  assertEquals(usesOtherBranches(pinned, diverging), true);
+  // ...and accepts one with the same branches, in any key order: the server
+  // compares canonical JSON, so the row must too.
+  assertEquals(usesOtherBranches(pinned, pinned), false);
+  const reordered = {
+    fixedPolicy: { lockedConfiguration: { worktree: true, branches: true } },
+    branches: { allowedPatterns: ["locked/*"], base: "main" },
+    schemaVersion: 1,
+  };
+  assertEquals(usesOtherBranches(pinned, reordered), false);
+  // An unpinned version in use fixes nothing, so every row stays usable.
+  assertEquals(usesOtherBranches(diverging, pinned), false);
+  // A repository with no version in force answers false rather than throwing.
+  assertEquals(usesOtherBranches(null, pinned), false);
+  assertEquals(usesOtherBranches(undefined, pinned), false);
 });

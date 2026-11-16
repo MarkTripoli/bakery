@@ -267,19 +267,31 @@ Deno.test("the page's save sequence against the real routes", async () => {
     assertEquals(noEntriesResult.putInUseBy, "page");
     assertEquals(await activeOf(noEntries), noEntriesResult.profile.id);
 
-    // A fixed policy fixes what a *publication* may change, not which recorded
-    // version a person may put in use: the server allows switching to a version
-    // with other branches, so the page keeps "Use version" on those rows
-    // (design-ux, #475 review). A policy that also carried rules still refuses
-    // to publish new branches (the sheet's fixed-branches view).
+    // The organization's rules fix the branches for this repository (#65, PM
+    // decision after the #475 finding): a version recorded with other branches
+    // cannot be put in use, so the sheet's notice is not a false guarantee.
+    // The refusal is the publish path's own, and the page keeps "Use version"
+    // on the rows because a version whose branches match the fixed set still
+    // activates.
+    // A fixed policy the server itself would accept, so the stored version is
+    // readable and its lock is real.
     const policyFixed = await makeRepo("policy-fixed", {
       profile: config({
         fixedPolicy: {
+          schemaVersion: 1,
+          commands: [{ id: "test.required", argv: ["pnpm", "test"] }],
+          allowedEffects: [
+            "artifact_only",
+            "repository_revision",
+            "evidence_only",
+            "projection_only",
+          ],
           lockedConfiguration: {
             branches: true,
             worktree: true,
             checker: true,
           },
+          decisions: [{ commandId: "test.required", mode: "require" }],
         },
       }),
     });
@@ -307,10 +319,40 @@ Deno.test("the page's save sequence against the real routes", async () => {
     );
     assertEquals(
       usedUnderPolicy.status,
-      200,
+      422,
       JSON.stringify(usedUnderPolicy.json),
     );
-    assertEquals(await activeOf(policyFixed), otherBranches);
+    assertEquals(
+      (usedUnderPolicy.json as { issues: { code: string }[] }).issues[0].code,
+      "repository_branches_locked",
+    );
+    // Nothing moved: the version in use is still the one whose branches the
+    // policy fixed.
+    assert((await activeOf(policyFixed)) !== otherBranches);
+
+    // A version whose branches match the fixed set still activates, which is
+    // why the rows keep their button.
+    const matchingBranches = crypto.randomUUID();
+    const matchingConfig = config();
+    await owner`
+      insert into bakery.repository_profiles (
+        id, organization_id, application_id, repository_id, revision, config,
+        digest, created_by, version
+      ) values (${matchingBranches}, ${fx.organizationId}, ${fx.applicationId},
+        ${policyFixed}, 3, ${owner.json(matchingConfig as never)},
+        ${await configDigest(matchingConfig)}, ${fx.admin.principalId}, 1)`;
+    const fixedMatch = (await request("GET", `/v1/repositories/${policyFixed}`))
+      .json as { version: number };
+    const usedMatching = await request(
+      "PATCH",
+      `/v1/repositories/${policyFixed}`,
+      {
+        body: { activeProfileId: matchingBranches },
+        ifMatch: `"${fixedMatch.version}"`,
+      },
+    );
+    assertEquals(usedMatching.status, 200, JSON.stringify(usedMatching.json));
+    assertEquals(await activeOf(policyFixed), matchingBranches);
     // A control character in a branch is a 400, and the page refuses it first.
     assertEquals(settingsProblem(["main\u0000x"], ""), "characters");
     const control = await makeRepo("control", { profile: config() });

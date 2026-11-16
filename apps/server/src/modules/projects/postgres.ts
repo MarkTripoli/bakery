@@ -212,6 +212,45 @@ function constraintOf(error: unknown): string | undefined {
   return typeof constraint === "string" ? constraint : undefined;
 }
 
+/**
+ * The branches an active version fixes, when its own policy locks them.
+ *
+ * `null` means no lock: no version in use, an unreadable active config, or a
+ * config whose fixedPolicy does not fix the branches. The activation path and
+ * the publish path then compare the same pair, so a locked repository cannot be
+ * moved to a version recorded with other branches.
+ */
+async function readActiveBranchLock(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  repositoryId: string,
+  activeProfileId: string | null,
+): Promise<unknown | null> {
+  if (activeProfileId === null) return null;
+  const row = (await transaction.query<{ config: unknown }>(
+    `select config from bakery.repository_profiles
+      where organization_id = $1 and repository_id = $2 and id = $3`,
+    [organizationId, repositoryId, activeProfileId],
+  )).rows[0];
+  if (!row) return null;
+  // A stored version is either an observed (check-made) config or a person's
+  // saved one, so read both shapes the activation path accepts.
+  const versioned = RepositoryVersionedProfileConfigSchema.safeParse(
+    row.config,
+  );
+  const parsed = versioned.success
+    ? versioned
+    : RepositoryProfileConfigSchema.safeParse(row.config);
+  // An unreadable active config hides no lock this build can name. Activation
+  // of a version over an observed one is refused by its own rule, so this reads
+  // as "no fixed branches" rather than pre-empting that refusal.
+  if (!parsed.success) return null;
+  if (parsed.data.fixedPolicy?.lockedConfiguration.branches !== true) {
+    return null;
+  }
+  return parsed.data.branches;
+}
+
 async function boundedMutation<T>(work: () => Promise<T>): Promise<T> {
   try {
     return await work();
@@ -871,6 +910,23 @@ export const updateRepository = async (
     }
     if (parsedConfig.data.branches.base !== targetDefaultBranch) {
       throw unprocessable(["activeProfileId"], "profile_stale");
+    }
+    // The organization's rules fix the branches (#65): a version recorded with
+    // other branches cannot be put in use, so the sheet's notice is not a false
+    // guarantee on this path. The refusal is the publish path's own, under the
+    // same code and wording; a version whose branches match the fixed set stays
+    // allowed.
+    const activeLock = await readActiveBranchLock(
+      transaction,
+      organizationId,
+      repositoryId,
+      repository.active_profile_id,
+    );
+    if (
+      activeLock !== null &&
+      canonicalJson(activeLock) !== canonicalJson(parsedConfig.data.branches)
+    ) {
+      throw unprocessable(["activeProfileId"], "repository_branches_locked");
     }
   }
   const archivedAtProvided = value.archivedAt !== undefined;
