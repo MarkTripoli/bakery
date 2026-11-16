@@ -1245,13 +1245,29 @@ export function workerRefusalParams(
  * pool; unset, the default shared pool is used. The config, not the
  * environment, decides both.
  */
+/**
+ * One limiter per configured pool size, process-wide (#322). The limiter holds
+ * the live slot count, so a second one for the same size would be a second pool:
+ * two isolations built from the same configuration must share the bound, and the
+ * default (no configured size) already shares `sharedWorkerLimiter`.
+ */
+const configuredWorkerLimiters = new Map<number, DraftWorkerLimiter>();
+
+export function sharedWorkerLimiterFor(max: number): DraftWorkerLimiter {
+  const existing = configuredWorkerLimiters.get(max);
+  if (existing !== undefined) return existing;
+  const created = createDraftWorkerLimiter(max);
+  configuredWorkerLimiters.set(max, created);
+  return created;
+}
+
 export function draftIsolationOptionsFor(
   config: Pick<RuntimeConfig, "draftIsolationLauncher" | "draftWorkerPoolSize">,
 ): IsolationOptions {
   return {
     launcher: config.draftIsolationLauncher ?? "systemd",
     ...(config.draftWorkerPoolSize === undefined ? {} : {
-      workerLimiter: createDraftWorkerLimiter(config.draftWorkerPoolSize),
+      workerLimiter: sharedWorkerLimiterFor(config.draftWorkerPoolSize),
     }),
   };
 }
