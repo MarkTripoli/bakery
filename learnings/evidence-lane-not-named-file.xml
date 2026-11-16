@@ -4,6 +4,6 @@
   <trigger>A green evidence table lists only the test file the author chose, and CI fails afterwards in a shard that imports the changed type or stylesheet.</trigger>
   <rule>Changing a shared interface or a shared stylesheet obliges the whole lane: pnpm test:unit for anything a component type reaches (a new method on BakeryApiClient broke two hand-built stubs in tests/unit), and pnpm test:rails for CSS and catalogue work (the UI css rail scans comments, so a ticket reference written as a hash plus digits reads as a raw hex colour and fails backend rails). pnpm test:rails needs packages/ui/storybook-static, so run pnpm --filter @bakery/ui build-storybook first in a fresh worktree or five rails tests fail with NotFound rather than a real defect. Put each lane in the evidence table as its own row so the table disagrees with the author who skips one.</rule>
   <verification>
-    <requirement>A frozen element cited by the evidence must be the assertion the finding predicts, never a weaker one.</requirement>
+    <requirement>Check the table, not a claim: every lane CI runs for the touched paths (unit for a shared type, rails for CSS or catalogue) appears as its own evidence row, and each of those lanes exited 0 at the head SHA. A table naming only files the author chose is not proof that the change is green.</requirement>
   </verification>
 </learning>
