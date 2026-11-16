@@ -207,12 +207,13 @@ Deno.test("a merge at the exact head is dispatched once and recorded", async () 
       checks: [{ status: "completed", conclusion: "success" }],
       merge: { kind: "merged", mergedSha: MERGED },
     });
+    const context = contextOf(seed, null);
     const attempt = await withPgTransaction(
       f.pgDatabase,
       (transaction) =>
         mergePullRequest(
           { github: github.client, broker: f.broker },
-          contextOf(seed, transaction),
+          { ...context, transaction } as unknown as ActionContext,
           {
             expectedHeadSha: HEAD,
             expectedBaseSha: BASE,
@@ -225,6 +226,19 @@ Deno.test("a merge at the exact head is dispatched once and recorded", async () 
     assertEquals(attempt.expectedHeadSha, HEAD);
     assert(attempt.settledAt !== null);
     assertEquals(github.merges, [{ headSha: HEAD, mergeMethod: "squash" }]);
+    // The durable row carries the platform's own request and trace ids, never
+    // a client header or an empty string.
+    const audit = (await f.pgDatabase.query<{
+      requestId: string;
+      traceId: string;
+    }>(
+      `select request_id as "requestId", trace_id as "traceId"
+         from bakery.pull_request_merge_attempts where id = $1`,
+      [attempt.id],
+    )).rows[0]!;
+    assertEquals(audit.requestId, context.requestId);
+    assertEquals(audit.traceId, context.traceId);
+    assert(audit.requestId !== "" && audit.traceId !== "");
   });
 });
 

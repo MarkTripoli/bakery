@@ -314,8 +314,8 @@ export async function mergePullRequest(
     authority,
     input,
     principalId,
-    context.request.headers.get("x-request-id") ?? "",
-    context.request.headers.get("x-trace-id") ?? "",
+    context.requestId,
+    context.traceId,
   );
   if (decision.kind === "already_merged") {
     return await recordMergeAttempt(transaction, target, {
