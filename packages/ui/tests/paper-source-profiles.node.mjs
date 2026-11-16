@@ -1093,6 +1093,10 @@ test("actual K-0 source renders match all twelve approved full-frame PNGs", {
 test("production candidate capture records the same K-0 raster profile", {
   skip: !process.env.K0_RENDER_OUTPUT,
 }, async () => {
+  // Same as the twelve-frame K-0 test above: the output directory is the
+  // operator's, so make it instead of failing with an ENOENT that looks like a
+  // capture fault rather than an unset-up path (#224).
+  await mkdir(process.env.K0_RENDER_OUTPUT, { recursive: true });
   // The production capture requires the applied document theme before it will
   // record a candidate (capture-stories.mjs: the app resolves its theme
   // asynchronously at boot, so a first paint can still show the previous
