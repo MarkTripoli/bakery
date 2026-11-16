@@ -1,9 +1,17 @@
 import { assertEquals } from "@std/assert";
 import {
+  OrganizationRepositoryRulesSchema,
   type RepositoryRuleStageRequirement,
+  repositoryRuleStageRequirements,
   repositoryRuleStageViolations,
   RULE_GUARD_ALL_CHECKS,
 } from "../../packages/contracts/src/repository-rules.ts";
+import { compileWorkflowDocument } from "../../packages/contracts/src/workflow-compiler/compile.ts";
+import {
+  FIXED_CODING_DEFINITION,
+  FIXED_CODING_REVIEWED_DEFINITION,
+  type WorkflowPresetDocument,
+} from "../../packages/contracts/src/workflow-presets.ts";
 import type { WorkflowNode } from "../../packages/contracts/src/workflow-compiler/mod.ts";
 import { planRuleViolations } from "../../apps/server/src/modules/workflows/plan-rule-guard.ts";
 import { compiled } from "../helpers/workflow-interpreter.ts";
@@ -316,4 +324,56 @@ Deno.test("the all-checks marker is never taken from a literal list, where it wo
       JSON.stringify(checks),
     );
   }
+});
+
+// #399. Moved here from the flat preset cases (which #400 deletes with the flat
+// executor): the decision of record is that the plan guard owns compiled-plan
+// stage coverage. The reviewed preset's plan runs its checks after the last
+// revision, so a bound `require` rule is satisfied; the plain fixed-coding plan
+// has no check after its implement, so the same rule is a missing stage.
+const boundRule = (commandId: string) =>
+  OrganizationRepositoryRulesSchema.parse({
+    revision: 1,
+    entries: [{
+      ruleKey: "code.magicNumbers",
+      enabled: true,
+      mode: "require",
+      options: {
+        checkBinding: commandId,
+        allowedNumbers: [0],
+        excludedPaths: [],
+      },
+      locked: false,
+    }],
+  });
+
+async function planOf(preset: WorkflowPresetDocument) {
+  const result = await compileWorkflowDocument(preset);
+  assertEquals(result.ok, true, JSON.stringify(result));
+  if (!result.ok) throw new Error("unreachable");
+  return result.document;
+}
+
+Deno.test("the plan guard reads a bound require rule: the reviewed preset satisfies it, fixed-coding does not", async () => {
+  const reviewed = await planOf(FIXED_CODING_REVIEWED_DEFINITION);
+  const plain = await planOf(FIXED_CODING_DEFINITION);
+  // Any bound command is covered by the reviewed plan's check after implement.
+  for (const commandId of ["unit", "magic.numbers", "something-else"]) {
+    assertEquals(
+      planRuleViolations(
+        repositoryRuleStageRequirements(boundRule(commandId)),
+        reviewed.steps,
+      ),
+      [],
+      commandId,
+    );
+  }
+  // fixed-coding has no check stage, so the same rule is a missing stage.
+  assertEquals(
+    planRuleViolations(
+      repositoryRuleStageRequirements(boundRule("unit")),
+      plain.steps,
+    ).map((violation) => violation.reason),
+    ["stage_missing"],
+  );
 });
