@@ -32,7 +32,33 @@ const LIMITS = {
 };
 
 const stepKeys = (steps: Array<{ step_key: string; iteration: number }>) =>
-  steps.map((step) => `${step.step_key}@${step.iteration}`);
+  steps.map((step) => logicalStepKey(step.step_key, step.iteration));
+
+/**
+ * A stored key rendered as the loop's logical name, so a case reads
+ * `repair@1` / `check@1` / `review@1` for the repeat body it drives by hand.
+ * The engine stores every repeat row at iteration 0 and encodes the round in
+ * the key (`repair@N.repair_implement`); the projection step keeps its own name.
+ */
+function logicalStepKey(key: string, iteration: number): string {
+  const match =
+    /^repair@(\d+)\.(repair_implement|repair_check|repair_review|candidate_evidence)$/
+      .exec(key);
+  if (match === null) return `${key}@${iteration}`;
+  const round = match[1];
+  return {
+    repair_implement: `repair@${round}`,
+    repair_check: `check@${round}`,
+    repair_review: `review@${round}`,
+    candidate_evidence: `candidate_evidence@${round}`,
+  }[
+    match[2] as
+      | "repair_implement"
+      | "repair_check"
+      | "repair_review"
+      | "candidate_evidence"
+  ];
+}
 
 /** The delivery gate, read with the application role like a merge consumer. */
 function gate(world: LoopWorld) {
@@ -250,7 +276,8 @@ function registerRepairCases(): void {
           assertEquals(decision.blocking_fingerprints, []);
           assertEquals(decision.review_cycle_id, cycle.id);
 
-          // The next iteration is appended, pending, above every existing step.
+          // The plan appends only the step it asks for next, above the seed:
+          // the repair of round 1. Its check and review follow on demand.
           const steps = await world.steps();
           assertEquals(stepKeys(steps), [
             "brief@0",
@@ -258,34 +285,14 @@ function registerRepairCases(): void {
             "check@0",
             "review@0",
             "repair@1",
-            "check@1",
-            "review@1",
           ]);
-          assertEquals(steps.map((step) => step.position), [
-            0,
-            1,
-            3,
-            4,
-            5,
-            6,
-            7,
-          ]);
-          const appended = steps.filter((step) => step.iteration === 1);
+          const repairRow = steps.find((step) =>
+            logicalStepKey(step.step_key, step.iteration) === "repair@1"
+          )!;
+          assertEquals(repairRow.status, "pending");
           assertEquals(
-            new Set(appended.map((step) => step.status)),
-            new Set(["pending"]),
-          );
-          // The stored input is the spec's own template, so a reader sees what
-          // the step will be given; admission derives the real input from it.
-          const original = (key: string) =>
-            steps.find((step) =>
-              step.step_key === key && step.iteration === 0
-            )!;
-          assertEquals(appended[1].input, original("check").input);
-          assertEquals(appended[2].input, original("review").input);
-          assertEquals(
-            (appended[0].input as Record<string, unknown>).revision,
-            "$delivery.headSha",
+            await world.nextKey(),
+            "repair@1.repair_implement",
           );
           assertEquals(await world.runStatus(), "running");
           assertEquals(await world.taskStatus() !== "failed", true);
@@ -430,6 +437,7 @@ function registerRepairCases(): void {
           "repair@1",
           "check@1",
           "review@1",
+          "candidate_evidence@1",
         ]);
         assertEquals(
           new Set(steps.map((step) => step.status)),

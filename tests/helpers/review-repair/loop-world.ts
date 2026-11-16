@@ -522,9 +522,23 @@ export async function openLoopWorld(
     const iteration = 0;
     const next = await engine.findNext(run.id, owner);
     assertExists(next, `the plan asks for nothing; wanted ${stepKey}`);
-    assertEquals(next.stepKey, stepKey);
-    const admitted = await engine.admit(next, owner);
-    assert(admitted.jobId, `${stepKey}@${iteration} must admit a job`);
+    // A step the caller already admitted (the seed may append ahead) is reuse,
+    // not a fault: the plan has advanced past it and its row is still open.
+    if (next.stepKey !== stepKey) {
+      const existing = await database.query<{ id: string }>(
+        `select id from bakery.run_steps
+          where organization_id = $1 and run_id = $2 and step_key = $3`,
+        [org, run.id, stepKey],
+      );
+      assertEquals(
+        existing.rows.length,
+        1,
+        `the plan asks for ${next.stepKey}; wanted ${stepKey}`,
+      );
+    } else {
+      const admitted = await engine.admit(next, owner);
+      assert(admitted.jobId, `${stepKey}@${iteration} must admit a job`);
+    }
     const stepId = await stepIdOf(stepKey, iteration);
     const job = await database.query<
       { id: string; action: string; input: Record<string, unknown> }
@@ -712,8 +726,8 @@ export async function openLoopWorld(
               ...overrides,
             });
           },
-          post(result, key = crypto.randomUUID()) {
-            return postWorkerResult(
+          async post(result, key = crypto.randomUUID()) {
+            const response = await postWorkerResult(
               fixture,
               worker,
               assignment,
@@ -722,6 +736,10 @@ export async function openLoopWorld(
               }),
               key,
             );
+            // A recorded result lets the engine replay the plan: it finishes
+            // the run when the plan is over, exactly as production ticks.
+            if (response.ok) await engine.findNext(run.id, owner);
+            return response;
           },
           fail(fault, key = crypto.randomUUID()) {
             return postWorkerResult(
@@ -921,6 +939,9 @@ export async function withReviewedRun<T>(
       if (options.bare !== true) {
         await world.implement(HEADS[0]);
         seeded = await world.check(0, HEADS[0], options.seed ?? {});
+        // The plan reviews in its own step, so the seed appends that row too;
+        // a case then claims it with `world.review(0)` instead of re-admitting.
+        await world.admit("review", 0);
       }
       return await work(world, seeded);
     } finally {
