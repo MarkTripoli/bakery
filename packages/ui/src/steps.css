@@ -304,6 +304,15 @@
   outline-offset: var(--space-1);
 }
 
+/* The read-only link (#67): the same one-pixel line as the connector with no
+   "+" on it, and an optional word marking the end of the path. A person who may
+   not change the workflow still sees the path run from the first card to the
+   last and stop, instead of the connector vanishing. */
+.ui-step-connector__end {
+  color: var(--color-fg-muted);
+  font: var(--type-label);
+}
+
 /* The step panel beside the diagram is the width the owner's spec names: the
    work surface gives its second column that width, so no component needs a
    one-off class. The diagram takes what is left and the panel sits at the top

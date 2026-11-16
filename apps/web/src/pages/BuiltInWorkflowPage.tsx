@@ -18,10 +18,12 @@ import { WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
 import { MakeCopyDialog } from "./library/MakeCopyDialog.tsx";
 import { presetSource } from "./library/copy-workflow.ts";
-import { stepsOfTree, treeOf } from "./library/workflow-tree.ts";
-import { ACTION_LINES, ACTION_TITLES } from "./library/workflow-state.ts";
-import { stepSummary } from "./library/step-summary.tsx";
+import { treeOf } from "./library/workflow-tree.ts";
+import { WorkflowDiagram } from "./library/WorkflowDiagram.tsx";
 import { presetCopy } from "./task-composer-labels.ts";
+
+// A read-only diagram reports nothing: the problems in it belong to a draft.
+const EMPTY_PROBLEMS: ReadonlyMap<string, string> = new Map();
 
 /**
  * One built-in workflow (design-ux, #66): maintained by Bakery, so it is only
@@ -56,15 +58,6 @@ export function BuiltInWorkflowPage(
     : presetCopy(translate, preset.id);
   const title = labels?.title ??
     translate("library.workflow.breadcrumb" as never);
-  const stepTitle = (uses: string) => {
-    const key = ACTION_TITLES[uses];
-    return key === undefined ? uses : translate(key as never);
-  };
-  // The spec's sentence under a step's name, for the actions that have one.
-  const stepLine = (uses: string) => {
-    const key = ACTION_LINES[uses];
-    return key === undefined ? undefined : translate(key as never);
-  };
 
   const breadcrumbs = (
     <ShellSlot name="breadcrumbs">
@@ -223,43 +216,18 @@ export function BuiltInWorkflowPage(
             description={translate("library.workflow.steps.never" as never)}
             variant="list"
           >
-            <UI.StepList
-              label={translate("library.workflow.steps.label" as never)}
-            >
-              {tree.unreadable
-                ? (
-                  <UI.InlineNotice tone="error">
-                    <UI.Stack gap="tight">
-                      <UI.Text variant="strong">
-                        {translate("library.editor.unreadable.title" as never)}
-                      </UI.Text>
-                      <UI.Text>
-                        {translate("library.editor.unreadable.body" as never)}
-                      </UI.Text>
-                    </UI.Stack>
-                  </UI.InlineNotice>
-                )
-                : stepsOfTree(tree).map((step, index) => (
-                  <UI.StepItem
-                    key={step.id}
-                    data-step-id={step.id}
-                    number={index + 1}
-                    status="upcoming"
-                    statusLabel={translate(
-                      "library.workflow.steps.number" as never,
-                      { n: index + 1 },
-                    )}
-                    title={step.problem === undefined
-                      ? stepTitle(step.uses)
-                      : translate("library.editor.card.unreadable" as never)}
-                    summary={step.problem === undefined
-                      ? stepSummary(stepLine(step.uses), undefined)
-                      : translate(
-                        "library.editor.card.needsSetupLine" as never,
-                      )}
-                  />
-                ))}
-            </UI.StepList>
+            <WorkflowDiagram
+              tree={tree}
+              selectedId={null}
+              problems={EMPTY_PROBLEMS}
+              canManage={false}
+              editable={false}
+              onAdd={() => {}}
+              onSelect={() => {}}
+              onViewAsCode={() => {}}
+              onPick={() => {}}
+              onPickClose={() => {}}
+            />
           </UI.ListSection>
         </UI.Stack>
       </UI.SettingsContent>

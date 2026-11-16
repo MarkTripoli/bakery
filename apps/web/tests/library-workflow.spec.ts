@@ -99,6 +99,29 @@ for (
     const more = (page: Page) =>
       page.getByRole("button", { name: "More actions for Release train" });
 
+    test("a built-in workflow draws its steps as cards too, read-only, and ends the path", async ({ page }) => {
+      await libraryFixture(page, WORLD);
+      await page.goto("/library/built-in/fixed-coding-reviewed");
+      const steps = page.getByTestId("workflow-steps");
+      // The same tree the editor draws: the start card, then one per step.
+      await expect(steps.locator("[data-card]")).toHaveCount(4);
+      expect(
+        await steps.locator("[data-card]").evaluateAll((cards) =>
+          cards.map((card) => card.getAttribute("data-card"))
+        ),
+      ).toEqual(["start", "brief", "implement", "review"]);
+      await expect(steps.locator(".ui-step-card").first()).toBeVisible();
+      await expect(steps.locator(".ui-step-item")).toHaveCount(0);
+      // Nothing to press: a built-in is maintained by Bakery.
+      await expect(steps.getByRole("button", { name: "Add a step" }))
+        .toHaveCount(0);
+      await expect(steps).not.toContainText("Remove");
+      // The line runs to the end and stops there.
+      await expect(steps.locator(".ui-step-connector")).not.toHaveCount(0);
+      await expect(steps.locator(".ui-step-connector__end")).toHaveText("End");
+      await shot(page, "workflow-built-in", [], { windowOnly: true });
+    });
+
     test("opens from the list and shows the version in use: its steps, agents, and every version with its state", async ({ page }) => {
       await libraryFixture(page, WORLD);
       await page.goto("/library");
@@ -112,40 +135,40 @@ for (
       const steps = page.getByTestId("workflow-steps");
       await expect(steps).toContainText("Steps in version 3");
       // Steps are named by what they do, never by their id or action key.
-      await expect(steps.locator("[data-step-id=brief]")).toContainText(
+      await expect(steps.locator("[data-card=brief]")).toContainText(
         "Write the task brief",
       );
-      await expect(steps.locator("[data-step-id=implement]")).toContainText(
+      await expect(steps.locator("[data-card=implement]")).toContainText(
         "Implement",
       );
-      await expect(steps.locator("[data-step-id=implement]")).not
+      await expect(steps.locator("[data-card=implement]")).not
         .toContainText("Run the coding agent");
-      await expect(steps.locator("[data-step-id=implement]")).toContainText(
+      await expect(steps.locator("[data-card=implement]")).toContainText(
         "Agent: Code writer, version 2",
       );
-      await expect(steps.locator("[data-step-id=review]")).toContainText(
+      await expect(steps.locator("[data-card=review]")).toContainText(
         "Review",
       );
       await expect(steps).not.toContainText("harness.implement");
-      // Each step's mark holds its number; the title is in the normal colour.
-      const marks = await steps.locator(
-        '.ui-step-item__mark [aria-hidden="true"]',
-      )
-        .allInnerTexts();
-      expect(marks.map((text) => text.trim())).toEqual(["1", "2", "3"]);
-      // Screen readers get "Step n" for the same mark.
-      await expect(steps.locator(".ui-step-item__mark").first()).toContainText(
-        "Step 1",
-      );
-      const titleColor = await steps.locator(".ui-step-item__title").first()
-        .evaluate((element) => getComputedStyle(element).color);
-      const bodyColor = await page.locator("body").evaluate((element) =>
-        getComputedStyle(element).color
-      );
-      expect(titleColor).toBe(bodyColor);
+      // The ruling (design-ux, comment 6917906748): a step is a card, not a
+      // numbered row. Every step keeps one, in order, and none of them carries
+      // the editor's controls (no "+", no Move, no Remove).
+      await expect(steps.locator("[data-card]")).toHaveCount(4);
+      expect(
+        await steps.locator("[data-card]").evaluateAll((cards) =>
+          cards.map((card) => card.getAttribute("data-card"))
+        ),
+      ).toEqual(["start", "brief", "implement", "review"]);
+      await expect(steps.locator(".ui-step-card").first()).toBeVisible();
+      await expect(steps.locator(".ui-step-item")).toHaveCount(0);
+      await expect(steps.getByRole("button", { name: "Add a step" }))
+        .toHaveCount(0);
+      await expect(steps).not.toContainText("Move");
+      await expect(steps).not.toContainText("Remove");
+      // The path still runs from the first card to the last and stops.
+      await expect(steps.locator(".ui-step-connector")).not.toHaveCount(0);
+      await expect(steps.locator(".ui-step-connector__end")).toHaveText("End");
       await expect(steps).not.toContainText("task.brief");
-      await expect(page.getByRole("list", { name: "Steps" }))
-        .toBeVisible();
       const versions = page.getByTestId("workflow-versions");
       // The sentence about versions never changing belongs to Versions.
       await expect(versions).toContainText(
@@ -221,10 +244,10 @@ for (
       await page.getByRole("link", { name: "View version 2" }).click();
       const steps = page.getByTestId("workflow-steps");
       await expect(steps).toContainText("Steps in version 2");
-      await expect(steps.locator("[data-step-id=implement]")).toContainText(
+      await expect(steps.locator("[data-card=implement]")).toContainText(
         "Agent: Code writer, version 1",
       );
-      await expect(steps.locator("[data-step-id=review]")).toHaveCount(0);
+      await expect(steps.locator("[data-card=review]")).toHaveCount(0);
       // The version being shown is the address, and says so instead of View.
       await expect(page).toHaveURL(new RegExp(`\\?version=${uuid(1002)}$`));
       await expect(versionRow(page, 2)).toContainText("Shown above");
@@ -471,7 +494,7 @@ for (
     test("while the agents are read the step shows no agent line, then the agent; when the read fails it says it could not be read", async ({ page }) => {
       const seen = await libraryFixture(page, { ...WORLD, agentReads: "hold" });
       await page.goto(`/library/workflows/${WORKFLOW.id}`);
-      const implement = page.locator("[data-step-id=implement]");
+      const implement = page.locator("[data-card=implement]");
       await expect(implement).toContainText("Implement");
       // Nothing is said about the agent until the reads have answered.
       await expect(implement).not.toContainText("Agent:");
@@ -490,16 +513,18 @@ for (
       // The readable step, and two cards for the two it cannot read.
       await expect(steps).toContainText("Write the task brief");
       await expect(steps.getByText("Unreadable step")).toHaveCount(2);
-      await expect(steps).toContainText(
-        "This step cannot be read, so it cannot run as it is.",
-      );
+      // Each of them is a card that says it needs setup (design-ux's ruling:
+      // the cards, not a numbered row, and the state is never colour alone).
+      await expect(steps.locator('.ui-step-card[data-needs-setup="true"]'))
+        .toHaveCount(2);
+      await expect(steps.getByText("Needs setup")).toHaveCount(2);
       await shot(page, "workflow-unreadable-steps", [], { windowOnly: true });
     });
 
     test("a failed agents read says the agent could not be read, not that its version is missing", async ({ page }) => {
       await libraryFixture(page, { ...WORLD, agentReads: "fail" });
       await page.goto(`/library/workflows/${WORKFLOW.id}`);
-      await expect(page.locator("[data-step-id=implement]")).toContainText(
+      await expect(page.locator("[data-card=implement]")).toContainText(
         "Agent: could not be read",
       );
       await expect(page.getByText("version not found")).toHaveCount(0);
@@ -512,7 +537,7 @@ for (
     test("an agent version that is truly missing says so once the reads have answered", async ({ page }) => {
       await libraryFixture(page, { ...WORLD, agentVersions: [] });
       await page.goto(`/library/workflows/${WORKFLOW.id}`);
-      await expect(page.locator("[data-step-id=implement]")).toContainText(
+      await expect(page.locator("[data-card=implement]")).toContainText(
         "Agent: version not found",
       );
     });

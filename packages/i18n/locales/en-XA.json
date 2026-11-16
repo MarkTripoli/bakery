@@ -3869,5 +3869,7 @@
   "library.editor.problem.stepsUnreadable": "⟦Ŧĥë šŧëþš çàññôŧ ƀë ŕëàð. ŧëšŧ ç⟧",
   "library.editor.problem.one": "⟦1 þŕôƀļëɱ ŧ⟧",
   "library.editor.problem.showMe": "⟦Šĥôŵ ɱë…⟧",
-  "library.editor.problem.list": "⟦Þŕôƀļëɱš ŧô ƒïẋ ŧëš⟧"
+  "library.editor.problem.list": "⟦Þŕôƀļëɱš ŧô ƒïẋ ŧëš⟧",
+  "library.editor.pathLine": "⟦Šŧëþ ôƒ ŧĥïš ŵôŕķƒļôŵ ŧëšŧŧ⟧",
+  "library.editor.pathEnd": "⟦Ëñð⟧"
 }

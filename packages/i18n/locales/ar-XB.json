@@ -3869,5 +3869,7 @@
   "library.editor.problem.stepsUnreadable": "⟪The steps cannot be read.⟫",
   "library.editor.problem.one": "⟪1 problem⟫",
   "library.editor.problem.showMe": "⟪Show me⟫",
-  "library.editor.problem.list": "⟪Problems to fix⟫"
+  "library.editor.problem.list": "⟪Problems to fix⟫",
+  "library.editor.pathLine": "⟪Step of this workflow⟫",
+  "library.editor.pathEnd": "⟪End⟫"
 }

@@ -20,12 +20,30 @@ export type StepConnectorProps =
     label: string;
     /** The glyph inside the circle; a plain "+" when absent. */
     children?: ReactNode;
+    /**
+     * Draw the line with no "+" on it (#67): a read-only workflow still shows
+     * the path between its cards, it just has nothing to press. The control is
+     * not rendered at all, so no empty button is reachable by keyboard.
+     */
+    readOnly?: boolean;
+    /** The word that ends the path, drawn under the line of a read-only link. */
+    endLabel?: ReactNode;
   };
 
 /** The line between two cards, with the round "+" that adds a step there. */
 export function StepConnector(
-  { children, label, ...props }: StepConnectorProps,
+  { children, endLabel, label, readOnly, ...props }: StepConnectorProps,
 ) {
+  if (readOnly) {
+    return (
+      <span className="ui-step-connector" data-read-only="true">
+        <span aria-hidden="true" className="ui-step-connector__line" />
+        {endLabel === undefined
+          ? null
+          : <span className="ui-step-connector__end">{endLabel}</span>}
+      </span>
+    );
+  }
   return (
     <span className="ui-step-connector">
       <span aria-hidden="true" className="ui-step-connector__line" />

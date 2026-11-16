@@ -43,6 +43,11 @@ export type DiagramProps = {
   readonly onPickClose: () => void;
   /** Open the code view, which the notice and a code-only panel offer. */
   readonly onViewAsCode: () => void;
+  /**
+   * A second line under a card, for what only the reading page knows: which
+   * agent a step runs, and whether that could be read. The editor passes none.
+   */
+  readonly detail?: (uses: string, id: string) => ReactNode;
 };
 
 const GROUP_LABEL: Readonly<Record<GroupLabel, string>> = {
@@ -56,6 +61,7 @@ const GROUP_LABEL: Readonly<Record<GroupLabel, string>> = {
 export function WorkflowDiagram(
   {
     canManage,
+    detail,
     editable,
     onAdd,
     onPick,
@@ -98,9 +104,22 @@ export function WorkflowDiagram(
     </UI.Stack>
   );
 
-  // The connector between two cards: the "+" a person presses to add a step.
-  const connector = (afterId: string | null): ReactNode => {
-    if (!editable) return null;
+  // The connector between two cards: the "+" a person presses to add a step,
+  // or the bare line when the workflow cannot be changed here.
+  const connector = (afterId: string | null, last = false): ReactNode => {
+    if (!editable) {
+      return (
+        <div data-connector={afterId ?? "start"}>
+          <UI.StepConnector
+            label={translate("library.editor.pathLine" as never)}
+            readOnly
+            endLabel={last
+              ? translate("library.editor.pathEnd" as never)
+              : undefined}
+          />
+        </div>
+      );
+    }
     const open = pickerAt !== undefined && pickerAt === afterId;
     return (
       <div data-connector={afterId ?? "start"}>
@@ -143,6 +162,7 @@ export function WorkflowDiagram(
       : codeOnly
       ? translate("library.editor.group.codeOnly" as never)
       : line(node.uses);
+    const extra = drawing ? undefined : detail?.(node.uses, id);
     return (
       <div data-card={id}>
         <UI.StepCard
@@ -162,6 +182,9 @@ export function WorkflowDiagram(
           disabled={!canManage}
           onClick={() => onSelect(id)}
         />
+        {extra === undefined
+          ? null
+          : <span data-step-extra="true">{extra}</span>}
         {problems.get(id) === undefined
           ? null
           : <UI.Text variant="error">{problems.get(id)}</UI.Text>}
@@ -248,6 +271,7 @@ export function WorkflowDiagram(
           <>
             {connector(null)}
             {nodes(tree.nodes)}
+            {tree.nodes.length === 0 ? null : connector("end", true)}
           </>
         )}
     </UI.Stack>

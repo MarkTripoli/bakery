@@ -3865,6 +3865,8 @@
   "library.editor.save.failed": "Not saved",
   "library.editor.save.tryAgain": "Try again",
   "library.editor.viewAsCode": "View as code",
+  "library.editor.pathLine": "Step of this workflow",
+  "library.editor.pathEnd": "End",
   "library.editor.version.inUse": "Version {version} is in use",
   "library.editor.version.draft": "Nothing is in use yet",
   "library.editor.publish.nothing": "Nothing to publish",
