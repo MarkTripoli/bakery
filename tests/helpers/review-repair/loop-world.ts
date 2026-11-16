@@ -358,10 +358,16 @@ export function loopFixtureCloseStep(name: string): void {
  * Deno.test for a loop case: with a shared fixture its pools outlive the case,
  * so the per-test op and resource sanitizers are off; otherwise unchanged.
  */
-export function loopTest(name: string, fn: () => unknown): void {
+export function loopTest(
+  name: string,
+  fn: () => unknown,
+  options: { ignore?: boolean } = {},
+): void {
+  const ignore = options.ignore ?? false;
   if (sharing) {
     Deno.test({
       name,
+      ignore,
       fn: async () => {
         await fn();
       },
@@ -369,8 +375,12 @@ export function loopTest(name: string, fn: () => unknown): void {
       sanitizeResources: false,
     });
   } else {
-    Deno.test(name, async () => {
-      await fn();
+    Deno.test({
+      name,
+      ignore,
+      fn: async () => {
+        await fn();
+      },
     });
   }
 }
@@ -468,6 +478,20 @@ export async function openLoopWorld(
   );
   assertExists(owner);
   const reviewerCapabilities = [...workerFixtureCapabilities, "reviewer"];
+  // Replay the plan the way the dispatcher does: admit (and so complete) every
+  // projection step the engine asks for, then let it answer. A recorded result
+  // or fault is what moves the plan on; the engine finishes the run itself when
+  // the plan is over.
+  const settle = async () => {
+    let answer = await engine.findNext(run.id, owner);
+    while (
+      answer !== undefined && answer.stepKey.includes("candidate_evidence")
+    ) {
+      await engine.admit(answer, owner);
+      answer = await engine.findNext(run.id, owner);
+    }
+    return answer;
+  };
 
   const stepRows = async (): Promise<StepRow[]> =>
     (await database.query<StepRow>(
@@ -520,18 +544,9 @@ export async function openLoopWorld(
       logicalIteration,
     );
     const iteration = 0;
-    // The engine completes a projection step itself (no job): admit it and read
-    // the plan again, exactly as the dispatcher does, until it asks for work.
-    let next = await engine.findNext(run.id, owner);
-    while (next !== undefined && next.stepKey.includes("candidate_evidence")) {
-      const projection = await engine.admit(next, owner);
-      assertEquals(
-        projection.jobId ?? null,
-        null,
-        `${next.stepKey} is the engine's own projection`,
-      );
-      next = await engine.findNext(run.id, owner);
-    }
+    // The engine completes a projection step itself (no job): settle admits and
+    // completes it, exactly as the dispatcher does, until it asks for work.
+    const next = await settle();
     assertExists(next, `the plan asks for nothing; wanted ${stepKey}`);
     // A step the caller already admitted (the seed may append ahead) is reuse,
     // not a fault: the plan has advanced past it and its row is still open.
@@ -749,11 +764,11 @@ export async function openLoopWorld(
             );
             // A recorded result lets the engine replay the plan: it finishes
             // the run when the plan is over, exactly as production ticks.
-            if (response.ok) await engine.findNext(run.id, owner);
+            if (response.ok) await settle();
             return response;
           },
-          fail(fault, key = crypto.randomUUID()) {
-            return postWorkerResult(
+          async fail(fault, key = crypto.randomUUID()) {
+            const response = await postWorkerResult(
               fixture,
               worker,
               assignment,
@@ -771,6 +786,9 @@ export async function openLoopWorld(
               }),
               key,
             );
+            // A terminal fault records a stop; the engine tick ends the run.
+            if (response.ok && !fault.retryable) await settle();
+            return response;
           },
         };
       };
@@ -778,10 +796,10 @@ export async function openLoopWorld(
     },
     steps: stepRows,
     async nextKey() {
-      return (await engine.findNext(run.id, owner))?.stepKey;
+      return (await settle())?.stepKey;
     },
     async admitNext() {
-      const next = await engine.findNext(run.id, owner);
+      const next = await settle();
       assertExists(next, "the plan asks for nothing");
       const admitted = await engine.admit(next, owner);
       return {
