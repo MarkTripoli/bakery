@@ -3763,5 +3763,6 @@
   "tasks.coordination.lane.openTask": "⟪Open task⟫",
   "tasks.coordination.lane.openTitled": "⟪Open {title}⟫",
   "machines.retry": "⟪Try again⟫",
-  "issues.retry": "⟪Try again⟫"
+  "issues.retry": "⟪Try again⟫",
+  "projects.repository.earlier.otherBranches": "⟪Works from other branches⟫"
 }

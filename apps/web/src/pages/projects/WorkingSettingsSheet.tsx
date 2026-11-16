@@ -18,6 +18,7 @@ import {
   rulesInForce,
   sameRules,
   settingsProblem,
+  usesOtherBranches,
 } from "./repository-state.ts";
 import { useRepositorySettings } from "./use-repository-settings.ts";
 
@@ -374,6 +375,18 @@ export function WorkingSettingsSheet(
                             "projects.repository.earlier.inUse" as never,
                           )}
                         </UI.Badge>
+                      )
+                      : active !== null &&
+                          usesOtherBranches(active.config, profile.config)
+                      ? (
+                        /* The policy pins the branches, so this version's
+                           branches are not the ones in force: no Use button,
+                           because the server would refuse it. */
+                        <UI.Text variant="muted" data-testid="other-branches">
+                          {translate(
+                            "projects.repository.earlier.otherBranches" as never,
+                          )}
+                        </UI.Text>
                       )
                       : (
                         <UI.Button

@@ -3763,5 +3763,6 @@
   "tasks.coordination.lane.openTask": "⟦Ôþëñ ŧàšķ ŧ⟧",
   "tasks.coordination.lane.openTitled": "⟦Ôþëñ {title} ŧë⟧",
   "machines.retry": "⟦Ŧŕÿ àĝàïñ ŧ⟧",
-  "issues.retry": "⟦Ŧŕÿ àĝàïñ ŧ⟧"
+  "issues.retry": "⟦Ŧŕÿ àĝàïñ ŧ⟧",
+  "projects.repository.earlier.otherBranches": "⟦Ŵôŕķš ƒŕôɱ ôŧĥëŕ ƀŕàñçĥëš ŧëšŧ ç⟧"
 }

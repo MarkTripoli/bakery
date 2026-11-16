@@ -103,6 +103,21 @@ export function sameRules(a: unknown, b: unknown): boolean {
  * lock for every revision it carries): the branches change only with a new
  * policy revision, never from a save of the working settings.
  */
+/**
+ * Whether a version's branches differ from the ones a fixed policy pins (design
+ * of #65, section 3): the sheet then says "Works from other branches" instead of
+ * offering a Use button the server would refuse. A version with the same
+ * branches stays usable, and a policy that pins nothing changes nothing.
+ */
+export function usesOtherBranches(
+  activeConfig: unknown,
+  candidateConfig: unknown,
+): boolean {
+  if (!fixesBranches(activeConfig)) return false;
+  return canonicalJson(branchesOf(activeConfig)) !==
+    canonicalJson(branchesOf(candidateConfig));
+}
+
 export function fixesBranches(config: unknown): boolean {
   const policy = record(record(config).fixedPolicy);
   return record(policy.lockedConfiguration).branches === true;

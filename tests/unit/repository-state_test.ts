@@ -15,6 +15,7 @@ import {
   settingsConfig,
   settingsProblem,
   setupBadge,
+  usesOtherBranches,
 } from "../../apps/web/src/pages/projects/repository-state.ts";
 import {
   canonicalJson as serverCanonical,
@@ -183,4 +184,24 @@ Deno.test("a fixed policy fixes the branches of its version", () => {
   );
   assertEquals(fixesBranches({ schemaVersion: 1 }), false);
   assertEquals(fixesBranches(null), false);
+});
+
+Deno.test("under a fixed policy, only versions with the pinned branches stay usable", () => {
+  const pinned = {
+    branches: { base: "main", allowedPatterns: ["release/*"] },
+    fixedPolicy: {
+      lockedConfiguration: { branches: true, worktree: true, checker: true },
+    },
+  };
+  const same = { branches: { base: "main", allowedPatterns: ["release/*"] } };
+  const other = { branches: { base: "main", allowedPatterns: ["feature/*"] } };
+  const unfixed = {
+    branches: { base: "main", allowedPatterns: ["feature/*"] },
+  };
+  // The version in force pins the branches: a different set cannot be put in use.
+  assertEquals(usesOtherBranches(pinned, other), true);
+  assertEquals(usesOtherBranches(pinned, same), false);
+  // A version that pins nothing leaves every row usable, as before.
+  assertEquals(usesOtherBranches(unfixed, other), false);
+  assertEquals(usesOtherBranches(null, other), false);
 });
