@@ -1217,3 +1217,67 @@ test.describe("after a check: a person's version over a check-made one, and a fa
       .toBe(4);
   });
 });
+
+test.describe("a locked repository's versions", () => {
+  // The version in use fixes the branches (#65), so a version recorded with
+  // another set cannot be put in use: its row says so instead of offering a
+  // button the server would refuse.
+  const LOCKED: Options = {
+    profiles: [
+      { revision: 1, branches: ["main", "earlier/*"] },
+      { revision: 2, branches: ["main", "locked/*"], fixed: true },
+      { revision: 3, branches: ["main", "locked/*", "hotfix/*"] },
+    ],
+    active: 2,
+  };
+
+  test("says a version works from other branches instead of offering Use", async ({ page }) => {
+    await open(page, LOCKED);
+    await page.getByRole("button", { name: "Change" }).click();
+    const diverging = page.getByTestId("profile-version-1");
+    await expect(diverging).toContainText("Works from other branches");
+    await expect(diverging.getByRole("button")).toHaveCount(0);
+    // A version whose branches leave the fixed set is the same case.
+    await expect(page.getByTestId("profile-version-3")).toContainText(
+      "Works from other branches",
+    );
+    // The version in use says so and offers nothing either.
+    await expect(page.getByTestId("profile-version-2")).toContainText("In use");
+    await expect(
+      page.getByTestId("profile-version-2").getByRole("button"),
+    ).toHaveCount(0);
+  });
+
+  test("keeps Use on a version whose branches match the fixed set", async ({ page }) => {
+    await open(page, {
+      profiles: [
+        { revision: 1, branches: ["main", "locked/*"] },
+        { revision: 2, branches: ["main", "locked/*"], fixed: true },
+        { revision: 3, branches: ["main", "earlier/*"] },
+      ],
+      active: 2,
+    });
+    await page.getByRole("button", { name: "Change" }).click();
+    await expect(
+      page.getByTestId("profile-version-1").getByRole("button", {
+        name: "Use version 1",
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("profile-version-3").getByText(
+        "Works from other branches",
+      ),
+    ).toBeVisible();
+  });
+
+  test("leaves an unlocked repository's rows unchanged", async ({ page }) => {
+    await open(page, WORLD);
+    await page.getByRole("button", { name: "Change" }).click();
+    await expect(
+      page.getByTestId("profile-version-1").getByRole("button", {
+        name: "Use version 1",
+      }),
+    ).toBeVisible();
+    await expect(page.getByText("Works from other branches")).toHaveCount(0);
+  });
+});
