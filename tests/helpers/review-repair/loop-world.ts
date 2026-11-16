@@ -18,7 +18,6 @@ import {
   presetBudgetEnv,
   presetBudgetPolicy,
   type PresetRepository,
-  presetRunBody,
   seedFundedCodingAgent,
 } from "../fixed-coding-preset.ts";
 import {
@@ -359,10 +358,16 @@ export function loopFixtureCloseStep(name: string): void {
  * Deno.test for a loop case: with a shared fixture its pools outlive the case,
  * so the per-test op and resource sanitizers are off; otherwise unchanged.
  */
-export function loopTest(name: string, fn: () => unknown): void {
+export function loopTest(
+  name: string,
+  fn: () => unknown,
+  options: { ignore?: boolean } = {},
+): void {
+  const ignore = options.ignore ?? false;
   if (sharing) {
     Deno.test({
       name,
+      ignore,
       fn: async () => {
         await fn();
       },
@@ -370,8 +375,12 @@ export function loopTest(name: string, fn: () => unknown): void {
       sanitizeResources: false,
     });
   } else {
-    Deno.test(name, async () => {
-      await fn();
+    Deno.test({
+      name,
+      ignore,
+      fn: async () => {
+        await fn();
+      },
     });
   }
 }
@@ -424,7 +433,7 @@ export async function openLoopWorld(
       reviewedPlanDocument({
         name: `plan-loop-${suffix}`,
         agents: bindings,
-        repairs: options.plan!.repairs,
+        repairs: options.plan?.repairs ?? 2,
       }),
     );
     return {
@@ -443,16 +452,13 @@ export async function openLoopWorld(
       },
     };
   };
+  // The reviewed preset is a compiled plan now, so the world runs the same
+  // plan document the #397 cases publish: its flat step ids keep the loop
+  // cases' logical names, and the preset's own document is covered by the
+  // preset integration cases.
   const run = await expectJson<{ id: string; workflowVersionId: string }>(
     await apiCall(fixture, fixture, "POST", `/v1/tasks/${task.id}/runs`, {
-      body: options.plan === undefined
-        ? presetRunBody(repository, {
-          presetId: REVIEWED_PRESET,
-          ...(options.budgetLimitUsd === undefined
-            ? {}
-            : { budgetLimitUsd: options.budgetLimitUsd }),
-        })
-        : await planBody(),
+      body: await planBody(),
     }),
     201,
   );
@@ -472,6 +478,20 @@ export async function openLoopWorld(
   );
   assertExists(owner);
   const reviewerCapabilities = [...workerFixtureCapabilities, "reviewer"];
+  // Replay the plan the way the dispatcher does: admit (and so complete) every
+  // projection step the engine asks for, then let it answer. A recorded result
+  // or fault is what moves the plan on; the engine finishes the run itself when
+  // the plan is over.
+  const settle = async () => {
+    let answer = await engine.findNext(run.id, owner);
+    while (
+      answer !== undefined && answer.stepKey.includes("candidate_evidence")
+    ) {
+      await engine.admit(answer, owner);
+      answer = await engine.findNext(run.id, owner);
+    }
+    return answer;
+  };
 
   const stepRows = async (): Promise<StepRow[]> =>
     (await database.query<StepRow>(
@@ -517,30 +537,34 @@ export async function openLoopWorld(
     logical: string,
     logicalIteration: number,
   ): Promise<AdmittedStep> => {
-    let stepKey = logical;
-    let iteration = logicalIteration;
-    let admitted;
-    if (options.plan === undefined) {
-      admitted = await engine.admit({
-        runId: run.id,
-        stepKey,
-        iteration,
-        actionVersion: run.workflowVersionId,
-      }, owner);
-    } else {
-      // A plan run has no rows up front: the engine appends the step the
-      // plan asks for, and that has to be the step this call names.
-      stepKey = planStepKey(
-        logical as Parameters<typeof planStepKey>[0],
-        logicalIteration,
+    // A plan run has no rows up front: the engine appends the step the plan
+    // asks for, and that has to be the step this call names.
+    const stepKey = planStepKey(
+      logical as Parameters<typeof planStepKey>[0],
+      logicalIteration,
+    );
+    const iteration = 0;
+    // The engine completes a projection step itself (no job): settle admits and
+    // completes it, exactly as the dispatcher does, until it asks for work.
+    const next = await settle();
+    assertExists(next, `the plan asks for nothing; wanted ${stepKey}`);
+    // A step the caller already admitted (the seed may append ahead) is reuse,
+    // not a fault: the plan has advanced past it and its row is still open.
+    if (next.stepKey !== stepKey) {
+      const existing = await database.query<{ id: string }>(
+        `select id from bakery.run_steps
+          where organization_id = $1 and run_id = $2 and step_key = $3`,
+        [org, run.id, stepKey],
       );
-      iteration = 0;
-      const next = await engine.findNext(run.id, owner);
-      assertExists(next, `the plan asks for nothing; wanted ${stepKey}`);
-      assertEquals(next.stepKey, stepKey);
-      admitted = await engine.admit(next, owner);
+      assertEquals(
+        existing.rows.length,
+        1,
+        `the plan asks for ${next.stepKey}; wanted ${stepKey}`,
+      );
+    } else {
+      const admitted = await engine.admit(next, owner);
+      assert(admitted.jobId, `${stepKey}@${iteration} must admit a job`);
     }
-    assert(admitted.jobId, `${stepKey}@${iteration} must admit a job`);
     const stepId = await stepIdOf(stepKey, iteration);
     const job = await database.query<
       { id: string; action: string; input: Record<string, unknown> }
@@ -728,8 +752,8 @@ export async function openLoopWorld(
               ...overrides,
             });
           },
-          post(result, key = crypto.randomUUID()) {
-            return postWorkerResult(
+          async post(result, key = crypto.randomUUID()) {
+            const response = await postWorkerResult(
               fixture,
               worker,
               assignment,
@@ -738,9 +762,13 @@ export async function openLoopWorld(
               }),
               key,
             );
+            // A recorded result lets the engine replay the plan: it finishes
+            // the run when the plan is over, exactly as production ticks.
+            if (response.ok) await settle();
+            return response;
           },
-          fail(fault, key = crypto.randomUUID()) {
-            return postWorkerResult(
+          async fail(fault, key = crypto.randomUUID()) {
+            const response = await postWorkerResult(
               fixture,
               worker,
               assignment,
@@ -758,6 +786,9 @@ export async function openLoopWorld(
               }),
               key,
             );
+            // A terminal fault records a stop; the engine tick ends the run.
+            if (response.ok && !fault.retryable) await settle();
+            return response;
           },
         };
       };
@@ -765,10 +796,10 @@ export async function openLoopWorld(
     },
     steps: stepRows,
     async nextKey() {
-      return (await engine.findNext(run.id, owner))?.stepKey;
+      return (await settle())?.stepKey;
     },
     async admitNext() {
-      const next = await engine.findNext(run.id, owner);
+      const next = await settle();
       assertExists(next, "the plan asks for nothing");
       const admitted = await engine.admit(next, owner);
       return {
@@ -871,13 +902,17 @@ export async function openLoopWorld(
         `select outcome, details from bakery.audit_events
           where organization_id = $1 and operation = $2
             and ($3::text is null or outcome = $3)
-            -- This run's only: review audits name a job attempt of the run.
-            and resource_id in (
-              select attempt.id::text
-                from bakery.job_attempts attempt
-                join bakery.jobs job on job.id = attempt.job_id
-                join bakery.run_steps step on step.id = job.run_step_id
-               where step.organization_id = $1 and step.run_id = $4)
+            -- This run's only: review audits name a job attempt of the run, and
+            -- a plan run's own ends name the run itself.
+            and (
+              resource_id in (
+                select attempt.id::text
+                  from bakery.job_attempts attempt
+                  join bakery.jobs job on job.id = attempt.job_id
+                  join bakery.run_steps step on step.id = job.run_step_id
+                 where step.organization_id = $1 and step.run_id = $4)
+              or (resource_type = 'workflow_run' and resource_id = $4::text)
+            )
           order by created_at, id`,
         [org, operation, outcome ?? null, run.id],
       )).rows;
@@ -937,6 +972,9 @@ export async function withReviewedRun<T>(
       if (options.bare !== true) {
         await world.implement(HEADS[0]);
         seeded = await world.check(0, HEADS[0], options.seed ?? {});
+        // The plan reviews in its own step, so the seed appends that row too;
+        // a case then claims it with `world.review(0)` instead of re-admitting.
+        await world.admit("review", 0);
       }
       return await work(world, seeded);
     } finally {

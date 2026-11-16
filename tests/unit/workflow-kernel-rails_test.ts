@@ -130,9 +130,9 @@ function assertOnlyAllowed(
  */
 // #399 republished `fixed-coding` as a compiled definition; the reviewed
 // preset is the last flat built-in until its own republication lands.
-const FLAT_BUILT_INS: Readonly<Record<string, string>> = Object.freeze({
-  "fixed-coding-reviewed": "#399",
-});
+// #399 republished both presets as compiled definitions, so there is no flat
+// built-in left; a new one would have to be listed here and explained.
+const FLAT_BUILT_INS: Readonly<Record<string, string>> = Object.freeze({});
 
 /** Repository files that ship a workflow document, outside tests and docs. */
 async function shippedWorkflowDocuments(): Promise<string[]> {

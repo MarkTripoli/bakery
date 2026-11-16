@@ -1033,6 +1033,15 @@ export async function createRunCommand(
     // A plan that reviews freezes its loop bounds like a flat run does, from
     // the plan itself (its `repeat` bound); a plan without a review freezes none.
     reviewLoop = planReviewLoopLimits(planAdmission.document);
+    // A plan that reviews and repairs needs the same effects a flat review
+    // loop does; a profile whose fixed policy denies one must fail here, not
+    // after implement spends.
+    if (
+      reviewLoop !== null && profile !== null &&
+      fixedPolicyDeniesSteps(profile.config, planAdmission.sites)
+    ) {
+      throw unprocessable(["repositoryProfileId"], "profile_effect_denied");
+    }
     assertBudgetCoversReservations(
       planAdmission.sites.map((site) => ({
         key: site.qualifiedId,
