@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="catalog-change-runs-both-generators" project="bakery">
+  <title>A catalog change needs both generators, and each check names its own</title>
+  <trigger>A contract or catalog lane fails on a generated file being stale after a change to docs/technical-design/transport-schemas.json, while the author reports a clean generator run.</trigger>
+  <rule>Two generators read that one catalog source and write disjoint outputs: pnpm contracts:generate writes contracts.json and packages/contracts/generated/client-manifest.ts, and pnpm catalog:literals writes packages/contracts/generated/transport-schemas.ts. Each has its own check (contracts:check, catalog:literals:check), so "contracts:check is clean" is not "the catalog is regenerated" — the checks answer different questions and the honest evidence row is one per command. The failure has now happened in both directions: #480 regenerated transport-schemas.ts and left the other two stale, and #485 regenerated contracts.json and client-manifest.ts and left transport-schemas.ts stale. Run both, then both checks, and put both check commands in the evidence table as their own rows.</rule>
+  <verification>
+    <requirement>For any catalog change, paste the two check commands and their exit codes into the evidence — catalog:literals:check and contracts:check — rather than a sentence claiming the catalog is regenerated. A single generator's clean run is not evidence for the other's output.</requirement>
+  </verification>
+</learning>

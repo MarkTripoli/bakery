@@ -1052,7 +1052,9 @@ async function startAttempt(
   k: AttemptKey,
   overrides: Record<string, unknown> = {},
 ) {
-  const sessionId = `session-${suffix()}`;
+  // A session binding is a session row id (a UUID), never an opaque token: the
+  // module refuses anything else, so the fixture must look like the real column.
+  const sessionId = crypto.randomUUID();
   const input = {
     organizationId: f.organizationId,
     principalId: f.adminId,
@@ -1167,7 +1169,7 @@ Deno.test("a claim from another session, another member or with another state is
     const refused = { ok: false, reason: "refused" } as const;
     assertEquals(
       await claimAttempt(f, k, result.state, {
-        sessionId: `${sessionId}-other`,
+        sessionId: crypto.randomUUID(),
       }),
       refused,
     );
