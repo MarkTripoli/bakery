@@ -637,7 +637,7 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                   ? null
                   : (
                     <UI.Stack gap="compact">
-                      <UI.Inline gap="spacious">
+                      <UI.Inline variant="thirds">
                         <UI.Stack gap="tight">
                           <UI.DataText>
                             {String(previewCounts.canStart)}

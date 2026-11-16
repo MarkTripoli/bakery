@@ -293,7 +293,7 @@ for (
         .toBeVisible();
       await expect(rows.last()).toContainText("Working");
       await expect(rows.last()).toContainText("Updated 5 minutes ago");
-      await shot(page, "issue-settings-list");
+      await shot(page, "issue-settings-list", [], { windowOnly: true });
     });
 
     test("the list says who can change the settings to someone who cannot", async ({ page }) => {
@@ -328,7 +328,7 @@ for (
       await expect(page.getByText("Each label must be different."))
         .toBeVisible();
       await expect(page.getByRole("button", { name: "Save" })).toBeDisabled();
-      await shot(page, "issue-settings-labels-same");
+      await shot(page, "issue-settings-labels-same", [], { windowOnly: true });
     });
 
     test("a label the server would refuse is refused here first", async ({ page }) => {
@@ -382,7 +382,7 @@ for (
         githubActorIds: ["4242"],
       });
       await expect(page.getByText(/Only for labels added after/)).toBeVisible();
-      await shot(page, "issue-settings-automatic");
+      await shot(page, "issue-settings-automatic", [], { windowOnly: true });
     });
 
     test("a username GitHub does not know is a field error, not a crash", async ({ page }) => {
@@ -433,7 +433,7 @@ for (
       expect(seen.counts.previews).toBe(1);
       // One read for the counts, not one per issue.
       expect(seen.lists).toHaveLength(1);
-      await shot(page, "issue-settings-preview");
+      await shot(page, "issue-settings-preview", [], { windowOnly: true });
     });
 
     test("a preview that cannot be made says so and leaves Save alone", async ({ page }) => {
@@ -454,7 +454,7 @@ for (
         "Someone else changed these settings. Reload to see theirs; your changes are kept here until you do.",
       )).toBeVisible();
       await expect(page.getByLabel("Start work")).toHaveValue("ready");
-      await shot(page, "issue-settings-conflict");
+      await shot(page, "issue-settings-conflict", [], { windowOnly: true });
     });
 
     test("leaving with unsaved changes asks first, and leaving clean does not", async ({ page }) => {
