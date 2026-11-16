@@ -1,7 +1,6 @@
 import { assert, assertEquals, assertNotEquals } from "@std/assert";
 import {
   DELIVERY_GATE_STEP_KEY,
-  DELIVERY_LOOP_STOPPED_CODE,
   REVIEW_LOOP_LIMITS,
 } from "../../../packages/contracts/src/review-evidence.ts";
 import {
@@ -10,6 +9,7 @@ import {
   REVIEW_RECORD_OPERATION,
   REVIEW_STOP_OPERATION,
 } from "../../../apps/server/src/modules/delivery/index.ts";
+import { PLAN_DELIVERY_STOPPED_CODE } from "../../../apps/server/src/modules/delivery/plan-host.ts";
 import { StandardError } from "../../../packages/contracts/src/http.ts";
 import { apiCall, expectJson } from "../fixed-coding-preset.ts";
 import { insertCheckRun } from "../deterministic-checks/run-fixture.ts";
@@ -474,29 +474,19 @@ function registerRepairCases(): void {
 }
 
 function registerStopCases(): void {
-  /** The pre-failed gate step a stop appends, and the failed run it causes. */
-  async function assertStopped(
-    world: LoopWorld,
-    reason: string,
-    expected: { iteration: number; position: number },
-  ) {
+  /**
+   * A plan run stops through its plan host: the run and its task end failed,
+   * the run's own end records `delivery_loop_stopped`, and the latest decision
+   * is the stop. There is no `delivery_gate` step — a plan run halts instead of
+   * appending one, and the audit entry is where its code is kept.
+   */
+  async function assertStopped(world: LoopWorld, reason: string) {
     const decisions = await world.decisions();
     const last = decisions.at(-1)!;
     assertEquals([last.decision, last.reason], ["stop", reason]);
-    const gateSteps = (await world.steps()).filter((step) =>
-      step.step_key === DELIVERY_GATE_STEP_KEY
-    );
-    assertEquals(gateSteps.length, 1);
-    const [gateStep] = gateSteps;
-    assertEquals(gateStep.status, "failed");
-    assertEquals(gateStep.iteration, expected.iteration);
-    assertEquals(gateStep.position, expected.position);
-    assertEquals(gateStep.error, {
-      code: DELIVERY_LOOP_STOPPED_CODE,
-      reason,
-      decisionId: last.id,
-    });
-    assertEquals(gateStep.output, null);
+    const failed = await world.audits("workflow.plan_failed");
+    assertEquals(failed.length, 1);
+    assertEquals(failed[0].details.code, PLAN_DELIVERY_STOPPED_CODE);
     // The roll-up failed the run and its task through the real route.
     assertEquals(await world.runStatus(), "failed");
     assertEquals(await world.taskStatus(), "failed");
@@ -532,10 +522,7 @@ function registerStopCases(): void {
 
         const cycles = await world.cycles();
         assertEquals(cycles.length, 2);
-        const stopped = await assertStopped(world, "repeated_blocker", {
-          iteration: 1,
-          position: 8,
-        });
+        const stopped = await assertStopped(world, "repeated_blocker");
         assertEquals(stopped.ordinal, 1);
         assertEquals(stopped.review_cycle_id, cycles[1].id);
         assertEquals(stopped.blocking_fingerprints, [fingerprintOf(1)]);
@@ -563,10 +550,7 @@ function registerStopCases(): void {
           const second = await world.review(1);
           await accept(second, second.report([]));
 
-          const stopped = await assertStopped(world, "repeated_blocker", {
-            iteration: 1,
-            position: 8,
-          });
+          const stopped = await assertStopped(world, "repeated_blocker");
           assertEquals(stopped.failed_checks, [
             failedCheckOf(again.rows.find((row) => row.checkId === KEY)!.id),
           ]);
@@ -617,28 +601,16 @@ function registerStopCases(): void {
         const third = await world.review(2);
         await accept(third, third.report([blocker(3)]));
 
-        const stopped = await assertStopped(world, "repair_cycles_exhausted", {
-          iteration: 2,
-          position: 11,
-        });
+        const stopped = await assertStopped(world, "repair_cycles_exhausted");
         assertEquals(stopped.ordinal, 2);
         assertEquals(stopped.limits, LIMITS);
         const steps = await world.steps();
         assertEquals(
-          steps.map((step) => [step.step_key, step.iteration, step.position]),
-          [
-            ["brief", 0, 0],
-            ["implement", 0, 1],
-            ["check", 0, 3],
-            ["review", 0, 4],
-            ["repair", 1, 5],
-            ["check", 1, 6],
-            ["review", 1, 7],
-            ["repair", 2, 8],
-            ["check", 2, 9],
-            ["review", 2, 10],
-            [DELIVERY_GATE_STEP_KEY, 2, 11],
-          ],
+          steps.map((step) => [
+            logicalStepKey(step.step_key, step.iteration),
+            step.position,
+          ]),
+          [],
         );
         const decisions = await world.decisions();
         assertEquals(
@@ -675,10 +647,7 @@ function registerStopCases(): void {
             finding({ fingerprint: fingerprintOf(2), severity: "blocker" }),
           ]),
         );
-        await assertStopped(world, "repair_time_exhausted", {
-          iteration: 1,
-          position: 8,
-        });
+        await assertStopped(world, "repair_time_exhausted");
       }),
   );
 
@@ -695,10 +664,7 @@ function registerStopCases(): void {
             finding({ fingerprint: fingerprintOf(1), severity: "blocker" }),
           ]),
         );
-        await assertStopped(world, "repair_budget_exhausted", {
-          iteration: 0,
-          position: 5,
-        });
+        await assertStopped(world, "repair_budget_exhausted");
       }, { budgetLimitUsd: "3", maxUsd: 1 }),
   );
 
@@ -729,10 +695,7 @@ function registerStopCases(): void {
         async (world) => {
           const review = await world.review(0);
           await accept(review, review.report([]));
-          const stopped = await assertStopped(world, "checks_unavailable", {
-            iteration: 0,
-            position: 5,
-          });
+          const stopped = await assertStopped(world, "checks_unavailable");
           assertEquals(stopped.failed_checks, []);
           assertEquals(stopped.ordinal, 0);
         },
@@ -749,10 +712,7 @@ function registerStopCases(): void {
         await world.check(0, HEADS[0], {}, { rows: false });
         const review = await world.review(0);
         await accept(review, review.report([]));
-        const stopped = await assertStopped(world, "stale_evidence", {
-          iteration: 0,
-          position: 5,
-        });
+        const stopped = await assertStopped(world, "stale_evidence");
         assertEquals(stopped.failed_checks, []);
       }, { bare: true }),
   );
@@ -775,10 +735,7 @@ function registerStopCases(): void {
           });
           const second = await world.review(1);
           await accept(second, second.report([]));
-          const stopped = await assertStopped(world, "stale_evidence", {
-            iteration: 1,
-            position: 8,
-          });
+          const stopped = await assertStopped(world, "stale_evidence");
           assertEquals(stopped.failed_checks, []);
           assertEquals(stopped.head_sha, HEADS[1]);
         },
@@ -834,14 +791,13 @@ function registerReviewerFailureCases(): void {
         );
         const gateStep = steps.find((step) =>
           step.step_key === DELIVERY_GATE_STEP_KEY
-        )!;
-        assertEquals(gateStep.status, "failed");
-        assertEquals([gateStep.iteration, gateStep.position], [0, 5]);
-        assertEquals(gateStep.error, {
-          code: DELIVERY_LOOP_STOPPED_CODE,
-          reason: "reviewer_unavailable",
-          decisionId: decision.id,
-        });
+        );
+        // A plan run halts through its host: no gate step, the run's own end
+        // records the stop code instead.
+        assertEquals(gateStep, undefined);
+        const stopped = await world.audits("workflow.plan_failed");
+        assertEquals(stopped.length, 1);
+        assertEquals(stopped[0].details.code, PLAN_DELIVERY_STOPPED_CODE);
         assertEquals(await world.runStatus(), "failed");
         assertEquals(await world.taskStatus(), "failed");
         assertEquals((await gate(world)).reasons, [

@@ -520,7 +520,18 @@ export async function openLoopWorld(
       logicalIteration,
     );
     const iteration = 0;
-    const next = await engine.findNext(run.id, owner);
+    // The engine completes a projection step itself (no job): admit it and read
+    // the plan again, exactly as the dispatcher does, until it asks for work.
+    let next = await engine.findNext(run.id, owner);
+    while (next !== undefined && next.stepKey.includes("candidate_evidence")) {
+      const projection = await engine.admit(next, owner);
+      assertEquals(
+        projection.jobId ?? null,
+        null,
+        `${next.stepKey} is the engine's own projection`,
+      );
+      next = await engine.findNext(run.id, owner);
+    }
     assertExists(next, `the plan asks for nothing; wanted ${stepKey}`);
     // A step the caller already admitted (the seed may append ahead) is reuse,
     // not a fault: the plan has advanced past it and its row is still open.
@@ -873,13 +884,17 @@ export async function openLoopWorld(
         `select outcome, details from bakery.audit_events
           where organization_id = $1 and operation = $2
             and ($3::text is null or outcome = $3)
-            -- This run's only: review audits name a job attempt of the run.
-            and resource_id in (
-              select attempt.id::text
-                from bakery.job_attempts attempt
-                join bakery.jobs job on job.id = attempt.job_id
-                join bakery.run_steps step on step.id = job.run_step_id
-               where step.organization_id = $1 and step.run_id = $4)
+            -- This run's only: review audits name a job attempt of the run, and
+            -- a plan run's own ends name the run itself.
+            and (
+              resource_id in (
+                select attempt.id::text
+                  from bakery.job_attempts attempt
+                  join bakery.jobs job on job.id = attempt.job_id
+                  join bakery.run_steps step on step.id = job.run_step_id
+                 where step.organization_id = $1 and step.run_id = $4)
+              or (resource_type = 'workflow_run' and resource_id = $4::text)
+            )
           order by created_at, id`,
         [org, operation, outcome ?? null, run.id],
       )).rows;
