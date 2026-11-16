@@ -37,6 +37,7 @@ const action = (sessionOnly: boolean): ActionDefinition =>
   }) as unknown as ActionDefinition;
 
 const ORGANIZATION_ID = "00000000-0000-4000-8000-0000000000bb";
+const SESSION_ID = "00000000-0000-4000-8000-0000000000ee";
 const PRINCIPAL_ID = "00000000-0000-4000-8000-0000000000cc";
 
 function context(over: Partial<ActionContext> = {}): ActionContext {
@@ -92,25 +93,44 @@ Deno.test("a session-only action dispatched with an MCP principal is refused (#2
   );
 });
 
-Deno.test("the refusal is the transport, not the missing token (#287)", async () => {
-  // Same absence of a token, different transport. The HTTP call gets as far as
-  // the database (which this test refuses to provide, so it fails there), and
-  // the MCP call is stopped before it.
-  const httpRunner = new PostgresAuthorityRunner(untouchedDatabase());
-  const httpError = await httpRunner.run(
+Deno.test("the rule asks for a session, so anything without one is refused (#287)", async () => {
+  // A browser session is the only thing that satisfies a session-only action;
+  // every other arrival shape lacks a session id and is refused before any work.
+  for (
+    const shape of [
+      { transport: "mcp" as const },
+      { transport: "http" as const },
+      {},
+      {
+        accessToken: {
+          id: "00000000-0000-4000-8000-0000000000dd",
+          organizationId: ORGANIZATION_ID,
+          scopes: [],
+        },
+      },
+    ]
+  ) {
+    assertEquals(
+      await sessionOnlyRefusal(context(shape)),
+      "SESSION_REQUIRED",
+      JSON.stringify(shape),
+    );
+  }
+});
+
+Deno.test("a real browser session is allowed through, and reaches its work (#287)", async () => {
+  const runner = new PostgresAuthorityRunner(untouchedDatabase());
+  const error = await runner.run(
     action(true),
-    context({ transport: "http" }),
+    context({ transport: "http", sessionId: SESSION_ID }),
     {},
     () => Promise.resolve("ran"),
   ).then(() => undefined, (caught: unknown) => caught);
+  // It gets as far as the database this test refuses to provide, which is the
+  // proof it was not stopped by the session rule.
   assert(
-    httpError instanceof Error &&
-      httpError.message.includes("touched the database"),
-    "the HTTP call was stopped for the same reason as the MCP one",
-  );
-  assertEquals(
-    await sessionOnlyRefusal(context({ transport: "mcp" })),
-    "SESSION_REQUIRED",
+    error instanceof Error && error.message.includes("touched the database"),
+    "a browser session was refused a session-only action",
   );
 });
 

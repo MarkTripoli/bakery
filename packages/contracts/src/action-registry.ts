@@ -107,8 +107,11 @@ export type ActionContext = {
   locale?: SupportedLocale;
   /**
    * Server-side identifier of the browser session that authenticated this
-   * request, when one exists. Carries no authorization meaning; used only to
-   * mark a listed session as the caller's own.
+   * request, when one exists. It is what a `sessionOnly` action is bound to: the
+   * authority refuses such an action when this is absent, so a request that
+   * arrived with a bearer token, through MCP dispatch, or with a principal and
+   * no session at all cannot run one (issue 287). Elsewhere it only marks a
+   * listed session as the caller's own.
    */
   sessionId?: string;
   /**
