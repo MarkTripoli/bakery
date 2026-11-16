@@ -4,6 +4,7 @@ import {
   type EvidenceRefusal,
   evidenceRefusal,
   type MergeEntryCreateInput,
+  sameQueuedCandidate,
 } from "../../apps/server/src/modules/delivery/merge-entries.ts";
 
 /**
@@ -74,6 +75,21 @@ const refused = (result: EvidenceRefusal) => {
 
 Deno.test("the exact reviewed candidate is admitted", () => {
   assertEquals(evidenceRefusal(input, evidence()), null);
+});
+
+Deno.test("an entry that names no check run is refused, never admitted on no evidence", () => {
+  // The two halves of #40 must agree: #481's checksPassed([]) refuses exactly
+  // this, so the queue cannot admit a candidate carrying zero check evidence.
+  assertEquals(
+    refused(evidenceRefusal({ ...input, checkRunIds: [] }, evidence())),
+    "PRECONDITION_FAILED:check_runs_missing",
+  );
+  assertEquals(
+    refused(
+      evidenceRefusal({ ...input, checkRunIds: [] }, evidence({ checks: [] })),
+    ),
+    "PRECONDITION_FAILED:check_runs_missing",
+  );
 });
 
 Deno.test("a head or base that moved refuses admission", () => {
@@ -220,4 +236,41 @@ Deno.test("a check that did not pass keeps the candidate out", () => {
       "STATE_CONFLICT:checks_not_passed",
     );
   }
+});
+
+Deno.test("a queued entry is the same candidate by pull request, head and base alone", () => {
+  const queued = {
+    pullRequestId: input.pullRequestId,
+    expectedHeadSha: input.expectedHeadSha,
+    expectedBaseSha: input.expectedBaseSha,
+  };
+  // The candidate is the identity: a re-run that names the same pull request at
+  // the same head and base answers with the queued entry, whatever run, policy,
+  // review cycle or check ids it carries.
+  assertEquals(
+    sameQueuedCandidate(queued, {
+      ...input,
+      runId: crypto.randomUUID(),
+      policyDigest: OTHER_POLICY,
+      reviewCycleId: crypto.randomUUID(),
+      checkRunIds: [crypto.randomUUID()],
+    }),
+    true,
+  );
+  // Any part of the candidate moving is a different candidate.
+  assertEquals(
+    sameQueuedCandidate(queued, {
+      ...input,
+      pullRequestId: crypto.randomUUID(),
+    }),
+    false,
+  );
+  assertEquals(
+    sameQueuedCandidate(queued, { ...input, expectedHeadSha: OTHER_HEAD }),
+    false,
+  );
+  assertEquals(
+    sameQueuedCandidate(queued, { ...input, expectedBaseSha: OTHER_BASE }),
+    false,
+  );
 });

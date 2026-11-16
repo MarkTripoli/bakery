@@ -10954,6 +10954,7 @@ export const clientManifest = {
           "description": "Review cycle whose approval and findings this merge entry relies on; unresolved blocking findings on that cycle prevent merging."
         },
         "checkRunIds": {
+          "minItems": 1,
           "maxItems": 100,
           "type": "array",
           "items": {

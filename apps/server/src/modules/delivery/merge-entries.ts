@@ -149,6 +149,27 @@ export type EvidenceRefusal = {
 } | null;
 
 /**
+ * Whether a queued entry already advances this exact candidate. The identity is
+ * the candidate — this pull request at this head and base — deliberately not
+ * the run, policy, review cycle or check ids: those name the evidence a new
+ * entry would be admitted on, and the queued entry was admitted by validating
+ * its own. A retry from a re-run therefore answers with it rather than opening
+ * a second merge of the same commit.
+ */
+export function sameQueuedCandidate(
+  entry: {
+    pullRequestId: string;
+    expectedHeadSha: string;
+    expectedBaseSha: string;
+  },
+  create: MergeEntryCreateInput,
+): boolean {
+  return entry.pullRequestId === create.pullRequestId &&
+    entry.expectedHeadSha === create.expectedHeadSha &&
+    entry.expectedBaseSha === create.expectedBaseSha;
+}
+
+/**
  * The admission rule, as a pure function over the rows: the pull request must
  * still be the head and base the caller named and still be open, its review
  * cycle must have judged that same candidate under the same policy with no
@@ -186,6 +207,13 @@ export function evidenceRefusal(
   }
   if (review.blocking > 0) {
     return { code: "STATE_CONFLICT", reason: "review_findings_blocking" };
+  }
+  // An entry that names no check run has no required-checks evidence to
+  // admit on. The transport already refuses an empty set; this keeps the pure
+  // rule honest on its own, so it can never admit a candidate that #481's
+  // checksPassed([]) refuses.
+  if (input.checkRunIds.length === 0) {
+    return { code: "PRECONDITION_FAILED", reason: "check_runs_missing" };
   }
   if (checks.length !== input.checkRunIds.length) {
     return { code: "PRECONDITION_FAILED", reason: "check_runs_missing" };
@@ -288,11 +316,9 @@ export async function createMergeEntry(
   if (active) {
     // The target already merges one candidate at a time: an identical admission
     // answers with that entry, and any other candidate is a state conflict.
-    if (
-      active.pull_request_id === create.pullRequestId &&
-      active.expected_head_sha === create.expectedHeadSha &&
-      active.expected_base_sha === create.expectedBaseSha
-    ) return entry(active);
+    // "Identical" is the candidate, not the evidence that named it — see
+    // sameQueuedCandidate.
+    if (sameQueuedCandidate(entry(active), create)) return entry(active);
     throw new StandardError({
       code: "STATE_CONFLICT",
       params: { reason: "target_merge_in_progress" },
@@ -342,11 +368,7 @@ export async function createMergeEntry(
       ],
     )).rows[0];
     if (!winner) throw new StandardError({ code: "STATE_CONFLICT" });
-    if (
-      winner.pull_request_id === create.pullRequestId &&
-      winner.expected_head_sha === create.expectedHeadSha &&
-      winner.expected_base_sha === create.expectedBaseSha
-    ) return entry(winner);
+    if (sameQueuedCandidate(entry(winner), create)) return entry(winner);
     throw new StandardError({
       code: "STATE_CONFLICT",
       params: { reason: "target_merge_in_progress" },

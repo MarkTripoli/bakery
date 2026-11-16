@@ -38761,6 +38761,7 @@
               "description": "Review cycle whose approval and findings this merge entry relies on; unresolved blocking findings on that cycle prevent merging."
             },
             "checkRunIds": {
+              "minItems": 1,
               "maxItems": 100,
               "type": "array",
               "items": {
@@ -200938,7 +200939,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:579cfa254182d9ee4b57d0ea311aaeee3a906fe0eeceaf9e44696ba65085edd6",
+  "compatibilityDigest": "sha256:219eaa63a3a2bf23a35e34141b042b1f53643a61b88c84658a6c545792387ef6",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -207742,6 +207743,7 @@
           "description": "Review cycle whose approval and findings this merge entry relies on; unresolved blocking findings on that cycle prevent merging."
         },
         "checkRunIds": {
+          "minItems": 1,
           "maxItems": 100,
           "type": "array",
           "items": {
