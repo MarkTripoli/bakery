@@ -49,7 +49,7 @@ export function StepCard(
   return (
     <button
       {...props}
-      aria-pressed={selected}
+      aria-expanded={selected}
       className={[
         "ui-step-card",
         selected ? "ui-step-card--selected" : "",

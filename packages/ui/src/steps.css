@@ -273,11 +273,15 @@
   color: var(--color-fg);
   cursor: pointer;
   display: inline-flex;
-  block-size: var(--size-control);
-  inline-size: var(--size-control);
+  /* Drawn small (design-ux: 22px drawn) and comfortable to hit (44px): the two
+     are separate values, and --target-coarse is the root token that exists
+     here. --target-min is scoped to the inbox, artifact and session panes, so
+     consuming it in this file would silently do nothing. */
+  block-size: var(--size-dismiss);
+  inline-size: var(--size-dismiss);
   justify-content: center;
-  min-block-size: var(--target-min);
-  min-inline-size: var(--target-min);
+  min-block-size: var(--target-coarse);
+  min-inline-size: var(--target-coarse);
 }
 .ui-step-connector__button:hover {
   border-color: var(--color-border-strong);
