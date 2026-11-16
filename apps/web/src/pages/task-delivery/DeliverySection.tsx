@@ -7,6 +7,7 @@ import {
   approvalsQueryOptions,
   artifactsListQueryOptions,
   artifactVersionsQueryOptions,
+  pullRequestsQueryOptions,
   reviewFindingsQueryOptions,
   runChecksQueryOptions,
   runDeliveryDecisionsQueryOptions,
@@ -157,6 +158,14 @@ export function DeliverySection(
     enabled: enabled && latestReviewId !== null,
     refetchInterval: 5000,
   });
+  // The pull request and merge the trace ends at. Like the approvals read it
+  // never blocks the section: a task with no pull request shows none recorded,
+  // and a refused read only means none is shown.
+  const pullRequests = useQuery({
+    ...pullRequestsQueryOptions(api, scope, taskId),
+    enabled,
+    refetchInterval: 5000,
+  });
 
   const reads = [checks, reviews, decisions];
   const failed = [...reads, findings].find((read) => read.isError);
@@ -169,11 +178,13 @@ export function DeliverySection(
 
   const model: DeliveryModel | null = state === "ready"
     ? deliveryModel({
+      runId,
       checks: checks.data?.items ?? [],
       reviews: reviews.data?.items ?? [],
       findings: latestReviewId === null ? [] : findings.data?.items ?? [],
       decisions: decisions.data?.items ?? [],
       approvals: approvalsForRun(approvals.data?.items ?? [], runId),
+      pullRequests: pullRequests.data?.items ?? [],
       // A refusal means this person cannot see approvals, so none is shown;
       // any other failure means one may be waiting that could not be read.
       approvalsUnavailable: approvals.isError && !forbidden(approvals.error),
@@ -212,7 +223,16 @@ export function DeliverySection(
       onOpenRules={onOpenRules}
       onRetryApprovals={() => void approvals.refetch()}
       onRetry={() => {
-        for (const read of [checks, reviews, decisions, findings, approvals]) {
+        for (
+          const read of [
+            checks,
+            reviews,
+            decisions,
+            findings,
+            approvals,
+            pullRequests,
+          ]
+        ) {
           if (read.isError) void read.refetch();
         }
       }}

@@ -2,8 +2,14 @@ import { assert, assertEquals, assertThrows } from "@std/assert";
 import { StandardError } from "../../packages/contracts/src/http.ts";
 import {
   contractSchemas,
+  UnknownWorkerActionError,
   workerActionCapabilities,
+  WorkerActionContractError,
+  workerContractFaultCode,
 } from "../../packages/contracts/src/contracts.ts";
+import transport from "../../packages/contracts/generated/transport-schemas.ts";
+import { executionActionCapabilities } from "../../packages/persistence/src/action-admission.ts";
+import { isDispatchable } from "../../apps/server/src/modules/workflows/action-runtime.ts";
 import {
   WORKFLOW_ACTION_METADATA,
   WORKFLOW_ACTION_NAMES,
@@ -140,4 +146,207 @@ Deno.test("it agrees with the compiler's rule for which steps may select an agen
       );
     assertEquals(refused, !isModelAction(action), action);
   }
+});
+
+// ---- #244: a defect in Bakery's own worker table is not an unknown action.
+// The classification must read a typed discriminant, so these tests build each
+// family by breaking the table itself, never by matching a message.
+
+const workerTable = transport.workerActions as Record<string, unknown>;
+
+/** Runs `body` with one worker action's entry replaced, then restores it. */
+function withBrokenWorkerAction<T>(
+  action: string,
+  replacement: unknown,
+  body: () => T,
+): T {
+  const original = workerTable[action];
+  workerTable[action] = replacement;
+  try {
+    return body();
+  } finally {
+    workerTable[action] = original;
+  }
+}
+
+/** A worker action whose contract matches its published metadata. */
+const consistentAction = workerActions.find((action) =>
+  registered(action)
+) as string;
+
+/** A worker action the registry does not publish: worker-only control actions. */
+const workerOnlyAction = workerActions.find((action) => !registered(action));
+
+const wireCode = (run: () => unknown): string => {
+  const error = assertThrows(run, StandardError);
+  return `${error.code}`;
+};
+
+Deno.test("a registered action with no capabilities is a contract defect, not an unknown action (#244)", () => {
+  // A worker-table-only action: for one the registry publishes, the budget path
+  // answers from the registry and never reads this table (asserted separately).
+  const entry = workerTable[workerOnlyAction as string] as Record<
+    string,
+    unknown
+  >;
+  const { capabilities: _dropped, ...withoutCapabilities } = entry;
+  withBrokenWorkerAction(
+    workerOnlyAction as string,
+    withoutCapabilities,
+    () => {
+      assertEquals(
+        wireCode(() => isModelAction(workerOnlyAction as string)),
+        "WORKER_ACTION_CAPABILITIES_INVALID",
+      );
+    },
+  );
+});
+
+Deno.test("a capability that is not a string is the same defect, not an unknown action (#244)", () => {
+  const entry = workerTable[workerOnlyAction as string] as Record<
+    string,
+    unknown
+  >;
+  withBrokenWorkerAction(
+    workerOnlyAction as string,
+    { ...entry, capabilities: ["model", 42] },
+    () => {
+      assertEquals(
+        wireCode(() => isModelAction(workerOnlyAction as string)),
+        "WORKER_ACTION_CAPABILITIES_INVALID",
+      );
+    },
+  );
+});
+
+Deno.test("a contract that drifted from the published metadata is its own defect (#244)", () => {
+  // Drift needs an action the registry publishes, and it surfaces on the paths
+  // that read the worker table (dispatch and admission); the budget path answers
+  // from the registry first and never sees this table for a published action.
+  const entry = workerTable[consistentAction] as Record<string, unknown>;
+  withBrokenWorkerAction(
+    consistentAction,
+    { ...entry, outputSchema: "drifted" },
+    () => {
+      // Dispatch reads the worker table for every registered action, which is
+      // why drift surfaces there; the budget and admission paths answer from the
+      // registry for a published action and never see this defect. Dispatch
+      // rethrows the typed error rather than a wire problem, which is the point:
+      // the defect must not become a routing decision.
+      const dispatched = assertThrows(
+        () => isDispatchable(consistentAction as WorkflowActionName),
+        WorkerActionContractError,
+      );
+      assertEquals(dispatched.defect, "contract_drift");
+      const read = assertThrows(
+        () => workerActionCapabilities(consistentAction),
+        WorkerActionContractError,
+      );
+      assertEquals(read.defect, "contract_drift");
+      // And the wire mapping both error-reporting paths use is the family code.
+      assertEquals(
+        workerContractFaultCode(dispatched.defect),
+        "WORKER_ACTION_CONTRACT_DRIFT",
+      );
+    },
+  );
+});
+
+Deno.test("the classification reads a discriminant, so rewording a message changes nothing (#244)", () => {
+  // The two families must answer differently, and each error must carry its own
+  // defect. A fix that inspects error.message fails both halves.
+  const entry = workerTable[consistentAction] as Record<string, unknown>;
+  const { capabilities: _dropped, ...withoutCapabilities } = entry;
+  const missing = withBrokenWorkerAction(
+    consistentAction,
+    withoutCapabilities,
+    () =>
+      assertThrows(
+        () => workerActionCapabilities(consistentAction),
+        WorkerActionContractError,
+      ),
+  );
+  const drift = withBrokenWorkerAction(
+    consistentAction,
+    { ...entry, outputSchema: "drifted" },
+    () =>
+      assertThrows(
+        () => workerActionCapabilities(consistentAction),
+        WorkerActionContractError,
+      ),
+  );
+  assertEquals(missing.defect, "capabilities_invalid");
+  assertEquals(drift.defect, "contract_drift");
+  assert(missing.defect !== drift.defect);
+  // The arbitrary-message half: the discriminant survives any wording.
+  assertEquals(
+    new WorkerActionContractError("contract_drift", "anything at all").defect,
+    "contract_drift",
+  );
+  assertEquals(
+    new WorkerActionContractError("capabilities_invalid", "anything at all")
+      .defect,
+    "capabilities_invalid",
+  );
+});
+
+Deno.test("an action nobody registered is still the caller's unknown action (#244)", () => {
+  const error = assertThrows(
+    () => workerActionCapabilities("not.an.action"),
+    UnknownWorkerActionError,
+  );
+  assertEquals(error.name, "UnknownWorkerActionError");
+  // And the budget path still answers the caller's refusal, unchanged.
+  assertEquals(
+    wireCode(() => isModelAction("not.an.action")),
+    "STATE_CONFLICT",
+  );
+});
+
+Deno.test("a worker-only control action with no published metadata still classifies (#244)", () => {
+  assert(workerOnlyAction !== undefined, "no worker-only action in the table");
+  // Accepted by design: these carry their own typed transport contracts.
+  assertEquals(
+    isModelAction(workerOnlyAction),
+    workerActionCapabilities(workerOnlyAction).includes("model"),
+  );
+});
+
+Deno.test("dispatch treats a contract defect as the defect, never as 'not dispatchable' (#244)", () => {
+  const entry = workerTable[consistentAction] as Record<string, unknown>;
+  const { capabilities: _dropped, ...withoutCapabilities } = entry;
+  withBrokenWorkerAction(consistentAction, withoutCapabilities, () => {
+    // Rethrown, not swallowed: routing must not silently take another path.
+    assertThrows(
+      () => isDispatchable(consistentAction as WorkflowActionName),
+      WorkerActionContractError,
+    );
+  });
+  // The unknown action keeps answering false.
+  assertEquals(isDispatchable("not.an.action" as WorkflowActionName), false);
+});
+
+Deno.test("admission reports a contract defect as the defect, not as unavailable (#244)", () => {
+  // Admission reads the worker table for an action the registry does not
+  // publish, so that is where its own mapping is observable.
+  const entry = workerTable[workerOnlyAction as string] as Record<
+    string,
+    unknown
+  >;
+  const { capabilities: _dropped, ...withoutCapabilities } = entry;
+  withBrokenWorkerAction(
+    workerOnlyAction as string,
+    withoutCapabilities,
+    () => {
+      assertEquals(
+        wireCode(() => executionActionCapabilities(workerOnlyAction as string)),
+        "WORKER_ACTION_CAPABILITIES_INVALID",
+      );
+    },
+  );
+  // And an unknown action keeps its own refusal, not a contract code.
+  assertEquals(
+    wireCode(() => executionActionCapabilities("not.an.action")),
+    "STATE_CONFLICT",
+  );
 });

@@ -338,6 +338,36 @@ export class WorkflowActionRegistryError extends Error {
   }
 }
 
+/**
+ * The defect a worker action's own registration carries. A table defect is the
+ * server's problem, never the caller's, so it is reported as one; the
+ * discriminant is what a consumer switches on, never the message.
+ */
+export type WorkerActionDefect = "capabilities_invalid" | "contract_drift";
+
+/**
+ * A registered worker action whose contract cannot be used: its capabilities are
+ * missing, not an array, or not strings (`capabilities_invalid`), or its
+ * contract disagrees with the published action metadata (`contract_drift`).
+ * Both are defects in Bakery's own tables.
+ */
+export class WorkerActionContractError extends Error {
+  readonly defect: WorkerActionDefect;
+  constructor(defect: WorkerActionDefect, message: string) {
+    super(message);
+    this.name = "WorkerActionContractError";
+    this.defect = defect;
+  }
+}
+
+/** No worker action of that name is registered: a caller asked for nothing. */
+export class UnknownWorkerActionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UnknownWorkerActionError";
+  }
+}
+
 const registrationKeys = Object.freeze([
   "action",
   "handler",

@@ -1,5 +1,6 @@
 import {
   contractSchemas,
+  UnknownWorkerActionError,
   workerActionCapabilities,
 } from "@bakery/contracts/contracts";
 import { StandardError } from "@bakery/contracts/http";
@@ -39,12 +40,19 @@ function parser(schemas: SchemaMap, name: string): Parser {
   return schema;
 }
 
-function isDispatchable(action: WorkflowActionName): boolean {
+/**
+ * Whether a worker runs this action. Only an action nobody registered answers
+ * false; a broken entry in Bakery's own table is thrown, because treating a
+ * contract defect as "not dispatchable" would silently route the step elsewhere
+ * instead of failing where the defect is (issue 244).
+ */
+export function isDispatchable(action: WorkflowActionName): boolean {
   try {
     workerActionCapabilities(action);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    if (error instanceof UnknownWorkerActionError) return false;
+    throw error;
   }
 }
 

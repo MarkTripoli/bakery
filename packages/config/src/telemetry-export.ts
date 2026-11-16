@@ -23,7 +23,10 @@ import { AsyncLocalStorage } from "node:async_hooks";
  *   sink ignores its abort signal. A sink that never settles leaves a promise
  *   behind after every timeout, so after `MAX_STUCK_SENDS` of them are
  *   outstanding the exporter stops calling it and sheds instead.
- * - `close(deadlineMs)` returns by its deadline however the sink behaves.
+ * - `close(deadlineMs)` returns by its deadline however the sink behaves. A
+ *   synchronous sink cannot be interrupted mid-batch, so the deadline is read
+ *   between batches: close overshoots by at most the batch in flight, which is
+ *   at most `batchSize` sink calls.
  * - Every offered item is accounted for in exactly one place:
  *   `offered = queued + inFlight + exported + discarded + dropped.*`.
  * - No timer exists unless there is something to flush or report, and none
@@ -427,9 +430,18 @@ export function createBoundedExporter<T>(
     }
   };
 
+  /** When close() must stop flushing, read by the pump between batches. */
+  let closeDeadlineAt = Number.POSITIVE_INFINITY;
+
   const run = async () => {
     try {
       while (ring.size > 0 && !shutdown.signal.aborted) {
+        // A synchronous sink never yields, so the close deadline cannot arrive
+        // by timer: it is read here, between batches, and the loop stops of its
+        // own accord (issue 199). The cost is at most the batch already in
+        // flight — at most `batchSize` sink calls — which is the bound the
+        // header states.
+        if (closing && performance.now() >= closeDeadlineAt) break;
         const batch = ring.take(batchSize);
         // Counted once, before any sink sees anything.
         const size = batch.length;
@@ -517,6 +529,14 @@ export function createBoundedExporter<T>(
         const wait = typeof deadlineMs === "number" && deadlineMs > 0
           ? Math.min(deadlineMs, MAX_TIMER_MS)
           : 0;
+        // The pump reads this between batches; the timer below still bounds a
+        // sink that awaits, so both kinds of sink are covered. A zero budget
+        // (close(0), or no deadline) is not "stop at once": it keeps its
+        // meaning, which is that the flush runs until the timer turn arrives,
+        // and with a synchronous sink that is until the queue is empty.
+        closeDeadlineAt = wait > 0
+          ? performance.now() + wait
+          : Number.POSITIVE_INFINITY;
         const deadline = after(wait);
         try {
           const flushing = pump();

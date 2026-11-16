@@ -157,6 +157,23 @@
   }
 }
 
+/* A group band (opt-in `group` on the step that starts a group, such as
+   "After approval"): its own row in the list, muted, with the rule the mock
+   draws under it. */
+.ui-step-item-group {
+  background: var(--color-canvas);
+  border-block-end: var(--border-default) solid var(--color-border);
+  color: var(--color-fg-muted);
+  font: var(--type-label);
+  padding: var(--space-3) var(--space-4) var(--space-1);
+}
+
+/* The band carries the words itself, so the heading adds no space of its own. */
+.ui-step-item-group__title {
+  font: inherit;
+  margin: var(--space-0);
+}
+
 /* A numbered step (opt-in, for a definition that nothing is running): the
    mark holds the number and the title is in the normal colour. */
 .ui-step-item[data-numbered="true"] .ui-step-item__mark {

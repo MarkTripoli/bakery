@@ -1,4 +1,9 @@
-import { workerActionCapabilities } from "@bakery/contracts/contracts";
+import {
+  UnknownWorkerActionError,
+  workerActionCapabilities,
+  WorkerActionContractError,
+  workerContractFaultCode,
+} from "@bakery/contracts/contracts";
 import {
   WORKFLOW_ACTION_METADATA,
   type WorkflowActionName,
@@ -252,8 +257,16 @@ export function isModelAction(action: string): boolean {
   let capabilities: readonly string[];
   try {
     capabilities = workerActionCapabilities(action);
-  } catch {
-    return conflict("workflow_action_unsupported");
+  } catch (error) {
+    // Only a name nobody registered is the caller's problem. A broken entry in
+    // Bakery's own worker table is the server's, and says so (issue 244).
+    if (error instanceof UnknownWorkerActionError) {
+      return conflict("workflow_action_unsupported");
+    }
+    if (error instanceof WorkerActionContractError) {
+      throw new StandardError({ code: workerContractFaultCode(error.defect) });
+    }
+    throw error;
   }
   return capabilities.includes("model");
 }

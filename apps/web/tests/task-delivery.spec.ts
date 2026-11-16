@@ -210,11 +210,34 @@ const decisionRow = (
   version: 1,
 });
 
+/** A tracked pull request as `pullRequests.list` returns it. */
+const pullRequestRow = (
+  providerNumber: number,
+  over: Record<string, unknown> = {},
+) => ({
+  id: uuid(600 + providerNumber),
+  taskId: id,
+  repositoryId: uuid(13),
+  runId,
+  providerNumber,
+  url: `https://github.com/o/r/pull/${providerNumber}`,
+  headSha: NEW,
+  baseSha: BASE,
+  status: "open",
+  mergedSha: null,
+  createdAt: at(6),
+  updatedAt: at(6),
+  version: 1,
+  ...over,
+});
+
 type Scenario = {
   checks: Check[];
   review?: Parameters<typeof reviewRow>[0];
   findings?: ReturnType<typeof findingRow>[];
   decisions?: ReturnType<typeof decisionRow>[];
+  /** The task's pull requests, as `pullRequests.list` returns them (oldest first). */
+  pullRequests?: ReturnType<typeof pullRequestRow>[];
 };
 const page_ = <T>(items: T[]) => ({ items, nextCursor: null });
 
@@ -391,6 +414,12 @@ async function mockDelivery(page: Page, scenario: Scenario) {
   await page.route(
     "**/v1/approvals?*",
     (route) => route.fulfill({ json: page_([]) }),
+  );
+  // The "After approval" group's read: no pull request unless the scenario
+  // serves one, which is the "nothing known" state.
+  await page.route(
+    "**/v1/pull-requests?*",
+    (route) => route.fulfill({ json: page_(scenario.pullRequests ?? []) }),
   );
 }
 
@@ -688,9 +717,7 @@ const nowCard = (page: Page) =>
 const notice = (page: Page) => page.getByTestId("delivery-approval-notice");
 const button = (card: Locator, name: string) =>
   card.getByRole("button", { name, exact: true });
-const approvalStep = (page: Page) =>
-  page.getByRole("list", { name: "Delivery steps" })
-    .getByRole("listitem").filter({ hasText: "Approval" });
+const approvalStep = (page: Page) => page.getByTestId("delivery-approval-step");
 
 async function openApproval(page: Page, approvals = [approvalRow()]) {
   await mockRun(page);
@@ -1179,7 +1206,8 @@ test("the approval card and its dialogs have no accessibility violations and fit
 
 // Evidence stills for the PR description (desktop and phone, light and dark), only
 // when BAKERY_STILLS_DIR is set.
-const STILLS = process.env.BAKERY_STILLS_DIR;
+const STILLS = process.env.BAKERY_EVIDENCE_DIR ??
+  process.env.BAKERY_STILLS_DIR;
 for (
   const [name, scenario] of [["clean", CLEAN], ["fixing", FIXING], [
     "stopped",
@@ -1344,3 +1372,315 @@ for (const name of APPROVAL_STILLS) {
     }
   }
 }
+
+// ---- the "After approval" group: pull request, merge, and the badge that ends
+// the trace (design-ux's #57 "after approval" design, accepted 2026-11-16).
+
+const approvedRow = () =>
+  approvalRow({
+    status: "answered",
+    decision: "approve",
+    decidedBy: uuid(1),
+    decidedAt: at(6),
+  });
+
+const afterApprovalHeading = (page: Page) =>
+  page.getByTestId("delivery-section").getByRole("heading", {
+    name: "After approval",
+  });
+
+const pullRequestStep = (page: Page) =>
+  page.getByTestId("delivery-pull-request-step");
+
+const mergeStep = (page: Page) => page.getByTestId("delivery-merge-step");
+
+async function openApproved(page: Page, scenario: Scenario) {
+  await mockRun(page);
+  await mockDelivery(page, { ...CLEAN, ...scenario });
+  await mockApprovals(page, [approvedRow()]);
+  await page.goto(`/tasks/${id}`);
+  await expect(afterApprovalHeading(page)).toBeVisible();
+}
+
+test("before approval the after-approval group and its badge are not drawn", async ({ page }) => {
+  await mockRun(page);
+  await mockDelivery(page, {
+    ...CLEAN,
+    pullRequests: [pullRequestRow(482)],
+  });
+  await page.goto(`/tasks/${id}`);
+  // A clean candidate with no approval asked: the trace ends at review, so the
+  // group that ends it has nothing to stand on yet.
+  await expect(
+    page.getByTestId("delivery-section").getByRole("list", {
+      name: "Delivery steps",
+    }),
+  ).toBeVisible();
+  await expect(afterApprovalHeading(page)).toHaveCount(0);
+  await expect(pullRequestStep(page)).toHaveCount(0);
+  await expect(mergeStep(page)).toHaveCount(0);
+  await expect(page.getByTestId("delivery-outcome-badge")).toHaveCount(0);
+});
+
+test("an approved run with a pull request open says so, badges Waiting for merge and links to GitHub", async ({ page }) => {
+  await openApproved(page, { pullRequests: [pullRequestRow(482)] });
+  const section = page.getByTestId("delivery-section");
+  await expect(pullRequestStep(page)).toContainText(
+    "Pull request #482 is open.",
+  );
+  await expect(mergeStep(page)).toContainText("Not merged yet.");
+  await expect(page.getByTestId("delivery-outcome-badge")).toHaveText(
+    "Waiting for merge",
+  );
+  await expect(section).toContainText(
+    "Releases are not tracked in Bakery yet.",
+  );
+  const link = pullRequestStep(page).getByRole("link", {
+    name: /Open on GitHub/,
+  });
+  await expect(link).toHaveAttribute(
+    "href",
+    "https://github.com/o/r/pull/482",
+  );
+  await expect(link).toHaveAttribute("target", "_blank");
+});
+
+test("a recorded merge commit is said as Merged as <sha>, confirmed by GitHub, and Copy copies all of it", async ({ page }) => {
+  await page.addInitScript(() => {
+    (globalThis as unknown as { copied: string[] }).copied = [];
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: (text: string) => {
+          (globalThis as unknown as { copied: string[] }).copied.push(text);
+          return Promise.resolve();
+        },
+      },
+    });
+  });
+  await openApproved(page, {
+    pullRequests: [
+      pullRequestRow(482, { status: "merged", mergedSha: sha("9") }),
+    ],
+  });
+  await expect(mergeStep(page)).toContainText(
+    `Merged as ${sha("9").slice(0, 7)}, confirmed by GitHub.`,
+  );
+  await expect(page.getByTestId("delivery-outcome-badge")).toHaveText("Merged");
+  await button(mergeStep(page), "Copy").click();
+  await expect(button(mergeStep(page), "Copied")).toBeVisible();
+  await expect.poll(() =>
+    page.evaluate(() => (globalThis as unknown as { copied: string[] }).copied)
+  ).toEqual([sha("9")]);
+});
+
+test("a pull request closed without merging is failed, badged Not merged and never called merged", async ({ page }) => {
+  await openApproved(page, {
+    pullRequests: [pullRequestRow(482, { status: "closed" })],
+  });
+  await expect(pullRequestStep(page)).toContainText(
+    "Pull request #482 was closed without merging.",
+  );
+  await expect(mergeStep(page)).toContainText("Not merged.");
+  await expect(pullRequestStep(page)).toHaveAttribute("data-state", "failed");
+  await expect(page.getByTestId("delivery-outcome-badge")).toHaveText(
+    "Not merged",
+  );
+});
+
+test("with no pull request the group says Bakery has seen none and cannot tell whether the work merged", async ({ page }) => {
+  await openApproved(page, {});
+  await expect(pullRequestStep(page)).toContainText(
+    "Bakery has not seen a pull request for this task. If one was opened, check GitHub.",
+  );
+  await expect(mergeStep(page)).toContainText(
+    "Bakery cannot tell whether these changes were merged.",
+  );
+  await expect(pullRequestStep(page)).toHaveAttribute("data-state", "unknown");
+  await expect(mergeStep(page)).toHaveAttribute("data-state", "unknown");
+  await expect(page.getByTestId("delivery-outcome-badge")).toHaveText(
+    "Approved",
+  );
+  await expect(pullRequestStep(page).getByRole("link")).toHaveCount(0);
+});
+
+test("this run's pull request wins, and the task's others open in place, newest first", async ({ page }) => {
+  await openApproved(page, {
+    pullRequests: [
+      pullRequestRow(480, {
+        createdAt: "2026-01-01T00:00:01.000Z",
+        status: "closed",
+      }),
+      pullRequestRow(481, {
+        createdAt: "2026-01-01T00:00:02.000Z",
+        status: "merged",
+        mergedSha: sha("9"),
+      }),
+      pullRequestRow(482),
+    ],
+  });
+  await expect(pullRequestStep(page)).toContainText(
+    "Pull request #482 is open.",
+  );
+  const earlier = page.getByTestId("delivery-earlier-pull-requests");
+  // A count the person can open, and nothing listed until they do.
+  const control = earlier.getByText("and 2 earlier", { exact: true });
+  await expect(control).toBeVisible();
+  // A native disclosure: closed, so the rows are neither read nor reached.
+  await expect(earlier).not.toHaveAttribute("open");
+  const rows = earlier.getByRole("listitem");
+  await expect(rows).toHaveCount(0);
+  // On a phone the step's own button must not read as the button for the last
+  // row: it comes before the list (design-ux, 2026-11-16).
+  if ((page.viewportSize()?.width ?? 1280) <= 743) {
+    const ownButton = pullRequestStep(page).getByRole("link", {
+      name: /Open on GitHub/,
+    });
+    await expect(ownButton).toHaveCount(1);
+    const buttonTop = (await ownButton.boundingBox())?.y ?? 0;
+    const controlTop = (await earlier.locator("summary").boundingBox())?.y ?? 0;
+    expect(buttonTop).toBeLessThan(controlTop);
+  }
+  await earlier.locator("summary").click();
+  await expect(earlier).toHaveAttribute("open", "");
+  await expect(rows).toHaveCount(2);
+  // Newest first: #481 before #480, each with its status and its own link.
+  await expect(rows.nth(0)).toContainText("#481");
+  await expect(rows.nth(0)).toContainText("Merged");
+  await expect(rows.nth(1)).toContainText("#480");
+  await expect(rows.nth(1)).toContainText("Closed");
+  await expect(rows.nth(1).getByRole("link", { name: /Open on GitHub/ }))
+    .toHaveAttribute("href", "https://github.com/o/r/pull/480");
+  // Pressing it again closes the list.
+  await earlier.locator("summary").click();
+  await expect(earlier).not.toHaveAttribute("open");
+  await expect(rows).toHaveCount(0);
+});
+
+test("the after-approval group has no accessibility violations and fits a 390px screen", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openApproved(page, {
+    pullRequests: [
+      pullRequestRow(482, { status: "merged", mergedSha: sha("9") }),
+    ],
+  });
+  const section = page.getByTestId("delivery-section");
+  const overflow = await section.evaluate((node) =>
+    node.scrollWidth - node.clientWidth
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+  const results = await new AxeBuilder({ page }).include(
+    '[data-testid="delivery-section"]',
+  ).analyze();
+  expect(results.violations).toEqual([]);
+});
+
+// ---- stills for design-ux's and QA's review of the after-approval group
+// (BAKERY_STILLS_DIR; nothing is written otherwise)
+
+const AFTER_APPROVAL_STILLS = [
+  ["pull-request-open", { pullRequests: [pullRequestRow(482)] }],
+  [
+    "merged",
+    {
+      pullRequests: [
+        pullRequestRow(482, { status: "merged", mergedSha: sha("9") }),
+      ],
+    },
+  ],
+  ["closed", { pullRequests: [pullRequestRow(482, { status: "closed" })] }],
+  ["nothing-known", {}],
+] as const;
+
+for (const [name, scenario] of AFTER_APPROVAL_STILLS) {
+  test(`still: after approval, ${name}`, async ({ page }) => {
+    test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+    test.setTimeout(120_000);
+    for (const scheme of ["light", "dark"] as const) {
+      for (
+        const [size, width, height] of [["1440", 1440, 900], [
+          "390",
+          390,
+          844,
+        ]] as const
+      ) {
+        const fresh = await page.context().newPage();
+        await fresh.emulateMedia({ colorScheme: scheme });
+        await fresh.setViewportSize({ width, height });
+        await mockRun(fresh);
+        await mockDelivery(fresh, { ...CLEAN, ...scenario });
+        await mockApprovals(fresh, [approvedRow()]);
+        await fresh.goto(`/tasks/${id}`);
+        await expect(fresh.getByTestId("delivery-merge-step")).toBeVisible();
+        // Framed on the group, so the whole group is in the shot: the step
+        // list is taller than the window and clips at its pane otherwise.
+        await fresh.getByTestId("delivery-merge-step").scrollIntoViewIfNeeded();
+        await fresh.screenshot({
+          path: `${STILLS}/after-approval-${name}-${size}-${scheme}.png`,
+          animations: "disabled",
+        });
+        if (size === "1440" && scheme === "light") {
+          // The badge sits beside the section's heading, so it is captured with
+          // it rather than cropped alone.
+          await fresh.getByTestId("delivery-outcome-badge")
+            .scrollIntoViewIfNeeded();
+          await fresh.screenshot({
+            path: `${STILLS}/after-approval-header-${name}.png`,
+            animations: "disabled",
+          });
+        }
+        await fresh.close();
+      }
+    }
+  });
+}
+
+test("still: the task's other pull requests, closed and opened", async ({ page }) => {
+  test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+  test.setTimeout(120_000);
+  const earlier = [
+    pullRequestRow(480, {
+      createdAt: "2026-01-01T00:00:01.000Z",
+      status: "closed",
+    }),
+    pullRequestRow(481, {
+      createdAt: "2026-01-01T00:00:02.000Z",
+      status: "merged",
+      mergedSha: sha("9"),
+    }),
+    pullRequestRow(482),
+  ];
+  for (
+    const [size, width, height] of [["1440", 1440, 900], [
+      "390",
+      390,
+      844,
+    ]] as const
+  ) {
+    const fresh = await page.context().newPage();
+    await fresh.setViewportSize({ width, height });
+    await mockRun(fresh);
+    await mockDelivery(fresh, { ...CLEAN, pullRequests: earlier });
+    await mockApprovals(fresh, [approvedRow()]);
+    await fresh.goto(`/tasks/${id}`);
+    const disclosure = fresh.getByTestId("delivery-earlier-pull-requests");
+    await expect(disclosure).toBeVisible();
+    // Closed first, then opened, both framed on the step that carries them.
+    for (const scheme of ["light", "dark"] as const) {
+      await fresh.emulateMedia({ colorScheme: scheme });
+      await disclosure.scrollIntoViewIfNeeded();
+      await fresh.screenshot({
+        path: `${STILLS}/after-approval-earlier-closed-${size}-${scheme}.png`,
+        animations: "disabled",
+      });
+      await disclosure.locator("summary").click();
+      await expect(disclosure.getByRole("listitem").first()).toBeVisible();
+      await fresh.screenshot({
+        path: `${STILLS}/after-approval-earlier-open-${size}-${scheme}.png`,
+        animations: "disabled",
+      });
+      await disclosure.locator("summary").click();
+    }
+    await fresh.close();
+  }
+});

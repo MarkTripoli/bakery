@@ -33,7 +33,6 @@ import {
 /** How long a member has to finish Sign in with Slack. */
 export const SLACK_IDENTITY_ATTEMPT_TTL_MINUTES = 15;
 
-const MAX_SESSION_ID_LENGTH = 256;
 const MAX_KEY_ID_LENGTH = 128;
 const CLIENT_ID = /^[A-Za-z0-9._-]{1,128}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -68,7 +67,11 @@ export type CreateSlackIdentityAttemptInput = {
   readonly organizationId: string;
   /** The Bakery member who is linking their Slack identity. */
   readonly principalId: string;
-  /** The browser session the callback must come back in. */
+  /**
+   * The browser session row id the callback must come back in: the session's
+   * `id` column, never its token. Only its SHA-256 is stored, so a caller that
+   * passed a token by mistake still leaves no credential at rest.
+   */
   readonly sessionId: string;
   readonly binding: SlackAttemptBinding;
   /** The key the nonce is sealed under, and the identity it is bound to. */
@@ -136,9 +139,13 @@ function isBinding(value: unknown): value is SlackAttemptBinding {
  * which a text column cannot hold and which would otherwise surface as a
  * database error that aborts the caller's transaction instead of a refusal.
  */
+/**
+ * A session binding is a session row id, which is a UUID. Enforcing the shape is
+ * what keeps a session token out: a bearer secret is not a UUID, so it is refused
+ * before the database is touched rather than being stored.
+ */
 function isSessionId(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0 &&
-    value.length <= MAX_SESSION_ID_LENGTH && !value.includes("\u0000");
+  return typeof value === "string" && isUuid(value);
 }
 
 function isCreateInput(
@@ -172,6 +179,7 @@ export async function createSlackIdentityAttempt(
   const state = randomToken();
   const nonce = randomToken();
   const stateHash = await sha256Hex(state);
+  const sessionHash = await sha256Hex(sessionId);
   let cipher;
   try {
     cipher = await encryptSlackIdentityNonce(
@@ -225,7 +233,7 @@ export async function createSlackIdentityAttempt(
       attemptId,
       organizationId,
       principalId,
-      sessionId,
+      sessionHash,
       stateHash,
       cipher.ciphertext,
       cipher.nonce,
@@ -295,6 +303,7 @@ export async function claimSlackIdentityAttempt(
   ) return REFUSED;
 
   const stateHash = await sha256Hex(input.state);
+  const sessionHash = await sha256Hex(input.sessionId);
   const claimed = await transaction.query<ClaimedRow>(
     `update bakery.slack_identity_attempts
         set status = 'exchanging', consumed_at = now(), updated_at = now(),
@@ -307,7 +316,7 @@ export async function claimSlackIdentityAttempt(
         enterprise_id as "enterpriseId",
         nonce_ciphertext as "nonceCiphertext", nonce_iv as "nonceIv",
         nonce_key_id as "nonceKeyId"`,
-    [stateHash, input.sessionId, input.principalId],
+    [stateHash, sessionHash, input.principalId],
   );
   const row = claimed.rows[0];
   if (row === undefined) return REFUSED;
