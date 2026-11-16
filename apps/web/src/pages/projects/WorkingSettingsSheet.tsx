@@ -389,11 +389,11 @@ export function WorkingSettingsSheet(
                         // The organization's rules fix the branches, so putting
                         // this version in use would be refused: say so on the
                         // row instead of offering a button that cannot work.
-                        <UI.Badge tone="neutral">
+                        <UI.Text variant="muted">
                           {translate(
                             "projects.repository.earlier.otherBranches" as never,
                           )}
-                        </UI.Badge>
+                        </UI.Text>
                       )
                       : (
                         <UI.Button

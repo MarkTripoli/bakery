@@ -1236,6 +1236,12 @@ test.describe("a locked repository's versions", () => {
     await page.getByRole("button", { name: "Change" }).click();
     const diverging = page.getByTestId("profile-version-1");
     await expect(diverging).toContainText("Works from other branches");
+    // design-ux's ruling: muted body text where the control was, not a badge.
+    await expect(
+      page.getByTestId("profile-version-1").getByText(
+        "Works from other branches",
+      ),
+    ).toBeVisible();
     await expect(diverging.getByRole("button")).toHaveCount(0);
     // A version whose branches leave the fixed set is the same case.
     await expect(page.getByTestId("profile-version-3")).toContainText(
