@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="ci-rerun-reuses-the-event-payload" project="bakery">
+  <title>A re-run reuses the original event payload, so an edited title needs a push</title>
+  <trigger>A semantic-metadata or title check stays red after the pull request title, body or labels were edited, and re-running the job does not clear it.</trigger>
+  <rule>Editing a pull request is not a workflow trigger, and re-running a failed job replays the payload captured at the original event: the check keeps validating the old title or body. The remedy is a new event, which means a push — an empty commit is enough when the code should not move (zero diff, so any verification recorded at the previous head still carries). Also restamp the description's evidence section to the new head, because the SHA gate compares it to the head the push created. Do not read the red as a defect in the change, and do not "just re-run".</rule>
+  <verification>
+    <requirement>After a title or body edit that must satisfy a gate, confirm the check ran against a payload created after the edit — a push, with the resulting head SHA recorded — rather than a re-run of the earlier event.</requirement>
+  </verification>
+</learning>

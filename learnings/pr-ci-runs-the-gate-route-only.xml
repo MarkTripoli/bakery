@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="pr-ci-runs-the-gate-route-only" project="bakery">
+  <title>PR CI routes the gate route, so a changed lane it does not route is untested</title>
+  <trigger>A pull request reports green CI while a lane that covers the changed files was never dispatched for it.</trigger>
+  <rule>Pull request CI runs the gate route — format, lint, typecheck, the focused unit shards, contract descriptions, docs and issue validation — and does not dispatch the full lanes (integration, security, browser, e2e). So "CI is green" answers only for the lanes the PR routed, and a change to a path whose lane is not routed ships unverified. Before handing off, ask which CI job routes the lane the diff touches; when the answer is none, running that lane locally is mandatory rather than optional. The mirror holds in the other direction too: never write "CI owns it" about a lane the PR does not route, because then nobody runs it. Seen twice in one round: a unit-stub break from an unrouted unit shard, and an integration file whose fixture change no job executed.</rule>
+  <verification>
+    <requirement>Name the CI job that routed each lane in the evidence table, or the local command that ran it instead. "Green CI" alone is not evidence for a lane that was not dispatched.</requirement>
+  </verification>
+</learning>
