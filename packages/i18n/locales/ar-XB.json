@@ -3871,5 +3871,10 @@
   "library.editor.problem.showMe": "⟪Show me⟫",
   "library.editor.problem.list": "⟪Problems to fix⟫",
   "library.editor.pathLine": "⟪Step of this workflow⟫",
-  "library.editor.pathEnd": "⟪End⟫"
+  "library.editor.pathEnd": "⟪End⟫",
+  "problems.WORKER_ACTION_CAPABILITIES_INVALID.description": "⟪Bakery's table of worker actions declares capabilities this build cannot use.⟫",
+  "problems.WORKER_ACTION_CAPABILITIES_INVALID.title": "⟪Worker action registration is invalid⟫",
+  "problems.WORKER_ACTION_CONTRACT_DRIFT.description": "⟪A worker action does not match the contract Bakery published for it.⟫",
+  "problems.WORKER_ACTION_CONTRACT_DRIFT.title": "⟪Worker action contract has drifted⟫",
+  "projects.repository.earlier.otherBranches": "⟪Works from other branches⟫"
 }
