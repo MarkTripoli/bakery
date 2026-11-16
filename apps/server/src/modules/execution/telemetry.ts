@@ -33,8 +33,16 @@ import type { Telemetry } from "@bakery/config/telemetry";
  * type with a cast: a `Promise` subclass whose `Symbol.species` constructor
  * throws, and a `Proxy` around a rejected promise. `Promise.prototype.then.call`
  * cannot avoid either, because the built-in `then` honours species and Proxy
- * traps. The emitter's own tests keep those two shapes pinned so the day one
- * becomes reachable, it fails there first.
+ * traps.
+ *
+ * They are deliberately NOT pinned by a test, and that is the honest statement
+ * rather than an omission: triggering either ends the process, so a test that
+ * calls the emitter with one cannot assert that the caller survives — it would
+ * take the whole lane down with it. The hostile shapes that a test *can* outlive
+ * (a throw, a string, a rejected promise, a promise that never settles, a
+ * hand-written thenable) are pinned in `server-telemetry-wiring_test.ts`. These
+ * two are accepted because the type now excludes them, and a cast is the only
+ * way left to reach them.
  */
 export type ExecutionTelemetry = Telemetry;
 
