@@ -13,12 +13,30 @@
  * - What it is given is identifiers and a closed outcome word, never a lease
  *   token, a payload or any text the worker sent. The telemetry's own allowlist
  *   refuses anything else, but nothing is passed that it would have to refuse.
+ *
+ * The port's type is the facade itself (see {@link ExecutionTelemetry}).
  */
+import type { Telemetry } from "@bakery/config/telemetry";
 
-/** The one thing the execution routes ask of telemetry. */
-export type ExecutionTelemetry = {
-  event(name: string, attributes?: unknown): void;
-};
+/**
+ * The routes' telemetry port is the server's own facade, not an arbitrary
+ * `{ event(): unknown }` shape.
+ *
+ * The facade's `event` returns `void` and never rejects, so the hazards below
+ * cannot be expressed through it; accepting the facade type is what makes a
+ * hand-written port with an async or throwing `event` a compile error rather
+ * than something the emitter has to survive at runtime (issue 247).
+ *
+ * Residual risk, accepted and recorded rather than fixed: `emitExecutionEvent`
+ * still handles only a genuine `Promise`, through the built-in `then`. Two
+ * hostile shapes would still end the process if one were ever forced past this
+ * type with a cast: a `Promise` subclass whose `Symbol.species` constructor
+ * throws, and a `Proxy` around a rejected promise. `Promise.prototype.then.call`
+ * cannot avoid either, because the built-in `then` honours species and Proxy
+ * traps. The emitter's own tests keep those two shapes pinned so the day one
+ * becomes reachable, it fails there first.
+ */
+export type ExecutionTelemetry = Telemetry;
 
 /** The events the execution routes emit. They must be in the server's allowlist. */
 export const EXECUTION_TELEMETRY_EVENTS = Object.freeze({

@@ -364,26 +364,30 @@ Deno.test("AC1: with a sink that throws or rejects, execution and exact-once set
 Deno.test("AC1: with a telemetry that itself throws, rejects or hangs when told, the routes still answer and settle once", async () => {
   for (
     const [name, telemetry] of [
+      // Each of these is forced past the port's type on purpose: since #247 the
+      // port is the server facade, so a bare `{ event }` no longer type-checks.
+      // The emitter's runtime handling of them is what this test keeps pinned.
       ["throws", {
         event: () => {
           throw new Error("boom");
         },
-      }],
+      } as never],
       ["throws a string", {
         event: () => {
           throw "boom";
         },
-      }],
-      ["rejects", { event: () => Promise.reject(new Error("boom")) as never }],
-      ["never settles", { event: () => new Promise(() => {}) as never }],
+      } as never],
+      ["rejects", {
+        event: () => Promise.reject(new Error("boom")),
+      } as never],
+      ["never settles", { event: () => new Promise(() => {}) } as never],
       ["returns a hostile thenable", {
-        event: () =>
-          ({
-            then: () => {
-              throw new Error("then");
-            },
-          }) as never,
-      }],
+        event: () => ({
+          then: () => {
+            throw new Error("then");
+          },
+        }),
+      } as never],
     ] as const
   ) {
     const { observation } = await observe(
@@ -403,10 +407,13 @@ Deno.test("what a healthy sink receives: three events, ids and a closed outcome,
   });
   // What the routes said, in the order they said it, as they said it.
   const told: string[] = [];
+  // The port is the facade itself (issue 247), so the recorder delegates every
+  // member rather than standing in as a bare `{ event }`.
   const telemetry: ExecutionTelemetry = {
-    event: (name, attributes) => {
+    ...exporter,
+    event: (name, attributes, trace) => {
       told.push(name);
-      exporter.event(name, attributes);
+      exporter.event(name, attributes, trace);
     },
   };
   const { observation, attemptId, leaseToken } = await observe(
