@@ -3797,5 +3797,12 @@
   "library.editor.card.unreadable": "⟦Ûñŕëàðàƀļë šŧëþ ŧëš⟧",
   "library.editor.card.needsSetup": "⟦Ñëëðš šëŧûþ ŧ⟧",
   "library.editor.card.needsSetupLine": "⟦Ŧĥïš šŧëþ çàññôŧ ƀë ŕëàð, šô ïŧ çàññôŧ ŕûñ àš ïŧ ïš. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
-  "library.editor.card.writtenInCode": "⟦Ŵŕïŧŧëñ ïñ çôðë àš {code} ŧëšŧ ç⟧"
+  "library.editor.card.writtenInCode": "⟦Ŵŕïŧŧëñ ïñ çôðë àš {code} ŧëšŧ ç⟧",
+  "library.editor.save.saving": "⟦Šàṽïñĝ……⟧",
+  "library.editor.save.saved": "⟦Šàṽëð⟧",
+  "library.editor.save.failed": "⟦Ñôŧ šàṽëð ŧ⟧",
+  "library.editor.save.tryAgain": "⟦Ŧŕÿ àĝàïñ ŧ⟧",
+  "library.editor.viewAsCode": "⟦Ṽïëŵ àš çôðë ŧë⟧",
+  "library.editor.version.inUse": "⟦Ṽëŕšïôñ {version} ïš ïñ ûšë ŧëšŧ çô⟧",
+  "library.editor.version.draft": "⟦Ñôŧĥïñĝ ïš ïñ ûšë ÿëŧ ŧëšŧŧ⟧"
 }

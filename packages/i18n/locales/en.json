@@ -3849,5 +3849,12 @@
   "library.editor.card.unreadable": "Unreadable step",
   "library.editor.card.needsSetup": "Needs setup",
   "library.editor.card.needsSetupLine": "This step cannot be read, so it cannot run as it is.",
-  "library.editor.card.writtenInCode": "Written in code as {code}"
+  "library.editor.card.writtenInCode": "Written in code as {code}",
+  "library.editor.save.saving": "Saving…",
+  "library.editor.save.saved": "Saved",
+  "library.editor.save.failed": "Not saved",
+  "library.editor.save.tryAgain": "Try again",
+  "library.editor.viewAsCode": "View as code",
+  "library.editor.version.inUse": "Version {version} is in use",
+  "library.editor.version.draft": "Nothing is in use yet"
 }
