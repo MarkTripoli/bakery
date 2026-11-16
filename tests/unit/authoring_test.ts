@@ -3,6 +3,7 @@ import {
   fields,
   relatedIssue,
   validateDescription,
+  validateReview,
 } from "../../scripts/authoring/validate.ts";
 import { checkLive } from "../../scripts/authoring/github.ts";
 
@@ -45,8 +46,11 @@ const epic = [
 const pr = [
   "Ticket: [#169](https://github.com/MarkTripoli/bakery/issues/169) | Task: [authoring-rails](https://github.com/MarkTripoli/bakery/issues/169) | Walkthrough: not requested",
   "## Purpose\n\nKeep issue and PR authoring consistent across humans and agents.",
+  "## Risk\n\nLevel: Low\n\n- Only description checks change; revert the commit to roll back.",
   "## Special things to note\n\n- Activation requires landing the trusted workflow on main.",
   "## Change outline\n\n```text\nTemplates -> authoring skill -> shared validator -> GitHub feedback/status\n```",
+  "## Decisions\n\n- None.",
+  "## Evidence\n\n| check | result |\n|---|---|\n| `deno test tests/unit/authoring_test.ts` | passed |",
 ].join("\n\n");
 const head = "a".repeat(40);
 const base = "b".repeat(40);
@@ -246,6 +250,7 @@ Deno.test("authoring preserves literal code delimiters and ignores raw HTML code
   }
   const outlineStart = pr.indexOf("```text");
   const prefix = pr.slice(0, outlineStart);
+  const suffix = pr.slice(pr.indexOf("\n\n## Decisions"));
   for (
     const outline of [
       '```json\n{"operation": "createIssue", "requiresApproval": true}\n```',
@@ -254,7 +259,7 @@ Deno.test("authoring preserves literal code delimiters and ignores raw HTML code
       '```ts\nrender("<!--");\n````',
       '~~~ts\nrender("<!--");\n~~~~',
     ]
-  ) assertEquals(validateDescription("pr", prefix + outline), []);
+  ) assertEquals(validateDescription("pr", prefix + outline + suffix), []);
   assertEquals(
     validateDescription(
       "pr",
@@ -368,4 +373,105 @@ Deno.test("read-only policy refuses invalid issue, moved PR head, and missing ow
   };
   await assertRejects(() => checkLive(f.api, "pr", 170), Error, "404");
   assertEquals(f.writes, []);
+});
+
+Deno.test("authoring keeps PR descriptions short and asks for risk, decisions and evidence", () => {
+  const has = (body: string, text: string) =>
+    validateDescription("pr", body).some((e) => e.includes(text));
+  assertEquals(
+    validateDescription("pr", pr.replace("Level: Low", "Level: Medium")),
+    [],
+  );
+  assertEquals(
+    has(pr.replace("Level: Low", "Level: Some"), "Level: Low, Medium or High"),
+    true,
+  );
+  assertEquals(
+    has(
+      pr.replace(/## Risk[\s\S]*?(?=## Special)/, ""),
+      "Complete section: Risk",
+    ),
+    true,
+  );
+  assertEquals(
+    has(
+      pr.replace("- None.", "- Chose A over B because C.\n- D.\n- E.\n- F."),
+      "one to three bullets",
+    ),
+    true,
+  );
+  assertEquals(
+    has(
+      pr.replace(/\| `deno[^\n]*/, "|  |  |"),
+      "at least one filled check row",
+    ),
+    true,
+  );
+  const long = Array(41).fill("word").join(" ");
+  assertEquals(
+    has(
+      pr.replace(
+        "Keep issue and PR authoring consistent across humans and agents.",
+        long,
+      ),
+      "purpose prose",
+    ),
+    true,
+  );
+  assertEquals(
+    has(
+      pr.replace(
+        "- Activation requires",
+        "- " + Array(26).fill("x").join(" ") + " Activation requires",
+      ),
+      "bullet must be at most 25",
+    ),
+    true,
+  );
+  const outline = "```text\n" + Array(31).fill("a -> b").join("\n") + "\n```";
+  assertEquals(
+    has(pr.replace(/```text[\s\S]*?```/, outline), "at most 30 lines"),
+    true,
+  );
+  const shots = Array(5).fill("![s](https://example.com/s.png)").join(" ");
+  assertEquals(has(pr + "\n\n" + shots, "at most four"), true);
+  const filler = "\n\n## Notes\n\n" + Array(300).fill("filler").join(" ");
+  assertEquals(has(pr + filler, "whole description must be at most 300"), true);
+  assertEquals(
+    validateDescription(
+      "pr",
+      pr.replace("## Evidence", "## Evidence @ abc1234"),
+    ),
+    [],
+  );
+});
+
+Deno.test("review verdicts are short: verdict, head, severity-tagged findings", () => {
+  const review = [
+    "Verdict: Changes requested",
+    "Head: `90b2092d`",
+    "",
+    "- [High] Save ignores a 412 and overwrites a newer policy (`IssueSettingsPage.tsx`).",
+    "- [Low] Phone layout clips the label error.",
+    "",
+    "| check | result |",
+    "|---|---|",
+    "| `pnpm test:unit` | passed |",
+  ].join("\n");
+  assertEquals(validateReview(review), []);
+  assert(
+    validateReview(review.replace("Verdict: Changes requested", "Looks good"))
+      .length > 0,
+  );
+  assert(validateReview(review.replace("Head: `90b2092d`", "")).length > 0);
+  assert(
+    validateReview(review.replace("[Low]", "")).some((e) =>
+      e.includes("severity")
+    ),
+  );
+  assert(
+    validateReview(review + "\n\n" + Array(160).fill("filler").join(" ")).some((
+      e,
+    ) => e.includes("at most 150")),
+  );
 });

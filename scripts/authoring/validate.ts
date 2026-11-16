@@ -22,13 +22,17 @@ export const fields = {
     "Task",
     "Walkthrough",
     "Purpose",
+    "Risk",
     "Special things to note",
     "Change outline",
+    "Decisions",
+    "Evidence",
   ],
 } as const;
 
 export type Kind = keyof typeof fields;
-const key = (text: string) => text.trim().toLowerCase().replace(/:$/, "");
+const key = (text: string) =>
+  text.trim().toLowerCase().replace(/:$/, "").replace(/\s+@\s+\S+$/, "");
 const known = new Set(Object.values(fields).flat().map(key));
 
 export function parseDescription(body: string) {
@@ -162,6 +166,37 @@ function unfinished(text: string, literal = false): boolean {
       .test(plain);
 }
 
+function bulletsOf(text: string): string[] {
+  return text.match(/^[-*] .+/gm) ?? [];
+}
+
+/** Prose only: drops code fences, table rows, images and link targets. */
+export function prose(text: string): string {
+  return text
+    .replace(/^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?^ {0,3}\1[ \t]*$/gm, "")
+    .replace(/^\s*\|.*$/gm, "")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/<[^>]*>/g, "");
+}
+
+export function wordCount(text: string): number {
+  return (text.match(/[\p{L}\p{N}][\p{L}\p{N}'’._/-]*/gu) ?? []).length;
+}
+
+function outlineCode(text: string): number {
+  let lines = 0;
+  for (
+    const block of text.matchAll(
+      /^ {0,3}(`{3,}|~{3,})[^\n]*\n([\s\S]*?)^ {0,3}\1[ \t]*$/gm,
+    )
+  ) {
+    lines += block[2].split("\n").filter((line) => line.trim()).length;
+  }
+  return lines;
+}
+
 export function relatedIssue(body: string): number | null {
   const sections = parseDescription(body).sections;
   const value = sections.get("ticket") ?? sections.get("related issue") ?? "";
@@ -184,7 +219,8 @@ export function validateDescription(kind: Kind, body: string): string[] {
     const field = key(name);
     const value = sections.get(field) ?? "";
     const allowedNone =
-      (field === "dependencies" || field === "special things to note") &&
+      (field === "dependencies" || field === "special things to note" ||
+        field === "decisions") &&
       /^(?:-\s*)?None[.!]?$/i.test(value);
     if (!allowedNone && unfinished(value)) {
       errors.push("Complete section: " + name);
@@ -253,6 +289,72 @@ export function validateDescription(kind: Kind, body: string): string[] {
         "Special things to note needs one to four bullets (or - None.).",
       );
     }
+    const risk = sections.get("risk") ?? "";
+    if (!/^Level:\s*(Low|Medium|High)\s*$/im.test(risk.split("\n")[0] ?? "")) {
+      errors.push("Risk must start with Level: Low, Medium or High.");
+    }
+    const riskBullets = bulletsOf(risk);
+    if (riskBullets.length < 1 || riskBullets.length > 3) {
+      errors.push("Risk needs one to three bullets.");
+    }
+    const decisions = sections.get("decisions") ?? "";
+    const decisionBullets = bulletsOf(decisions);
+    if (
+      !/^(?:-\s*)?None[.!]?$/i.test(decisions) &&
+      (decisionBullets.length < 1 || decisionBullets.length > 3)
+    ) {
+      errors.push("Decisions needs one to three bullets (or - None.).");
+    }
+    const evidence = sections.get("evidence") ?? "";
+    const rows = evidence.split("\n").filter((line) =>
+      /^\s*\|/.test(line) && !/^\s*\|[\s|:-]*\|?\s*$/.test(line) &&
+      /[\p{L}\p{N}]/u.test(line.replace(/\|/g, ""))
+    );
+    if (rows.length < 2) {
+      errors.push("Evidence needs a table with at least one filled check row.");
+    } else if (rows.length > 9) {
+      errors.push("Evidence table: at most eight check rows.");
+    }
+    const limits: [string, number, number][] = [
+      ["purpose", 40, 0],
+      ["risk", 0, 25],
+      ["special things to note", 0, 25],
+      ["change outline", 40, 0],
+      ["decisions", 0, 30],
+      ["evidence", 40, 0],
+    ];
+    for (const [name, words, perBullet] of limits) {
+      const value = sections.get(name) ?? "";
+      if (words && wordCount(prose(value)) > words) {
+        errors.push(`Too long: ${name} prose must be at most ${words} words.`);
+      }
+      if (
+        perBullet &&
+        bulletsOf(value).some((b) => wordCount(prose(b)) > perBullet)
+      ) {
+        errors.push(
+          `Too long: each ${name} bullet must be at most ${perBullet} words.`,
+        );
+      }
+    }
+    const codeLines = outlineCode(sections.get("change outline") ?? "");
+    if (codeLines > 30) {
+      errors.push("Too long: change outline view must be at most 30 lines.");
+    }
+    const images = (body.match(/!\[[^\]]*\]\([^)]*\)/g) ?? []).length;
+    if (images > 4) {
+      errors.push(
+        "Too many screenshots: at most four; link the rest as one folder.",
+      );
+    }
+    const total = [...sections].filter(([name]) =>
+      !["ticket", "task", "walkthrough"].includes(name)
+    ).reduce((sum, [, value]) => sum + wordCount(prose(value)), 0);
+    if (total > 300) {
+      errors.push(
+        `Too long: ${total} words of prose; the whole description must be at most 300.`,
+      );
+    }
     const outline = sections.get("change outline") ?? "";
     const hasView = views.has("change outline");
     const explained = /^No structural change:\s+\S.{15,}$/im.test(outline);
@@ -265,16 +367,65 @@ export function validateDescription(kind: Kind, body: string): string[] {
   return [...new Set(errors)];
 }
 
+/**
+ * Review and QA verdict comments: a verdict line, the head commit, at most
+ * five one-line findings and at most 150 words of prose in all.
+ */
+export function validateReview(body: string): string[] {
+  const errors: string[] = [];
+  const text = body.replace(/\r\n?/g, "\n").replace(/<!--[\s\S]*?-->/g, "")
+    .trim();
+  if (
+    !/^\*{0,2}Verdict:\*{0,2}\s*(Approve|Changes requested|Blocked)\b/im.test(
+      text.split("\n")[0] ?? "",
+    )
+  ) {
+    errors.push(
+      "First line must be Verdict: Approve, Changes requested or Blocked.",
+    );
+  }
+  if (!/^\*{0,2}Head:\*{0,2}\s*`?[0-9a-f]{7,40}`?/im.test(text)) {
+    errors.push("Name the head commit reviewed: Head: <sha>.");
+  }
+  const findings = text.match(/^[-*] .+/gm) ?? [];
+  if (findings.length > 5) {
+    errors.push("At most five findings; merge or drop the minor ones.");
+  }
+  for (const finding of findings) {
+    if (!/^[-*] \*{0,2}\[?(High|Medium|Low)\]?\*{0,2}/i.test(finding)) {
+      errors.push(
+        "Start each finding with its severity: [High], [Medium] or [Low].",
+      );
+      break;
+    }
+  }
+  if (findings.some((finding) => wordCount(prose(finding)) > 25)) {
+    errors.push("Too long: each finding must be at most 25 words.");
+  }
+  const total = wordCount(prose(text));
+  if (total > 150) {
+    errors.push(
+      `Too long: ${total} words of prose; a verdict must be at most 150.`,
+    );
+  }
+  return [...new Set(errors)];
+}
+
 if (import.meta.main) {
   const [kind, path] = Deno.args;
-  if (!Object.hasOwn(fields, kind ?? "") || !path || Deno.args.length !== 2) {
-    console.error("Usage: validate.ts issue|epic|pr <body.md|->");
+  if (
+    !(Object.hasOwn(fields, kind ?? "") || kind === "review") || !path ||
+    Deno.args.length !== 2
+  ) {
+    console.error("Usage: validate.ts issue|epic|pr|review <body.md|->");
     Deno.exit(2);
   }
   const body = path === "-"
     ? await new Response(Deno.stdin.readable).text()
     : await Deno.readTextFile(path);
-  const errors = validateDescription(kind as Kind, body);
+  const errors = kind === "review"
+    ? validateReview(body)
+    : validateDescription(kind as Kind, body);
   console.log(JSON.stringify({ ok: errors.length === 0, errors }));
   if (errors.length) Deno.exit(1);
 }
