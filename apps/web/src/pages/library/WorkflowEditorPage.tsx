@@ -22,6 +22,7 @@ import {
   type EditorStep,
   freeStepId,
 } from "./editor-state.ts";
+import { problemsOf } from "./editor-validation.ts";
 import { treeOf } from "./workflow-tree.ts";
 
 /**
@@ -190,6 +191,54 @@ export function WorkflowEditorPage(
   });
 
   const steps = editor.steps;
+  // Checking is continuous: the draft is checked against the server as it
+  // changes, and each problem lands on the step its pointer names.
+  const [problems, setProblems] = useState<ReadonlyMap<string, string>>(
+    new Map(),
+  );
+  const check = useMutation({
+    mutationKey: ["workflows.validate"],
+    mutationFn: async (held: readonly EditorStep[]) => {
+      const result = await api.validateWorkflow({
+        organizationId: scope.organizationId as string,
+        input: {
+          definition: {
+            steps: held.map((step) => ({
+              id: step.id,
+              uses: step.uses,
+              ...(step.agentVersionId === null
+                ? {}
+                : { agentVersionId: step.agentVersionId }),
+            })),
+          } as never,
+        },
+      });
+      if (!result.ok) throw result.error;
+      return result.data;
+    },
+    onSuccess: (report, held) => {
+      const sorted = problemsOf([
+        ...(report.errors ?? []),
+        ...(report.warnings ?? []),
+      ]);
+      const byId = new Map<string, string>();
+      for (const [index, found] of sorted.byStep) {
+        const step = held[index];
+        if (step === undefined) continue;
+        byId.set(step.id, found[0]?.message ?? "");
+      }
+      setProblems(byId);
+    },
+  });
+
+  useEffect(() => {
+    if (steps.length === 0) {
+      setProblems(new Map());
+      return;
+    }
+    const timer = setTimeout(() => check.mutate(steps), SAVE_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, [steps]);
   const changed = JSON.stringify(steps) !== lastSaved.current;
 
   // A change saves itself once the person stops typing; a failed save waits for
@@ -282,7 +331,7 @@ export function WorkflowEditorPage(
           <WorkflowDiagram
             tree={tree}
             selectedId={selectedId}
-            problems={new Map()}
+            problems={problems}
             canManage={canManage}
             onAdd={(afterId) => setPickerAfter(afterId)}
             onSelect={setSelectedId}
