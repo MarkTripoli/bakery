@@ -676,3 +676,53 @@ test("the state selector shows the save states a spec cannot force", async ({ pa
   await expect(page.getByRole("status")).toContainText("Saving…");
   await shot(page, "workflow-editor-saving");
 });
+
+test("the leave warning is armed only while a change is unsaved", async ({ page }) => {
+  // D8, tier 2: Chromium does not surface the beforeunload dialog to Playwright,
+  // and React double-invokes effects in development builds, so raw add counts
+  // cannot tell a correct page from a broken one. Net registrations can.
+  await page.addInitScript(() => {
+    const held = { adds: 0, removes: 0 };
+    (globalThis as unknown as { __leave: typeof held }).__leave = held;
+    const add = globalThis.addEventListener.bind(globalThis);
+    const remove = globalThis.removeEventListener.bind(globalThis);
+    globalThis.addEventListener = ((type: string, ...rest: unknown[]) => {
+      if (type === "beforeunload") held.adds += 1;
+      return (add as (...args: unknown[]) => void)(type, ...rest);
+    }) as typeof globalThis.addEventListener;
+    globalThis.removeEventListener = ((type: string, ...rest: unknown[]) => {
+      if (type === "beforeunload") held.removes += 1;
+      return (remove as (...args: unknown[]) => void)(type, ...rest);
+    }) as typeof globalThis.removeEventListener;
+  });
+  const net = async () => {
+    const held = await page.evaluate(() =>
+      (globalThis as unknown as { __leave: { adds: number; removes: number } })
+        .__leave
+    );
+    const value = held.adds - held.removes;
+    console.log(
+      `beforeunload net registrations: ${value} (adds ${held.adds}, removes ${held.removes})`,
+    );
+    return value;
+  };
+  await libraryFixture(page, WORLD);
+  // Straight to the address: on a phone the Edit action lives in the More menu,
+  // and this spec is about the leave warning, not about how a person got here.
+  await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+  await expect(page.getByRole("status")).toContainText("Saved");
+  // Saved and untouched: this page contributes nothing — other parts of the app
+  // may register their own listener, so the baseline is what it is and the
+  // editor's contribution is the delta from here.
+  const baseline = await net();
+  // A change that is not saved yet arms one more.
+  await page.getByRole("button", { name: /Add a step after/ }).first().click();
+  await page.getByTestId("step-picker").getByRole("button", { name: "Review" })
+    .click();
+  await expect.poll(net).toBe(baseline + 1);
+  // Once the draft is saved again, nothing is armed.
+  await expect(page.getByRole("status")).toContainText("Saved", {
+    timeout: 10_000,
+  });
+  await expect.poll(net).toBe(baseline);
+});
