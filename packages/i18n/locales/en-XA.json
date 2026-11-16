@@ -3894,5 +3894,9 @@
   "issues.settings.title": "⟦Ïššûë šëŧŧïñĝš ŧë⟧",
   "issues.settings.workflow.hint": "⟦Çĥôôšïñĝ à ðïƒƒëŕëñŧ ŵôŕķƒļôŵ þëŕ ļàƀëļ ôŕ ŕëþôšïŧôŕÿ ïš ñôŧ àṽàïļàƀļë ÿëŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
   "issues.settings.workflow.standard": "⟦Ûšëš ŧĥë šŧàñðàŕð çôðïñĝ ŵôŕķƒļôŵ. ŧëšŧ çôþÿ⟧",
-  "issues.settings.workflow.title": "⟦Ŵôŕķƒļôŵ…⟧"
+  "issues.settings.workflow.title": "⟦Ŵôŕķƒļôŵ…⟧",
+  "issues.settings.leave.body": "⟦{count, plural, one {You have # unsaved change.} other {You have # unsaved changes.}} Ŧĥëÿ àŕë ñôŧ šàṽëð àñÿŵĥëŕë, šô ļëàṽïñĝ ðïšçàŕðš ŧĥëɱ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "issues.settings.leave.confirm": "⟦Ļëàṽë àñð ðïšçàŕð ŧëš⟧",
+  "issues.settings.leave.stay": "⟦Šŧàÿ⟧",
+  "issues.settings.leave.title": "⟦Ļëàṽë ŵïŧĥôûŧ šàṽïñĝ? ŧëšŧŧ⟧"
 }

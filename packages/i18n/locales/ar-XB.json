@@ -3894,5 +3894,9 @@
   "issues.settings.title": "⟪Issue settings⟫",
   "issues.settings.workflow.hint": "⟪Choosing a different workflow per label or repository is not available yet.⟫",
   "issues.settings.workflow.standard": "⟪Uses the standard coding workflow.⟫",
-  "issues.settings.workflow.title": "⟪Workflow⟫"
+  "issues.settings.workflow.title": "⟪Workflow⟫",
+  "issues.settings.leave.body": "⟪{count, plural, one {You have # unsaved change.} other {You have # unsaved changes.}} They are not saved anywhere, so leaving discards them.⟫",
+  "issues.settings.leave.confirm": "⟪Leave and discard⟫",
+  "issues.settings.leave.stay": "⟪Stay⟫",
+  "issues.settings.leave.title": "⟪Leave without saving?⟫"
 }

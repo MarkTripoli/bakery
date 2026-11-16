@@ -525,19 +525,23 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                             </UI.Inline>
                           )}
                         <UI.Inline gap="compact" variant="end">
-                          <UI.TextInput
-                            autoComplete="off"
-                            disabled={labelsDisabled || lookup.isPending}
-                            id={`${id}-person`}
-                            invalid={personProblem !== null}
-                            name="personLogin"
-                            onChange={setPersonLogin}
-                            placeholder={translate(
+                          <UI.Field
+                            htmlFor={`${id}-person`}
+                            label={translate(
                               "issues.settings.automatic.people.placeholder",
                             )}
-                            type="text"
-                            value={personLogin}
-                          />
+                          >
+                            <UI.TextInput
+                              autoComplete="off"
+                              disabled={labelsDisabled || lookup.isPending}
+                              id={`${id}-person`}
+                              invalid={personProblem !== null}
+                              name="personLogin"
+                              onChange={setPersonLogin}
+                              type="text"
+                              value={personLogin}
+                            />
+                          </UI.Field>
                           <UI.Button
                             disabled={labelsDisabled || lookup.isPending ||
                               emptyPerson(personLogin) === ""}
@@ -728,6 +732,12 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
                 )
                 : null}
               <LeaveGuard
+                copy={{
+                  title: "issues.settings.leave.title",
+                  body: "issues.settings.leave.body",
+                  stay: "issues.settings.leave.stay",
+                  confirm: "issues.settings.leave.confirm",
+                }}
                 count={dirty ? 1 : 0}
                 discard={() => setDraft(null)}
                 path={SETTINGS_PATH}
