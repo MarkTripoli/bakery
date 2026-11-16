@@ -6804,6 +6804,54 @@ export const clientManifest = {
       ],
       "organizationContext": "required_authenticated_context",
       "implemented": true
+    },
+    {
+      "group": "Delivery",
+      "method": "POST",
+      "path": "/v1/pull-requests/{id}/merge",
+      "action": "pullRequests.merge",
+      "access": "Developer",
+      "permission": "pullRequest:merge",
+      "input": "PullRequestMerge",
+      "output": "MergeAttempt",
+      "event": "merge.dispatched",
+      "mcp": "bakery_pullRequests_merge",
+      "idempotency": "natural",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "DEPENDENCY_UNAVAILABLE",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Delivery",
+      "method": "POST",
+      "path": "/v1/merge-attempts/reconcile",
+      "action": "mergeAttempts.reconcile",
+      "access": "Developer",
+      "permission": "mergeAttempt:write",
+      "input": "MergeAttemptReconcile",
+      "output": "MergeReconciliation",
+      "event": "merge.reconciled",
+      "mcp": "bakery_mergeAttempts_reconcile",
+      "idempotency": "natural",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "DEPENDENCY_UNAVAILABLE",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
     }
   ],
   "schemas": {
@@ -11329,7 +11377,9 @@ export const clientManifest = {
             "applicationRepositoryRoles.set",
             "worker.output.finalize",
             "worker.output.revoke",
-            "outputStreams.transcript"
+            "outputStreams.transcript",
+            "pullRequests.merge",
+            "mergeAttempts.reconcile"
           ],
           "description": "Exact registered Bakery action name to grant within the selected organization; wildcard and prefix matching are forbidden."
         },
@@ -17925,6 +17975,54 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Route identifiers naming one suggestion of an authorized active draft."
+    },
+    "PullRequestMerge": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "expectedHeadSha": {
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{40}(?:[a-fA-F0-9]{24})?$",
+          "description": "Head commit the caller verified and expects to merge; a pull request whose head has moved since is refused before any provider write."
+        },
+        "expectedBaseSha": {
+          "description": "Target-branch commit the caller verified, when it verified one; a base that has moved since refuses the merge because the checks it read belong to the old base.",
+          "type": "string",
+          "pattern": "^[a-fA-F0-9]{40}(?:[a-fA-F0-9]{24})?$"
+        },
+        "mergeMethod": {
+          "type": "string",
+          "enum": [
+            "merge",
+            "squash",
+            "rebase"
+          ],
+          "description": "How GitHub should combine the commits: a merge commit, a squashed commit, or a rebase; any other value is refused before the request is sent."
+        }
+      },
+      "required": [
+        "expectedHeadSha",
+        "mergeMethod"
+      ],
+      "additionalProperties": false,
+      "description": "Dispatches one merge for a pull request at an exact expected head and base; the server re-reads the pull request live, refuses a moved head or base, a closed pull request or a check that has not passed, and records the attempt in the same transaction that sends it."
+    },
+    "MergeAttemptReconcile": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "pullRequestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Pull request whose unknown merge attempts are settled from a live provider read; an attempt already settled answers as itself and is never rewritten."
+        }
+      },
+      "required": [
+        "pullRequestId"
+      ],
+      "additionalProperties": false,
+      "description": "Settles every unknown merge attempt of one pull request by re-reading it from GitHub; a merge that happened is recorded as merged and one that did not as refused, without ever sending a second merge."
     },
     "UserPreferences": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -29569,7 +29667,9 @@ export const clientManifest = {
                   "applicationRepositoryRoles.set",
                   "worker.output.finalize",
                   "worker.output.revoke",
-                  "outputStreams.transcript"
+                  "outputStreams.transcript",
+                  "pullRequests.merge",
+                  "mergeAttempts.reconcile"
                 ],
                 "description": "Exact Bakery action name granted to the principal; wildcard and prefix meanings are forbidden."
               },
@@ -44954,7 +45054,9 @@ export const clientManifest = {
             "applicationRepositoryRoles.set",
             "worker.output.finalize",
             "worker.output.revoke",
-            "outputStreams.transcript"
+            "outputStreams.transcript",
+            "pullRequests.merge",
+            "mergeAttempts.reconcile"
           ],
           "description": "Exact Bakery action name granted to the principal; wildcard and prefix meanings are forbidden."
         },
@@ -52100,7 +52202,9 @@ export const clientManifest = {
               "taskRepository:read",
               "taskRepository:write",
               "applicationRepositoryRole:read",
-              "applicationRepositoryRole:manage"
+              "applicationRepositoryRole:manage",
+              "pullRequest:merge",
+              "mergeAttempt:write"
             ],
             "description": "Bounded set of exact Bakery permission keys currently effective in this organization; entries never imply wildcard or prefix matching. Each array item follows this format."
           },
@@ -63203,6 +63307,151 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "Cursor page of DraftSuggestion."
+    },
+    "MergeAttempt": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying the merge attempt record."
+        },
+        "pullRequestId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID linking this attempt to the pull request it merges."
+        },
+        "providerNumber": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "GitHub's pull request number for the attempt."
+        },
+        "repositoryId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID linking this attempt to the repository it merges into."
+        },
+        "baseBranch": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Target branch the merge was dispatched against."
+        },
+        "expectedHeadSha": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Head commit the caller verified and the attempt was dispatched against."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "merged",
+            "refused",
+            "unknown"
+          ],
+          "description": "Outcome of the attempt: merged, refused, or unknown while a lost provider answer waits for reconciliation."
+        },
+        "providerStatus": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "GitHub's HTTP status for a refused or merged answer; null when no provider call was made or the answer was lost."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MergeAttempt.providerStatus may be null in this transport value."
+        },
+        "mergedSha": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Commit GitHub reports for a merged attempt; null otherwise."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MergeAttempt.mergedSha may be null in this transport value."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the attempt was recorded."
+        },
+        "settledAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC timestamp when an unknown attempt was settled by reconciliation; null while unknown."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "MergeAttempt.settledAt may be null in this transport value."
+        }
+      },
+      "required": [
+        "id",
+        "pullRequestId",
+        "providerNumber",
+        "repositoryId",
+        "baseBranch",
+        "expectedHeadSha",
+        "state",
+        "providerStatus",
+        "mergedSha",
+        "createdAt",
+        "settledAt"
+      ],
+      "additionalProperties": false,
+      "description": "One recorded merge attempt: the exact head it was dispatched against, the outcome, and the provider status or merged commit when GitHub answered."
+    },
+    "MergeReconciliation": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "reconciled": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Total unknown attempts the read settled."
+        },
+        "merged": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Attempts settled as merged because GitHub reports the pull request merged."
+        },
+        "refused": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Attempts settled as refused because GitHub reports the pull request not merged."
+        }
+      },
+      "required": [
+        "reconciled",
+        "merged",
+        "refused"
+      ],
+      "additionalProperties": false,
+      "description": "What one reconciliation read settled for a pull request: the number of unknown attempts moved, split by whether GitHub reports the pull request merged."
     }
   }
 } as const;

@@ -23,6 +23,10 @@ import type { PgDatabase } from "../../platform/database.ts";
 
 type CursorQuery = z.output<typeof contractSchemas.CursorQuery>;
 type PullRequestQuery = z.output<typeof contractSchemas.PullRequestQuery>;
+type PullRequestMerge = z.output<typeof contractSchemas.PullRequestMerge>;
+type MergeAttemptReconcile = z.output<
+  typeof contractSchemas.MergeAttemptReconcile
+>;
 
 export type DeliveryActionHandlers = {
   checksList: (
@@ -45,6 +49,14 @@ export type DeliveryActionHandlers = {
     context: ActionContext,
     input: PullRequestQuery,
   ) => Promise<z.output<typeof contractSchemas["Page<PullRequest>"]>>;
+  pullRequestsMerge: (
+    context: ActionContext,
+    input: PullRequestMerge,
+  ) => Promise<z.output<typeof contractSchemas.MergeAttempt>>;
+  mergeAttemptsReconcile: (
+    context: ActionContext,
+    input: MergeAttemptReconcile,
+  ) => Promise<z.output<typeof contractSchemas.MergeReconciliation>>;
 };
 
 export function createDeliveryActionRegistry(
@@ -57,6 +69,11 @@ export function createDeliveryActionRegistry(
   );
   const queryPolicy = {
     type: ActionKind.Query,
+    access: ActionAccess.Developer,
+    organizationContext: OrganizationContextPolicy.RequiredAuthenticatedContext,
+  } as const;
+  const commandPolicy = {
+    type: ActionKind.Command,
     access: ActionAccess.Developer,
     organizationContext: OrganizationContextPolicy.RequiredAuthenticatedContext,
   } as const;
@@ -112,6 +129,28 @@ export function createDeliveryActionRegistry(
     policy: queryPolicy,
     transactionIsolation: TransactionIsolation.RepeatableRead,
     handler: handlers.pullRequestsList,
+  });
+
+  registry.register({
+    name: DeliveryImplementedAction.PullRequestsMerge,
+    method: HttpMethod.Post,
+    path: "/v1/pull-requests/:id/merge",
+    input: contractSchemas.PullRequestMerge,
+    output: contractSchemas.MergeAttempt,
+    policy: commandPolicy,
+    transactionIsolation: TransactionIsolation.ReadCommitted,
+    handler: handlers.pullRequestsMerge,
+  });
+
+  registry.register({
+    name: DeliveryImplementedAction.MergeAttemptsReconcile,
+    method: HttpMethod.Post,
+    path: "/v1/merge-attempts/reconcile",
+    input: contractSchemas.MergeAttemptReconcile,
+    output: contractSchemas.MergeReconciliation,
+    policy: commandPolicy,
+    transactionIsolation: TransactionIsolation.ReadCommitted,
+    handler: handlers.mergeAttemptsReconcile,
   });
 
   assertRegisteredActions(registry);
