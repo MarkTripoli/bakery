@@ -124,6 +124,87 @@ function entry(row: EntryRow): MergeEntryRead {
   };
 }
 
+/** What a merge entry is admitted against, read from Bakery's own rows. */
+export type CandidateEvidence = {
+  pullRequest: { headSha: string; baseSha: string; state: string } | null;
+  review: {
+    headSha: string;
+    baseSha: string;
+    policyDigest: string;
+    blocking: number;
+  } | null;
+  checks: readonly {
+    id: string;
+    headSha: string;
+    baseSha: string | null;
+    policyDigest: string;
+    result: string;
+  }[];
+};
+
+/** Why a candidate cannot be queued, or null when every piece of it agrees. */
+export type EvidenceRefusal = {
+  code: "RESOURCE_NOT_FOUND" | "PRECONDITION_FAILED" | "STATE_CONFLICT";
+  reason: string;
+} | null;
+
+/**
+ * The admission rule, as a pure function over the rows: the pull request must
+ * still be the head and base the caller named and still be open, its review
+ * cycle must have judged that same candidate under the same policy with no
+ * blocking finding, and every named check run must be this run's, this exact
+ * candidate's, and passed. Nothing here reads or writes.
+ */
+export function evidenceRefusal(
+  input: MergeEntryCreateInput,
+  evidence: CandidateEvidence,
+): EvidenceRefusal {
+  const { pullRequest, review, checks } = evidence;
+  if (pullRequest === null) {
+    return { code: "RESOURCE_NOT_FOUND", reason: "pull_request_missing" };
+  }
+  // The entry names the candidate the pull request currently is: a head or base
+  // that moved since the evidence was gathered cannot be admitted.
+  if (pullRequest.headSha !== input.expectedHeadSha) {
+    return { code: "PRECONDITION_FAILED", reason: "head_moved" };
+  }
+  if (pullRequest.baseSha !== input.expectedBaseSha) {
+    return { code: "PRECONDITION_FAILED", reason: "base_moved" };
+  }
+  if (pullRequest.state !== "open") {
+    return { code: "STATE_CONFLICT", reason: "pull_request_not_open" };
+  }
+  if (review === null) {
+    return { code: "RESOURCE_NOT_FOUND", reason: "review_cycle_missing" };
+  }
+  if (
+    review.headSha !== input.expectedHeadSha ||
+    review.baseSha !== input.expectedBaseSha ||
+    review.policyDigest !== input.policyDigest
+  ) {
+    return { code: "PRECONDITION_FAILED", reason: "review_evidence_stale" };
+  }
+  if (review.blocking > 0) {
+    return { code: "STATE_CONFLICT", reason: "review_findings_blocking" };
+  }
+  if (checks.length !== input.checkRunIds.length) {
+    return { code: "PRECONDITION_FAILED", reason: "check_runs_missing" };
+  }
+  for (const check of checks) {
+    if (
+      check.headSha !== input.expectedHeadSha ||
+      check.baseSha !== input.expectedBaseSha ||
+      check.policyDigest !== input.policyDigest
+    ) {
+      return { code: "PRECONDITION_FAILED", reason: "check_evidence_stale" };
+    }
+    if (check.result !== "passed") {
+      return { code: "STATE_CONFLICT", reason: "checks_not_passed" };
+    }
+  }
+  return null;
+}
+
 /**
  * The evidence an entry is admitted on: the pull request's recorded candidate,
  * the review cycle and every check run it names must all be the same candidate
@@ -135,38 +216,14 @@ async function assertCandidateEvidence(
   organizationId: string,
   input: MergeEntryCreateInput,
 ): Promise<void> {
-  const pull = (await transaction.query<{
-    headSha: string;
-    baseSha: string;
-    state: string;
-  }>(
+  const pull = (await transaction.query<
+    { headSha: string; baseSha: string; state: string }
+  >(
     `select head_sha as "headSha", base_sha as "baseSha", status as "state"
        from bakery.pull_requests
       where organization_id = $1 and id = $2 and repository_id = $3`,
     [organizationId, input.pullRequestId, input.repositoryId],
-  )).rows[0];
-  if (!pull) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  // The entry names the candidate the pull request currently is: a head or base
-  // that has moved since the evidence was gathered cannot be admitted.
-  if (pull.headSha !== input.expectedHeadSha) {
-    throw new StandardError({
-      code: "PRECONDITION_FAILED",
-      params: { reason: "head_moved" },
-    });
-  }
-  if (pull.baseSha !== input.expectedBaseSha) {
-    throw new StandardError({
-      code: "PRECONDITION_FAILED",
-      params: { reason: "base_moved" },
-    });
-  }
-  if (pull.state !== "open") {
-    throw new StandardError({
-      code: "STATE_CONFLICT",
-      params: { reason: "pull_request_not_open" },
-    });
-  }
-
+  )).rows[0] ?? null;
   const review = (await transaction.query<{
     headSha: string;
     baseSha: string;
@@ -178,28 +235,8 @@ async function assertCandidateEvidence(
        from bakery.review_cycles
       where organization_id = $1 and id = $2 and run_id = $3`,
     [organizationId, input.reviewCycleId, input.runId],
-  )).rows[0];
-  if (!review) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
-  // The review judged this candidate and nothing else; a blocking finding on it
-  // keeps the entry out of the queue.
-  if (
-    review.headSha !== input.expectedHeadSha ||
-    review.baseSha !== input.expectedBaseSha ||
-    review.policyDigest !== input.policyDigest
-  ) {
-    throw new StandardError({
-      code: "PRECONDITION_FAILED",
-      params: { reason: "review_evidence_stale" },
-    });
-  }
-  if (review.blocking > 0) {
-    throw new StandardError({
-      code: "STATE_CONFLICT",
-      params: { reason: "review_findings_blocking" },
-    });
-  }
-
-  const checks = await transaction.query<{
+  )).rows[0] ?? null;
+  const checks = (await transaction.query<{
     id: string;
     headSha: string;
     baseSha: string | null;
@@ -209,35 +246,15 @@ async function assertCandidateEvidence(
     `select id, head_sha as "headSha", base_sha as "baseSha",
        policy_digest as "policyDigest", result
        from bakery.check_runs
-      where organization_id = $1 and run_id = $2
-        and id = any($3::uuid[])`,
+      where organization_id = $1 and run_id = $2 and id = any($3::uuid[])`,
     [organizationId, input.runId, input.checkRunIds],
-  );
-  // Every named run must exist, belong to this run and this exact candidate.
-  if (checks.rows.length !== input.checkRunIds.length) {
-    throw new StandardError({
-      code: "PRECONDITION_FAILED",
-      params: { reason: "check_runs_missing" },
-    });
-  }
-  for (const check of checks.rows) {
-    if (
-      check.headSha !== input.expectedHeadSha ||
-      check.baseSha !== input.expectedBaseSha ||
-      check.policyDigest !== input.policyDigest
-    ) {
-      throw new StandardError({
-        code: "PRECONDITION_FAILED",
-        params: { reason: "check_evidence_stale" },
-      });
-    }
-    if (check.result !== "passed") {
-      throw new StandardError({
-        code: "STATE_CONFLICT",
-        params: { reason: "checks_not_passed" },
-      });
-    }
-  }
+  )).rows;
+  const refusal = evidenceRefusal(input, { pullRequest: pull, review, checks });
+  if (refusal === null) return;
+  throw new StandardError({
+    code: refusal.code,
+    params: { reason: refusal.reason },
+  });
 }
 
 /**
