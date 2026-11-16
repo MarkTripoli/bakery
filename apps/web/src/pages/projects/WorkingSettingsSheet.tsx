@@ -18,6 +18,7 @@ import {
   rulesInForce,
   sameRules,
   settingsProblem,
+  usesOtherBranches,
 } from "./repository-state.ts";
 import { useRepositorySettings } from "./use-repository-settings.ts";
 
@@ -111,13 +112,10 @@ export function WorkingSettingsSheet(
   );
   // #65: a version whose branches differ from the set the version in use fixes
   // cannot be activated; the server refuses it with repository_branches_locked.
-  // The row says so up front, keyed off the in-use version's own fixed policy.
+  // One shared rule, compared through the same canonical JSON the server uses,
+  // so the row and the refusal cannot disagree.
   const activationWouldRefuse = (profile: RepositoryProfileResponse) =>
-    branchesFixed && active !== null && canonicalBranches(profile) !==
-      canonicalBranches(active);
-  // The branches a version records, compared as the server compares them.
-  const canonicalBranches = (version: RepositoryProfileResponse) =>
-    JSON.stringify(branchesOf(version.config));
+    usesOtherBranches(active?.config ?? null, profile.config);
   const folderText = active === null ? "" : folderOf(active.config);
   // A folder is a path and reads in the code face; "The whole repository" is a
   // sentence about the folder, so it reads in the body face (design-ux, #475).
