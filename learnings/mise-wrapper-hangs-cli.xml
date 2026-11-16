@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="mise-wrapper-hangs-cli" project="bakery">
+  <title>Call the installed binary when a mise-wrapped CLI hangs with no output</title>
+  <trigger>A CLI such as rig or gh exits 124 under timeout with zero bytes on stdout and stderr, even for --version or --help, while git against the same remote works.</trigger>
+  <rule>Check what the shim is before debugging the tool. /home/marktripoli/.local/bin/rig runs "mise exec node@22.22.0 -- rig" and /home/marktripoli/.local/bin/gh runs "mise use -g --quiet gh" first; both resolve versions over the network on every call, so a network or provider outage makes every invocation hang before the tool starts. Call the installed binary directly instead: ~/.local/share/mise/installs/node/22.22.0/bin/rig and ~/.local/share/mise/installs/gh/latest/gh_2.100.0_linux_amd64/bin/gh (verify the path with ls of the installs dir). A whole seat can look wedged for hours this way while the agent's own reasoning is fine; the give-away is that even --version hangs.</rule>
+  <verification>
+    <requirement>Prove it with exit codes, not impressions: the wrapper path times out (124, empty output) and the direct binary prints a version and exits 0 in the same shell. Record the working absolute path in the handover so the next occupant does not rediscover it.</requirement>
+  </verification>
+</learning>
