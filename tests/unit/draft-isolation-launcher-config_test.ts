@@ -1,6 +1,9 @@
-import { assertEquals, assertThrows } from "@std/assert";
+import { assert, assertEquals, assertThrows } from "@std/assert";
 import { readRuntimeConfig } from "../../packages/config/src/env.ts";
-import { draftIsolationOptionsFor } from "../../apps/server/src/modules/knowledge/draft-isolation.ts";
+import {
+  draftIsolationOptionsFor,
+  sharedWorkerLimiterFor,
+} from "../../apps/server/src/modules/knowledge/draft-isolation.ts";
 
 // The server's draft isolation launcher comes from RuntimeConfig, read once
 // with the rest of the environment; the app never reads the environment
@@ -76,4 +79,30 @@ Deno.test("createApp builds its one isolation from the config, through draftIsol
     "createDraftIsolation(draftIsolationOptionsFor(options.config));",
   ]);
   assertEquals(/Deno\.env|process\.env/.test(source), false);
+});
+
+Deno.test("one configured worker pool size is one limiter, and another size is another (#322)", () => {
+  // The limiter holds the live slot count, so a fresh instance per call would
+  // be a second pool in the same process.
+  const two = sharedWorkerLimiterFor(2);
+  assertEquals(sharedWorkerLimiterFor(2), two);
+  const three = sharedWorkerLimiterFor(3);
+  assert(three !== two, "a different size must be a different bound");
+
+  // And the isolation options carry that shared instance, not a new one.
+  const first = draftIsolationOptionsFor({
+    draftIsolationLauncher: "process",
+    draftWorkerPoolSize: 2,
+  });
+  const second = draftIsolationOptionsFor({
+    draftIsolationLauncher: "process",
+    draftWorkerPoolSize: 2,
+  });
+  assertEquals(first.workerLimiter, two);
+  assertEquals(second.workerLimiter, two);
+  // No configured size keeps the module's own shared pool.
+  const unconfigured = draftIsolationOptionsFor({
+    draftIsolationLauncher: "process",
+  });
+  assertEquals(unconfigured.workerLimiter, undefined);
 });
