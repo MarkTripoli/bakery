@@ -37,6 +37,11 @@ export type StepItemProps =
     /** The open detail of a step that failed, is running or waits. */
     children?: ReactNode;
     /**
+     * Opt-in: a band above this step that names the group it starts, such as
+     * "After approval". Drawn once, on the first step of the group.
+     */
+    group?: ReactNode;
+    /**
      * Opt-in: the mark holds this step's number and the title is in the
      * normal colour, for a step of a definition that nothing is running (the
      * default draws `upcoming` as "not done yet"). Use with `upcoming`.
@@ -75,40 +80,58 @@ const MARKS = {
 
 /** One gate of a `StepList`: a status, a name, a result and an open detail. */
 export function StepItem(
-  { action, children, number, status, statusLabel, summary, title, ...props }:
-    StepItemProps,
+  {
+    action,
+    children,
+    group,
+    number,
+    status,
+    statusLabel,
+    summary,
+    title,
+    ...props
+  }: StepItemProps,
 ) {
   return (
-    <li
-      className="ui-step-item"
-      {...props}
-      data-numbered={number === undefined ? undefined : "true"}
-      data-state={status}
-      data-ui-component="stepItem"
-      data-variant="default"
-    >
-      <span className="ui-step-item__mark">
-        <span aria-hidden="true">
-          {number !== undefined
-            ? number
-            : status === "done"
-            ? <IconGlyph name="check" size="small" />
-            : status === "upcoming"
-            ? null
-            : <Icon size="small">{MARKS[status]}</Icon>}
+    <>
+      {group === undefined ? null : (
+        // Its own row, so the band never becomes part of the step's own text
+        // ("After approval" would otherwise read as part of "Pull request").
+        <li className="ui-step-item-group">
+          <h3 className="ui-step-item-group__title">{group}</h3>
+        </li>
+      )}
+      <li
+        className="ui-step-item"
+        {...props}
+        data-numbered={number === undefined ? undefined : "true"}
+        data-state={status}
+        data-ui-component="stepItem"
+        data-variant="default"
+      >
+        <span className="ui-step-item__mark">
+          <span aria-hidden="true">
+            {number !== undefined
+              ? number
+              : status === "done"
+              ? <IconGlyph name="check" size="small" />
+              : status === "upcoming"
+              ? null
+              : <Icon size="small">{MARKS[status]}</Icon>}
+          </span>
+          <VisuallyHidden>{statusLabel}</VisuallyHidden>
         </span>
-        <VisuallyHidden>{statusLabel}</VisuallyHidden>
-      </span>
-      <div className="ui-step-item__body">
-        <div className="ui-step-item__title">{title}</div>
-        {summary
-          ? <div className="ui-step-item__summary">{summary}</div>
-          : null}
-        {children
-          ? <div className="ui-step-item__detail">{children}</div>
-          : null}
-      </div>
-      {action ? <div className="ui-step-item__action">{action}</div> : null}
-    </li>
+        <div className="ui-step-item__body">
+          <div className="ui-step-item__title">{title}</div>
+          {summary
+            ? <div className="ui-step-item__summary">{summary}</div>
+            : null}
+          {children
+            ? <div className="ui-step-item__detail">{children}</div>
+            : null}
+        </div>
+        {action ? <div className="ui-step-item__action">{action}</div> : null}
+      </li>
+    </>
   );
 }

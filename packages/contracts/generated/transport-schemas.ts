@@ -286,6 +286,16 @@ const transportSchemas = {
       "retryable": false,
       "slug": "internal"
     },
+    "WORKER_ACTION_CAPABILITIES_INVALID": {
+      "status": 500,
+      "retryable": false,
+      "slug": "worker-action-capabilities-invalid"
+    },
+    "WORKER_ACTION_CONTRACT_DRIFT": {
+      "status": 500,
+      "retryable": false,
+      "slug": "worker-action-contract-drift"
+    },
     "SKILL_CONTENT_INTEGRITY_FAILED": {
       "status": 409,
       "retryable": false,

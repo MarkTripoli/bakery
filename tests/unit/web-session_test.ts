@@ -236,6 +236,7 @@ function fakeApi(
     listRunReviews: rejecting,
     listReviewFindings: rejecting,
     listRunDeliveryDecisions: rejecting,
+    listPullRequests: rejecting,
     sync: rejecting,
     listApplications: rejecting,
     createApplication: rejecting,

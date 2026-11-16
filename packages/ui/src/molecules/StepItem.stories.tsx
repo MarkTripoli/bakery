@@ -70,6 +70,27 @@ export const Contract: StoryObj = {
           title="Review the changes"
         />
       </StepList>
+      <StepList label="Grouped steps">
+        <StepItem
+          status="done"
+          statusLabel="Done"
+          summary="Approved by Dana Reyes."
+          title="Approval"
+        />
+        <StepItem
+          group="After approval"
+          status="done"
+          statusLabel="Done"
+          summary="Pull request #482 is open."
+          title="Pull request"
+        />
+        <StepItem
+          status="upcoming"
+          statusLabel="Not started"
+          summary="Not merged yet."
+          title="Merge"
+        />
+      </StepList>
     </>
   ),
 };

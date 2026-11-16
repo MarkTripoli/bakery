@@ -2,8 +2,11 @@ import {
   type AgentVersionCreateConfig,
   contractSchemas,
   registeredWorkerActionInputSchema,
+  UnknownWorkerActionError,
   workerActionCapabilities,
   workerActionCapabilityNames,
+  WorkerActionContractError,
+  workerContractFaultCode,
 } from "@bakery/contracts/contracts";
 import { StandardError } from "@bakery/contracts/http";
 import {
@@ -83,8 +86,17 @@ export function executionActionCapabilities(
   } else {
     try {
       registered = workerActionCapabilities(action);
-    } catch {
-      return unavailable("workflow_action_unavailable");
+    } catch (error) {
+      if (error instanceof UnknownWorkerActionError) {
+        return unavailable("workflow_action_unavailable");
+      }
+      // A contract defect is not "unavailable": nothing will fix it by retrying.
+      if (error instanceof WorkerActionContractError) {
+        throw new StandardError({
+          code: workerContractFaultCode(error.defect),
+        });
+      }
+      throw error;
     }
   }
   const additional = declared ?? [];

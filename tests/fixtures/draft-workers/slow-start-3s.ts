@@ -1,5 +1,6 @@
 // A worker whose start outlasts the work budget and also a systemd backstop
-// sized from the work term alone (3 s), as a very slow cold start does.
+// sized from the work term alone (2 s), as a very slow cold start does — the
+// 3 s delay below is what outlasts both.
 // Nothing has been read from the parent yet, so the delay is not the
 // client's. After READY it is the real worker.
 import {

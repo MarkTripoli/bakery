@@ -1791,6 +1791,69 @@ Deno.test("rules-only activation retains the observed baseline and fixed policy"
       { "If-Match": await ifMatch(fixed4.repositoryId) },
     );
     assertEquals(moved.status, 200, await moved.clone().text());
+
+    // #65: a version recorded with other branches cannot be put in use while the
+    // version in use fixes the branches — the publish path's own refusal, so the
+    // sheet's notice is not a false guarantee on the activation path either.
+    // The version that predates the lock is the repository's first profile.
+    const lockedSwitch = await harness.createRepository(false, {
+      profileConfig: {
+        ...baseProfileConfig,
+        branches: { base: "main", allowedPatterns: ["earlier/*"] },
+      },
+      profileHeaders: { "If-Match": '"1"' },
+    });
+    const earlierId =
+      (await repoJson(lockedSwitch.repositoryId)).activeProfileId;
+    assert(earlierId !== null, "the seeded profile is the version in use");
+    const locking = await publish(
+      lockedSwitch.repositoryId,
+      2,
+      {
+        ...baseProfileConfig,
+        branches: { base: "main", allowedPatterns: ["locked/*"] },
+        fixedPolicy: fixedPolicyDraft,
+      },
+    );
+    assertEquals(locking.status, 201, await locking.clone().text());
+    const lockingId = (await locking.json() as { id: string }).id;
+    const versionOf = async (repositoryId: string) =>
+      (await repoJson(repositoryId)).version;
+    const versionBeforeSwitch = await versionOf(lockedSwitch.repositoryId);
+    const refusedSwitch = await harness.memberRequest(
+      "PATCH",
+      path(lockedSwitch.repositoryId),
+      { activeProfileId: earlierId },
+      f.organizationAId,
+      { "If-Match": await ifMatch(lockedSwitch.repositoryId) },
+    );
+    assertEquals(
+      refusedSwitch.status,
+      422,
+      await refusedSwitch.clone().text(),
+    );
+    assertEquals(
+      (await refusedSwitch.json() as { issues: { code: string }[] })
+        .issues[0].code,
+      "repository_branches_locked",
+    );
+    assertEquals(
+      await versionOf(lockedSwitch.repositoryId),
+      versionBeforeSwitch,
+    );
+    // A version whose branches match the fixed set stays allowed to activate.
+    const allowedSwitch = await harness.memberRequest(
+      "PATCH",
+      path(lockedSwitch.repositoryId),
+      { activeProfileId: lockingId },
+      f.organizationAId,
+      { "If-Match": await ifMatch(lockedSwitch.repositoryId) },
+    );
+    assertEquals(
+      allowedSwitch.status,
+      200,
+      await allowedSwitch.clone().text(),
+    );
     const developConfig = {
       ...baseProfileConfig,
       branches: { base: "develop", allowedPatterns: ["feature/*"] },

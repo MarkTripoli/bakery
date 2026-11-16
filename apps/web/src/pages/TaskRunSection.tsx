@@ -14,12 +14,14 @@ import { runQueryOptions, runStepsListQueryOptions } from "../api/query.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import type { DurableSyncConnectivity } from "../api/durable-sync.ts";
 import { useI18n } from "../i18n/I18nProvider.tsx";
+import { RouterLink } from "../app/router-link.tsx";
 import { TaskRunRevision } from "./TaskRunRevision.tsx";
 import { TaskRunOutput } from "./TaskRunOutput.tsx";
 import { TaskRunControls } from "./TaskRunControls.tsx";
 import { FingerprintRow } from "./FingerprintRow.tsx";
 import { runTimelineEvents } from "./task-timeline.ts";
 import { TaskRunSectionView } from "./task-run-section-view.tsx";
+import { LINK_SLOT, withLink } from "./with-link.tsx";
 import { DeliverySection } from "./task-delivery/DeliverySection.tsx";
 import { focusMessageField } from "./task-delivery/focus-message.ts";
 
@@ -69,6 +71,75 @@ const RUN_TONES = {
   failed: "danger",
   blocked: "warning",
 } as const;
+
+/** Where the server caps the tasks a blocked run names (work/run-query.ts). */
+const MAX_BLOCKING_TASKS = 25;
+
+/**
+ * What a blocked run says (design-ux, #57 item 13). The reason and the tasks are
+ * read from the server; a reason the page does not know is said as unknown
+ * rather than guessed at, and a dependency reason names the tasks it waits on.
+ */
+function BlockedNotice(
+  { run }: {
+    readonly run: {
+      readonly blockedReason?: string | null;
+      readonly blockingTasks?: readonly {
+        readonly id: string;
+        readonly title: string;
+      }[];
+    };
+  },
+) {
+  const { translate: t } = useI18n();
+  if (run.blockedReason === null || run.blockedReason === undefined) {
+    return <UI.Text>{t("tasks.run.blockedWaiting")}</UI.Text>;
+  }
+  if (run.blockedReason !== "dependency_incomplete") {
+    return <UI.Text>{t("tasks.run.blockedUnknownWhy")}</UI.Text>;
+  }
+  const tasks = run.blockingTasks ?? [];
+  if (tasks.length === 0) {
+    return <UI.Text>{t("tasks.run.blockedWaiting")}</UI.Text>;
+  }
+  const link = (task: (typeof tasks)[number]) => (
+    <RouterLink
+      params={{ taskId: task.id }}
+      to="/tasks/$taskId"
+      variant="sentence"
+    >
+      {task.title}
+    </RouterLink>
+  );
+  if (tasks.length === 1) {
+    return (
+      <UI.Text>
+        {withLink(
+          t("tasks.run.blockedWaitingForOne", { task: LINK_SLOT }),
+          link(tasks[0]),
+        )}
+      </UI.Text>
+    );
+  }
+  return (
+    <UI.Stack gap="compact">
+      <UI.Text>
+        {t("tasks.run.blockedWaitingForMany", { count: tasks.length })}
+      </UI.Text>
+      <UI.Stack gap="tight" role="list">
+        {tasks.map((task) => (
+          <UI.Inline key={task.id} role="listitem">
+            {link(task)}
+          </UI.Inline>
+        ))}
+      </UI.Stack>
+      {tasks.length < MAX_BLOCKING_TASKS
+        ? null
+        : <UI.Text variant="muted">{t("tasks.run.blockedWaitingMore")}
+        </UI.Text>}
+    </UI.Stack>
+  );
+}
 
 /** Read the task's authoritative current run, never infer one from list order. */
 export function TaskRunSection(
@@ -188,7 +259,7 @@ export function TaskRunSection(
               : null}
           </UI.Inline>
           {validRun && run.data?.status === "blocked"
-            ? <UI.Text>{t("tasks.run.blockedWaiting")}</UI.Text>
+            ? <BlockedNotice run={run.data} />
             : null}
           <UI.VisuallyHidden
             role="status"

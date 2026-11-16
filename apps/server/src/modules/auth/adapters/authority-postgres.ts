@@ -471,7 +471,15 @@ export class PostgresAuthorityRunner implements ActionAuthorityRunner {
       : undefined;
 
     const token = context.accessToken;
-    if (token !== undefined && action.policy.sessionOnly === true) {
+    // A session-only action needs a browser session, so the rule asks for the
+    // session rather than refusing things known to lack one: without a session
+    // id there is no session to bind to, whether the caller arrived with a
+    // bearer token, through MCP dispatch, or with a principal and nothing else.
+    // Stated this way a new seeding path cannot be born unguarded (issue 287).
+    if (
+      action.policy.sessionOnly === true &&
+      context.sessionId === undefined
+    ) {
       throw new StandardError({ code: "SESSION_REQUIRED" });
     }
     if (token !== undefined) {
