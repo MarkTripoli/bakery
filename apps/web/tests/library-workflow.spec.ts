@@ -661,3 +661,18 @@ test("a draft that matches the version in use has nothing to publish", async ({ 
   await expect(nothing).toBeVisible();
   await nothing.getByRole("button", { name: "Close" }).click();
 });
+
+test("the state selector shows the save states a spec cannot force", async ({ page }) => {
+  // The saved state is the real one; the two forced states exist so a failed or
+  // in-flight save can be seen without breaking the network on purpose (design's
+  // State menu, #67). Development builds only.
+  await libraryFixture(page, WORLD);
+  await page.goto(`/library/workflows/${WORKFLOW.id}/edit?state=save-failed`);
+  await expect(page.getByRole("status")).toContainText("Not saved");
+  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+  await shot(page, "workflow-editor-save-failed");
+
+  await page.goto(`/library/workflows/${WORKFLOW.id}/edit?state=saving`);
+  await expect(page.getByRole("status")).toContainText("Saving…");
+  await shot(page, "workflow-editor-saving");
+});

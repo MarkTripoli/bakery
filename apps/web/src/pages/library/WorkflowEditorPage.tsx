@@ -36,6 +36,21 @@ import { treeOf } from "./workflow-tree.ts";
 /** How long the editor waits after a change before it saves the draft. */
 const SAVE_AFTER_MS = 600;
 
+/**
+ * The save state a spec or a still can ask the page to show, in the same spirit
+ * as the prototype's State menu (#67): `?state=save-failed` or `?state=saving`.
+ * Development builds only, so a person never sees it in production.
+ */
+function forcedSaveState(): SaveState | null {
+  if (!import.meta.env.DEV) return null;
+  const asked = new URLSearchParams(globalThis.location?.search ?? "").get(
+    "state",
+  );
+  if (asked === "save-failed") return { kind: "failed" };
+  if (asked === "saving") return { kind: "saving" };
+  return null;
+}
+
 type SaveState =
   | { readonly kind: "saved" }
   | { readonly kind: "saving" }
@@ -278,9 +293,10 @@ export function WorkflowEditorPage(
 
   const tree = useMemo(() => treeOf({ steps }), [steps]);
 
-  const stateWord = saveState.kind === "saving"
+  const shownSave: SaveState = forcedSaveState() ?? saveState;
+  const stateWord = shownSave.kind === "saving"
     ? translate("library.editor.save.saving" as never)
-    : saveState.kind === "failed"
+    : shownSave.kind === "failed"
     ? translate("library.editor.save.failed" as never)
     : translate("library.editor.save.saved" as never);
 
@@ -403,7 +419,7 @@ export function WorkflowEditorPage(
         ? (
           <ShellSlot name="actions">
             <UI.Inline gap="compact">
-              {saveState.kind === "failed"
+              {shownSave.kind === "failed"
                 ? (
                   <UI.Button
                     variant="secondary"
