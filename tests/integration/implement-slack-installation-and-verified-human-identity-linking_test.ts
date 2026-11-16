@@ -1598,7 +1598,7 @@ Deno.test("a newer attempt supersedes only the same member's pending attempt for
         createSlackIdentityAttempt(tx, {
           organizationId: org2,
           principalId: f.adminId,
-          sessionId: "s2",
+          sessionId: crypto.randomUUID(),
           binding: base,
           secretsKey: k.key,
           keyId: k.keyId,
