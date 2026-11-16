@@ -457,6 +457,72 @@ Deno.test("a read of an earlier step needs no `needs` edge, and the plan runs th
   assertEquals(positions, [...positions].sort((a, b) => a - b));
 });
 
+Deno.test("a side-effecting chain with no `needs` is ordered by the plan, which carries no `needs` list at all", async () => {
+  // The case #157 was filed for: prepare builds a release, deploy rolls it out,
+  // the deploy reads the release and declares no `needs`. The order has to come
+  // from the read, and it does — but through the plan's own order, never through
+  // a `needs` list an executor could schedule by. A plan step has no `needs`
+  // field, so an executor that wanted to run these in parallel would have to
+  // invent that; it cannot read it from an absent dependency.
+  const deliveryInputs: Inputs = {
+    repositoryId: { type: "uuid", required: true },
+    headSha: { type: "string", required: true },
+    profileRevision: { type: "integer", required: true },
+  };
+  const result = await compile([
+    {
+      id: "prepare",
+      uses: "delivery.prepare",
+      with: {
+        repositoryId: REPO,
+        headSha: "$input.headSha",
+        profileRevision: "$input.profileRevision",
+      },
+    },
+    {
+      id: "deploy",
+      uses: "delivery.deploy",
+      with: {
+        releaseId: "$step.prepare.releaseId",
+        environment: "production",
+      },
+      effectKey: ["deploy", "$step.prepare.releaseId"],
+    },
+  ], { inputs: deliveryInputs });
+  assert(result.ok, result.ok ? "" : JSON.stringify(result.diagnostics));
+  assertEquals(
+    result.plan.steps.map((step) => step.qualifiedId),
+    ["prepare", "deploy"],
+  );
+  for (const step of result.plan.steps) {
+    assertEquals(
+      Object.hasOwn(step, "needs"),
+      false,
+      `${step.qualifiedId} carries a needs list`,
+    );
+  }
+});
+
+Deno.test("a read that names a step which is not a sibling is refused, never implied", async () => {
+  // The decision recorded on #157: a read must name a step that exists, is a
+  // sibling, and precedes the reader. A name that matches nothing in that scope
+  // is a compile error — the compiler never invents an edge to a step it cannot
+  // see, so a nested step's id is not silently resolved from an outer scope.
+  const nested: Step = { id: "early", steps: [brief] };
+  assertEquals(
+    await diagnose([nested, {
+      id: "reader",
+      uses: "harness.implement",
+      with: {
+        repositoryId: REPO,
+        planArtifact: "$step.brief.artifact.versionId",
+        instructions: "$input.instructions",
+      },
+    }]),
+    [{ path: "/steps/1/with/planArtifact", code: "reference_step_unknown" }],
+  );
+});
+
 Deno.test("a read of a later step is refused, with or without a `needs` edge", async () => {
   const later: Step = {
     id: "implement",
