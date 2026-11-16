@@ -602,6 +602,8 @@ for (
       await expect(panel).toBeVisible();
       await expect(panel.getByRole("button", { name: "Move down" }))
         .toBeEnabled();
+      await page.mouse.move(600, 700);
+      await shot(page, "workflow-editor-card-selected");
       await panel.getByRole("button", { name: "Move down" }).click();
       await expect(page.locator("[data-card]").nth(2)).toContainText(
         "Write the task brief",
@@ -730,4 +732,17 @@ test("the leave warning is armed only while a change is unsaved", async ({ page 
     timeout: 10_000,
   });
   await expect.poll(net).toBe(baseline);
+});
+
+test("a step with a problem keeps its card and shows the sentence", async ({ page }) => {
+  // (4) the problem card: the report's pointer lands on its step, and the card
+  // stays a card with the sentence under it.
+  await libraryFixture(page, { ...WORLD, validation: "errors" });
+  await page.goto(`/library/workflows/${WORKFLOW.id}/edit`);
+  await expect(page.locator("[data-card='start']")).toBeVisible();
+  await expect(page.locator("[data-card]").nth(1)).toContainText(
+    "The action is not registered.",
+  );
+  await page.mouse.move(600, 700);
+  await shot(page, "workflow-editor-card-problem");
 });
