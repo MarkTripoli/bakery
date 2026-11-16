@@ -230,7 +230,9 @@ Deno.test("emitExecutionEvent does nothing without telemetry and hands over the 
   });
   const seen: unknown[][] = [];
   emitExecutionEvent(
-    { event: (...args) => void seen.push(args) },
+    // A recording stand-in, forced past the facade type: this asserts what the
+    // emitter hands over, not what a caller may pass (#247).
+    { event: (...args: unknown[]) => void seen.push(args) } as never,
     "lease.renewed",
     { "bakery.attempt.id": attempt },
   );
@@ -283,28 +285,30 @@ Deno.test("emitExecutionEvent handles a promise the telemetry returns, so a reje
   globalThis.addEventListener("unhandledrejection", onUnhandled);
   try {
     emitExecutionEvent(
-      { event: () => Promise.reject(new Error("async boom")) as never },
+      // Forced past the port's type on purpose: since #247 the port is the
+      // server facade, so a bare `{ event }` no longer type-checks. What the
+      // emitter does with these shapes at runtime is what this test pins.
+      { event: () => Promise.reject(new Error("async boom")) } as never,
       "job.completed",
       {},
     );
     emitExecutionEvent(
       {
-        event: (async () => {
+        event: async () => {
           await null; // a real async function: it rejects after it has awaited
           throw new Error("async fn boom");
-        }) as never,
-      },
+        },
+      } as never,
       "job.completed",
       {},
     );
     emitExecutionEvent(
       {
-        event: () =>
-          ({
-            then: (_: unknown, reject: (e: unknown) => void) =>
-              reject(new Error("thenable")),
-          }) as never,
-      },
+        event: () => ({
+          then: (_: unknown, reject: (e: unknown) => void) =>
+            reject(new Error("thenable")),
+        }),
+      } as never,
       "job.completed",
       {},
     );
@@ -360,7 +364,7 @@ Deno.test("emitExecutionEvent never calls a foreign then, so no hostile promise 
   try {
     for (const [shape, returned] of Object.entries(ports)) {
       emitExecutionEvent(
-        { event: () => returned as never },
+        { event: () => returned } as never,
         "job.completed",
         {},
       );
