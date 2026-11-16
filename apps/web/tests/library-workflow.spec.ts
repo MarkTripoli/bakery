@@ -539,8 +539,6 @@ for (
       await expect(page).toHaveURL(`/library/workflows/${WORKFLOW.id}/edit`);
       return seen;
     };
-    const card = (page: Page, name: string) =>
-      page.locator("[data-card]").filter({ hasText: name });
 
     test("Edit draws the workflow: how it starts, then a card per step", async ({ page }) => {
       await openEditor(page);
@@ -592,11 +590,18 @@ for (
       await page.getByTestId("step-picker").getByRole("button", {
         name: "Review",
       }).click();
-      await card(page, "Write the task brief").click();
+      await page
+        .locator("[data-card]")
+        .filter({ hasText: "Write the task brief" })
+        .getByRole("button")
+        .first()
+        .click();
       const panel = page.getByRole("complementary", {
         name: "The selected step",
       });
       await expect(panel).toBeVisible();
+      await expect(panel.getByRole("button", { name: "Move down" }))
+        .toBeEnabled();
       await panel.getByRole("button", { name: "Move down" }).click();
       await expect(page.locator("[data-card]").nth(2)).toContainText(
         "Write the task brief",

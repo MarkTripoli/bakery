@@ -139,6 +139,19 @@ export const ACTION_TITLES: Readonly<Record<string, string>> = {
 };
 
 /** The spec's sentence under a step's name; the actions it has none for show only their name. */
+/** The glyph each step type carries in the editor's diagram (design-ux, #67). */
+export const ACTION_ICONS: Readonly<Record<string, string>> = {
+  "task.brief": "lightning",
+  "rpi.research": "search",
+  "rpi.design": "document",
+  "rpi.plan": "plan",
+  "harness.implement": "terminal",
+  "harness.repair": "refresh",
+  "quality.check": "check",
+  "agent.review": "shield",
+  "delivery.merge": "integration",
+};
+
 export const ACTION_LINES: Readonly<Record<string, string>> = {
   "task.brief": "library.workflow.actionLine.taskBrief",
   "rpi.research": "library.workflow.actionLine.rpiResearch",

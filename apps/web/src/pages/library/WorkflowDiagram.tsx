@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import * as UI from "@bakery/ui";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
-import { ACTION_LINES, ACTION_TITLES } from "./workflow-state.ts";
+import { ACTION_ICONS, ACTION_LINES, ACTION_TITLES } from "./workflow-state.ts";
 import type { GroupLabel, Tree, TreeNode, TreeStep } from "./workflow-tree.ts";
 
 /**
@@ -129,48 +129,30 @@ export function WorkflowDiagram(
   const card = (node: TreeStep, selectable: boolean) => {
     const id = node.id;
     const drawing = node.problem !== undefined;
-    const problem = drawing
-      ? translate("library.editor.card.needsSetup" as never)
-      : problems.get(id);
+    const glyph = node.problem !== undefined ? "info" : ACTION_ICONS[node.uses];
     return (
-      <UI.Stack
-        gap="tight"
-        data-card={id}
-        data-needs-setup={drawing ? "true" : undefined}
-      >
-        <UI.Button
-          variant="text"
-          aria-pressed={selectedId === id}
-          data-selected={selectedId === id ? "true" : undefined}
-          data-problem={problem === undefined ? undefined : "true"}
+      <div data-card={id}>
+        <UI.StepCard
+          icon={glyph === undefined
+            ? undefined
+            : <UI.IconGlyph name={glyph as never} size="small" />}
+          title={cardName(node)}
+          selected={selectedId === id}
+          needsSetup={drawing}
+          needsSetupLabel={translate("library.editor.card.needsSetup" as never)}
+          writtenInCode={node.code === undefined ? undefined : (
+            translate("library.editor.card.writtenInCode" as never, {
+              code: node.code,
+            })
+          )}
+          summary={drawing ? undefined : line(node.uses)}
           disabled={!selectable}
           onClick={() => onSelect(id)}
-        >
-          <UI.Stack gap="tight">
-            <UI.Text variant="strong">{cardName(node)}</UI.Text>
-            {node.problem !== undefined
-              ? null
-              : line(node.uses) === undefined
-              ? null
-              : <UI.Text variant="muted">{line(node.uses)}</UI.Text>}
-            {node.code === undefined ? null : (
-              <UI.Text variant="caption">
-                {translate("library.editor.card.writtenInCode" as never, {
-                  code: node.code,
-                })}
-              </UI.Text>
-            )}
-            {problem === undefined
-              ? null
-              : <UI.Text variant="error">{problem}</UI.Text>}
-            {node.problem === undefined ? null : (
-              <UI.Text variant="caption">
-                {translate("library.editor.card.needsSetupLine" as never)}
-              </UI.Text>
-            )}
-          </UI.Stack>
-        </UI.Button>
-      </UI.Stack>
+        />
+        {problems.get(id) === undefined
+          ? null
+          : <UI.Text variant="error">{problems.get(id)}</UI.Text>}
+      </div>
     );
   };
 
