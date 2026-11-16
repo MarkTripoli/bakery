@@ -19941,7 +19941,7 @@
     {
       "id": "ui.stepCard",
       "name": "StepCard",
-      "description": "Summarizes the role or one external grant on the Your access page as a bordered card with a heading row and optional extra rows.",
+      "description": "One step of a workflow drawn as a card: the step type's icon in a small tile, the step's name and one grey line under it, with a red outline and \"Needs setup\" in place of that line when the editor cannot read the step.",
       "level": "molecule",
       "owner": "Mark Tripoli",
       "storyTitle": "Bakery/Molecules/StepCard",
@@ -19973,7 +19973,10 @@
         "card"
       ],
       "states": [
-        "default"
+        "default",
+        "selected",
+        "needs-setup",
+        "focus"
       ],
       "themes": [
         "light",
@@ -20003,12 +20006,9 @@
             "default"
           ],
           "states": [
-            "done",
-            "failed",
-            "running",
-            "waiting",
-            "upcoming",
-            "unknown"
+            "default",
+            "selected",
+            "needs-setup"
           ],
           "baselineIds": []
         }
@@ -20062,8 +20062,10 @@
       ],
       "a11y": {
         "accessibleName": "content",
-        "keyboard": [],
-        "notes": "Plain content; the title names the card and extra rows follow in reading order."
+        "keyboard": [
+          "Enter or Space selects the step and opens its panel"
+        ],
+        "notes": "Selection announces an expansion, not a toggle: aria-expanded on the card with aria-controls naming the panel while it is open. The icon is aria-hidden, so the name carries the meaning, and a step that needs setup says so in words as well as the red outline."
       },
       "tokens": [
         "--border-default",
