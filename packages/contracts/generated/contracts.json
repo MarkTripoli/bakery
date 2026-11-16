@@ -115162,6 +115162,17 @@
                     "minimum": -9007199254740991,
                     "maximum": 9007199254740991
                   },
+                  "standing": {
+                    "description": "What the repository is ready for (#65), computed by the server with the same rule the repository page shows so the Projects list and the page cannot disagree: archived when the repository is retired, not_set_up when no version of the working settings is in use, check_needed when the version in use was saved by a person (so no check has run for it), check_failed when the check of the version in use did not pass, and ready when a check passed for the version in use. Served by repositories.list; other repository responses omit it, and a row the server cannot classify carries no value rather than a guessed word.",
+                    "type": "string",
+                    "enum": [
+                      "not_set_up",
+                      "check_needed",
+                      "check_failed",
+                      "ready",
+                      "archived"
+                    ]
+                  },
                   "version": {
                     "type": "integer",
                     "minimum": -9007199254740991,
@@ -134510,6 +134521,17 @@
               "type": "integer",
               "minimum": -9007199254740991,
               "maximum": 9007199254740991
+            },
+            "standing": {
+              "description": "What the repository is ready for (#65), computed by the server with the same rule the repository page shows so the Projects list and the page cannot disagree: archived when the repository is retired, not_set_up when no version of the working settings is in use, check_needed when the version in use was saved by a person (so no check has run for it), check_failed when the check of the version in use did not pass, and ready when a check passed for the version in use. Served by repositories.list; other repository responses omit it, and a row the server cannot classify carries no value rather than a guessed word.",
+              "type": "string",
+              "enum": [
+                "not_set_up",
+                "check_needed",
+                "check_failed",
+                "ready",
+                "archived"
+              ]
             },
             "version": {
               "type": "integer",
@@ -201622,7 +201644,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:059f8e36ce9bbb851bbc018a09d9cb514466da3cf7e201f41ad1196e19f40990",
+  "compatibilityDigest": "sha256:e278e5e356970ed24f5632e752b9c1c192fe8e058f70e802c4a111a111bd9967",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -284952,6 +284974,17 @@
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991
               },
+              "standing": {
+                "description": "What the repository is ready for (#65), computed by the server with the same rule the repository page shows so the Projects list and the page cannot disagree: archived when the repository is retired, not_set_up when no version of the working settings is in use, check_needed when the version in use was saved by a person (so no check has run for it), check_failed when the check of the version in use did not pass, and ready when a check passed for the version in use. Served by repositories.list; other repository responses omit it, and a row the server cannot classify carries no value rather than a guessed word.",
+                "type": "string",
+                "enum": [
+                  "not_set_up",
+                  "check_needed",
+                  "check_failed",
+                  "ready",
+                  "archived"
+                ]
+              },
               "version": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -304350,6 +304383,17 @@
           "type": "integer",
           "minimum": -9007199254740991,
           "maximum": 9007199254740991
+        },
+        "standing": {
+          "description": "What the repository is ready for (#65), computed by the server with the same rule the repository page shows so the Projects list and the page cannot disagree: archived when the repository is retired, not_set_up when no version of the working settings is in use, check_needed when the version in use was saved by a person (so no check has run for it), check_failed when the check of the version in use did not pass, and ready when a check passed for the version in use. Served by repositories.list; other repository responses omit it, and a row the server cannot classify carries no value rather than a guessed word.",
+          "type": "string",
+          "enum": [
+            "not_set_up",
+            "check_needed",
+            "check_failed",
+            "ready",
+            "archived"
+          ]
         },
         "version": {
           "type": "integer",
