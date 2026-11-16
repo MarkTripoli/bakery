@@ -3792,5 +3792,9 @@
   "tasks.run.blockedUnknownWhy": "⟦Ŧĥïš ŕûñ ïš ƀļôçķëð. Ɓàķëŕÿ ðôëš ñôŧ ķñôŵ ŵĥÿ. ŧëšŧ çôþÿ ŧëšŧ⟧",
   "tasks.run.blockedWaitingForMany": "⟦Ŵàïŧïñĝ ƒôŕ {count} ŧàšķš ŧô ƒïñïšĥ: ŧëšŧ çôþÿŧ⟧",
   "tasks.run.blockedWaitingForOne": "⟦Ŵàïŧïñĝ ƒôŕ {task} ŧô ƒïñïšĥ. ŧëšŧ çôþ⟧",
-  "tasks.run.blockedWaitingMore": "⟦àñð ɱôŕë…⟧"
+  "tasks.run.blockedWaitingMore": "⟦àñð ɱôŕë…⟧",
+  "problems.WORKER_ACTION_CAPABILITIES_INVALID.description": "⟦Ɓàķëŕÿ'š ŧàƀļë ôƒ ŵôŕķëŕ àçŧïôñš ðëçļàŕëš çàþàƀïļïŧïëš ŧĥïš ƀûïļð çàññôŧ ûšë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "problems.WORKER_ACTION_CAPABILITIES_INVALID.title": "⟦Ŵôŕķëŕ àçŧïôñ ŕëĝïšŧŕàŧïôñ ïš ïñṽàļïð ŧëšŧ çôþÿŧ⟧",
+  "problems.WORKER_ACTION_CONTRACT_DRIFT.description": "⟦À ŵôŕķëŕ àçŧïôñ ðôëš ñôŧ ɱàŧçĥ ŧĥë çôñŧŕàçŧ Ɓàķëŕÿ þûƀļïšĥëð ƒôŕ ïŧ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧ⟧",
+  "problems.WORKER_ACTION_CONTRACT_DRIFT.title": "⟦Ŵôŕķëŕ àçŧïôñ çôñŧŕàçŧ ĥàš ðŕïƒŧëð ŧëšŧ çôþÿ⟧"
 }

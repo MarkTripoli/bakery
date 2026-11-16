@@ -71,6 +71,16 @@ export const FAULTS = {
   METHOD_NOT_ALLOWED: [405, false, "method-not-allowed"],
   RATE_LIMITED: [429, true, "rate-limited"],
   INTERNAL: [500, false, "internal"],
+  WORKER_ACTION_CAPABILITIES_INVALID: [
+    500,
+    false,
+    "worker-action-capabilities-invalid",
+  ],
+  WORKER_ACTION_CONTRACT_DRIFT: [
+    500,
+    false,
+    "worker-action-contract-drift",
+  ],
   SKILL_CONTENT_INTEGRITY_FAILED: [
     409,
     false,
