@@ -1534,3 +1534,63 @@ test("the after-approval group has no accessibility violations and fits a 390px 
   ).analyze();
   expect(results.violations).toEqual([]);
 });
+
+// ---- stills for design-ux's and QA's review of the after-approval group
+// (BAKERY_STILLS_DIR; nothing is written otherwise)
+
+const AFTER_APPROVAL_STILLS = [
+  ["pull-request-open", { pullRequests: [pullRequestRow(482)] }],
+  [
+    "merged",
+    {
+      pullRequests: [
+        pullRequestRow(482, { status: "merged", mergedSha: sha("9") }),
+      ],
+    },
+  ],
+  ["closed", { pullRequests: [pullRequestRow(482, { status: "closed" })] }],
+  ["nothing-known", {}],
+] as const;
+
+for (const [name, scenario] of AFTER_APPROVAL_STILLS) {
+  test(`still: after approval, ${name}`, async ({ page }) => {
+    test.skip(STILLS === undefined, "BAKERY_STILLS_DIR is not set");
+    test.setTimeout(120_000);
+    for (const scheme of ["light", "dark"] as const) {
+      for (
+        const [size, width, height] of [["1440", 1440, 900], [
+          "390",
+          390,
+          844,
+        ]] as const
+      ) {
+        const fresh = await page.context().newPage();
+        await fresh.emulateMedia({ colorScheme: scheme });
+        await fresh.setViewportSize({ width, height });
+        await mockRun(fresh);
+        await mockDelivery(fresh, { ...CLEAN, ...scenario });
+        await mockApprovals(fresh, [approvedRow()]);
+        await fresh.goto(`/tasks/${id}`);
+        await expect(fresh.getByTestId("delivery-merge-step")).toBeVisible();
+        // Framed on the group, so the whole group is in the shot: the step
+        // list is taller than the window and clips at its pane otherwise.
+        await fresh.getByTestId("delivery-merge-step").scrollIntoViewIfNeeded();
+        await fresh.screenshot({
+          path: `${STILLS}/after-approval-${name}-${size}-${scheme}.png`,
+          animations: "disabled",
+        });
+        if (size === "1440" && scheme === "light") {
+          // The badge sits beside the section's heading, so it is captured with
+          // it rather than cropped alone.
+          await fresh.getByTestId("delivery-outcome-badge")
+            .scrollIntoViewIfNeeded();
+          await fresh.screenshot({
+            path: `${STILLS}/after-approval-header-${name}.png`,
+            animations: "disabled",
+          });
+        }
+        await fresh.close();
+      }
+    }
+  });
+}
