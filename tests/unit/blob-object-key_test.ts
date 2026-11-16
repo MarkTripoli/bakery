@@ -1,6 +1,7 @@
 import { assert, assertEquals, assertThrows } from "@std/assert";
 import {
   assertBlobObjectKey,
+  assertObjectKey,
   blobKeyDigest,
   blobKeyOrganization,
   blobObjectKey,
@@ -65,4 +66,16 @@ Deno.test("a non-uuid organization is refused rather than accepted loosely", () 
   ) {
     assertThrows(() => blobObjectKey(org, DIGEST));
   }
+});
+
+Deno.test("a store of one shape refuses the other shape's key", () => {
+  const skill =
+    `organizations/${ORG}/skill-versions/${OTHER_ORG}/sha256/${DIGEST}`;
+  const blob = blobObjectKey(ORG, DIGEST);
+  // Both shapes put the organization in the path, so a store cannot be tricked
+  // into writing a blob where a skill version belongs or the reverse.
+  assertEquals(assertObjectKey("blob", blob), undefined);
+  assertEquals(assertObjectKey("skill-version", skill), undefined);
+  assertThrows(() => assertObjectKey("blob", skill));
+  assertThrows(() => assertObjectKey("skill-version", blob));
 });

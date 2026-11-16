@@ -87,3 +87,24 @@ export function blobKeyDigest(key: string): string {
   assertBlobObjectKey(key);
   return BLOB_KEY.exec(key)![2];
 }
+
+/**
+ * The key shapes an object store can be asked to hold.
+ *
+ * Both shapes put the organisation in the path, which is what makes tenancy
+ * structural; they differ only in the segment that says what kind of object it
+ * is. A store is constructed with one shape and asserts it on every call, so a
+ * digest cannot be written as a skill version or the other way round.
+ */
+export type ObjectKeyShape = "skill-version" | "blob";
+
+const SKILL_VERSION_KEY =
+  /^organizations\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/skill-versions\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\/sha256\/[0-9a-f]{64}$/;
+
+/** Asserts `key` belongs to `shape`, refusing every other shape. */
+export function assertObjectKey(shape: ObjectKeyShape, key: string): void {
+  if (shape === "blob") return assertBlobObjectKey(key);
+  if (!SKILL_VERSION_KEY.test(key)) {
+    throw new SkillFileStoreError("SKILL_FILE_KEY_INVALID");
+  }
+}
