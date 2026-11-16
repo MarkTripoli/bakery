@@ -1,5 +1,5 @@
 {
-  "revision": "b5ffed5f48a79ce407c6037336a75126270548f561645126d9083737ce05d580",
+  "revision": "168a3ba4d52fc7ac98ebd2c1da28b132d73eb38249700ba01a6a9369f3f721c8",
   "schemaVersion": 1,
   "owner": "Mark Tripoli",
   "rules": [
@@ -19939,196 +19939,77 @@
       "paperAbsentReason": "Designed in the #57 UX design comment (2026-11-12); no Paper frame names it."
     },
     {
-      "id": "ui.stepCard",
-      "name": "StepCard",
-      "description": "One step of a workflow drawn as a card: the step type's icon in a small tile, the step's name and one grey line under it, with a red outline and \"Needs setup\" in place of that line when the editor cannot read the step.",
-      "level": "molecule",
-      "owner": "Mark Tripoli",
-      "storyTitle": "Bakery/Molecules/StepCard",
-      "usage": {
-        "whenToUse": "Show the role or one external grant on the Your access page.",
-        "whenNotToUse": "Do not use for editable settings or for lists of rows; use ui.capabilityList for the latter.",
-        "ruleIds": [
-          "ui.semantic-import",
-          "ui.layout-containment",
-          "ui.accessible-control",
-          "ui.translated-copy"
-        ],
-        "alternatives": [
-          {
-            "when": "A list of what a role allows",
-            "use": "ui.capabilityList"
-          }
-        ],
-        "replacesElements": [],
-        "allowedLevels": [
-          "molecule",
-          "organism",
-          "template",
-          "page",
-          "app"
-        ]
-      },
-      "variants": [
-        "card"
-      ],
-      "states": [
-        "default",
-        "selected",
-        "needs-setup",
-        "focus"
-      ],
-      "themes": [
-        "light",
-        "dark"
-      ],
-      "layoutProfiles": [
-        "sheet",
-        "pane",
-        "rail"
-      ],
-      "pointerProfiles": [
-        "coarse",
-        "fine"
-      ],
-      "requirementIds": [
-        "theme.paired",
-        "layout.reflow",
-        "pointer.independent",
-        "a11y.semantic-focus",
-        "i18n.translated-logical"
-      ],
-      "requiredCases": [
-        {
-          "id": "contract",
-          "description": "Exercises every state of a card - ordinary, selected and needs-setup - and the connector that carries the + between cards.",
-          "variants": [
-            "default"
-          ],
-          "states": [
-            "default",
-            "selected",
-            "needs-setup"
-          ],
-          "baselineIds": []
-        }
-      ],
-      "evidenceRefs": [
-        "design.settings"
-      ],
-      "status": "implemented",
-      "coverage": {
-        "automated": {
-          "theme:light": [
-            "runtime:ui.accessCard.contract.desktop-light-fine"
-          ],
-          "theme:dark": [
-            "suite:storybook.canonical-dark-axe"
-          ],
-          "layout:sheet": [
-            "suite:storybook.canonical-reflow"
-          ],
-          "layout:pane": [
-            "suite:storybook.canonical-reflow"
-          ],
-          "layout:rail": [
-            "runtime:ui.accessCard.contract.desktop-light-fine"
-          ],
-          "pointer:fine": [
-            "runtime:ui.accessCard.contract.desktop-light-fine"
-          ],
-          "pointer:coarse": [
-            "suite:storybook.coarse-targets"
-          ]
-        },
-        "notApplicable": {},
-        "visualContexts": [
-          "desktop-light-fine"
-        ]
-      },
-      "paper": [
-        {
-          "fileId": "01M1X504XVC45FC0VDK857A37D",
-          "pageId": "O-0",
-          "frameId": "KHJ-0",
-          "name": "Your access · Developer · Desktop · Dark"
-        },
-        {
-          "fileId": "01M1X504XVC45FC0VDK857A37D",
-          "pageId": "O-0",
-          "frameId": "MZJ-0",
-          "name": "Your access · Developer · Phone · Dark"
-        }
-      ],
       "a11y": {
         "accessibleName": "content",
         "keyboard": [
           "Enter or Space selects the step and opens its panel"
         ],
-        "notes": "Selection announces an expansion, not a toggle: aria-expanded on the card with aria-controls naming the panel while it is open. The icon is aria-hidden, so the name carries the meaning, and a step that needs setup says so in words as well as the red outline."
+        "notes": "Selection announces an expansion, not a toggle: aria-expanded on the card with aria-controls naming the panel while it is open. The icon is aria-hidden, so the name carries the meaning, and a step that needs setup says so in words as well as the red outline.",
+        "role": "button",
+        "targetSize": "min 44px (coarse pointer)"
       },
-      "tokens": [
-        "--border-default",
-        "--color-border",
-        "--color-fg-muted",
-        "--color-surface",
-        "--radius-surface",
-        "--space-1",
-        "--space-4",
-        "--space-5",
-        "--type-control",
-        "--type-hint"
-      ]
-    },
-    {
-      "id": "ui.stepConnector",
-      "name": "StepConnector",
-      "description": "The link between two step cards in the workflow diagram: one pixel of line with a small round + on it, 22px drawn and 44px to hit, which opens the step picker.",
-      "level": "molecule",
-      "owner": "Mark Tripoli",
-      "storyTitle": "Bakery/Molecules/StepCard",
-      "usage": {
-        "whenToUse": "Between two ui.stepCard in the workflow diagram, where a step can be added.",
-        "whenNotToUse": "Not as a general divider, and not without a card on at least one side.",
-        "ruleIds": [
-          "ui.semantic-import",
-          "ui.layout-containment",
-          "ui.accessible-control",
-          "ui.translated-copy"
-        ],
-        "alternatives": [
-          {
-            "when": "A list of what a role allows",
-            "use": "ui.capabilityList"
-          }
-        ],
-        "replacesElements": [],
-        "allowedLevels": [
-          "molecule",
-          "organism",
-          "template",
-          "page",
-          "app"
+      "coverage": {
+        "automated": {
+          "layout:pane": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "layout:rail": [
+            "runtime:ui.stepCard.contract.desktop-light-fine"
+          ],
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
+          ],
+          "pointer:coarse": [
+            "suite:storybook.coarse-targets"
+          ],
+          "pointer:fine": [
+            "runtime:ui.stepCard.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "theme:light": [
+            "runtime:ui.stepCard.contract.desktop-light-fine"
+          ]
+        },
+        "notApplicable": {},
+        "visualContexts": [
+          "desktop-light-fine"
         ]
       },
-      "variants": [
-        "card"
+      "description": "One step of a workflow drawn as a card: the step type's icon in a small tile, the step's name and one grey line under it, with a red outline and \"Needs setup\" in place of that line when the editor cannot read the step.",
+      "evidenceRefs": [
+        "design.components"
       ],
-      "states": [
-        "default"
-      ],
-      "themes": [
-        "light",
-        "dark"
-      ],
+      "id": "ui.stepCard",
       "layoutProfiles": [
         "sheet",
         "pane",
         "rail"
       ],
+      "level": "molecule",
+      "name": "StepCard",
+      "owner": "Mark Tripoli",
+      "paper": [],
+      "paperAbsentReason": "Designed in the #67 owner editor spec and design-ux's rulings (2026-11-16); no Paper frame names it.",
       "pointerProfiles": [
         "coarse",
         "fine"
+      ],
+      "requiredCases": [
+        {
+          "baselineIds": [],
+          "description": "Exercises every state of a step card - ordinary, selected and one the editor cannot read - beside the connector that carries the + between cards.",
+          "id": "contract",
+          "states": [
+            "default",
+            "selected",
+            "needs-setup"
+          ],
+          "variants": [
+            "card"
+          ]
+        }
       ],
       "requirementIds": [
         "theme.paired",
@@ -20137,46 +20018,103 @@
         "a11y.semantic-focus",
         "i18n.translated-logical"
       ],
-      "requiredCases": [
-        {
-          "id": "contract",
-          "description": "The connector drawn between two cards, with the + on the line.",
-          "variants": [
-            "default"
-          ],
-          "states": [
-            "default",
-            "focus"
-          ],
-          "baselineIds": []
-        }
-      ],
-      "evidenceRefs": [
-        "design.settings"
+      "states": [
+        "default",
+        "selected",
+        "needs-setup"
       ],
       "status": "implemented",
+      "storyTitle": "Bakery/Molecules/StepCard",
+      "themes": [
+        "light",
+        "dark"
+      ],
+      "tokens": [
+        "--border-default",
+        "--border-emphasis",
+        "--color-border",
+        "--color-border-strong",
+        "--color-destructive",
+        "--color-fg",
+        "--color-fg-muted",
+        "--color-selection",
+        "--color-surface",
+        "--color-surface-subtle",
+        "--layout-step-card",
+        "--radius-control",
+        "--radius-surface",
+        "--shadow-subtle",
+        "--size-control",
+        "--space-0-5",
+        "--space-1",
+        "--space-2",
+        "--type-body",
+        "--type-hint"
+      ],
+      "usage": {
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ],
+        "alternatives": [
+          {
+            "use": "ui.stepItem",
+            "when": "The step's state during or after a run"
+          },
+          {
+            "use": "ui.stepList",
+            "when": "A plain list of steps"
+          }
+        ],
+        "replacesElements": [],
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "whenNotToUse": "Not for a step's run state after a run (use ui.stepItem) and not for a plain list of steps (use ui.stepList).",
+        "whenToUse": "One step in a workflow's diagram, where selecting the card opens that step's panel."
+      },
+      "variants": [
+        "card"
+      ]
+    },
+    {
+      "a11y": {
+        "accessibleName": "aria-label",
+        "keyboard": [
+          "Enter or Space opens the step picker"
+        ],
+        "notes": "The drawn circle and the hit area are separate declarations, so the target is comfortable without the line looking heavy. The line and the glyph are aria-hidden; the label says what pressing it does.",
+        "role": "button",
+        "targetSize": "min 44px (coarse pointer); the drawn circle is 22px"
+      },
       "coverage": {
         "automated": {
-          "theme:light": [
-            "runtime:ui.accessCard.contract.desktop-light-fine"
-          ],
-          "theme:dark": [
-            "suite:storybook.canonical-dark-axe"
-          ],
-          "layout:sheet": [
-            "suite:storybook.canonical-reflow"
-          ],
           "layout:pane": [
             "suite:storybook.canonical-reflow"
           ],
           "layout:rail": [
-            "runtime:ui.accessCard.contract.desktop-light-fine"
+            "runtime:ui.stepConnector.contract.desktop-light-fine"
           ],
-          "pointer:fine": [
-            "runtime:ui.accessCard.contract.desktop-light-fine"
+          "layout:sheet": [
+            "suite:storybook.canonical-reflow"
           ],
           "pointer:coarse": [
             "suite:storybook.coarse-targets"
+          ],
+          "pointer:fine": [
+            "runtime:ui.stepConnector.contract.desktop-light-fine"
+          ],
+          "theme:dark": [
+            "suite:storybook.canonical-dark-axe"
+          ],
+          "theme:light": [
+            "runtime:ui.stepConnector.contract.desktop-light-fine"
           ]
         },
         "notApplicable": {},
@@ -20184,40 +20122,96 @@
           "desktop-light-fine"
         ]
       },
-      "paper": [
+      "description": "The link between two step cards in the workflow diagram: one pixel of line with a small round + on it, 22px drawn and 44px to hit, which opens the step picker.",
+      "evidenceRefs": [
+        "design.components"
+      ],
+      "id": "ui.stepConnector",
+      "layoutProfiles": [
+        "sheet",
+        "pane",
+        "rail"
+      ],
+      "level": "molecule",
+      "name": "StepConnector",
+      "owner": "Mark Tripoli",
+      "paper": [],
+      "paperAbsentReason": "Designed in the #67 owner editor spec and design-ux's rulings (2026-11-16); no Paper frame names it.",
+      "pointerProfiles": [
+        "coarse",
+        "fine"
+      ],
+      "requiredCases": [
         {
-          "fileId": "01M1X504XVC45FC0VDK857A37D",
-          "pageId": "O-0",
-          "frameId": "KHJ-0",
-          "name": "Your access · Developer · Desktop · Dark"
-        },
-        {
-          "fileId": "01M1X504XVC45FC0VDK857A37D",
-          "pageId": "O-0",
-          "frameId": "MZJ-0",
-          "name": "Your access · Developer · Phone · Dark"
+          "baselineIds": [],
+          "description": "The connector drawn between two cards, with the round + on the line and its 44px hit area.",
+          "id": "contract",
+          "states": [
+            "default"
+          ],
+          "variants": [
+            "default"
+          ]
         }
       ],
-      "a11y": {
-        "accessibleName": "aria-label",
-        "keyboard": [
-          "Enter or Space opens the step picker"
-        ],
-        "notes": "The drawn circle and the hit area are separate declarations, so the target is comfortable without the line looking heavy.",
-        "role": "button",
-        "targetSize": "min 44px (coarse pointer); the drawn circle is 22px"
-      },
+      "requirementIds": [
+        "theme.paired",
+        "layout.reflow",
+        "pointer.independent",
+        "a11y.semantic-focus",
+        "i18n.translated-logical"
+      ],
+      "states": [
+        "default"
+      ],
+      "status": "implemented",
+      "storyTitle": "Bakery/Molecules/StepConnector",
+      "themes": [
+        "light",
+        "dark"
+      ],
       "tokens": [
         "--border-default",
+        "--border-emphasis",
+        "--border-none",
         "--color-border",
-        "--color-fg-muted",
+        "--color-border-strong",
+        "--color-fg",
+        "--color-selection",
         "--color-surface",
-        "--radius-surface",
+        "--layout-item-action",
+        "--radius-circle",
+        "--size-step-connector",
         "--space-1",
-        "--space-4",
-        "--space-5",
-        "--type-control",
-        "--type-hint"
+        "--space-3",
+        "--target-coarse"
+      ],
+      "usage": {
+        "allowedLevels": [
+          "molecule",
+          "organism",
+          "template",
+          "page",
+          "app"
+        ],
+        "alternatives": [
+          {
+            "use": "ui.divider",
+            "when": "A plain separator between unrelated blocks"
+          }
+        ],
+        "replacesElements": [],
+        "ruleIds": [
+          "ui.semantic-import",
+          "ui.layout-containment",
+          "ui.accessible-control",
+          "ui.translated-copy"
+        ],
+        "whenNotToUse": "Not as a general divider (use ui.divider), and not where there is no card on either side.",
+        "whenToUse": "Between two cards of a workflow diagram, where another step can be added."
+      },
+      "variants": [
+        "default"
       ]
     },
     {

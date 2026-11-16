@@ -4633,6 +4633,20 @@
       "requiredCaseId": "contract",
       "storyId": "bakery-molecules-draftbar--contract",
       "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.stepCard.contract.desktop-light-fine",
+      "catalogId": "ui.stepCard",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-stepcard--contract",
+      "context": "desktop-light-fine"
+    },
+    {
+      "id": "ui.stepConnector.contract.desktop-light-fine",
+      "catalogId": "ui.stepConnector",
+      "requiredCaseId": "contract",
+      "storyId": "bakery-molecules-stepconnector--contract",
+      "context": "desktop-light-fine"
     }
   ]
 }
