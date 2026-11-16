@@ -93,26 +93,21 @@ export function WorkflowDiagram(
   const connector = (afterId: string | null): ReactNode => {
     const open = pickerAt !== undefined && pickerAt === afterId;
     return (
-      <UI.Stack gap="tight" data-connector={afterId ?? "start"}>
+      <div data-connector={afterId ?? "start"}>
         {open ? picker : null}
         {canManage && !open
           ? (
-            <UI.Button
-              variant="secondary"
-              aria-label={translate("library.editor.addHere" as never, {
+            <UI.StepConnector
+              label={translate("library.editor.addHere" as never, {
                 after: afterId === null
                   ? translate("library.editor.startsHere" as never)
-                  : title(
-                    treeStepUses(tree, afterId) ?? afterId,
-                  ),
+                  : title(treeStepUses(tree, afterId) ?? afterId),
               })}
               onClick={() => onAdd(afterId)}
-            >
-              +
-            </UI.Button>
+            />
           )
           : null}
-      </UI.Stack>
+      </div>
     );
   };
 
