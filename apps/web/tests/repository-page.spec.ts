@@ -1217,3 +1217,26 @@ test.describe("after a check: a person's version over a check-made one, and a fa
       .toBe(4);
   });
 });
+
+test("under a fixed policy, a version with other branches has no Use button", async ({ page }) => {
+  // The version in force pins the branches, so an earlier version whose
+  // branches differ cannot be put in use: the row says so instead of offering
+  // a button the server would refuse (design-ux's section 3 ruling, #65).
+  await open(page, {
+    profiles: [
+      { revision: 1, branches: ["main", "feature/*"] },
+      { revision: 2, branches: ["main", "release/*"], fixed: true },
+    ],
+    active: 2,
+  });
+  await page.getByRole("button", { name: "Change" }).click();
+  const earlier = sheet(page).getByTestId("profile-version-1");
+  await expect(earlier).toContainText("Works from other branches");
+  await expect(earlier.getByRole("button", { name: /Use version/ }))
+    .toHaveCount(0);
+  // The version in force keeps its badge and offers nothing to press either.
+  await expect(sheet(page).getByTestId("profile-version-2"))
+    .toContainText("In use");
+  await page.mouse.move(700, 700);
+  await shot(page, "repository-settings-other-branches");
+});
