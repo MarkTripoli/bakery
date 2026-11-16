@@ -10,6 +10,11 @@
  *
  * Observation only: the value written, the error thrown and the moment of the
  * change are the caller's; this module copies what it sees and never throws.
+ *
+ * The record is per isolate. A lane that runs its files across workers (#242)
+ * shares the process environment, so a PATH another worker changed still shows
+ * up in a refusal as "PATH changed since start: YES"; what it cannot show is
+ * that worker's site, because this log never saw the change.
  */
 
 /** One in-process change to `PATH`. */

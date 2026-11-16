@@ -53,6 +53,9 @@ function onDisk(candidate: string): boolean {
   }
 }
 
+/** What each (startup PATH, program) pair resolved to, per isolate. */
+const resolved = new Map<string, string>();
+
 /**
  * The absolute path a lane should spawn for `program`.
  *
@@ -64,5 +67,12 @@ export function startupProgram(
   read: (name: string) => string | undefined = (name) => Deno.env.get(name),
 ): string {
   const path = read("BAKERY_TEST_STARTUP_PATH") ?? read("PATH");
-  return resolveProgram(path, program, onDisk) ?? program;
+  const key = `${path ?? ""}\u0000${program}`;
+  // The answer is a function of that PATH string, so one lookup per isolate is
+  // enough; the fixture helpers call this dozens of times per test.
+  const remembered = resolved.get(key);
+  if (remembered !== undefined) return remembered;
+  const resolvedProgram = resolveProgram(path, program, onDisk) ?? program;
+  if (resolvedProgram !== program) resolved.set(key, resolvedProgram);
+  return resolvedProgram;
 }
