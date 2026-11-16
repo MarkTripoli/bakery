@@ -3792,5 +3792,9 @@
   "tasks.run.blockedUnknownWhy": "⟪This run is blocked. Bakery does not know why.⟫",
   "tasks.run.blockedWaitingForMany": "⟪Waiting for {count} tasks to finish:⟫",
   "tasks.run.blockedWaitingForOne": "⟪Waiting for {task} to finish.⟫",
-  "tasks.run.blockedWaitingMore": "⟪and more⟫"
+  "tasks.run.blockedWaitingMore": "⟪and more⟫",
+  "problems.WORKER_ACTION_CAPABILITIES_INVALID.description": "⟪Bakery's table of worker actions declares capabilities this build cannot use.⟫",
+  "problems.WORKER_ACTION_CAPABILITIES_INVALID.title": "⟪Worker action registration is invalid⟫",
+  "problems.WORKER_ACTION_CONTRACT_DRIFT.description": "⟪A worker action does not match the contract Bakery published for it.⟫",
+  "problems.WORKER_ACTION_CONTRACT_DRIFT.title": "⟪Worker action contract has drifted⟫"
 }
