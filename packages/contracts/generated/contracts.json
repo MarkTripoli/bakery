@@ -2017,7 +2017,7 @@
       ],
       "organizationContext": "required_authenticated_context",
       "organizationIdParam": "id",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Extensions",
@@ -2040,7 +2040,7 @@
       ],
       "organizationContext": "required_authenticated_context",
       "organizationIdParam": "id",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Extensions",
@@ -2068,7 +2068,7 @@
       ],
       "organizationContext": "required_authenticated_context",
       "organizationIdParam": "id",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Extensions",
@@ -2092,7 +2092,7 @@
       ],
       "organizationContext": "required_authenticated_context",
       "organizationIdParam": "id",
-      "implemented": false
+      "implemented": true
     },
     {
       "group": "Automation",
@@ -9413,6 +9413,10 @@
     "repositoryRuleVersions.create",
     "repositoryRuleVersions.list",
     "repositoryRulePreviews.createForOrganization",
+    "artifactKinds.list",
+    "artifactKinds.get",
+    "artifactKindVersions.create",
+    "artifactKindVersions.list",
     "integrationAppRegistrations.get",
     "integrationAppRegistrations.begin",
     "integrationAppRegistrations.put",
@@ -208704,7 +208708,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:f76cbbd55d95bc644c17b22b922a1da2e62e23b8e7d1735169ee58eccbb48ce8",
+  "compatibilityDigest": "sha256:8c5df0ff2eee1d660d5b017d65d4021368f203604f410f926571ed9c4d12bab2",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
