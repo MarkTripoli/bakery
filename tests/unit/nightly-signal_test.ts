@@ -15,6 +15,7 @@ import {
   failingJobs,
   type GhRunner,
   type Job,
+  jobsFromPages,
   redBody,
   runNightlySignal,
   SIGNAL_TITLE,
@@ -218,4 +219,52 @@ Deno.test("the same failing set produces the same body", () => {
       at,
     ),
   );
+});
+
+/**
+ * The pagination contract, tested at the seam that parses pages.
+ *
+ * A run with more than 100 jobs makes `gh api --paginate` emit one JSON
+ * document per page; concatenated, that is not parseable as one document, so
+ * the whole read fails and the signal reports could-not-read and leaves the
+ * issue untouched - a silent stop for exactly the busy CI the signal exists to
+ * watch. `--slurp` makes gh emit an array of pages instead, and this seam is
+ * where that shape is insisted on. It is tested apart from the command that
+ * spawns `gh` because the unit lane grants no `--allow-run=gh`; widening the
+ * lane to fit a test is the thing we do not do.
+ */
+const PAGE_ONE = {
+  total_count: 2,
+  jobs: [{ name: "fast / unit", status: "completed", conclusion: "success" }],
+};
+const PAGE_TWO = {
+  total_count: 2,
+  jobs: [{ name: "fast / rails", status: "completed", conclusion: "failure" }],
+};
+
+Deno.test("every page of jobs is read, not only the first", () => {
+  const jobs = jobsFromPages([PAGE_ONE, PAGE_TWO]);
+  assertEquals(jobs.map((job) => job.name), [
+    "fast / unit",
+    "fast / rails",
+  ]);
+});
+
+Deno.test("concatenated pages are refused, not read as one page", () => {
+  // The shape `--paginate` produces without `--slurp`: two documents, parsed as
+  // one value. If this were accepted the second page's failure would be dropped
+  // and a red run reported as green.
+  let threw = false;
+  try {
+    // A single object where an array of pages is required: the parse must not
+    // quietly take the first page and stop.
+    jobsFromPages(PAGE_ONE);
+  } catch {
+    threw = true;
+  }
+  assertEquals(threw, true);
+});
+
+Deno.test("an empty page list is no jobs, not a failure", () => {
+  assertEquals(jobsFromPages([]), []);
 });

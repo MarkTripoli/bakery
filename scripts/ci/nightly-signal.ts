@@ -157,10 +157,29 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 /**
+ * Every job across every page `gh api --paginate --slurp` returned.
+ *
+ * The parse lives here, apart from the command that produces it, because the
+ * unit lane grants no `--allow-run=gh`: a test that spawned `gh` could not run
+ * where the signal is tested. The lane's permission is not widened to fit a
+ * test, so the decision moves to a seam the lane can reach - and the shape it
+ * insists on is the one `--slurp` produces, an array of pages, rather than the
+ * concatenated documents `--paginate` emits without it.
+ */
+export function jobsFromPages(pages: unknown): readonly Job[] {
+  if (!Array.isArray(pages)) {
+    throw new Error("could not read the run's jobs: not a list of pages");
+  }
+  return pages.flatMap((page) =>
+    (page as { jobs?: readonly Job[] }).jobs ?? []
+  );
+}
+
+/**
  * The real `gh`, over the API. Kept in this file so it is easy to see the whole
  * surface the signal touches: two reads and four writes, nothing else.
  */
-function ghRunner(repo: string, token: string): GhRunner {
+export function ghRunner(repo: string, token: string): GhRunner {
   const api = async (args: readonly string[]): Promise<unknown> => {
     const result = await new Deno.Command("gh", {
       args: [...args, "--repo", repo],
@@ -180,15 +199,19 @@ function ghRunner(repo: string, token: string): GhRunner {
 
   return {
     listJobs: async (runId) => {
+      // `--paginate` alone concatenates one JSON document per page, and parsing
+      // that as a single document fails. `--slurp` makes gh emit an array of
+      // pages instead, so every job is read no matter how many pages the run
+      // takes. Assuming one page would be an assumption about the size of CI
+      // rather than a property of the query.
       const pages = await api([
         "api",
         `repos/${repo}/actions/runs/${runId}/jobs?per_page=100`,
         "--paginate",
+        "--slurp",
       ]).catch(() => null);
-      // `--paginate` concatenates JSON documents; the first page is enough for a
-      // signal whose CI has fewer than 100 jobs, and re-reading is cheap.
       if (pages === null) throw new Error("could not read the run's jobs");
-      return (pages as { jobs?: readonly Job[] }).jobs ?? [];
+      return jobsFromPages(pages);
     },
     findOpenIssues: async (title) => {
       const found = await api([
@@ -226,10 +249,22 @@ if (import.meta.main) {
   const serverUrl = Deno.env.get("SERVER_URL");
   const token = Deno.env.get("GH_TOKEN");
   if (!repo || !runId || !serverUrl || !token) {
+    // A missing variable is a wiring defect in this workflow, not a condition
+    // the signal was asked to handle. Exiting 0 would hide it for good: the job
+    // is `continue-on-error`, so a green step is never looked at. The annotation
+    // makes it visible on the run page, and the non-zero exit lets the job fail
+    // without failing the workflow, which is exactly what continue-on-error
+    // already means.
+    const missing = [
+      ["REPO", repo],
+      ["RUN_ID", runId],
+      ["SERVER_URL", serverUrl],
+      ["GH_TOKEN", token],
+    ].filter(([, value]) => !value).map(([name]) => name).join(", ");
     console.error(
-      "nightly signal: REPO, RUN_ID, SERVER_URL and GH_TOKEN are required",
+      `::error::nightly signal: ${missing} missing from the workflow environment`,
     );
-    Deno.exit(0);
+    Deno.exit(1);
   }
   const outcome = await runNightlySignal(ghRunner(repo, token), {
     runId,
