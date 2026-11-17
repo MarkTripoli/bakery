@@ -98,6 +98,11 @@ Deno.test("the live aggregate admits docs and keeps full lanes fail-closed", asy
     workflow,
     'echo "semantic metadata lane did not succeed: $LANE_SEMANTIC_METADATA"',
   );
+  // No commit changes on an edit, so the diff check has nothing new to look at.
+  assertStringIncludes(
+    workflow,
+    "needs.changes.outputs.route != 'metadata'",
+  );
   assertStringIncludes(
     workflow,
     'echo "gate lane did not succeed: $lane_result"',

@@ -135,7 +135,10 @@ jobs:
   git_diff_check:
     name: fast / git diff check
     # Fork pull requests do not run this job; a maintainer re-pushes them to a branch.
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # It also skips the `metadata` route: an edited pull request carries no new
+    # commit, so the diff it would check is byte-for-byte the one already checked
+    # at this head SHA.
+    if: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && needs.changes.outputs.route != 'metadata' }}
     runs-on: ubuntu-24.04
     steps:
       - name: Select per-runner handoff directories
