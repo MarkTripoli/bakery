@@ -91,7 +91,7 @@
         "width": 342,
         "height": 679
       },
-      "designNote": "Paper frame 28DS-0 still shows compact sidebar rows. This render deliberately allocates independent 44px coarse targets for the accessibility rail, so the frame needs a design refresh before the specimen and the frame agree.",
+      "designNote": "Paper frame 28DS-0 still shows compact sidebar rows, and its last group is headed \"Menu\". Since #341 the app groups settings navigation and labels that group \"Sidebar\", so the specimen differs from the frame in two bands inside the compared region: the group heading (y 660-670) and its first row (y 699-702), 0.51% of the region. The frame needs a design refresh before the two agree; the difference is the shipped design, not drift.",
       "dpr": 1,
       "theme": "light",
       "pointer": "coarse",
@@ -106,7 +106,7 @@
         "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
       },
       "tokenRevision": "paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17",
-      "fixtureRevision": "c9f520bcd77aab1ae7fb0b2090d7ebbcb95acffc42671337d362299ab8ec306e",
+      "fixtureRevision": "999d6b8911c4e5b499d88a497d30d89424211181c28a7ea146c05fa0559d9476",
       "browser": "chromium",
       "requiredStoryCase": "contract",
       "os": "linux-x64"
@@ -144,7 +144,7 @@
         "docs/technical-design/enterprise-mocks/fonts/geist-mono-600.ttf": "fc769c5ca65bd787040f8c6fa273d8fc882eed881110de880b0911c5d8e8bc68"
       },
       "tokenRevision": "paper:49fea8f7; pages:14-0,15-0,16-0,V-0; accessed:2026-09-17",
-      "fixtureRevision": "c9f520bcd77aab1ae7fb0b2090d7ebbcb95acffc42671337d362299ab8ec306e",
+      "fixtureRevision": "999d6b8911c4e5b499d88a497d30d89424211181c28a7ea146c05fa0559d9476",
       "browser": "chromium",
       "requiredStoryCase": "contract",
       "os": "linux-x64"
