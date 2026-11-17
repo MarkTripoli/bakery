@@ -321,14 +321,17 @@ export function validateDescription(kind: Kind, body: string): string[] {
     // and the new tests. Routine checks (format, lint, types) belong to CI.
     const evidence = sections.get("evidence") ?? "";
     if (
-      /\b(?:fmt|format(?:ting)?|lint|typecheck|type-check|types|deno check|tsc)\b/i
+      // "format"/"formatting" are deliberately absent: real test files carry
+      // them in their names (`contracts-module-format.node.mjs`), and the
+      // repo's formatter command is `pnpm fmt`, which `fmt` already covers.
+      /\b(?:fmt|lint|typecheck|type-check|types|deno check|tsc)\b/i
         .test(
           prose(evidence) + " " +
             evidence.split("\n").filter((l) => /^\s*\|/.test(l)).join(" "),
         )
     ) {
       errors.push(
-        "Evidence: drop routine checks (format, lint, types); CI shows them. Show UI evidence and new tests.",
+        "Evidence: drop routine checks (fmt, lint, typecheck); CI shows them. Show UI evidence and new tests.",
       );
     }
     const items = (evidence.match(/^[-*] .+/gm) ?? []).length +

@@ -490,6 +490,36 @@ Deno.test("review verdicts are short: verdict, head, severity-tagged findings", 
   );
 });
 
+Deno.test("Evidence refuses routine checks but accepts a test file named format", () => {
+  // Owner rule: Evidence is UI screenshots or recordings and the new tests.
+  // Routine checks belong to CI, so a table of green ticks proves nothing.
+  const withEvidence = (evidence: string) =>
+    pr.replace(/## Evidence[\s\S]*$/, "## Evidence\n\n" + evidence);
+  const table = (row: string) =>
+    ["| check | result |", "|---|---|", row].join("\n");
+  const refused = (row: string) =>
+    validateDescription("pr", withEvidence(table(row))).some((e) =>
+      e.includes("drop routine checks")
+    );
+  for (const check of ["fmt", "lint", "typecheck"]) {
+    assertEquals(refused(`\`pnpm ${check}\` | passed`), true, check);
+  }
+  // A real test file carrying "format" in its name is evidence, not a routine
+  // check. Refusing it stopped a PR from citing the test it added.
+  assertEquals(
+    refused("`packages/ui/tests/contracts-module-format.node.mjs` | 12 passed"),
+    false,
+  );
+  // Evidence that shows something still passes.
+  assertEquals(
+    validateDescription(
+      "pr",
+      withEvidence(table("reduced-motion skeleton | still, no animation")),
+    ),
+    [],
+  );
+});
+
 Deno.test("a bullet inside a fenced block is quoted code, not a finding", () => {
   // The reviewer's repro: a block pasted to show the bug, whose lines start
   // with "- " and carry no severity tag. Counting them as findings failed the
