@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { PgTransactionClient } from "@bakery/persistence";
 import { StandardError } from "@bakery/contracts/http";
 
@@ -239,20 +240,19 @@ export async function putUploadPart(
  * The caller assembles and hashes; nothing here trusts a client's summary of
  * what it sent.
  */
-export async function readUploadParts(
+/**
+ * The parts' sizes and ordinals, without their bytes.
+ *
+ * Progress is a question about how much has arrived, not about what arrived, so
+ * reading the content to answer it would pull an entire upload into memory to
+ * produce two integers.
+ */
+export async function readUploadPartSummaries(
   tx: PgTransactionClient,
   input: Readonly<{ organizationId: string; sessionId: string }>,
-): Promise<
-  ReadonlyArray<
-    Readonly<
-      { partNumber: number; sha256: string; content: Uint8Array }
-    >
-  >
-> {
-  const result = await tx.query<
-    { partNumber: number; sha256: string; content: Uint8Array }
-  >(
-    `select part_number as "partNumber", sha256, content
+): Promise<ReadonlyArray<Readonly<{ partNumber: number; sizeBytes: number }>>> {
+  const result = await tx.query<{ partNumber: number; sizeBytes: string }>(
+    `select part_number as "partNumber", size_bytes as "sizeBytes"
        from bakery.blob_upload_parts
       where organization_id = $1 and session_id = $2
       order by part_number asc`,
@@ -260,11 +260,45 @@ export async function readUploadParts(
   );
   return result.rows.map((row) => ({
     partNumber: row.partNumber,
-    sha256: row.sha256,
-    content: row.content instanceof Uint8Array
-      ? row.content
-      : new Uint8Array(row.content),
+    sizeBytes: Number(row.sizeBytes),
   }));
+}
+
+/**
+ * Yields a session's parts one at a time, in ordinal order.
+ *
+ * Completion has to see every byte to hash it, but it never has to see them all
+ * at once. Reading the whole upload and then copying it into a second buffer
+ * peaks at twice the declared size, and the declared size is allowed to be 5
+ * GiB - so the copy is what turns one large upload into an out-of-memory kill.
+ * A generator keeps exactly one part resident.
+ */
+export async function* streamUploadParts(
+  tx: PgTransactionClient,
+  input: Readonly<{ organizationId: string; sessionId: string }>,
+): AsyncGenerator<Readonly<{ partNumber: number; content: Uint8Array }>> {
+  const summaries = await readUploadPartSummaries(tx, input);
+  for (const summary of summaries) {
+    const result = await tx.query<{ content: Uint8Array | Buffer }>(
+      `select content
+         from bakery.blob_upload_parts
+        where organization_id = $1 and session_id = $2 and part_number = $3`,
+      [input.organizationId, input.sessionId, summary.partNumber],
+    );
+    const content = result.rows[0]?.content;
+    if (!content) {
+      throw new StandardError({
+        code: "UNPROCESSABLE",
+        params: { reason: "upload_parts_incomplete" },
+      });
+    }
+    yield {
+      partNumber: summary.partNumber,
+      content: content instanceof Uint8Array
+        ? content
+        : new Uint8Array(content),
+    };
+  }
 }
 
 /**
@@ -474,56 +508,69 @@ function normalize(row: UploadSessionRow): UploadSessionRow {
   return normalizeRaw(row);
 }
 /**
- * Assembles a session's parts and checks them against what was declared.
+ * Checks a session's parts against what was declared, without assembling them.
  *
  * Completion is the only moment the server sees the whole file, so this is
  * where the declaration is honoured or refused. Three things are checked, and
  * each exists for a distinct failure:
  *
- * - a part is missing (the ordinal gap), because assembling a gap yields a
- *   plausible-looking file that is not the one the client promised;
+ * - a part is missing (the ordinal gap), because a gap means the client has not
+ *   sent everything it said it would;
  * - the total size differs from the declared size, which catches a truncated
  *   or over-long upload before it is stored;
- * - the digest of the assembled bytes differs from the declared digest, which
- *   catches everything else — the wrong file, a corrupted part, or a client
- *   that lied.
+ * - the digest of the parts differs from the declared digest, which catches
+ *   everything else - the wrong file, a corrupted part, or a client that lied.
  *
- * Nothing is stored unless all three hold.
+ * The parts are consumed as a stream and hashed incrementally, so the peak
+ * memory is one part rather than the whole file. Nothing is stored unless all
+ * three hold, and the caller must not record the blob until this returns.
  */
-export function assembleDeclaredBytes(
-  parts: ReadonlyArray<
-    Readonly<{ partNumber: number; content: Uint8Array }>
-  >,
+export async function verifyDeclaredBytes(
+  parts: AsyncIterable<Readonly<{ partNumber: number; content: Uint8Array }>>,
   declared: Readonly<{ sha256: string; sizeBytes: number }>,
-): Uint8Array {
-  if (parts.length === 0) {
-    throw new StandardError({
-      code: "UNPROCESSABLE",
-      params: { reason: "upload_parts_incomplete" },
-    });
-  }
-  // A gap means the client has not sent everything it said it would; ordinals
-  // start at 1 and must be contiguous.
-  for (const [index, part] of parts.entries()) {
-    if (part.partNumber !== index + 1) {
+): Promise<void> {
+  const hash = createHash("sha256");
+  let total = 0;
+  let expected = 1;
+  let count = 0;
+  for await (const part of parts) {
+    // Ordinals start at 1 and must be contiguous; a gap or a repeat means the
+    // client has not sent the file it promised.
+    if (part.partNumber !== expected) {
       throw new StandardError({
         code: "UNPROCESSABLE",
         params: { reason: "upload_parts_incomplete" },
       });
     }
+    expected += 1;
+    count += 1;
+    total += part.content.byteLength;
+    // Refuse as soon as the running total passes the declaration: there is no
+    // point hashing the rest of a file that can never be accepted.
+    if (total > declared.sizeBytes) {
+      throw new StandardError({
+        code: "UNPROCESSABLE",
+        params: { reason: "upload_size_mismatch" },
+      });
+    }
+    hash.update(part.content);
   }
-  const total = parts.reduce((sum, part) => sum + part.content.byteLength, 0);
+  if (count === 0) {
+    throw new StandardError({
+      code: "UNPROCESSABLE",
+      params: { reason: "upload_parts_incomplete" },
+    });
+  }
   if (total !== declared.sizeBytes) {
     throw new StandardError({
       code: "UNPROCESSABLE",
       params: { reason: "upload_size_mismatch" },
     });
   }
-  const assembled = new Uint8Array(total);
-  let offset = 0;
-  for (const part of parts) {
-    assembled.set(part.content, offset);
-    offset += part.content.byteLength;
+  if (hash.digest("hex") !== declared.sha256) {
+    throw new StandardError({
+      code: "UNPROCESSABLE",
+      params: { reason: "upload_digest_mismatch" },
+    });
   }
-  return assembled;
 }

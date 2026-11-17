@@ -23,9 +23,11 @@ import {
   lockUploadSessionForCompletion,
   putUploadPart,
   readBlob,
-  readUploadParts,
+  readUploadPartSummaries,
   recordBlob,
   startUploadSession,
+  streamUploadParts,
+  verifyDeclaredBytes,
 } from "./blobs.ts";
 import { sha256Bytes } from "./bytes.ts";
 
@@ -145,34 +147,23 @@ export function createBlobUploadHandlers() {
         };
       }
 
-      // Assemble and verify before recording anything. The session declared a
-      // digest and a size up front; until the parts are joined and hashed, that
-      // declaration is a claim the client made, not a fact. Recording the blob
-      // from the declaration alone would store an identity nothing proved.
-      const parts = await readUploadParts(transaction, {
-        organizationId,
-        sessionId: session.id,
-      });
-      const assembled = new Uint8Array(
-        parts.reduce((total, part) => total + part.content.byteLength, 0),
+      // Verify before recording anything. The session declared a digest and a
+      // size up front; until the parts are hashed, that declaration is a claim
+      // the client made, not a fact. Recording the blob from the declaration
+      // alone would store an identity nothing proved.
+      //
+      // The parts are streamed and hashed incrementally rather than assembled
+      // into one buffer: the declared size may be 5 GiB, and holding the parts
+      // plus a copy of them peaks at twice that. Verification still happens
+      // before `recordBlob`, so streaming does not reopen the hole this check
+      // exists to close.
+      await verifyDeclaredBytes(
+        streamUploadParts(transaction, {
+          organizationId,
+          sessionId: session.id,
+        }),
+        { sha256: session.sha256, sizeBytes: Number(session.sizeBytes) },
       );
-      let offset = 0;
-      for (const part of parts) {
-        assembled.set(part.content, offset);
-        offset += part.content.byteLength;
-      }
-      if (assembled.byteLength !== Number(session.sizeBytes)) {
-        throw new StandardError({
-          code: "UNPROCESSABLE",
-          params: { field: "sizeBytes", reason: "assembled_size_mismatch" },
-        });
-      }
-      if (await sha256Bytes(assembled) !== session.sha256) {
-        throw new StandardError({
-          code: "UNPROCESSABLE",
-          params: { field: "sha256", reason: "assembled_digest_mismatch" },
-        });
-      }
 
       const blob = await recordBlob(transaction, {
         organizationId,
@@ -244,7 +235,7 @@ async function projection(
     expiresAt: Date;
   }>,
 ) {
-  const parts = await readUploadParts(tx, {
+  const parts = await readUploadPartSummaries(tx, {
     organizationId,
     sessionId: session.id,
   });
@@ -257,10 +248,7 @@ async function projection(
     mediaType: session.mediaType,
     state: session.state,
     expiresAt: session.expiresAt.toISOString(),
-    receivedBytes: parts.reduce(
-      (total, part) => total + part.content.byteLength,
-      0,
-    ),
+    receivedBytes: parts.reduce((total, part) => total + part.sizeBytes, 0),
     partCount: parts.length,
   };
 }
