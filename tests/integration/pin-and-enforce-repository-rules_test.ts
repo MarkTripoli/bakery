@@ -39,6 +39,7 @@ import {
   numbersRule,
   organizationEntries,
   pinnedRulesOf,
+  planDefinition,
   provenanceOf,
   publishOrganizationRules,
   publishWorkflow,
@@ -414,13 +415,13 @@ function stringsRule(overrides: Record<string, unknown> = {}) {
 const checkStage = (checks: unknown, id = "check") => ({
   id,
   uses: "quality.check",
-  with: { repositoryId: "$task.repositoryId", revision: "main", checks },
+  with: { repositoryId: "$input.repositoryId", revision: "main", checks },
 });
 const implementStage = (id = "implement") => ({
   id,
   uses: "harness.implement",
   with: {
-    repositoryId: "$task.repositoryId",
+    repositoryId: "$input.repositoryId",
     planArtifact: "$input.plan",
     instructions: "$input.instructions",
   },
@@ -428,7 +429,7 @@ const implementStage = (id = "implement") => ({
 const repairStage = (id = "repair") => ({
   id,
   uses: "harness.repair",
-  with: { repositoryId: "$task.repositoryId", findings: "$input.findings" },
+  with: { repositoryId: "$input.repositoryId", findings: "$input.findings" },
 });
 const noopDefinition = {
   kind: "fixed",
@@ -1419,8 +1420,20 @@ async function attemptRun(
         executionMode: "repository",
         repositoryProfileId: repository.profileId,
         budgetLimitUsd: "5",
-        inputs: { plan: crypto.randomUUID(), instructions: "Do it." },
         ...body,
+        // Every plan here declares `repositoryId`; the rest are the defaults
+        // for a plan that takes a plan artifact. A caller supplying its own
+        // inputs keeps them and still gets the repository binding.
+        inputs: body.inputs === undefined
+          ? {
+            plan: crypto.randomUUID(),
+            repositoryId: repository.repositoryId,
+            instructions: "Do it.",
+          }
+          : {
+            repositoryId: repository.repositoryId,
+            ...(body.inputs as Record<string, unknown>),
+          },
       },
     });
   const parsed = await response.json() as Refusal & { id?: string };
@@ -1461,14 +1474,22 @@ Deno.test("AC3 at admission: a run cannot start without a required check by pres
       { activate: true },
     );
     // Runnable and repository-bound, but it never changes a revision.
-    const noop = await publishWorkflow(fixture, fixture, "brief-only", {
-      kind: "fixed",
-      steps: [{
-        id: "brief",
-        uses: "task.brief",
-        with: { brief: "$input.brief", repositoryId: "$task.repositoryId" },
-      }],
-    });
+    const noop = await publishWorkflow(
+      fixture,
+      fixture,
+      "brief-only",
+      planDefinition({
+        inputs: {
+          brief: { type: "TaskBrief", required: true },
+          repositoryId: { type: "uuid", required: true },
+        },
+        steps: [{
+          id: "brief",
+          uses: "task.brief",
+          with: { brief: "$input.brief", repositoryId: "$input.repositoryId" },
+        }],
+      }),
+    );
     const runCount = () =>
       countRows(
         db,
@@ -1532,11 +1553,15 @@ Deno.test("AC3 at admission: a run cannot start without a required check by pres
       fixture,
       fixture,
       "compliant",
-      {
-        kind: "fixed",
+      planDefinition({
+        inputs: {
+          plan: { type: "uuid", required: true },
+          repositoryId: { type: "uuid", required: true },
+          instructions: { type: "string", required: true },
+        },
         agents: { "harness.implement": agent },
         steps: [implementStage(), checkStage([COMMAND])],
-      },
+      }),
       { activate: true },
     );
     const admitted = await attemptRun(fixture, repository, {
@@ -1551,7 +1576,13 @@ Deno.test("AC3 at admission: a run cannot start without a required check by pres
     // A workflow that never changes a revision is not bound.
     const unbound = await attemptRun(fixture, repository, {
       workflowVersionId: noop.versionId,
-      inputs: { brief: "Write the brief." },
+      inputs: {
+        brief: {
+          title: "Write the brief",
+          description: "Retry failed uploads twice.",
+          taskType: "feature",
+        },
+      },
     });
     assertEquals(unbound.status, 201, JSON.stringify(unbound));
 
@@ -1670,14 +1701,22 @@ Deno.test("an oversized stored baseline is refused at admission with a typed err
     const db = fixture.pgDatabase;
     const org = fixture.organizationId;
     const repository = await seedRulesRepository(fixture, fixture, "oversize");
-    const plain = await publishWorkflow(fixture, fixture, "oversize-brief", {
-      kind: "fixed",
-      steps: [{
-        id: "brief",
-        uses: "task.brief",
-        with: { brief: "$input.brief", repositoryId: "$task.repositoryId" },
-      }],
-    });
+    const plain = await publishWorkflow(
+      fixture,
+      fixture,
+      "oversize-brief",
+      planDefinition({
+        inputs: {
+          brief: { type: "TaskBrief", required: true },
+          repositoryId: { type: "uuid", required: true },
+        },
+        steps: [{
+          id: "brief",
+          uses: "task.brief",
+          with: { brief: "$input.brief", repositoryId: "$input.repositoryId" },
+        }],
+      }),
+    );
     // Valid for the schema, far over the ceiling: written past the publisher.
     const huge = [
       {
@@ -1715,7 +1754,13 @@ Deno.test("an oversized stored baseline is refused at admission with a typed err
         ["preset", "preset" as const],
         ["plain workflow", {
           workflowVersionId: plain.versionId,
-          inputs: { brief: "Write the brief." },
+          inputs: {
+            brief: {
+              title: "Write the brief",
+              description: "Retry failed uploads twice.",
+              taskType: "feature",
+            },
+          },
         }],
       ] as const
     ) {
@@ -1740,7 +1785,13 @@ Deno.test("an oversized stored baseline is refused at admission with a typed err
     );
     const again = await attemptRun(fixture, repository, {
       workflowVersionId: plain.versionId,
-      inputs: { brief: "Write the brief." },
+      inputs: {
+        brief: {
+          title: "Write the brief",
+          description: "Retry failed uploads twice.",
+          taskType: "feature",
+        },
+      },
     });
     assertEquals(again.status, 201, JSON.stringify(again));
   }));
@@ -1750,14 +1801,29 @@ Deno.test("a plain workflow with an omitted request key admits as before, with a
     const db = fixture.pgDatabase;
     const org = fixture.organizationId;
     const repository = await seedRulesRepository(fixture, fixture, "omitted");
-    const plain = await publishWorkflow(fixture, fixture, "omitted-key", {
-      kind: "fixed",
-      steps: [{
-        id: "brief",
-        uses: "task.brief",
-        with: { brief: "$input.brief", repositoryId: "$task.repositoryId" },
-      }],
-    });
+    const plain = await publishWorkflow(
+      fixture,
+      fixture,
+      "omitted-key",
+      planDefinition({
+        inputs: {
+          // The point of this test: a request may omit `brief`. An optional
+          // input is nullable, so it cannot bind a non-nullable `TaskBrief`
+          // field - the step carries a literal brief instead, and the omission
+          // is what admission is being asked about.
+          brief: { type: "TaskBrief", required: false },
+          repositoryId: { type: "uuid", required: true },
+        },
+        steps: [{
+          id: "brief",
+          uses: "task.brief",
+          with: {
+            brief: { title: "T", description: "D", taskType: "feature" },
+            repositoryId: "$input.repositoryId",
+          },
+        }],
+      }),
+    );
     const start = () =>
       attemptRun(fixture, repository, {
         workflowVersionId: plain.versionId,
@@ -1813,23 +1879,44 @@ Deno.test("steps that read earlier outputs are measured with an allowance, so a 
     const brief = {
       id: "brief",
       uses: "task.brief",
-      with: { brief: "$input.brief", repositoryId: "$task.repositoryId" },
+      with: { brief: "$input.brief", repositoryId: "$input.repositoryId" },
     };
-    const first = await publishWorkflow(fixture, fixture, "allow-one", {
-      kind: "fixed",
-      steps: [brief],
-    });
-    const second = await publishWorkflow(fixture, fixture, "allow-two", {
-      kind: "fixed",
-      steps: [brief, {
-        id: "again",
-        uses: "task.brief",
-        with: {
-          brief: "$step.brief.artifact.versionId",
-          repositoryId: "$task.repositoryId",
+    const first = await publishWorkflow(
+      fixture,
+      fixture,
+      "allow-one",
+      planDefinition({
+        inputs: {
+          brief: { type: "TaskBrief", required: true },
+          repositoryId: { type: "uuid", required: true },
+          // Declared so both workflows accept the same request shape.
+          instructions: { type: "string", required: true },
         },
-      }],
-    });
+        steps: [brief],
+      }),
+    );
+    const second = await publishWorkflow(
+      fixture,
+      fixture,
+      "allow-two",
+      planDefinition({
+        inputs: {
+          brief: { type: "TaskBrief", required: true },
+          repositoryId: { type: "uuid", required: true },
+          instructions: { type: "string", required: true },
+        },
+        agents: { "harness.implement": repository.agentVersionId! },
+        steps: [brief, {
+          id: "again",
+          uses: "harness.implement",
+          with: {
+            repositoryId: "$input.repositoryId",
+            planArtifact: "$step.brief.artifact.versionId",
+            instructions: "$input.instructions",
+          },
+        }],
+      }),
+    );
     // n control-character paths grow the stored baseline by about 1.2 KB each.
     const rules = (paths: number): RuleEntry[] => [
       {
@@ -1863,13 +1950,26 @@ Deno.test("steps that read earlier outputs are measured with an allowance, so a 
       );
       return await attemptRun(fixture, repository, {
         workflowVersionId: version,
-        inputs: { brief: "Write the brief." },
+        inputs: {
+          brief: {
+            title: "Write the brief",
+            description: "Retry failed uploads twice.",
+            taskType: "feature",
+          },
+          instructions: "Do it.",
+        },
       });
     };
     // Largest path count whose first step still fits the job input.
     let low = 0;
     let high = 32;
     assertEquals((await attempt(low, first.versionId)).status, 201);
+    // Find an upper bound the first step no longer fits rather than assuming
+    // one: the byte budget moves with the document, and a fixed bound turns a
+    // budget change into a false failure.
+    while (
+      high <= 4096 && (await attempt(high, first.versionId)).status === 201
+    ) high *= 2;
     assertEquals((await attempt(high, first.versionId)).status, 422);
     while (high - low > 1) {
       const mid = (low + high) >> 1;
@@ -1877,16 +1977,29 @@ Deno.test("steps that read earlier outputs are measured with an allowance, so a 
       else high = mid;
     }
     // Same baseline and first step, plus a step that reads the first one's
-    // output: it is measured with the allowance, which no longer fits.
-    const refused = await attempt(low, second.versionId);
-    assertEquals(refused.status, 422, JSON.stringify(refused));
+    // output: it is measured with the allowance, so it fits strictly fewer
+    // paths. Measure its own boundary rather than assuming how many paths the
+    // allowance is worth.
+    let secondLow = 0;
+    let secondHigh = low;
+    while (secondHigh - secondLow > 1) {
+      const mid = (secondLow + secondHigh) >> 1;
+      if ((await attempt(mid, second.versionId)).status === 201) {
+        secondLow = mid;
+      } else secondHigh = mid;
+    }
+    assert(
+      secondLow < low,
+      `the allowance must cost capacity: first fits ${low}, second fits ${secondLow}`,
+    );
+    // The first count the second workflow cannot fit is refused for size, not
+    // for some other reason.
     assertEquals(
-      refused.issues?.map((issue) => issue.code),
+      (await attempt(secondHigh, second.versionId)).issues?.map((issue) =>
+        issue.code
+      ),
       ["repository_rules_too_large"],
     );
-    // One path fewer leaves room for the allowance and admits it.
-    const admitted = await attempt(low - 2, second.versionId);
-    assertEquals(admitted.status, 201, JSON.stringify(admitted));
   }));
 
 Deno.test("a missing required check is refused before input resolution or size is considered", () =>
@@ -1939,17 +2052,31 @@ Deno.test("an oversized plain run input is reported on inputs, not on a preset d
     const db = fixture.pgDatabase;
     const org = fixture.organizationId;
     const repository = await seedRulesRepository(fixture, fixture, "bigplain");
-    const plain = await publishWorkflow(fixture, fixture, "big-brief", {
-      kind: "fixed",
-      steps: [{
-        id: "brief",
-        uses: "task.brief",
-        with: { brief: "$input.brief", repositoryId: "$task.repositoryId" },
-      }],
-    });
+    const plain = await publishWorkflow(
+      fixture,
+      fixture,
+      "big-brief",
+      planDefinition({
+        inputs: {
+          brief: { type: "TaskBrief", required: true },
+          repositoryId: { type: "uuid", required: true },
+        },
+        steps: [{
+          id: "brief",
+          uses: "task.brief",
+          with: { brief: "$input.brief", repositoryId: "$input.repositoryId" },
+        }],
+      }),
+    );
     const refusal = await attemptRun(fixture, repository, {
       workflowVersionId: plain.versionId,
-      inputs: { brief: "x".repeat(99_800) },
+      inputs: {
+        brief: {
+          title: "x".repeat(99_800),
+          description: "Retry failed uploads twice.",
+          taskType: "feature",
+        },
+      },
     });
     assertEquals(refusal.status, 422, JSON.stringify(refusal).slice(0, 400));
     assertEquals(

@@ -373,6 +373,54 @@ export function validateBudgetLimitUsd(value: unknown): string {
   return value;
 }
 
+/**
+ * The repositories a run is bound to: the task's own repository, plus every
+ * repository linked to it. Coordination inserts a `task_repositories` row per
+ * (task, repository) so a multi-repository plan's lanes each bind their own;
+ * an ordinary task has no rows and is bound to its own repository alone.
+ */
+async function boundRepositoryIds(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  task: { id: string; repository_id: string | null },
+): Promise<Set<string>> {
+  const bound = new Set<string>();
+  if (task.repository_id !== null) bound.add(task.repository_id);
+  const links = await transaction.query<{ repository_id: string }>(
+    `select repository_id from bakery.task_repositories
+      where organization_id = $1 and task_id = $2`,
+    [organizationId, task.id],
+  );
+  for (const row of links.rows) bound.add(row.repository_id);
+  return bound;
+}
+
+/**
+ * A plan may name a repository in its inputs. Refuse one the run is not bound
+ * to, so a supplied `repositoryId` cannot redirect a step away from the task's
+ * own repositories. Membership, not equality with the profile: a lane binds its
+ * own repository, which is deliberately not the profile's.
+ */
+async function assertSuppliedRepositoryIsBound(
+  transaction: PgTransactionClient,
+  organizationId: string,
+  task: { id: string; repository_id: string | null },
+  inputs: unknown,
+): Promise<void> {
+  if (typeof inputs !== "object" || inputs === null || Array.isArray(inputs)) {
+    return;
+  }
+  const supplied = (inputs as Record<string, unknown>).repositoryId;
+  if (typeof supplied !== "string") return;
+  const bound = await boundRepositoryIds(transaction, organizationId, task);
+  if (!bound.has(supplied)) {
+    throw unprocessable(
+      ["inputs", "repositoryId"],
+      "repository_not_bound_to_task",
+    );
+  }
+}
+
 export function validateRunInputs(value: unknown): unknown {
   if (jsonBytes(value, ["inputs"]) > MAX_RUN_JSON_BYTES) {
     throw unprocessable(["inputs"], "inputs_too_large");
@@ -1021,6 +1069,20 @@ export async function createRunCommand(
       definition: workflow.normalized_spec,
       profileAgentBindings: profile?.config.agentBindings,
     });
+  }
+
+  if (planAdmission !== null) {
+    // A plan binds a repository through its inputs, and that binding is only
+    // meaningful if the run is actually bound to that repository. Without this
+    // a caller could point a step at a repository the task never had, and
+    // nothing downstream would notice: `$task.repositoryId` is the task's own
+    // (nullable) repository while `$input.repositoryId` is whatever was sent.
+    await assertSuppliedRepositoryIsBound(
+      transaction,
+      organizationId,
+      task,
+      inputs,
+    );
   }
 
   let reviewLoop: ReviewLoopLimits | null = null;
