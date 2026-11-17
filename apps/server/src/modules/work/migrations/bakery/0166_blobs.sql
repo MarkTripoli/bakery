@@ -25,9 +25,7 @@ create table bakery.blobs (
   constraint blobs_org_id_unique unique (organization_id, id),
   -- One object per organization per digest: a second upload of the same bytes
   -- is the same blob, not a second row.
-  constraint blobs_org_digest_unique unique (organization_id, sha256),
-  constraint blobs_sha256_format check (sha256 ~ '^[0-9a-f]{64}$'),
-  constraint blobs_size_positive check (size_bytes >= 0)
+  constraint blobs_org_digest_unique unique (organization_id, sha256)
 );
 
 -- Listing a repository's blobs is keyset by (created_at, id), so the index
@@ -63,15 +61,7 @@ create table bakery.blob_upload_sessions (
   constraint blob_upload_sessions_blob_fk
     foreign key (organization_id, completed_blob_id)
     references bakery.blobs (organization_id, id) on delete set null,
-  constraint blob_upload_sessions_org_id_unique unique (organization_id, id),
-  constraint blob_upload_sessions_sha256_format check (sha256 ~ '^[0-9a-f]{64}$'),
-  constraint blob_upload_sessions_size_positive check (size_bytes >= 0),
-  constraint blob_upload_sessions_state_valid
-    check (state in ('pending', 'completed', 'abandoned')),
-  -- A completed session must name the blob it produced; an unfinished one must
-  -- not. This is what makes "completed" mean something a reader can trust.
-  constraint blob_upload_sessions_completed_blob
-    check ((state = 'completed') = (completed_blob_id is not null))
+  constraint blob_upload_sessions_org_id_unique unique (organization_id, id)
 );
 
 -- Parts of a resumable upload. A part is identified by its ordinal, so a
@@ -93,9 +83,6 @@ create table bakery.blob_upload_parts (
     foreign key (organization_id, session_id)
     references bakery.blob_upload_sessions (organization_id, id)
     on delete cascade,
-  constraint blob_upload_parts_number_positive check (part_number > 0),
-  constraint blob_upload_parts_sha256_format check (sha256 ~ '^[0-9a-f]{64}$'),
-  constraint blob_upload_parts_size_positive check (size_bytes >= 0),
   constraint blob_upload_parts_session_part_unique
     unique (organization_id, session_id, part_number)
 );

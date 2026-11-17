@@ -4,6 +4,35 @@ import { StandardError } from "@bakery/contracts/http";
 /** Largest file a single blob may be, per chapter 25 §17.5. */
 export const MAX_BLOB_BYTES = 5 * 1024 * 1024 * 1024;
 
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+
+/**
+ * Refuses a digest or size the schema would reject.
+ *
+ * These are validated here rather than by a CHECK constraint: the database
+ * holds structure, the server holds rules. A rejected value answers a typed
+ * 422 naming the field, which a constraint violation could not do without
+ * leaking driver text.
+ */
+function assertDeclared(
+  sha256: string,
+  sizeBytes: number,
+  field = "sha256",
+): void {
+  if (!SHA256_HEX.test(sha256)) {
+    throw new StandardError({
+      code: "UNPROCESSABLE",
+      params: { field, reason: "invalid_digest" },
+    });
+  }
+  if (!Number.isSafeInteger(sizeBytes) || sizeBytes < 0) {
+    throw new StandardError({
+      code: "UNPROCESSABLE",
+      params: { field: "sizeBytes", reason: "invalid_size" },
+    });
+  }
+}
+
 /**
  * How long an upload session stays usable.
  *
@@ -58,6 +87,7 @@ export async function startUploadSession(
     mediaType: string;
   }>,
 ): Promise<UploadSessionRow> {
+  assertDeclared(input.sha256, input.sizeBytes);
   if (input.sizeBytes > MAX_BLOB_BYTES) {
     throw new StandardError({ code: "BODY_TOO_LARGE" });
   }
@@ -138,6 +168,13 @@ export async function putUploadPart(
     content: Uint8Array;
   }>,
 ): Promise<{ readonly recorded: boolean; readonly partNumber: number }> {
+  assertDeclared(input.sha256, input.content.byteLength);
+  if (input.partNumber < 1) {
+    throw new StandardError({
+      code: "UNPROCESSABLE",
+      params: { field: "partNumber", reason: "invalid_part_number" },
+    });
+  }
   const result = await tx.query<{ partNumber: number }>(
     `insert into bakery.blob_upload_parts
        (organization_id, session_id, part_number, sha256, size_bytes, content)
@@ -196,9 +233,12 @@ export async function readUploadParts(
 /**
  * Marks a session complete and names the blob it produced.
  *
- * The constraint in the migration ties `completed` to a named blob, so this is
- * the only shape that can be written, and a reader may trust the word without
- * checking a second column.
+ * `completed` and a named blob are set in the same statement, so a reader may
+ * trust the word without checking a second column. The pairing is enforced here
+ * rather than by a CHECK constraint: the database holds structure, the server
+ * holds rules. The `state = 'pending'` predicate in the WHERE is the other
+ * half — a session can only be completed once, so two racing completions do not
+ * both succeed.
  */
 export async function completeUploadSession(
   tx: PgTransactionClient,
@@ -220,6 +260,25 @@ export async function completeUploadSession(
 }
 
 /**
+ * Reads a session and asserts that a completed one names its blob.
+ *
+ * This is where the pairing is checked on the way out. A row that somehow
+ * reached `completed` without a blob is a contradiction, so it is refused as an
+ * internal fault rather than being handed to a caller that would trust it.
+ */
+export function assertSessionConsistent(
+  session: UploadSessionRow,
+): UploadSessionRow {
+  if (session.state === "completed" && session.completedBlobId === null) {
+    throw new StandardError({ code: "INTERNAL" });
+  }
+  if (session.state !== "completed" && session.completedBlobId !== null) {
+    throw new StandardError({ code: "INTERNAL" });
+  }
+  return session;
+}
+
+/**
  * Records a verified blob, or finds the one already stored under this digest.
  *
  * Two uploads of the same bytes in one organization are the same blob, so the
@@ -236,6 +295,7 @@ export async function recordBlob(
     mediaType: string;
   }>,
 ): Promise<{ readonly id: string; readonly created: boolean }> {
+  assertDeclared(input.sha256, input.sizeBytes);
   const inserted = await tx.query<{ id: string }>(
     `insert into bakery.blobs
        (organization_id, sha256, size_bytes, media_type, created_by_id)

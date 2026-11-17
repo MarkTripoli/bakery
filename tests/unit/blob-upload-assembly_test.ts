@@ -1,8 +1,10 @@
-import { assert, assertEquals, assertThrows } from "@std/assert";
+import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import { StandardError } from "../../packages/contracts/src/http.ts";
 import {
   assembleDeclaredBytes,
+  assertSessionConsistent,
   MAX_BLOB_BYTES,
+  startUploadSession,
   UPLOAD_SESSION_TTL_MS,
 } from "../../apps/server/src/modules/knowledge/blobs.ts";
 
@@ -91,4 +93,62 @@ Deno.test("a session deadline is absolute, not extended by use", () => {
 
 Deno.test("the file ceiling is 5 GiB and is refused above it", () => {
   assertEquals(MAX_BLOB_BYTES, 5 * 1024 * 1024 * 1024);
+});
+
+Deno.test("a malformed digest is refused by the server, not by a constraint", async () => {
+  // The migration holds structure; the rules live here, so a refusal can name
+  // the field instead of surfacing driver text.
+  for (
+    const sha256 of ["", "a".repeat(63), "A".repeat(64), `${"a".repeat(64)}x`]
+  ) {
+    const error = await assertRejects(() =>
+      startUploadSession({} as never, {
+        organizationId: "org",
+        principalId: "principal",
+        sha256,
+        sizeBytes: 3,
+        mediaType: "text/plain",
+      })
+    );
+    assertEquals(refusal(error), "invalid_digest");
+  }
+});
+
+Deno.test("a negative or non-integer size is refused by the server", async () => {
+  for (const sizeBytes of [-1, 1.5, Number.NaN]) {
+    const error = await assertRejects(() =>
+      startUploadSession({} as never, {
+        organizationId: "org",
+        principalId: "principal",
+        sha256: "a".repeat(64),
+        sizeBytes,
+        mediaType: "text/plain",
+      })
+    );
+    assertEquals(refusal(error), "invalid_size");
+  }
+});
+
+Deno.test("a completed session without a blob is a contradiction, not data", () => {
+  const broken = {
+    id: "s",
+    organizationId: "org",
+    createdById: "p",
+    sha256: "a".repeat(64),
+    sizeBytes: 0n,
+    mediaType: "text/plain",
+    state: "completed" as const,
+    expiresAt: new Date(),
+    completedBlobId: null,
+  };
+  const error = assertThrows(() => assertSessionConsistent(broken));
+  assertEquals(error instanceof StandardError, true);
+  // And the mirror: an unfinished session may not name a blob.
+  assertThrows(() =>
+    assertSessionConsistent({
+      ...broken,
+      state: "pending",
+      completedBlobId: "b",
+    })
+  );
 });
