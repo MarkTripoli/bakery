@@ -2569,6 +2569,24 @@ test.describe("dark disabled primary keeps its label readable", () => {
     expect(muted).toBeGreaterThan(disabledSecondary);
   });
 
+  test("only the dark disabled primary rule changes ink", async () => {
+    // A replace-all of --color-fg-muted with --color-fg-tertiary in this file
+    // would dim field hints, tab labels and quiet links app-wide - text people
+    // read, in both themes, that no design asked to change. Pin the blast
+    // radius: exactly one rule may name the tertiary ink.
+    const controls = await readFile(
+      join(import.meta.dirname, "..", "src", "controls.css"),
+      "utf8",
+    );
+    const tertiaryUses = controls.match(/color:\s*var\(--color-fg-tertiary\)/g);
+    expect(tertiaryUses).toHaveLength(1);
+    const rule = /\[data-theme="dark"\] \.ui-button--primary:disabled \{[^}]*\}/
+      .exec(
+        controls,
+      );
+    expect(rule![0]).toContain("color: var(--color-fg-tertiary)");
+  });
+
   test("the disabled rule actually uses the tertiary ink", async () => {
     const controls = await readFile(
       join(import.meta.dirname, "..", "src", "controls.css"),
