@@ -32,6 +32,12 @@ export const WORKFLOW_COMPILER_LIMITS = Object.freeze({
   defaultActionTimeoutMs: 30 * 60 * 1_000,
   /** Largest accepted action timeout, maxDuration, wait and wall-clock duration. */
   durationMaxMs: 24 * 60 * 60 * 1_000,
+  /**
+   * Largest accepted human.approval wait. The design gives an approval seven days
+   * (§9) while every other duration stops at a day, so an approval wait is
+   * bounded separately instead of raising the ceiling for actions and runs.
+   */
+  approvalWaitMaxMs: 7 * 24 * 60 * 60 * 1_000,
   /** Largest accepted retry backoff. */
   backoffMaxMs: 60 * 60 * 1_000,
   /** Largest accepted `maxFindings` limit. */

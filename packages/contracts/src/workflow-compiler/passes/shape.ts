@@ -5,6 +5,7 @@ import {
   type WorkflowCompilerDiagnosticCode,
 } from "../diagnostics.ts";
 import { rememberAuthoredOrder } from "./authored-order.ts";
+import { HUMAN_APPROVAL_EVENT as HUMAN_APPROVAL_COMPILER_EVENT } from "../../human-approval.ts";
 import { parseDuration, WORKFLOW_COMPILER_LIMITS } from "../limits.ts";
 import {
   KNOWN_CAPABILITIES,
@@ -1136,7 +1137,15 @@ function shapeWait(
     if (durationMs !== undefined) wait = { kind: "duration", durationMs };
   } else if (hasEvent && !hasDuration) {
     const keys = Object.keys(body);
-    if (keys.some((key) => key !== "event" && key !== "timeout")) {
+    // A human.approval wait names the approval it waits on, so the step and the
+    // answer are paired by id rather than by position; "approvalId" is the only
+    // key an event wait may carry beyond event and timeout.
+    if (
+      keys.some((key) =>
+        key !== "event" && key !== "timeout" &&
+        key !== "approvalId"
+      )
+    ) {
       report(context, bodyPath, "wait_shape_invalid");
     } else if (
       typeof body["event"] !== "string" || !EVENT_NAME.test(body["event"])
@@ -1145,16 +1154,36 @@ function shapeWait(
     } else if (!Object.hasOwn(body, "timeout")) {
       report(context, bodyPath, "wait_timeout_required");
     } else {
+      // A human.approval wait lasts up to seven days; every other wait keeps the
+      // one-day ceiling.
+      const eventMax = body["event"] === HUMAN_APPROVAL_COMPILER_EVENT
+        ? WORKFLOW_COMPILER_LIMITS.approvalWaitMaxMs
+        : max;
       const timeoutMs = readDurationField(
         context,
         body,
         "timeout",
         bodyPath,
         min,
-        max,
+        eventMax,
       );
       if (timeoutMs !== undefined) {
-        wait = { kind: "event", event: body["event"], timeoutMs };
+        const approvalId = body["approvalId"];
+        if (
+          approvalId !== undefined &&
+          (typeof approvalId !== "string" || approvalId === "")
+        ) {
+          report(context, [...bodyPath, "approvalId"], "wait_shape_invalid");
+        } else {
+          wait = {
+            kind: "event",
+            event: body["event"],
+            timeoutMs,
+            ...(approvalId === undefined
+              ? {}
+              : { approvalId: approvalId as string }),
+          };
+        }
       }
     }
   } else {

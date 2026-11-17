@@ -17141,6 +17141,8 @@ export const clientManifest = {
             "delivery.health",
             "agent.freeform",
             "workflow.noop",
+            "workflow.stop",
+            "human.approval",
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
@@ -47094,6 +47096,8 @@ export const clientManifest = {
             "delivery.health",
             "agent.freeform",
             "workflow.noop",
+            "workflow.stop",
+            "human.approval",
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
@@ -47251,6 +47255,8 @@ export const clientManifest = {
                   "delivery.health",
                   "agent.freeform",
                   "workflow.noop",
+                  "workflow.stop",
+                  "human.approval",
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
@@ -47604,6 +47610,8 @@ export const clientManifest = {
                   "delivery.health",
                   "agent.freeform",
                   "workflow.noop",
+                  "workflow.stop",
+                  "human.approval",
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
@@ -61157,7 +61165,8 @@ export const clientManifest = {
             "plan_revision",
             "run_stage",
             "merge",
-            "deploy"
+            "deploy",
+            "human_approval"
           ],
           "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
         },
@@ -61926,7 +61935,8 @@ export const clientManifest = {
                   "plan_revision",
                   "run_stage",
                   "merge",
-                  "deploy"
+                  "deploy",
+                  "human_approval"
                 ],
                 "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
               },

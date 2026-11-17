@@ -13848,6 +13848,8 @@
                   "delivery.health",
                   "agent.freeform",
                   "workflow.noop",
+                  "workflow.stop",
+                  "human.approval",
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
@@ -54924,6 +54926,8 @@
                 "delivery.health",
                 "agent.freeform",
                 "workflow.noop",
+                "workflow.stop",
+                "human.approval",
                 "artifact.publish",
                 "memory.promote",
                 "evaluation.sample",
@@ -144995,6 +144999,8 @@
                 "delivery.health",
                 "agent.freeform",
                 "workflow.noop",
+                "workflow.stop",
+                "human.approval",
                 "artifact.publish",
                 "memory.promote",
                 "evaluation.sample",
@@ -145152,6 +145158,8 @@
                       "delivery.health",
                       "agent.freeform",
                       "workflow.noop",
+                      "workflow.stop",
+                      "human.approval",
                       "artifact.publish",
                       "memory.promote",
                       "evaluation.sample",
@@ -145362,6 +145370,8 @@
                 "delivery.health",
                 "agent.freeform",
                 "workflow.noop",
+                "workflow.stop",
+                "human.approval",
                 "artifact.publish",
                 "memory.promote",
                 "evaluation.sample",
@@ -145631,6 +145641,8 @@
                       "delivery.health",
                       "agent.freeform",
                       "workflow.noop",
+                      "workflow.stop",
+                      "human.approval",
                       "artifact.publish",
                       "memory.promote",
                       "evaluation.sample",
@@ -202495,7 +202507,8 @@
                 "plan_revision",
                 "run_stage",
                 "merge",
-                "deploy"
+                "deploy",
+                "human_approval"
               ],
               "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
             },
@@ -203260,7 +203273,8 @@
                       "plan_revision",
                       "run_stage",
                       "merge",
-                      "deploy"
+                      "deploy",
+                      "human_approval"
                     ],
                     "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
                   },
@@ -207384,7 +207398,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:b7f75b5d3779a72d970f9cef4a6ab0659b903e229f5d8bceaa329fccb4002560",
+  "compatibilityDigest": "sha256:82c30addfbd380c17b5440299784d3279c4c93cee1026fbcebb0a9ef896d88e4",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -229962,6 +229976,8 @@
             "delivery.health",
             "agent.freeform",
             "workflow.noop",
+            "workflow.stop",
+            "human.approval",
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
@@ -320295,6 +320311,8 @@
             "delivery.health",
             "agent.freeform",
             "workflow.noop",
+            "workflow.stop",
+            "human.approval",
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
@@ -320452,6 +320470,8 @@
                   "delivery.health",
                   "agent.freeform",
                   "workflow.noop",
+                  "workflow.stop",
+                  "human.approval",
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
@@ -320662,6 +320682,8 @@
             "delivery.health",
             "agent.freeform",
             "workflow.noop",
+            "workflow.stop",
+            "human.approval",
             "artifact.publish",
             "memory.promote",
             "evaluation.sample",
@@ -320931,6 +320953,8 @@
                   "delivery.health",
                   "agent.freeform",
                   "workflow.noop",
+                  "workflow.stop",
+                  "human.approval",
                   "artifact.publish",
                   "memory.promote",
                   "evaluation.sample",
@@ -377867,7 +377891,8 @@
             "plan_revision",
             "run_stage",
             "merge",
-            "deploy"
+            "deploy",
+            "human_approval"
           ],
           "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
         },
@@ -378636,7 +378661,8 @@
                   "plan_revision",
                   "run_stage",
                   "merge",
-                  "deploy"
+                  "deploy",
+                  "human_approval"
                 ],
                 "description": "What the approval authorizes: plan_revision today; merge and deploy are unsupported."
               },

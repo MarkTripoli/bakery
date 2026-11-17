@@ -171,6 +171,49 @@ Deno.test("an event wait is not run yet: the run fails with a stable code in the
     assertEquals(await audit(fixture, seeded), ["plan_wait_unsupported"]);
   }));
 
+Deno.test("a human.approval wait is admitted and waits instead of failing the run", () =>
+  withWorkerFixture(async (fixture) => {
+    const approvalId = "00000000-0000-4000-8000-0000000000c1";
+    const seeded = await seedPlanRun(
+      fixture,
+      await compiled([
+        noop("first"),
+        {
+          id: "signoff",
+          needs: ["first"],
+          wait: {
+            event: "human.approval.decided",
+            timeout: "7d",
+            approvalId,
+          },
+        },
+      ]),
+    );
+    // The first step completes, so the plan reaches the approval wait.
+    await setRow(fixture, seeded, seeded.firstKey, "completed", { n: 1 });
+    const key = await seeded.repository.findNext(
+      seeded.job.runId,
+      seeded.owner,
+    );
+    assert(key !== undefined, "the plan reaches the approval wait");
+    assertEquals(key.stepKey, "signoff");
+    // Unlike an event wait with no producer, an approval wait does NOT fail the
+    // run: it is a row without a job, waiting for a person.
+    assertEquals((await state(fixture, seeded)).run.status, "running");
+    assertEquals(await audit(fixture, seeded), []);
+    const stored = await fixture.pgDatabase.query<{
+      status: string;
+      dispatch: { wait?: { approvalId?: string } } | null;
+    }>(
+      `select status, dispatch from bakery.run_steps
+        where run_id = $1 and step_key = 'signoff'`,
+      [seeded.job.runId],
+    );
+    assertEquals(stored.rows.length, 1, "the approval wait is one row");
+    assertEquals(stored.rows[0].status, "waiting");
+    assertEquals(stored.rows[0].dispatch?.wait?.approvalId, approvalId);
+  }));
+
 Deno.test("a plan that cannot be read fails the run with the interpreter's code, not a hang", () =>
   withWorkerFixture(async (fixture) => {
     const seeded = await seedPlanRun(fixture, await chain());

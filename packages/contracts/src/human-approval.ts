@@ -26,6 +26,9 @@ export const HUMAN_APPROVAL_DECISIONS = Object.freeze(
 );
 export type HumanApprovalDecision = typeof HUMAN_APPROVAL_DECISIONS[number];
 
+/** Event a human.approval wait consumes when a person decides. */
+export const HUMAN_APPROVAL_EVENT = "human.approval.decided";
+
 /** Which of the three decisions let the step continue. */
 export function humanApprovalContinues(decision: HumanApprovalDecision) {
   return decision === "approve";
