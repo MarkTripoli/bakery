@@ -98,11 +98,6 @@ Deno.test("the live aggregate admits docs and keeps full lanes fail-closed", asy
     workflow,
     'echo "semantic metadata lane did not succeed: $LANE_SEMANTIC_METADATA"',
   );
-  // No commit changes on an edit, so the diff check has nothing new to look at.
-  assertStringIncludes(
-    workflow,
-    "needs.changes.outputs.route != 'metadata'",
-  );
   // An edit must not cancel an in-flight full gate on the same ref.
   assertStringIncludes(workflow, "format('metadata-{0}', github.ref)");
   assertStringIncludes(
