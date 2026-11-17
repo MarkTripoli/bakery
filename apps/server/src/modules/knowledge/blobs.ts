@@ -166,12 +166,23 @@ export async function putUploadPart(
   tx: PgTransactionClient,
   input: Readonly<{
     organizationId: string;
+    principalId: string;
     sessionId: string;
     partNumber: number;
     sha256: string;
     content: Uint8Array;
   }>,
 ): Promise<{ readonly recorded: boolean; readonly partNumber: number }> {
+  // Locking first is what makes this the owner's part. The composite foreign key
+  // stops another organization, but nothing structural stops a different
+  // principal in the same organization from writing into someone else's upload,
+  // so the server has to refuse it - and it can only do that if it is told who
+  // is calling.
+  await lockUploadSession(tx, {
+    organizationId: input.organizationId,
+    principalId: input.principalId,
+    sessionId: input.sessionId,
+  });
   assertDeclared(input.sha256, input.content.byteLength);
   if (input.partNumber < 1) {
     throw new StandardError({
@@ -248,10 +259,19 @@ export async function completeUploadSession(
   tx: PgTransactionClient,
   input: Readonly<{
     organizationId: string;
+    principalId: string;
     sessionId: string;
     blobId: string;
   }>,
 ): Promise<void> {
+  // The same ownership check as a part write: completing is the step that makes
+  // the bytes real, so it must not be reachable by a principal that could not
+  // have uploaded them.
+  await lockUploadSession(tx, {
+    organizationId: input.organizationId,
+    principalId: input.principalId,
+    sessionId: input.sessionId,
+  });
   const result = await tx.query(
     `update bakery.blob_upload_sessions
         set state = 'completed', completed_blob_id = $3, updated_at = now()
