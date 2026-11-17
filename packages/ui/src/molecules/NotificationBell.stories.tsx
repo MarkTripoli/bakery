@@ -8,27 +8,48 @@ const meta = {
 } satisfies Meta;
 export default meta;
 
+const unreadLabel = (count: number) => `Notifications, ${count} unread`;
+
 export const Contract: StoryObj = {
   render: () => {
     const [count, setCount] = useState(0);
     return (
       <Stack>
         <NotificationBell
-          count={count + 3}
-          state="focused"
-          variant="unread"
+          label="Notifications"
+          status={count === 0 ? { state: "none" } : {
+            state: "unread",
+            count: count + 3,
+          }}
+          unreadLabel={unreadLabel}
+          unknownLabel="Notifications, count unavailable"
           open
-          panel={<Text>Three notifications</Text>}
           onClick={() => setCount(count + 1)}
         />
         <NotificationBell
-          count={1}
-          state="open"
-          variant="unread"
-          open
-          panel={<Text>One notification</Text>}
+          label="Notifications"
+          status={{ state: "unread", count: 1 }}
+          unreadLabel={unreadLabel}
+          unknownLabel="Notifications, count unavailable"
         />
-        <NotificationBell label="No notifications" variant="clear" />
+        <NotificationBell
+          label="Notifications"
+          status={{ state: "none" }}
+          unreadLabel={unreadLabel}
+          unknownLabel="Notifications, count unavailable"
+        />
+        <NotificationBell
+          label="Notifications"
+          status={{ state: "unknown" }}
+          unreadLabel={unreadLabel}
+          unknownLabel="Notifications, count unavailable"
+        />
+        <NotificationBell
+          label="Notifications"
+          status={{ state: "unread", count: 128 }}
+          unreadLabel={unreadLabel}
+          unknownLabel="Notifications, count unavailable"
+        />
         <Text role="status">{count} notification previews opened</Text>
       </Stack>
     );

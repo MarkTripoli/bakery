@@ -154,6 +154,8 @@ export * from "./molecules/ListSection.tsx";
 export * from "./molecules/Menu.tsx";
 export * from "./molecules/RevisionRow.tsx";
 export * from "./molecules/NotificationBell.tsx";
+export * from "./molecules/NotificationRow.tsx";
+export * from "./molecules/NotificationPopover.tsx";
 export * from "./molecules/ObjectRow.tsx";
 export * from "./molecules/OneTimeCodeInput.tsx";
 export * from "./molecules/PasswordInput.tsx";
