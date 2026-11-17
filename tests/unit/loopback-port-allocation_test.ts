@@ -8,6 +8,7 @@ import {
 import {
   bindLoopbackPortWithRetry,
   isLoopbackBandPort,
+  LOOPBACK_PORT_BAND_END,
   type PortCollisionRetry,
   probeLoopbackPort,
   reserveProcessLoopbackPort,

@@ -17,8 +17,8 @@ const DEFAULT_COLLISION_ATTEMPTS = 3;
  * rather than removing it: no allocator can exclude a socket held outside its
  * own bookkeeping, so the retry stays.
  */
-const LOOPBACK_PORT_BAND_START = 20_000;
-const LOOPBACK_PORT_BAND_END = 32_000;
+export const LOOPBACK_PORT_BAND_START = 20_000;
+export const LOOPBACK_PORT_BAND_END = 32_000;
 
 const processAllocatedPorts = new Set<number>();
 
