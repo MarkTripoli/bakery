@@ -59,6 +59,7 @@ import {
   resolveCanceledAttemptCleanup,
 } from "./coordination.ts";
 import { getAgentSession, steerAgentSession } from "./sessions.ts";
+import { createSessionFeedHandler } from "./session-feed.ts";
 import type { ExecutionRouteOptions } from "./shared.ts";
 import { transcriptStatusAction } from "./output-transcript.ts";
 import {
@@ -527,6 +528,20 @@ export function createExecutionRunControlApp(
         OrganizationContextPolicy.RequiredAuthenticatedContext,
     },
     handler: getAgentSession,
+  });
+  registry.register({
+    name: ExecutionImplementedAction.SessionsFeed,
+    method: HttpMethod.Get,
+    path: "/v1/sessions/:id/feed",
+    input: contractSchemas.SessionFeedList,
+    output: contractSchemas.SessionFeed,
+    policy: {
+      type: ActionKind.Query,
+      access: ActionAccess.Developer,
+      organizationContext:
+        OrganizationContextPolicy.RequiredAuthenticatedContext,
+    },
+    handler: createSessionFeedHandler(options.secret),
   });
   registry.register({
     name: ExecutionImplementedAction.SessionsSteer,

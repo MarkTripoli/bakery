@@ -986,6 +986,28 @@
     },
     {
       "group": "Work",
+      "method": "GET",
+      "path": "/v1/sessions/{id}/feed",
+      "action": "sessions.feed",
+      "access": "Developer",
+      "permission": "session:read",
+      "organizationContext": "required_authenticated_context",
+      "input": "SessionFeedList",
+      "output": "SessionFeed",
+      "event": "",
+      "mcp": "bakery_sessions_feed",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ]
+    },
+    {
+      "group": "Work",
       "method": "POST",
       "path": "/v1/sessions/{id}/messages",
       "action": "sessions.steer",
