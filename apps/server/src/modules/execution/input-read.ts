@@ -2,12 +2,10 @@ import type { Context } from "hono";
 import { z } from "zod";
 import { StandardError } from "@bakery/contracts/http";
 import { jsonResponse } from "./http.ts";
-import { assertActiveLease, lockAttempt } from "./events.ts";
+import { claimAttempt, reassertAttempt } from "./attempt-claim.ts";
 import {
-  assertAttemptMutationSession,
   type ExecutionRouteOptions,
   readAttemptId,
-  sha256Hex,
   workerTransaction,
 } from "./shared.ts";
 
@@ -107,19 +105,16 @@ export async function inputReadRoute(
 ): Promise<Response> {
   const attemptId = readAttemptId(context);
   const proof = readProof(context.req.raw.headers);
-  const tokenHash = await sha256Hex(proof.leaseToken);
   const result = await workerTransaction(
     options.database,
     context.req.raw.headers,
     async (transaction, identity) => {
-      const attempt = await lockAttempt(transaction, identity, attemptId);
-      assertAttemptMutationSession(
-        identity.host,
-        attempt,
-        proof.workerSessionId,
-        proof.workerSessionGeneration,
-      );
-      assertActiveLease(attempt, identity, tokenHash, proof.fence);
+      const claimed = await claimAttempt({
+        transaction,
+        identity,
+        attemptId,
+        proof,
+      });
 
       const run = await transaction.query<{ run_id: string }>(
         `select step.run_id
@@ -128,7 +123,7 @@ export async function inputReadRoute(
              on step.organization_id = job.organization_id
             and step.id = job.run_step_id
           where job.organization_id = $1 and job.id = $2`,
-        [identity.host.organization_id, attempt.job_id],
+        [identity.host.organization_id, claimed.jobId],
       );
       const runId = run.rows[0]?.run_id;
       if (!runId) throw new StandardError({ code: "INTERNAL" });
@@ -183,12 +178,7 @@ export async function inputReadRoute(
 
       // Re-assert under the same lock, after gathering: the read only answers
       // while the lease it was asked under still holds.
-      assertActiveLease(
-        await lockAttempt(transaction, identity, attemptId),
-        identity,
-        tokenHash,
-        proof.fence,
-      );
+      await reassertAttempt(claimed);
 
       return { attemptId, runId, items };
     },
