@@ -8,17 +8,20 @@
   <entry file="websocket-backpressure-modelled-buffer.xml" scope="project" />
   <entry file="storybook-a11y-playwright.xml" scope="project" />
   <entry file="ui-catalog.xml" scope="project" />
+  <entry file="ui-token-manifest-digest.xml" scope="project" />
   <entry file="paper-export-dimensions.xml" scope="project" />
   <entry file="reference-proof-working-tree.xml" scope="project" />
   <entry file="verification-memory-floor.xml" scope="project" />
   <entry file="github-closing-keywords.xml" scope="project" />
   <entry file="local-bootstrap-environment.xml" scope="project" />
+  <entry file="client-interface-member-breaks-hand-built-doubles.xml" scope="project" />
   <entry file="compose-partial-service-environment.xml" scope="project" />
   <entry file="persistent-preview-engine-ownership.xml" scope="project" />
   <entry file="local-temporary-storage-quota.xml" scope="project" />
   <entry file="native-artifact-formatting.xml" scope="project" />
   <entry file="verification-driver-boundaries.xml" scope="project" />
   <entry file="idle-workspace-consumers.xml" scope="project" />
+  <entry file="inline-flex-whitespace-collapse.xml" scope="project" />
   <entry file="oauth-provider-dependency-pin.xml" scope="project" />
   <entry file="paper-pinned-k0-inputs.xml" scope="project" />
   <entry file="lock-held-lane-waits-for-memory.xml" scope="project" />

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="client-interface-member-breaks-hand-built-doubles" project="bakery">
+  <title>Adding a member to a client interface is a change to every hand-built double</title>
+  <trigger>A CI unit lane exits 1 against a head whose own tests pass, and its evidence archive records the lane metadata with no failing test name.</trigger>
+  <rule>Read that shape first as a lane that died before running a test: in this repo both focused-unit shards type-check their files up front, so a type error anywhere in the shard fails the whole lane with no per-test result. The usual cause is a member added to BakeryApiClient: tests/unit/web-session_test.ts and tests/unit/web-organization-selection_test.ts build a whole client object by hand, so a new method makes them miss a required property (TS2741) and they never execute. Give the new member the same rejecting stub every unwritten call gets, in every hand-built double, and run the lane's real shard command (deno run --allow-read scripts/ci/test-shard.ts tests/unit 1 2, then pnpm test:unit -- with those files) as part of the change, not only when behaviour changes. An interface change is a change to every implementer, including the ones written as literals in tests.</rule>
+  <verification>
+    <requirement>Record the failing lane's exit code and the first type error it printed, then the same shard command's own result after the stub (the shard's pass count, not a single re-run test). A green typecheck of the app packages does not prove the unit lane: the shard type-checks other files too.</requirement>
+  </verification>
+</learning>

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useMemo, useRef, useState } from "react";
 import {
   useMutation,
@@ -30,26 +31,27 @@ import { focusAfterPaint } from "../app/focus.ts";
 import { useProtectedScope } from "../app/query-scope-context.tsx";
 import { useRestoreOrganizationScope } from "../app/restore-organization.ts";
 import { useShellViewport } from "../app/responsive.ts";
+import { RouterLink } from "../app/router-link.tsx";
 import { useI18n } from "../i18n/I18nProvider.tsx";
 import { WORK_HOME } from "../shell/breadcrumb-paths.ts";
 import { ShellSlot } from "../shell/shell-slots.tsx";
 import { MakeCopyDialog } from "./library/MakeCopyDialog.tsx";
-import { stepSummary } from "./library/step-summary.tsx";
 import { versionSource } from "./library/copy-workflow.ts";
 import {
-  ACTION_LINES,
-  ACTION_TITLES,
   agentBindings,
   canUse,
   defaultVersion,
   exportFileName,
   newestFirst,
-  stepsOf,
   versionState,
 } from "./library/workflow-state.ts";
+import { stepsOfTree, treeOf } from "./library/workflow-tree.ts";
+import { WorkflowDiagram } from "./library/WorkflowDiagram.tsx";
 
 /** How many versions the Versions card lists before "Show all". */
 const CARD_VERSIONS = 5;
+// A read-only diagram reports nothing: the problems in it belong to a draft.
+const EMPTY_PROBLEMS: ReadonlyMap<string, string> = new Map();
 
 type Dialog =
   | { readonly kind: "use"; readonly version: WorkflowVersionResponse }
@@ -117,16 +119,6 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
     new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeZone }).format(
       new Date(value),
     );
-  // A step is named by what it does; an action without a sentence shows its key.
-  const stepTitle = (uses: string) => {
-    const key = ACTION_TITLES[uses];
-    return key === undefined ? uses : translate(key as never);
-  };
-  // The spec's sentence under a step's name, for the actions that have one.
-  const stepLine = (uses: string) => {
-    const key = ACTION_LINES[uses];
-    return key === undefined ? undefined : translate(key as never);
-  };
   const refresh = () =>
     void queryClient.invalidateQueries({ queryKey: ["protected"] });
   const organizationId = scope.organizationId as string;
@@ -212,6 +204,8 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
   const activeId = current?.activeVersionId ?? null;
   const shown = all.find((version) => version.id === viewing) ??
     defaultVersion(all, activeId);
+  // Which agent each step runs, and whether that could be read at all: the
+  // card says it in a second line so a read-only page loses nothing.
   const bindings = useMemo(() => {
     const byAgent = new Map<string, readonly AgentVersionResponse[]>();
     agentList.forEach((agent, index) => {
@@ -219,8 +213,6 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
     });
     return agentBindings(agentList, byAgent);
   }, [agentList, agentVersionReads]);
-  // What an agent line may say: nothing while the reads are in flight, that it
-  // could not be read when they failed (or were cut short), else the answer.
   const agentReads: "pending" | "failed" | "ready" = agents.isError ||
       agentVersionReads.some((read) =>
         read.isError || read.data?.truncated === true
@@ -230,6 +222,24 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
     ? "pending"
     : "ready";
   const published = all.filter((version) => version.status === "published");
+  // The second line under a card: the agent the step runs, or why that is not
+  // known yet. A step with no agent says nothing rather than "Agent: none".
+  const agentLine = (id: string): ReactNode | undefined => {
+    const step = stepsOfTree(tree).find((one) => one.id === id);
+    if (step === undefined || step.agentVersionId === null) return undefined;
+    if (agentReads === "pending") return undefined;
+    if (agentReads === "failed") {
+      return translate("library.workflow.steps.agentUnreadable" as never);
+    }
+    const binding = bindings.get(step.agentVersionId);
+    if (binding === undefined) {
+      return translate("library.workflow.steps.agentUnknown" as never);
+    }
+    return translate("library.workflow.steps.agent" as never, {
+      name: binding.agentName,
+      version: binding.revision,
+    });
+  };
   const newestPublished = published[0] ?? null;
   const noneInUse = current !== undefined && current.enabled &&
     activeId === null && newestPublished !== null;
@@ -485,7 +495,9 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
     );
   }
 
-  const steps = shown === null ? [] : stepsOf(shown);
+  // The same tree the editor draws, so a step Bakery cannot read keeps its
+  // place here instead of vanishing (design-ux's ruling on #67).
+  const tree = treeOf(shown?.normalizedSpec);
   const badge = !current.enabled
     ? (
       <UI.Badge tone="neutral">
@@ -504,6 +516,13 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
       </UI.Badge>
     );
   const menuItems = [
+    ...(canManage
+      ? [{
+        id: "edit",
+        label: translate("library.workflow.edit" as never),
+        disabled: offline || shown === null,
+      }]
+      : []),
     ...(canManage
       ? [{
         id: "rename",
@@ -569,6 +588,11 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
             setMenuOpen(false);
             if (id === "export" && shown !== null) {
               exportVersion(shown);
+            } else if (id === "edit" && shown !== null) {
+              void navigate({
+                to: "/library/workflows/$workflowId/edit",
+                params: { workflowId },
+              });
             } else if (id === "rename") {
               setName(current.name);
               open({ kind: "rename" });
@@ -596,7 +620,26 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
   return (
     <>
       {breadcrumbs}
-      {!phone ? <ShellSlot name="actions">{moreMenu}</ShellSlot> : null}
+      {!phone
+        ? (
+          <ShellSlot name="actions">
+            <UI.Inline gap="compact">
+              {canManage && shown !== null
+                ? (
+                  <RouterLink
+                    to="/library/workflows/$workflowId/edit"
+                    params={{ workflowId }}
+                    variant="button"
+                  >
+                    {translate("library.workflow.edit" as never)}
+                  </RouterLink>
+                )
+                : null}
+              {moreMenu}
+            </UI.Inline>
+          </ShellSlot>
+        )
+        : null}
       <UI.SettingsContent data-testid="workflow-page" variant="wide">
         <UI.PageHeader
           variant="list"
@@ -673,55 +716,22 @@ export function WorkflowPage({ workflowId }: { readonly workflowId: string }) {
               })}
             variant="list"
           >
-            {steps.length === 0
-              ? (
-                <UI.Text variant="muted">
-                  {translate("library.workflow.steps.none" as never)}
-                </UI.Text>
-              )
-              : (
-                <UI.StepList
-                  label={translate("library.workflow.steps.label" as never)}
-                >
-                  {steps.map((step, index) => {
-                    const binding = step.agentVersionId === null ||
-                        agentReads === "pending"
-                      ? null
-                      : bindings.get(step.agentVersionId) ?? undefined;
-                    return (
-                      <UI.StepItem
-                        key={step.id}
-                        data-step-id={step.id}
-                        number={index + 1}
-                        status="upcoming"
-                        statusLabel={translate(
-                          "library.workflow.steps.number" as never,
-                          { n: index + 1 },
-                        )}
-                        title={stepTitle(step.uses)}
-                        summary={stepSummary(
-                          stepLine(step.uses),
-                          binding === null ? undefined : (
-                            binding === undefined
-                              ? translate(
-                                (agentReads === "failed"
-                                  ? "library.workflow.steps.agentUnreadable"
-                                  : "library.workflow.steps.agentUnknown") as never,
-                              )
-                              : translate(
-                                "library.workflow.steps.agent" as never,
-                                {
-                                  name: binding.agentName,
-                                  version: binding.revision,
-                                },
-                              )
-                          ),
-                        )}
-                      />
-                    );
-                  })}
-                </UI.StepList>
-              )}
+            <WorkflowDiagram
+              tree={tree}
+              selectedId={null}
+              problems={EMPTY_PROBLEMS}
+              canManage={false}
+              editable={false}
+              readOnlyPage
+              onAdd={() => {}}
+              onSelect={() => {}}
+              onViewAsCode={() => {
+                if (shown !== null) exportVersion(shown);
+              }}
+              onPick={() => {}}
+              onPickClose={() => {}}
+              detail={(_uses, id) => agentLine(id)}
+            />
           </UI.ListSection>
           <UI.ListSection
             flush

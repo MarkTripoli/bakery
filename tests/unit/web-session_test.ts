@@ -276,6 +276,8 @@ function fakeApi(
     updateAgent: rejecting,
     createWorkflow: rejecting,
     createWorkflowVersion: rejecting,
+    updateWorkflowVersion: rejecting,
+    publishWorkflowVersion: rejecting,
     validateWorkflow: rejecting,
   };
 }

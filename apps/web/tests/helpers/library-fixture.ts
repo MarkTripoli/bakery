@@ -29,6 +29,8 @@ export type VersionRow = {
   revision: number;
   status: "draft" | "published" | "retired";
   steps: { id: string; uses: string; agentVersionId?: string }[];
+  /** The definition's own `steps` value, when a test needs nodes beyond plain actions. */
+  spec?: unknown;
   /** The workflow's agent bindings by action. */
   agents?: Record<string, string>;
   createdAt?: string;
@@ -132,7 +134,7 @@ const versionBody = (row: VersionRow) => ({
   normalizedSpec: {
     kind: "fixed",
     workflow: { kind: "fixed" },
-    steps: row.steps,
+    steps: row.spec ?? row.steps,
     ...(row.agents ? { agents: row.agents } : {}),
   },
   digest: String(row.revision).padStart(2, "0").repeat(32),
@@ -161,6 +163,11 @@ export async function libraryFixture(page: Page, options: Options = {}) {
   let versionPages = 0;
   const seen = {
     release: () => release(),
+    draftSaves: [] as {
+      versionId: string;
+      ifMatch: string | null;
+      body: Record<string, unknown>;
+    }[],
     releaseAgents: () => releaseAgents(),
     agentActivations: [] as {
       id: string;
@@ -302,6 +309,37 @@ export async function libraryFixture(page: Page, options: Options = {}) {
         target.version = (target.version ?? 1) + 1;
       }
       return route.fulfill(json(body(target)));
+    },
+  );
+  await page.route(
+    (url) => /^\/v1\/workflows\/[^/]+\/versions\/[^/]+$/.test(url.pathname),
+    (route) => {
+      const parts = new URL(route.request().url()).pathname.split("/");
+      seen.draftSaves.push({
+        versionId: parts[5] ?? "",
+        ifMatch: route.request().headers()["if-match"] ?? null,
+        body: route.request().postDataJSON() as Record<string, unknown>,
+      });
+      const row = versions.find((one) => one.id === parts[5]);
+      const saved = {
+        id: parts[5] ?? "",
+        workflowId: parts[3] ?? "",
+        revision: row?.revision ?? 1,
+        sourceYaml: "",
+        normalizedSpec: {
+          kind: "fixed",
+          steps: (route.request().postDataJSON() as {
+            definition?: { steps?: unknown };
+          }).definition?.steps ?? [],
+        },
+        digest: "sha256:0",
+        status: "draft",
+        createdBy: uuid(9000),
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        version: 2,
+      };
+      return route.fulfill(json(saved));
     },
   );
   await page.route(

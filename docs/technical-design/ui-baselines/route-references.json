@@ -5183,6 +5183,13 @@
       "frames": []
     },
     {
+      "routeId": "library-workflow-editor",
+      "path": "/library/workflows/$workflowId/edit",
+      "status": "no-mock",
+      "rationale": "The workflow editor (#67, slice 1) is designed by design-ux on #67; its mocks live on the issue rather than in Paper, so there is no Paper frame to compare against.",
+      "frames": []
+    },
+    {
       "routeId": "library-builtin",
       "path": "/library/built-in/$presetId",
       "status": "no-mock",
