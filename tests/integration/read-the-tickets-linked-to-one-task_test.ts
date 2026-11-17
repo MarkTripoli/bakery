@@ -98,9 +98,10 @@ Deno.test("issue 69 ops: externalTickets.list answers the tickets linked to one 
         response,
       ) => read<Page<TicketView>>(response, 200));
     // All three tickets are cached by ONE preview call, so they share
-    // `created_at` and the read's `created_at desc, id desc` tie-break decides
-    // by id. The set is the property under test; the order is derived from the
-    // documented tie-break rather than from the order this case wrote them.
+    // `created_at`: "linked to this task, and only those" is the property under
+    // test, and the newest-first order the docstring promises is asserted by
+    // deriving the expected pair from `created_at desc, id desc` instead of
+    // trusting the order this case happened to write them in.
     const mine = await forTask(taskId);
     const [leadsOnId, trailsOnId] = second.id < first.id
       ? [first.id, second.id]
@@ -110,12 +111,14 @@ Deno.test("issue 69 ops: externalTickets.list answers the tickets linked to one 
     assertNotEquals(leadsOnId, trailsOnId);
     assertEquals(mine.items.map((item) => item.id), [leadsOnId, trailsOnId]);
     assert(!mine.items.some((item) => item.id === third.id));
-    // The ticket still serves every task it is linked to, from the same read,
-    // newest link first with the id as the tie-break, which is the order the
-    // read documents rather than the order this test happened to write them.
-    const linksOfSecond = otherLinkId < secondLinkId
-      ? [otherTask, taskId]
-      : [taskId, otherTask];
+    // The ticket still serves every task it is linked to, from the same read:
+    // newest link first, tie-broken by `link.id desc`. Both links for this
+    // ticket were written in separate calls, so if their `created_at` ties the
+    // larger id leads - and a UUID's text order is its byte order, so comparing
+    // the two ids here derives the same order the query sorts by.
+    const linksOfSecond = secondLinkId > otherLinkId
+      ? [taskId, otherTask]
+      : [otherTask, taskId];
     // Only the ids are asserted: `mine.items[0]` is not stable, because the
     // two tickets were previewed in one call and share a created_at, so which
     // of them is first is the read's tie-break on a UUID.
