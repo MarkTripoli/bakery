@@ -475,3 +475,22 @@ Deno.test("review verdicts are short: verdict, head, severity-tagged findings", 
     ) => e.includes("at most 150")),
   );
 });
+
+Deno.test("a bullet inside a fenced block is quoted code, not a finding", () => {
+  // The reviewer's repro: a block pasted to show the bug, whose lines start
+  // with "- " and carry no severity tag. Counting them as findings failed the
+  // severity and 25-word rules on lines that were never findings.
+  const review = [
+    "Verdict: Changes requested",
+    "Head: `90b2092d`",
+    "",
+    "- [Low] Findings scan counts bullets inside fences.",
+    "",
+    "```",
+    "- some quoted list item that is not a finding at all and is long enough to",
+    "  blow past any word budget the rule might apply to a real finding line",
+    "- a second quoted bullet",
+    "```",
+  ].join("\n");
+  assertEquals(validateReview(review), []);
+});

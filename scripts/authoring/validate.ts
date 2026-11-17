@@ -170,6 +170,18 @@ function bulletsOf(text: string): string[] {
   return text.match(/^[-*] .+/gm) ?? [];
 }
 
+/**
+ * Drops fenced code blocks. A fence's contents are literal: a `- something`
+ * line inside one is code being quoted, not a bullet the author wrote, so
+ * anything that counts or grades list items must look at the text without it.
+ */
+export function withoutFences(text: string): string {
+  return text.replace(
+    /^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?^ {0,3}\1[ \t]*$/gm,
+    "",
+  );
+}
+
 /** Prose only: drops code fences, table rows, images and link targets. */
 export function prose(text: string): string {
   return text
@@ -387,7 +399,10 @@ export function validateReview(body: string): string[] {
   if (!/^\*{0,2}Head:\*{0,2}\s*`?[0-9a-f]{7,40}`?/im.test(text)) {
     errors.push("Name the head commit reviewed: Head: <sha>.");
   }
-  const findings = text.match(/^[-*] .+/gm) ?? [];
+  // A `- ` line inside a fenced block is quoted code, not a finding. Counting
+  // it made a reviewer who pasted a repro with a list fail the severity and
+  // 25-word rules on lines they never wrote as findings.
+  const findings = withoutFences(text).match(/^[-*] .+/gm) ?? [];
   if (findings.length > 5) {
     errors.push("At most five findings; merge or drop the minor ones.");
   }

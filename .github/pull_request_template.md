@@ -16,7 +16,7 @@ most 25 words each: what could break, who it affects, and how to roll back. -->
 
 Level: Low
 
-- 
+-
 
 ## Special things to note
 
