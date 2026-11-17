@@ -26,15 +26,13 @@ type SessionFeedRow = {
 };
 
 /**
- * Whether this feed removes secret material from an item's payload.
+ * Whether an item had secret material withheld from it.
  *
- * The feed's projection selects only attributed message columns, so no secret
- * ciphertext, lease token, raw provider payload or credential material ever
- * reaches an item and there is nothing in it to redact. A source that can carry
- * such material (harness terminal or tool output) must compute this per item
- * instead of reusing this constant.
+ * No current source can carry such material: the projection reads attributed
+ * message columns only. A source that can must compute this per item instead of
+ * reusing this constant.
  */
-const PROJECTION_NEEDS_NO_REDACTION = false;
+const PROJECTION_WITHHOLDS_NOTHING = false;
 
 function iso(value: Date | string): string {
   return value instanceof Date
@@ -71,11 +69,19 @@ function authorKind(row: SessionFeedRow): "person" | "agent" | "system" {
  * The feed is a typed view over what a session actually produced, keyed by
  * session and ordered forward by (sequence, id). Every item carries exactly the
  * payload its `kind` names; the other payload fields stay null so a reader can
- * switch on `kind` without guessing. Redaction happens in the projection: the
- * feed never carries secret ciphertext, lease tokens, or raw provider payloads,
- * because none of those columns are selected. An item is never dropped in
- * favour of a partial one, so a client resuming from its last sequence sees a
- * gapless continuation.
+ * switch on `kind` without guessing. An item is never dropped in favour of a
+ * partial one, so a client resuming from its last sequence sees a gapless
+ * continuation.
+ *
+ * The projection is the redaction boundary. It names every column it reads, and
+ * none of them holds secret ciphertext, a lease token or a raw provider payload;
+ * an item therefore exposes exactly the attributed conversation text it claims
+ * and nothing alongside it. That is a property of the SELECT, not of the body:
+ * a message body is authored by a person, and text a person typed is their
+ * message, not a server secret, so the feed republishes it verbatim rather than
+ * guessing at what inside it looks secret. A future source that can carry real
+ * secret material (harness terminal or tool output) must redact per item and set
+ * `redacted` from that, never reuse the constant below.
  */
 export function createSessionFeedHandler(secret: string) {
   return async function sessionFeed(
@@ -151,7 +157,7 @@ export function createSessionFeedHandler(secret: string) {
         sequence: row.sequence,
         kind,
         occurredAt: iso(row.created_at),
-        redacted: PROJECTION_NEEDS_NO_REDACTION,
+        redacted: PROJECTION_WITHHOLDS_NOTHING,
         message: kind === "message"
           ? {
             messageId: row.id,

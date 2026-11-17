@@ -195,3 +195,53 @@ Deno.test("AC: a malformed cursor is refused rather than silently ignored", () =
     const problem = await response.json() as { code: string };
     assertEquals(problem.code, "INVALID_CURSOR");
   }));
+
+// A sentinel that looks like secret material a projection must not expose. It is
+// checked against the WHOLE serialized body, not one field: the defect worth
+// catching is a sentinel surfacing in a field nobody remembered.
+const LEASE_SENTINEL = "lease_2f9c4d1e-8a76-4b03-9c55-SENTINEL-DO-NOT-LEAK";
+
+Deno.test("AC: the projection exposes no column it does not name", () =>
+  withFixture(async (fixture) => {
+    const seed = await seedOrganization(fixture, "session-feed-sentinel");
+    const taskId = await seedTask(fixture, seed);
+    const ids = await seedLiveAttempt(fixture, seed, taskId, []);
+
+    // Put the sentinel in a column the feed deliberately does NOT select.
+    // `comment_context` is stored beside a message and is not part of the feed's
+    // projection, so it stands in for any column carrying secret material: if
+    // the projection ever widens to `select *`, this sentinel leaks.
+    const inserted = await fixture.pgDatabase.query<{ id: string }>(
+      `insert into bakery.messages
+         (organization_id, conversation_id, message_type, body,
+          client_message_id, sequence, intent, comment_context)
+       values ($1, $2, 'user', 'a visible message', $3,
+               (select coalesce(max(sequence), 0) + 1
+                  from bakery.messages where conversation_id = $2),
+               'discussion', $4::jsonb)
+       returning id`,
+      [
+        seed.organizationId,
+        seed.conversationId,
+        crypto.randomUUID(),
+        JSON.stringify({ leaseToken: LEASE_SENTINEL }),
+      ],
+    );
+    assert(inserted.rows.length === 1);
+
+    const response = await request(
+      fixture,
+      seed,
+      `/v1/sessions/${ids.agentSessionId}/feed`,
+    );
+    assertEquals(response.status, 200);
+    const serialized = await response.text();
+
+    // The message itself is visible; the unselected column beside it is not.
+    assertEquals(serialized.includes("a visible message"), true);
+    assertEquals(
+      serialized.includes(LEASE_SENTINEL),
+      false,
+      "the feed exposed a column its projection does not name",
+    );
+  }));
