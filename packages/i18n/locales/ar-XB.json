@@ -2141,7 +2141,6 @@
   "machines.dispatch.blocked.check_failed": "⟪Dispatch blocked: readiness check failed⟫",
   "machines.dispatch.blocked.draining": "⟪Dispatch blocked: machine draining⟫",
   "machines.dispatch.blocked.paused": "⟪Dispatch blocked: machine paused⟫",
-  "settings.orgAccess.summary": "⟪{people, plural, one {# person} other {# people}} · {pending, plural, one {# pending invitation} other {# pending invitations}}⟫",
   "settings.orgAccess.dismiss": "⟪Dismiss⟫",
   "settings.orgAccess.error.membersTitle": "⟪Members could not be loaded⟫",
   "settings.orgAccess.error.membersDescription": "⟪Bakery could not read the member list just now. Your data is safe. Try again, and if it keeps happening ask an installation administrator to check the server.⟫",
@@ -4001,5 +4000,7 @@
   "settings.orgAccess.column.account": "⟪Account⟫",
   "settings.orgAccess.invitation.cancelLong": "⟪Cancel invitation⟫",
   "settings.orgAccess.token.endingShort": "⟪ending {ending}⟫",
-  "settings.orgAccess.column.email": "⟪Email⟫"
+  "settings.orgAccess.column.email": "⟪Email⟫",
+  "settings.orgAccess.summary": "⟪{people, plural, one {# person} other {# people}}⟫",
+  "settings.orgAccess.token.needsAccount": "⟪Create a service account first.⟫"
 }

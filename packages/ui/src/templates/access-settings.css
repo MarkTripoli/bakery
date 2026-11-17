@@ -99,6 +99,8 @@
 .ui-access-settings__title-help {
   flex: none;
   margin-inline-start: var(--space-1);
+  /* Keep the help beside its heading; the section's actions take the rest. */
+  margin-inline-end: auto;
 }
 /* Help that a wide screen shows beside its column instead. */
 .ui-access-settings__title-help[data-phone-only="true"] {
@@ -157,8 +159,9 @@
   display: flex;
   flex: none;
   justify-content: flex-end;
-  /* Fits the whole label and grows with it, so no action label wraps. */
-  inline-size: max-content;
+  /* One width for the header and every row, so a cell starts under its header
+     and all four tables share the same column starts (issue 233, round 2). */
+  inline-size: calc(var(--space-16) + var(--space-16) + var(--space-12));
   font: var(--type-control-preview-compact);
   line-height: var(--space-5);
 }
@@ -186,15 +189,19 @@
   .ui-access-settings__heading h1 {
     font: var(--type-heading-page);
   }
-  .ui-access-settings__description,
-  .ui-access-settings__title-detail,
-  .ui-access-settings__aside {
+  .ui-access-settings__title-detail {
     position: absolute;
     visibility: hidden;
     inline-size: 0;
     block-size: 0;
     margin: 0;
     overflow: hidden;
+  }
+  /* A phone keeps the description under the title, and the pending count as
+     the control it is, on its own line (issue 233, round 2). */
+  .ui-access-settings__aside {
+    display: flex;
+    inline-size: 100%;
   }
   .ui-access-settings__summary {
     position: static;
@@ -224,9 +231,10 @@
     display: inline-flex;
   }
   .ui-access-settings__section-head h2 {
-    flex: 1 0 100%;
+    flex: 0 1 auto;
   }
   .ui-access-settings__section-actions {
+    flex: 1 0 100%;
     inline-size: 100%;
     margin-inline-start: var(--space-0);
   }

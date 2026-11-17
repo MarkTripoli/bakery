@@ -2141,7 +2141,6 @@
   "machines.dispatch.blocked.check_failed": "⟦Ðïšþàŧçĥ ƀļôçķëð: ŕëàðïñëšš çĥëçķ ƒàïļëð ŧëšŧ çôþÿ ŧ⟧",
   "machines.dispatch.blocked.draining": "⟦Ðïšþàŧçĥ ƀļôçķëð: ɱàçĥïñë ðŕàïñïñĝ ŧëšŧ çôþÿ⟧",
   "machines.dispatch.blocked.paused": "⟦Ðïšþàŧçĥ ƀļôçķëð: ɱàçĥïñë þàûšëð ŧëšŧ çôþÿ⟧",
-  "settings.orgAccess.summary": "⟦{people, plural, one {# person} other {# people}} · {pending, plural, one {# pending invitation} other {# pending invitations}} ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "settings.orgAccess.dismiss": "⟦Ðïšɱïšš…⟧",
   "settings.orgAccess.error.membersTitle": "⟦Ṁëɱƀëŕš çôûļð ñôŧ ƀë ļôàðëð ŧëšŧ çô⟧",
   "settings.orgAccess.error.membersDescription": "⟦Ɓàķëŕÿ çôûļð ñôŧ ŕëàð ŧĥë ɱëɱƀëŕ ļïšŧ ĵûšŧ ñôŵ. Ÿôûŕ ðàŧà ïš šàƒë. Ŧŕÿ àĝàïñ, àñð ïƒ ïŧ ķëëþš ĥàþþëñïñĝ àšķ àñ ïñšŧàļļàŧïôñ àðɱïñïšŧŕàŧôŕ ŧô çĥëçķ ŧĥë šëŕṽëŕ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
@@ -4001,5 +4000,7 @@
   "settings.orgAccess.column.account": "⟦Àççôûñŧ…⟧",
   "settings.orgAccess.invitation.cancelLong": "⟦Çàñçëļ ïñṽïŧàŧïôñ ŧëš⟧",
   "settings.orgAccess.token.endingShort": "⟦ëñðïñĝ {ending} ŧëš⟧",
-  "settings.orgAccess.column.email": "⟦Ëɱàïļ⟧"
+  "settings.orgAccess.column.email": "⟦Ëɱàïļ⟧",
+  "settings.orgAccess.summary": "⟦{people, plural, one {# person} other {# people}} ŧëšŧ çôþÿ ŧëšŧŧ⟧",
+  "settings.orgAccess.token.needsAccount": "⟦Çŕëàŧë à šëŕṽïçë àççôûñŧ ƒïŕšŧ. ŧëšŧ çôþ⟧"
 }

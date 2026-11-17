@@ -402,7 +402,10 @@ for (
           page.getByRole("heading", { name: "Members", exact: true }),
         )
           .toBeVisible();
-        await expect(page.getByText("3 people · 1 pending invitation"))
+        await expect(page.getByText("3 people", { exact: true }))
+          .toBeVisible();
+        // The pending count is the control it is, on its own line.
+        await expect(page.getByTestId("org-access-pending-link"))
           .toBeVisible();
       }
       // Column names explain the cells on a wide screen; a phone reads each
@@ -458,11 +461,13 @@ for (
       // the one action that fills it (issue 233, fix 10).
       await expect(page.getByTestId("org-access-invitations"))
         .toContainText("No pending invitations");
-      await expect(page.getByTestId("org-access-invite-empty")).toBeVisible();
+      // The empty line keeps its sentence; the action already on screen is the
+      // action, so no second button repeats it (issue 233, round 2).
+      await expect(page.getByTestId("org-access-invite-empty")).toHaveCount(0);
       await expect(page.getByTestId("org-access-accounts"))
         .toContainText("No service accounts yet");
       await expect(page.getByTestId("org-access-new-account-empty"))
-        .toBeVisible();
+        .toHaveCount(0);
       await expect(page.getByTestId("org-access-clients"))
         .toContainText("No connected clients");
       await expect(page.getByTestId("org-access-clients"))
@@ -472,7 +477,7 @@ for (
       await expect(page.getByTestId("org-access-invite")).toBeVisible();
 
       // The section's own action creates the first service account.
-      await page.getByTestId("org-access-new-account-empty").click();
+      await page.getByTestId("org-access-new-account").click();
       const form = page.getByTestId("org-access-account-form");
       await form.getByLabel("Name").fill("release-bot");
       await form.getByRole("button", { name: "Create service account" })

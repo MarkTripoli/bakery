@@ -779,7 +779,7 @@ export function OrganizationAccessPage() {
         data-testid={`org-access-cancel-${invitation.id}`}
         onClick={() => setConfirm({ kind: "cancelInvitation", invitation })}
         type="button"
-        variant="destructive"
+        variant="destructive-quiet"
       >
         {translate("settings.orgAccess.invitation.cancelLong")}
       </UI.Button>
@@ -880,7 +880,7 @@ export function OrganizationAccessPage() {
             data-testid={`org-access-revoke-${token.id}`}
             onClick={() => setConfirm({ kind: "revokeToken", token })}
             type="button"
-            variant="destructive"
+            variant="destructive-quiet"
           >
             {translate("settings.orgAccess.token.revoke")}
           </UI.Button>
@@ -909,7 +909,7 @@ export function OrganizationAccessPage() {
             name: client.clientName,
           })}
         type="button"
-        variant="destructive"
+        variant="destructive-quiet"
       >
         {translate("settings.orgAccess.client.revoke")}
       </UI.Button>
@@ -1125,7 +1125,6 @@ export function OrganizationAccessPage() {
         summary={showSections && pageState === "default"
           ? translate("settings.orgAccess.summary", {
             people: humans.length,
-            pending: pendingInvitations.length,
           })
           : undefined}
         actions={showSections ? inviteAction : null}
@@ -1241,17 +1240,6 @@ export function OrganizationAccessPage() {
           phoneLayout: "block",
           rows: invitationRows,
           empty: translate("settings.orgAccess.invitations.none"),
-          emptyAction: (
-            <UI.Button
-              data-testid="org-access-invite-empty"
-              onClick={() =>
-                setInvite((value) => ({ ...value, open: !value.open }))}
-              type="button"
-              variant="secondary"
-            >
-              {translate("settings.orgAccess.invite.action")}
-            </UI.Button>
-          ),
         }, {
           id: "org-access-accounts",
           testId: "org-access-accounts",
@@ -1285,8 +1273,14 @@ export function OrganizationAccessPage() {
                 {translate("settings.orgAccess.account.new")}
               </UI.Button>
               <UI.Button
+                aria-describedby={serviceAccounts.length === 0
+                  ? "org-access-new-token-why"
+                  : undefined}
                 data-testid="org-access-new-token-action"
                 disabled={serviceAccounts.length === 0}
+                title={serviceAccounts.length === 0
+                  ? translate("settings.orgAccess.token.needsAccount")
+                  : undefined}
                 onClick={() =>
                   setTokenDraft((value) => ({
                     ...value,
@@ -1299,24 +1293,20 @@ export function OrganizationAccessPage() {
               >
                 {translate("settings.orgAccess.token.new")}
               </UI.Button>
+              {serviceAccounts.length === 0
+                ? (
+                  <span
+                    className="bakery-visually-hidden"
+                    id="org-access-new-token-why"
+                  >
+                    {translate("settings.orgAccess.token.needsAccount")}
+                  </span>
+                )
+                : null}
             </>
           ),
           rows: accountRows,
           empty: translate("settings.orgAccess.accounts.none"),
-          emptyAction: (
-            <UI.Button
-              data-testid="org-access-new-account-empty"
-              onClick={() =>
-                setAccountDraft((value) => ({
-                  ...value,
-                  open: true,
-                }))}
-              type="button"
-              variant="secondary"
-            >
-              {translate("settings.orgAccess.account.new")}
-            </UI.Button>
-          ),
           callout: created
             ? {
               testId: "org-access-new-token",
