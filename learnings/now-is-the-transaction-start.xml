@@ -1,0 +1,36 @@
+<learning scope="project">
+  <title>now() is the transaction's start, not the statement's</title>
+  <symptom>
+    An integration test asserts rows come back in the order they were
+    written, passes on one run, and fails on the next with the values
+    swapped. Same tree, same migrated database, no code change between the
+    runs. Re-running does not reproduce reliably, so it reads as flake.
+  </symptom>
+  <cause>
+    PostgreSQL's `now()` is `transaction_timestamp()`: every row written in
+    one transaction gets the same instant, and rows written by two
+    back-to-back transactions can also land on the same instant when both
+    start inside one timer tick. A read ordered by `created_at desc, id desc`
+    then breaks the tie with a UUID, which is to say arbitrarily. The test's
+    expected order came from the order it wrote the rows, and that order is
+    not the order the read promises.
+  </cause>
+  <rule>
+    When a test asserts the order of rows written in separate transactions,
+    never derive the expectation from write order if the ordering column is a
+    timestamp. Either read the created values back and sort them the way the
+    query does, or keep the ids from the create responses and apply the
+    query's own documented tie-break. If the test is about ordering, assert
+    the tie-break explicitly; if it is not about ordering, do not assert
+    order at all.
+  </rule>
+  <evidence>
+    Bakery #69, `tests/helpers/ticket-admission/operations-integration.ts`.
+    Three `ticket_task_links` rows written by three HTTP calls, then
+    `assertEquals(mine.items[0].linkedTaskIds, [otherTask, taskId])`. Run
+    one: 158 passed / 0 failed. Run two, same tree: 157 passed / 1 failed,
+    `[Diff] Actual / Expected` with the same two ids in the opposite order.
+    `psql -tAc "select pg_get_expr(adbin, adrelid) from pg_attrdef ..."`
+    shows `created_at` defaulting to `now()`.
+  </evidence>
+</learning>

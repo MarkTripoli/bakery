@@ -19,6 +19,11 @@ on:
   schedule:
     - cron: "23 5 * * *"
   workflow_dispatch:
+    inputs:
+      nightly_signal:
+        description: "Run the nightly red signal against this ref (maintainer only)."
+        type: boolean
+        default: false
 permissions:
   contents: read
 
@@ -2812,3 +2817,83 @@ jobs:
             \( -name 'bakery-ci-*' -o -name 'bakery-connected-native-*' \) \
             -mmin +360 -exec rm -rf -- {} +
           bash trusted-policy/scripts/ci/reap-dangling-volumes.sh
+
+  nightly_signal:
+    name: nightly / red signal
+    # The event guard IS the seam: only a scheduled run may create or close the
+    # tracking issue. A workflow_dispatch in pull-request shape must create
+    # nothing, so the guard is the first thing to attack when this is reviewed.
+    # A scheduled run is the real trigger. A maintainer dispatch may force it,
+    # but only with the explicit input: a pull request cannot set inputs, so
+    # the write scope stays unreachable from candidate code.
+    if: ${{ always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.nightly_signal)) }}
+    needs: [aggregate]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Record the nightly outcome as a tracking issue
+        # A signal bug must never turn a green nightly red, so this step cannot
+        # fail the workflow. It reports its own failure in the log instead.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |
+          set -uo pipefail
+
+          # The job list is the truth, read from the API rather than a `needs`
+          # list that can drift away from the jobs that actually ran.
+          jobs_json="$(gh api "repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100" --paginate)" || {
+            echo "nightly signal: could not read the run's jobs; leaving the issue untouched" >&2
+            exit 0
+          }
+
+          failing="$(jq -r '
+            [.jobs[]
+              | select(.conclusion != "success" and .conclusion != "skipped")
+              | .name]
+            | unique | .[]' <<<"$jobs_json")"
+
+          run_url="$SERVER_URL/$REPO/actions/runs/$RUN_ID"
+          title="nightly red: scheduled CI"
+
+          # Idempotency: one open issue, found by its stable title. A second red
+          # run updates it; it never creates a duplicate.
+          existing="$(gh issue list --repo "$REPO" --state open \
+            --search "in:title \"$title\"" --json number,title \
+            --jq "[.[] | select(.title == \"$title\") | .number] | first // empty")" || {
+            echo "nightly signal: could not list issues; leaving the issue untouched" >&2
+            exit 0
+          }
+
+          if [[ -n "$failing" ]]; then
+            body="$(
+              echo "The scheduled run on $(date -u +%Y-%m-%dT%H:%MZ) failed."
+              echo
+              echo "Failing jobs:"
+              while IFS= read -r job; do
+                echo "- \`$job\`"
+              done <<<"$failing"
+              echo
+              echo "Run: $run_url"
+            )"
+            if [[ -n "$existing" ]]; then
+              gh issue edit "$existing" --repo "$REPO" --body "$body" >/dev/null
+              gh issue comment "$existing" --repo "$REPO" \
+                --body "Still red on $run_url" >/dev/null
+              echo "nightly signal: updated issue #$existing"
+            else
+              gh issue create --repo "$REPO" --title "$title" --body "$body" >/dev/null
+              echo "nightly signal: created the tracking issue"
+            fi
+          elif [[ -n "$existing" ]]; then
+            gh issue close "$existing" --repo "$REPO" \
+              --comment "The scheduled run went green: $run_url" >/dev/null
+            echo "nightly signal: closed issue #$existing"
+          else
+            echo "nightly signal: green, nothing to close"
+          fi

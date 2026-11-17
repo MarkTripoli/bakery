@@ -29848,6 +29848,17 @@
               }
             },
             {
+              "name": "taskId",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Restricts results to external tickets linked to this one Bakery task, whatever the link's role; a task with no link answers an empty page, and a task outside the caller's organization matches nothing rather than revealing that it exists.",
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              }
+            },
+            {
               "name": "cursor",
               "in": "query",
               "required": false,
@@ -53059,6 +53070,12 @@
             "linked": {
               "description": "Filters by whether the external ticket already has a `ticket_task_links` row connecting it to a Bakery task.",
               "type": "boolean"
+            },
+            "taskId": {
+              "description": "Restricts results to external tickets linked to this one Bakery task, whatever the link's role; a task with no link answers an empty page, and a task outside the caller's organization matches nothing rather than revealing that it exists.",
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             },
             "cursor": {
               "description": "ExternalTicketQuery.cursor must contain at most 512 UTF-8 bytes.",
@@ -208410,7 +208427,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:17982d76e179d24c4e6138680e0426c37db497a43b08c320296d938e478cfdca",
+  "compatibilityDigest": "sha256:04ef1c6defd4b4694a2a5158b04067f22781176520a0ec34ee9ffa3dde11c276",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -228631,6 +228648,12 @@
         "linked": {
           "description": "Filters by whether the external ticket already has a `ticket_task_links` row connecting it to a Bakery task.",
           "type": "boolean"
+        },
+        "taskId": {
+          "description": "Restricts results to external tickets linked to this one Bakery task, whatever the link's role; a task with no link answers an empty page, and a task outside the caller's organization matches nothing rather than revealing that it exists.",
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
         "cursor": {
           "description": "ExternalTicketQuery.cursor must contain at most 512 UTF-8 bytes.",

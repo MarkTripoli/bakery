@@ -313,6 +313,7 @@ export function createExternalTicketsListHandler(secret: string) {
         sourceId: input.sourceId ?? null,
         state: input.state ?? null,
         linked: input.linked ?? null,
+        taskId: input.taskId ?? null,
       }),
       schemaVersion: 1,
     };
@@ -330,15 +331,21 @@ export function createExternalTicketsListHandler(secret: string) {
                 select 1 from bakery.ticket_task_links as link
                  where link.organization_id = ticket.organization_id
                    and link.external_ticket_id = ticket.id))
-          and ($5::timestamptz is null
-               or (ticket.created_at, ticket.id) < ($5::timestamptz, $6::uuid))
+          and ($5::uuid is null or exists (
+                select 1 from bakery.ticket_task_links as link
+                 where link.organization_id = ticket.organization_id
+                   and link.external_ticket_id = ticket.id
+                   and link.task_id = $5::uuid))
+          and ($6::timestamptz is null
+               or (ticket.created_at, ticket.id) < ($6::timestamptz, $7::uuid))
         order by ticket.created_at desc, ticket.id desc
-        limit $7`,
+        limit $8`,
       [
         organizationId,
         input.sourceId ?? null,
         input.state ?? null,
         input.linked ?? null,
+        input.taskId ?? null,
         position?.createdAt ?? null,
         position?.id ?? null,
         limit + 1,

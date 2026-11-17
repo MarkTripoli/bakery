@@ -459,14 +459,13 @@ function settingsShell(body, active = "security") {
       "</a>"
     ).join("") + '</nav><div class="rail-bottom">' +
     identity("person", "Alex Morgan", "Developer") +
-    '</div></aside><section class="settings-main"><div class="settings-topbar"><span class="muted">Settings</span><span class="muted">/</span><strong>Account and security</strong><div class="grow"></div>' +
+    '</div></aside><section class="settings-main" data-settings-active="' +
+    active +
+    '"><div class="settings-topbar"><span class="muted">Settings</span><span class="muted">/</span><strong>Account and security</strong><div class="grow"></div>' +
     themeButton() +
     '</div><nav class="mobile-settings-nav" aria-label="Account navigation">' +
     link("Account", "security") + link("Sessions", "sessions") +
     link("Clients", "clients") + '</nav><div class="settings-content">' +
-    (active !== "security"
-      ? link(icon("back") + "Account and security", "security")
-      : "") +
     body +
     (core
       ? ""
@@ -494,6 +493,14 @@ function verificationCode(error = "") {
 }
 const accountForm = (body) =>
   settingsShell('<div class="form-content">' + body + "</div>", "protection");
+// A form page whose heading is a direct child of the column (the app's
+// `SettingsContent > AuthHeading + FormContent`): the heading takes the 24/32
+// page style, the form keeps the 380px measure.
+const accountFormOpen = (headingHTML, body) =>
+  settingsShell(
+    headingHTML + '<div class="form-content">' + body + "</div>",
+    "protection",
+  );
 function protectionScreen(id, s) {
   const invalid = s === "invalid";
   switch (id) {
@@ -734,43 +741,43 @@ function protectionScreen(id, s) {
       );
     case "passkeys":
       if (s === "rename") {
-        return accountForm(
-          heading("Rename passkey", "Choose a name you’ll recognize later.") +
-            form(
-              field("Passkey name", "passkey-name", "text", {
-                value: "Personal laptop",
-              }),
-              "Save name",
-              "passkeys/enabled",
-            ) + link("Cancel", "passkeys/enabled"),
+        return accountFormOpen(
+          heading("Rename passkey", "Choose a name you’ll recognize later."),
+          form(
+            field("Passkey name", "passkey-name", "text", {
+              value: "Personal laptop",
+            }),
+            "Save name",
+            "passkeys/enabled",
+          ) + link("Cancel", "passkeys/enabled"),
         );
       }
       if (["remove", "blocked", "failed"].includes(s)) {
-        return accountForm(
+        return accountFormOpen(
           heading(
             "Remove this passkey?",
             "Personal laptop will no longer sign in to Bakery.",
-          ) +
-            identity(
-              "key",
-              "Personal laptop",
-              "Added recently · sample passkey",
-            ) + notice(
-              s === "blocked"
-                ? "Add another usable sign-in method before removing your last one."
-                : s === "failed"
-                ? "The passkey could not be removed. It is still connected."
-                : "This removes access to Bakery. It does not delete the passkey from your password manager.",
-              s === "failed" ? "error" : "warning",
-            ) + (s === "blocked"
-              ? button("Back to sign-in methods", "security", "secondary")
-              : form(
-                field("Current password", "current-password", "password", {
-                  placeholder: "Confirm your current password",
-                }),
-                "Remove passkey",
-                "passkeys",
-              )) +
+          ),
+          identity(
+            "key",
+            "Personal laptop",
+            "Added recently · sample passkey",
+          ) + notice(
+            s === "blocked"
+              ? "Add another usable sign-in method before removing your last one."
+              : s === "failed"
+              ? "The passkey could not be removed. It is still connected."
+              : "This removes access to Bakery. It does not delete the passkey from your password manager.",
+            s === "failed" ? "error" : "warning",
+          ) + (s === "blocked"
+            ? button("Back to sign-in methods", "security", "secondary")
+            : form(
+              field("Current password", "current-password", "password", {
+                placeholder: "Confirm your current password",
+              }),
+              "Remove passkey",
+              "passkeys",
+            )) +
             link("Cancel", "passkeys/enabled"),
         );
       }
@@ -843,22 +850,22 @@ function protectionScreen(id, s) {
             link("Cancel", "passkey-add/canceled"),
         );
       }
-      return accountForm(
+      return accountFormOpen(
         heading(
           "Add a passkey",
           "Confirm your identity, then save a passkey with your device or password manager.",
-        ) +
-          form(
-            field("Passkey name", "passkey-name", "text", {
-              value: "Personal laptop",
-              hint: "Use a name that helps you recognize this passkey.",
-            }) +
-              field("Current password", "current-password", "password", {
-                placeholder: "Confirm your current password",
-              }),
-            "Continue",
-            "passkey-add/prompt",
-          ) + link("Cancel", "passkeys"),
+        ),
+        form(
+          field("Passkey name", "passkey-name", "text", {
+            value: "Personal laptop",
+            hint: "Use a name that helps you recognize this passkey.",
+          }) +
+            field("Current password", "current-password", "password", {
+              placeholder: "Confirm your current password",
+            }),
+          "Continue",
+          "passkey-add/prompt",
+        ) + link("Cancel", "passkeys"),
       );
   }
 }
@@ -1352,11 +1359,14 @@ function renderScreen(id, s) {
         );
       }
       return settingsShell(
-        '<div class="form-content">' +
-          heading(
-            "Change password",
-            "Use a unique password for your Bakery account.",
-          ) + error +
+        heading(
+          "Change password",
+          "Use a unique password for your Bakery account.",
+        ) +
+          '<div class="form-content">' +
+          // apps/web/src/screens/ChangePasswordScreen.tsx renders the failure
+          // notice inside `FormContent`, above the form.
+          error +
           form(
             field("Current password", "current-password", "password", {
               placeholder: "Current password",
