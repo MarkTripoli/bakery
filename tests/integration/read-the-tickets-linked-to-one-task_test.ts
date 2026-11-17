@@ -18,7 +18,7 @@ import {
 } from "../helpers/ticket-admission/operations-http.ts";
 
 const TICKETS = "/v1/external-tickets";
-const SOURCES = "/v1/external-ticket-sources";
+const SOURCES = "/v1/ticket-sources";
 
 type Page<T> = { items: T[]; nextCursor: string | null };
 
