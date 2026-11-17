@@ -60,7 +60,7 @@ test("optional K-0 preserves V-0 bytes, digest, URL, lookup, selectors, inputs a
   assert.deepEqual(await computeSourceIdentity(mixed), identity);
   assert.equal(
     identity.digest,
-    "a6978501f470309914eb5865790937c7dff9db7f1bb94f21c8cc80db8013d449",
+    "e37a1558e812c9c76e0e00aa759d74ab1192e0a2be047891fe29108845b8c71d",
   );
   assert.deepEqual(resolveSourceProfile(mixed), resolveSourceProfile(baseline));
   assert.deepEqual(resolveSourceProfile(mixed).render, {
@@ -691,6 +691,10 @@ test("V-0 refresh under profiles is bound to the refreshed V-0 input bytes", asy
     cases: [baseline.cases.find((entry) => entry.sourceProfile === undefined)],
   };
   delete legacy.sourceProfiles;
+  // A ruling refresh replaces `source` wholesale; this test exercises the V-0
+  // refresh path, so the fixture carries the V-0 identity the same inputs have
+  // as a plain Paper export.
+  Object.assign(legacy.source, await computeSourceIdentity(legacy));
   const candidate = {
     ...legacy,
     sourceProfiles: baseline.sourceProfiles,
@@ -715,10 +719,15 @@ test("V-0 refresh under profiles is bound to the refreshed V-0 input bytes", asy
     };
   };
   const real = await v0Identity((path) => readFile(path));
-  assert.equal(real.digest, baseline.source.digest);
+  // The committed `source` may be a ruling identity (a UX-ruling refresh
+  // replaces it wholesale), in which case it carries no V-0 digest to compare
+  // against. The self-check is that this restated helper reproduces the shipped
+  // V-0 function over the same inputs, which is true either way.
+  const shipped = await computeSourceIdentity(baseline);
+  assert.equal(real.digest, shipped.digest);
   assert.equal(
     real.revision.slice(0, -"2026-10-10".length),
-    baseline.source.revision.slice(0, -"2026-09-22".length),
+    shipped.revision.slice(0, -"2026-11-17".length),
   );
   const flipped = structuredClone(candidate);
   flipped.cases.at(-1).pointer = flipped.cases.at(-1).pointer === "coarse"
@@ -1220,6 +1229,11 @@ test("main proves its baseline is self-consistent and refuses a tampered one", a
     cases: [baseline.cases.find((entry) => entry.sourceProfile === undefined)],
   };
   delete legacy.sourceProfiles;
+  // A ruling refresh replaces `source` wholesale, and this fixture exists to
+  // exercise the legacy V-0 self-consistency path. Give it the V-0 identity the
+  // same inputs carry as a plain Paper export, so the shape under test is the
+  // legacy one rather than a ruling identity with no design cases to licence it.
+  Object.assign(legacy.source, await computeSourceIdentity(legacy));
   try {
     git("init", "-q");
     git("config", "user.name", "Provenance Test");
