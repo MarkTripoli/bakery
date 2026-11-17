@@ -482,12 +482,25 @@ export async function openLoopWorld(
   // projection step the engine asks for, then let it answer. A recorded result
   // or fault is what moves the plan on; the engine finishes the run itself when
   // the plan is over.
+  // A finished run has no next step, and the engine says so by refusing the
+  // owner: `assertEngineOwner` excludes terminal runs. That refusal is the
+  // answer, not an error, so it is read as one here - by asking the run's
+  // status, not by swallowing the owner error, which would hide a real
+  // ownership bug behind a passing test.
+  const runIsOver = async (): Promise<boolean> =>
+    (await database.query<{ over: boolean }>(
+      `select status in ('completed', 'failed', 'canceled', 'blocked') as over
+         from bakery.workflow_runs where id = $1`,
+      [run.id],
+    )).rows[0]?.over === true;
   const settle = async () => {
+    if (await runIsOver()) return undefined;
     let answer = await engine.findNext(run.id, owner);
     while (
       answer !== undefined && answer.stepKey.includes("candidate_evidence")
     ) {
       await engine.admit(answer, owner);
+      if (await runIsOver()) return undefined;
       answer = await engine.findNext(run.id, owner);
     }
     return answer;

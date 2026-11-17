@@ -51,6 +51,7 @@ const pr = [
   "## Change outline\n\n```text\nTemplates -> authoring skill -> shared validator -> GitHub feedback/status\n```",
   "## Decisions\n\n- None.",
   "## Evidence\n\n- New test `authoring_test.ts`: rejects a PR body over 300 words.",
+  "## Verification\n\n- [x] Backend verified (reviewer): ok.\n- [x] UI verified (design-ux): ok.\n- [x] Implementation clean (reviewer): ok.\n- [ ] Tests cover the change (qa) N/A: docs-only change.",
 ].join("\n\n");
 const head = "a".repeat(40);
 const base = "b".repeat(40);
@@ -524,7 +525,10 @@ Deno.test("Evidence refuses routine checks but accepts a test file named format"
   // Owner rule: Evidence is UI screenshots or recordings and the new tests.
   // Routine checks belong to CI, so a table of green ticks proves nothing.
   const withEvidence = (evidence: string) =>
-    pr.replace(/## Evidence[\s\S]*$/, "## Evidence\n\n" + evidence);
+    pr.replace(
+      /## Evidence[\s\S]*?(?=\n\n## Verification|$)/,
+      "## Evidence\n\n" + evidence,
+    );
   const table = (row: string) =>
     ["| check | result |", "|---|---|", row].join("\n");
   const refused = (row: string) =>
@@ -567,4 +571,144 @@ Deno.test("a bullet inside a fenced block is quoted code, not a finding", () => 
     "```",
   ].join("\n");
   assertEquals(validateReview(review), []);
+});
+
+Deno.test("the verification checklist gates the merge until every box is resolved", () => {
+  const errs = (body: string) => validateDescription("pr", body).join(" ");
+  assertEquals(validateDescription("pr", pr), []);
+  assert(
+    errs(pr.replace("- [x] UI verified", "- [ ] UI verified")).includes(
+      'Verification pending: "ui verified"',
+    ),
+  );
+  assert(
+    errs(pr.replace(/- \[x\] Backend verified[^\n]*\n/, "")).includes(
+      'missing the "backend verified" item',
+    ),
+  );
+  assert(
+    errs(pr.replace(/## Verification[\s\S]*$/, "")).includes("Verification"),
+  );
+});
+
+Deno.test("one ticked verification line cannot satisfy every item", () => {
+  const errs = (body: string) => validateDescription("pr", body).join(" ");
+  // All four phrases stuffed into the Backend line, the other three lines
+  // removed: the stuffed line resolves only its own item.
+  const stuffed = pr
+    .replace(/^- \[x\] UI verified[^\n]*\n/mg, "")
+    .replace(/^- \[x\] Implementation clean[^\n]*\n/mg, "")
+    .replace(/^- \[.\] Tests cover[^\n]*(?:\n|$)/mg, "")
+    .replace(
+      /^- \[x\] Backend verified.*$/m,
+      "- [x] Backend verified: also covers ui verified, implementation clean, and tests cover.",
+    );
+  const joined = errs(stuffed);
+  assert(joined.includes('missing the "ui verified" item'));
+  assert(joined.includes('missing the "implementation clean" item'));
+  assert(joined.includes('missing the "tests cover" item'));
+  assert(!joined.includes('"backend verified"'));
+  // The legitimate forms still resolve: a ticked line, and an explicit
+  // N/A with a reason on the item's own line.
+  assertEquals(
+    validateDescription(
+      "pr",
+      pr.replace(
+        /^- \[x\] UI verified.*$/m,
+        "- [ ] UI verified (design-ux): N/A: no UI change.",
+      ),
+    ),
+    [],
+  );
+});
+
+// The three shapes qa-qa probed on the merged #536 validator. Each passed
+// when it should have failed: the gate said "resolved" for a line that had
+// not decided anything. They are kept as the red-proofs for the hardening.
+Deno.test("a ticked box and an N/A on the same line is not a resolution", () => {
+  const errs = (body: string) => validateDescription("pr", body).join(" ");
+  // Both answers at once: the reviewer has not decided, and the old check
+  // accepted it because it tested "ticked OR N/A" instead of exactly one.
+  const both = pr.replace(
+    /^- \[x\] UI verified.*$/m,
+    "- [x] UI verified (design-ux): N/A: no UI change.",
+  );
+  assert(
+    errs(both).includes('"ui verified" is both ticked and marked N/A'),
+    errs(both),
+  );
+  // Each answer alone still resolves, so the XOR did not break the gate.
+  assertEquals(
+    validateDescription(
+      "pr",
+      pr.replace(
+        /^- \[x\] UI verified.*$/m,
+        "- [ ] UI verified: N/A: no UI change.",
+      ),
+    ),
+    [],
+  );
+  assertEquals(validateDescription("pr", pr), []);
+});
+
+Deno.test("a ticked box with no claim is not a resolution", () => {
+  const errs = (body: string) => validateDescription("pr", body).join(" ");
+  // A bare tick claims nothing. The old check only asked whether the box was
+  // ticked, so an empty claim gated the merge.
+  const bare = pr.replace(
+    /^- \[x\] Implementation clean.*$/m,
+    "- [x] Implementation clean (reviewer):",
+  );
+  assert(
+    errs(bare).includes('"implementation clean" is ticked with no claim'),
+    errs(bare),
+  );
+  // A tick with a claim, and an N/A with a reason, both still resolve.
+  assertEquals(validateDescription("pr", pr), []);
+  assertEquals(
+    validateDescription(
+      "pr",
+      pr.replace(
+        /^- \[x\] Implementation clean.*$/m,
+        "- [ ] Implementation clean: N/A: no code change.",
+      ),
+    ),
+    [],
+  );
+});
+
+Deno.test("a duplicated verification item is an unresolved edit", () => {
+  const errs = (body: string) => validateDescription("pr", body).join(" ");
+  // Two lines for one item: the reader cannot tell which is the answer, and
+  // a ticked duplicate beside an open one would gate on the tick.
+  const duplicated = pr.replace(
+    /^- \[.\] Tests cover.*$/m,
+    "- [ ] Tests cover the change (qa): not yet.\n- [x] Tests cover the change (qa): ok.",
+  );
+  assert(
+    errs(duplicated).includes('"tests cover" appears on 2 lines'),
+    errs(duplicated),
+  );
+  // One line per item is still the accepted form.
+  assertEquals(validateDescription("pr", pr), []);
+});
+
+Deno.test("N/A cannot stand in for work that has not happened yet", () => {
+  const body = pr.replace(
+    /- \[x\] UI verified[^\n]*/,
+    "- [ ] UI verified (design-ux): N/A: not yet signed off.",
+  );
+  assert(
+    validateDescription("pr", body).some((e) =>
+      e.includes("means not done yet")
+    ),
+  );
+  const fine = pr.replace(
+    /- \[x\] UI verified[^\n]*/,
+    "- [ ] UI verified (design-ux) N/A: no UI change.",
+  );
+  assertEquals(
+    validateDescription("pr", fine).filter((e) => e.includes("ui verified")),
+    [],
+  );
 });

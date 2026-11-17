@@ -267,7 +267,12 @@ Deno.test("issue 82 automation: a hold label on a request that owns a run suspen
     a.seedLabeler();
     await admitted(a, 41);
     const [created] = await a.requests(sourceId);
-    const attempt = await seedAttempt(fx, created.workflow_run_id!, ["steer"]);
+    const attempt = await seedAttempt(
+      fx,
+      created.workflow_run_id!,
+      ["steer"],
+      "Automation pause worker",
+    );
     try {
       a.edit(41, { labels: [EXECUTE_LABEL, HOLD_LABEL] });
       const route = await a.deliver(41);

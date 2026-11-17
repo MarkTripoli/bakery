@@ -681,11 +681,14 @@ export function createRepositoriesListHandler(secret: string) {
     const position = await decodeCursor(secret, query.cursor, binding);
     const limit = query.limit ?? 25;
     // Listing through resource bindings returns only what they reach.
+    // Every column below is qualified: the readiness joins bring their own
+    // `id` and `created_at`, so an unqualified one is ambiguous the moment a
+    // scope clause or the cursor predicate names it.
     const scoped = accessScope === undefined
       ? { sql: "true", values: [] as unknown[] }
       : accessScopeClause(accessScope, {
-        application: "application_id",
-        repository: "id",
+        application: "repository.application_id",
+        repository: "repository.id",
       }, 5);
     const result = await transaction.query<
       RepositoryRow & {
@@ -694,26 +697,31 @@ export function createRepositoriesListHandler(secret: string) {
         active_readiness: string | null;
       }
     >(
-      `select ${REPOSITORY_COLUMNS},
+      `select ${
+        REPOSITORY_COLUMNS.split(",").map((column) =>
+          `repository.${column.trim()}`
+        ).join(", ")
+      },
           to_char(
-            created_at at time zone 'UTC',
+            repository.created_at at time zone 'UTC',
             'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
           ) as cursor_created_at,
           -- #65: the readiness facts the Projects list needs, read in the same
           -- request so a row never costs its own query.
           profile.config as active_config,
           observation.readiness as active_readiness
-         from bakery.repositories
+         from bakery.repositories repository
          left join bakery.repository_profiles profile
-           on profile.organization_id = bakery.repositories.organization_id
-          and profile.id = bakery.repositories.active_profile_id
+           on profile.organization_id = repository.organization_id
+          and profile.id = repository.active_profile_id
          left join bakery.repository_profile_observations observation
-           on observation.organization_id = bakery.repositories.organization_id
-          and observation.profile_id = bakery.repositories.active_profile_id
-         where organization_id = $1
-           and ($2::timestamptz is null or (created_at, id) < ($2, $3::uuid))
+           on observation.organization_id = repository.organization_id
+          and observation.profile_id = repository.active_profile_id
+         where repository.organization_id = $1
+           and ($2::timestamptz is null or
+                (repository.created_at, repository.id) < ($2, $3::uuid))
            and ${scoped.sql}
-         order by created_at desc, id desc
+         order by repository.created_at desc, repository.id desc
          limit $4`,
       [
         organizationId,

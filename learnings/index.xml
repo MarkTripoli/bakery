@@ -134,4 +134,5 @@
   <entry file="check-the-rails-before-ruling-on-db-shape.xml" scope="process" />
   <entry file="compare-the-region-not-the-image.xml" scope="project" />
   <entry file="destructive-red-proof-pollutes-test-db.xml" scope="project" />
+  <entry file="deno-check-is-the-gate-for-test-files.xml" scope="project" />
 </learnings>

@@ -41,6 +41,7 @@ import {
   withTicketFixture,
 } from "./fixtures.ts";
 import { ticketCall } from "./operations-http.ts";
+import { seedAttempt } from "./seed-attempt.ts";
 
 const EDITED_BODY = `${ACCEPTANCE_BODY}- and it logs\n`;
 
@@ -489,85 +490,6 @@ Deno.test("issue 82 recheck: label events that do not cover the request label le
     );
   }));
 
-/** A live job attempt on a worker host for the run's first step, as the worker would hold it. */
-async function seedAttempt(
-  fx: TicketFixture,
-  runId: string,
-  adapterCapabilities: string[],
-) {
-  const ids = {
-    job: crypto.randomUUID(),
-    principal: crypto.randomUUID(),
-    host: crypto.randomUUID(),
-    attempt: crypto.randomUUID(),
-    session: crypto.randomUUID(),
-  };
-  const step = await fx.owner.query<{ id: string }>(
-    `select id from bakery.run_steps where organization_id = $1 and run_id = $2
-      order by position, iteration limit 1`,
-    [fx.organizationId, runId],
-  );
-  const org = fx.organizationId;
-  await fx.owner.query(
-    `insert into bakery.jobs (id, organization_id, run_step_id, action, input,
-       requirements, status, current_fence)
-     values ($1, $2, $3, 'harness.implement', '{}', '{}', 'running', 1)`,
-    [ids.job, org, step.rows[0].id],
-  );
-  await fx.owner.query(
-    `insert into bakery.principals (id, display_name, principal_type)
-     values ($1, 'Pause test worker', 'worker')`,
-    [ids.principal],
-  );
-  await fx.owner.query(
-    `insert into bakery.worker_hosts (id, organization_id, principal_id,
-       principal_type, name, os, architecture, capabilities, slots,
-       credential_hash, worker_session_id, worker_session_generation,
-       adapter_capabilities)
-     values ($1, $2, $3, 'worker', 'Pause test host', 'linux', 'x64', '[]', 1,
-       $4, $5, 0, $6::jsonb)`,
-    [
-      ids.host,
-      org,
-      ids.principal,
-      `pause-${ids.host}`,
-      ids.session,
-      JSON.stringify(adapterCapabilities),
-    ],
-  );
-  await fx.owner.query(
-    `insert into bakery.job_attempts (id, organization_id, job_id,
-       worker_host_id, worker_session_id, worker_session_generation, attempt_no,
-       fence, lease_token_hash, lease_expires_at, status, started_at)
-     values ($1, $2, $3, $4, $5, 0, 1, 1, $6,
-       clock_timestamp() + interval '5 minutes', 'running', clock_timestamp())`,
-    [ids.attempt, org, ids.job, ids.host, ids.session, `lease-${ids.attempt}`],
-  );
-  const commands = async () =>
-    (await fx.owner.query<{ idempotency_key: string; command_type: string }>(
-      `select idempotency_key, command_type from bakery.worker_commands
-        where organization_id = $1 and attempt_id = $2`,
-      [org, ids.attempt],
-    )).rows;
-  const cleanup = async () => {
-    await fx.owner.query(
-      "delete from bakery.worker_commands where attempt_id = $1",
-      [ids.attempt],
-    );
-    await fx.owner.query("delete from bakery.job_attempts where id = $1", [
-      ids.attempt,
-    ]);
-    await fx.owner.query("delete from bakery.jobs where id = $1", [ids.job]);
-    await fx.owner.query("delete from bakery.worker_hosts where id = $1", [
-      ids.host,
-    ]);
-    await fx.owner.query("delete from bakery.principals where id = $1", [
-      ids.principal,
-    ]);
-  };
-  return { commands, cleanup };
-}
-
 Deno.test("issue 82 recheck: a run that outlives its request's suspension is paused once, only when a command was enqueued", () =>
   withTicketFixture(async (fx) => {
     seedLabeler(fx);
@@ -576,7 +498,12 @@ Deno.test("issue 82 recheck: a run that outlives its request's suspension is pau
     try {
       // A live attempt on a worker that can steer: one pause command.
       const a = await admitWebhook(fx, sourceId, 701);
-      const live = await seedAttempt(fx, a.request.workflowRunId!, ["steer"]);
+      const live = await seedAttempt(
+        fx,
+        a.request.workflowRunId!,
+        ["steer"],
+        "Pause test worker",
+      );
       attempts.push(live);
       setIssue(fx, 701, { labels: [] });
       const paused = await fx.recheck(a.ticketId);
@@ -614,7 +541,12 @@ Deno.test("issue 82 recheck: a run that outlives its request's suspension is pau
         (await requestRow(fx, b.request.id)).pause_requested_at,
         null,
       );
-      const later = await seedAttempt(fx, b.request.workflowRunId!, ["steer"]);
+      const later = await seedAttempt(
+        fx,
+        b.request.workflowRunId!,
+        ["steer"],
+        "Pause test worker",
+      );
       attempts.push(later);
       const retried = await fx.recheck(b.ticketId);
       assertEquals(retried.applied, ["pause"]);
@@ -638,7 +570,12 @@ Deno.test("issue 82 recheck: a run that outlives its request's suspension is pau
 
       // An adapter that cannot steer or interrupt: no command, no mark.
       const c = await admitWebhook(fx, sourceId, 703);
-      const mute = await seedAttempt(fx, c.request.workflowRunId!, []);
+      const mute = await seedAttempt(
+        fx,
+        c.request.workflowRunId!,
+        [],
+        "Pause test worker",
+      );
       attempts.push(mute);
       setIssue(fx, 703, { labels: [] });
       const unsupported = await fx.recheck(c.ticketId);
@@ -663,7 +600,12 @@ Deno.test("issue 82 recheck: an explicit resume clears the pause mark, so the ne
     const sourceId = await fx.insertSource({ policy: automaticPolicy(fx) });
     const closed = { state: "closed", stateReason: "completed" } as const;
     const a = await admitWebhook(fx, sourceId, 711);
-    const live = await seedAttempt(fx, a.request.workflowRunId!, ["steer"]);
+    const live = await seedAttempt(
+      fx,
+      a.request.workflowRunId!,
+      ["steer"],
+      "Pause test worker",
+    );
     try {
       setIssue(fx, 711, closed);
       assertEquals((await fx.recheck(a.ticketId)).applied, [
@@ -677,7 +619,10 @@ Deno.test("issue 82 recheck: an explicit resume clears the pause mark, so the ne
         number: 711,
         intent: "start",
       });
-      assertEquals(resumed.request?.disposition, "admitted");
+      // A seeded live attempt means the run is running, and `resumeTarget`
+      // maps a running run to `active` - only a null, queued or
+      // waiting-capacity run resumes as `admitted`.
+      assertEquals(resumed.request?.disposition, "active");
       assertEquals(
         (await requestRow(fx, a.request.id)).pause_requested_at,
         null,

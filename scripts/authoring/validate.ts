@@ -27,6 +27,7 @@ export const fields = {
     "Change outline",
     "Decisions",
     "Evidence",
+    "Verification",
   ],
 } as const;
 
@@ -350,6 +351,78 @@ export function validateDescription(kind: Kind, body: string): string[] {
     if (items > 9) {
       errors.push("Evidence: at most eight items.");
     }
+    // The verification checklist is the merge gate: reviewers tick each box or
+    // replace it with "N/A: <reason>"; any open box keeps the check red.
+    const verification = sections.get("verification") ?? "";
+    const required = [
+      "backend verified",
+      "ui verified",
+      "implementation clean",
+      "tests cover",
+    ];
+    const lines = verification.split("\n").filter((line) =>
+      /^[-*] /.test(line)
+    );
+    for (const item of required) {
+      // The item's own label must start the line right after the checkbox:
+      // a phrase that merely appears inside another item's line cannot
+      // resolve that item, so one ticked line cannot satisfy the checklist.
+      const label = new RegExp(`^[-*] \\[.\\]\\s*${item}\\b`, "i");
+      const matches = lines.filter((l) => label.test(l));
+      if (matches.length === 0) {
+        errors.push(`Verification: missing the "${item}" item.`);
+        continue;
+      }
+      // One item, one line. A second line for the same item is an unresolved
+      // edit: the reader cannot tell which of the two is the answer, and a
+      // ticked duplicate beside an open one would gate on the tick.
+      if (matches.length > 1) {
+        errors.push(
+          `Verification: "${item}" appears on ${matches.length} lines; keep exactly one.`,
+        );
+        continue;
+      }
+      const line = matches[0];
+      const ticked = /^[-*] \[[xX]\]/.test(line);
+      const na = /\bN\/A:\s*\S/.test(line);
+      // Tick and N/A are mutually exclusive and one of them is required. A
+      // line saying both has not decided, and a lone N/A with no reason has
+      // only refused the work without saying why.
+      if (ticked && na) {
+        errors.push(
+          `Verification: "${item}" is both ticked and marked N/A; keep one.`,
+        );
+      } else if (
+        na &&
+        /\bN\/A:[^\n]*\b(?:not yet|pending|in progress|awaiting|waiting|to be (?:reviewed|run|done)|tbd|todo|later)\b/i
+          .test(line)
+      ) {
+        // N/A means the item does not apply to this change. Work that has
+        // simply not happened yet is pending, and pending keeps the gate red.
+        errors.push(
+          `Verification pending: "${item}" says N/A but means not done yet; N/A is only for items that don't apply.`,
+        );
+      } else if (!ticked && !na) {
+        errors.push(
+          `Verification pending: "${item}" is not ticked or marked N/A: <reason>.`,
+        );
+      } else if (ticked) {
+        // A tick has to say something. The checkbox is a claim, and an empty
+        // claim is an unresolved item wearing a tick. The label and an
+        // optional attribution in parentheses are part of the item, not the
+        // claim, so "- [x] Implementation clean (reviewer):" says nothing.
+        const claim = line.replace(/^[-*] \[[xX]\]\s*/, "")
+          .replace(new RegExp(`^${item}\\b`, "i"), "")
+          .replace(/^\s*\([^)]*\)/, "")
+          .replace(/^[\s:,-]*/, "")
+          .trim();
+        if (!/\S/.test(claim)) {
+          errors.push(
+            `Verification: "${item}" is ticked with no claim; say what was verified.`,
+          );
+        }
+      }
+    }
     const limits: [string, number, number][] = [
       ["purpose", 40, 0],
       ["risk", 0, 25],
@@ -393,7 +466,7 @@ export function validateDescription(kind: Kind, body: string): string[] {
       );
     }
     const total = [...sections].filter(([name]) =>
-      !["ticket", "task", "walkthrough"].includes(name)
+      !["ticket", "task", "walkthrough", "verification"].includes(name)
     ).reduce((sum, [, value]) => sum + wordCount(prose(value)), 0);
     if (total > 300) {
       errors.push(

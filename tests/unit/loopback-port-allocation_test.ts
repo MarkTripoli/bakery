@@ -3,10 +3,14 @@ import {
   assertEquals,
   AssertionError,
   assertRejects,
+  assertThrows,
 } from "@std/assert";
 import {
   bindLoopbackPortWithRetry,
+  isLoopbackBandPort,
+  LOOPBACK_PORT_BAND_END,
   type PortCollisionRetry,
+  probeLoopbackPort,
   reserveUniqueLoopbackPort,
   retryOnPortCollision,
 } from "../fixtures/loopback-port-allocation.ts";
@@ -384,4 +388,95 @@ Deno.test("an attempt budget below one is rejected before any boot", async () =>
   );
 
   assertEquals(runs, 0);
+});
+
+// A `:0` draw comes from the kernel's ephemeral range, which is the pool the
+// kernel hands to the next process that asks for a port, so the draw is one
+// allocation away from being taken before the caller binds. Drawing from a
+// band below that range narrows the race to explicit holders.
+//
+// These tests inject `bind`: the unit lane grants no `--allow-net`, so a real
+// socket here fails with PermissionDenied rather than a conflict. The real
+// bind path is covered in the integration lane, which has net.
+const freeBind = () => {};
+
+Deno.test("a drawn port comes from the band below the ephemeral range", () => {
+  const port = probeLoopbackPort(undefined, 8, freeBind);
+  assert(isLoopbackBandPort(port), `drew ${port}, outside the band`);
+});
+
+Deno.test("the band sits below the kernel's ephemeral range", async () => {
+  // Guard: if the platform's ephemeral range ever moves under the band, the
+  // band stops buying anything and this test should say so rather than let the
+  // allocator quietly return to the old behaviour.
+  let range: string | undefined;
+  try {
+    range = (await Deno.readTextFile("/proc/sys/net/ipv4/ip_local_port_range"))
+      .trim();
+  } catch {
+    range = undefined; // Not Linux; nothing to compare against.
+  }
+  if (range === undefined) return;
+  const [low, high] = range.split(/\s+/).map(Number);
+  assert(Number.isInteger(low) && Number.isInteger(high), range);
+  assert(
+    LOOPBACK_PORT_BAND_END < low,
+    `band ends at ${LOOPBACK_PORT_BAND_END} but the ephemeral range starts at ${low}`,
+  );
+});
+
+Deno.test("a held port in the band is skipped rather than returned", () => {
+  const held = 25_000;
+  const candidates = [held, held + 1];
+  const selected = probeLoopbackPort(
+    () => candidates.shift()!,
+    4,
+    (port) => {
+      // The first candidate is held; the second binds.
+      if (port === held) throw new Deno.errors.AddrInUse("held");
+    },
+  );
+  assert(selected !== held, `returned the held port ${held}`);
+  assertEquals(selected, held + 1);
+});
+
+Deno.test("a denied network permission is not mistaken for a held port", () => {
+  // The unit lane has no `--allow-net`. If the probe swallowed the permission
+  // error as a conflict it would report BAND_EXHAUSTED and hide the cause, so
+  // it must surface the denial instead.
+  assertThrows(
+    () =>
+      probeLoopbackPort(
+        () => 25_100,
+        4,
+        () => {
+          throw new Deno.errors.PermissionDenied("no net");
+        },
+      ),
+    Deno.errors.PermissionDenied,
+  );
+});
+
+Deno.test("a candidate outside the band is refused, not returned", () => {
+  // The band is the contract; a probe that drifts back to `:0` draws must fail
+  // loudly rather than silently reintroduce the ephemeral-range race.
+  assertThrows(
+    () => probeLoopbackPort(() => 45_000, 4, freeBind),
+    Error,
+    "LOOPBACK_PORT_OUTSIDE_BAND:45000",
+  );
+});
+
+Deno.test("concurrent draws in one process are distinct", () => {
+  const allocated = new Set<number>();
+  for (let index = 0; index < 8; index++) {
+    allocated.add(
+      reserveUniqueLoopbackPort(
+        allocated,
+        () => probeLoopbackPort(undefined, 8, freeBind),
+      ),
+    );
+  }
+  assertEquals(allocated.size, 8);
+  for (const port of allocated) assert(isLoopbackBandPort(port), `${port}`);
 });
