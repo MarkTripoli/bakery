@@ -69,6 +69,7 @@ function recordingGh(fixture: {
 const options = {
   runId: "123",
   runUrl: "https://github.com/o/r/actions/runs/123",
+  trigger: "scheduled" as const,
   now: new Date("2026-11-18T05:23:00Z"),
 };
 
@@ -211,11 +212,13 @@ Deno.test("the same failing set produces the same body", () => {
     redBody(
       failingJobs([job("w / z", "failure"), job("a / y", "failure")]),
       url,
+      "scheduled",
       at,
     ),
     redBody(
       failingJobs([job("a / y", "failure"), job("w / z", "failure")]),
       url,
+      "scheduled",
       at,
     ),
   );
@@ -267,4 +270,35 @@ Deno.test("concatenated pages are refused, not read as one page", () => {
 
 Deno.test("an empty page list is no jobs, not a failure", () => {
   assertEquals(jobsFromPages([]), []);
+});
+
+Deno.test("the body says which kind of run failed", () => {
+  // The same code path serves a schedule and a maintainer dispatch. A body that
+  // calls a dispatch "the scheduled run" records something that did not happen,
+  // and the tracking issue outlives the run that wrote it.
+  const at = new Date("2026-11-18T05:23:00Z");
+  const url = "https://github.com/o/r/actions/runs/123";
+  const failing = failingJobs([job("a / y", "failure")]);
+  assertEquals(
+    redBody(failing, url, "scheduled", at).split("\n")[0],
+    "The scheduled run on 2026-11-18T05:23:00Z failed.",
+  );
+  assertEquals(
+    redBody(failing, url, "dispatched", at).split("\n")[0],
+    "The dispatched run on 2026-11-18T05:23:00Z failed.",
+  );
+});
+
+Deno.test("a green dispatched run closes the issue as a dispatched run", async () => {
+  const { gh, calls } = recordingGh({ jobs: [], openIssues: [42] });
+  const outcome = await runNightlySignal(gh, {
+    ...options,
+    trigger: "dispatched",
+  });
+  assertEquals(outcome.kind, "closed");
+  const close = calls.find((call) => call.op === "close");
+  assert(
+    String(close?.comment).includes("dispatched run went green"),
+    `expected the close comment to name a dispatched run, got ${close?.comment}`,
+  );
 });

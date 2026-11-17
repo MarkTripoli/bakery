@@ -77,11 +77,12 @@ export function failingJobs(jobs: readonly Job[]): readonly string[] {
 export function redBody(
   failing: readonly string[],
   runUrl: string,
+  trigger: RunTrigger,
   now: Date,
 ): string {
   const stamp = now.toISOString().replace(/\.\d{3}Z$/, "Z");
   return [
-    `The scheduled run on ${stamp} failed.`,
+    `The ${trigger} run on ${stamp} failed.`,
     "",
     "Failing jobs:",
     ...failing.map((job) => `- \`${job}\``),
@@ -90,9 +91,21 @@ export function redBody(
   ].join("\n");
 }
 
+/**
+ * What to call the run in the issue body.
+ *
+ * Required and undefaulted, because the same code path serves a scheduled run and
+ * a maintainer dispatch, and a body that calls a dispatch "the scheduled run"
+ * describes something that did not happen. The caller knows which it is; this
+ * module cannot tell by looking, and guessing would put a false sentence in a
+ * record that outlives the run.
+ */
+export type RunTrigger = "scheduled" | "dispatched";
+
 export type SignalOptions = {
   readonly runId: string;
   readonly runUrl: string;
+  readonly trigger: RunTrigger;
   readonly now?: Date;
 };
 
@@ -132,7 +145,7 @@ export async function runNightlySignal(
   const existing = open[0];
 
   if (failing.length > 0) {
-    const body = redBody(failing, options.runUrl, now);
+    const body = redBody(failing, options.runUrl, options.trigger, now);
     if (existing !== undefined) {
       await gh.updateIssue(existing, body);
       await gh.commentOnIssue(existing, `Still red on ${options.runUrl}`);
@@ -145,7 +158,7 @@ export async function runNightlySignal(
   if (existing !== undefined) {
     await gh.closeIssue(
       existing,
-      `The scheduled run went green: ${options.runUrl}`,
+      `The ${options.trigger} run went green: ${options.runUrl}`,
     );
     return { kind: "closed", issue: existing };
   }
@@ -248,6 +261,7 @@ if (import.meta.main) {
   const runId = Deno.env.get("RUN_ID");
   const serverUrl = Deno.env.get("SERVER_URL");
   const token = Deno.env.get("GH_TOKEN");
+  const eventName = Deno.env.get("GITHUB_EVENT_NAME");
   if (!repo || !runId || !serverUrl || !token) {
     // A missing variable is a wiring defect in this workflow, not a condition
     // the signal was asked to handle. Exiting 0 would hide it for good: the job
@@ -260,15 +274,26 @@ if (import.meta.main) {
       ["RUN_ID", runId],
       ["SERVER_URL", serverUrl],
       ["GH_TOKEN", token],
+      ["GITHUB_EVENT_NAME", eventName],
     ].filter(([, value]) => !value).map(([name]) => name).join(", ");
     console.error(
       `::error::nightly signal: ${missing} missing from the workflow environment`,
     );
     Deno.exit(1);
   }
+  // The workflow only reaches this step for a schedule or a maintainer
+  // dispatch, so anything else is a wiring mistake worth failing on rather than
+  // describing as a scheduled run.
+  if (eventName !== "schedule" && eventName !== "workflow_dispatch") {
+    console.error(
+      `::error::nightly signal: unexpected event ${eventName}; this step runs for schedule and workflow_dispatch only`,
+    );
+    Deno.exit(1);
+  }
   const outcome = await runNightlySignal(ghRunner(repo, token), {
     runId,
     runUrl: `${serverUrl}/${repo}/actions/runs/${runId}`,
+    trigger: eventName === "schedule" ? "scheduled" : "dispatched",
   });
   if (outcome.kind === "could-not-read") {
     console.error(
