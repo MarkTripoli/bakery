@@ -22,13 +22,17 @@ export const fields = {
     "Task",
     "Walkthrough",
     "Purpose",
+    "Risk",
     "Special things to note",
     "Change outline",
+    "Decisions",
+    "Evidence",
   ],
 } as const;
 
 export type Kind = keyof typeof fields;
-const key = (text: string) => text.trim().toLowerCase().replace(/:$/, "");
+const key = (text: string) =>
+  text.trim().toLowerCase().replace(/:$/, "").replace(/\s+@\s+\S+$/, "");
 const known = new Set(Object.values(fields).flat().map(key));
 
 export function parseDescription(body: string) {
@@ -162,6 +166,58 @@ function unfinished(text: string, literal = false): boolean {
       .test(plain);
 }
 
+function bulletsOf(text: string): string[] {
+  return text.match(/^[-*] .+/gm) ?? [];
+}
+
+/**
+ * Drops fenced code blocks. A fence's contents are literal: a `- something`
+ * line inside one is code being quoted, not a bullet the author wrote, so
+ * anything that counts or grades list items must look at the text without it.
+ */
+export function withoutFences(text: string): string {
+  return text.replace(
+    /^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?^ {0,3}\1[ \t]*$/gm,
+    "",
+  );
+}
+
+/** Prose only: drops code fences, table rows, images and link targets. */
+export function prose(text: string): string {
+  return text
+    .replace(/^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?^ {0,3}\1[ \t]*$/gm, "")
+    .replace(/^\s*\|.*$/gm, "")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/<[^>]*>/g, "");
+}
+
+export function wordCount(text: string): number {
+  return (text.match(/[\p{L}\p{N}][\p{L}\p{N}'’._/-]*/gu) ?? []).length;
+}
+
+/**
+ * The Change outline's show-me views: each fenced block is one view, and its
+ * lines are the view's budget. A view's own labels and node names are part of
+ * the view, never prose — so a bigger diagram must not be paid for out of the
+ * prose cap, and the prose cap must not be dodged by hiding words in a fence.
+ */
+function outlineViews(text: string): { views: number; lines: number } {
+  let views = 0;
+  let lines = 0;
+  for (
+    const block of text.matchAll(
+      /^ {0,3}(`{3,}|~{3,})[^\n]*\n([\s\S]*?)^ {0,3}\1[ \t]*$/gm,
+    )
+  ) {
+    const body = block[2].split("\n").filter((line) => line.trim());
+    if (body.length) views += 1;
+    lines += body.length;
+  }
+  return { views, lines };
+}
+
 export function relatedIssue(body: string): number | null {
   const sections = parseDescription(body).sections;
   const value = sections.get("ticket") ?? sections.get("related issue") ?? "";
@@ -184,7 +240,8 @@ export function validateDescription(kind: Kind, body: string): string[] {
     const field = key(name);
     const value = sections.get(field) ?? "";
     const allowedNone =
-      (field === "dependencies" || field === "special things to note") &&
+      (field === "dependencies" || field === "special things to note" ||
+        field === "decisions" || field === "evidence") &&
       /^(?:-\s*)?None[.!]?$/i.test(value);
     if (!allowedNone && unfinished(value)) {
       errors.push("Complete section: " + name);
@@ -253,6 +310,96 @@ export function validateDescription(kind: Kind, body: string): string[] {
         "Special things to note needs one to four bullets (or - None.).",
       );
     }
+    const risk = sections.get("risk") ?? "";
+    if (!/^Level:\s*(Low|Medium|High)\s*$/im.test(risk.split("\n")[0] ?? "")) {
+      errors.push("Risk must start with Level: Low, Medium or High.");
+    }
+    const riskBullets = bulletsOf(risk);
+    if (riskBullets.length < 1 || riskBullets.length > 3) {
+      errors.push("Risk needs one to three bullets.");
+    }
+    const decisions = sections.get("decisions") ?? "";
+    const decisionBullets = bulletsOf(decisions);
+    if (
+      !/^(?:-\s*)?None[.!]?$/i.test(decisions) &&
+      (decisionBullets.length < 1 || decisionBullets.length > 3)
+    ) {
+      errors.push("Decisions needs one to three bullets (or - None.).");
+    }
+    // Evidence is what a reader can't get from CI: UI screenshots or recordings,
+    // and the new tests. Routine checks (format, lint, types) belong to CI.
+    const evidence = sections.get("evidence") ?? "";
+    if (
+      // "format"/"formatting" are deliberately absent: real test files carry
+      // them in their names (`contracts-module-format.node.mjs`), and the
+      // repo's formatter command is `pnpm fmt`, which `fmt` already covers.
+      /\b(?:fmt|lint|typecheck|type-check|types|deno check|tsc)\b/i
+        .test(
+          prose(evidence) + " " +
+            evidence.split("\n").filter((l) => /^\s*\|/.test(l)).join(" "),
+        )
+    ) {
+      errors.push(
+        "Evidence: drop routine checks (fmt, lint, typecheck); CI shows them. Show UI evidence and new tests.",
+      );
+    }
+    const items = (evidence.match(/^[-*] .+/gm) ?? []).length +
+      evidence.split("\n").filter((line) =>
+        /^\s*\|/.test(line) && !/^\s*\|[\s|:-]*\|?\s*$/.test(line)
+      ).length;
+    if (items > 9) {
+      errors.push("Evidence: at most eight items.");
+    }
+    const limits: [string, number, number][] = [
+      ["purpose", 40, 0],
+      ["risk", 0, 25],
+      ["special things to note", 0, 25],
+      ["change outline", 40, 0],
+      ["decisions", 0, 30],
+      ["evidence", 60, 0],
+    ];
+    for (const [name, words, perBullet] of limits) {
+      const value = sections.get(name) ?? "";
+      if (words && wordCount(prose(value)) > words) {
+        errors.push(`Too long: ${name} prose must be at most ${words} words.`);
+      }
+      if (
+        perBullet &&
+        bulletsOf(value).some((b) => wordCount(prose(b)) > perBullet)
+      ) {
+        errors.push(
+          `Too long: each ${name} bullet must be at most ${perBullet} words.`,
+        );
+      }
+    }
+    // The Change outline is the core of a PR: one to three show-me views,
+    // 80 lines of view in all. The 40-word prose cap above is counted only
+    // outside fences, so views and prose have separate budgets.
+    const outlineView = outlineViews(sections.get("change outline") ?? "");
+    if (outlineView.lines > 80) {
+      errors.push(
+        `Too long: change outline views must be at most 80 lines in all (${outlineView.lines}).`,
+      );
+    }
+    if (outlineView.views > 3) {
+      errors.push(
+        `Too many views: change outline takes at most three (${outlineView.views}).`,
+      );
+    }
+    const images = (body.match(/!\[[^\]]*\]\([^)]*\)/g) ?? []).length;
+    if (images > 4) {
+      errors.push(
+        "Too many screenshots: at most four; link the rest as one folder.",
+      );
+    }
+    const total = [...sections].filter(([name]) =>
+      !["ticket", "task", "walkthrough"].includes(name)
+    ).reduce((sum, [, value]) => sum + wordCount(prose(value)), 0);
+    if (total > 300) {
+      errors.push(
+        `Too long: ${total} words of prose; the whole description must be at most 300.`,
+      );
+    }
     const outline = sections.get("change outline") ?? "";
     const hasView = views.has("change outline");
     const explained = /^No structural change:\s+\S.{15,}$/im.test(outline);
@@ -265,16 +412,68 @@ export function validateDescription(kind: Kind, body: string): string[] {
   return [...new Set(errors)];
 }
 
+/**
+ * Review and QA verdict comments: a verdict line, the head commit, at most
+ * five one-line findings and at most 150 words of prose in all.
+ */
+export function validateReview(body: string): string[] {
+  const errors: string[] = [];
+  const text = body.replace(/\r\n?/g, "\n").replace(/<!--[\s\S]*?-->/g, "")
+    .trim();
+  if (
+    !/^\*{0,2}Verdict:\*{0,2}\s*(Approve|Changes requested|Blocked)\b/im.test(
+      text.split("\n")[0] ?? "",
+    )
+  ) {
+    errors.push(
+      "First line must be Verdict: Approve, Changes requested or Blocked.",
+    );
+  }
+  if (!/^\*{0,2}Head:\*{0,2}\s*`?[0-9a-f]{7,40}`?/im.test(text)) {
+    errors.push("Name the head commit reviewed: Head: <sha>.");
+  }
+  // A `- ` line inside a fenced block is quoted code, not a finding. Counting
+  // it made a reviewer who pasted a repro with a list fail the severity and
+  // 25-word rules on lines they never wrote as findings.
+  const findings = withoutFences(text).match(/^[-*] .+/gm) ?? [];
+  if (findings.length > 5) {
+    errors.push("At most five findings; merge or drop the minor ones.");
+  }
+  for (const finding of findings) {
+    if (!/^[-*] \*{0,2}\[?(High|Medium|Low)\]?\*{0,2}/i.test(finding)) {
+      errors.push(
+        "Start each finding with its severity: [High], [Medium] or [Low].",
+      );
+      break;
+    }
+  }
+  if (findings.some((finding) => wordCount(prose(finding)) > 25)) {
+    errors.push("Too long: each finding must be at most 25 words.");
+  }
+  const total = wordCount(prose(text));
+  if (total > 150) {
+    errors.push(
+      `Too long: ${total} words of prose; a verdict must be at most 150.`,
+    );
+  }
+  return [...new Set(errors)];
+}
+
 if (import.meta.main) {
   const [kind, path] = Deno.args;
-  if (!Object.hasOwn(fields, kind ?? "") || !path || Deno.args.length !== 2) {
-    console.error("Usage: validate.ts issue|epic|pr <body.md|->");
+  if (
+    !(Object.hasOwn(fields, kind ?? "") || kind === "review") || !path ||
+    Deno.args.length !== 2
+  ) {
+    console.error("Usage: validate.ts issue|epic|pr|review <body.md|->");
     Deno.exit(2);
   }
   const body = path === "-"
     ? await new Response(Deno.stdin.readable).text()
     : await Deno.readTextFile(path);
-  const errors = validateDescription(kind as Kind, body);
+  const errors = kind === "review"
+    ? validateReview(body)
+    : validateDescription(kind as Kind, body);
   console.log(JSON.stringify({ ok: errors.length === 0, errors }));
   if (errors.length) Deno.exit(1);
 }

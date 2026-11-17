@@ -3,6 +3,7 @@ import {
   fields,
   relatedIssue,
   validateDescription,
+  validateReview,
 } from "../../scripts/authoring/validate.ts";
 import { checkLive } from "../../scripts/authoring/github.ts";
 
@@ -45,8 +46,11 @@ const epic = [
 const pr = [
   "Ticket: [#169](https://github.com/MarkTripoli/bakery/issues/169) | Task: [authoring-rails](https://github.com/MarkTripoli/bakery/issues/169) | Walkthrough: not requested",
   "## Purpose\n\nKeep issue and PR authoring consistent across humans and agents.",
+  "## Risk\n\nLevel: Low\n\n- Only description checks change; revert the commit to roll back.",
   "## Special things to note\n\n- Activation requires landing the trusted workflow on main.",
   "## Change outline\n\n```text\nTemplates -> authoring skill -> shared validator -> GitHub feedback/status\n```",
+  "## Decisions\n\n- None.",
+  "## Evidence\n\n- New test `authoring_test.ts`: rejects a PR body over 300 words.",
 ].join("\n\n");
 const head = "a".repeat(40);
 const base = "b".repeat(40);
@@ -246,6 +250,7 @@ Deno.test("authoring preserves literal code delimiters and ignores raw HTML code
   }
   const outlineStart = pr.indexOf("```text");
   const prefix = pr.slice(0, outlineStart);
+  const suffix = pr.slice(pr.indexOf("\n\n## Decisions"));
   for (
     const outline of [
       '```json\n{"operation": "createIssue", "requiresApproval": true}\n```',
@@ -254,7 +259,7 @@ Deno.test("authoring preserves literal code delimiters and ignores raw HTML code
       '```ts\nrender("<!--");\n````',
       '~~~ts\nrender("<!--");\n~~~~',
     ]
-  ) assertEquals(validateDescription("pr", prefix + outline), []);
+  ) assertEquals(validateDescription("pr", prefix + outline + suffix), []);
   assertEquals(
     validateDescription(
       "pr",
@@ -368,4 +373,198 @@ Deno.test("read-only policy refuses invalid issue, moved PR head, and missing ow
   };
   await assertRejects(() => checkLive(f.api, "pr", 170), Error, "404");
   assertEquals(f.writes, []);
+});
+
+Deno.test("authoring keeps PR descriptions short and asks for risk, decisions and evidence", () => {
+  const has = (body: string, text: string) =>
+    validateDescription("pr", body).some((e) => e.includes(text));
+  assertEquals(
+    validateDescription("pr", pr.replace("Level: Low", "Level: Medium")),
+    [],
+  );
+  assertEquals(
+    has(pr.replace("Level: Low", "Level: Some"), "Level: Low, Medium or High"),
+    true,
+  );
+  assertEquals(
+    has(
+      pr.replace(/## Risk[\s\S]*?(?=## Special)/, ""),
+      "Complete section: Risk",
+    ),
+    true,
+  );
+  assertEquals(
+    has(
+      pr.replace("- None.", "- Chose A over B because C.\n- D.\n- E.\n- F."),
+      "one to three bullets",
+    ),
+    true,
+  );
+  const evidence = (text: string) =>
+    pr.replace(/## Evidence\n\n[^\n]*/, "## Evidence\n\n" + text);
+  assertEquals(validateDescription("pr", evidence("- None.")), []);
+  assertEquals(
+    validateDescription(
+      "pr",
+      evidence("![list](https://example.com/list.png)"),
+    ),
+    [],
+  );
+  assertEquals(
+    has(evidence("- `pnpm typecheck` passed"), "routine checks"),
+    true,
+  );
+  assertEquals(
+    has(
+      evidence("| check | result |\n|---|---|\n| lint | clean |"),
+      "routine checks",
+    ),
+    true,
+  );
+  const long = Array(41).fill("word").join(" ");
+  assertEquals(
+    has(
+      pr.replace(
+        "Keep issue and PR authoring consistent across humans and agents.",
+        long,
+      ),
+      "purpose prose",
+    ),
+    true,
+  );
+  assertEquals(
+    has(
+      pr.replace(
+        "- Activation requires",
+        "- " + Array(26).fill("x").join(" ") + " Activation requires",
+      ),
+      "bullet must be at most 25",
+    ),
+    true,
+  );
+  // The Change outline is the PR's core: one to three views, 80 lines in all.
+  // 79 lines passes, 81 fails — the boundary, not a round number either side.
+  const viewOf = (lines: number) =>
+    "```text\n" + Array(lines).fill("a -> b").join("\n") + "\n```";
+  assertEquals(
+    has(pr.replace(/```text[\s\S]*?```/, viewOf(79)), "at most 80 lines"),
+    false,
+  );
+  assertEquals(
+    has(pr.replace(/```text[\s\S]*?```/, viewOf(80)), "at most 80 lines"),
+    false,
+  );
+  assertEquals(
+    has(pr.replace(/```text[\s\S]*?```/, viewOf(81)), "at most 80 lines"),
+    true,
+  );
+  // Four views is one too many; three is the cap.
+  const views = (count: number) =>
+    Array(count).fill("```text\na -> b\n```").join("\n");
+  assertEquals(
+    has(pr.replace(/```text[\s\S]*?```/, views(3)), "at most three"),
+    false,
+  );
+  assertEquals(
+    has(pr.replace(/```text[\s\S]*?```/, views(4)), "at most three"),
+    true,
+  );
+  // A view's labels are the view's budget, not prose: a long diagram must not
+  // push the 40-word Change outline prose cap over.
+  const labelled = "```mermaid\n" +
+    Array(80).fill("  A[word word word] --> B").join("\n") + "\n```";
+  assertEquals(
+    has(pr.replace(/```text[\s\S]*?```/, labelled), "words of prose"),
+    false,
+  );
+  const shots = Array(5).fill("![s](https://example.com/s.png)").join(" ");
+  assertEquals(has(pr + "\n\n" + shots, "at most four"), true);
+  const filler = "\n\n## Notes\n\n" + Array(300).fill("filler").join(" ");
+  assertEquals(has(pr + filler, "whole description must be at most 300"), true);
+  assertEquals(
+    validateDescription(
+      "pr",
+      pr.replace("## Evidence", "## Evidence @ abc1234"),
+    ),
+    [],
+  );
+});
+
+Deno.test("review verdicts are short: verdict, head, severity-tagged findings", () => {
+  const review = [
+    "Verdict: Changes requested",
+    "Head: `90b2092d`",
+    "",
+    "- [High] Save ignores a 412 and overwrites a newer policy (`IssueSettingsPage.tsx`).",
+    "- [Low] Phone layout clips the label error.",
+    "",
+    "| check | result |",
+    "|---|---|",
+    "| `pnpm test:unit` | passed |",
+  ].join("\n");
+  assertEquals(validateReview(review), []);
+  assert(
+    validateReview(review.replace("Verdict: Changes requested", "Looks good"))
+      .length > 0,
+  );
+  assert(validateReview(review.replace("Head: `90b2092d`", "")).length > 0);
+  assert(
+    validateReview(review.replace("[Low]", "")).some((e) =>
+      e.includes("severity")
+    ),
+  );
+  assert(
+    validateReview(review + "\n\n" + Array(160).fill("filler").join(" ")).some((
+      e,
+    ) => e.includes("at most 150")),
+  );
+});
+
+Deno.test("Evidence refuses routine checks but accepts a test file named format", () => {
+  // Owner rule: Evidence is UI screenshots or recordings and the new tests.
+  // Routine checks belong to CI, so a table of green ticks proves nothing.
+  const withEvidence = (evidence: string) =>
+    pr.replace(/## Evidence[\s\S]*$/, "## Evidence\n\n" + evidence);
+  const table = (row: string) =>
+    ["| check | result |", "|---|---|", row].join("\n");
+  const refused = (row: string) =>
+    validateDescription("pr", withEvidence(table(row))).some((e) =>
+      e.includes("drop routine checks")
+    );
+  for (const check of ["fmt", "lint", "typecheck"]) {
+    assertEquals(refused(`\`pnpm ${check}\` | passed`), true, check);
+  }
+  // A real test file carrying "format" in its name is evidence, not a routine
+  // check. Refusing it stopped a PR from citing the test it added.
+  assertEquals(
+    refused("`packages/ui/tests/contracts-module-format.node.mjs` | 12 passed"),
+    false,
+  );
+  // Evidence that shows something still passes.
+  assertEquals(
+    validateDescription(
+      "pr",
+      withEvidence(table("reduced-motion skeleton | still, no animation")),
+    ),
+    [],
+  );
+});
+
+Deno.test("a bullet inside a fenced block is quoted code, not a finding", () => {
+  // The reviewer's repro: a block pasted to show the bug, whose lines start
+  // with "- " and carry no severity tag. Counting them as findings failed the
+  // severity and 25-word rules on lines that were never findings.
+  const review = [
+    "Verdict: Changes requested",
+    "Head: `90b2092d`",
+    "",
+    "- [Low] Findings scan counts bullets inside fences.",
+    "",
+    "```",
+    "- some quoted list item that is not a finding at all and is long enough to",
+    "  blow past any word budget the rule might apply to a real finding line",
+    "- a second quoted bullet",
+    "```",
+  ].join("\n");
+  assertEquals(validateReview(review), []);
 });
