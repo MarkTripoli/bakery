@@ -118,7 +118,7 @@ export async function readJson(
   transport: Transport,
   url: string,
   options: {
-    method: "POST" | "GET" | "DELETE";
+    method: "POST" | "GET" | "DELETE" | "PUT";
     expectedStatus: number;
     /**
      * Statuses read as "absent": the body is discarded and null returned with

@@ -16,13 +16,47 @@ and Sources. Use meaningful content; N/A must explain why. Existing bold inline
 Execution classification / Dependencies fields are accepted. Epics have their
 own shorter template and are not executable.
 
-PRs use the `Ticket | Task | Walkthrough` metadata line, then Purpose, Special
-things to note and Change outline. The linked issue holds evidence. Show the
-change's shape with one useful diff, tree, pseudocode or Mermaid view, not a
-mandatory slideshow. A concrete `No structural change: ...` explanation is
-appropriate for a structure-free edit. The linked issue holds detailed
-verification records. `Walkthrough: not requested` is honest metadata and does
-not mean verification was skipped.
+PRs use the `Ticket | Task | Walkthrough` metadata line, then Purpose, Risk,
+Special things to note, Change outline, Decisions and Evidence. A `## Evidence
+@ <sha>` heading is accepted. Show the change's shape with one useful diff,
+tree, pseudocode or Mermaid view, not a slideshow. A concrete `No structural
+change: ...` explanation is fine for a structure-free edit.
+`Walkthrough: not requested` is honest metadata and does not mean verification
+was skipped.
+
+## Write for an executive
+
+Descriptions and review verdicts are read by someone deciding, not studying.
+Plain words, short sentences, no filler, no restating the diff. If a sentence
+doesn't change a decision, cut it. The validator enforces:
+
+| part | limit |
+|---|---|
+| whole PR description | 300 words of prose (code, tables, links and comments don't count) |
+| Purpose | one sentence, at most 40 words |
+| Risk | `Level: Low`, `Medium` or `High`, then one to three bullets of at most 25 words: what could break, who it hits, how to roll back |
+| Special things to note | one to four bullets of at most 25 words, or `- None.` |
+| Change outline | one to three show-me views, 80 lines of view in all, plus at most 40 words of prose outside the views |
+| Decisions | one to three bullets of at most 30 words ("Chose X over Y because Z"), or `- None.` |
+| Evidence | at most 60 words: UI screenshots or a recording (at most four images) and the new tests, one line each; no format, lint or type checks, which CI shows; `- None.` when there is nothing to show |
+
+Review and QA verdict comments follow the same rule:
+
+```markdown
+Verdict: Approve | Changes requested | Blocked
+Head: `<sha>`
+
+- [High] One finding: what is wrong and where.
+- [Low] At most five findings, at most 25 words each.
+
+| check | result |
+|---|---|
+| new test `issue-settings_test.ts` | refuses a stale save |
+```
+
+At most 150 words of prose in all. No praise, no narration of what was
+read, no repeating the PR description. Check a draft with
+`validate.ts review <draft.md>`.
 
 ## Local checks
 
@@ -32,11 +66,13 @@ From a trusted checkout:
 deno run --no-config --allow-read scripts/authoring/validate.ts issue draft.md
 deno run --no-config --allow-read scripts/authoring/validate.ts epic epic.md
 deno run --no-config --allow-read scripts/authoring/validate.ts pr pr.md
+deno run --no-config --allow-read scripts/authoring/validate.ts review verdict.md
 pnpm test:unit -- tests/unit/authoring_test.ts
 ```
 
 The validator checks required sections, duplicate/missing headings, unfinished
-placeholders, concrete checkboxes/acceptance and a useful structural-view shape.
+placeholders, concrete checkboxes/acceptance, a useful structural-view shape and
+the length limits above.
 Headings in comments, code or quotations do not supply required fields. It
 cannot establish truth, design quality, native dependency completion or consent.
 

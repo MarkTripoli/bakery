@@ -44,6 +44,7 @@ import { createAutomationTickFunction } from "../workflows/automations/tick.ts";
 import { createOutputArchiveWorkflow } from "./output-archive.ts";
 import {
   type CoordinatorTurnExecutor,
+  readCoordinatorEnv,
   readCoordinatorExecutor,
 } from "../conversation/coordinator.ts";
 import {
@@ -104,7 +105,7 @@ export function createDefaultInngestFunctions(options: {
   coordinatorExecutor?: CoordinatorTurnExecutor;
 }): readonly unknown[] {
   const coordinatorExecutor = options.coordinatorExecutor ??
-    readCoordinatorExecutor(undefined, {
+    readCoordinatorExecutor(readCoordinatorEnv(), {
       database: options.database,
       budget: options.budget,
     });

@@ -6,7 +6,14 @@ name: Bakery CI
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    # `edited` is here for one reason: a metadata-only fix (retitle, body edit)
+    # must clear without close+reopen. A rerun replays the stored event payload
+    # and so cannot re-read a new title; an edit is the only event that carries
+    # the current metadata (learnings/ci-retitle-never-reruns.xml). The
+    # classifier routes an `edited` event to the `metadata` route, so only the
+    # semantic-metadata lane and the aggregate run: a body fix never pays for a
+    # full CI run.
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
   schedule:
@@ -16,7 +23,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: bakery-ci-${{ (github.event_name == 'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
+  # A metadata (`edited`) run gets its own group. It must never cancel a full
+  # gate run on the same ref, and a gate run must not cancel it: the two answer
+  # different questions at the same head SHA. Every other pull-request run keeps
+  # the shared group, so a newer commit still supersedes the older one.
+  group: bakery-ci-${{ github.event.action == 'edited' && format('metadata-{0}', github.ref) || (github.event_name == 'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
   # A newer pull-request run supersedes the older one on the same ref. A main push never cancels the one before it: the running push finishes,
   # GitHub keeps at most one newer push pending behind it (a still-newer push replaces the pending one), so main always gets a completed run
   # instead of a stream of cancelled ones. Scheduled and manual runs keep their own group.
@@ -79,6 +90,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          GITHUB_EVENT_ACTION: ${{ github.event.action }}
         run: deno run --allow-env --allow-read --allow-write --allow-run=git scripts/ci/classify-changes.ts
   rails:
     name: fast / backend rails
@@ -127,6 +139,9 @@ jobs:
   git_diff_check:
     name: fast / git diff check
     # Fork pull requests do not run this job; a maintainer re-pushes them to a branch.
+    # This stays a root job, so it runs on every route including `metadata`: a
+    # whitespace check on an unchanged diff is cheap, and making it depend on
+    # `changes` would break the root-job rule the rails enforce.
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     steps:
@@ -2622,6 +2637,17 @@ jobs:
           if [[ "$ROUTE" == docs ]]; then
             [[ "$LANE_DOCS_VALIDATION" == success ]] || {
               echo "documentation lane did not succeed: $LANE_DOCS_VALIDATION" >&2
+              exit 1
+            }
+            exit 0
+          fi
+          if [[ "$ROUTE" == metadata ]]; then
+            # An edited pull request carries no new commit: only the title or
+            # body changed. The semantic-metadata lane re-read the live title and
+            # every other lane skipped, so the same required check reports a
+            # fresh verdict on the same head SHA. Nothing else may have run.
+            [[ "$LANE_SEMANTIC_METADATA" == success ]] || {
+              echo "semantic metadata lane did not succeed: $LANE_SEMANTIC_METADATA" >&2
               exit 1
             }
             exit 0

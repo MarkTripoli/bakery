@@ -121,6 +121,14 @@ function resourceBody(resource: Resource) {
     available: resource.available,
     enabled: true,
     capabilitySnapshot: {},
+    // Served since #386/#65: the repository's default branch and its latest
+    // check. Unknown here, like a resource connected before that change, so
+    // the four fields are present and null rather than absent (Zod rejects a
+    // resource missing them).
+    defaultBranch: null,
+    latestCheckState: null,
+    latestCheckConclusion: null,
+    latestCheckAt: null,
     lastDiscoveryGeneration: 1,
     archivedAt: null,
     createdAt: STAMP,
@@ -897,7 +905,7 @@ test("without a registered GitHub App, Connect GitHub says who registers it and 
   await connectButton(page).click();
   const notice = page.getByTestId("unregistered-notice");
   await expect(notice).toContainText(
-    "GitHub is not set up for this Bakery installation yet. An installation administrator registers it first.",
+    "GitHub is not set up for this Bakery server yet. An installation administrator registers it first.",
   );
   await expect(notice.getByRole("link", { name: "Open installation settings" }))
     .toHaveAttribute("href", "/settings/installation/integrations");
@@ -1039,6 +1047,17 @@ const STILL_SCENARIOS: readonly StillScenario[] = [
     path: PAGE_PATH,
     testId: "organization-integrations",
     world: () => newWorld(),
+  },
+  {
+    // The words a person reads when no GitHub App is registered yet.
+    name: "connect-unregistered",
+    path: PAGE_PATH,
+    testId: "organization-integrations",
+    world: () => newWorld({ createAnswer: "unregistered" }),
+    act: async (page) => {
+      await connectButton(page).click();
+      await expect(page.getByTestId("unregistered-notice")).toBeVisible();
+    },
   },
   ...([
     ["working", connection(1, "enabled")],

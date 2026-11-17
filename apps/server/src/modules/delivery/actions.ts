@@ -23,6 +23,12 @@ import type { PgDatabase } from "../../platform/database.ts";
 
 type CursorQuery = z.output<typeof contractSchemas.CursorQuery>;
 type PullRequestQuery = z.output<typeof contractSchemas.PullRequestQuery>;
+type RepositoryQuery = z.output<typeof contractSchemas.RepositoryQuery>;
+type MergeEntryCreate = z.output<typeof contractSchemas.MergeEntryCreate>;
+type PullRequestMerge = z.output<typeof contractSchemas.PullRequestMerge>;
+type MergeAttemptReconcile = z.output<
+  typeof contractSchemas.MergeAttemptReconcile
+>;
 
 export type DeliveryActionHandlers = {
   checksList: (
@@ -45,6 +51,22 @@ export type DeliveryActionHandlers = {
     context: ActionContext,
     input: PullRequestQuery,
   ) => Promise<z.output<typeof contractSchemas["Page<PullRequest>"]>>;
+  mergeEntriesList: (
+    context: ActionContext,
+    input: RepositoryQuery,
+  ) => Promise<z.output<typeof contractSchemas["Page<MergeEntry>"]>>;
+  mergeEntriesCreate: (
+    context: ActionContext,
+    input: MergeEntryCreate,
+  ) => Promise<z.output<typeof contractSchemas.MergeEntry>>;
+  pullRequestsMerge: (
+    context: ActionContext,
+    input: PullRequestMerge,
+  ) => Promise<z.output<typeof contractSchemas.MergeAttempt>>;
+  mergeAttemptsReconcile: (
+    context: ActionContext,
+    input: MergeAttemptReconcile,
+  ) => Promise<z.output<typeof contractSchemas.MergeReconciliation>>;
 };
 
 export function createDeliveryActionRegistry(
@@ -57,6 +79,11 @@ export function createDeliveryActionRegistry(
   );
   const queryPolicy = {
     type: ActionKind.Query,
+    access: ActionAccess.Developer,
+    organizationContext: OrganizationContextPolicy.RequiredAuthenticatedContext,
+  } as const;
+  const commandPolicy = {
+    type: ActionKind.Command,
     access: ActionAccess.Developer,
     organizationContext: OrganizationContextPolicy.RequiredAuthenticatedContext,
   } as const;
@@ -112,6 +139,50 @@ export function createDeliveryActionRegistry(
     policy: queryPolicy,
     transactionIsolation: TransactionIsolation.RepeatableRead,
     handler: handlers.pullRequestsList,
+  });
+
+  registry.register({
+    name: DeliveryImplementedAction.MergeEntriesList,
+    method: HttpMethod.Get,
+    path: "/v1/merge-entries",
+    input: contractSchemas.RepositoryQuery,
+    output: contractSchemas["Page<MergeEntry>"],
+    policy: queryPolicy,
+    transactionIsolation: TransactionIsolation.RepeatableRead,
+    handler: handlers.mergeEntriesList,
+  });
+
+  registry.register({
+    name: DeliveryImplementedAction.MergeEntriesCreate,
+    method: HttpMethod.Post,
+    path: "/v1/merge-entries",
+    input: contractSchemas.MergeEntryCreate,
+    output: contractSchemas.MergeEntry,
+    policy: commandPolicy,
+    explicitIdempotency: "key",
+    handler: handlers.mergeEntriesCreate,
+  });
+
+  registry.register({
+    name: DeliveryImplementedAction.PullRequestsMerge,
+    method: HttpMethod.Post,
+    path: "/v1/pull-requests/:id/merge",
+    input: contractSchemas.PullRequestMerge,
+    output: contractSchemas.MergeAttempt,
+    policy: commandPolicy,
+    transactionIsolation: TransactionIsolation.ReadCommitted,
+    handler: handlers.pullRequestsMerge,
+  });
+
+  registry.register({
+    name: DeliveryImplementedAction.MergeAttemptsReconcile,
+    method: HttpMethod.Post,
+    path: "/v1/merge-attempts/reconcile",
+    input: contractSchemas.MergeAttemptReconcile,
+    output: contractSchemas.MergeReconciliation,
+    policy: commandPolicy,
+    transactionIsolation: TransactionIsolation.ReadCommitted,
+    handler: handlers.mergeAttemptsReconcile,
   });
 
   assertRegisteredActions(registry);

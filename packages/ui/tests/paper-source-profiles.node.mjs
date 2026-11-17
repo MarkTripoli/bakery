@@ -1093,10 +1093,24 @@ test("actual K-0 source renders match all twelve approved full-frame PNGs", {
 test("production candidate capture records the same K-0 raster profile", {
   skip: !process.env.K0_RENDER_OUTPUT,
 }, async () => {
+  // Same as the twelve-frame K-0 test above: the output directory is the
+  // operator's, so make it instead of failing with an ENOENT that looks like a
+  // capture fault rather than an unset-up path (#224).
+  await mkdir(process.env.K0_RENDER_OUTPUT, { recursive: true });
+  // The production capture requires the applied document theme before it will
+  // record a candidate (capture-stories.mjs: the app resolves its theme
+  // asynchronously at boot, so a first paint can still show the previous
+  // scheme). A bare probe page has no app to apply it, so it must put the theme
+  // where the capture looks for it, exactly as the real app does: the
+  // `data-theme` attribute on the document element, chosen from the same
+  // `designCase.theme` the capture emulates. Without this the capture waits out
+  // its 30s timeout and the opt-in lane could never pass (#224).
+  const theme = manifest.screens[4].theme;
+  assert.equal(theme, "light");
   const server = createServer((_request, response) => {
     response.setHeader("content-type", "text/html");
     response.end(
-      '<!doctype html><style>body{margin:0}#root{min-height:100vh;background:white}</style><div id="root"><main>Capture plumbing probe, not a product fixture</main></div>',
+      `<!doctype html><html data-theme="${theme}"><style>body{margin:0}#root{min-height:100vh;background:white}</style><div id="root"><main>Capture plumbing probe, not a product fixture</main></div></html>`,
     );
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
