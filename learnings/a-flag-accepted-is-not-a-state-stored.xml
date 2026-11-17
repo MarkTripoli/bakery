@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="a-flag-accepted-is-not-a-state-stored" project="bakery">
+  <title>A flag the CLI accepted is not a state that was stored</title>
+  <trigger>Passing an option to a queue or state command and then reporting that the resulting state is in effect - a wake timer, a nudge schedule, a priority, a tier.</trigger>
+  <rule>Report a state only from a field you can read back on the object itself. An accepted command proves the command parsed, not that anything persisted: `--wake-after 24h` returned success on every call while the qitem carried no wake field at all, because the timer lives in the scheduler and never touches the row. Reading the row is what settled it.</rule>
+  <rule>When a flag has no corresponding field in the object's schema, the flag is not state - it is an instruction to some other component. Enumerate the object's own keys before claiming a property of it; a key that does not exist cannot be verified at all, and a note saying "24h" is a description of what was sent.</rule>
+  <rule>The operationally-true check is that the effect HAPPENED, not that the request was made: a wake timer is proven by a wake firing, not by a row field saying when it will. Prefer an observation of the effect over any claim about the setting.</rule>
+  <verification>
+    <requirement>Record the key list of the object whose state is claimed, and name the field that carries the claim. If no such field exists, state which component owns the state and what observation would prove it, and say plainly that it was not read back.</requirement>
+  </verification>
+</learning>
