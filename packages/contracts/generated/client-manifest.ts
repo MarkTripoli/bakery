@@ -64091,9 +64091,10 @@ export const clientManifest = {
           "enum": [
             "pending",
             "completed",
-            "abandoned"
+            "abandoned",
+            "expired"
           ],
-          "description": "Lifecycle state: pending while parts are accepted, completed once the declared file is stored, abandoned once it expires or is given up."
+          "description": "Lifecycle state: pending while parts are accepted, completed once the declared file is stored, expired once its deadline passed uncompleted, abandoned when a client gave the upload up."
         },
         "sha256": {
           "type": "string",

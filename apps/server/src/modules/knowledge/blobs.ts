@@ -51,7 +51,7 @@ export type UploadSessionRow = Readonly<{
   sha256: string;
   sizeBytes: bigint;
   mediaType: string;
-  state: "pending" | "completed" | "abandoned";
+  state: "pending" | "completed" | "abandoned" | "expired";
   expiresAt: Date;
   completedBlobId: string | null;
 }>;
@@ -140,14 +140,31 @@ export async function lockUploadSession(
   // contradictory row is not a lifecycle question: it is data that cannot be
   // true, and it must not be reported as "this session is already finished".
   assertSessionConsistent(normalizeRaw(session));
-  if (session.state === "completed") {
-    throw new StandardError({ code: "STATE_CONFLICT" });
-  }
-  if (session.state === "abandoned" || session.expiresAt <= new Date()) {
+  // The same allowlist as `lockUploadSessionForCompletion`, and it has to be the
+  // same one. These are the two doors into a session - a part write and a
+  // completion - and a guard that is right in one and a denylist in the other
+  // is a bug that only shows on the path nobody re-read. A denylist names the
+  // states it refuses and therefore silently admits every state a later change
+  // invents.
+  if (session.state === "abandoned" || session.state === "expired") {
     throw new StandardError({
       code: "STATE_CONFLICT",
       params: { reason: "upload_session_expired" },
     });
+  }
+  if (session.state !== "pending" && session.state !== "completed") {
+    throw new StandardError({ code: "STATE_CONFLICT" });
+  }
+  // A completed session has nothing left to accept, so it cannot run out of
+  // time; that is what makes the retry branch reachable in the other door.
+  if (session.state === "pending" && session.expiresAt <= new Date()) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "upload_session_expired" },
+    });
+  }
+  if (session.state === "completed") {
+    throw new StandardError({ code: "STATE_CONFLICT" });
   }
   return normalize(session);
 }
@@ -340,7 +357,30 @@ export async function lockUploadSessionForCompletion(
   const session = result.rows[0];
   if (!session) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   assertSessionConsistent(normalizeRaw(session));
-  if (session.state === "abandoned" || session.expiresAt <= new Date()) {
+  // The same allowlist as `lockUploadSession`, and it has to be the same one:
+  // these are the two doors into a session, and a guard that is right in one
+  // and a denylist in the other is a bug that only shows on the path nobody
+  // re-read. A denylist names the states it refuses and therefore admits every
+  // state a later change invents.
+  //
+  // `completed` is admitted on purpose, forever. Completion is idempotent and
+  // the blob it names is immutable, so expiry bounds the upload, not the
+  // reading back of a finished result: a retry long after the window closed
+  // must still reach the branch that answers with that blob. The old guard
+  // refused it on `expiresAt <= now` without asking whether anything was left
+  // to accept, which made the retry branch unreachable.
+  if (session.state === "abandoned" || session.state === "expired") {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "upload_session_expired" },
+    });
+  }
+  if (session.state !== "pending" && session.state !== "completed") {
+    throw new StandardError({ code: "STATE_CONFLICT" });
+  }
+  // Only a session still accepting parts can run out of time; a completed one
+  // has nothing left to accept.
+  if (session.state === "pending" && session.expiresAt <= new Date()) {
     throw new StandardError({
       code: "STATE_CONFLICT",
       params: { reason: "upload_session_expired" },

@@ -276,7 +276,7 @@ async function projection(
     sha256: string;
     sizeBytes: bigint;
     mediaType: string;
-    state: "pending" | "completed" | "abandoned";
+    state: "pending" | "completed" | "abandoned" | "expired";
     expiresAt: Date;
   }>,
 ) {

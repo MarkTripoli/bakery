@@ -205395,9 +205395,10 @@
               "enum": [
                 "pending",
                 "completed",
-                "abandoned"
+                "abandoned",
+                "expired"
               ],
-              "description": "Lifecycle state: pending while parts are accepted, completed once the declared file is stored, abandoned once it expires or is given up."
+              "description": "Lifecycle state: pending while parts are accepted, completed once the declared file is stored, expired once its deadline passed uncompleted, abandoned when a client gave the upload up."
             },
             "sha256": {
               "type": "string",
@@ -206975,7 +206976,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:e7846c4546f887c0f5495a1c04385e618b09cd51f2167cf0c7e7362705c37649",
+  "compatibilityDigest": "sha256:2f8b7d52608a04278020e2cdd368875951ab88182b3c3b5ebea960d2a42132c9",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -380375,9 +380376,10 @@
           "enum": [
             "pending",
             "completed",
-            "abandoned"
+            "abandoned",
+            "expired"
           ],
-          "description": "Lifecycle state: pending while parts are accepted, completed once the declared file is stored, abandoned once it expires or is given up."
+          "description": "Lifecycle state: pending while parts are accepted, completed once the declared file is stored, expired once its deadline passed uncompleted, abandoned when a client gave the upload up."
         },
         "sha256": {
           "type": "string",

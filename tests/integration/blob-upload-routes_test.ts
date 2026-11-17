@@ -12,6 +12,8 @@ import { assertEquals } from "@std/assert";
 import { sha256Bytes } from "../../apps/server/src/modules/knowledge/bytes.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
 import type { SkillObjectStore } from "../../apps/server/src/modules/catalog/storage-port.ts";
+import { withPgTransaction } from "../../apps/server/src/platform/database.ts";
+import { lockUploadSessionForCompletion } from "../../apps/server/src/modules/knowledge/blobs.ts";
 
 type Fixture = Parameters<Parameters<typeof withWorkerFixture>[0]>[0];
 
@@ -394,3 +396,195 @@ function base64(bytes: Uint8Array): string {
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary);
 }
+
+/**
+ * One reaper pass, shaped exactly like the sweep that ships separately.
+ *
+ * It takes the session row `for update skip locked` before touching anything,
+ * because that is the whole defence: the completion's lock is on the session,
+ * not on the parts, so a delete that does not take the same lock can interleave
+ * with a completion that is holding it perfectly correctly. Returns whether it
+ * won the session.
+ */
+async function reapOnce(
+  fixture: Fixture,
+  sessionId: string,
+): Promise<boolean> {
+  return await withPgTransaction(fixture.pgDatabase, async (tx) => {
+    const locked = await tx.query<{ id: string }>(
+      `select id from bakery.blob_upload_sessions
+        where organization_id = $1 and id = $2
+          and state = 'pending' and expires_at <= now()
+        for update skip locked`,
+      [fixture.organizationId, sessionId],
+    );
+    if (locked.rows.length === 0) return false;
+    await tx.query(
+      `delete from bakery.blob_upload_parts
+        where organization_id = $1 and session_id = $2`,
+      [fixture.organizationId, sessionId],
+    );
+    await tx.query(
+      `update bakery.blob_upload_sessions
+          set state = 'expired', updated_at = now()
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, sessionId],
+    );
+    return true;
+  });
+}
+
+/** A session with two parts, its deadline `offsetMs` from now. */
+async function seedUpload(
+  fixture: Fixture,
+  offsetMs: number,
+): Promise<{ sessionId: string; digest: string; whole: Uint8Array }> {
+  const chunks = [
+    new TextEncoder().encode("first half "),
+    new TextEncoder().encode("second half"),
+  ];
+  const whole = new Uint8Array([...chunks[0], ...chunks[1]]);
+  const digest = await sha256Bytes(whole);
+  const created = await fixture.pgDatabase.query<{ id: string }>(
+    `insert into bakery.blob_upload_sessions
+       (organization_id, created_by_id, sha256, size_bytes, media_type,
+        expires_at)
+     values ($1, $2, $3, $4, 'text/plain', now() + make_interval(secs => $5))
+     returning id`,
+    [
+      fixture.organizationId,
+      fixture.principalId,
+      digest,
+      whole.byteLength,
+      offsetMs / 1000,
+    ],
+  );
+  const sessionId = created.rows[0].id;
+  for (const [index, chunk] of chunks.entries()) {
+    await fixture.pgDatabase.query(
+      `insert into bakery.blob_upload_parts
+         (organization_id, session_id, part_number, sha256, size_bytes, content)
+       values ($1, $2, $3, $4, $5, $6)`,
+      [
+        fixture.organizationId,
+        sessionId,
+        index + 1,
+        await sha256Bytes(chunk),
+        chunk.byteLength,
+        chunk,
+      ],
+    );
+  }
+  return { sessionId, digest, whole };
+}
+
+Deno.test("a retry after the window closed still answers with the blob", () =>
+  withBlobFixture(async (fixture) => {
+    // Completion is idempotent and the blob is immutable, so expiry bounds the
+    // upload, not the reading back of a finished result. The old guard refused
+    // this on `expiresAt <= now` without asking whether anything was left to
+    // accept, which made the retry branch unreachable.
+    const { sessionId, digest } = await seedUpload(fixture, 60_000);
+    const first = await call(
+      fixture,
+      `/v1/blobs/uploads/${sessionId}/complete`,
+      { method: "POST", body: {} },
+    );
+    assertEquals(first.status, 201, await first.clone().text());
+    const firstBlob = await first.json();
+
+    // Close the window behind a finished upload.
+    await fixture.pgDatabase.query(
+      `update bakery.blob_upload_sessions
+          set expires_at = now() - interval '1 hour'
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, sessionId],
+    );
+
+    const retry = await call(
+      fixture,
+      `/v1/blobs/uploads/${sessionId}/complete`,
+      { method: "POST", body: {} },
+    );
+    assertEquals(retry.status, 201, await retry.clone().text());
+    const retried = await retry.json();
+    assertEquals(retried.id, firstBlob.id);
+    assertEquals(retried.sha256, digest);
+  }));
+
+Deno.test("a reaper skips a session a completion is holding", () =>
+  withBlobFixture(async (fixture) => {
+    // The completion's lock is on the session row, not on the parts, so the
+    // defence is that the reaper takes the same lock. The window has to close
+    // on COMMITTED data while the completion is inside its transaction, which
+    // is what time does: the completion passes its guard on a live session and
+    // the deadline passes while it is still working. An expiry written inside
+    // the completion's own transaction would not be visible to the reaper at
+    // all, and the test would pass without exercising the lock.
+    const { sessionId } = await seedUpload(fixture, 2_000);
+
+    await withPgTransaction(fixture.pgDatabase, async (tx) => {
+      await lockUploadSessionForCompletion(tx, {
+        organizationId: fixture.organizationId,
+        principalId: fixture.principalId,
+        sessionId,
+      });
+      // The deadline passes while the completion holds the row.
+      await new Promise((resolve) => setTimeout(resolve, 2_500));
+      // Without `skip locked` the reaper blocks here until this transaction
+      // ends; the red-proof for this test removes it and observes that.
+      assertEquals(await reapOnce(fixture, sessionId), false);
+      const parts = await fixture.pgDatabase.query<{ count: string }>(
+        `select count(*)::text as count from bakery.blob_upload_parts
+          where organization_id = $1 and session_id = $2`,
+        [fixture.organizationId, sessionId],
+      );
+      assertEquals(parts.rows[0].count, "2");
+    });
+
+    // Once the lock is released the session is reapable again.
+    assertEquals(await reapOnce(fixture, sessionId), true);
+  }));
+
+Deno.test("a completion racing a reaper never corrupts a legitimate upload", () =>
+  withBlobFixture(async (fixture) => {
+    // Ten rounds. The only outcomes allowed are a full success or a typed
+    // refusal: a size or digest mismatch is the signature of the reaper
+    // deleting parts between the read and the assembly, and it is the one
+    // outcome a client reads as data corruption.
+    for (let round = 0; round < 10; round += 1) {
+      const { sessionId } = await seedUpload(fixture, 0);
+      const [completion, reaping] = await Promise.allSettled([
+        call(fixture, `/v1/blobs/uploads/${sessionId}/complete`, {
+          method: "POST",
+          body: {},
+        }),
+        reapOnce(fixture, sessionId),
+      ]);
+      void reaping;
+      if (completion.status === "rejected") throw completion.reason;
+      const response = completion.value;
+      if (response.status !== 201) {
+        const problem = await response.json();
+        // A refusal is fine; a mismatch is not. The mismatch codes are
+        // UNPROCESSABLE, so anything else here is the race being refused
+        // cleanly rather than the upload being reported as corrupt.
+        assertEquals(
+          problem.code === "STATE_CONFLICT" ||
+            problem.code === "RESOURCE_NOT_FOUND",
+          true,
+          `unexpected refusal ${JSON.stringify(problem)}`,
+        );
+      }
+      const state = await fixture.pgDatabase.query<{ state: string }>(
+        `select state from bakery.blob_upload_sessions
+          where organization_id = $1 and id = $2`,
+        [fixture.organizationId, sessionId],
+      );
+      assertEquals(
+        state.rows[0].state === "completed" ||
+          state.rows[0].state === "expired",
+        true,
+      );
+    }
+  }));

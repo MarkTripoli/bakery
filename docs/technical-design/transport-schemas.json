@@ -25736,7 +25736,7 @@
       ],
       "fieldTypes": {
         "id": "uuid",
-        "state": "enum(pending|completed|abandoned)",
+        "state": "enum(pending|completed|abandoned|expired)",
         "sha256": "string",
         "sizeBytes": "integer",
         "mediaType": "string",
@@ -25748,7 +25748,7 @@
       "description": "A resumable upload in progress, scoped to the organization and the principal that opened it. It reports what has arrived so a client can resume from the right ordinal rather than restarting the file.",
       "fieldDescriptions": {
         "id": "Stable UUID of this upload session, used in the part and complete paths.",
-        "state": "Lifecycle state: pending while parts are accepted, completed once the declared file is stored, abandoned once it expires or is given up.",
+        "state": "Lifecycle state: pending while parts are accepted, completed once the declared file is stored, expired once its deadline passed uncompleted, abandoned when a client gave the upload up.",
         "sha256": "The digest declared when the session opened; the completed assembly must match it.",
         "sizeBytes": "The total size declared when the session opened.",
         "mediaType": "The media type declared when the session opened.",
