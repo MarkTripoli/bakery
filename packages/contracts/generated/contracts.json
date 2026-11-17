@@ -54606,6 +54606,211 @@
           "additionalProperties": false,
           "description": "Input to the artifact.publish workflow action: the artifact version a preceding step produced, which this step publishes so it becomes a retained, addressable artifact of the run."
         },
+        "HumanApprovalInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "prompt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000,
+              "description": "HumanApprovalInput.prompt must contain at most 2000 characters."
+            },
+            "audience": {
+              "description": "HumanApprovalInput.audience must contain at most 8192 UTF-8 bytes.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HumanApprovalInput____schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/HumanApprovalInput____schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "x-utf8-max-bytes": 8192
+            },
+            "approveLabel": {
+              "description": "HumanApprovalInput.approveLabel must contain at most 100 characters.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "rejectLabel": {
+              "description": "HumanApprovalInput.rejectLabel must contain at most 100 characters.",
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "allowRequestChanges": {
+              "description": "Whether the step also offers request changes. Defaults to true, matching the three shipped approval decisions.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "prompt"
+          ],
+          "additionalProperties": false,
+          "description": "Input to the human.approval workflow action: what the approver is asked, who may answer, and how the choices are labelled. The step waits for one person's decision, at most seven days, and never approves by silence."
+        },
+        "HumanApprovalInput____schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/HumanApprovalInput____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/HumanApprovalInput____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/HumanApprovalInput____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/HumanApprovalInput____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        },
+        "WorkflowStopInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "maxLength": 100,
+              "description": "WorkflowStopInput.outcome must contain at most 100 characters."
+            },
+            "reason": {
+              "description": "WorkflowStopInput.reason must contain at most 2000 characters.",
+              "type": "string",
+              "maxLength": 2000
+            }
+          },
+          "required": [
+            "outcome"
+          ],
+          "additionalProperties": false,
+          "description": "Input to the workflow.stop action: the named outcome that ends the run on purpose, as opposed to failing, and an optional reason."
+        },
         "MemoryPromoteInput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -206910,6 +207115,74 @@
           "additionalProperties": false,
           "description": "FreeformOutput is the pinned worker action output contract."
         },
+        "HumanApprovalOutput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "decision": {
+              "type": "string",
+              "enum": [
+                "approve",
+                "request_changes",
+                "reject"
+              ],
+              "description": "The decision the approver made. Only approve lets the step continue; the other two end the run with that named outcome."
+            },
+            "note": {
+              "description": "HumanApprovalOutput.note output may be omitted by adapters that do not expose it.",
+              "type": "string",
+              "maxLength": 4000
+            },
+            "decidedBy": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Principal who decided. Always a person: an agent may decide only where a workflow grants it, and this step is the human form."
+            },
+            "decidedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+              "description": "UTC instant of the decision, so the run can report how long the wait lasted."
+            },
+            "approvalId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The approval record the decision was made on, referenced by the decisions ledger and the inbox."
+            }
+          },
+          "required": [
+            "decision",
+            "decidedBy",
+            "decidedAt",
+            "approvalId"
+          ],
+          "additionalProperties": false,
+          "description": "HumanApprovalOutput is the pinned worker action output contract."
+        },
+        "WorkflowStopOutput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "description": "The named outcome the run ended with, after defaulting an unnamed stop to stopped. WorkflowStopOutput.outcome must contain at most 100 characters."
+            },
+            "reason": {
+              "description": "WorkflowStopOutput.reason output may be omitted by adapters that do not expose it.",
+              "type": "string",
+              "maxLength": 2000
+            }
+          },
+          "required": [
+            "outcome"
+          ],
+          "additionalProperties": false,
+          "description": "WorkflowStopOutput is the pinned worker action output contract."
+        },
         "IntegrationActionOutput": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -207111,7 +207384,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:8cfabc377146d4e8563eebad96d1617f9fb48a07546f410cd0995fde87b7ca5b",
+  "compatibilityDigest": "sha256:b7f75b5d3779a72d970f9cef4a6ab0659b903e229f5d8bceaa329fccb4002560",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -229368,6 +229641,213 @@
       ],
       "additionalProperties": false,
       "description": "Input to the artifact.publish workflow action: the artifact version a preceding step produced, which this step publishes so it becomes a retained, addressable artifact of the run."
+    },
+    "HumanApprovalInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000,
+          "description": "HumanApprovalInput.prompt must contain at most 2000 characters."
+        },
+        "audience": {
+          "description": "HumanApprovalInput.audience must contain at most 8192 UTF-8 bytes.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "x-utf8-max-bytes": 8192
+        },
+        "approveLabel": {
+          "description": "HumanApprovalInput.approveLabel must contain at most 100 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "rejectLabel": {
+          "description": "HumanApprovalInput.rejectLabel must contain at most 100 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "allowRequestChanges": {
+          "description": "Whether the step also offers request changes. Defaults to true, matching the three shipped approval decisions.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "prompt"
+      ],
+      "additionalProperties": false,
+      "description": "Input to the human.approval workflow action: what the approver is asked, who may answer, and how the choices are labelled. The step waits for one person's decision, at most seven days, and never approves by silence.",
+      "$defs": {
+        "__schema0": {
+          "description": "JSON value node.",
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "description": "JSON value node.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ]
+              },
+              "description": "JSON object value."
+            }
+          ]
+        }
+      }
+    },
+    "WorkflowStopInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "WorkflowStopInput.outcome must contain at most 100 characters."
+        },
+        "reason": {
+          "description": "WorkflowStopInput.reason must contain at most 2000 characters.",
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "outcome"
+      ],
+      "additionalProperties": false,
+      "description": "Input to the workflow.stop action: the named outcome that ends the run on purpose, as opposed to failing, and an optional reason."
     },
     "MemoryPromoteInput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -382016,6 +382496,74 @@
       ],
       "additionalProperties": false,
       "description": "FreeformOutput is the pinned worker action output contract."
+    },
+    "HumanApprovalOutput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "decision": {
+          "type": "string",
+          "enum": [
+            "approve",
+            "request_changes",
+            "reject"
+          ],
+          "description": "The decision the approver made. Only approve lets the step continue; the other two end the run with that named outcome."
+        },
+        "note": {
+          "description": "HumanApprovalOutput.note output may be omitted by adapters that do not expose it.",
+          "type": "string",
+          "maxLength": 4000
+        },
+        "decidedBy": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Principal who decided. Always a person: an agent may decide only where a workflow grants it, and this step is the human form."
+        },
+        "decidedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC instant of the decision, so the run can report how long the wait lasted."
+        },
+        "approvalId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The approval record the decision was made on, referenced by the decisions ledger and the inbox."
+        }
+      },
+      "required": [
+        "decision",
+        "decidedBy",
+        "decidedAt",
+        "approvalId"
+      ],
+      "additionalProperties": false,
+      "description": "HumanApprovalOutput is the pinned worker action output contract."
+    },
+    "WorkflowStopOutput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "The named outcome the run ended with, after defaulting an unnamed stop to stopped. WorkflowStopOutput.outcome must contain at most 100 characters."
+        },
+        "reason": {
+          "description": "WorkflowStopOutput.reason output may be omitted by adapters that do not expose it.",
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "outcome"
+      ],
+      "additionalProperties": false,
+      "description": "WorkflowStopOutput is the pinned worker action output contract."
     },
     "IntegrationActionOutput": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

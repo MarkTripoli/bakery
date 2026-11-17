@@ -8009,6 +8009,79 @@ const transportSchemas = {
         }
       ]
     },
+    "HumanApprovalInput": {
+      "description": "Input to the human.approval workflow action: what the approver is asked, who may answer, and how the choices are labelled. The step waits for one person's decision, at most seven days, and never approves by silence.",
+      "fields": [
+        {
+          "name": "prompt",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "description": "Question put to the approver, shown in the inbox and on the approval page. Plain text: the decision is typed, never inferred from this text."
+        },
+        {
+          "name": "audience",
+          "type": "json",
+          "required": false,
+          "bounds": {
+            "maxBytes": 8192
+          },
+          "description": "Who may decide: a list of one to 50 member, group or role references. Absent means the workflow's owner, which is the default approver; an empty list is refused because a step nobody can answer could only expire."
+        },
+        {
+          "name": "approveLabel",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": "Optional label for the approving choice, so a workflow can say Release instead of Approve."
+        },
+        {
+          "name": "rejectLabel",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "description": "Optional label for the rejecting choice, paired with approveLabel."
+        },
+        {
+          "name": "allowRequestChanges",
+          "type": "boolean",
+          "required": false,
+          "description": "Whether the step also offers request changes. Defaults to true, matching the three shipped approval decisions."
+        }
+      ]
+    },
+    "WorkflowStopInput": {
+      "description": "Input to the workflow.stop action: the named outcome that ends the run on purpose, as opposed to failing, and an optional reason.",
+      "fields": [
+        {
+          "name": "outcome",
+          "type": "string",
+          "required": true,
+          "bounds": {
+            "maxLength": 100
+          },
+          "description": "Name of the outcome this stop produces, for example cancelled_by_customer or nothing_to_do. It becomes the run's named outcome and is what a later step or a caller branches on; an empty name defaults to stopped."
+        },
+        {
+          "name": "reason",
+          "type": "string",
+          "required": false,
+          "bounds": {
+            "maxLength": 2000
+          },
+          "description": "Optional human explanation recorded with the outcome, for whoever reads the run later."
+        }
+      ]
+    },
     "MemoryPromoteInput": {
       "description": "Input to the memory.promote workflow action: the artifact version to promote into project memory and the repository revision that evidence was drawn from.",
       "fields": [
