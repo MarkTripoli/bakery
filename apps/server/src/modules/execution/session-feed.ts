@@ -25,6 +25,17 @@ type SessionFeedRow = {
   created_at: Date | string;
 };
 
+/**
+ * Whether this feed removes secret material from an item's payload.
+ *
+ * The feed's projection selects only attributed message columns, so no secret
+ * ciphertext, lease token, raw provider payload or credential material ever
+ * reaches an item and there is nothing in it to redact. A source that can carry
+ * such material (harness terminal or tool output) must compute this per item
+ * instead of reusing this constant.
+ */
+const PROJECTION_NEEDS_NO_REDACTION = false;
+
 function iso(value: Date | string): string {
   return value instanceof Date
     ? value.toISOString()
@@ -140,7 +151,7 @@ export function createSessionFeedHandler(secret: string) {
         sequence: row.sequence,
         kind,
         occurredAt: iso(row.created_at),
-        redacted: false,
+        redacted: PROJECTION_NEEDS_NO_REDACTION,
         message: kind === "message"
           ? {
             messageId: row.id,
