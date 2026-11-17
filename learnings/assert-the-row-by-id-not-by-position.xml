@@ -36,5 +36,10 @@
     `created_at`, and `mine.items[0].id === second.id` held on one run and failed on the
     next. Fixed by finding the row by id, after which three consecutive runs were green.
     See also `now-is-the-transaction-start.xml`, which covers the link-level instance.
+    (3) a second, independent harness hit the same class inside the same two hours:
+    qa-qa's cross-check for PR 540 asserted which ticket the second page carried and
+    was red for exactly this reason, so the rule is not one author's preference about
+    their own assertion - two people writing different code against the same read
+    walked into it, one of them deliberately not depending on the other's work.
   </evidence>
 </learning>
