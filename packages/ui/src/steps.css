@@ -485,10 +485,13 @@
   justify-content: center;
 }
 
-/* A control the caller owns, centred on the same x as the line (the editor's
-   picker popover, which owns the "+" button itself). */
+/* A control the caller owns, centred on the same x as the line and on the
+   link's midpoint (the editor's picker popover, which owns the "+" button
+   itself). It fills the connector's height so `align-items: center` can put the
+   44px hit area on the line's centre. */
 .ui-step-connector__control {
   align-items: center;
+  block-size: 100%;
   display: inline-flex;
   inset-block: 0;
   inset-inline-start: calc(var(--space-4) + (var(--size-control) / 2));
