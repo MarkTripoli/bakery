@@ -7115,6 +7115,7 @@
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
         "UNPROCESSABLE",
         "BODY_TOO_LARGE"
@@ -7138,6 +7139,7 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
@@ -7162,6 +7164,7 @@
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
         "UNPROCESSABLE",
         "STATE_CONFLICT"
@@ -202127,7 +202130,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:f76801766950a23f3df0c14697610129e54f9880014b08aee378d38427fa7709",
+  "compatibilityDigest": "sha256:a1473845e8dbb945e2db9f41f032c7c78556f5dd2f078d41f7ca871a927d7f48",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

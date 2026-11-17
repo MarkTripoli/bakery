@@ -5687,6 +5687,7 @@ export const clientManifest = {
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
         "UNPROCESSABLE",
         "BODY_TOO_LARGE"
@@ -5710,6 +5711,7 @@ export const clientManifest = {
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
         "UNPROCESSABLE",
         "STATE_CONFLICT",
@@ -5734,6 +5736,7 @@ export const clientManifest = {
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
         "RESOURCE_NOT_FOUND",
+        "SCOPE_REQUIRED",
         "MALFORMED_REQUEST",
         "UNPROCESSABLE",
         "STATE_CONFLICT"

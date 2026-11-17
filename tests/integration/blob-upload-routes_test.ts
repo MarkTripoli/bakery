@@ -116,7 +116,15 @@ Deno.test("a part whose bytes do not match its digest is refused", () =>
         },
       },
     );
+    // Asserting only the status would accept an anonymous 403 as proof: both are
+    // refusals. The code rules out the neighbouring refusals - an auth 403, a
+    // lifecycle 409 - so a regression that refuses for the wrong reason cannot
+    // pass as this one. The specific reason ("digest_mismatch") is not projected
+    // to the client, so the code is the strongest signal the boundary offers;
+    // every other input here is valid, which is what makes it attributable.
     assertEquals(partResponse.status, 422);
+    const problem = await partResponse.json();
+    assertEquals(problem.code, "UNPROCESSABLE");
   }));
 
 Deno.test("completing a session twice stores one blob and does not redate it", () =>
