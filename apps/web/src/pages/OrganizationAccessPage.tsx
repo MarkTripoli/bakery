@@ -773,6 +773,7 @@ export function OrganizationAccessPage() {
         date: whenShort.format(new Date(invitation.expiresAt)),
       }),
     ],
+    actionTone: "destructive",
     action: (
       <UI.Button
         aria-label={`${
@@ -874,6 +875,7 @@ export function OrganizationAccessPage() {
             ending: tokenEnding(token.prefix),
           }),
         ],
+        actionTone: "destructive",
         action: (
           <UI.Button
             aria-label={`${
@@ -900,6 +902,7 @@ export function OrganizationAccessPage() {
         date: when.format(new Date(client.authorizedAt)),
       }),
     ],
+    actionTone: "destructive",
     action: (
       <UI.Button
         aria-label={`${

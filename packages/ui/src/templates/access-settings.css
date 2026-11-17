@@ -162,17 +162,18 @@
      and all four tables share the same column starts (issue 233, round 2). */
   inline-size: calc(var(--space-16) + var(--space-16) + var(--space-12));
 }
-/* A row's destructive action takes Edit's box - same height, radius and border
-   width - with the label and the border in the destructive colour on the
-   normal surface (issue 233, design round 3). */
+/* A row's action takes Edit's box - same height, radius and border width.
+   Only a destructive one paints the label and the border in the destructive
+   colour; a neutral action keeps the secondary button it is (issue 233,
+   design rounds 3 and 4). */
 .ui-access-settings__action .ui-button {
-  border-color: var(--color-destructive);
-  color: var(--color-destructive);
   font: var(--type-control-preview-compact);
   line-height: var(--space-5);
-}
-.ui-access-settings__action .ui-button {
   white-space: nowrap;
+}
+.ui-access-settings__action[data-tone="destructive"] .ui-button {
+  border-color: var(--color-destructive);
+  color: var(--color-destructive);
 }
 
 /* A phone reads the same lines the wide screen splits into columns. */

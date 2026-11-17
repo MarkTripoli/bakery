@@ -434,6 +434,20 @@ for (
         expect(Math.abs((headerBox?.x ?? 0) - (cellBox?.x ?? 0)))
           .toBeLessThanOrEqual(1);
       }
+      // A neutral row action keeps the secondary button it is; only a
+      // destructive one paints red label and border (issue 233, round 4).
+      const borderOf = async (testId: string) =>
+        await page.getByTestId(testId).evaluate((node) => {
+          const style = globalThis.getComputedStyle(node);
+          return {
+            border: style.borderTopColor,
+            label: style.color,
+          };
+        });
+      const editBorder = await borderOf(`org-access-edit-${M_VIEWER}`);
+      const revokeBorder = await borderOf(`org-access-revoke-${TOK_1}`);
+      expect(editBorder.border).not.toBe(revokeBorder.border);
+      expect(editBorder.label).not.toBe(revokeBorder.label);
       // A person has ONE row however many roles they hold: the scoped role
       // sits inside the member's row beside the organization one, named by
       // its resource, rather than in a nameless duplicate (issue 233, fix 2).
