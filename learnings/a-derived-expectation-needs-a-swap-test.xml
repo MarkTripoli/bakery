@@ -1,0 +1,43 @@
+<learning scope="project">
+  <title>A derived expectation needs a swap test; repetition only proves stability</title>
+  <trigger>
+    A test computes its expected value from the data it just wrote - `a.id < b.id ? [x, y]
+    : [y, x]`, an index arithmetic, a hand-rolled tie-break - instead of naming a literal.
+  </trigger>
+  <symptom>
+    The assertion fails every run in the same direction, or passes every run, and nobody
+    can tell whether the derivation is right. Running it again changes nothing, so the
+    team concludes the assertion is fine ("it's stable") or files it as flake. Both are
+    wrong: a derivation can be stable and reversed.
+  </symptom>
+  <rule>
+    For every conditional that derives an expected value, swap the two inputs and require
+    the output to swap. A reversed ternary returns the same wrong order both ways and
+    fails instantly. This is a ten-second check with no database, no fixture and no run.
+    Apply it to every derivation in the file, not only the one that failed.
+  </rule>
+  <rule>
+    Two green runs prove an ORDER-SENSITIVE assertion is stable. They say nothing about
+    whether a DERIVATION is correct, because an always-inverted conditional fails
+    identically on every run. Stability and correctness are different questions, and a
+    repeat-until-green discipline answers only the first.
+  </rule>
+  <rule>
+    Do not paper over a derivation with a sleep or a forced-distinct timestamp. Separating
+    the rows in time hides the class and the next person copying the case inherits the
+    weakness.
+  </rule>
+  <evidence>
+    PR 540, `tests/integration/read-the-tickets-linked-to-one-task_test.ts`. `const
+    linksOfSecond = otherLinkId &lt; secondLinkId ? [otherTask, taskId] : [taskId,
+    otherTask]` returned the tasks backwards in BOTH branches, because the read answers
+    newest first and the larger id leads, so the branch that assumed that returned the
+    smaller id's task first. Modelled over 200,000 random pairs it was wrong in 200,000
+    of them: red by construction, not a coin flip. It read as flake because two runs
+    failed with opposite orderings as the random ids differed per run. Four reviewers
+    including the author re-read the line and passed it. The swap test would have caught
+    it in seconds. Raised by qa-qa after she saw the pattern in two red runs; fixed in
+    `0c88bf1aa` and replaced entirely in `985e34d1d` once the real ordering rule was read
+    from source.
+  </evidence>
+</learning>
