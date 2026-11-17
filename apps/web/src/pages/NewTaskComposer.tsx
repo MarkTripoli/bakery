@@ -37,6 +37,23 @@ import {
 
 type Values = UI.TaskComposerValues;
 
+/**
+ * The four labels this picker offers. The contract accepts any organization
+ * work type label (O23); narrowing here keeps the picker's own choices honest
+ * without letting a stored label widen the form's selection.
+ */
+const COMPOSER_TASK_TYPES: readonly Values["taskType"][] = [
+  "feature",
+  "bug",
+  "epic",
+  "maintenance",
+];
+function isComposerTaskType(
+  value: string,
+): value is Values["taskType"] {
+  return (COMPOSER_TASK_TYPES as readonly string[]).includes(value);
+}
+
 const EMPTY: Values = {
   repositoryId: "",
   presetId: "",
@@ -52,7 +69,12 @@ function valuesFrom(submission: ComposerSubmission): Values {
     repositoryId: submission.task.repositoryId ?? "",
     presetId: submission.run?.presetId ?? "",
     title: submission.task.title,
-    taskType: submission.task.taskType,
+    // Task type is an organization label since O23, while this picker still
+    // offers the four software-delivery labels. A resumed task carrying another
+    // organization's label seeds the default rather than breaking the resume.
+    taskType: isComposerTaskType(submission.task.taskType)
+      ? submission.task.taskType
+      : EMPTY.taskType,
     description: submission.task.description ?? "",
     budget: submission.run?.budgetLimitUsd ?? "",
   };
