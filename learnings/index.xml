@@ -147,4 +147,5 @@
   <entry file="a-rail-that-only-passed-is-untested.xml" scope="process" />
   <entry file="name-the-writer-when-declaring-the-field.xml" scope="project" />
   <entry file="a-flag-accepted-is-not-a-state-stored.xml" scope="process" />
+  <entry file="three-checks-that-answer-a-different-question.xml" scope="process" />
 </learnings>
