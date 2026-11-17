@@ -510,3 +510,129 @@ Deno.test("a purged version reads as purged, not as a broken blob version", asyn
     assertEquals((await response.json()).code, "ARTIFACT_CONTENT_EXPIRED");
   }, { skillFileStore: store });
 });
+
+Deno.test("a version with no home and no purge is refused by the read branch itself", async () => {
+  const store = objectStore();
+  await withWorkerFixture(async (fixture) => {
+    const seeded = await seedArtifact(fixture);
+    const content = new TextEncoder().encode("neither home, not purged");
+    const published = await publish(
+      fixture,
+      seeded,
+      content,
+      new ScopedOrganizationBlobStore(store),
+    ) as { id: string };
+    // Both homes null and purged_at null. Retention never produces this, so it
+    // is synthetic - and it is exactly the state the read branch exists for. A
+    // test that sets purged_at never reaches the branch, because the metadata
+    // load refuses a purged version first; that test would pass with the branch
+    // deleted, which is the defect this one replaces.
+    await fixture.pgDatabase.query(
+      `update bakery.artifact_versions
+          set content = null, blob_id = null, purged_at = null
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, published.id],
+    );
+
+    const response = await fixture.app.fetch(
+      new Request(
+        `${fixture.config.publicBaseUrl}/v1/artifact-versions/${published.id}/content`,
+        {
+          headers: {
+            cookie: fixture.adminCookie,
+            "bakery-organization-id": fixture.organizationId,
+          },
+        },
+      ),
+    );
+    // The branch's own refusal. Serving empty bytes here would turn a row whose
+    // bytes cannot be read into a successful download of nothing.
+    assertEquals(response.status, 410);
+    assertEquals((await response.json()).code, "ARTIFACT_CONTENT_EXPIRED");
+  }, { skillFileStore: store });
+});
+
+Deno.test("a comment anchored on a blob-backed version resolves its bytes through the store", async () => {
+  const store = objectStore();
+  await withWorkerFixture(async (fixture) => {
+    const seeded = await seedArtifact(fixture);
+    const content = new TextEncoder().encode("line one\nline two\nline three");
+    const published = await publish(
+      fixture,
+      seeded,
+      content,
+      new ScopedOrganizationBlobStore(store),
+    ) as { id: string };
+
+    // Anchoring decodes the version's bytes to place the anchor. A blob-backed
+    // version has no inline content, so without the store resolution in
+    // loadVersion this is refused as if the version were purged.
+    const response = await fixture.app.fetch(
+      new Request(
+        `${fixture.config.publicBaseUrl}/v1/artifact-versions/${published.id}/comments`,
+        {
+          method: "POST",
+          headers: {
+            cookie: fixture.adminCookie,
+            "bakery-organization-id": fixture.organizationId,
+            "content-type": "application/json",
+            origin: fixture.config.publicBaseUrl,
+            "idempotency-key": crypto.randomUUID(),
+            "if-match": '"2"',
+          },
+          body: JSON.stringify({
+            body: "Anchored on a blob-backed version",
+            anchor: {
+              kind: "text",
+              startLine: 1,
+              endLine: 1,
+              quote: "line one",
+            },
+          }),
+        },
+      ),
+    );
+    assertEquals(response.status, 201);
+    const comment = await response.json();
+    assertEquals(comment.anchor.kind, "text");
+    // The comment references the version, so fixture teardown cannot delete the
+    // version until the comment is gone.
+    await fixture.pgDatabase.query(
+      "delete from bakery.artifact_comments where organization_id = $1",
+      [fixture.organizationId],
+    );
+  }, { skillFileStore: store });
+});
+
+Deno.test("a range of exactly the ceiling is served, one byte over is refused", async () => {
+  const store = objectStore();
+  await withWorkerFixture(async (fixture) => {
+    const seeded = await seedArtifact(fixture);
+    // Exactly the ceiling: the bound is `>`, not `>=`, and a test that only
+    // checks one byte over would pass with an off-by-one that refuses a legal
+    // request.
+    const atCeiling = new Uint8Array(8 * 1024 * 1024);
+    atCeiling[0] = 1;
+    const served = await publish(
+      fixture,
+      seeded,
+      atCeiling,
+      new ScopedOrganizationBlobStore(store),
+    ) as { id: string };
+
+    const ok = await fixture.app.fetch(
+      new Request(
+        `${fixture.config.publicBaseUrl}/v1/artifact-versions/${served.id}/content`,
+        {
+          headers: {
+            cookie: fixture.adminCookie,
+            "bakery-organization-id": fixture.organizationId,
+            range: "bytes=0-0",
+          },
+        },
+      ),
+    );
+    assertEquals(ok.status, 206);
+    assertEquals(new Uint8Array(await ok.arrayBuffer()).byteLength, 1);
+  }, { skillFileStore: store });
+});
