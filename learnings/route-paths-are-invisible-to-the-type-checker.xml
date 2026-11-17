@@ -1,0 +1,37 @@
+<learning scope="project">
+  <title>A route path is a string, so the type checker cannot see it</title>
+  <symptom>
+    A test module passes `deno check`, passes `pnpm lint`, passes `pnpm typecheck`,
+    and 404s on its first request. Nothing in the static gate is red, so the
+    failure looks like a fixture or a server problem on the first run.
+  </symptom>
+  <cause>
+    Every route path in a test is a template string. The type checker types it
+    as `string`, the linter has no rule for it, and the reviewer reading a diff
+    sees a plausible path. `const SOURCES = "/v1/external-ticket-sources"` reads
+    like the sibling of `/v1/external-tickets` and is not a registered route -
+    the route table registers `/v1/ticket-sources`. A test can therefore be
+    type-clean and wrong on its first line.
+  </cause>
+  <rule>
+    For a path, a route name or any other string the server resolves at runtime,
+    the static gates are blind by construction - only execution closes it. That
+    makes an unexecuted change an unpriced one: a declared "not yet run" is the
+    only thing standing between a plausible path and a live one, and it must be
+    declared out loud rather than implied by green checks. When relocating or
+    copying test code, copy the constants from the module that own them instead
+    of retyping them from memory.
+  </rule>
+  <evidence>
+    Bakery #69 / PR 540. Moving a case out of
+    `tests/helpers/ticket-admission/operations-integration.ts` into
+    `tests/integration/read-the-tickets-linked-to-one-task_test.ts` retyped the
+    source path as `/v1/external-ticket-sources`. `ticket-actions.ts:92,101`
+    registers `/v1/ticket-sources` and `ticket-routes.ts:25` guards it, so the
+    preview call would have answered 404. `deno check`, `pnpm fmt` and
+    `pnpm lint` were all clean at that commit; the defect was found by reading
+    the route table, not by any gate, and fixed in `443ab7e96`. qa-qa named the
+    class during review: the fix depended on the observation, and the
+    observation needed the run.
+  </evidence>
+</learning>
