@@ -1696,7 +1696,6 @@
   "settings.audit.retention.saved": "⟪Retention saved.⟫",
   "settings.audit.retention.error": "⟪Retention could not be saved. Try again.⟫",
   "settings.orgAccess.organization": "⟪Organization⟫",
-  "settings.orgAccess.description": "⟪Members, roles by scope, service accounts and connected clients for {organization}.⟫",
   "settings.orgAccess.forbidden": "⟪Only organization admins can manage access. Ask an admin if you need a change.⟫",
   "settings.orgAccess.error.title": "⟪Access could not be loaded⟫",
   "settings.orgAccess.error.description": "⟪Something went wrong reading this organization's access. Nothing was changed.⟫",
@@ -2877,7 +2876,6 @@
   "machines.finishing.machines": "⟪Machines⟫",
   "machines.wizard.macos": "⟪Bakery has no installer for macOS yet. A one-step installer is coming. Until it ships, a Mac cannot join through this page; choose Linux to add a Linux machine.⟫",
   "shell.navigation.membersAndAccess": "⟪Members & access⟫",
-  "settings.orgAccess.title": "⟪Members & access⟫",
   "shell.navigation.userProvisioning": "⟪User provisioning⟫",
   "shell.navigation.group.account": "⟪Your account⟫",
   "shell.navigation.group.organization": "⟪Organization⟫",
@@ -4004,5 +4002,10 @@
   "settings.orgAccess.summary": "⟪{people, plural, one {# person} other {# people}}⟫",
   "settings.orgAccess.token.needsAccount": "⟪Create a service account first.⟫",
   "settings.orgAccess.invitation.keep": "⟪Keep invitation⟫",
-  "settings.orgAccess.token.revokeLong": "⟪Revoke token⟫"
+  "settings.orgAccess.token.revokeLong": "⟪Revoke token⟫",
+  "settings.orgAccess.title": "⟪Members & access⟫",
+  "settings.orgAccess.tab.members": "⟪Members⟫",
+  "settings.orgAccess.tab.invitations": "⟪Invitations⟫",
+  "settings.orgAccess.tab.invitationsCount": "⟪Invitations ({count})⟫",
+  "settings.orgAccess.description": "⟪Who can use {organization}, and what they can do.⟫"
 }

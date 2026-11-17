@@ -1450,7 +1450,16 @@ const organizationAccessRoute = createRoute({
   path: "/settings/organization/access",
   beforeLoad: ({ context, location }) =>
     requireSession(context.session, location),
-  component: OrganizationAccessPage,
+  component: () => <OrganizationAccessPage tab="members" />,
+  errorComponent: ProtectedRouteError,
+});
+
+const organizationInvitationsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/organization/access/invitations",
+  beforeLoad: ({ context, location }) =>
+    requireSession(context.session, location),
+  component: () => <OrganizationAccessPage tab="invitations" />,
   errorComponent: ProtectedRouteError,
 });
 
@@ -2127,6 +2136,7 @@ const routeTree = rootRoute.addChildren([
   installationAuditRoute,
   installationIntegrationsRoute,
   organizationAccessRoute,
+  organizationInvitationsRoute,
   organizationIntegrationsRoute,
   organizationIntegrationConnectionRoute,
   organizationRolesRoute,

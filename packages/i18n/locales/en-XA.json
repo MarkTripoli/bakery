@@ -1696,7 +1696,6 @@
   "settings.audit.retention.saved": "⟦Ŕëŧëñŧïôñ šàṽëð. ŧëš⟧",
   "settings.audit.retention.error": "⟦Ŕëŧëñŧïôñ çôûļð ñôŧ ƀë šàṽëð. Ŧŕÿ àĝàïñ. ŧëšŧ çôþÿ ŧ⟧",
   "settings.orgAccess.organization": "⟦Ôŕĝàñïžàŧïôñ ŧë⟧",
-  "settings.orgAccess.description": "⟦Ṁëɱƀëŕš, ŕôļëš ƀÿ šçôþë, šëŕṽïçë àççôûñŧš àñð çôññëçŧëð çļïëñŧš ƒôŕ {organization}. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "settings.orgAccess.forbidden": "⟦Ôñļÿ ôŕĝàñïžàŧïôñ àðɱïñš çàñ ɱàñàĝë àççëšš. Àšķ àñ àðɱïñ ïƒ ÿôû ñëëð à çĥàñĝë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "settings.orgAccess.error.title": "⟦Àççëšš çôûļð ñôŧ ƀë ļôàðëð ŧëšŧ çô⟧",
   "settings.orgAccess.error.description": "⟦Šôɱëŧĥïñĝ ŵëñŧ ŵŕôñĝ ŕëàðïñĝ ŧĥïš ôŕĝàñïžàŧïôñ'š àççëšš. Ñôŧĥïñĝ ŵàš çĥàñĝëð. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
@@ -2877,7 +2876,6 @@
   "machines.finishing.machines": "⟦Ṁàçĥïñëš…⟧",
   "machines.wizard.macos": "⟦Ɓàķëŕÿ ĥàš ñô ïñšŧàļļëŕ ƒôŕ ɱàçÔŠ ÿëŧ. À ôñë-šŧëþ ïñšŧàļļëŕ ïš çôɱïñĝ. Ûñŧïļ ïŧ šĥïþš, à Ṁàç çàññôŧ ĵôïñ ŧĥŕôûĝĥ ŧĥïš þàĝë; çĥôôšë Ļïñûẋ ŧô àðð à Ļïñûẋ ɱàçĥïñë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "shell.navigation.membersAndAccess": "⟦Ṁëɱƀëŕš & àççëšš ŧëš⟧",
-  "settings.orgAccess.title": "⟦Ṁëɱƀëŕš & àççëšš ŧëš⟧",
   "shell.navigation.userProvisioning": "⟦Ûšëŕ þŕôṽïšïôñïñĝ ŧëš⟧",
   "shell.navigation.group.account": "⟦Ÿôûŕ àççôûñŧ ŧë⟧",
   "shell.navigation.group.organization": "⟦Ôŕĝàñïžàŧïôñ ŧë⟧",
@@ -4004,5 +4002,10 @@
   "settings.orgAccess.summary": "⟦{people, plural, one {# person} other {# people}} ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "settings.orgAccess.token.needsAccount": "⟦Çŕëàŧë à šëŕṽïçë àççôûñŧ ƒïŕšŧ. ŧëšŧ çôþ⟧",
   "settings.orgAccess.invitation.keep": "⟦Ķëëþ ïñṽïŧàŧïôñ ŧëš⟧",
-  "settings.orgAccess.token.revokeLong": "⟦Ŕëṽôķë ŧôķëñ ŧë⟧"
+  "settings.orgAccess.token.revokeLong": "⟦Ŕëṽôķë ŧôķëñ ŧë⟧",
+  "settings.orgAccess.title": "⟦Ṁëɱƀëŕš & àççëšš ŧëš⟧",
+  "settings.orgAccess.tab.members": "⟦Ṁëɱƀëŕš…⟧",
+  "settings.orgAccess.tab.invitations": "⟦Ïñṽïŧàŧïôñš ŧ⟧",
+  "settings.orgAccess.tab.invitationsCount": "⟦Ïñṽïŧàŧïôñš ({count}) ŧëšŧŧ⟧",
+  "settings.orgAccess.description": "⟦Ŵĥô çàñ ûšë {organization}, àñð ŵĥàŧ ŧĥëÿ çàñ ðô. ŧëšŧ çôþÿ ŧëšŧŧ⟧"
 }

@@ -404,8 +404,9 @@ for (
           .toBeVisible();
         await expect(page.getByText("3 people", { exact: true }))
           .toBeVisible();
-        // The pending count is the control it is, on its own line.
-        await expect(page.getByTestId("org-access-pending-link"))
+        // The pending count lives on the Invitations tab, which is the
+        // control it is (issue 233, owner-directed split).
+        await expect(page.getByRole("tab", { name: "Invitations (1)" }))
           .toBeVisible();
       }
       // Column names explain the cells on a wide screen; a phone reads each
@@ -457,10 +458,16 @@ for (
       await expect(jon).toContainText("storefront");
       await expect(page.getByTestId("org-access-members"))
         .not.toContainText("No organization role");
+      // Invitations are their own tab, with the count on the tab
+      // (issue 233, owner-directed split).
+      await expect(page.getByRole("tab", { name: "Invitations (1)" }))
+        .toBeVisible();
+      await page.getByRole("tab", { name: "Invitations (1)" }).click();
       await expect(page.getByTestId(`org-access-invitation-${INV_1}`))
         .toContainText("sam@example.test");
       await expect(page.getByTestId(`org-access-invitation-${INV_1}`))
         .toContainText("Organization · Guest");
+      await page.getByRole("tab", { name: "Members", exact: true }).click();
       await expect(page.getByTestId("org-access-account-" + BOT_PRINCIPAL))
         .toContainText("ci-deployer");
       // A token reads as a labelled value, never a bare prefix
@@ -488,9 +495,12 @@ for (
         .not.toContainText("Only you are in this organization");
 
       // Each other section keeps its heading and says what will appear, with
-      // the one action that fills it (issue 233, fix 10).
+      // the one action that fills it (issue 233, fix 10). Invitations are a
+      // tab of their own now.
+      await page.getByRole("tab", { name: "Invitations", exact: true }).click();
       await expect(page.getByTestId("org-access-invitations"))
         .toContainText("No pending invitations");
+      await page.getByRole("tab", { name: "Members", exact: true }).click();
       // The empty line keeps its sentence; the action already on screen is the
       // action, so no second button repeats it (issue 233, round 2).
       await expect(page.getByTestId("org-access-invite-empty")).toHaveCount(0);
@@ -601,6 +611,8 @@ for (
       await page.getByLabel("Email address").fill("guest@example.test");
       await page.getByLabel("Organization role").selectOption("guest");
       await page.getByTestId("org-access-invite-send").click();
+      // The new invitation is on the Invitations tab.
+      await page.getByRole("tab", { name: /Invitations/ }).click();
       await expect(page.getByTestId(`org-access-invitation-${INV_2}`))
         .toContainText("guest@example.test");
       const posted = sent(

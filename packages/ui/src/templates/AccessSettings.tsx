@@ -92,6 +92,11 @@ export type AccessSettingsProps = {
   /** A page notice under the heading. */
   readonly notice?: ReactNode;
   readonly sections?: readonly AccessSettingsSection[];
+  /**
+   * Route tabs under the page title, for a page that holds more than one
+   * subject (Members | Invitations). Rendered only in the default state.
+   */
+  readonly tabs?: ReactNode;
   /** Page content that is not a section, such as the empty card. */
   readonly children?: ReactNode;
   /** Stable hook for the page root. */
@@ -129,6 +134,7 @@ export function AccessSettings(
     hideActionsOnPhone,
     notice,
     sections = [],
+    tabs,
     children,
     "data-testid": testId,
     state = "default",
@@ -227,6 +233,7 @@ export function AccessSettings(
           </div>
         )
         : null}
+      {state === "default" ? tabs : null}
       {children}
       {(state === "default" ? sections : []).map((section) => (
         <section

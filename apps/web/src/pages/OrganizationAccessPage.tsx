@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MessageKey } from "@bakery/i18n";
 import * as UI from "@bakery/ui";
@@ -82,8 +83,11 @@ function shortId(id: string) {
  * audits; this page never decides who is allowed, it shows the server's
  * answer. A person without the Admin role gets a notice and no data.
  */
-export function OrganizationAccessPage() {
+export function OrganizationAccessPage({ tab = "members" }: {
+  readonly tab?: "members" | "invitations";
+}) {
   const api = useBakeryApi();
+  const navigate = useNavigate();
   const scope = useProtectedScope();
   const queryClient = useQueryClient();
   const { translate, locale, timeZone } = useI18n();
@@ -1122,6 +1126,37 @@ export function OrganizationAccessPage() {
       </ShellSlot>
       <UI.AccessSettings
         data-testid="org-access"
+        tabs={showSections && pageState === "default"
+          ? (
+            <UI.Tabs
+              aria-label={translate("settings.orgAccess.title")}
+              onSelect={(id) =>
+                void navigate({
+                  to: id === "invitations"
+                    ? "/settings/organization/access/invitations"
+                    : "/settings/organization/access",
+                })}
+              selectedId={tab}
+              tabs={[
+                {
+                  id: "members",
+                  label: translate("settings.orgAccess.tab.members"),
+                  content: null,
+                },
+                {
+                  id: "invitations",
+                  label: pendingInvitations.length > 0
+                    ? translate("settings.orgAccess.tab.invitationsCount", {
+                      count: pendingInvitations.length,
+                    })
+                    : translate("settings.orgAccess.tab.invitations"),
+                  content: null,
+                },
+              ]}
+              variant="route"
+            />
+          )
+          : null}
         title={translate("settings.orgAccess.title")}
         description={pageState === "default"
           ? translate("settings.orgAccess.description", {
@@ -1184,7 +1219,7 @@ export function OrganizationAccessPage() {
               : null}
           </>
         }
-        sections={[{
+        sections={([{
           id: "org-access-members",
           testId: "org-access-members",
           title: translate("settings.orgAccess.members.heading"),
@@ -1214,22 +1249,6 @@ export function OrganizationAccessPage() {
           }),
           // A count that reads like an action should be one: it goes to the
           // section it counts (#233 fix 8).
-          aside: pendingInvitations.length > 0
-            ? (
-              <UI.Button
-                data-testid="org-access-pending-link"
-                onClick={() =>
-                  document.getElementById("org-access-invitations")
-                    ?.scrollIntoView({ behavior: "smooth" })}
-                type="button"
-                variant="secondary"
-              >
-                {translate("settings.orgAccess.members.pending", {
-                  count: pendingInvitations.length,
-                })}
-              </UI.Button>
-            )
-            : null,
           phoneLayout: "block",
           rows: memberRows,
           children: inviteForm,
@@ -1356,7 +1375,12 @@ export function OrganizationAccessPage() {
           emptyHelp: clients.isError
             ? undefined
             : translate("settings.orgAccess.clients.emptyHelp"),
-        }]}
+        }] satisfies UI.AccessSettingsSection[])
+          .filter((section) =>
+            tab === "invitations"
+              ? section.id === "org-access-invitations"
+              : section.id !== "org-access-invitations"
+          )}
       >
       </UI.AccessSettings>
 
