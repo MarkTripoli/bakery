@@ -103,6 +103,8 @@ Deno.test("the live aggregate admits docs and keeps full lanes fail-closed", asy
     workflow,
     "needs.changes.outputs.route != 'metadata'",
   );
+  // An edit must not cancel an in-flight full gate on the same ref.
+  assertStringIncludes(workflow, "format('metadata-{0}', github.ref)");
   assertStringIncludes(
     workflow,
     'echo "gate lane did not succeed: $lane_result"',

@@ -23,7 +23,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: bakery-ci-${{ (github.event_name == 'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
+  # A metadata (`edited`) run gets its own group. It must never cancel a full
+  # gate run on the same ref, and a gate run must not cancel it: the two answer
+  # different questions at the same head SHA. Every other pull-request run keeps
+  # the shared group, so a newer commit still supersedes the older one.
+  group: bakery-ci-${{ github.event.action == 'edited' && format('metadata-{0}', github.ref) || (github.event_name == 'pull_request' || github.event_name == 'push') && github.ref || github.run_id }}
   # A newer pull-request run supersedes the older one on the same ref. A main push never cancels the one before it: the running push finishes,
   # GitHub keeps at most one newer push pending behind it (a still-newer push replaces the pending one), so main always gets a completed run
   # instead of a stream of cancelled ones. Scheduled and manual runs keep their own group.
