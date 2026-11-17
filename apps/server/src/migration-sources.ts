@@ -5,6 +5,7 @@ import { workBakeryMigrationSource } from "./modules/work/migrations.ts";
 import { projectsBakeryMigrationSource } from "./modules/projects/migrations.ts";
 import { agentsBakeryMigrationSource } from "./modules/agents/migrations.ts";
 import { repositoryRulesBakeryMigrationSource } from "./modules/repository-rules/migrations.ts";
+import { artifactKindsBakeryMigrationSource } from "./modules/artifact-kinds/migrations.ts";
 import { integrationsBakeryMigrationSource } from "./modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "./modules/delivery/migrations.ts";
 
@@ -32,6 +33,7 @@ export const BAKERY_MIGRATION_SOURCES: readonly MigrationSource[] = Object
     projectsBakeryMigrationSource,
     agentsBakeryMigrationSource,
     repositoryRulesBakeryMigrationSource,
+    artifactKindsBakeryMigrationSource,
     integrationsBakeryMigrationSource,
     deliveryBakeryMigrationSource,
   ]);

@@ -201,7 +201,8 @@ try {
   const dataMigrations = bakeryDataMigrations;
   const providerMigrations = await loadMigrations(betterAuthMigrationSource);
   // One list, read from the registry the rails also read, so a new module cannot
-  // be migratable here while invisible to a rail (rail B3).
+  // be migratable here while invisible to a rail (rail B3). The artifact-kinds
+  // source that landed on main joins the registry rather than this call site.
   const bakeryMigrations = (
     await Promise.all(
       BAKERY_MIGRATION_SOURCES.map((source) => loadMigrations(source)),
