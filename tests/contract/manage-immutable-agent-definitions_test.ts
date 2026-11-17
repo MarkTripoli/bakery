@@ -34,6 +34,7 @@ const expectedCapabilities = [
   "paper",
   "reviewer",
   "secret.identity",
+  "session.tools",
   "shell",
   "web",
 ];

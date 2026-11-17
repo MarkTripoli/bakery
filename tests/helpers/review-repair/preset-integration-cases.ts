@@ -1,4 +1,4 @@
-import { assert, assertEquals, assertNotEquals } from "@std/assert";
+import { assert, assertEquals } from "@std/assert";
 import { REVIEW_LOOP_LIMITS } from "../../../packages/contracts/src/review-evidence.ts";
 import { baseProfileConfig } from "../repository-rule-entries.ts";
 import { reviewLoopFromSnapshot } from "../../../packages/persistence/src/repository-admission.ts";
@@ -8,6 +8,7 @@ import {
   sha256Hex,
 } from "../../../apps/server/src/platform/canonical-json.ts";
 import { createBakeryPostgresWorkflowRepository } from "../../../apps/server/src/modules/workflow-adapter/bakery-postgres-store.ts";
+import { readPlanHost } from "../../../apps/server/src/modules/delivery/plan-host.ts";
 import {
   FIXED_CODING_PRESET,
   FIXED_CODING_REVIEWED_PRESET,
@@ -32,12 +33,7 @@ import {
   readInspectionAssignment,
   receiveInspectionSource,
 } from "../repository-inspection.ts";
-import {
-  registeredWorker,
-  type WorkerFixture,
-  workerFixtureCapabilities,
-  workerRequest,
-} from "../worker-execution.ts";
+import { type WorkerFixture } from "../worker-execution.ts";
 import { withWorkerFixture } from "../worker-execution/scenarios.ts";
 import {
   BASE_SHA,
@@ -82,7 +78,6 @@ const CHECK_POLICY = {
   }],
 };
 const HEAD_ONE = "1".repeat(40);
-const HEAD_TWO = "3".repeat(40);
 
 type RunBody = {
   id: string;
@@ -524,7 +519,7 @@ function registerAvailabilityCases(): void {
 }
 
 function registerRunCreationCases(): void {
-  Deno.test("a reviewed preset run starts through runs.create with brief, implement, check and review rows only", () =>
+  Deno.test("a reviewed preset run starts through runs.create as a plan: no step rows, the plan's loop bounds frozen", () =>
     withFixture(async (fixture) => {
       const suffix = crypto.randomUUID().slice(0, 8);
       const agents = await fundedAgents(fixture, `rc-${suffix}`);
@@ -538,23 +533,15 @@ function registerRunCreationCases(): void {
       assertEquals(run.status, "queued");
       assertEquals(Number(run.budgetLimitUsd), 12);
 
-      // The repair step has no row; the others keep their spec positions.
-      const rows = await stepRows(
-        fixture.pgDatabase,
-        fixture.organizationId,
-        run.id,
-      );
+      // A plan run writes no step rows: the engine appends each step as the
+      // plan decides it.
       assertEquals(
-        rows.map((row) => [row.step_key, row.position, row.iteration]),
-        [["brief", 0, 0], ["implement", 1, 0], ["check", 3, 0], [
-          "review",
-          4,
-          0,
-        ]],
-      );
-      assertEquals(
-        new Set(rows.map((row) => row.status)),
-        new Set(["pending"]),
+        await stepRows(
+          fixture.pgDatabase,
+          fixture.organizationId,
+          run.id,
+        ),
+        [],
       );
 
       const snapshot = await snapshotOf(
@@ -562,52 +549,38 @@ function registerRunCreationCases(): void {
         fixture.organizationId,
         run.id,
       );
-      // The loop bounds are frozen from the code-owned limits.
+      // The loop bounds are frozen from the plan's own repeat bound.
       assertEquals(snapshot.reviewLoop, {
         maxRepairCycles: REVIEW_LOOP_LIMITS.maxRepairCycles,
         maxLoopDurationMs: REVIEW_LOOP_LIMITS.maxLoopDurationMs,
         maxFindings: REVIEW_LOOP_LIMITS.maxFindings,
       });
       assertEquals(reviewLoopFromSnapshot(snapshot), snapshot.reviewLoop);
-      // The skipped repair step still has its agent and action binding frozen,
-      // so an appended repair iteration admits against the same authority.
-      const stepAgents = snapshot.stepAgents as Record<
-        string,
-        { agentVersionId: string }
-      >;
-      assertEquals(
-        Object.keys(stepAgents).sort(),
-        ["implement", "repair", "review"],
-      );
-      assertEquals(
-        stepAgents.implement.agentVersionId,
-        agents["harness.implement"],
-      );
-      assertEquals(
-        stepAgents.repair.agentVersionId,
-        agents["harness.repair"],
-      );
-      assertEquals(
-        stepAgents.review.agentVersionId,
-        agents["review.independent"],
-      );
-      const actions = snapshot.stepActions as Record<
-        string,
-        { action: string }
-      >;
-      assertEquals(actions.repair.action, "harness.repair");
-      const workflow = snapshot.workflow as {
-        digest: string;
-        normalizedSpec: { steps: Array<{ id: string }> };
+      // The plan and the agent each step will run as are frozen.
+      const runtime = snapshot.runtime as {
+        document: { steps: Array<{ id: string }> };
       };
-      assertEquals(workflow.digest, FIXED_CODING_REVIEWED_PRESET.digest);
+      assertEquals(runtime.document.steps.map((step) => step.id), [
+        "flow",
+        "repair",
+      ]);
       assertEquals(
-        workflow.normalizedSpec.steps.map((step) => step.id),
-        ["brief", "implement", "repair", "check", "review"],
+        Object.keys(snapshot.planAgents as object).sort(),
+        Object.values(agents).sort(),
       );
+      assertEquals(snapshot.planActionAgents, {
+        "harness.implement": agents["harness.implement"],
+        "harness.repair": agents["harness.repair"],
+        "review.independent": agents["review.independent"],
+      });
+      // The flat sections are empty, not missing: flat readers still work.
+      assertEquals(snapshot.stepAgents, {});
+      assertEquals(snapshot.stepActions, {});
+      const workflow = snapshot.workflow as { digest: string };
+      assertEquals(workflow.digest, FIXED_CODING_REVIEWED_PRESET.digest);
     }));
 
-  Deno.test("a fixed-coding run is unchanged: two rows and no loop bounds", () =>
+  Deno.test("a fixed-coding run is a plan too: no step rows and no loop bounds", () =>
     withFixture(async (fixture) => {
       const agent = await seedFundedCodingAgent(
         fixture,
@@ -622,15 +595,14 @@ function registerRunCreationCases(): void {
       const { body } = await startRun(fixture, repository, "fixed-coding", 201);
       const run = body as unknown as RunBody;
       assertEquals(Number(run.budgetLimitUsd), 5);
-      const rows = await stepRows(
-        fixture.pgDatabase,
-        fixture.organizationId,
-        run.id,
+      assertEquals(
+        await stepRows(
+          fixture.pgDatabase,
+          fixture.organizationId,
+          run.id,
+        ),
+        [],
       );
-      assertEquals(rows.map((row) => [row.step_key, row.position]), [
-        ["brief", 0],
-        ["implement", 1],
-      ]);
       const snapshot = await snapshotOf(
         fixture.pgDatabase,
         fixture.organizationId,
@@ -638,6 +610,11 @@ function registerRunCreationCases(): void {
       );
       assertEquals(Object.hasOwn(snapshot, "reviewLoop"), false);
       assertEquals(reviewLoopFromSnapshot(snapshot), null);
+      const runtime = snapshot.runtime as {
+        document: { steps: Array<{ id: string }> };
+      };
+      assertEquals(runtime.document.steps.map((step) => step.id), ["flow"]);
+      assertEquals(Object.keys(snapshot.planAgents as object), [agent]);
       assertEquals(
         (snapshot.workflow as { digest: string }).digest,
         FIXED_CODING_PRESET.digest,
@@ -702,109 +679,187 @@ function registerRunCreationCases(): void {
 }
 
 function registerIterationCases(): void {
-  Deno.test("check and review admit from the recorded outputs and a later repair iteration admits from the latest ones", () =>
+  const engineFor = (fixture: Fixture) =>
+    createBakeryPostgresWorkflowRepository({
+      database: fixture.pgDatabase,
+      maxAttempts: 1,
+      budgetPolicy: presetBudgetPolicy,
+      // The host resolves `$delivery` from the run's own rows.
+      planHost: readPlanHost,
+    });
+
+  const harnessOutput = (headSha: string) => ({
+    headSha,
+    baseSha: BASE_SHA,
+    sessionId: crypto.randomUUID(),
+    artifacts: [],
+  });
+
+  const complete = async (
+    fixture: Fixture,
+    runId: string,
+    stepKey: string,
+    output: unknown,
+  ) => {
+    await fixture.pgDatabase.query(
+      `update bakery.run_steps
+          set status = 'completed', output = $3::jsonb, finished_at = now()
+        where organization_id = $1 and run_id = $2 and step_key = $4`,
+      [fixture.organizationId, runId, JSON.stringify(output), stepKey],
+    );
+  };
+
+  const stepOf = async (
+    fixture: Fixture,
+    runId: string,
+    stepKey: string,
+  ) => {
+    const row = (await stepRows(
+      fixture.pgDatabase,
+      fixture.organizationId,
+      runId,
+    )).find((step) => step.step_key === stepKey);
+    assert(row, `no row for ${stepKey}`);
+    return row;
+  };
+
+  const next = async (
+    engine: ReturnType<typeof engineFor>,
+    runId: string,
+    owner: NonNullable<
+      Awaited<ReturnType<typeof engine.acquireEngineOwner>>
+    >,
+    expected: string,
+  ) => {
+    const key = await engine.findNext(runId, owner);
+    assertEquals(key?.stepKey, expected);
+    assert(key);
+    return key;
+  };
+
+  // Drives brief, implement and check to a chosen check output, returning the
+  // check output so the caller can judge the review that follows.
+  const runToCheck = async (
+    fixture: Fixture,
+    repository: PresetRepository,
+    engine: ReturnType<typeof engineFor>,
+    owner: NonNullable<
+      Awaited<ReturnType<typeof engine.acquireEngineOwner>>
+    >,
+    runId: string,
+    checked: unknown,
+  ) => {
+    const brief = await next(engine, runId, owner, "flow.brief");
+    await engine.admit(brief, owner);
+    await complete(fixture, runId, "flow.brief", {
+      artifact: {
+        artifactId: crypto.randomUUID(),
+        versionId: crypto.randomUUID(),
+        sha256: "d".repeat(64),
+      },
+    });
+    const implement = await next(engine, runId, owner, "flow.implement");
+    await engine.admit(implement, owner);
+    await complete(fixture, runId, "flow.implement", harnessOutput(HEAD_ONE));
+
+    const check = await next(engine, runId, owner, "flow.check");
+    const checkJob = await engine.admit(check, owner);
+    assert(checkJob.jobId);
+    const checkRow = await stepOf(fixture, runId, "flow.check");
+    assertEquals(
+      (await jobOf(
+        fixture.pgDatabase,
+        fixture.organizationId,
+        checkRow.id,
+      )).input,
+      {
+        repositoryId: repository.repositoryId,
+        revision: HEAD_ONE,
+        checks: ["magic.numbers", "lint"],
+      },
+    );
+    await complete(fixture, runId, "flow.check", checked);
+    return checked;
+  };
+
+  Deno.test("a clean review ends the reviewed plan without entering the repair body", () =>
     withFixture(async (fixture) => {
       const suffix = crypto.randomUUID().slice(0, 8);
       const agents = await fundedAgents(fixture, `it-${suffix}`);
       const repository = await onboardObserved(fixture, agents);
       const { body } = await startRun(fixture, repository, REVIEWED, 201);
       const run = body as unknown as RunBody;
-      const org = fixture.organizationId;
-      const database = fixture.pgDatabase;
-      const engine = createBakeryPostgresWorkflowRepository({
-        database,
-        maxAttempts: 1,
-        budgetPolicy: presetBudgetPolicy,
-      });
+      const engine = engineFor(fixture);
       const owner = await engine.acquireEngineOwner(
         run.id,
         crypto.randomUUID(),
         60_000,
       );
       assert(owner);
-      const admit = async (stepKey: string, iteration: number) => {
-        const admitted = await engine.admit({
-          runId: run.id,
-          stepKey,
-          iteration,
-          actionVersion: run.workflowVersionId,
-        }, owner);
-        assert(admitted.jobId, `${stepKey}@${iteration} must admit a job`);
-        const row = (await stepRows(database, org, run.id)).find((step) =>
-          step.step_key === stepKey && step.iteration === iteration
-        );
-        assert(row);
-        return { stepId: row.id, job: await jobOf(database, org, row.id) };
-      };
-      const complete = async (stepId: string, output: unknown) => {
-        await database.query(
-          `update bakery.run_steps
-              set status = 'completed', output = $3::jsonb, finished_at = now()
-            where organization_id = $1 and id = $2`,
-          [org, stepId, JSON.stringify(output)],
-        );
-      };
-      const harnessOutput = (headSha: string) => ({
-        headSha,
-        baseSha: BASE_SHA,
-        sessionId: crypto.randomUUID(),
-        artifacts: [],
-      });
-      const claim = async (
-        capabilities: string[],
-        action: string,
-      ): Promise<Record<string, unknown>> => {
-        const worker = await registeredWorker(fixture, {
-          name: `reviewed-${action}-${crypto.randomUUID().slice(0, 6)}`,
-          capabilities,
-        });
-        const claimKey = crypto.randomUUID();
-        const response = await workerRequest(
-          fixture,
-          worker.credential,
-          "/v1/worker/claims",
-          {
-            claimKey,
-            workerHostId: worker.registration.workerHostId,
-            capabilities,
-            supportedActions: [action],
-          },
-          { idempotencyKey: claimKey },
-        );
-        assertEquals(response.status, 200, await response.clone().text());
-        return await response.json() as Record<string, unknown>;
-      };
       try {
-        // brief and implement: the first candidate.
-        const brief = await admit("brief", 0);
-        await complete(brief.stepId, {
-          artifact: {
-            artifactId: crypto.randomUUID(),
-            versionId: crypto.randomUUID(),
-            sha256: "d".repeat(64),
-          },
-        });
-        const implement = await admit("implement", 0);
-        await complete(implement.stepId, harnessOutput(HEAD_ONE));
+        const checked = checkOutput(
+          [
+            observation({ checkId: "magic.numbers" }),
+            observation({ checkId: "lint" }),
+          ],
+          { headSha: HEAD_ONE },
+        );
+        await runToCheck(fixture, repository, engine, owner, run.id, checked);
 
-        // check admits once implement has output, against the implemented head.
-        const check = await admit("check", 0);
-        assertEquals(check.job.action, "quality.check");
-        assertEquals(check.job.input, {
-          repositoryId: repository.repositoryId,
-          revision: HEAD_ONE,
-          checks: ["magic.numbers", "lint"],
-        });
-        // The real claim re-derives the same input from the stored outputs.
-        const checkClaim = await claim(
-          [...workerFixtureCapabilities],
-          "quality.check",
-        );
-        assertEquals(checkClaim.jobId, check.job.id);
+        const review = await next(engine, run.id, owner, "flow.review");
+        const reviewJob = await engine.admit(review, owner);
+        assert(reviewJob.jobId);
+        const reviewRow = await stepOf(fixture, run.id, "flow.review");
         assertEquals(
-          withoutProfile(checkClaim.input as Record<string, unknown>),
-          check.job.input,
+          (await jobOf(
+            fixture.pgDatabase,
+            fixture.organizationId,
+            reviewRow.id,
+          )).input,
+          {
+            repositoryId: repository.repositoryId,
+            revision: HEAD_ONE,
+            evidence: checked.checkRunIds,
+          },
         );
+        await complete(
+          fixture,
+          run.id,
+          "flow.review",
+          reviewOutput([], { headSha: HEAD_ONE }),
+        );
+
+        // The repeat's until is satisfied: the plan is over and no repair row
+        // was ever appended.
+        assertEquals(await engine.findNext(run.id, owner), undefined);
+        assertEquals(
+          (await stepRows(
+            fixture.pgDatabase,
+            fixture.organizationId,
+            run.id,
+          )).map((row) => row.step_key),
+          ["flow.brief", "flow.implement", "flow.check", "flow.review"],
+        );
+      } finally {
+        await engine.releaseEngineOwner(owner);
+      }
+    }));
+
+  Deno.test("a blocking review enters the repair body and the repair step reads the candidate", () =>
+    withFixture(async (fixture) => {
+      const suffix = crypto.randomUUID().slice(0, 8);
+      const agents = await fundedAgents(fixture, `it-${suffix}`);
+      const repository = await onboardObserved(fixture, agents);
+      const { body } = await startRun(fixture, repository, REVIEWED, 201);
+      const run = body as unknown as RunBody;
+      const engine = engineFor(fixture);
+      const owner = await engine.acquireEngineOwner(
+        run.id,
+        crypto.randomUUID(),
+        60_000,
+      );
+      assert(owner);
+      try {
         const failed = observation({
           checkId: "magic.numbers",
           result: "failed",
@@ -821,26 +876,10 @@ function registerIterationCases(): void {
           headSha: HEAD_ONE,
           failedCheckIds: [failed.checkRunId],
         });
-        await complete(check.stepId, checked);
+        await runToCheck(fixture, repository, engine, owner, run.id, checked);
 
-        // review admits with the check run ids of the same candidate.
-        const review = await admit("review", 0);
-        assertEquals(review.job.action, "review.independent");
-        assertEquals(review.job.input, {
-          repositoryId: repository.repositoryId,
-          revision: HEAD_ONE,
-          evidence: checked.checkRunIds,
-        });
-        assertEquals(review.job.agent_version_id, agents["review.independent"]);
-        assert(review.job.requirements.capabilities.includes("reviewer"));
-        assert(review.job.requirements.capabilities.includes("model"));
-        // The review step owns one server-created session for its reviewer.
-        const sessions = await database.query<{ count: string }>(
-          `select count(*)::text as count from bakery.agent_sessions
-            where organization_id = $1 and run_step_id = $2`,
-          [org, review.stepId],
-        );
-        assertEquals(sessions.rows[0].count, "1");
+        const review = await next(engine, run.id, owner, "flow.review");
+        await engine.admit(review, owner);
         const blocker = finding({
           fingerprint: fingerprintOf(1),
           severity: "blocker",
@@ -851,90 +890,52 @@ function registerIterationCases(): void {
           severity: "minor",
         });
         await complete(
-          review.stepId,
+          fixture,
+          run.id,
+          "flow.review",
           reviewOutput([blocker, minor], { headSha: HEAD_ONE }),
         );
 
-        // The result hook (phase 4) appends the next iteration with the app
-        // role. Rows with higher iteration and fresh positions are all the
-        // engine needs: it orders by position, iteration, id.
-        const maxPosition = Math.max(
-          ...(await stepRows(database, org, run.id)).map((row) => row.position),
+        // The until is false, so the plan enters the repeat body at iteration 1.
+        const repair = await next(
+          engine,
+          run.id,
+          owner,
+          "repair@1.repair_implement",
         );
-        for (const [offset, key] of ["repair", "check", "review"].entries()) {
-          await fixture.runtimePgDatabase.query(
-            `insert into bakery.run_steps
-               (organization_id, run_id, step_key, position, iteration, status,
-                input)
-             values ($1, $2, $3, $4, 1, 'pending', '{}'::jsonb)`,
-            [org, run.id, key, maxPosition + 1 + offset],
-          );
-        }
-        const next = await engine.findNext(run.id);
+        const repairJob = await engine.admit(repair, owner);
+        assert(repairJob.jobId);
+        const repairRow = await stepOf(
+          fixture,
+          run.id,
+          "repair@1.repair_implement",
+        );
         assertEquals(
-          next && [next.stepKey, next.iteration],
-          ["repair", 1],
+          (await jobOf(
+            fixture.pgDatabase,
+            fixture.organizationId,
+            repairRow.id,
+          )).input,
+          {
+            repositoryId: repository.repositoryId,
+            revision: HEAD_ONE,
+            findings: [blocker],
+            failedChecks: [{
+              checkRunId: failed.checkRunId,
+              checkId: "magic.numbers",
+              result: "failed",
+              reason: "exit_nonzero",
+              exitCode: 3,
+            }],
+          },
         );
-
-        // repair@1 reads the latest check and review outputs and the head of
-        // the candidate they judged.
-        const repair = await admit("repair", 1);
-        assertEquals(repair.job.action, "harness.repair");
-        assertEquals(repair.job.agent_version_id, agents["harness.repair"]);
-        assertEquals(repair.job.input, {
-          repositoryId: repository.repositoryId,
-          revision: HEAD_ONE,
-          findings: [blocker],
-          failedChecks: [{
-            checkRunId: failed.checkRunId,
-            checkId: "magic.numbers",
-            result: "failed",
-            reason: "exit_nonzero",
-            exitCode: 3,
-          }],
-        });
-        // The repair step gets its own session (its output carries one).
-        const repairSessions = await database.query<{ count: string }>(
+        // The repair step gets its own reviewer session.
+        const sessions = await fixture.pgDatabase.query<{ count: string }>(
           `select count(*)::text as count from bakery.agent_sessions
             where organization_id = $1 and run_step_id = $2`,
-          [org, repair.stepId],
+          [fixture.organizationId, repairRow.id],
         );
-        assertEquals(repairSessions.rows[0].count, "1");
-        const repairClaim = await claim(
-          [...workerFixtureCapabilities],
-          "harness.repair",
-        );
-        assertEquals(repairClaim.jobId, repair.job.id);
-        assertEquals(
-          withoutProfile(repairClaim.input as Record<string, unknown>),
-          repair.job.input,
-        );
-        await complete(repair.stepId, harnessOutput(HEAD_TWO));
-
-        // The next check and review follow the repaired head, not the first.
-        const checkTwo = await admit("check", 1);
-        assertEquals(
-          (checkTwo.job.input as { revision: string }).revision,
-          HEAD_TWO,
-        );
-        const passed = checkOutput(
-          [
-            observation({ checkId: "magic.numbers" }),
-            observation({ checkId: "lint" }),
-          ],
-          { headSha: HEAD_TWO },
-        );
-        await complete(checkTwo.stepId, passed);
-        const reviewTwo = await admit("review", 1);
-        assertEquals(reviewTwo.job.input, {
-          repositoryId: repository.repositoryId,
-          revision: HEAD_TWO,
-          evidence: passed.checkRunIds,
-        });
-        assertNotEquals(
-          (reviewTwo.job.input as { evidence: string[] }).evidence,
-          checked.checkRunIds,
-        );
+        assertEquals(sessions.rows[0].count, "1");
       } finally {
         await engine.releaseEngineOwner(owner);
       }

@@ -6,6 +6,7 @@ import {
 } from "@bakery/contracts/http";
 import type { JsonValue } from "@bakery/contracts/contracts";
 import { RepositoryVersionedProfileConfigSchema } from "@bakery/contracts/repository-inspection";
+import { repositoryStanding } from "./repository-standing.ts";
 import { RepositoryProfileConfigSchema } from "@bakery/contracts/repository-profile-config";
 import type { PgTransactionClient } from "../../platform/database.ts";
 import { assertRepositoryOverridesAllowed } from "../repository-rules/effective.ts";
@@ -146,6 +147,48 @@ export function toApplication(row: ApplicationRow) {
     updatedAt: toIso(row.updated_at),
     version: row.version,
   };
+}
+
+/**
+ * The row's readiness word, or null when this build cannot classify it (no
+ * version in use, or a config it cannot read): the list then shows no badge
+ * rather than a guessed one.
+ */
+function standingOfRow(
+  row: RepositoryRow & {
+    active_config: unknown;
+    active_readiness: string | null;
+  },
+): string | null {
+  if (row.archived_at !== null) {
+    return repositoryStanding({
+      archived: true,
+      hasActiveVersion: row.active_profile_id !== null,
+      activeIsCheckMade: false,
+      checkPassed: false,
+    });
+  }
+  if (row.active_profile_id === null) {
+    return repositoryStanding({
+      archived: false,
+      hasActiveVersion: false,
+      activeIsCheckMade: false,
+      checkPassed: false,
+    });
+  }
+  // A check-made version is schema 2 (the page's `isCheckMade`); anything else
+  // is a person's save, which has no check of its own yet.
+  const config = row.active_config;
+  const schemaVersion = typeof config === "object" && config !== null &&
+      "schemaVersion" in config
+    ? (config as { schemaVersion: unknown }).schemaVersion
+    : undefined;
+  return repositoryStanding({
+    archived: false,
+    hasActiveVersion: true,
+    activeIsCheckMade: schemaVersion === 2,
+    checkPassed: row.active_readiness === "eligible",
+  });
 }
 
 export function toRepository(row: RepositoryRow) {
@@ -645,14 +688,28 @@ export function createRepositoriesListHandler(secret: string) {
         repository: "id",
       }, 5);
     const result = await transaction.query<
-      RepositoryRow & { cursor_created_at: string }
+      RepositoryRow & {
+        cursor_created_at: string;
+        active_config: unknown;
+        active_readiness: string | null;
+      }
     >(
       `select ${REPOSITORY_COLUMNS},
           to_char(
             created_at at time zone 'UTC',
             'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
-          ) as cursor_created_at
+          ) as cursor_created_at,
+          -- #65: the readiness facts the Projects list needs, read in the same
+          -- request so a row never costs its own query.
+          profile.config as active_config,
+          observation.readiness as active_readiness
          from bakery.repositories
+         left join bakery.repository_profiles profile
+           on profile.organization_id = bakery.repositories.organization_id
+          and profile.id = bakery.repositories.active_profile_id
+         left join bakery.repository_profile_observations observation
+           on observation.organization_id = bakery.repositories.organization_id
+          and observation.profile_id = bakery.repositories.active_profile_id
          where organization_id = $1
            and ($2::timestamptz is null or (created_at, id) < ($2, $3::uuid))
            and ${scoped.sql}
@@ -669,7 +726,12 @@ export function createRepositoriesListHandler(secret: string) {
     const visible = result.rows.slice(0, limit);
     const last = visible.at(-1);
     return {
-      items: visible.map(toRepository),
+      items: visible.map((row) => ({
+        ...toRepository(row),
+        ...(standingOfRow(row) === null
+          ? {}
+          : { standing: standingOfRow(row) as string }),
+      })),
       nextCursor: result.rows.length > limit && last
         ? await encodeCursor(secret, binding, {
           createdAt: last.cursor_created_at,

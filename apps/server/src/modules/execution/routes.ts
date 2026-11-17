@@ -39,6 +39,7 @@ import {
   outputFinalizationRoute,
 } from "./output.ts";
 import { events } from "./events.ts";
+import { inputReadRoute } from "./input-read.ts";
 import { heartbeat } from "./heartbeat.ts";
 import { enrollWorker, registerWorker } from "./registration.ts";
 import { renewLease, resultRoute } from "./results.ts";
@@ -318,6 +319,10 @@ export function createExecutionRoutes(
       options,
       (context) => outputBindingRoute(context, options, "open"),
     ),
+  );
+  app.get(
+    "/v1/worker/attempts/:id/context",
+    workerRouteHandler(options, (context) => inputReadRoute(context, options)),
   );
   app.post(
     "/v1/worker/attempts/:id/output-bindings/close",

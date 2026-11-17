@@ -161,10 +161,31 @@ function isPresetDocument(
 }
 
 /**
+ * The authored node an action site points at, so a compiled site carries the
+ * same literal input a flat step does. strict admission measures that input
+ * (`stepReferencesEarlierOutput`) and the rule guard reads it, so neither may
+ * lose it just because the engine resolves the input at dispatch time.
+ */
+function authoredNodeAt(
+  document: WorkflowPresetDocument,
+  path: readonly (string | number)[],
+): Readonly<Record<string, unknown>> | undefined {
+  let current: unknown = document;
+  for (const segment of path) {
+    if (typeof current !== "object" || current === null) return undefined;
+    current = (current as Record<string | number, unknown>)[segment];
+  }
+  if (typeof current !== "object" || current === null) return undefined;
+  return current as Readonly<Record<string, unknown>>;
+}
+
+/**
  * The action steps a preset runs, in authored order, whatever grammar it is
  * published in. A flat spec lists them directly; a document compiles to a plan,
  * and the plan's action sites are the same actions with the containers' ids
- * prefixed onto their keys. A code-owned preset that no longer compiles is a
+ * prefixed onto their keys. Each site keeps the node's authored input and
+ * condition, so strict admission and the rule guard read the same step shape
+ * they read for a flat spec. A code-owned preset that no longer compiles is a
  * fault in the preset, not in the caller, so it fails as one.
  */
 export async function presetActionSteps(
@@ -176,15 +197,20 @@ export async function presetActionSteps(
     { catalog: defaultWorkflowCompilerCatalog() },
   );
   if (!result.ok) throw new Error("PRESET_DEFINITION_NOT_COMPILABLE");
-  return actionSites.map((site, position) => ({
-    key: site.qualifiedId,
-    action: site.action,
-    input: undefined,
-    position,
-    workflowAgentVersionId: null,
-    stepAgentVersionId: null,
-    ...(site.requires.length > 0 ? { requires: site.requires } : {}),
-  }));
+  return actionSites.map((site, position) => {
+    const node = authoredNodeAt(source, site.path) ?? {};
+    const input = node.with ?? node.input ?? {};
+    return {
+      key: site.qualifiedId,
+      action: site.action,
+      input,
+      position,
+      ...(node.if === undefined ? {} : { condition: node.if as string }),
+      workflowAgentVersionId: null,
+      stepAgentVersionId: null,
+      ...(site.requires.length > 0 ? { requires: site.requires } : {}),
+    };
+  });
 }
 
 /**
@@ -425,10 +451,11 @@ export async function presetAvailability(
     if (reservations.size === modelSteps.length) {
       let minimum = 0n;
       for (const reservation of reservations.values()) minimum += reservation;
-      // The mandatory path reviews once; one repair cycle reviews again.
-      if (
-        isPresetDocument(preset.spec) || isReviewLoopSpec(preset.spec)
-      ) {
+      // A flat review loop reviews once on its mandatory path and again after
+      // the repair step, which the flat spec does not list as its own review.
+      // A compiled document lists every action once, its repeat body included,
+      // so its model steps already are the path plus one repair cycle.
+      if (isReviewLoopSpec(preset.spec)) {
         const review = modelSteps.find((step) =>
           step.action === "review.independent"
         );

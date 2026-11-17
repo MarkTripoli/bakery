@@ -16932,6 +16932,7 @@ const transportSchemas = {
         "createdAt",
         "updatedAt",
         "nextProfileRevision",
+        "standing",
         "version"
       ],
       "fieldTypes": {
@@ -16948,6 +16949,7 @@ const transportSchemas = {
         "createdAt": "timestamp",
         "updatedAt": "timestamp",
         "nextProfileRevision": "integer",
+        "standing": "enum(not_set_up|check_needed|check_failed|ready|archived)",
         "version": "integer"
       },
       "nullableFields": [
@@ -16970,10 +16972,12 @@ const transportSchemas = {
         "createdAt": "UTC timestamp when the record was created.",
         "updatedAt": "UTC timestamp when the record was last updated.",
         "nextProfileRevision": "The revision the next saved version of the working settings must use (#65): the highest stored revision plus one, counting check candidates the Versions list hides. Served by repositories.get; other repository responses omit it.",
+        "standing": "What the repository is ready for (#65), computed by the server with the same rule the repository page shows so the Projects list and the page cannot disagree: archived when the repository is retired, not_set_up when no version of the working settings is in use, check_needed when the version in use was saved by a person (so no check has run for it), check_failed when the check of the version in use did not pass, and ready when a check passed for the version in use. Served by repositories.list; other repository responses omit it, and a row the server cannot classify carries no value rather than a guessed word.",
         "version": "Optimistic-concurrency version used when updating the record."
       },
       "optionalFields": [
-        "nextProfileRevision"
+        "nextProfileRevision",
+        "standing"
       ]
     },
     "RepositoryProfile": {
@@ -26985,6 +26989,30 @@ const transportSchemas = {
       "schemaSource": "docs/technical-design/transport-schemas.json",
       "capabilities": [],
       "description": "Deterministic, model-free action that renders the frozen task brief to canonical JSON and publishes it as an immutable artifact through the worker byte boundary."
+    },
+    "session.tools": {
+      "inputFields": {},
+      "outputFields": {
+        "catalog": "json"
+      },
+      "capabilities": [
+        "session.tools"
+      ],
+      "description": "Built-in host control action listing exactly the operations this session may call, derived from the credential's scopes and the live lease. The catalog is a JSON array of {name, scope, description}, sorted by name, and is a view of current authority rather than a pinned snapshot. Not user-definable code and not an extra YAML workflow primitive."
+    },
+    "session.call": {
+      "inputFields": {
+        "tool": "string",
+        "arguments": "json"
+      },
+      "outputFields": {
+        "outcome": "enum(allowed|denied|unknown)",
+        "result": "json"
+      },
+      "capabilities": [
+        "session.tools"
+      ],
+      "description": "Built-in host control action invoking one operation the session was offered, through the lease-protected tool route. arguments is validated against the target operation's own input schema, so it is carried as JSON rather than restated here. outcome is keyed on the error class: a typed policy refusal is denied, any other failure is unknown. Not user-definable code and not an extra YAML workflow primitive."
     }
   },
   "workerEvents": {

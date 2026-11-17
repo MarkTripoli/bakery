@@ -20751,6 +20751,17 @@ export const clientManifest = {
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991
               },
+              "standing": {
+                "description": "What the repository is ready for (#65), computed by the server with the same rule the repository page shows so the Projects list and the page cannot disagree: archived when the repository is retired, not_set_up when no version of the working settings is in use, check_needed when the version in use was saved by a person (so no check has run for it), check_failed when the check of the version in use did not pass, and ready when a check passed for the version in use. Served by repositories.list; other repository responses omit it, and a row the server cannot classify carries no value rather than a guessed word.",
+                "type": "string",
+                "enum": [
+                  "not_set_up",
+                  "check_needed",
+                  "check_failed",
+                  "ready",
+                  "archived"
+                ]
+              },
               "version": {
                 "type": "integer",
                 "minimum": -9007199254740991,
@@ -35435,6 +35446,17 @@ export const clientManifest = {
           "type": "integer",
           "minimum": -9007199254740991,
           "maximum": 9007199254740991
+        },
+        "standing": {
+          "description": "What the repository is ready for (#65), computed by the server with the same rule the repository page shows so the Projects list and the page cannot disagree: archived when the repository is retired, not_set_up when no version of the working settings is in use, check_needed when the version in use was saved by a person (so no check has run for it), check_failed when the check of the version in use did not pass, and ready when a check passed for the version in use. Served by repositories.list; other repository responses omit it, and a row the server cannot classify carries no value rather than a guessed word.",
+          "type": "string",
+          "enum": [
+            "not_set_up",
+            "check_needed",
+            "check_failed",
+            "ready",
+            "archived"
+          ]
         },
         "version": {
           "type": "integer",
