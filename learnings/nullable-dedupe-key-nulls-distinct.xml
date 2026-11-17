@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="nullable-dedupe-key-nulls-distinct" project="bakery">
+  <title>A nullable column defeats a UNIQUE dedupe key, because SQL compares nulls as distinct</title>
+  <trigger>Designing an idempotent projection table (a notification inbox, an outbox row, a delivery ledger) whose "one row per logical source" promise is enforced by a UNIQUE index that includes a nullable column such as source_event_id.</trigger>
+  <mistake>Wrote UNIQUE(organization_id, recipient_id, kind, source_event_id, source_version) with source_event_id nullable, and only found out when the second identical insert succeeded against a real Postgres 16 database and the table held two rows for one logical event.</mistake>
+  <rule>Every column in a dedupe unique key must be NOT NULL, or the key must use a form that treats nulls as equal (a coalesce expression or an expression index). PostgreSQL's default is NULLS DISTINCT for unique indexes and unique constraints, so a single null in the key makes duplicates legal. Require the source identifier on the row and give it a foreign key, rather than leaving it optional for callers that "do not have one yet".</rule>
+  <verification>
+    <command>Apply the migration to a scratch database and insert the same logical source twice; the second insert must fail on the dedupe unique constraint.</command>
+    <command>deno test -A tests/unit/notification-migration_shape_test.ts</command>
+  </verification>
+  <boundary>A text-only rail test reading the migration file pins the property cheaply, but it cannot prove the database agrees. Run the two-insert check against a real Postgres at least once per dedupe key, using a scratch database inside an already-running container when the memory stack gate refuses a new instance, then drop it.</boundary>
+</learning>
