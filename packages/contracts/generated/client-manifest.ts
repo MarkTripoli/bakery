@@ -5731,7 +5731,7 @@ export const clientManifest = {
       "output": "Blob",
       "event": "",
       "mcp": "bakery_blobUploads_complete",
-      "idempotency": "Natural: completing twice stores nothing new, because recordBlob is insert-on-conflict-do-nothing then select",
+      "idempotency": "Natural: completing an already-completed session answers with the blob it produced, so a client that never saw the first response can retry safely; recordBlob is insert-on-conflict-do-nothing, so the bytes are stored once",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",

@@ -127,7 +127,7 @@ Deno.test("a part whose bytes do not match its digest is refused", () =>
     assertEquals(problem.code, "UNPROCESSABLE");
   }));
 
-Deno.test("completing a session twice stores one blob and does not redate it", () =>
+Deno.test("retrying the same completion answers the same blob, not a conflict", () =>
   withWorkerFixture(async (fixture) => {
     const bytes = new TextEncoder().encode("idempotent");
     const digest = await sha256Bytes(bytes);
@@ -151,9 +151,106 @@ Deno.test("completing a session twice stores one blob and does not redate it", (
     );
     const blob = await first.json();
 
-    // A second upload of the same bytes is the same blob, and the timestamp is
-    // the row's own, so the retry cannot pass itself off as a newer object.
-    const again = await call(fixture, "/v1/blobs/uploads", {
+    // The SAME session, completed again. A client that never saw the first
+    // response retries exactly here; a conflict would leave it holding a session
+    // it cannot finish and a blob id it cannot learn.
+    const retry = await call(
+      fixture,
+      `/v1/blobs/uploads/${session.id}/complete`,
+      { method: "POST", body: {} },
+    );
+    // 201, not 200: the action answers 201 uniformly because the registry owns
+    // the status, and the property that matters to a retrying client is that it
+    // is not a conflict and it names the same blob.
+    assertEquals(retry.status, 201, await retry.clone().text());
+    const replay = await retry.json();
+    assertEquals(replay.id, blob.id);
+    // The timestamp is the row's own, so the retry cannot pass itself off as a
+    // newer object.
+    assertEquals(replay.createdAt, blob.createdAt);
+  }));
+
+Deno.test("parts whose assembled bytes miss the declared digest are refused", () =>
+  withWorkerFixture(async (fixture) => {
+    // The session declares one digest; the parts carry different bytes that each
+    // match their own claimed digest. Only assembly reveals the disagreement.
+    const declared = new TextEncoder().encode("what the client promised");
+    const actual = new TextEncoder().encode("what the client sent!!!");
+    const declaredDigest = await sha256Bytes(declared);
+    const startResponse = await call(fixture, "/v1/blobs/uploads", {
+      method: "POST",
+      body: {
+        sha256: declaredDigest,
+        // Same length as the bytes actually sent, so only the digest disagrees.
+        sizeBytes: actual.byteLength,
+        mediaType: "text/plain",
+      },
+    });
+    const session = await startResponse.json();
+    const part = await call(
+      fixture,
+      `/v1/blobs/uploads/${session.id}/parts/1`,
+      {
+        method: "PUT",
+        body: { sha256: await sha256Bytes(actual), content: base64(actual) },
+      },
+    );
+    assertEquals(part.status, 200, await part.clone().text());
+
+    const complete = await call(
+      fixture,
+      `/v1/blobs/uploads/${session.id}/complete`,
+      { method: "POST", body: {} },
+    );
+    assertEquals(complete.status, 422, await complete.clone().text());
+    const problem = await complete.json();
+    assertEquals(problem.code, "UNPROCESSABLE");
+  }));
+
+Deno.test("a part that pushes the running total past the declared size is refused", () =>
+  withWorkerFixture(async (fixture) => {
+    // The session declares 13 bytes. A part of 4,096 can never assemble into
+    // that, so it is refused at the part rather than stored and discovered at
+    // completion - where the client no longer has the bytes in hand.
+    //
+    // The exemplar that found this was 327,680 bytes, which the request schema
+    // refuses before it reaches this check; the bound is what stops a part that
+    // is merely large relative to the declaration.
+    const declared = new TextEncoder().encode("thirteen byte");
+    const oversized = new Uint8Array(4_096);
+    const startResponse = await call(fixture, "/v1/blobs/uploads", {
+      method: "POST",
+      body: {
+        sha256: await sha256Bytes(declared),
+        sizeBytes: declared.byteLength,
+        mediaType: "text/plain",
+      },
+    });
+    const session = await startResponse.json();
+
+    const part = await call(
+      fixture,
+      `/v1/blobs/uploads/${session.id}/parts/1`,
+      {
+        method: "PUT",
+        body: {
+          sha256: await sha256Bytes(oversized),
+          content: base64(oversized),
+        },
+      },
+    );
+    assertEquals(part.status, 422, await part.clone().text());
+    const problem = await part.json();
+    assertEquals(problem.code, "UNPROCESSABLE");
+  }));
+
+Deno.test("a retried part replaces its own bytes rather than adding to the total", () =>
+  withWorkerFixture(async (fixture) => {
+    // The bound must not count a part against itself, or a client that retries a
+    // part it already sent would be refused for exceeding a size it is within.
+    const bytes = new TextEncoder().encode("0123456789");
+    const digest = await sha256Bytes(bytes);
+    const startResponse = await call(fixture, "/v1/blobs/uploads", {
       method: "POST",
       body: {
         sha256: digest,
@@ -161,19 +258,50 @@ Deno.test("completing a session twice stores one blob and does not redate it", (
         mediaType: "text/plain",
       },
     });
-    const secondSession = await again.json();
-    await call(fixture, `/v1/blobs/uploads/${secondSession.id}/parts/1`, {
-      method: "PUT",
-      body: { sha256: digest, content: base64(bytes) },
-    });
-    const second = await call(
-      fixture,
-      `/v1/blobs/uploads/${secondSession.id}/complete`,
-      { method: "POST", body: {} },
-    );
-    const replay = await second.json();
-    assertEquals(replay.id, blob.id);
-    assertEquals(replay.createdAt, blob.createdAt);
+    const session = await startResponse.json();
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const part = await call(
+        fixture,
+        `/v1/blobs/uploads/${session.id}/parts/1`,
+        {
+          method: "PUT",
+          body: { sha256: digest, content: base64(bytes) },
+        },
+      );
+      assertEquals(part.status, 200, await part.clone().text());
+    }
+  }));
+
+Deno.test("two sessions for one digest store one blob", () =>
+  withWorkerFixture(async (fixture) => {
+    const bytes = new TextEncoder().encode("same bytes twice");
+    const digest = await sha256Bytes(bytes);
+    const upload = async () => {
+      const started = await call(fixture, "/v1/blobs/uploads", {
+        method: "POST",
+        body: {
+          sha256: digest,
+          sizeBytes: bytes.byteLength,
+          mediaType: "text/plain",
+        },
+      });
+      const session = await started.json();
+      await call(fixture, `/v1/blobs/uploads/${session.id}/parts/1`, {
+        method: "PUT",
+        body: { sha256: digest, content: base64(bytes) },
+      });
+      const completed = await call(
+        fixture,
+        `/v1/blobs/uploads/${session.id}/complete`,
+        { method: "POST", body: {} },
+      );
+      return await completed.json();
+    };
+
+    const first = await upload();
+    const second = await upload();
+    assertEquals(second.id, first.id);
+    assertEquals(second.createdAt, first.createdAt);
   }));
 
 function base64(bytes: Uint8Array): string {

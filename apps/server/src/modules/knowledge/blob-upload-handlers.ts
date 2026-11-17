@@ -20,7 +20,9 @@ import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
   completeUploadSession,
   lockUploadSession,
+  lockUploadSessionForCompletion,
   putUploadPart,
+  readBlob,
   readUploadParts,
   recordBlob,
   startUploadSession,
@@ -120,11 +122,58 @@ export function createBlobUploadHandlers() {
     async completeUpload(context: ActionContext, input: CompleteInput) {
       const { transaction, organizationId, principalId } =
         requireWorkTransaction(context);
-      const session = await lockUploadSession(transaction, {
+      const session = await lockUploadSessionForCompletion(transaction, {
         organizationId,
         principalId,
         sessionId: input.id,
       });
+
+      // A client that never saw the first response retries, and the answer it
+      // needs is the blob it already produced. Answering a conflict would leave
+      // it holding a session it cannot finish and a blob id it cannot learn.
+      if (session.state === "completed") {
+        const existing = await readBlob(transaction, {
+          organizationId,
+          blobId: session.completedBlobId!,
+        });
+        return {
+          id: existing.id,
+          sha256: existing.sha256,
+          sizeBytes: existing.sizeBytes,
+          mediaType: existing.mediaType,
+          createdAt: existing.createdAt.toISOString(),
+        };
+      }
+
+      // Assemble and verify before recording anything. The session declared a
+      // digest and a size up front; until the parts are joined and hashed, that
+      // declaration is a claim the client made, not a fact. Recording the blob
+      // from the declaration alone would store an identity nothing proved.
+      const parts = await readUploadParts(transaction, {
+        organizationId,
+        sessionId: session.id,
+      });
+      const assembled = new Uint8Array(
+        parts.reduce((total, part) => total + part.content.byteLength, 0),
+      );
+      let offset = 0;
+      for (const part of parts) {
+        assembled.set(part.content, offset);
+        offset += part.content.byteLength;
+      }
+      if (assembled.byteLength !== Number(session.sizeBytes)) {
+        throw new StandardError({
+          code: "UNPROCESSABLE",
+          params: { field: "sizeBytes", reason: "assembled_size_mismatch" },
+        });
+      }
+      if (await sha256Bytes(assembled) !== session.sha256) {
+        throw new StandardError({
+          code: "UNPROCESSABLE",
+          params: { field: "sha256", reason: "assembled_digest_mismatch" },
+        });
+      }
+
       const blob = await recordBlob(transaction, {
         organizationId,
         principalId,

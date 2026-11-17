@@ -178,7 +178,7 @@ export async function putUploadPart(
   // principal in the same organization from writing into someone else's upload,
   // so the server has to refuse it - and it can only do that if it is told who
   // is calling.
-  await lockUploadSession(tx, {
+  const session = await lockUploadSession(tx, {
     organizationId: input.organizationId,
     principalId: input.principalId,
     sessionId: input.sessionId,
@@ -188,6 +188,28 @@ export async function putUploadPart(
     throw new StandardError({
       code: "UNPROCESSABLE",
       params: { field: "partNumber", reason: "invalid_part_number" },
+    });
+  }
+  // The session declared a size up front, and a part that pushes the running
+  // total past it can never assemble into the promised file. Refusing here
+  // rather than at completion means a client learns while it still has the
+  // bytes in hand, and it stops an upload from storing far more than it
+  // declared - a part is otherwise bounded only by the request body limit.
+  //
+  // The part being written is excluded from the existing total, because a retry
+  // replaces its own row rather than adding to it.
+  const existing = await tx.query<{ total: string }>(
+    `select coalesce(sum(size_bytes), 0)::text as total
+       from bakery.blob_upload_parts
+      where organization_id = $1 and session_id = $2 and part_number <> $3`,
+    [input.organizationId, input.sessionId, input.partNumber],
+  );
+  const runningTotal = Number(existing.rows[0].total) +
+    input.content.byteLength;
+  if (runningTotal > Number(session.sizeBytes)) {
+    throw new StandardError({
+      code: "UNPROCESSABLE",
+      params: { field: "content", reason: "upload_exceeds_declared_size" },
     });
   }
   const result = await tx.query<{ partNumber: number }>(
@@ -255,6 +277,75 @@ export async function readUploadParts(
  * half — a session can only be completed once, so two racing completions do not
  * both succeed.
  */
+/**
+ * Locks a session for completion, which is the one caller that must be able to
+ * see a session it has already completed.
+ *
+ * `lockUploadSession` refuses a completed session because a part write into one
+ * is a mistake. Completion is the opposite: a client that never saw the first
+ * response retries, and the honest answer is the blob it already produced, not a
+ * conflict it cannot resolve. So this returns the row in any live state and lets
+ * the caller decide, while still refusing an abandoned or expired session and
+ * still asserting the row is self-consistent.
+ */
+export async function lockUploadSessionForCompletion(
+  tx: PgTransactionClient,
+  input: Readonly<{
+    organizationId: string;
+    principalId: string;
+    sessionId: string;
+  }>,
+): Promise<UploadSessionRow> {
+  const result = await tx.query<UploadSessionRow>(
+    `select ${SESSION_COLUMNS}
+       from bakery.blob_upload_sessions
+      where organization_id = $1 and id = $2 and created_by_id = $3
+      for update`,
+    [input.organizationId, input.sessionId, input.principalId],
+  );
+  const session = result.rows[0];
+  if (!session) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  assertSessionConsistent(normalizeRaw(session));
+  if (session.state === "abandoned" || session.expiresAt <= new Date()) {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "upload_session_expired" },
+    });
+  }
+  return normalize(session);
+}
+
+/** A blob row by id, for answering a completion that already happened. */
+export async function readBlob(
+  tx: PgTransactionClient,
+  input: Readonly<{ organizationId: string; blobId: string }>,
+): Promise<{
+  readonly id: string;
+  readonly sha256: string;
+  readonly sizeBytes: number;
+  readonly mediaType: string;
+  readonly createdAt: Date;
+}> {
+  const result = await tx.query<{
+    id: string;
+    sha256: string;
+    sizeBytes: string | number;
+    mediaType: string;
+    createdAt: Date;
+  }>(
+    `select id, sha256, size_bytes as "sizeBytes", media_type as "mediaType",
+       created_at as "createdAt"
+       from bakery.blobs
+      where organization_id = $1 and id = $2`,
+    [input.organizationId, input.blobId],
+  );
+  const row = result.rows[0];
+  if (!row) throw new StandardError({ code: "INTERNAL" });
+  // A bigint column arrives as a string; the boundary hands a number to JSON,
+  // which is what the response schema declares.
+  return { ...row, sizeBytes: Number(row.sizeBytes) };
+}
+
 export async function completeUploadSession(
   tx: PgTransactionClient,
   input: Readonly<{

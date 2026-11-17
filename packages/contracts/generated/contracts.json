@@ -7159,7 +7159,7 @@
       "output": "Blob",
       "event": "",
       "mcp": "bakery_blobUploads_complete",
-      "idempotency": "Natural: completing twice stores nothing new, because recordBlob is insert-on-conflict-do-nothing then select",
+      "idempotency": "Natural: completing an already-completed session answers with the blob it produced, so a client that never saw the first response can retry safely; recordBlob is insert-on-conflict-do-nothing, so the bytes are stored once",
       "errors": [
         "AUTH_REQUIRED",
         "AUTH_FORBIDDEN",
@@ -202130,7 +202130,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:a1473845e8dbb945e2db9f41f032c7c78556f5dd2f078d41f7ca871a927d7f48",
+  "compatibilityDigest": "sha256:297a2b25c4a6a4765ba3cd22d4386de941394c404139833d8d3e97d6b820dbe0",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
