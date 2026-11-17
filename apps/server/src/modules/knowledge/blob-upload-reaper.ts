@@ -118,6 +118,14 @@ export async function reapAbandonedBlobUploads(
     // Not clamped: a window shorter than the session lifetime would reclaim an
     // upload a client is still entitled to finish, and doing that quietly is
     // how a resumable upload becomes a race against its own reaper.
+    //
+    // This bound is also what keeps every reaped session past its deadline, and
+    // the guards in blobs.ts depend on that. `expires_at` is set once at open
+    // and never moved; a session's last activity is never earlier than its
+    // `created_at`; and a window at least the length of the session lifetime
+    // therefore only selects sessions whose deadline has already passed. See
+    // the invariant at the reap conditions below - it is the half that has to
+    // hold if either guard is to make sense.
     throw new Error("BLOB_UPLOAD_REAP_WINDOW_TOO_SHORT");
   }
   const result: BlobUploadReapResult = {
@@ -134,6 +142,9 @@ export async function reapAbandonedBlobUploads(
          select session.id, session.organization_id
            from bakery.blob_upload_sessions as session
           where session.state = 'pending'
+            -- Any condition added here must be bounded by expires_at, or a
+            -- session can be reaped while a client may still write to it:
+            -- lockUploadSession would then admit a part into a reaped session.
             and (
               session.expires_at <= now()
               or coalesce(
