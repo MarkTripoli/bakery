@@ -20,6 +20,7 @@ import {
 } from "./modules/work/migrations.ts";
 import { agentsBakeryMigrationSource } from "./modules/agents/migrations.ts";
 import { repositoryRulesBakeryMigrationSource } from "./modules/repository-rules/migrations.ts";
+import { artifactKindsBakeryMigrationSource } from "./modules/artifact-kinds/migrations.ts";
 import { integrationsBakeryMigrationSource } from "./modules/integrations/migrations.ts";
 import { deliveryBakeryMigrationSource } from "./modules/delivery/migrations.ts";
 import { projectsBakeryMigrationSource } from "./modules/projects/migrations.ts";
@@ -214,6 +215,7 @@ try {
     ...await loadMigrations(projectsBakeryMigrationSource),
     ...await loadMigrations(agentsBakeryMigrationSource),
     ...await loadMigrations(repositoryRulesBakeryMigrationSource),
+    ...await loadMigrations(artifactKindsBakeryMigrationSource),
     ...await loadMigrations(integrationsBakeryMigrationSource),
     ...await loadMigrations(deliveryBakeryMigrationSource),
   ];
