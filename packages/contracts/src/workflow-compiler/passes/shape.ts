@@ -17,8 +17,10 @@ import type {
   WorkflowActionNode,
   WorkflowBranchNode,
   WorkflowExpressionNode,
+  WorkflowInputSlot,
   WorkflowLane,
   WorkflowNode,
+  WorkflowOutputSlot,
   WorkflowParallelNode,
   WorkflowRepeatNode,
   WorkflowRepeatSeed,
@@ -74,6 +76,10 @@ const ACTION_KEYS: ReadonlySet<string> = new Set([
   ...NODE_BASE_KEYS,
   "uses",
   "with",
+  "skills",
+  "role",
+  "inputs",
+  "outputs",
   "requires",
   "checks",
   "limits",
@@ -244,6 +250,127 @@ function readDurationField(
 }
 
 /** Reads a sorted, duplicate-free string set. Returns undefined on failure. */
+/** A step role is a declared name, never a grant and never a path. */
+const STEP_ROLE = /^[a-z][a-z0-9_]{1,63}$/;
+/** A slot name is what a step sees as a file name, so it stays a plain segment. */
+const SLOT_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
+const UUID_TEXT =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Reads a declared set of immutable identifiers. Absent means "none declared",
+ * which is not an error; a present but malformed set is. The result is sorted
+ * and duplicate-free because the identifier set is digest-bearing data.
+ */
+function readUUIDSet(
+  context: Context,
+  raw: unknown,
+  path: Path,
+  code: WorkflowCompilerDiagnosticCode,
+): string[] | undefined | null {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw) || raw.length > MAX_SET_ITEMS) {
+    report(context, path, code);
+    return null;
+  }
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (typeof item !== "string" || !UUID_TEXT.test(item)) {
+      report(context, path, code);
+      return null;
+    }
+    const normalized = item.toLowerCase();
+    // A repeated identifier is an authoring error, not a harmless duplicate:
+    // the set is digest-bearing, so silently collapsing it would let two
+    // different authored documents share one digest.
+    if (seen.has(normalized)) {
+      report(context, path, code);
+      return null;
+    }
+    seen.add(normalized);
+  }
+  return [...seen].sort();
+}
+
+/**
+ * Reads named input slots. Order is authored and is never sorted: a step reads
+ * its own slots in the order it declared them, and a slot bound to a value the
+ * compiler cannot build is refused rather than dropped.
+ */
+function readInputSlots(
+  context: Context,
+  raw: unknown,
+  path: Path,
+): WorkflowInputSlot[] | undefined | null {
+  return readSlots(context, raw, path, (entry, entryPath) => {
+    const from = compileWorkflowValue(
+      entry["from"],
+      [...entryPath, "from"],
+      context.collector,
+    );
+    return from ? { name: entry["name"] as string, from } : null;
+  });
+}
+
+/** Reads named output slots; `kind` is optional but never invented. */
+function readOutputSlots(
+  context: Context,
+  raw: unknown,
+  path: Path,
+): WorkflowOutputSlot[] | undefined | null {
+  return readSlots(context, raw, path, (entry, entryPath) => {
+    if (!Object.hasOwn(entry, "kind")) return { name: entry["name"] as string };
+    const kind = entry["kind"];
+    if (typeof kind !== "string" || !STEP_ROLE.test(kind)) {
+      report(context, [...entryPath, "kind"], "action_slots_invalid");
+      return null;
+    }
+    return { name: entry["name"] as string, kind };
+  });
+}
+
+function readSlots<T>(
+  context: Context,
+  raw: unknown,
+  path: Path,
+  build: (entry: Record<string, unknown>, entryPath: Path) => T | null,
+): T[] | undefined | null {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw) || raw.length > MAX_SET_ITEMS) {
+    report(context, path, "action_slots_invalid");
+    return null;
+  }
+  const slots: T[] = [];
+  const seen = new Set<string>();
+  for (const [index, entry] of raw.entries()) {
+    const entryPath = [...path, index];
+    if (!isPlainObject(entry)) {
+      report(context, entryPath, "action_slots_invalid");
+      return null;
+    }
+    for (const key of Object.keys(entry)) {
+      if (key !== "name" && key !== "from" && key !== "kind") {
+        report(context, [...entryPath, key], "action_slots_invalid");
+        return null;
+      }
+    }
+    const name = entry["name"];
+    if (typeof name !== "string" || !SLOT_NAME.test(name)) {
+      report(context, [...entryPath, "name"], "action_slots_invalid");
+      return null;
+    }
+    if (seen.has(name)) {
+      report(context, [...entryPath, "name"], "action_slots_invalid");
+      return null;
+    }
+    seen.add(name);
+    const built = build(entry, entryPath);
+    if (built === null) return null;
+    slots.push(built);
+  }
+  return slots;
+}
+
 function readStringSet(
   context: Context,
   raw: unknown,
@@ -572,6 +699,40 @@ function shapeAction(
     if (!checks) failed = true;
   }
 
+  // Step skills are immutable versions the step adds on top of its agent's, so
+  // they are named by identifier, never by a mutable name or a path.
+  const skills = readUUIDSet(
+    context,
+    raw["skills"],
+    [...path, "skills"],
+    "action_skills_invalid",
+  );
+  if (skills === null) failed = true;
+
+  let role: string | undefined;
+  if (Object.hasOwn(raw, "role")) {
+    const declaredRole = raw["role"];
+    if (typeof declaredRole === "string" && STEP_ROLE.test(declaredRole)) {
+      role = declaredRole;
+    } else {
+      report(context, [...path, "role"], "action_role_invalid");
+      failed = true;
+    }
+  }
+
+  const inputSlots = readInputSlots(
+    context,
+    raw["inputs"],
+    [...path, "inputs"],
+  );
+  if (inputSlots === null) failed = true;
+  const outputSlots = readOutputSlots(
+    context,
+    raw["outputs"],
+    [...path, "outputs"],
+  );
+  if (outputSlots === null) failed = true;
+
   let limits: WorkflowActionNode["limits"];
   if (Object.hasOwn(raw, "limits")) {
     const parsed = readLimits(context, raw["limits"], [...path, "limits"]);
@@ -623,6 +784,10 @@ function shapeAction(
   };
   if (condition) node.if = condition;
   if (agentVersionId) node.agentVersionId = agentVersionId;
+  if (skills) node.skills = skills;
+  if (role) node.role = role;
+  if (inputSlots) node.inputs = inputSlots;
+  if (outputSlots) node.outputs = outputSlots;
   if (checks) node.checks = checks;
   if (effectKey) node.effectKey = effectKey;
   if (limits) node.limits = limits;

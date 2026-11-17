@@ -4100,6 +4100,25 @@ Deno.test("the YAML decoder reaches each of its own codes (full cases: ship-lock
   }
 });
 
+// #403 adds step skills, roles and named slots. Each new code is exercised
+// here as well as in its own suite, because the closed-code guard below reads
+// this suite's recorded codes and a code no test reaches is a dead branch.
+Deno.test("step skills, roles and slots each report their own code", async () => {
+  const cases: Array<[Def, string]> = [
+    [{ ...noop("aa"), skills: ["not-a-uuid"] }, "action_skills_invalid"],
+    [{ ...noop("aa"), role: "NotARole" }, "action_role_invalid"],
+    [
+      { ...noop("aa"), outputs: [{ name: "../escape" }] },
+      "action_slots_invalid",
+    ],
+  ];
+  for (const [step, code] of cases) {
+    const result = await compileWorkflowDocument(workflow([step]));
+    assert(!result.ok, code);
+    assertEquals(result.diagnostics[0]?.code, code);
+  }
+});
+
 Deno.test("every closed diagnostic code is exercised by this suite", () => {
   // Collector-only codes are exercised through the collector directly.
   const collector = createDiagnosticCollector(1);

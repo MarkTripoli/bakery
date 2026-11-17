@@ -268,6 +268,27 @@ const baseNodeShape = {
   ),
 };
 
+/**
+ * One named input slot: a name the step sees in its context directory and the
+ * value that pins the bytes behind it. A slot is how a step receives an
+ * artifact as a file rather than as a prompt, so the value is normally a
+ * reference to a pinned artifact version.
+ */
+export type WorkflowInputSlot = {
+  name: string;
+  from: WorkflowValueNode;
+};
+
+/**
+ * One named output slot: a name the step must publish when it completes, and
+ * optionally the artifact kind that says what the published document must
+ * contain. A step that declares an output slot and publishes nothing fails.
+ */
+export type WorkflowOutputSlot = {
+  name: string;
+  kind?: string | undefined;
+};
+
 export type WorkflowActionNode = {
   kind: "action";
   id: string;
@@ -277,6 +298,14 @@ export type WorkflowActionNode = {
   with: WorkflowValueNode;
   /** Agent version this step runs, for actions with the `model` capability. */
   agentVersionId?: string | undefined;
+  /** Immutable skill versions this step adds on top of its agent's own. */
+  skills?: string[] | undefined;
+  /** Role (seat) this step runs as, when it declares one. */
+  role?: string | undefined;
+  /** Named input slots, in authored order, each binding the bytes it pins. */
+  inputs?: WorkflowInputSlot[] | undefined;
+  /** Named output slots the step must publish when it completes. */
+  outputs?: WorkflowOutputSlot[] | undefined;
   requires: string[];
   checks?: string[] | undefined;
   effectKey?: z.infer<typeof WorkflowEffectKeySchema> | undefined;
@@ -373,6 +402,36 @@ const actionNodeSchema = z.object({
   ),
   agentVersionId: z.string().regex(UUID).optional().describe(
     "Lower-case immutable agent version this step runs, an override of the workflow agents map; only actions with the model capability take one.",
+  ),
+  skills: z.array(
+    described(z.string().regex(UUID), "Immutable skill version identifier."),
+  ).max(32).optional().describe(
+    "Sorted, duplicate-free immutable skill versions this step adds on top of the ones its agent already has; digest-affecting.",
+  ),
+  role: described(z.string().regex(IDENTIFIER), "Role name.").optional()
+    .describe(
+      "Role (seat) this step runs as; a step role is declared per step and never implies a grant.",
+    ),
+  inputs: z.array(
+    z.object({
+      name: nameSchema,
+      from: z.lazy(() => WorkflowValueNodeSchema).describe(
+        "Value pinning the bytes this slot presents, normally a reference to an artifact version.",
+      ),
+    }).strict().describe("One named input slot and the value behind it."),
+  ).max(32).optional().describe(
+    "Named input slots, in authored order, presented to the step as files in its context directory.",
+  ),
+  outputs: z.array(
+    z.object({
+      name: nameSchema,
+      kind: described(z.string().regex(IDENTIFIER), "Artifact kind name.")
+        .optional().describe(
+          "Artifact kind the published document must satisfy, when one is declared.",
+        ),
+    }).strict().describe("One named output slot and its optional kind."),
+  ).max(32).optional().describe(
+    "Named output slots the step must publish when it completes; a declared slot with nothing published fails the step.",
   ),
   requires: z.array(described(z.string().max(64), "Capability name.")).max(32)
     .describe(
