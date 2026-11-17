@@ -1041,6 +1041,30 @@ function selfConsistentBaselineProvenance({
         issues.push(`${name}: missing or duplicate pinned source inputs`);
         continue;
       }
+      // A ruling identity is bound to its ruling, not to a Paper export, so it
+      // is proved by the same verifier the parity gate uses rather than by the
+      // V-0 input material below. Without this branch a lawful ruling refresh
+      // would be refused on main push, where only self-consistency can run.
+      if (sourceKind(manifest) === "ux-ruling") {
+        const issue = uxRulingRefreshIssue(manifest, {
+          readRulingBody: () => {
+            const bodyPath = source.rulingBodyPath;
+            if (typeof bodyPath !== "string" || !bodyPath) return undefined;
+            return read(bodyPath).toString("utf8");
+          },
+          readInput: (input) => sha256(read(input)),
+          commitExists: (sha) => {
+            try {
+              git(["cat-file", "-e", `${sha}^{commit}`]);
+              return true;
+            } catch {
+              return false;
+            }
+          },
+        });
+        if (issue) issues.push(`${name}: ${issue}`);
+        continue;
+      }
       // The same material the parity gate recomputes, recomputed here from the
       // commit's own bytes, so main can prove the digest describes its inputs.
       const material = source.inputs.map((input) =>
@@ -1731,6 +1755,13 @@ export async function sourceDigestIssues(manifest) {
     try {
       const { source } = resolveSourceProfile(manifest, selection);
       if (!Array.isArray(source?.inputs) || !source.inputs.length) continue;
+      // A ux-ruling refresh pins a stronger identity (ruling + app + inputs +
+      // cases) verified by uxRulingRefreshIssue; the V-0 inputs-only digest
+      // does not apply to the default profile.
+      if (
+        selection.sourceProfile === undefined &&
+        String(source.revision ?? "").startsWith("ux-ruling:")
+      ) continue;
       const identity = await computeSourceIdentity(manifest, selection);
       if (selection.sourceProfile !== undefined) {
         for (const entry of manifest.cases ?? []) {
@@ -1926,7 +1957,13 @@ async function designReferenceIssues(
   try {
     const outcome = await checkDesignReferences({ baseline, browser });
     referenceResults.push(...(outcome?.results ?? []));
-    return outcome?.issues ?? [];
+    const issues = outcome?.issues ?? [];
+    // A ux-ruling refresh pins a stronger identity (ruling + app + inputs +
+    // cases) verified by uxRulingRefreshIssue; the renderer's V-0
+    // inputs-only digest check does not apply to it.
+    return String(baseline.source?.revision ?? "").startsWith("ux-ruling:")
+      ? issues.filter((issue) => !issue.startsWith("source.digest mismatch"))
+      : issues;
   } finally {
     // The renderer's static mock server would otherwise keep the event loop
     // alive after a passing run and the process would never exit.
