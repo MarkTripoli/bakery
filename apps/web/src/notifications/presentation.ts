@@ -1,6 +1,5 @@
 import type { MessageKey } from "@bakery/i18n";
 import type { NotificationResponse } from "../api/client.ts";
-import type { NotificationRowTile } from "@bakery/ui";
 
 /** The kinds the contract defines, in the order the design's table lists them. */
 export type NotificationKind = NotificationResponse["kind"];
@@ -9,7 +8,7 @@ export type NotificationCopy = Readonly<{
   /** Which lane the row draws: a person's avatar or an event tile. */
   readonly lane: "person" | "event";
   /** The event tile when there is no person behind the notification. */
-  readonly tile?: NotificationRowTile;
+  readonly tile?: "check" | "warning" | "shield" | "question" | "document";
   /** Line 1's message, with the arguments it needs. */
   readonly headline: MessageKey;
   /**
