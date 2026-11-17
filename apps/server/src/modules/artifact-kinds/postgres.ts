@@ -289,10 +289,19 @@ export async function publishArtifactKindVersion(
         `The definition names ${key} but the path addresses ${pathKey}; a publication must not rename the kind it addresses.`,
     }]);
   }
+  // Serialize publishers of one kind with an advisory lock rather than
+  // `select ... for update`. The kind tables are insert-only - bakery_app has no
+  // UPDATE privilege on them, which is what makes a published revision
+  // immutable - and a row lock needs UPDATE. The advisory lock gives the same
+  // "one publisher at revision n" guarantee without that privilege.
+  await transaction.query(
+    `select pg_advisory_xact_lock(
+       hashtextextended($1::text || ':' || $2::text, 0))`,
+    [organizationId, pathKey],
+  );
   const kind = await transaction.query<{ id: string }>(
     `select id from bakery.artifact_kinds
-      where organization_id = $1 and key = $2
-      for update`,
+      where organization_id = $1 and key = $2`,
     [organizationId, pathKey],
   );
   const kindId = kind.rows[0]?.id ?? null;
@@ -328,7 +337,10 @@ export async function publishArtifactKindVersion(
     })));
   }
   const definition = parsed.data;
-  refuse(artifactKindDefinitionDefects(definition));
+  // Only refuse when there is something to refuse: an empty defect list is a
+  // valid definition, not a failure with no reason.
+  const defects = artifactKindDefinitionDefects(definition);
+  if (defects.length > 0) refuse(defects);
   if (artifactKindDefinitionBytes(definition) > MAX_KIND_DEFINITION_BYTES) {
     refuse([{
       path: ["definition"],

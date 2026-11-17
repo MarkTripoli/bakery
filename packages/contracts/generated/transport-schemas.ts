@@ -26009,6 +26009,17 @@ const transportSchemas = {
     "description": "Cursor page envelope shared by paginated transport outputs."
   },
   "events": {
+    "artifactKinds.published": {
+      "schemaVersion": 1,
+      "payloadFields": {
+        "resourceId": "uuid",
+        "resourceVersion": "integer",
+        "kindId": "uuid",
+        "key": "string"
+      },
+      "inngestTrigger": null,
+      "description": "Authorized invalidation notification that a new version of an artifact kind was published; fetch the authoritative kind through its REST operation. Trigger consumers always re-read durable state, so a consumer that misses this event still sees the new revision."
+    },
     "coordinationPlan.created": {
       "schemaVersion": 1,
       "payloadFields": {
