@@ -971,3 +971,55 @@ Deno.test("UI architecture rails run in the lane that owns their execution", asy
     );
   }
 });
+
+Deno.test("a scheduled red run records itself as a tracking issue", async () => {
+  const workflow = await read(".github/workflows/ci.yml");
+  const document = parseDocument(workflow);
+  assertEquals(document.errors, []);
+  const job = document.getIn(["jobs", "nightly_signal"], true);
+  assert(isMap(job), "missing the nightly_signal job");
+
+  // The event guard is the seam: a pull-request-shaped dispatch must create
+  // nothing. A maintainer dispatch may force it, but only with an explicit
+  // input, which a pull request cannot set.
+  assertEquals(
+    job.get("if"),
+    "${{ always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.nightly_signal)) }}",
+  );
+  // It runs after the aggregate and cannot gate it: a signal bug must never
+  // turn a green nightly red.
+  assertEquals(job.toJSON().needs, ["aggregate"]);
+  const permissions = job.toJSON().permissions;
+  assertEquals(permissions.issues, "write");
+  assertEquals(permissions.contents, "read");
+
+  const steps = job.get("steps");
+  assert(isSeq(steps));
+  const signal = steps.items.find((step) =>
+    isMap(step) && String(step.get("name")).includes("tracking issue")
+  );
+  assert(isMap(signal), "missing the tracking-issue step");
+  assertEquals(signal.get("continue-on-error"), true);
+  const script = String(signal.get("run"));
+
+  // The decision is a tested script, not inline shell. Inline shell could only
+  // be exercised by waiting for a scheduled run that happened to be red, which
+  // is why the first version shipped with none of its branches proven; the
+  // script's own unit tests cover the failing set, the idempotency and the
+  // close path, so this job only has to show the wiring.
+  assert(
+    script.includes("scripts/ci/nightly-signal.ts"),
+    `the signal step must call the tested script, got: ${script}`,
+  );
+});
+
+Deno.test("the nightly signal is not a required lane", async () => {
+  const workflow = await read(".github/workflows/ci.yml");
+  const document = parseDocument(workflow);
+  const needs = document.getIn(["jobs", "aggregate", "needs"], true);
+  assert(isSeq(needs));
+  assert(
+    !needs.items.some((item) => String(item) === "nightly_signal"),
+    "the signal must not gate the aggregate",
+  );
+});

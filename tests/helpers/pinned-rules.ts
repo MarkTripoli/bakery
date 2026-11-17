@@ -261,21 +261,47 @@ export async function countRows(
   return Number(result.rows[0]?.count ?? 0);
 }
 
-/** A fixed workflow with one implement stage: a revision producer, so rule-bound. */
-export function implementOnlyDefinition(agentVersionId: string) {
+/**
+ * #400: a repository run is admitted as a compiled plan, so a fixture that used
+ * the legacy flat shape (`{kind: "fixed", steps}`) must be a workflow document.
+ * A linear document is a plan with one path, so the run keeps exactly the steps
+ * it had; only the `inputs` are new, because a plan reads `$input.x` through its
+ * own declaration and the flat shape declared nothing.
+ */
+export function planDefinition(definition: {
+  steps: readonly Record<string, unknown>[];
+  inputs?: Record<string, { type: string; required?: boolean }>;
+  agents?: Record<string, string>;
+}): Record<string, unknown> {
   return {
-    kind: "fixed",
+    apiVersion: "bakery.dev/v1",
+    kind: "workflow",
+    name: "fixture-plan",
+    ...(definition.inputs === undefined ? {} : { inputs: definition.inputs }),
+    ...(definition.agents === undefined ? {} : { agents: definition.agents }),
+    steps: definition.steps,
+  };
+}
+
+/** A plan with one implement stage: a revision producer, so rule-bound. */
+export function implementOnlyDefinition(agentVersionId: string) {
+  return planDefinition({
+    inputs: {
+      plan: { type: "uuid", required: true },
+      repositoryId: { type: "uuid", required: true },
+      instructions: { type: "string", required: true },
+    },
     agents: { "harness.implement": agentVersionId },
     steps: [{
       id: "implement",
       uses: "harness.implement",
       with: {
-        repositoryId: "$task.repositoryId",
+        repositoryId: "$input.repositoryId",
         planArtifact: "$input.plan",
         instructions: "$input.instructions",
       },
     }],
-  };
+  });
 }
 
 /** Creates a workflow, publishes its one draft and optionally activates it. */
