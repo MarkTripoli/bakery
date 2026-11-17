@@ -108,3 +108,34 @@ export function assertObjectKey(shape: ObjectKeyShape, key: string): void {
     throw new SkillFileStoreError("SKILL_FILE_KEY_INVALID");
   }
 }
+
+/**
+ * One organisation's blob store.
+ *
+ * Same digest-verified discipline as the skill store — `putIfAbsent` is
+ * idempotent and cannot race a second writer, `read` verifies size and SHA-256
+ * before returning a byte — but scoped to a single organisation, so a caller
+ * never names another tenant's object and never has to remember to filter.
+ *
+ * There is deliberately no `list` here. The skill store enumerates with
+ * `Prefix: "organizations/"`, i.e. across every tenant, because a reconciler
+ * needs that; nothing reachable from a request may. Listing blobs goes through
+ * the keyset listing action, which is org-scoped and bound to the caller.
+ */
+export interface OrganizationBlobStore {
+  putIfAbsent(
+    organizationId: string,
+    sha256: string,
+    content: Uint8Array,
+  ): Promise<void>;
+  read(
+    organizationId: string,
+    sha256: string,
+    expectedSize: number,
+  ): Promise<Uint8Array>;
+  recover(
+    organizationId: string,
+    sha256: string,
+    expectedSize: number,
+  ): Promise<void>;
+}
