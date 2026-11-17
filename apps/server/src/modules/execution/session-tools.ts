@@ -56,9 +56,6 @@ const OPERATION_SCOPES: Readonly<Record<string, OperationScope>> = Object
     // The library: skills, agents and the drafts built from them.
     "skills.list": "library.read",
     "skills.get": "library.read",
-    "skillVersions.list": "library.read",
-    "skillVersions.get": "library.read",
-    "skillFiles.get": "library.read",
     "agents.list": "library.read",
     "agents.get": "library.read",
   });
@@ -82,6 +79,10 @@ export type SessionTool = Readonly<{
  * digest (chapter 25 §15.4 pins one for outside servers) is only meaningful if
  * the order does not depend on registry construction.
  */
+export function sessionOperationScopes(): readonly string[] {
+  return Object.keys(OPERATION_SCOPES).sort();
+}
+
 export function listSessionTools(
   scopes: readonly OperationScope[],
   registry: readonly ActionDefinition[],

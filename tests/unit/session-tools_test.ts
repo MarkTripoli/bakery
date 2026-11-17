@@ -1,8 +1,10 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import { ActionKind } from "../../packages/contracts/src/action-registry.ts";
+import { implementedActions } from "../../packages/contracts/src/implemented-actions.ts";
 import {
   assertSessionToolAllowed,
   listSessionTools,
+  sessionOperationScopes,
   type SessionTool,
   SessionToolError,
 } from "../../apps/server/src/modules/execution/session-tools.ts";
@@ -25,6 +27,17 @@ function action(
 }
 
 const names = (tools: readonly SessionTool[]) => tools.map((t) => t.name);
+
+Deno.test("every scope key names an implemented operation", () => {
+  // A key naming an operation that was never implemented is unreachable: the
+  // gateway can only offer what the registry runs, so the entry is dead weight
+  // that reads like a granted capability. Three such keys shipped once.
+  const implemented = new Set<string>(implementedActions);
+  const dead = sessionOperationScopes().filter((name) =>
+    !implemented.has(name)
+  );
+  assertEquals(dead, []);
+});
 
 Deno.test("a session is offered exactly the tools its scopes cover", () => {
   const registry = [
