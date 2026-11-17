@@ -11996,6 +11996,16 @@
               }
             },
             {
+              "name": "sequenceAfter",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "description": "Internal forward marker used by the server's event stream to ask for items after a sequence it already sent; clients use cursor instead and never set this.",
+                "type": "string",
+                "pattern": "^(?:0|[1-9][0-9]*)$"
+              }
+            },
+            {
               "name": "limit",
               "in": "query",
               "required": false,
@@ -41883,6 +41893,11 @@
               "type": "string",
               "maxLength": 65536,
               "x-utf8-max-bytes": 512
+            },
+            "sequenceAfter": {
+              "description": "Internal forward marker used by the server's event stream to ask for items after a sequence it already sent; clients use cursor instead and never set this.",
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$"
             },
             "limit": {
               "description": "SessionFeedList.limit must be at most 100.",
@@ -208520,7 +208535,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:e22721fad2a1a6459f3434d58fc635e9db39ea952ce92a2da8762cf8289dc274",
+  "compatibilityDigest": "sha256:a76e433d0aed9c2ba0f660575ce249fd7cd2cff0d4851e5a9fa46b472555e6a1",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -217916,6 +217931,11 @@
           "type": "string",
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
+        },
+        "sequenceAfter": {
+          "description": "Internal forward marker used by the server's event stream to ask for items after a sequence it already sent; clients use cursor instead and never set this.",
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$"
         },
         "limit": {
           "description": "SessionFeedList.limit must be at most 100.",

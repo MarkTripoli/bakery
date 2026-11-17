@@ -11,7 +11,7 @@ import {
 } from "../../platform/cursor.ts";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 
-type PageInput = { cursor?: string; limit?: number };
+type PageInput = { cursor?: string; limit?: number; sequenceAfter?: string };
 
 type SessionFeedRow = {
   id: string;
@@ -101,6 +101,12 @@ export function createSessionFeedHandler(secret: string) {
       cursorBinding,
     );
     const limit = input.limit ?? 25;
+    // The stream asks forward from a sequence it already sent; a JSON reader
+    // never sets this, it passes the opaque cursor instead.
+    const afterSequence = input.sequenceAfter ?? position?.sequence ?? null;
+    const afterId = input.sequenceAfter === undefined
+      ? position?.id ?? null
+      : null;
     const result = await transaction.query<SessionFeedRow>(
       `select message.id, message.conversation_id, message.author_id,
               message.agent_session_id, message.message_type, message.body,
@@ -117,8 +123,8 @@ export function createSessionFeedHandler(secret: string) {
       [
         organizationId,
         conversationId,
-        position?.sequence ?? null,
-        position?.id ?? null,
+        afterSequence,
+        afterId,
         limit + 1,
       ],
     );

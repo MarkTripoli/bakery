@@ -3306,6 +3306,12 @@ const transportSchemas = {
           "description": "Opaque continuation cursor from a prior session feed page; omit for the first page and never construct it directly."
         },
         {
+          "name": "sequenceAfter",
+          "type": "decimalString",
+          "required": false,
+          "description": "Internal forward marker used by the server's event stream to ask for items after a sequence it already sent; clients use cursor instead and never set this."
+        },
+        {
           "name": "limit",
           "type": "integer",
           "required": false,

@@ -12427,6 +12427,11 @@ export const clientManifest = {
           "maxLength": 65536,
           "x-utf8-max-bytes": 512
         },
+        "sequenceAfter": {
+          "description": "Internal forward marker used by the server's event stream to ask for items after a sequence it already sent; clients use cursor instead and never set this.",
+          "type": "string",
+          "pattern": "^(?:0|[1-9][0-9]*)$"
+        },
         "limit": {
           "description": "SessionFeedList.limit must be at most 100.",
           "type": "integer",

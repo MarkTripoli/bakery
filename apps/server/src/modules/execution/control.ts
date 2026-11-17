@@ -60,6 +60,7 @@ import {
 } from "./coordination.ts";
 import { getAgentSession, steerAgentSession } from "./sessions.ts";
 import { createSessionFeedHandler } from "./session-feed.ts";
+import { openSessionFeedStream } from "./session-feed-stream.ts";
 import type { ExecutionRouteOptions } from "./shared.ts";
 import { transcriptStatusAction } from "./output-transcript.ts";
 import {
@@ -571,6 +572,17 @@ export function createExecutionRunControlApp(
       publicBaseUrl: options.publicBaseUrl,
       createContext: createActionContext,
     }),
+  );
+  // The event stream reads through the registry, so it authorizes exactly like
+  // `sessions.feed`; it is a transport over that action, not a second route.
+  app.get(
+    "/v1/sessions/:id/feed/stream",
+    async (context) =>
+      await openSessionFeedStream({
+        registry,
+        context,
+        publicBaseUrl: options.publicBaseUrl,
+      }),
   );
   return app;
 }
