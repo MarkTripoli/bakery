@@ -6792,6 +6792,72 @@
       "organizationContext": "installation_administrator_scope"
     },
     {
+      "group": "Blobs",
+      "method": "POST",
+      "path": "/v1/blobs/uploads",
+      "action": "blobUploads.start",
+      "access": "Organization member",
+      "permission": "artifact:create",
+      "organizationContext": "required_authenticated_context",
+      "input": "BlobUploadStart",
+      "output": "BlobUploadSession",
+      "event": "",
+      "mcp": "bakery_blobUploads_start",
+      "idempotency": "None: each call opens a new session, and a retry that completes twice stores nothing (recordBlob is insert-on-conflict)",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "BODY_TOO_LARGE"
+      ]
+    },
+    {
+      "group": "Blobs",
+      "method": "PUT",
+      "path": "/v1/blobs/uploads/{id}/parts/{partNumber}",
+      "action": "blobUploads.part",
+      "access": "Organization member",
+      "permission": "artifact:create",
+      "organizationContext": "required_authenticated_context",
+      "input": "BlobUploadPart",
+      "output": "BlobUploadSession",
+      "event": "",
+      "mcp": "bakery_blobUploads_part",
+      "idempotency": "Natural: a part is keyed by its ordinal, so a retry replaces the same row rather than appending",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "BODY_TOO_LARGE"
+      ]
+    },
+    {
+      "group": "Blobs",
+      "method": "POST",
+      "path": "/v1/blobs/uploads/{id}/complete",
+      "action": "blobUploads.complete",
+      "access": "Organization member",
+      "permission": "artifact:create",
+      "organizationContext": "required_authenticated_context",
+      "input": "BlobUploadComplete",
+      "output": "Blob",
+      "event": "",
+      "mcp": "bakery_blobUploads_complete",
+      "idempotency": "Natural: completing twice stores nothing new, because recordBlob is insert-on-conflict-do-nothing then select",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT"
+      ]
+    },
+    {
       "group": "Installation administration",
       "method": "GET",
       "path": "/v1/integration-auth/github/manifest-callback",
