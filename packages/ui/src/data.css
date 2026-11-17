@@ -477,6 +477,14 @@
   .ui-description-item[data-action-placement="below"] .ui-description-item__action .ui-button {
     white-space: nowrap;
   }
+  /* Opt-in: a row with one button fills the line the way the access-settings
+     phone rows do, instead of sitting at its label's width. */
+  .ui-description-item[data-action-fill="true"] .ui-description-item__action .ui-inline,
+  .ui-description-item[data-action-fill="true"] .ui-description-item__action .ui-button {
+    inline-size: 100%;
+    justify-content: center;
+    min-block-size: var(--target-coarse);
+  }
 }
 /* A value beside a button in an item's action takes the room it needs, not a line to itself. */
 .ui-description-item__action .ui-inline > .ui-data-text {

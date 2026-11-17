@@ -75,6 +75,10 @@ export function ConnectedClientsScreen(
           <UI.DescriptionList>
             {clients.map((client) => (
               <UI.DescriptionItem
+                // A phone puts the Revoke action on its own full-width line
+                // under the grant, matching every other phone row.
+                actionFill
+                actionPlacement="below"
                 action={
                   <UI.Button
                     aria-label={translate("auth.settings.clients.revokeNamed", {
