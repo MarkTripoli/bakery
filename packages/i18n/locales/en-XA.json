@@ -1499,6 +1499,8 @@
   "tasks.run.output.savedState": "⟦{state} · šëǫûëñçë {sequence} ŧëšŧ çôþ⟧",
   "problems.ARTIFACT_CONTENT_EXPIRED.title": "⟦Àŕŧïƒàçŧ çôñŧëñŧ ëẋþïŕëð ŧëšŧ ç⟧",
   "problems.ARTIFACT_CONTENT_EXPIRED.description": "⟦Ŕëŧëñŧïôñ çôļļëçŧïôñ ŕëɱôṽëð ŧĥëšë ƀÿŧëš. Ṽëŕšïôñ ɱëŧàðàŧà ŕëɱàïñš àṽàïļàƀļë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ⟧",
+  "problems.RANGE_NOT_SATISFIABLE.title": "[Range not served]",
+  "problems.RANGE_NOT_SATISFIABLE.description": "[This object is too large to serve a partial range. Request the whole file instead.]",
   "tasks.run.output.archive": "⟦Ðôŵñļôàð ŧŕàñšçŕïþŧ {number} · šëǫûëñçëš {first}–{last} ŧëšŧ çôþÿ ŧëšŧ çô⟧",
   "tasks.run.output.archiveExpired": "⟦Ŧŕàñšçŕïþŧ ƀÿŧëš ëẋþïŕëð. Ïɱɱûŧàƀļë ṽëŕšïôñ ɱëŧàðàŧà ŕëɱàïñš àṽàïļàƀļë. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧë⟧",
   "tasks.run.output.archiveError": "⟦Ŧŕàñšçŕïþŧ ðôŵñļôàð ƒàïļëð. Ŕëŧŕÿ ŧô ŕëŧŕïëṽë ṽëŕïƒïëð ƀÿŧëš. ŧëšŧ çôþÿ ŧëšŧ çôþÿ⟧",

@@ -1501,6 +1501,8 @@
   "tasks.run.output.savedState": "⟪{state} · sequence {sequence}⟫",
   "problems.ARTIFACT_CONTENT_EXPIRED.title": "⟪Artifact content expired⟫",
   "problems.ARTIFACT_CONTENT_EXPIRED.description": "⟪Retention collection removed these bytes. Version metadata remains available.⟫",
+  "problems.RANGE_NOT_SATISFIABLE.title": "[مدى غير مخدوم]",
+  "problems.RANGE_NOT_SATISFIABLE.description": "[هذا الكائن أكبر من أن يُخدَم مدى جزئي منه. اطلب الملف كاملًا بدلًا من ذلك.]",
   "tasks.run.output.archive": "⟪Download transcript {number} · sequences {first}–{last}⟫",
   "tasks.run.output.archiveExpired": "⟪Transcript bytes expired. Immutable version metadata remains available.⟫",
   "tasks.run.output.archiveError": "⟪Transcript download failed. Retry to retrieve verified bytes.⟫",

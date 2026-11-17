@@ -204,7 +204,10 @@ export function createArtifactActions(
     "browserSession" | "artifactActions"
   >,
 ): ArtifactActions {
-  const handlers = createArtifactReadHandlers(options.secret);
+  const handlers = createArtifactReadHandlers(
+    options.secret,
+    options.blobStore,
+  );
   const blobUploads = createBlobUploadHandlers(options.blobStore);
   const trustedRepositoryResolver = createTrustedRepositoryResolver();
   const postgresAuthority = new PostgresAuthorityRunner(options.database);
@@ -486,7 +489,7 @@ export function createArtifactActions(
       handler: (context) =>
         blobUploads.completeUpload(context, { id: context.params.id }),
     });
-  registerCommentActions(registry, options.secret);
+  registerCommentActions(registry, options.secret, options.blobStore);
   assertRegisteredActions(registry);
   assertImplementedActionRegistry(registry, [
     ...artifactImplementedActions,

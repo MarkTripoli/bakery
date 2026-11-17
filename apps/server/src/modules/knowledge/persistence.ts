@@ -2,6 +2,8 @@ import {
   assertArtifactWriteCapacity,
   readStorageCapacity,
 } from "../../platform/storage-capacity.ts";
+import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
+import { assertStoredBytes } from "./stored-bytes.ts";
 import {
   publicationRetention,
   type PublicationSource,
@@ -93,6 +95,13 @@ export async function commitArtifactVersion(
       | { kind: "human" };
     publicationSource?: PublicationSource;
     traceId?: string;
+    /**
+     * Where a new version's bytes go. Present, the version names a blob and
+     * carries no inline content; absent, it stores its bytes inline exactly as
+     * before. The two shapes are mutually exclusive by a database constraint,
+     * so a caller cannot produce a row that is half of each.
+     */
+    blobStore?: OrganizationBlobStore;
   },
 ): Promise<Record<string, unknown>> {
   const { scope, parent, version, promotion, traceId } = args;
@@ -112,11 +121,48 @@ export async function commitArtifactVersion(
   const expiresAt = retentionExpiry(retentionClass, new Date());
   const runStepId = promotion.kind === "human" ? null : version.runStepId;
   if (promotion.kind === "execution-output") await promotion.assertAuthority();
+  // The bytes are checked against the digest the version declares before
+  // anything is written, using the same check the read side uses. A version row
+  // is the server's claim about what its bytes are; writing that claim without
+  // checking it would make the claim unfalsifiable.
+  await assertStoredBytes(
+    { size_bytes: version.content.byteLength, sha256: version.sha256 },
+    version.content,
+  );
+  // Put, then insert. The order is the invariant, not atomicity: the object
+  // store is not part of this transaction, so a rollback after the put leaves
+  // an object with no row. That is the safe direction - an object with no row
+  // is collectable, a row naming an object that was never written is a lie the
+  // registry cannot detect.
+  let blobId: string | null = null;
+  if (args.blobStore) {
+    await args.blobStore.putIfAbsent(
+      scope.organizationId,
+      version.sha256,
+      version.content,
+    );
+    const blob = await transaction.query<{ id: string }>(
+      `insert into bakery.blobs
+         (organization_id, sha256, size_bytes, media_type, created_by_id)
+       values ($1, $2, $3, $4, $5)
+       on conflict (organization_id, sha256) do update
+         set sha256 = excluded.sha256
+       returning id`,
+      [
+        scope.organizationId,
+        version.sha256,
+        version.content.byteLength,
+        version.mediaType,
+        version.authorId,
+      ],
+    );
+    blobId = blob.rows[0].id;
+  }
   const versionResult = await transaction.query<{
     id: string;
     created_at: Date | string;
   }>(
-    `insert into bakery.artifact_versions (organization_id, artifact_id, task_id, run_step_id, revision, author_id, subject_head_sha, subject_base_sha, step_key, metadata, content, sha256, size_bytes, media_type, retention_class, expires_at) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) returning id, created_at`,
+    `insert into bakery.artifact_versions (organization_id, artifact_id, task_id, run_step_id, revision, author_id, subject_head_sha, subject_base_sha, step_key, metadata, content, blob_id, sha256, size_bytes, media_type, retention_class, expires_at) values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) returning id, created_at`,
     [
       scope.organizationId,
       parent.id,
@@ -128,7 +174,8 @@ export async function commitArtifactVersion(
       version.subjectBaseSha,
       version.stepKey,
       version.metadata,
-      version.content,
+      blobId === null ? version.content : null,
+      blobId,
       version.sha256,
       version.content.byteLength,
       version.mediaType,

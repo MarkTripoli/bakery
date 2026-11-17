@@ -81,6 +81,7 @@ import {
   StaleDraftCandidateError,
 } from "./draft-persistence.ts";
 import { DRAFT_LIMITS, type DraftCandidate } from "./drafts.ts";
+import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 
 export type DraftResourceRouteOptions = {
   database: PgDatabase;
@@ -97,6 +98,12 @@ export type DraftResourceRouteOptions = {
     CollaborationRegistry,
     "notifyDraftPublished" | "notifyDraftSuggestion"
   >;
+  /**
+   * Where a published version's bytes go. Present, published versions name a
+   * blob; absent, they store their bytes inline. Absent is the honest default
+   * for a composition that has no store, and the read path serves both.
+   */
+  blobStore?: OrganizationBlobStore;
 };
 
 /** Publication committed by this request, pushed to editors after commit. */
@@ -655,6 +662,7 @@ export function createDraftResourceRoutes(
             requestId: context.requestId,
             traceId: context.traceId,
             operation: DraftImplementedAction.PublicationCreate,
+            blobStore: options.blobStore,
           },
         );
         const holder = (context as PublicationActionContext)[

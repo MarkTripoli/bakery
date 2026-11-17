@@ -4,6 +4,7 @@ import { parseStrongIfMatch, StandardError } from "@bakery/contracts/http";
 import { appendAudit, appendDomainEvent } from "@bakery/persistence";
 import type { z } from "zod";
 import { requireWorkTransaction } from "../../work/work-transaction.ts";
+import type { OrganizationBlobStore } from "../../catalog/storage-port.ts";
 import { validateAnchor } from "./anchors.ts";
 import {
   type CommentRow,
@@ -74,12 +75,14 @@ async function recordChange(
 export async function createComment(
   context: ActionContext,
   input: CreateInput,
+  blobStore?: OrganizationBlobStore,
 ) {
   const work = requireWorkTransaction(context);
   validateCommentBody(input.body);
   const version = await loadVersion(work, context.params.id, {
     lock: true,
     bytes: true,
+    ...(blobStore ? { blobStore } : {}),
   });
   if (version.content === null) {
     throw new StandardError({ code: "STATE_CONFLICT" });
@@ -125,6 +128,7 @@ export async function createComment(
 export async function updateComment(
   context: ActionContext,
   input: UpdateInput,
+  blobStore?: OrganizationBlobStore,
 ) {
   const work = requireWorkTransaction(context);
   if (Object.keys(input).length === 0) {
@@ -134,6 +138,7 @@ export async function updateComment(
   const observed = await loadComment(work, context.params.id);
   const version = await loadVersion(work, observed.artifact_version_id, {
     lock: true,
+    ...(blobStore ? { blobStore } : {}),
   });
   const root = await loadComment(
     work,

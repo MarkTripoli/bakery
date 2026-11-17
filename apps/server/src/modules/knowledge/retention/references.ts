@@ -171,7 +171,9 @@ export async function lockRetainedArtifactVersion(
   const result = await transaction.query<
     { purged_at: Date | null; present: boolean }
   >(
-    `select purged_at, content is not null as present from bakery.artifact_versions where organization_id=$1 and artifact_id=$2 and id=$3 for update`,
+    // "Present" is "has a home for its bytes", not "has inline bytes": a
+    // blob-backed version carries no content column and is still present.
+    `select purged_at, (content is not null or blob_id is not null) as present from bakery.artifact_versions where organization_id=$1 and artifact_id=$2 and id=$3 for update`,
     [organizationId, artifactId, versionId],
   );
   if (!result.rows[0]) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });

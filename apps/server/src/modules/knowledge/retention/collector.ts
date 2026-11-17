@@ -47,7 +47,10 @@ export async function collectArtifactVersion(
         retention_class: string;
       }
     >(
-      `select (purged_at is null and content is not null and expires_at <= now()) as eligible,sha256,size_bytes,retention_class
+      // "Has bytes" is "has a home for them": a blob-backed version carries no
+      // content column, and testing content alone would make every blob-backed
+      // version permanently ineligible for collection.
+      `select (purged_at is null and (content is not null or blob_id is not null) and expires_at <= now()) as eligible,sha256,size_bytes,retention_class
       from bakery.artifact_versions where id=$1 for update`,
       [versionId],
     );
@@ -72,7 +75,10 @@ export async function collectArtifactVersion(
       )
     ) return false;
     await transaction.query(
-      "update bakery.artifact_versions set content=null,purged_at=now(),purge_policy=$2 where id=$1",
+      // Both homes are cleared. Leaving blob_id set would leave a purged
+      // version still naming bytes, and the blob row it named would never be
+      // collectable because nothing would know it was unreferenced.
+      "update bakery.artifact_versions set content=null,blob_id=null,purged_at=now(),purge_policy=$2 where id=$1",
       [versionId, policy],
     );
     await appendAudit(transaction, {
