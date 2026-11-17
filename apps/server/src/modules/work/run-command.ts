@@ -48,6 +48,8 @@ import {
   insertRunSteps,
   reviewLoopLimitsFor,
   stepReferencesEarlierOutput,
+  WorkflowNotExecutableError,
+  WorkflowNotFixedError,
   workflowRequiresRepository,
 } from "./run-steps.ts";
 import {
@@ -1052,23 +1054,32 @@ export async function createRunCommand(
   // the engine decides each of its steps as the run goes.
   let steps: readonly FixedWorkflowStep[] = [];
   let planAdmission: PlanAdmission | null = null;
-  if (input.executionMode === "cloud_only") {
-    // #400: a repository run is admitted as a compiled plan and never as a flat
-    // step list, so the flat row walk is unreachable for it. A cloud_only
-    // maintenance run is the one structural exception: it has no repository
-    // profile and no agent, so a bare step list is all it can be - there is
-    // nothing to compile a plan from. It keeps the flat path.
-    try {
-      steps = extractFixedWorkflowSteps(workflow.normalized_spec);
-    } catch (error) {
+  // The document decides, not the execution mode. A fixed workflow is a flat
+  // step list by definition and has no compiler document to admit; a
+  // compiler-grammar version is a plan, and the engine decides each of its
+  // steps as the run goes. Dispatching on the execution mode instead sent
+  // fixed workflows into the plan compiler, which refused them as
+  // `field_unknown` because a fixed spec is not a compiler document.
+  try {
+    steps = extractFixedWorkflowSteps(
+      workflow.normalized_spec,
+      profile?.config.workflow.kind,
+    );
+  } catch (error) {
+    if (error instanceof WorkflowNotExecutableError) {
+      planAdmission = await resolvePlanAdmission(transaction, {
+        organizationId,
+        definition: workflow.normalized_spec,
+        profileAgentBindings: profile?.config.agentBindings,
+      });
+    } else if (error instanceof WorkflowNotFixedError) {
+      throw new StandardError({
+        code: "STATE_CONFLICT",
+        params: { reason: "workflow_not_fixed" },
+      });
+    } else {
       throw new Error("WORKFLOW_VERSION_INVALID", { cause: error });
     }
-  } else {
-    planAdmission = await resolvePlanAdmission(transaction, {
-      organizationId,
-      definition: workflow.normalized_spec,
-      profileAgentBindings: profile?.config.agentBindings,
-    });
   }
 
   if (planAdmission !== null) {
