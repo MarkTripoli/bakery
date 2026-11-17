@@ -162,7 +162,7 @@ export function IssueSettingsPage({ sourceId }: { sourceId: string }) {
   });
 
   const lookup = useMutation({
-    mutationKey: ["tickets.lookupPerson"],
+    mutationKey: ["ticketSources.lookupPerson"],
     mutationFn: async (login: string) => {
       const result = await api.tickets.lookupPerson({
         organizationId: scope.organizationId ?? "",
