@@ -147,7 +147,7 @@ type LogicalRow = {
   stepStatus: string;
   stepOutput: unknown;
   stepError: unknown;
-  /** What the engine decided for a compiled-plan step; null when a step has none. */
+  /** What the engine decided for a compiled-plan step; null for a flat run's. */
   stepDispatch: unknown;
   jobId: string | null;
   action: string | null;
@@ -250,6 +250,8 @@ export type BakeryPostgresWorkflowRepository = Readonly<{
     runId: string,
     owner?: EngineOwner,
   ): Promise<LogicalInvocationKey | undefined>;
+  /** Whether the run is a compiled plan (its end is decided by its interpreter). */
+  isPlanRun(runId: string, owner?: EngineOwner): Promise<boolean>;
   /**
    * The steps that may run now: for a compiled-plan run under interpreter
    * revision 2 inside a parallel group, one next step for each running lane
@@ -536,12 +538,6 @@ async function lockExistingJob(
   );
 }
 
-/**
- * The first open step row of a run, used to fail the job a run stopped under.
- * Every run is a plan run now, so these rows are the ones the engine appended
- * as the plan decided its steps; this is not a fallback that walks a run that
- * has no plan.
- */
 async function loadNext(
   transaction: PgTransactionClient,
   runId: string,
@@ -873,8 +869,8 @@ async function askPlan(
 }
 
 /**
- * What the engine does next for a plan run, or `null` when it has nothing to
- * decide. The run's own interpreter revision answers
+ * What the engine does next for a compiled-plan run, or `null` for a flat run,
+ * which keeps the row-order loop. The run's own interpreter revision answers
  * from the frozen document and the stored rows: a dispatch gets its step row
  * appended on demand (idempotent, so a replay finds the same row) and the key
  * goes to the engine; inside a parallel group the answer is a set of steps,
@@ -882,27 +878,24 @@ async function askPlan(
  * the plan asks for, or a plan that cannot be read, ends it failed with a
  * stable code. `undefined` means there is nothing more to run.
  */
-/**
- * The keys a plan run may decide next. Every run is admitted as a plan, so a
- * run whose snapshot predates that (no plan runtime) has nothing to decide and
- * the engine ends it, rather than walking its rows.
- */
-async function nextPlanKeys(
+async function findNextPlanKeys(
   transaction: PgTransactionClient,
   runId: string,
   owner: EngineOwner | undefined,
   planHost?: PlanHostReader,
-): Promise<readonly LogicalInvocationKey[] | undefined> {
-  // A run's snapshot never changes after admission, so a plain read says
-  // whether it carries a plan; only a plan run is then read again, locked.
+): Promise<readonly LogicalInvocationKey[] | undefined | null> {
+  // A flat run is served by the row-order loop and must not queue behind a lock
+  // on its run or task row, which only deciding a plan run needs. A run's
+  // snapshot never changes after admission, so a plain read says which kind it
+  // is; only a plan run is then read again, locked.
   const kind = await transaction.query<{ runtime: boolean }>(
     `select snapshot ? 'runtime' as runtime
        from bakery.workflow_runs where id = $1`,
     [runId],
   );
-  if (kind.rows[0]?.runtime !== true) return undefined;
+  if (kind.rows[0]?.runtime !== true) return null;
   const context = await loadRunEndContext(transaction, runId);
-  if (!context || !carriesPlanRuntime(context.runSnapshot)) return undefined;
+  if (!context || !carriesPlanRuntime(context.runSnapshot)) return null;
   if (context.runStatus !== "queued" && context.runStatus !== "running") {
     return undefined;
   }
@@ -1493,25 +1486,39 @@ export function createBakeryPostgresWorkflowRepository(options: {
     async findNext(runId, owner) {
       return await withPgTransaction(options.database, async (transaction) => {
         await requireEngineOwner(transaction, runId, owner);
-        const planKeys = await nextPlanKeys(
+        const planKeys = await findNextPlanKeys(
           transaction,
           runId,
           owner,
           options.planHost,
         );
-        return planKeys?.[0];
+        if (planKeys !== null) return planKeys?.[0];
+        return await loadNext(transaction, runId);
+      });
+    },
+    async isPlanRun(runId, owner) {
+      return await withPgTransaction(options.database, async (transaction) => {
+        await requireEngineOwner(transaction, runId, owner);
+        const kind = await transaction.query<{ runtime: boolean }>(
+          `select snapshot ? 'runtime' as runtime
+             from bakery.workflow_runs where id = $1`,
+          [runId],
+        );
+        return kind.rows[0]?.runtime === true;
       });
     },
     async findNextSet(runId, owner) {
       return await withPgTransaction(options.database, async (transaction) => {
         await requireEngineOwner(transaction, runId, owner);
-        const planKeys = await nextPlanKeys(
+        const planKeys = await findNextPlanKeys(
           transaction,
           runId,
           owner,
           options.planHost,
         );
-        return planKeys ?? [];
+        if (planKeys !== null) return planKeys ?? [];
+        const key = await loadNext(transaction, runId);
+        return key === undefined ? [] : [key];
       });
     },
     async admitSet(keys, owner) {
@@ -2262,8 +2269,11 @@ export function createBakeryFixedWorkflow(options: {
         owner = acquiredOwner;
         // A plan run's end is decided by its interpreter from the rows, so a
         // failed step does not end the function run: the next answer projects
-        // the halt (and the other lanes go on). Every admitted run is a plan
-        // run now, so the read that used to distinguish the two is gone.
+        // the halt (and the other lanes go on). A flat run ends at the failure.
+        const planRun = await step.run(
+          "read-run-kind",
+          () => repository.isPlanRun(runId, owner),
+        );
         let checkpoint = 0;
         /**
          * Drives one step of the answer to its end. A returned value ends the
@@ -2386,7 +2396,7 @@ export function createBakeryFixedWorkflow(options: {
               // answer projects the halt. Not for a cancel the worker has not
               // acted on yet: the row is not over, the same step would be
               // found again at once, so the run is left to the cancel as before.
-              if (outcome.decision.reason !== CANCEL_REQUESTED) {
+              if (planRun && outcome.decision.reason !== CANCEL_REQUESTED) {
                 return undefined;
               }
               await releaseOwner();
