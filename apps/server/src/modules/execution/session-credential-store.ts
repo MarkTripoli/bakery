@@ -193,6 +193,39 @@ export async function recordSessionOperationAudit(
 }
 
 /**
+ * Records a refusal that happened before any credential resolved.
+ *
+ * The audit's key is the credential, and the point of this path is that there is
+ * no credential to key on. What is known is the organization the caller's host
+ * belongs to, the attempt it asked about, and the hash of the token it
+ * presented — enough to tell a stale client from a probe, and nothing invented
+ * to fill the columns the audit needs.
+ */
+export async function recordSessionOperationRefusal(
+  tx: PgTransactionClient,
+  input: Readonly<{
+    organizationId: string;
+    attemptId: string;
+    presentedTokenHash: string;
+    operation: string;
+    outcome: "denied" | "unknown";
+  }>,
+): Promise<void> {
+  await tx.query(
+    `insert into bakery.session_operation_refusals
+       (organization_id, attempt_id, presented_token_hash, operation, outcome)
+     values ($1, $2, $3, $4, $5)`,
+    [
+      input.organizationId,
+      input.attemptId,
+      input.presentedTokenHash,
+      input.operation,
+      input.outcome,
+    ],
+  );
+}
+
+/**
  * Revokes every credential an attempt still holds.
  *
  * Called when the attempt is fenced or finishes, so a token cannot outlive the

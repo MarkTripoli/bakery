@@ -31,6 +31,14 @@ export type ClaimedAttempt = Readonly<{
   jobId: string;
   /** Hash of the lease token, so a re-assert does not re-read the header. */
   tokenHash: string;
+  /**
+   * The attempt row as locked at claim time.
+   *
+   * Returned so a caller that needs the row for a further check does not query
+   * `job_attempts` itself: a second read is a second place the fence could be
+   * compared, and the whole point of this module is that there is one.
+   */
+  attempt: Awaited<ReturnType<typeof lockPersistedAttempt>>;
   fence: string;
   workerSessionId: string | undefined;
   workerSessionGeneration: string | undefined;
@@ -49,13 +57,25 @@ export async function claimAttempt(input: {
   identity: WorkerIdentity;
   attemptId: string;
   proof: Readonly<{
-    leaseToken: string;
+    /** The lease token as presented. Omitted when the caller already holds its hash. */
+    leaseToken?: string;
+    /**
+     * The lease token's hash, when the caller did not receive the token itself.
+     *
+     * A session credential is minted alongside the lease and carries only the
+     * hash, so a gateway holding a credential cannot present the token. Taking
+     * the hash here keeps that caller on this one chain instead of letting it
+     * re-derive the lock-and-assert sequence, which is how the status check went
+     * missing once already.
+     */
+    tokenHash?: string;
     fence: string;
     workerSessionId?: string;
     workerSessionGeneration?: string;
   }>;
 }): Promise<ClaimedAttempt> {
-  const tokenHash = await sha256Hex(input.proof.leaseToken);
+  const tokenHash = input.proof.tokenHash ??
+    await sha256Hex(input.proof.leaseToken ?? "");
   const attempt = await lockPersistedAttempt(
     input.transaction,
     input.identity,
@@ -74,6 +94,7 @@ export async function claimAttempt(input: {
     attemptId: input.attemptId,
     jobId: attempt.job_id,
     tokenHash,
+    attempt,
     fence: input.proof.fence,
     workerSessionId: input.proof.workerSessionId,
     workerSessionGeneration: input.proof.workerSessionGeneration,

@@ -1,13 +1,22 @@
 {
   "id": "v1-unreleased-principal-organization-contracts",
   "fromBaseRefs": [
-    "9295aee9bc938dd6eaa9e02396a6a2e8659ef008"
+    "faa03d56e99e036c0d3271f1028c18086a5cce45"
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:51d027f5eaf15684db3485346558c5842f3f93e44ab1547e0c59ef66c6196c4b",
-  "reason": "#40 contract re-bind by dev-server on 2026-11-16 under the owner's standing breaking-change authorization (2026-10-09), main 9295aee9bc938dd6eaa9e02396a6a2e8659ef008: MergeEntryCreate.checkRunIds gains minItems 1 (base allowed an empty array; maxItems 100 is unchanged). The merge queue admits an entry only on positive evidence of the exact candidate, so an entry citing zero check runs is not admissible and the contract now says so instead of leaving the server to reject it at runtime. This branch also serves the full merge-queue surface: #481's 0163_pull_request_merge_attempts with pullRequests.merge and mergeAttempts.reconcile is merged in alongside this branch's 0164_merge_entries with mergeEntries.list and mergeEntries.create, so the target digest covers both halves. No other schema, action, path, error or implemented-action membership changes relative to this base. This authorizes only the exact composed contract migration; it grants no wildcard base or target, further contract change or PR merge.",
+  "targetCompatibilityDigest": "sha256:b46e578adb70220a6bd9d07883733a5a2e0a3ebb2c91284663c4e01657dc025b",
+  "reason": "#401 session tool gateway re-bind by dev-server on 2026-11-17 under the owner's standing breaking-change authorization (2026-10-09), main faa03d56e99e036c0d3271f1028c18086a5cce45: two worker actions are added (session.tools, session.call), which extends the worker-action capability union and the WorkerResult.refineScope reference set. Additive to the action surface; the drift is the derived union growing, not an existing shape changing.",
   "priorApprovals": [
+    {
+      "fromBaseRefs": [
+        "9295aee9bc938dd6eaa9e02396a6a2e8659ef008"
+      ],
+      "status": "approved",
+      "allowBreaking": true,
+      "targetCompatibilityDigest": "sha256:51d027f5eaf15684db3485346558c5842f3f93e44ab1547e0c59ef66c6196c4b",
+      "reason": "#40 contract re-bind by dev-server on 2026-11-16 under the owner's standing breaking-change authorization (2026-10-09), main 9295aee9bc938dd6eaa9e02396a6a2e8659ef008: MergeEntryCreate.checkRunIds gains minItems 1 (base allowed an empty array; maxItems 100 is unchanged). The merge queue admits an entry only on positive evidence of the exact candidate, so an entry citing zero check runs is not admissible and the contract now says so instead of leaving the server to reject it at runtime. This branch also serves the full merge-queue surface: #481's 0163_pull_request_merge_attempts with pullRequests.merge and mergeAttempts.reconcile is merged in alongside this branch's 0164_merge_entries with mergeEntries.list and mergeEntries.create, so the target digest covers both halves. No other schema, action, path, error or implemented-action membership changes relative to this base. This authorizes only the exact composed contract migration; it grants no wildcard base or target, further contract change or PR merge."
+    },
     {
       "allowBreaking": true,
       "fromBaseRefs": [
