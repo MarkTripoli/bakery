@@ -1917,6 +1917,31 @@ Deno.test("steps that read earlier outputs are measured with an allowance, so a 
         }],
       }),
     );
+    // The same extra step WITHOUT the `$step` reference. Comparing the two
+    // boundaries measures the allowance directly: the referencing workflow
+    // must fit strictly more paths than this twin, whatever the step costs.
+    const third = await publishWorkflow(
+      fixture,
+      fixture,
+      "allow-three",
+      planDefinition({
+        inputs: {
+          brief: { type: "TaskBrief", required: true },
+          repositoryId: { type: "uuid", required: true },
+          instructions: { type: "string", required: true },
+        },
+        agents: { "harness.implement": repository.agentVersionId! },
+        steps: [brief, {
+          id: "again",
+          uses: "harness.implement",
+          with: {
+            repositoryId: "$input.repositoryId",
+            planArtifact: crypto.randomUUID(),
+            instructions: "$input.instructions",
+          },
+        }],
+      }),
+    );
     // n control-character paths grow the stored baseline by about 1.2 KB each.
     const rules = (paths: number): RuleEntry[] => [
       {
@@ -1976,26 +2001,33 @@ Deno.test("steps that read earlier outputs are measured with an allowance, so a 
       if ((await attempt(mid, first.versionId)).status === 201) low = mid;
       else high = mid;
     }
-    // Same baseline and first step, plus a step that reads the first one's
-    // output: it is measured with the allowance, so it fits strictly fewer
-    // paths. Measure its own boundary rather than assuming how many paths the
-    // allowance is worth.
-    let secondLow = 0;
-    let secondHigh = low;
-    while (secondHigh - secondLow > 1) {
-      const mid = (secondLow + secondHigh) >> 1;
-      if ((await attempt(mid, second.versionId)).status === 201) {
-        secondLow = mid;
-      } else secondHigh = mid;
-    }
+    // Measure each workflow's own boundary rather than assuming how many paths
+    // an extra step or the allowance is worth.
+    const boundary = async (version: string): Promise<number> => {
+      let fits = 0;
+      let refuses = low;
+      while (refuses - fits > 1) {
+        const mid = (fits + refuses) >> 1;
+        if ((await attempt(mid, version)).status === 201) fits = mid;
+        else refuses = mid;
+      }
+      return fits;
+    };
+    const secondLow = await boundary(second.versionId);
+    const thirdLow = await boundary(third.versionId);
+    // The allowance is what makes a step that reads an earlier output cheaper
+    // than the same step without the reference: the referencing workflow fits
+    // strictly more paths than its twin. This holds whatever the step costs,
+    // which a byte-delta comparison does not.
     assert(
-      secondLow < low,
-      `the allowance must cost capacity: first fits ${low}, second fits ${secondLow}`,
+      secondLow > thirdLow,
+      `a step reading an earlier output must be measured with an allowance: ` +
+        `with the reference fits ${secondLow}, without it fits ${thirdLow}`,
     );
-    // The first count the second workflow cannot fit is refused for size, not
-    // for some other reason.
+    // The first count the referencing workflow cannot fit is refused for size,
+    // not for some other reason.
     assertEquals(
-      (await attempt(secondHigh, second.versionId)).issues?.map((issue) =>
+      (await attempt(secondLow + 1, second.versionId)).issues?.map((issue) =>
         issue.code
       ),
       ["repository_rules_too_large"],
