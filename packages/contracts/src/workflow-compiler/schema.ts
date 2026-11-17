@@ -276,6 +276,17 @@ const baseNodeShape = {
  */
 export type WorkflowInputSlot = {
   name: string;
+  /**
+   * Where the pinned bytes land inside the step's context directory, relative
+   * to it. Absent means the slot's own name is the filename at the root, so a
+   * step always receives a concrete path and never has to guess one.
+   *
+   * This exists because an artifact has no filename of its own: it is bytes
+   * with a digest and a media type. The author is therefore the only one who
+   * can say what the file should be called, and a default that is documented is
+   * honest where one invented downstream would not be.
+   */
+  path?: string;
   from: WorkflowValueNode;
 };
 
@@ -415,6 +426,12 @@ const actionNodeSchema = z.object({
   inputs: z.array(
     z.object({
       name: nameSchema,
+      path: described(
+        z.string().regex(/^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/),
+        "Context-relative path",
+      ).optional().describe(
+        "Where the pinned bytes land inside the step's context directory, relative to it; defaults to the slot name.",
+      ),
       from: z.lazy(() => WorkflowValueNodeSchema).describe(
         "Value pinning the bytes this slot presents, normally a reference to an artifact version.",
       ),

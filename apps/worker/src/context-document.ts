@@ -35,7 +35,7 @@ export type ContextDocument = {
  * name the workflow chose, so anything that could escape the directory is
  * refused rather than sanitised into something that silently points elsewhere.
  */
-function isSafeRelativePath(path: string): boolean {
+export function isSafeRelativePath(path: string): boolean {
   if (path === "" || path.startsWith("/")) return false;
   return path.split("/").every((segment) =>
     segment !== "" && segment !== "." && segment !== ".."
