@@ -197,16 +197,25 @@ export function wordCount(text: string): number {
   return (text.match(/[\p{L}\p{N}][\p{L}\p{N}'’._/-]*/gu) ?? []).length;
 }
 
-function outlineCode(text: string): number {
+/**
+ * The Change outline's show-me views: each fenced block is one view, and its
+ * lines are the view's budget. A view's own labels and node names are part of
+ * the view, never prose — so a bigger diagram must not be paid for out of the
+ * prose cap, and the prose cap must not be dodged by hiding words in a fence.
+ */
+function outlineViews(text: string): { views: number; lines: number } {
+  let views = 0;
   let lines = 0;
   for (
     const block of text.matchAll(
       /^ {0,3}(`{3,}|~{3,})[^\n]*\n([\s\S]*?)^ {0,3}\1[ \t]*$/gm,
     )
   ) {
-    lines += block[2].split("\n").filter((line) => line.trim()).length;
+    const body = block[2].split("\n").filter((line) => line.trim());
+    if (body.length) views += 1;
+    lines += body.length;
   }
-  return lines;
+  return { views, lines };
 }
 
 export function relatedIssue(body: string): number | null {
@@ -321,14 +330,17 @@ export function validateDescription(kind: Kind, body: string): string[] {
     // and the new tests. Routine checks (format, lint, types) belong to CI.
     const evidence = sections.get("evidence") ?? "";
     if (
-      /\b(?:fmt|format(?:ting)?|lint|typecheck|type-check|types|deno check|tsc)\b/i
+      // "format"/"formatting" are deliberately absent: real test files carry
+      // them in their names (`contracts-module-format.node.mjs`), and the
+      // repo's formatter command is `pnpm fmt`, which `fmt` already covers.
+      /\b(?:fmt|lint|typecheck|type-check|types|deno check|tsc)\b/i
         .test(
           prose(evidence) + " " +
             evidence.split("\n").filter((l) => /^\s*\|/.test(l)).join(" "),
         )
     ) {
       errors.push(
-        "Evidence: drop routine checks (format, lint, types); CI shows them. Show UI evidence and new tests.",
+        "Evidence: drop routine checks (fmt, lint, typecheck); CI shows them. Show UI evidence and new tests.",
       );
     }
     const items = (evidence.match(/^[-*] .+/gm) ?? []).length +
@@ -360,9 +372,19 @@ export function validateDescription(kind: Kind, body: string): string[] {
         );
       }
     }
-    const codeLines = outlineCode(sections.get("change outline") ?? "");
-    if (codeLines > 30) {
-      errors.push("Too long: change outline view must be at most 30 lines.");
+    // The Change outline is the core of a PR: one to three show-me views,
+    // 80 lines of view in all. The 40-word prose cap above is counted only
+    // outside fences, so views and prose have separate budgets.
+    const outlineView = outlineViews(sections.get("change outline") ?? "");
+    if (outlineView.lines > 80) {
+      errors.push(
+        `Too long: change outline views must be at most 80 lines in all (${outlineView.lines}).`,
+      );
+    }
+    if (outlineView.views > 3) {
+      errors.push(
+        `Too many views: change outline takes at most three (${outlineView.views}).`,
+      );
     }
     const images = (body.match(/!\[[^\]]*\]\([^)]*\)/g) ?? []).length;
     if (images > 4) {
