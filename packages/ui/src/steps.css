@@ -473,6 +473,16 @@
 [data-has-control] .ui-popover:has(> [data-add-highlight])::before {
   content: none;
 }
+/*
+ * The open picker paints above the whole diagram, including the connectors that
+ * come after it (#67 UX round 5, medium — design-ux read it off the still; a
+ * hit-test said otherwise, because `elementFromPoint` answers which element
+ * takes input, not which one is painted). Nothing else in the diagram sets a
+ * layer, so this one raises the picker's own box above them.
+ */
+[data-has-control] .ui-popover__content {
+  z-index: var(--layer-popover);
+}
 .ui-popover__trigger--plain:has(> [data-add-highlight]) {
   align-items: center;
   background: transparent;
@@ -507,11 +517,6 @@
   justify-content: center;
   position: absolute;
   translate: -50% 0;
-  /* The control owns a popover that hangs BELOW the link, so it must paint over
-     the connectors that follow it (#67 UX round 4, item 1: the next "+" was
-     painted on top of the open picker). The layer is scoped to this control's
-     own stacking context, so it cannot lift anything above a dialog. */
-  z-index: var(--layer-popover);
 }
 /* The popover's trigger draws the circle; the connector draws only the line
    behind it, so the two never fight over the same geometry. */
@@ -597,13 +602,6 @@
   flex: 0 0 auto;
   margin-block: var(--space-0);
   min-block-size: var(--space-10);
-}
-/* The link that holds an open control lifts its whole subtree, so neither the
-   following "+" nor its line can paint over the open picker (#67 UX round 4,
-   item 1). */
-[data-ui-region="workflow-diagram"] > [data-connector]:has(.ui-step-connector__control) {
-  position: relative;
-  z-index: var(--layer-popover);
 }
 /* A connector for a workflow this person cannot change draws nothing, so it
    takes no room at all instead of holding an empty 40px slot. */
