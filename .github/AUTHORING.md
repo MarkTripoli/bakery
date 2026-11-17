@@ -38,7 +38,7 @@ doesn't change a decision, cut it. The validator enforces:
 | Special things to note | one to four bullets of at most 25 words, or `- None.` |
 | Change outline | one to three show-me views, 80 lines of view in all, plus at most 40 words of prose outside the views |
 | Decisions | one to three bullets of at most 30 words ("Chose X over Y because Z"), or `- None.` |
-| Evidence | UI screenshots or a recording, plus new tests, one line each on what they prove; never routine checks (CI reports those). `- None. <why>` when there is nothing to show | at most four images in the whole body (link a folder for the rest), at most 40 words of prose |
+| Evidence | UI screenshots or a recording, plus new tests, one line each on what they prove. Never routine checks: fmt, lint and typecheck are refused (CI reports those). For nothing to show, one line starting `- None.` followed by the reason, with no code span | at most four images in the whole body (link a folder for the rest), at most 40 words of prose |
 
 Review and QA verdict comments follow the same rule:
 

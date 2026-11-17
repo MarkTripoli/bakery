@@ -356,6 +356,20 @@ export function validateDescription(kind: Kind, body: string): string[] {
     } else if (rows.length > 9) {
       errors.push("Evidence table: at most eight check rows.");
     }
+    // Owner rule: never list routine checks. CI already shows fmt, lint and
+    // typecheck results, and an Evidence table full of green ticks says
+    // nothing about whether the change works. Fenced code is exempt, because
+    // a PR about the linter legitimately quotes it.
+    const routine = withoutFences(evidence).match(
+      /\b(?:fmt|format|lint|typecheck)\b/i,
+    );
+    if (routine) {
+      errors.push(
+        `Evidence lists a routine check (${
+          routine[0]
+        }); CI reports those. Show UI evidence or new tests.`,
+      );
+    }
     const limits: [string, number, number][] = [
       ["purpose", 40, 0],
       ["risk", 0, 25],

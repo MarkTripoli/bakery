@@ -536,6 +536,52 @@ Deno.test("Evidence None. is accepted when it says why there is nothing to show"
   );
 });
 
+Deno.test("Evidence refuses routine checks that CI already reports", () => {
+  // Owner rule: Evidence is UI evidence and new tests only. A table of green
+  // ticks for fmt/lint/typecheck says nothing about whether the change works.
+  const withEvidence = (evidence: string) =>
+    pr.replace(/## Evidence[\s\S]*$/, "## Evidence\n\n" + evidence);
+  const table = [
+    "| check | result |",
+    "|---|---|",
+    "| `pnpm fmt` | passed |",
+  ].join("\n");
+  assert(
+    validateDescription("pr", withEvidence(table)).some((e) =>
+      e.includes("routine check")
+    ),
+  );
+  // Each of the three named checks is refused, not just the one in the sample.
+  for (const check of ["lint", "typecheck", "format"]) {
+    const one = table.replace("pnpm fmt", `pnpm ${check}`);
+    assert(
+      validateDescription("pr", withEvidence(one)).some((e) =>
+        e.includes("routine check")
+      ),
+      check,
+    );
+  }
+  // A fenced block is exempt: a PR about the linter may quote it. The table
+  // here is clean, so only the fence mentions lint.
+  const clean =
+    "| check | result |\n|---|---|\n| reduced-motion skeleton | still |";
+  assertEquals(
+    validateDescription("pr", withEvidence(clean + "\n\n```\npnpm lint\n```"))
+      .some((e) => e.includes("routine check")),
+    false,
+  );
+  // Evidence that actually shows something still passes.
+  assertEquals(
+    validateDescription(
+      "pr",
+      withEvidence(
+        "| check | result |\n|---|---|\n| reduced-motion skeleton | still, no animation |",
+      ),
+    ),
+    [],
+  );
+});
+
 Deno.test("a bullet inside a fenced block is quoted code, not a finding", () => {
   // The reviewer's repro: a block pasted to show the bug, whose lines start
   // with "- " and carry no severity tag. Counting them as findings failed the
