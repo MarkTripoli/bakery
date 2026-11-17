@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <learnings version="1">
   <entry file="contract-migration-check-flag.xml" scope="project" />
+  <entry file="css-rail-scans-comments.xml" scope="project" />
   <entry file="deno-fixed-read-capability.xml" scope="project" />
   <entry file="ephemeral-worktree-stack.xml" scope="project" />
   <entry file="local-services-before-test-blocker.xml" scope="project" />
