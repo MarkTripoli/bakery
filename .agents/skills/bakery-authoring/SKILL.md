@@ -34,11 +34,20 @@ questions, not plausible guesses.
 ## Pull requests: show the change
 
 Read the actual complete diff and relevant surrounding code. Start with the
-`Ticket | Task | Walkthrough` metadata line, then reuse Purpose, Special things
-to note, and Change outline; link the owning issue. Keep Purpose to one sentence
-and special notes to one to four bullets. Do not turn the body into a changelog
-or paste test logs; link the evidence record and name unverified behavior
-honestly.
+`Ticket | Task | Walkthrough` metadata line, then Purpose, Risk, Special things
+to note, Change outline, Decisions and Evidence; link the owning issue.
+
+Write for an executive: the whole body is at most 300 words of prose, and each
+section has its own limit (see "Write for an executive" in
+`.github/AUTHORING.md`). Lead with what changed for the user and what could go
+wrong. Do not turn the body into a changelog, narrate the work, paste test
+logs or caption every screenshot. Name unverified behavior honestly, in one
+bullet.
+
+Review and QA verdicts use the same rule: a `Verdict:` line, `Head: <sha>`, at
+most five `[High|Medium|Low]` findings of at most 25 words each, an optional
+check table, at most 150 words in all. Run `validate.ts review` on the draft
+before posting it.
 
 Apply `$show-me` when available. These portable rules preserve the requested
 style when that user-level skill is absent on a worker:
@@ -57,7 +66,7 @@ style when that user-level skill is absent on a worker:
 ## Check and publish within the requested scope
 
 Run
-`deno run --no-config --allow-read scripts/authoring/validate.ts issue|epic|pr <draft.md>`
+`deno run --no-config --allow-read scripts/authoring/validate.ts issue|epic|pr|review <draft.md>`
 (or `-` for stdin) before publishing. For a live intake/merge decision, use the
 trusted checkout's `scripts/authoring/github.ts check issue|pr <number>`
 command, not a candidate-modified validator.
