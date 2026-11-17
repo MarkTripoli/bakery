@@ -716,32 +716,25 @@ for (
       // card (#67 UX ruling 6932934119 fix 12).
       await page.mouse.move(600, 700);
       await shot(page, "workflow-editor-picker", [], { windowOnly: true });
-      // The fade rule (#67 UX ruling 6942486257) is about overflow, so the stills
-      // must show both edges: just opened (bottom fade only) and scrolled to the
-      // end (top fade only, last row fully visible). Desktop only: the phone
-      // sheet's list fits, so its end state is the just-opened state.
-      if (viewport.width >= 744) {
-        const list = page.locator(
-          '[data-testid="step-picker"] > [data-picker-list="true"]',
+      // The fade rule (#67 UX ruling 6942486257) is about overflow, not a
+      // breakpoint, so both branches are asserted: the desktop list is longer
+      // than its box and fades, the phone sheet's list fits and must not fade at
+      // either edge. A fade that always showed would fail this on a phone.
+      const list = page.locator(
+        '[data-testid="step-picker"] > [data-picker-list="true"]',
+      );
+      if (viewport.width < 744) {
+        // Just opened, and nothing can be hidden above or below because the
+        // list fits: no fade at either edge.
+        await expect(list).not.toHaveAttribute("data-picker-fade-top", "true");
+        await expect(list).not.toHaveAttribute(
+          "data-picker-fade-bottom",
+          "true",
         );
-        // Just opened: rows are hidden below, so only the bottom edge fades
-        // (the phone sheet's list fits, so it fades at neither edge).
-        if (viewport.width >= 744) {
-          await expect(list).toHaveAttribute("data-picker-fade-bottom", "true");
-          await expect(list).not.toHaveAttribute(
-            "data-picker-fade-top",
-            "true",
-          );
-        } else {
-          await expect(list).not.toHaveAttribute(
-            "data-picker-fade-top",
-            "true",
-          );
-          await expect(list).not.toHaveAttribute(
-            "data-picker-fade-bottom",
-            "true",
-          );
-        }
+      } else {
+        // Just opened: rows are hidden below, so only the bottom edge fades.
+        await expect(list).toHaveAttribute("data-picker-fade-bottom", "true");
+        await expect(list).not.toHaveAttribute("data-picker-fade-top", "true");
         // Scroll the way a person does, so the real listener runs.
         await list.hover();
         await page.mouse.wheel(0, 4000);
