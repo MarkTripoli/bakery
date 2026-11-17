@@ -13,6 +13,29 @@ import {
 
 const definition = JSON.parse(JSON.stringify(FIXED_CODING_PRESET.spec));
 
+/**
+ * The run inputs this fixture gives an automation version, which must satisfy
+ * the preset the version pins: every declared input the preset requires, and
+ * nothing it does not declare. `preset-inputs-match-shared-fixtures_test.ts`
+ * pins that against `WORKFLOW_PRESETS`, so a contract change to a preset fails
+ * in one named place instead of silently in every suite that shares this
+ * fixture (#499 changed `brief` from a string to `TaskBrief` and added
+ * `repositoryId` and `instructions`; twelve automation tests went red).
+ */
+export function automationVersionInputs(
+  repositoryId: string,
+): Record<string, unknown> {
+  return {
+    repositoryId,
+    instructions: "Retry the failed uploads twice, then report.",
+    brief: {
+      title: "Retry failed uploads twice",
+      description: "Retry failed uploads twice.",
+      taskType: "maintenance",
+    },
+  };
+}
+
 type Created = { id: string };
 
 /** A published workflow version, an automation with one version of this target, and a queued firing. */
@@ -64,15 +87,7 @@ export async function setUpAutomation(
   const versionBody = (extra: Record<string, unknown> = {}) => ({
     trigger: { type: "schedule", cron: "0 3 * * *", timezone: "UTC" },
     workflowVersionId: published.id,
-    inputs: {
-      repositoryId: repository.repositoryId,
-      instructions: "Retry the failed uploads twice, then report.",
-      brief: {
-        title: "Retry failed uploads twice",
-        description: "Retry failed uploads twice.",
-        taskType: "maintenance",
-      },
-    },
+    inputs: automationVersionInputs(repository.repositoryId),
     applicationId: repository.applicationId,
     repositoryId: repository.repositoryId,
     budgetLimitUsd: options.budgetLimitUsd ?? "5",

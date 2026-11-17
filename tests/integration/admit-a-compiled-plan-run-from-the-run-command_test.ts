@@ -533,15 +533,43 @@ Deno.test("a model step with no agent anywhere is refused", () =>
 Deno.test("a step agent that does not exist, and a budget below its reservation, are refused", () =>
   withWorkerFixture(async (fixture) => {
     const { repository } = await repositoryWithAgent(fixture, "refuse");
-    const ghost = await publishWorkflow(
-      fixture,
-      fixture,
-      "plan-ghost-agent",
-      plan({ stepAgent: crypto.randomUUID() }),
+    // A definition naming an agent version that does not exist is refused when
+    // it is published, not when someone tries to run it: a published version is
+    // a frozen contract, and one that can never run must not exist.
+    const ghost = await apiCall(fixture, fixture, "POST", "/v1/workflows", {
+      body: {
+        slug: "plan-ghost-agent",
+        name: "plan-ghost-agent",
+        description: "",
+      },
+    });
+    const ghostWorkflow = await expectJson<{ id: string }>(ghost, 201);
+    const ghostDraft = await expectJson<{ id: string }>(
+      await apiCall(
+        fixture,
+        fixture,
+        "POST",
+        `/v1/workflows/${ghostWorkflow.id}/versions`,
+        { body: { definition: plan({ stepAgent: crypto.randomUUID() }) } },
+      ),
+      201,
     );
+    const ghostPublish = await apiCall(
+      fixture,
+      fixture,
+      "POST",
+      `/v1/workflows/${ghostWorkflow.id}/versions/${ghostDraft.id}/publish`,
+      { body: {}, headers: { "If-Match": '"1"' } },
+    );
+    const ghostProblem = await expectJson<{
+      issues: { path: (string | number)[]; code: string }[];
+    }>(ghostPublish, 422);
     assertEquals(
-      (await refused(fixture, repository, ghost.versionId, 409)).reason,
-      "agent_version_unavailable",
+      ghostProblem.issues.map((item) => [item.path, item.code]),
+      [[
+        ["steps", 0, "steps", 1, "agentVersionId"],
+        "agent_version_unavailable",
+      ]],
     );
     const ordinary = await publishWorkflow(
       fixture,
