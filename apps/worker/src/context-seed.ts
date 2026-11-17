@@ -15,6 +15,7 @@
  */
 
 import type { JobAssignment } from "./types.ts";
+import type { WorkerContextInput } from "./client.ts";
 import type { ContextDocument, ContextInputEntry } from "./context-document.ts";
 import {
   type ContextMaterializeFault,
@@ -24,16 +25,58 @@ import {
 /**
  * Produces the bytes one pinned input describes.
  *
- * It takes the whole pin rather than an id, because the contract does not
- * currently carry an identifier to fetch by: `StepContextInput` declares slot,
- * path, digest, sizeBytes, mediaType and kind, and nothing that dereferences to
- * content. Passing the pin keeps this module neutral about how that gap is
- * closed - a carried payload and a fetched artifact both arrive as bytes, and
- * the digest comparison below is what makes either trustworthy.
+ * It takes the whole pin rather than an id, so the adapter never has to know
+ * how the bytes are obtained. That mattered when no fetch route existed and it
+ * still does: the route serves every pinned input of an attempt at once, keyed
+ * by version, so a caller keyed by the pin can take either shape.
  */
 export type PinnedBytesFetcher = (
   pin: NonNullable<JobAssignment["contextInputs"]>[number],
 ) => Promise<Uint8Array>;
+
+/** Decodes one served input into the bytes the adapter writes. */
+export function decodeContextInput(item: WorkerContextInput): Uint8Array {
+  const binary = atob(item.contentBase64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+/**
+ * Builds a fetcher over the route that serves an attempt's pinned inputs.
+ *
+ * The route answers for the whole attempt at once, so the list is read once and
+ * then keyed by DIGEST. That is the only value the two sides share: the served
+ * items carry an artifact version id and the assignment's pins do not, so a
+ * version-keyed lookup would have nothing to look up on the pin side. Keying by
+ * digest is also the safer key - a served item whose bytes are not the bytes the
+ * pin describes is what `materializeContext` refuses, and it can only refuse
+ * that if the lookup finds the item.
+ *
+ * A pin the route did not serve is an error rather than empty bytes: the
+ * assignment and the server disagree about what was pinned, and writing an
+ * empty file would turn that disagreement into a digest mismatch blamed on the
+ * wrong side.
+ */
+export async function fetcherForAttempt(
+  readAttemptContext: () => Promise<readonly WorkerContextInput[]>,
+): Promise<PinnedBytesFetcher> {
+  const served = new Map<string, WorkerContextInput>();
+  for (const item of await readAttemptContext()) {
+    served.set(item.digest, item);
+  }
+  return (pin) => {
+    const item = served.get(pin.digest);
+    if (item === undefined) {
+      throw new Error(
+        `the attempt context served no bytes for input ${pin.slot}`,
+      );
+    }
+    return Promise.resolve(decodeContextInput(item));
+  };
+}
 
 /**
  * The fields of a `ContextDocument` that the step itself cannot supply.
