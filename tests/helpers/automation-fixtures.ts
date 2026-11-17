@@ -64,7 +64,15 @@ export async function setUpAutomation(
   const versionBody = (extra: Record<string, unknown> = {}) => ({
     trigger: { type: "schedule", cron: "0 3 * * *", timezone: "UTC" },
     workflowVersionId: published.id,
-    inputs: { brief: "Retry failed uploads twice." },
+    inputs: {
+      repositoryId: repository.repositoryId,
+      instructions: "Retry the failed uploads twice, then report.",
+      brief: {
+        title: "Retry failed uploads twice",
+        description: "Retry failed uploads twice.",
+        taskType: "maintenance",
+      },
+    },
     applicationId: repository.applicationId,
     repositoryId: repository.repositoryId,
     budgetLimitUsd: options.budgetLimitUsd ?? "5",
