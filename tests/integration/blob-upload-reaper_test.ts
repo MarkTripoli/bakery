@@ -332,8 +332,15 @@ Deno.test("the reaper touches only the sessions it selected, across organization
     // property that matters is that it touches only what it selected. Two
     // organizations, both with an expired session and parts; the sweep is
     // limited to one session, so the other organization's session must come out
-    // of the run completely untouched. A broader predicate would show up here
-    // as the second organization losing parts it never had selected.
+    // of the run completely untouched.
+    //
+    // What this pins is the delete's SESSION scoping: a predicate that reaches
+    // past the selected session - deleting by part number, by age, by anything
+    // that is not the doomed id - fails here. It does NOT pin the organization
+    // key in that delete, and it cannot: the session id is a uuid primary key,
+    // so removing the organization leaves the statement exactly as selective
+    // and the suite green. The organization key is defence in depth, and the
+    // comment on the delete says so. Do not read this test as covering it.
     const otherOrganization = await fixture.pgDatabase.query<{ id: string }>(
       `insert into bakery.organizations (id, slug, name, created_at, updated_at)
        values (gen_random_uuid(), $1, $1, now(), now()) returning id`,
