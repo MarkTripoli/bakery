@@ -163,9 +163,12 @@ export async function lockUploadSession(
       params: { reason: "upload_session_expired" },
     });
   }
-  if (session.state === "completed") {
-    throw new StandardError({ code: "STATE_CONFLICT" });
-  }
+  // A completed session falls through and is returned: this function answers
+  // "may I look at this session", and the completion path has to be able to
+  // look at a finished one. Whether a caller may WRITE to it is the caller's
+  // rule - `putUploadPart` refuses a completed session, and so does the part
+  // route - because a lifecycle rule that lives in the shared lock also closes
+  // the reads, which is what made a retry after completion unreachable.
   return normalize(session);
 }
 
@@ -201,6 +204,13 @@ export async function putUploadPart(
     principalId: input.principalId,
     sessionId: input.sessionId,
   });
+  // A completed session is admitted by the lock so the completion path can read
+  // a finished upload and answer a retry with its blob; the rule that a part
+  // write is not allowed into one therefore lives here, at the part write, and
+  // not in the shared lock where it would also close the read.
+  if (session.state === "completed") {
+    throw new StandardError({ code: "STATE_CONFLICT" });
+  }
   assertDeclared(input.sha256, input.content.byteLength);
   if (input.partNumber < 1) {
     throw new StandardError({
