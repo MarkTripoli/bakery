@@ -197,25 +197,16 @@ export function wordCount(text: string): number {
   return (text.match(/[\p{L}\p{N}][\p{L}\p{N}'’._/-]*/gu) ?? []).length;
 }
 
-/**
- * The Change outline's show-me views: each fenced block is one view, and its
- * lines are the view's budget. A view's own labels and node names are part of
- * the view, never prose — so a bigger diagram must not be paid for out of the
- * prose cap, and the prose cap must not be dodged by hiding words in a fence.
- */
-function outlineViews(text: string): { views: number; lines: number } {
-  let views = 0;
+function outlineCode(text: string): number {
   let lines = 0;
   for (
     const block of text.matchAll(
       /^ {0,3}(`{3,}|~{3,})[^\n]*\n([\s\S]*?)^ {0,3}\1[ \t]*$/gm,
     )
   ) {
-    const body = block[2].split("\n").filter((line) => line.trim());
-    if (body.length) views += 1;
-    lines += body.length;
+    lines += block[2].split("\n").filter((line) => line.trim()).length;
   }
-  return { views, lines };
+  return lines;
 }
 
 export function relatedIssue(body: string): number | null {
@@ -372,19 +363,9 @@ export function validateDescription(kind: Kind, body: string): string[] {
         );
       }
     }
-    // The Change outline is the core of a PR: one to three show-me views,
-    // 80 lines of view in all. The 40-word prose cap above is counted only
-    // outside fences, so views and prose have separate budgets.
-    const outlineView = outlineViews(sections.get("change outline") ?? "");
-    if (outlineView.lines > 80) {
-      errors.push(
-        `Too long: change outline views must be at most 80 lines in all (${outlineView.lines}).`,
-      );
-    }
-    if (outlineView.views > 3) {
-      errors.push(
-        `Too many views: change outline takes at most three (${outlineView.views}).`,
-      );
+    const codeLines = outlineCode(sections.get("change outline") ?? "");
+    if (codeLines > 30) {
+      errors.push("Too long: change outline view must be at most 30 lines.");
     }
     const images = (body.match(/!\[[^\]]*\]\([^)]*\)/g) ?? []).length;
     if (images > 4) {
