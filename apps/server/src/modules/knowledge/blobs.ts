@@ -135,6 +135,10 @@ export async function lockUploadSession(
   );
   const session = result.rows[0];
   if (!session) throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  // Before the state guards below, because those guard the *lifecycle* and a
+  // contradictory row is not a lifecycle question: it is data that cannot be
+  // true, and it must not be reported as "this session is already finished".
+  assertSessionConsistent(normalizeRaw(session));
   if (session.state === "completed") {
     throw new StandardError({ code: "STATE_CONFLICT" });
   }
@@ -260,25 +264,6 @@ export async function completeUploadSession(
 }
 
 /**
- * Reads a session and asserts that a completed one names its blob.
- *
- * This is where the pairing is checked on the way out. A row that somehow
- * reached `completed` without a blob is a contradiction, so it is refused as an
- * internal fault rather than being handed to a caller that would trust it.
- */
-export function assertSessionConsistent(
-  session: UploadSessionRow,
-): UploadSessionRow {
-  if (session.state === "completed" && session.completedBlobId === null) {
-    throw new StandardError({ code: "INTERNAL" });
-  }
-  if (session.state !== "completed" && session.completedBlobId !== null) {
-    throw new StandardError({ code: "INTERNAL" });
-  }
-  return session;
-}
-
-/**
  * Records a verified blob, or finds the one already stored under this digest.
  *
  * Two uploads of the same bytes in one organization are the same blob, so the
@@ -321,12 +306,35 @@ export async function recordBlob(
   return { id: row.id, created: false };
 }
 
-function normalize(row: UploadSessionRow): UploadSessionRow {
+/**
+ * Reads a session and asserts that a completed one names its blob.
+ *
+ * This is where the pairing is checked on the way out. A row that somehow
+ * reached `completed` without a blob is a contradiction, so it is refused as an
+ * internal fault rather than being handed to a caller that would trust it.
+ */
+export function assertSessionConsistent(
+  session: UploadSessionRow,
+): UploadSessionRow {
+  if (session.state === "completed" && session.completedBlobId === null) {
+    throw new StandardError({ code: "INTERNAL" });
+  }
+  if (session.state !== "completed" && session.completedBlobId !== null) {
+    throw new StandardError({ code: "INTERNAL" });
+  }
+  return session;
+}
+
+function normalizeRaw(row: UploadSessionRow): UploadSessionRow {
   return {
     ...row,
     sizeBytes: BigInt(row.sizeBytes),
     expiresAt: new Date(row.expiresAt),
   };
+}
+
+function normalize(row: UploadSessionRow): UploadSessionRow {
+  return normalizeRaw(row);
 }
 /**
  * Assembles a session's parts and checks them against what was declared.

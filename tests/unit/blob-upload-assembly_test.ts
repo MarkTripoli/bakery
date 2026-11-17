@@ -3,6 +3,7 @@ import { StandardError } from "../../packages/contracts/src/http.ts";
 import {
   assembleDeclaredBytes,
   assertSessionConsistent,
+  lockUploadSession,
   MAX_BLOB_BYTES,
   startUploadSession,
   UPLOAD_SESSION_TTL_MS,
@@ -127,6 +128,35 @@ Deno.test("a negative or non-integer size is refused by the server", async () =>
     );
     assertEquals(refusal(error), "invalid_size");
   }
+});
+
+Deno.test("a session row a caller reads is checked before they trust it", async () => {
+  // The pairing is only worth anything if a real read enforces it. A row that
+  // says completed but names no blob must refuse at lockUploadSession rather
+  // than travel to a caller that would act on the word alone.
+  const rows = [{
+    id: "s",
+    organizationId: "org",
+    createdById: "p",
+    sha256: "a".repeat(64),
+    sizeBytes: "0",
+    mediaType: "text/plain",
+    state: "completed",
+    expiresAt: new Date(Date.now() + 60_000),
+    completedBlobId: null,
+  }];
+  const tx = { query: () => Promise.resolve({ rows, rowCount: 1 }) };
+  const error = await assertRejects(() =>
+    lockUploadSession(tx as never, {
+      organizationId: "org",
+      principalId: "p",
+      sessionId: "s",
+    })
+  );
+  // INTERNAL specifically, not the STATE_CONFLICT the lifecycle guard would
+  // raise: a contradictory row is data that cannot be true, and reporting it
+  // as "this session is already finished" would hide that.
+  assertEquals((error as StandardError).code, "INTERNAL");
 });
 
 Deno.test("a completed session without a blob is a contradiction, not data", () => {
