@@ -20764,14 +20764,16 @@
         "leaseDurationSeconds",
         "serverTime",
         "sealedCredentialOperation",
-        "agentSessionId"
+        "agentSessionId",
+        "contextInputs"
       ],
       "optionalFields": [
         "workerSessionId",
         "workerSessionGeneration",
         "leaseDurationSeconds",
         "serverTime",
-        "agentSessionId"
+        "agentSessionId",
+        "contextInputs"
       ],
       "fieldTypes": {
         "jobId": "uuid",
@@ -20794,7 +20796,8 @@
         "leaseDurationSeconds": "integer",
         "serverTime": "timestamp",
         "sealedCredentialOperation": "SealedCredentialOperation|null",
-        "agentSessionId": "uuid"
+        "agentSessionId": "uuid",
+        "contextInputs": "StepContextInput[]"
       },
       "sensitiveFields": [
         "leaseToken"
@@ -20805,7 +20808,8 @@
         "currentCheckpointsMaxItems": 100,
         "agentConfigMaxBytes": 65536,
         "skillRefsMaxItems": 100,
-        "sealedCredentialOperationMaxBytes": 512
+        "sealedCredentialOperationMaxBytes": 512,
+        "contextInputsMaxItems": 32
       },
       "httpVariants": [
         {
@@ -20843,7 +20847,8 @@
         "leaseDurationSeconds": "Lease duration in seconds from PostgreSQL current_timestamp.",
         "serverTime": "PostgreSQL-authoritative claim time used to derive a monotonic lease deadline.",
         "sealedCredentialOperation": "Required nullable daemon-only prepared credential operation. Null for every non-identity action; never copied into job input or a subprocess.",
-        "agentSessionId": "Server-created harness session the result must reference."
+        "agentSessionId": "Server-created harness session the result must reference.",
+        "contextInputs": "Input slots the step declared, pinned at admission: the worker materializes exactly these bytes into its context directory and never re-fetches the artifact, so the digest it verifies is the one admission pinned."
       }
     },
     "LeaseState": {
@@ -21888,6 +21893,39 @@
       "fieldDescriptions": {
         "versionId": "Stable UUID linking this record to the related version entity.",
         "digest": "Content digest used to verify the record."
+      }
+    },
+    "StepContextInput": {
+      "fields": [
+        "slot",
+        "path",
+        "digest",
+        "sizeBytes",
+        "mediaType",
+        "kind"
+      ],
+      "optionalFields": [
+        "kind"
+      ],
+      "fieldTypes": {
+        "slot": "slug",
+        "path": "safeRelativePath",
+        "digest": "sha256",
+        "sizeBytes": "nonnegativeInteger",
+        "mediaType": "string",
+        "kind": "string|null"
+      },
+      "bounds": {
+        "sizeBytesMax": 1073741824
+      },
+      "description": "One input slot a step declared, as admission pinned it: the declared slot name, the relative path inside the attempt context directory where the worker writes the bytes, the digest of exactly those bytes, their size and media type, and the artifact kind when the workflow declared one. The worker materializes from these bytes and must not re-fetch the artifact, so the digest it sees is the one admission pinned.",
+      "fieldDescriptions": {
+        "slot": "The name the workflow declared for this input, such as `brief`. It is also the file stem the worker writes under the context directory.",
+        "path": "Path of the input's bytes relative to the attempt context directory. It never starts with `/` and never climbs, so it cannot leave the directory.",
+        "digest": "Digest of the pinned bytes. The worker verifies the materialized file against it and refuses the attempt on a mismatch.",
+        "sizeBytes": "Size of the pinned bytes in bytes, so the worker can bound the read and report a truncated or replaced file.",
+        "mediaType": "Media type of the pinned bytes, shown to the step so it knows how to read the file without guessing.",
+        "kind": "Artifact kind the workflow declared for this slot, or null when it declared none."
       }
     },
     "McpToolFailure": {

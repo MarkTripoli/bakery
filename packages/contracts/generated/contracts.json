@@ -178198,6 +178198,67 @@
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            },
+            "contextInputs": {
+              "description": "JobAssignment.contextInputs must contain at most 32 items.",
+              "maxItems": 32,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "slot": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+                    "description": "The name the workflow declared for this input, such as `brief`. It is also the file stem the worker writes under the context directory."
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 65536,
+                    "description": "Path of the input's bytes relative to the attempt context directory. It never starts with `/` and never climbs, so it cannot leave the directory."
+                  },
+                  "digest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$",
+                    "description": "Digest of the pinned bytes. The worker verifies the materialized file against it and refuses the attempt on a mismatch."
+                  },
+                  "sizeBytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "Size of the pinned bytes in bytes, so the worker can bound the read and report a truncated or replaced file."
+                  },
+                  "mediaType": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Media type of the pinned bytes, shown to the step so it knows how to read the file without guessing."
+                  },
+                  "kind": {
+                    "description": "StepContextInput.kind may be null in this transport value.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 65536,
+                        "description": "Artifact kind the workflow declared for this slot, or null when it declared none."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "slot",
+                  "path",
+                  "digest",
+                  "sizeBytes",
+                  "mediaType"
+                ],
+                "additionalProperties": false,
+                "description": "Input slots the step declared, pinned at admission: the worker materializes exactly these bytes into its context directory and never re-fetches the artifact, so the digest it verifies is the one admission pinned. Each array item follows this format."
+              }
             }
           },
           "required": [
@@ -187243,6 +187304,63 @@
           ],
           "additionalProperties": false,
           "description": "One entry in a job assignment's skillRefs list, naming the exact skill version (versionId) a worker must materialize and the manifest digest (digest) it must hash to; the worker fetches the version by versionId and rejects it if the recomputed digest does not match."
+        },
+        "StepContextInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "slot": {
+              "type": "string",
+              "maxLength": 100,
+              "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+              "description": "The name the workflow declared for this input, such as `brief`. It is also the file stem the worker writes under the context directory."
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Path of the input's bytes relative to the attempt context directory. It never starts with `/` and never climbs, so it cannot leave the directory."
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "description": "Digest of the pinned bytes. The worker verifies the materialized file against it and refuses the attempt on a mismatch."
+            },
+            "sizeBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Size of the pinned bytes in bytes, so the worker can bound the read and report a truncated or replaced file."
+            },
+            "mediaType": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Media type of the pinned bytes, shown to the step so it knows how to read the file without guessing."
+            },
+            "kind": {
+              "description": "StepContextInput.kind may be null in this transport value.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 65536,
+                  "description": "Artifact kind the workflow declared for this slot, or null when it declared none."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ]
+            }
+          },
+          "required": [
+            "slot",
+            "path",
+            "digest",
+            "sizeBytes",
+            "mediaType"
+          ],
+          "additionalProperties": false,
+          "description": "One input slot a step declared, as admission pinned it: the declared slot name, the relative path inside the attempt context directory where the worker writes the bytes, the digest of exactly those bytes, their size and media type, and the artifact kind when the workflow declared one. The worker materializes from these bytes and must not re-fetch the artifact, so the digest it sees is the one admission pinned."
         },
         "McpToolFailure": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -206976,7 +207094,7 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:2f8b7d52608a04278020e2cdd368875951ab88182b3c3b5ebea960d2a42132c9",
+  "compatibilityDigest": "sha256:255bdd7b846160e0279a96716950df78bdee2a99990f6a0aaacc3cefb7efc2ce",
   "schemas": {
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -353123,6 +353241,67 @@
           "type": "string",
           "format": "uuid",
           "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+        },
+        "contextInputs": {
+          "description": "JobAssignment.contextInputs must contain at most 32 items.",
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "slot": {
+                "type": "string",
+                "maxLength": 100,
+                "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+                "description": "The name the workflow declared for this input, such as `brief`. It is also the file stem the worker writes under the context directory."
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 65536,
+                "description": "Path of the input's bytes relative to the attempt context directory. It never starts with `/` and never climbs, so it cannot leave the directory."
+              },
+              "digest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$",
+                "description": "Digest of the pinned bytes. The worker verifies the materialized file against it and refuses the attempt on a mismatch."
+              },
+              "sizeBytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Size of the pinned bytes in bytes, so the worker can bound the read and report a truncated or replaced file."
+              },
+              "mediaType": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Media type of the pinned bytes, shown to the step so it knows how to read the file without guessing."
+              },
+              "kind": {
+                "description": "StepContextInput.kind may be null in this transport value.",
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Artifact kind the workflow declared for this slot, or null when it declared none."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ]
+              }
+            },
+            "required": [
+              "slot",
+              "path",
+              "digest",
+              "sizeBytes",
+              "mediaType"
+            ],
+            "additionalProperties": false,
+            "description": "Input slots the step declared, pinned at admission: the worker materializes exactly these bytes into its context directory and never re-fetches the artifact, so the digest it verifies is the one admission pinned. Each array item follows this format."
+          }
         }
       },
       "required": [
@@ -362182,6 +362361,63 @@
       ],
       "additionalProperties": false,
       "description": "One entry in a job assignment's skillRefs list, naming the exact skill version (versionId) a worker must materialize and the manifest digest (digest) it must hash to; the worker fetches the version by versionId and rejects it if the recomputed digest does not match."
+    },
+    "StepContextInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "slot": {
+          "type": "string",
+          "maxLength": 100,
+          "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+          "description": "The name the workflow declared for this input, such as `brief`. It is also the file stem the worker writes under the context directory."
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "Path of the input's bytes relative to the attempt context directory. It never starts with `/` and never climbs, so it cannot leave the directory."
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Digest of the pinned bytes. The worker verifies the materialized file against it and refuses the attempt on a mismatch."
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Size of the pinned bytes in bytes, so the worker can bound the read and report a truncated or replaced file."
+        },
+        "mediaType": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Media type of the pinned bytes, shown to the step so it knows how to read the file without guessing."
+        },
+        "kind": {
+          "description": "StepContextInput.kind may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Artifact kind the workflow declared for this slot, or null when it declared none."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "slot",
+        "path",
+        "digest",
+        "sizeBytes",
+        "mediaType"
+      ],
+      "additionalProperties": false,
+      "description": "One input slot a step declared, as admission pinned it: the declared slot name, the relative path inside the attempt context directory where the worker writes the bytes, the digest of exactly those bytes, their size and media type, and the artifact kind when the workflow declared one. The worker materializes from these bytes and must not re-fetch the artifact, so the digest it sees is the one admission pinned."
     },
     "McpToolFailure": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
