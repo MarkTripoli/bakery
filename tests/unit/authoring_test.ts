@@ -50,7 +50,7 @@ const pr = [
   "## Special things to note\n\n- Activation requires landing the trusted workflow on main.",
   "## Change outline\n\n```text\nTemplates -> authoring skill -> shared validator -> GitHub feedback/status\n```",
   "## Decisions\n\n- None.",
-  "## Evidence\n\n| check | result |\n|---|---|\n| `deno test tests/unit/authoring_test.ts` | passed |",
+  "## Evidence\n\n- New test `authoring_test.ts`: rejects a PR body over 300 words.",
 ].join("\n\n");
 const head = "a".repeat(40);
 const base = "b".repeat(40);
@@ -400,10 +400,24 @@ Deno.test("authoring keeps PR descriptions short and asks for risk, decisions an
     ),
     true,
   );
+  const evidence = (text: string) =>
+    pr.replace(/## Evidence\n\n[^\n]*/, "## Evidence\n\n" + text);
+  assertEquals(validateDescription("pr", evidence("- None.")), []);
+  assertEquals(
+    validateDescription(
+      "pr",
+      evidence("![list](https://example.com/list.png)"),
+    ),
+    [],
+  );
+  assertEquals(
+    has(evidence("- `pnpm typecheck` passed"), "routine checks"),
+    true,
+  );
   assertEquals(
     has(
-      pr.replace(/\| `deno[^\n]*/, "|  |  |"),
-      "at least one filled check row",
+      evidence("| check | result |\n|---|---|\n| lint | clean |"),
+      "routine checks",
     ),
     true,
   );
