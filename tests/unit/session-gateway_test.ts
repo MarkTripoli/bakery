@@ -9,6 +9,7 @@
 
 import { assertEquals, assertThrows } from "@std/assert";
 import {
+  callSessionTool,
   classifySessionFailure,
   sessionPolicyRefusalCodes,
 } from "../../apps/server/src/modules/execution/session-gateway.ts";
@@ -98,4 +99,52 @@ Deno.test("a refusal is not swallowed by the classifier", () => {
   assertThrows(() => {
     if (classifySessionFailure(error) === "denied") throw error;
   }, SessionToolError);
+});
+
+Deno.test("a credential that never resolves still leaves a refusal record", async () => {
+  // The audit's key is the credential, so this path cannot use it. The refusal
+  // table exists so the call is not simply unrecorded: what is known is the
+  // organization, the attempt asked about, and the hash of the token presented.
+  const statements: { sql: string; params: unknown[] }[] = [];
+  const transaction = {
+    query: (sql: string, params: unknown[] = []) => {
+      statements.push({ sql, params });
+      // The credential lookup finds nothing, which is the case under test.
+      return Promise.resolve({ rows: [] });
+    },
+  };
+
+  const error = await callSessionTool({
+    transaction: transaction as never,
+    identity: {
+      tokenHash: "host-token-hash",
+      host: { organization_id: "org-1" },
+    } as never,
+    attemptId: "attempt-1",
+    credentialToken: "a-token-that-names-nothing",
+    registry: [],
+    tool: "session.tools",
+    arguments: {},
+    execute: () => Promise.reject(new Error("must not run")),
+  }).then(
+    () => undefined,
+    (thrown: unknown) => thrown,
+  );
+
+  assertEquals(
+    (error as SessionOperationError).code,
+    "SESSION_CREDENTIAL_INVALID",
+  );
+  const refusal = statements.find((statement) =>
+    statement.sql.includes("session_operation_refusals")
+  );
+  assertEquals(refusal !== undefined, true, "no refusal row was written");
+  // The organization and attempt come from the caller, the token hash from the
+  // presented bearer, and the outcome from the classifier - never invented.
+  assertEquals(refusal!.params[0], "org-1");
+  assertEquals(refusal!.params[1], "attempt-1");
+  assertEquals(refusal!.params[3], "session.tools");
+  assertEquals(refusal!.params[4], "denied");
+  // The bearer itself is never stored, only its hash.
+  assertEquals(refusal!.params[2] === "a-token-that-names-nothing", false);
 });

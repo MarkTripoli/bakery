@@ -37,6 +37,7 @@ import {
 } from "./session-credential.ts";
 import {
   recordSessionOperationAudit,
+  recordSessionOperationRefusal,
   resolveSessionCredential,
 } from "./session-credential-store.ts";
 import {
@@ -46,6 +47,7 @@ import {
   SessionToolError,
 } from "./session-tools.ts";
 import type { WorkerIdentity } from "./shared.ts";
+import { sha256Hex } from "../../platform/canonical-json.ts";
 
 /** What the gateway records for a call. Three values, and each means one thing. */
 export type SessionCallOutcome = "allowed" | "denied" | "unknown";
@@ -77,7 +79,9 @@ const POLICY_REFUSALS: ReadonlySet<string> = new Set([
  * Deliberately structural: it looks at the code the module raised, not at the
  * text, so a message rewrite cannot silently reclassify a denial as a failure.
  */
-export function classifySessionFailure(error: unknown): SessionCallOutcome {
+export function classifySessionFailure(
+  error: unknown,
+): Exclude<SessionCallOutcome, "allowed"> {
   if (error instanceof SessionOperationError) {
     return POLICY_REFUSALS.has(error.code) ? "denied" : "unknown";
   }
@@ -187,10 +191,25 @@ export async function callSessionTool(
       execute: (tool: SessionTool) => Promise<unknown>;
     }>,
 ): Promise<SessionCallResult> {
-  // A credential that never resolves has no row to point an audit at, so this
-  // refusal propagates without one. That is the one gap in the record, and it is
-  // unavoidable: the audit's foreign key is the credential.
-  const open = await openSessionCall(input);
+  // A refusal that happens before a credential resolves cannot be recorded in
+  // the audit, whose key is that credential. It is still recorded: the refusal
+  // table holds what is actually known here — the organization the caller's host
+  // belongs to, the attempt it asked about, and the hash of the token it
+  // presented — rather than leaving the refusal unrecorded or inventing the
+  // missing identities to fill the audit's columns.
+  let open: Awaited<ReturnType<typeof openSessionCall>>;
+  try {
+    open = await openSessionCall(input);
+  } catch (error) {
+    await recordSessionOperationRefusal(input.transaction, {
+      organizationId: input.identity.host.organization_id,
+      attemptId: input.attemptId,
+      presentedTokenHash: await sha256Hex(input.credentialToken),
+      operation: input.tool,
+      outcome: classifySessionFailure(error),
+    });
+    throw error;
+  }
 
   const outcomeOf = (error: unknown): SessionCallOutcome =>
     classifySessionFailure(error);
