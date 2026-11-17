@@ -3825,8 +3825,6 @@
   "library.editor.publish.cancel": "⟦Ķëëþ ëðïŧïñĝ ŧë⟧",
   "library.editor.startsHere": "⟦ŧĥë šŧàŕŧ ŧ⟧",
   "library.editor.addHere": "⟦Àðð à šŧëþ àƒŧëŕ {after} ŧëšŧ ç⟧",
-  "library.editor.picker.title": "⟦Àðð à šŧëþ ŧ⟧",
-  "library.editor.picker.cancel": "⟦Çàñçëļ…⟧",
   "library.editor.group.yes": "⟦Ÿëš⟧",
   "library.editor.group.otherwise": "⟦Ôŧĥëŕŵïšë ŧ⟧",
   "library.editor.group.together": "⟦Àŧ ŧĥë šàɱë ŧïɱë ŧëš⟧",
@@ -3878,5 +3876,9 @@
   "projects.repository.earlier.otherBranches": "⟦Ŵôŕķš ƒŕôɱ ôŧĥëŕ ƀŕàñçĥëš ŧëšŧ ç⟧",
   "library.editor.memberOnly": "⟦Ôñļÿ ôŕĝàñïžàŧïôñ àðɱïñïšŧŕàŧôŕš çàñ çĥàñĝë ŵôŕķƒļôŵš. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
   "library.editor.deleted": "⟦{name} ðëļëŧëð ŧë⟧",
-  "library.editor.group.if": "⟦Ïƒ⟧"
+  "library.editor.group.if": "⟦Ïƒ⟧",
+  "library.editor.picker.title": "⟦Àðð à šŧëþ ŧ⟧",
+  "library.editor.picker.search": "⟦Šëàŕçĥ šŧëþ ŧÿþëš ŧëš⟧",
+  "library.editor.picker.none": "⟦Ñô šŧëþ ŧÿþë ɱàŧçĥëš ŧĥàŧ. ŧëšŧ çô⟧",
+  "library.editor.picker.cancel": "⟦Çàñçëļ…⟧"
 }

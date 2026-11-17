@@ -730,23 +730,35 @@ export function WorkflowEditorPage(
           </ShellSlot>
         )
         : null}
+      {
+        /* `list` rather than `split`: the subtitle is a stack of sentences, and
+          `split` nests it in a paragraph, which a stack cannot live inside. */
+      }
       <UI.PageHeader
-        variant="split"
+        variant="list"
         title={workflow.data?.name ??
           translate("library.editor.title" as never)}
-        subtitle={[
-          inUse === null
-            ? translate("library.editor.version.draft" as never)
-            : translate("library.editor.version.inUse" as never, {
-              version: inUse.revision,
-            }),
-          // A member needs to know before they try: everything here is drawn
-          // for reading, and nothing will accept a change (#67 UX ruling
-          // 6932934119 fix 11).
-          ...(canManage
-            ? []
-            : [translate("library.editor.memberOnly" as never)]),
-        ].join(" ")}
+        subtitle={
+          <UI.Stack gap="compact">
+            <UI.Text variant="muted">
+              {inUse === null
+                ? translate("library.editor.version.draft" as never)
+                : translate("library.editor.version.inUse" as never, {
+                  version: inUse.revision,
+                })}
+            </UI.Text>
+            {
+              /* A member needs to know before they try, on its own line so the
+                two sentences never run together (#67 UX ruling 6934081003
+                fix 4). */
+            }
+            {canManage ? null : (
+              <UI.Text variant="muted">
+                {translate("library.editor.memberOnly" as never)}
+              </UI.Text>
+            )}
+          </UI.Stack>
+        }
       />
       {breadcrumbs}
       {body}

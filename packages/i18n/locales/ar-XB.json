@@ -3825,8 +3825,6 @@
   "library.editor.publish.cancel": "⟪Keep editing⟫",
   "library.editor.startsHere": "⟪the start⟫",
   "library.editor.addHere": "⟪Add a step after {after}⟫",
-  "library.editor.picker.title": "⟪Add a step⟫",
-  "library.editor.picker.cancel": "⟪Cancel⟫",
   "library.editor.group.yes": "⟪Yes⟫",
   "library.editor.group.otherwise": "⟪Otherwise⟫",
   "library.editor.group.together": "⟪At the same time⟫",
@@ -3878,5 +3876,9 @@
   "projects.repository.earlier.otherBranches": "⟪Works from other branches⟫",
   "library.editor.memberOnly": "⟪Only organization administrators can change workflows.⟫",
   "library.editor.deleted": "⟪{name} deleted⟫",
-  "library.editor.group.if": "⟪If⟫"
+  "library.editor.group.if": "⟪If⟫",
+  "library.editor.picker.title": "⟪Add a step⟫",
+  "library.editor.picker.search": "⟪Search step types⟫",
+  "library.editor.picker.none": "⟪No step type matches that.⟫",
+  "library.editor.picker.cancel": "⟪Cancel⟫"
 }

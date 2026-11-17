@@ -3835,6 +3835,8 @@
   "library.editor.startsHere": "the start",
   "library.editor.addHere": "Add a step after {after}",
   "library.editor.picker.title": "Add a step",
+  "library.editor.picker.search": "Search step types",
+  "library.editor.picker.none": "No step type matches that.",
   "library.editor.picker.cancel": "Cancel",
   "library.editor.group.if": "If",
   "library.editor.group.yes": "Yes",

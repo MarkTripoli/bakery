@@ -1,6 +1,8 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import * as UI from "@bakery/ui";
+import { useShellViewport } from "../../app/responsive.ts";
 import { useI18n } from "../../i18n/I18nProvider.tsx";
+
 import {
   ACTION_ICONS,
   ACTION_LINES,
@@ -83,6 +85,7 @@ export function WorkflowDiagram(
   }: DiagramProps,
 ) {
   const { translate } = useI18n();
+  const phone = useShellViewport() === "phone";
   // Fix 14 of the #67 UX ruling: "Edited in code" tells a person where to go and
   // change something, so it belongs in the editor. On a read-only page nothing
   // is editable there, so the label would only add noise.
@@ -98,20 +101,44 @@ export function WorkflowDiagram(
     return key === undefined ? undefined : translate(key as never);
   };
 
-  const picker = (
-    <UI.Stack gap="tight" data-testid="step-picker">
-      <UI.Text variant="strong">
-        {translate("library.editor.picker.title" as never)}
-      </UI.Text>
-      {PICKER_STEPS.map((uses) => (
-        <UI.Button
-          key={uses}
-          variant="text"
-          onClick={() => onPick(uses)}
-        >
-          {title(uses)}
-        </UI.Button>
-      ))}
+  // The picker's body: a search field, then the step types with the same one
+  // sentence each shows on its card. A bare list of links pushed the diagram
+  // down and said nothing about what each step does (#67 UX ruling
+  // 6934081003 fix 2, spec in 6900431228).
+  const [pickQuery, setPickQuery] = useState("");
+  const offered = PICKER_STEPS.filter((uses) => {
+    const needle = pickQuery.trim().toLowerCase();
+    return needle === "" ||
+      title(uses).toLowerCase().includes(needle) ||
+      (line(uses) ?? "").toLowerCase().includes(needle);
+  });
+  const pickerBody = (
+    <UI.Stack gap="compact" data-testid="step-picker">
+      <UI.SearchField
+        aria-label={translate("library.editor.picker.search" as never)}
+        placeholder={translate("library.editor.picker.search" as never)}
+        value={pickQuery}
+        onChange={(event) => setPickQuery(event.currentTarget.value)}
+      />
+      {offered.length === 0
+        ? (
+          <UI.Text variant="muted">
+            {translate("library.editor.picker.none" as never)}
+          </UI.Text>
+        )
+        : offered.map((uses) => (
+          <UI.Button
+            key={uses}
+            variant="quiet"
+            data-pick-step={uses}
+            onClick={() => onPick(uses)}
+          >
+            <span data-pick-body="true">
+              <span data-pick-title="true">{title(uses)}</span>
+              <span data-pick-line="true">{line(uses)}</span>
+            </span>
+          </UI.Button>
+        ))}
       <UI.Button variant="secondary" onClick={onPickClose}>
         {translate("library.editor.picker.cancel" as never)}
       </UI.Button>
@@ -135,21 +162,45 @@ export function WorkflowDiagram(
       );
     }
     const open = pickerAt !== undefined && pickerAt === afterId;
+    if (!canManage) return <div data-connector={afterId ?? "start"} />;
+    // The picker is a popover beside the "+" it came from, and a bottom sheet
+    // on a phone, so it never pushes the diagram down (#67 UX ruling
+    // 6934081003 fix 2).
+    const addLabel = translate("library.editor.addHere" as never, {
+      after: afterId === null
+        ? translate("library.editor.startsHere" as never)
+        : title(treeStepUses(tree, afterId) ?? afterId),
+    });
     return (
       <div data-connector={afterId ?? "start"}>
-        {open ? picker : null}
-        {canManage && !open
+        {phone && open
           ? (
-            <UI.StepConnector
-              label={translate("library.editor.addHere" as never, {
-                after: afterId === null
-                  ? translate("library.editor.startsHere" as never)
-                  : title(treeStepUses(tree, afterId) ?? afterId),
-              })}
-              onClick={() => onAdd(afterId)}
-            />
+            <UI.Sheet
+              open
+              variant="bottom"
+              title={translate("library.editor.picker.title" as never)}
+              onOpenChange={(next) => {
+                if (!next) onPickClose();
+              }}
+            >
+              {pickerBody}
+            </UI.Sheet>
           )
-          : null}
+          : (
+            <UI.Popover
+              open={open}
+              label={addLabel}
+              triggerLabel={addLabel}
+              variant="interactive"
+              onOpenChange={(next) => {
+                if (next) onAdd(afterId);
+                else if (open) onPickClose();
+              }}
+              trigger={<span data-add-highlight="true">+</span>}
+            >
+              {pickerBody}
+            </UI.Popover>
+          )}
       </div>
     );
   };
@@ -228,22 +279,38 @@ export function WorkflowDiagram(
     </>
   );
 
+  /** The word for what kind of group this is, as a button that selects it. */
+  const groupWord = (
+    node: Extract<TreeNode, { kind: "group" }>,
+  ): ReactNode => (
+    <UI.Button
+      variant="text"
+      disabled={!canManage}
+      onClick={() => onSelect(node.id)}
+    >
+      {translate(GROUP_LABEL[node.label] as never)}
+    </UI.Button>
+  );
+
+  /** A group's own label: its word, and "Edited in code" once for the group. */
   const groupLabel = (
     node: Extract<TreeNode, { kind: "group" }>,
   ): ReactNode => (
     <div data-group-label={node.id}>
-      <UI.Button
-        variant="text"
-        disabled={!canManage}
-        onClick={() => onSelect(node.id)}
-      >
-        {translate(GROUP_LABEL[node.label] as never)}
-      </UI.Button>
+      {groupWord(node)}
       {editedInCode === undefined
         ? null
         : <UI.Text variant="caption">{editedInCode}</UI.Text>}
     </div>
   );
+
+  /**
+   * An arm inside an If container: only its word, because the container says
+   * "Edited in code" once for both arms (#67 UX ruling 6934081003 fix 5).
+   */
+  const armLabel = (
+    node: Extract<TreeNode, { kind: "group" }>,
+  ): ReactNode => <div data-group-label={node.id}>{groupWord(node)}</div>;
 
   const group = (
     node: Extract<TreeNode, { kind: "group" }>,
@@ -276,7 +343,7 @@ export function WorkflowDiagram(
       <div data-group-arms="true">
         {held.map((arm) => (
           <div key={`arm-${arm.id}`} data-group-arm={arm.label}>
-            {groupLabel(arm)}
+            {armLabel(arm)}
             {groupBody(arm)}
           </div>
         ))}
@@ -289,10 +356,14 @@ export function WorkflowDiagram(
     for (let index = 0; index < held.length; index += 1) {
       const node = held[index];
       if (node.kind === "step") {
+        // A step draws its card and the connector AFTER it, unless it is the
+        // last thing on the page: the tail connector is drawn once by the
+        // page itself, so the path never ends in two "+" buttons (#67 UX
+        // ruling 6934081003 fix 3).
         out.push(
           <div key={`step-${node.id}`} data-node-index={index}>
             {card(node)}
-            {connector(node.id)}
+            {index === held.length - 1 ? null : connector(node.id)}
           </div>,
         );
         continue;

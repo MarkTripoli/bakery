@@ -17,6 +17,12 @@ export type PopoverProps =
     onOpenChange?: (open: boolean) => void;
     open?: boolean;
     trigger: ReactNode;
+    /**
+     * The trigger button's accessible name, for when the trigger draws a glyph
+     * rather than words: without it the button announces nothing, and a screen
+     * reader meets an unnamed control (#67 UX ruling 6934081003 fix 2).
+     */
+    triggerLabel?: string;
     /** The trigger's tooltip, for when its label is drawn as an icon alone. */
     triggerTitle?: string;
     variant?: "information" | "interactive";
@@ -32,6 +38,7 @@ export function Popover(
     open,
     trigger,
     triggerAppearance = "plain",
+    triggerLabel,
     triggerTitle,
     variant = "information",
     ...unsafeProps
@@ -85,6 +92,7 @@ export function Popover(
     >
       <button
         aria-expanded={isOpen}
+        aria-label={triggerLabel ?? label}
         aria-controls={contentId}
         aria-haspopup="dialog"
         className={`ui-popover__trigger ui-popover__trigger--${triggerAppearance}`}

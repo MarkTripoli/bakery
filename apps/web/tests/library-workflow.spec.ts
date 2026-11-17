@@ -694,12 +694,29 @@ for (
         .click();
       const picker = page.getByTestId("step-picker");
       await expect(picker).toBeVisible();
+      // The picker says what each step does, and its search narrows the list:
+      // a bare list of names told a person nothing (#67 UX ruling 6934081003).
+      await expect(picker.locator("[data-pick-step]")).toHaveCount(8);
+      await expect(
+        picker.locator("[data-pick-step='review.independent']"),
+      ).toContainText(
+        "A separate agent reviews the changes and lists what it found.",
+      );
+      await picker
+        .getByRole("searchbox", { name: "Search step types" })
+        .fill("merge");
+      await expect(picker.locator("[data-pick-step]")).toHaveCount(1);
+      await expect(picker.locator("[data-pick-step='delivery.merge']"))
+        .toBeVisible();
+      await picker
+        .getByRole("searchbox", { name: "Search step types" })
+        .fill("");
       // The still is the open picker itself, not the page after a pick: a
       // capture taken after the picker closes is a byte copy of the selected
       // card (#67 UX ruling 6932934119 fix 12).
       await page.mouse.move(600, 700);
       await shot(page, "workflow-editor-picker");
-      await picker.getByRole("button", { name: "Review" }).click();
+      await picker.locator("[data-pick-step='review.independent']").click();
       // The picked step type is what got added — never a fixed one.
       await expect(page.locator("[data-card]")).toHaveCount(3);
       await expect(page.locator("[data-card]").nth(2)).toContainText("Review");
@@ -711,9 +728,10 @@ for (
       // somewhere to move it to.
       await page.getByRole("button", { name: /Add a step after/ }).first()
         .click();
-      await page.getByTestId("step-picker").getByRole("button", {
-        name: "Review",
-      }).click();
+      await page
+        .getByTestId("step-picker")
+        .locator("[data-pick-step='review.independent']")
+        .click();
       // The step the picker added is the one slice 1 can move: a step type the
       // picker does not offer (task.brief) is drawn "Edited in code" and its
       // panel offers no Move or Remove (design-ux's ruling, comment 6917906748).
@@ -851,7 +869,9 @@ test("the leave warning is armed only while a change is unsaved", async ({ page 
   const baseline = await net();
   // A change that is not saved yet arms one more.
   await page.getByRole("button", { name: /Add a step after/ }).first().click();
-  await page.getByTestId("step-picker").getByRole("button", { name: "Review" })
+  await page
+    .getByTestId("step-picker")
+    .locator("[data-pick-step='review.independent']")
     .click();
   await expect.poll(net).toBe(baseline + 1);
   // Once the draft is saved again, nothing is armed.
