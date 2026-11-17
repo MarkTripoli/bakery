@@ -316,6 +316,20 @@ const permissionWriteScopes = (permissions) => {
   );
 };
 
+// A job that can only ever run on the nightly schedule cannot be reached from
+// a pull request, so the one write scope it needs to file its own tracking
+// issue is allowed. The guard is matched strictly: the `if` must be the
+// schedule condition and nothing else, so `|| true` or an extra clause cannot
+// smuggle a candidate-triggered job past the rail.
+const SCHEDULE_ONLY_IF =
+  /^(?:always\(\)\s*&&\s*)?github\.event_name\s*==\s*['"]schedule['"]$/;
+
+const isScheduleOnlyJob = (job) => {
+  if (typeof job?.if !== "string") return false;
+  const condition = job.if.replace(/^\$\{\{/, "").replace(/\}\}$/, "").trim();
+  return SCHEDULE_ONLY_IF.test(condition);
+};
+
 const workflowWriteScopes = (source, workflowPath) => {
   const document = parseDocument(source, {
     prettyErrors: true,
@@ -338,7 +352,12 @@ const workflowWriteScopes = (source, workflowPath) => {
     return scopes;
   }
   for (const job of Object.values(jobs)) {
+    const scheduleOnly = isScheduleOnlyJob(job);
     for (const scope of permissionWriteScopes(job?.permissions)) {
+      // Scope-narrow: only `issues`, and only on a schedule-only job. Every
+      // other write scope, and every write scope on a candidate-triggered job,
+      // still fails the rail.
+      if (scheduleOnly && scope === "issues") continue;
       scopes.add(scope);
     }
   }
@@ -607,6 +626,58 @@ jobs:
     );
   }
 });
+test("a schedule-only job may file its own tracking issue", () => {
+  // The one write scope the nightly signal needs. It is allowed only because a
+  // schedule-only job cannot be reached from a pull request, and only for
+  // `issues`: the exception is scope-narrow, not a general write allowlist.
+  const scheduleOnly = `permissions:
+  contents: read
+jobs:
+  nightly_signal:
+    if: \${{ always() && github.event_name == 'schedule' }}
+    permissions:
+      contents: read
+      issues: write
+    runs-on: ubuntu-24.04
+`;
+  assert.deepEqual(
+    [...workflowWriteScopes(scheduleOnly, ".github/workflows/ci.yml")],
+    [],
+  );
+
+  // Both ways: the same job without the schedule guard is candidate-reachable
+  // and must still fail, so the guard is what earns the exception.
+  const unguarded = scheduleOnly.replace(
+    "if: ${{ always() && github.event_name == 'schedule' }}",
+    "if: ${{ always() }}",
+  );
+  assert.deepEqual(
+    [...workflowWriteScopes(unguarded, ".github/workflows/ci.yml")],
+    ["issues"],
+  );
+
+  // And the exception is narrow: a schedule-only job asking for any other
+  // write scope is still refused.
+  const wider = scheduleOnly.replace(
+    "      issues: write",
+    "      issues: write\n      pull-requests: write",
+  );
+  assert.deepEqual(
+    [...workflowWriteScopes(wider, ".github/workflows/ci.yml")],
+    ["pull-requests"],
+  );
+
+  // A guard that can also be true off-schedule is not schedule-only.
+  const smuggled = scheduleOnly.replace(
+    "if: ${{ always() && github.event_name == 'schedule' }}",
+    "if: ${{ always() && (github.event_name == 'schedule' || github.event_name == 'pull_request') }}",
+  );
+  assert.deepEqual(
+    [...workflowWriteScopes(smuggled, ".github/workflows/ci.yml")],
+    ["issues"],
+  );
+});
+
 test("active workflows never grant write permissions", () => {
   for (const file of workflowFileNames(readdirSync(WORKFLOW_DIR))) {
     const workflowPath = `.github/workflows/${file}`;
