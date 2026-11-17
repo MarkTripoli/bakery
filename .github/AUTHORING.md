@@ -38,7 +38,7 @@ doesn't change a decision, cut it. The validator enforces:
 | Special things to note | one to four bullets of at most 25 words, or `- None.` |
 | Change outline | one to three show-me views, 80 lines of view in all, plus at most 40 words of prose outside the views |
 | Decisions | one to three bullets of at most 30 words ("Chose X over Y because Z"), or `- None.` |
-| Evidence | UI screenshots or a recording, plus new tests, one line each on what they prove. Never routine checks: fmt, lint and typecheck are refused (CI reports those). For nothing to show, one line starting `- None.` followed by the reason, with no code span | at most four images in the whole body (link a folder for the rest), at most 40 words of prose |
+| Evidence | at most 60 words: UI screenshots or a recording (at most four images) and the new tests, one line each; no fmt, lint or typecheck rows, which CI shows; `- None.` when there is nothing to show |
 
 Review and QA verdict comments follow the same rule:
 
@@ -51,7 +51,7 @@ Head: `<sha>`
 
 | check | result |
 |---|---|
-| `pnpm test:unit` | passed |
+| new test `issue-settings_test.ts` | refuses a stale save |
 ```
 
 At most 150 words of prose in all. No praise, no narration of what was

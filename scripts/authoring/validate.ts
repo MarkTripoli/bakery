@@ -241,7 +241,7 @@ export function validateDescription(kind: Kind, body: string): string[] {
     const value = sections.get(field) ?? "";
     const allowedNone =
       (field === "dependencies" || field === "special things to note" ||
-        field === "decisions") &&
+        field === "decisions" || field === "evidence") &&
       /^(?:-\s*)?None[.!]?$/i.test(value);
     if (!allowedNone && unfinished(value)) {
       errors.push("Complete section: " + name);
@@ -326,52 +326,29 @@ export function validateDescription(kind: Kind, body: string): string[] {
     ) {
       errors.push("Decisions needs one to three bullets (or - None.).");
     }
+    // Evidence is what a reader can't get from CI: UI screenshots or recordings,
+    // and the new tests. Routine checks (format, lint, types) belong to CI.
     const evidence = sections.get("evidence") ?? "";
-    const rows = evidence.split("\n").filter((line) =>
-      /^\s*\|/.test(line) && !/^\s*\|[\s|:-]*\|?\s*$/.test(line) &&
-      /[\p{L}\p{N}]/u.test(line.replace(/\|/g, ""))
-    );
-    // Owner rule: Evidence is UI evidence and new tests only. A PR with
-    // nothing to show says so, and says why, instead of filling the table with
-    // routine checks CI already reports.
-    // `- None.` either alone or opening a line that then says why.
-    const evidenceNone = /^(?:-\s*)?None\.(?:[ \t]+\S|[ \t]*$)/im.test(
-      evidence,
-    );
-    if (evidenceNone) {
-      const why = withoutFences(evidence).replace(
-        /^(?:-\s*)?None\./im,
-        "",
-      )
-        .trim();
-      if (!why) {
-        errors.push(
-          "Evidence None. needs one line saying why there is nothing to show.",
-        );
-      }
-    } else if (rows.length < 2) {
+    if (
+      // "format"/"formatting" are deliberately absent: real test files carry
+      // them in their names (`contracts-module-format.node.mjs`), and the
+      // repo's formatter command is `pnpm fmt`, which `fmt` already covers.
+      /\b(?:fmt|lint|typecheck|type-check|types|deno check|tsc)\b/i
+        .test(
+          prose(evidence) + " " +
+            evidence.split("\n").filter((l) => /^\s*\|/.test(l)).join(" "),
+        )
+    ) {
       errors.push(
-        "Evidence needs a table with at least one filled check row, or None.",
+        "Evidence: drop routine checks (fmt, lint, typecheck); CI shows them. Show UI evidence and new tests.",
       );
-    } else if (rows.length > 9) {
-      errors.push("Evidence table: at most eight check rows.");
     }
-    // Owner rule: never list routine checks. CI already shows fmt, lint and
-    // typecheck results, and an Evidence table full of green ticks says
-    // nothing about whether the change works. Fenced code is exempt, because
-    // a PR about the linter legitimately quotes it. The owner's rule names
-    // those three commands, so only those three are matched: "format" is
-    // deliberately absent, since real test files carry it in their names
-    // (`contracts-module-format.node.mjs`) and a PR must be able to cite them.
-    const routine = withoutFences(evidence).match(
-      /\b(?:fmt|lint|typecheck)\b/i,
-    );
-    if (routine) {
-      errors.push(
-        `Evidence lists a routine check (${
-          routine[0]
-        }); CI reports those. Show UI evidence or new tests.`,
-      );
+    const items = (evidence.match(/^[-*] .+/gm) ?? []).length +
+      evidence.split("\n").filter((line) =>
+        /^\s*\|/.test(line) && !/^\s*\|[\s|:-]*\|?\s*$/.test(line)
+      ).length;
+    if (items > 9) {
+      errors.push("Evidence: at most eight items.");
     }
     const limits: [string, number, number][] = [
       ["purpose", 40, 0],
@@ -379,7 +356,7 @@ export function validateDescription(kind: Kind, body: string): string[] {
       ["special things to note", 0, 25],
       ["change outline", 40, 0],
       ["decisions", 0, 30],
-      ["evidence", 40, 0],
+      ["evidence", 60, 0],
     ];
     for (const [name, words, perBullet] of limits) {
       const value = sections.get(name) ?? "";

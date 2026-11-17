@@ -50,7 +50,7 @@ const pr = [
   "## Special things to note\n\n- Activation requires landing the trusted workflow on main.",
   "## Change outline\n\n```text\nTemplates -> authoring skill -> shared validator -> GitHub feedback/status\n```",
   "## Decisions\n\n- None.",
-  "## Evidence\n\n| check | result |\n|---|---|\n| `deno test tests/unit/authoring_test.ts` | passed |",
+  "## Evidence\n\n- New test `authoring_test.ts`: rejects a PR body over 300 words.",
 ].join("\n\n");
 const head = "a".repeat(40);
 const base = "b".repeat(40);
@@ -400,10 +400,24 @@ Deno.test("authoring keeps PR descriptions short and asks for risk, decisions an
     ),
     true,
   );
+  const evidence = (text: string) =>
+    pr.replace(/## Evidence\n\n[^\n]*/, "## Evidence\n\n" + text);
+  assertEquals(validateDescription("pr", evidence("- None.")), []);
+  assertEquals(
+    validateDescription(
+      "pr",
+      evidence("![list](https://example.com/list.png)"),
+    ),
+    [],
+  );
+  assertEquals(
+    has(evidence("- `pnpm typecheck` passed"), "routine checks"),
+    true,
+  );
   assertEquals(
     has(
-      pr.replace(/\| `deno[^\n]*/, "|  |  |"),
-      "at least one filled check row",
+      evidence("| check | result |\n|---|---|\n| lint | clean |"),
+      "routine checks",
     ),
     true,
   );
@@ -507,87 +521,31 @@ Deno.test("review verdicts are short: verdict, head, severity-tagged findings", 
   );
 });
 
-Deno.test("Evidence None. is accepted when it says why there is nothing to show", () => {
-  // Owner rule: Evidence is UI evidence and new tests only, so a PR with
-  // neither states None. and why — it does not pad the table with CI checks.
+Deno.test("Evidence refuses routine checks but accepts a test file named format", () => {
+  // Owner rule: Evidence is UI screenshots or recordings and the new tests.
+  // Routine checks belong to CI, so a table of green ticks proves nothing.
   const withEvidence = (evidence: string) =>
     pr.replace(/## Evidence[\s\S]*$/, "## Evidence\n\n" + evidence);
-  assertEquals(
-    validateDescription(
-      "pr",
-      withEvidence(
-        "- None. Backend-only refactor: no visible UI, and the existing lane\n" +
-          "  already covers the changed branch.",
-      ),
-    ),
-    [],
-  );
-  assert(
-    validateDescription("pr", withEvidence("- None.")).some((e) =>
-      e.includes("needs one line saying why")
-    ),
-  );
-  // A bare None. with no reason is refused, so it is not a free pass.
-  assertEquals(
-    validateDescription("pr", withEvidence("None.")).some((e) =>
-      e.includes("needs one line saying why")
-    ),
-    true,
-  );
-});
-
-Deno.test("Evidence refuses routine checks that CI already reports", () => {
-  // Owner rule: Evidence is UI evidence and new tests only. A table of green
-  // ticks for fmt/lint/typecheck says nothing about whether the change works.
-  const withEvidence = (evidence: string) =>
-    pr.replace(/## Evidence[\s\S]*$/, "## Evidence\n\n" + evidence);
-  const table = [
-    "| check | result |",
-    "|---|---|",
-    "| `pnpm fmt` | passed |",
-  ].join("\n");
-  assert(
-    validateDescription("pr", withEvidence(table)).some((e) =>
-      e.includes("routine check")
-    ),
-  );
-  // Each of the three named checks is refused, not just the one in the sample.
-  for (const check of ["lint", "typecheck"]) {
-    const one = table.replace("pnpm fmt", `pnpm ${check}`);
-    assert(
-      validateDescription("pr", withEvidence(one)).some((e) =>
-        e.includes("routine check")
-      ),
-      check,
+  const table = (row: string) =>
+    ["| check | result |", "|---|---|", row].join("\n");
+  const refused = (row: string) =>
+    validateDescription("pr", withEvidence(table(row))).some((e) =>
+      e.includes("drop routine checks")
     );
+  for (const check of ["fmt", "lint", "typecheck"]) {
+    assertEquals(refused(`\`pnpm ${check}\` | passed`), true, check);
   }
-  // A fenced block is exempt: a PR about the linter may quote it. The table
-  // here is clean, so only the fence mentions lint.
-  const clean =
-    "| check | result |\n|---|---|\n| reduced-motion skeleton | still |";
+  // A real test file carrying "format" in its name is evidence, not a routine
+  // check. Refusing it stopped a PR from citing the test it added.
   assertEquals(
-    validateDescription("pr", withEvidence(clean + "\n\n```\npnpm lint\n```"))
-      .some((e) => e.includes("routine check")),
+    refused("`packages/ui/tests/contracts-module-format.node.mjs` | 12 passed"),
     false,
   );
-  // Evidence that actually shows something still passes.
+  // Evidence that shows something still passes.
   assertEquals(
     validateDescription(
       "pr",
-      withEvidence(
-        "| check | result |\n|---|---|\n| reduced-motion skeleton | still, no animation |",
-      ),
-    ),
-    [],
-  );
-  // "format" is not one of the three refused words: a PR must be able to cite
-  // a real test file that carries it in the name.
-  assertEquals(
-    validateDescription(
-      "pr",
-      withEvidence(
-        "| check | result |\n|---|---|\n| `packages/ui/tests/contracts-module-format.node.mjs` | 12 passed |",
-      ),
+      withEvidence(table("reduced-motion skeleton | still, no animation")),
     ),
     [],
   );
