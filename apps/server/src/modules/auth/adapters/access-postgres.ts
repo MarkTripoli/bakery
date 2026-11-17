@@ -2,6 +2,7 @@ import type { z } from "zod";
 import {
   type CatalogPermissionKey,
   contractSchemas,
+  OrganizationRole,
   PrincipalType,
 } from "@bakery/contracts/contracts";
 import { StandardError } from "@bakery/contracts/http";
@@ -146,12 +147,19 @@ export async function listPrincipals(
     from bakery.organization_memberships as membership
     join bakery.principals as principal on principal.id = membership.principal_id
     where membership.organization_id = $1
-      and ($2::timestamptz is null
-        or (principal.created_at, principal.id) > ($2::timestamptz, $3::uuid))
+      and (
+        $2::boolean
+        or principal.created_by_principal_id = $3
+        or principal.id = $3
+      )
+      and ($4::timestamptz is null
+        or (principal.created_at, principal.id) > ($4::timestamptz, $5::uuid))
     order by principal.created_at, principal.id
-    limit $4`,
+    limit $6`,
     [
       actor.organizationId,
+      managesOrganization(actor),
+      actor.subject.principalId,
       position?.createdAt ?? null,
       position?.id ?? null,
       limit + 1,
@@ -181,10 +189,13 @@ export async function createServiceAccount(
   const actor = await freshActor(client, actorInput);
   assertRoleWithinCaller(actor, input.role);
   const principal = await client.query<PrincipalRow>(
-    `insert into bakery.principals (display_name, principal_type)
-    values ($1, 'service')
+    // The creator is recorded so a member can be shown and manage exactly the
+    // service accounts they made (issue 233, owner-directed split).
+    `insert into bakery.principals (
+      display_name, principal_type, created_by_principal_id
+    ) values ($1, 'service', $2)
     returning ${PRINCIPAL_COLUMNS.replaceAll("principal.", "")}`,
-    [input.displayName.trim()],
+    [input.displayName.trim(), actor.subject.principalId],
   );
   await client.query(
     `insert into bakery.organization_memberships (
@@ -477,6 +488,17 @@ function tokenFields(row: TokenRow) {
   };
 }
 
+/**
+ * True when the actor may see and manage every row, not just their own.
+ * "Initiating principal or Admin" gives a member their own; an Admin manages
+ * the organization (issue 233, owner-directed split).
+ */
+function managesOrganization(actor: OrganizationActor): boolean {
+  // The Admin role, not the permission key: a developer now holds
+  // accessToken:manage for their own rows (issue 233, owner-directed split).
+  return actor.role === OrganizationRole.Admin;
+}
+
 function tokenOut(row: TokenRow) {
   return contractSchemas.AccessToken.parse(tokenFields(row));
 }
@@ -494,12 +516,15 @@ export async function listAccessTokens(
     `select ${TOKEN_COLUMNS}
     from bakery.access_tokens as token
     where token.organization_id = $1
-      and ($2::timestamptz is null
-        or (token.created_at, token.id) > ($2::timestamptz, $3::uuid))
+      and ($2::boolean or token.created_by_principal_id = $3)
+      and ($4::timestamptz is null
+        or (token.created_at, token.id) > ($4::timestamptz, $5::uuid))
     order by token.created_at, token.id
-    limit $4`,
+    limit $6`,
     [
       actor.organizationId,
+      managesOrganization(actor),
+      actor.subject.principalId,
       position?.createdAt ?? null,
       position?.id ?? null,
       limit + 1,
@@ -580,6 +605,14 @@ export async function revokeAccessToken(
     [actor.organizationId, tokenId],
   );
   if (found.rows.length !== 1) {
+    throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
+  }
+  // A member may revoke only a token they created; an Admin revokes any. An
+  // id that is not theirs is a not-found, so it discloses nothing.
+  if (
+    !managesOrganization(actor) &&
+    found.rows[0].createdByPrincipalId !== actor.subject.principalId
+  ) {
     throw new StandardError({ code: "RESOURCE_NOT_FOUND" });
   }
   if (found.rows[0].revokedAt !== null) {
