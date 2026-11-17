@@ -168,3 +168,27 @@ Deno.test("a scope profile from another project is refused", () => {
   }
   throw new Error("a scope profile from another project must be refused");
 });
+
+Deno.test("the task picker offers the four labels and keeps a foreign one visible", async () => {
+  const composer = await import(
+    "../../packages/ui/src/atoms/task-composer-task-types.ts"
+  );
+  // The four software-delivery labels stay on offer.
+  assertEquals([...composer.TASK_COMPOSER_TASK_TYPES], [
+    "feature",
+    "bug",
+    "epic",
+    "maintenance",
+  ]);
+  for (const label of composer.TASK_COMPOSER_TASK_TYPES) {
+    assert(composer.isTaskComposerTaskType(label));
+  }
+  // An organization label the picker does not offer is not silently treated as
+  // one of the four: the form must show the row's real label.
+  for (const label of ["design-review", "episode", ""]) {
+    assertFalse(
+      composer.isTaskComposerTaskType(label),
+      `${label} must not be read as one of the four offered labels`,
+    );
+  }
+});
