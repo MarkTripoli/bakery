@@ -11,8 +11,76 @@
 import { assertEquals } from "@std/assert";
 import { sha256Bytes } from "../../apps/server/src/modules/knowledge/bytes.ts";
 import { withWorkerFixture } from "../helpers/worker-execution/scenarios.ts";
+import type { SkillObjectStore } from "../../apps/server/src/modules/catalog/storage-port.ts";
 
 type Fixture = Parameters<Parameters<typeof withWorkerFixture>[0]>[0];
+
+/**
+ * An object store that keeps bytes in memory, so completion has somewhere real
+ * to put them.
+ *
+ * The point of using a store rather than a stub is that the upload path now
+ * writes through the shipped adapter, so the assertion that matters is that the
+ * bytes the client sent are the bytes under the digest key afterwards.
+ */
+function memoryStore(): SkillObjectStore & {
+  objects: Map<string, Uint8Array>;
+} {
+  const objects = new Map<string, Uint8Array>();
+  return {
+    objects,
+    async putIfAbsent(objectKey, content, expectedSha256) {
+      const digest = await sha256Bytes(content);
+      if (digest !== expectedSha256) {
+        throw new Error("SKILL_FILE_DIGEST_MISMATCH");
+      }
+      if (!objects.has(objectKey)) objects.set(objectKey, content.slice());
+    },
+    async read(objectKey, expectedSha256, expectedSize) {
+      const found = objects.get(objectKey);
+      if (!found) throw new Error("SKILL_FILE_NOT_FOUND");
+      if (found.byteLength !== expectedSize) {
+        throw new Error("SKILL_FILE_SIZE_MISMATCH");
+      }
+      if (await sha256Bytes(found) !== expectedSha256) {
+        throw new Error("SKILL_FILE_DIGEST_MISMATCH");
+      }
+      return found;
+    },
+    async recover(objectKey, expectedSha256, expectedSize) {
+      const found = objects.get(objectKey);
+      if (!found) throw new Error("SKILL_FILE_NOT_FOUND");
+      if (found.byteLength !== expectedSize) {
+        throw new Error("SKILL_FILE_SIZE_MISMATCH");
+      }
+      if (await sha256Bytes(found) !== expectedSha256) {
+        throw new Error("SKILL_FILE_DIGEST_MISMATCH");
+      }
+    },
+    async *list() {
+      for (const [objectKey, content] of objects) {
+        yield {
+          objectKey,
+          sha256: await sha256Bytes(content),
+          sizeBytes: content.byteLength,
+        };
+      }
+    },
+  };
+}
+
+/** The fixture every case needs: a worker scope plus somewhere to store bytes. */
+const withBlobFixture = (
+  work: (
+    fixture: Fixture,
+    store: ReturnType<typeof memoryStore>,
+  ) => Promise<void>,
+) => {
+  const store = memoryStore();
+  return withWorkerFixture((fixture) => work(fixture, store), {
+    skillFileStore: store,
+  });
+};
 
 function call(
   fixture: Fixture,
@@ -37,7 +105,7 @@ function call(
 }
 
 Deno.test("a client uploads bytes as parts and completes into a blob", () =>
-  withWorkerFixture(async (fixture) => {
+  withBlobFixture(async (fixture, store) => {
     const first = new TextEncoder().encode("first half ");
     const second = new TextEncoder().encode("second half");
     const whole = new Uint8Array([...first, ...second]);
@@ -86,10 +154,27 @@ Deno.test("a client uploads bytes as parts and completes into a blob", () =>
     assertEquals(blob.sha256, digest);
     assertEquals(blob.sizeBytes, whole.byteLength);
     assertEquals(blob.mediaType, "text/plain");
+
+    // The bytes the client sent are the bytes under the digest key. Before this
+    // the completion registered a blob row and wrote nothing anywhere, so the
+    // registry named bytes that did not exist.
+    const stored = store.objects.get(
+      `organizations/${fixture.organizationId}/blobs/sha256/${digest}`,
+    );
+    assertEquals(stored, whole);
+
+    // The parts are gone: the object store is the home now, and keeping both
+    // would store every upload twice, forever.
+    const parts = await fixture.pgDatabase.query<{ count: string }>(
+      `select count(*)::text as count from bakery.blob_upload_parts
+        where organization_id = $1 and session_id = $2`,
+      [fixture.organizationId, session.id],
+    );
+    assertEquals(parts.rows[0].count, "0");
   }));
 
 Deno.test("a part whose bytes do not match its digest is refused", () =>
-  withWorkerFixture(async (fixture) => {
+  withBlobFixture(async (fixture) => {
     const bytes = new TextEncoder().encode("payload");
     const digest = await sha256Bytes(bytes);
     const startResponse = await call(fixture, "/v1/blobs/uploads", {
@@ -128,7 +213,7 @@ Deno.test("a part whose bytes do not match its digest is refused", () =>
   }));
 
 Deno.test("retrying the same completion answers the same blob, not a conflict", () =>
-  withWorkerFixture(async (fixture) => {
+  withBlobFixture(async (fixture) => {
     const bytes = new TextEncoder().encode("idempotent");
     const digest = await sha256Bytes(bytes);
     const startResponse = await call(fixture, "/v1/blobs/uploads", {
@@ -171,7 +256,7 @@ Deno.test("retrying the same completion answers the same blob, not a conflict", 
   }));
 
 Deno.test("parts whose assembled bytes miss the declared digest are refused", () =>
-  withWorkerFixture(async (fixture) => {
+  withBlobFixture(async (fixture) => {
     // The session declares one digest; the parts carry different bytes that each
     // match their own claimed digest. Only assembly reveals the disagreement.
     const declared = new TextEncoder().encode("what the client promised");
@@ -208,7 +293,7 @@ Deno.test("parts whose assembled bytes miss the declared digest are refused", ()
   }));
 
 Deno.test("a part that pushes the running total past the declared size is refused", () =>
-  withWorkerFixture(async (fixture) => {
+  withBlobFixture(async (fixture) => {
     // The session declares 13 bytes. A part of 4,096 can never assemble into
     // that, so it is refused at the part rather than stored and discovered at
     // completion - where the client no longer has the bytes in hand.
@@ -245,7 +330,7 @@ Deno.test("a part that pushes the running total past the declared size is refuse
   }));
 
 Deno.test("a retried part replaces its own bytes rather than adding to the total", () =>
-  withWorkerFixture(async (fixture) => {
+  withBlobFixture(async (fixture) => {
     // The bound must not count a part against itself, or a client that retries a
     // part it already sent would be refused for exceeding a size it is within.
     const bytes = new TextEncoder().encode("0123456789");
@@ -273,7 +358,7 @@ Deno.test("a retried part replaces its own bytes rather than adding to the total
   }));
 
 Deno.test("two sessions for one digest store one blob", () =>
-  withWorkerFixture(async (fixture) => {
+  withBlobFixture(async (fixture) => {
     const bytes = new TextEncoder().encode("same bytes twice");
     const digest = await sha256Bytes(bytes);
     const upload = async () => {

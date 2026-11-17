@@ -508,7 +508,8 @@ function normalize(row: UploadSessionRow): UploadSessionRow {
   return normalizeRaw(row);
 }
 /**
- * Checks a session's parts against what was declared, without assembling them.
+ * Joins a session's parts into the declared bytes, refusing anything that does
+ * not match the declaration.
  *
  * Completion is the only moment the server sees the whole file, so this is
  * where the declaration is honoured or refused. Three things are checked, and
@@ -521,16 +522,21 @@ function normalize(row: UploadSessionRow): UploadSessionRow {
  * - the digest of the parts differs from the declared digest, which catches
  *   everything else - the wrong file, a corrupted part, or a client that lied.
  *
- * The parts are consumed as a stream and hashed incrementally, so the peak
- * memory is one part rather than the whole file. Nothing is stored unless all
- * three hold, and the caller must not record the blob until this returns.
+ * The buffer is allocated once, at the declared size, and each part is hashed
+ * as it is copied in. That is one copy of the file rather than the two a
+ * separate assemble-then-hash would need, and the parts are consumed as a
+ * stream so only one of them is resident at a time. Nothing is stored unless
+ * all three checks hold, and the caller must not write the bytes anywhere until
+ * this returns: a digest-addressed key means a pre-verify write would poison
+ * the destination for every later honest upload of the same bytes.
  */
-export async function verifyDeclaredBytes(
+export async function assembleVerifiedBytes(
   parts: AsyncIterable<Readonly<{ partNumber: number; content: Uint8Array }>>,
   declared: Readonly<{ sha256: string; sizeBytes: number }>,
-): Promise<void> {
+): Promise<Uint8Array> {
+  const assembled = new Uint8Array(declared.sizeBytes);
   const hash = createHash("sha256");
-  let total = 0;
+  let offset = 0;
   let expected = 1;
   let count = 0;
   for await (const part of parts) {
@@ -544,15 +550,16 @@ export async function verifyDeclaredBytes(
     }
     expected += 1;
     count += 1;
-    total += part.content.byteLength;
     // Refuse as soon as the running total passes the declaration: there is no
-    // point hashing the rest of a file that can never be accepted.
-    if (total > declared.sizeBytes) {
+    // point copying the rest of a file that can never be accepted.
+    if (offset + part.content.byteLength > declared.sizeBytes) {
       throw new StandardError({
         code: "UNPROCESSABLE",
         params: { reason: "upload_size_mismatch" },
       });
     }
+    assembled.set(part.content, offset);
+    offset += part.content.byteLength;
     hash.update(part.content);
   }
   if (count === 0) {
@@ -561,7 +568,7 @@ export async function verifyDeclaredBytes(
       params: { reason: "upload_parts_incomplete" },
     });
   }
-  if (total !== declared.sizeBytes) {
+  if (offset !== declared.sizeBytes) {
     throw new StandardError({
       code: "UNPROCESSABLE",
       params: { reason: "upload_size_mismatch" },
@@ -573,4 +580,23 @@ export async function verifyDeclaredBytes(
       params: { reason: "upload_digest_mismatch" },
     });
   }
+  return assembled;
+}
+
+/**
+ * Removes a completed session's parts.
+ *
+ * Once the bytes live in the object store, the parts are a second copy of the
+ * same file. Keeping both doubles storage for every upload and never gives it
+ * back, so the parts go as soon as the blob row commits.
+ */
+export async function deleteUploadParts(
+  tx: PgTransactionClient,
+  input: Readonly<{ organizationId: string; sessionId: string }>,
+): Promise<void> {
+  await tx.query(
+    `delete from bakery.blob_upload_parts
+      where organization_id = $1 and session_id = $2`,
+    [input.organizationId, input.sessionId],
+  );
 }

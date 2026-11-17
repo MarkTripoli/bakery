@@ -57,6 +57,7 @@ import {
   type PartInput,
   type StartInput,
 } from "./blob-upload-handlers.ts";
+import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { registerCommentActions } from "./comments/routes.ts";
 import { extractArtifactVersion } from "./extraction.ts";
 import {
@@ -74,6 +75,8 @@ export type ArtifactResourceRouteOptions = {
   artifactPreviewOrigin?: string;
   /** A registry already built for MCP; omitted, the routes build their own. */
   artifactActions?: ArtifactActions;
+  /** Where completed uploads put their bytes; absent fails completion closed. */
+  blobStore?: OrganizationBlobStore;
 };
 
 const readPolicy = {
@@ -202,7 +205,7 @@ export function createArtifactActions(
   >,
 ): ArtifactActions {
   const handlers = createArtifactReadHandlers(options.secret);
-  const blobUploads = createBlobUploadHandlers();
+  const blobUploads = createBlobUploadHandlers(options.blobStore);
   const trustedRepositoryResolver = createTrustedRepositoryResolver();
   const postgresAuthority = new PostgresAuthorityRunner(options.database);
   const postgresCommandRunner = createPostgresCommandRunner();

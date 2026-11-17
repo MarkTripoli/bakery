@@ -18,7 +18,9 @@ import type { PgTransactionClient } from "@bakery/persistence";
 import { StandardError } from "@bakery/contracts/http";
 import { requireWorkTransaction } from "../work/work-transaction.ts";
 import {
+  assembleVerifiedBytes,
   completeUploadSession,
+  deleteUploadParts,
   lockUploadSession,
   lockUploadSessionForCompletion,
   putUploadPart,
@@ -27,8 +29,8 @@ import {
   recordBlob,
   startUploadSession,
   streamUploadParts,
-  verifyDeclaredBytes,
 } from "./blobs.ts";
+import type { OrganizationBlobStore } from "../catalog/storage-port.ts";
 import { sha256Bytes } from "./bytes.ts";
 
 export type StartInput = Readonly<{
@@ -48,7 +50,34 @@ type CompleteInput = Readonly<{
   id: string;
 }>;
 
-export function createBlobUploadHandlers() {
+/**
+ * How many completions may hold a whole file in memory at once.
+ *
+ * Completion materialises the file to hand it to the object store, so the peak
+ * is the declared size times this number, and the declared size may be 5 GiB.
+ * One is the only bound that keeps a single large upload from taking the host
+ * with it; the streaming port that removes the materialisation is its own
+ * change.
+ */
+const MAX_CONCURRENT_COMPLETIONS = 1;
+
+let completionsInFlight = 0;
+const completionWaiters: Array<() => void> = [];
+
+async function withCompletionSlot<T>(work: () => Promise<T>): Promise<T> {
+  while (completionsInFlight >= MAX_CONCURRENT_COMPLETIONS) {
+    await new Promise<void>((resolve) => completionWaiters.push(resolve));
+  }
+  completionsInFlight += 1;
+  try {
+    return await work();
+  } finally {
+    completionsInFlight -= 1;
+    completionWaiters.shift()?.();
+  }
+}
+
+export function createBlobUploadHandlers(blobStore?: OrganizationBlobStore) {
   return {
     /**
      * Opens an upload session that names the digest and size it promises.
@@ -147,36 +176,52 @@ export function createBlobUploadHandlers() {
         };
       }
 
-      // Verify before recording anything. The session declared a digest and a
+      if (!blobStore) {
+        // Without a store the bytes would have nowhere to live, and a blob row
+        // naming bytes that exist nowhere is a lie the registry cannot detect.
+        throw new StandardError({ code: "INTERNAL" });
+      }
+
+      // Verify before writing anything. The session declared a digest and a
       // size up front; until the parts are hashed, that declaration is a claim
-      // the client made, not a fact. Recording the blob from the declaration
-      // alone would store an identity nothing proved.
+      // the client made, not a fact.
       //
-      // The parts are streamed and hashed incrementally rather than assembled
-      // into one buffer: the declared size may be 5 GiB, and holding the parts
-      // plus a copy of them peaks at twice that. Verification still happens
-      // before `recordBlob`, so streaming does not reopen the hole this check
-      // exists to close.
-      await verifyDeclaredBytes(
-        streamUploadParts(transaction, {
+      // The order is binding: the object key is the digest, so a write that
+      // happened before verification would put unverified bytes at the address
+      // every later honest upload of that digest resolves to. Verify, then
+      // write, then record.
+      const blob = await withCompletionSlot(async () => {
+        const bytes = await assembleVerifiedBytes(
+          streamUploadParts(transaction, {
+            organizationId,
+            sessionId: session.id,
+          }),
+          { sha256: session.sha256, sizeBytes: Number(session.sizeBytes) },
+        );
+        await blobStore.putIfAbsent(
+          organizationId,
+          session.sha256,
+          bytes,
+        );
+        const recorded = await recordBlob(transaction, {
+          organizationId,
+          principalId,
+          sha256: session.sha256,
+          sizeBytes: Number(session.sizeBytes),
+          mediaType: session.mediaType,
+        });
+        await completeUploadSession(transaction, {
+          organizationId,
+          principalId,
+          sessionId: session.id,
+          blobId: recorded.id,
+        });
+        // The object store is the home now; the parts are a second copy.
+        await deleteUploadParts(transaction, {
           organizationId,
           sessionId: session.id,
-        }),
-        { sha256: session.sha256, sizeBytes: Number(session.sizeBytes) },
-      );
-
-      const blob = await recordBlob(transaction, {
-        organizationId,
-        principalId,
-        sha256: session.sha256,
-        sizeBytes: Number(session.sizeBytes),
-        mediaType: session.mediaType,
-      });
-      await completeUploadSession(transaction, {
-        organizationId,
-        principalId,
-        sessionId: session.id,
-        blobId: blob.id,
+        });
+        return recorded;
       });
       return {
         id: blob.id,

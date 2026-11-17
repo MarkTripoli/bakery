@@ -2,12 +2,12 @@ import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import { createHash } from "node:crypto";
 import { StandardError } from "../../packages/contracts/src/http.ts";
 import {
+  assembleVerifiedBytes,
   assertSessionConsistent,
   lockUploadSession,
   MAX_BLOB_BYTES,
   startUploadSession,
   UPLOAD_SESSION_TTL_MS,
-  verifyDeclaredBytes,
 } from "../../apps/server/src/modules/knowledge/blobs.ts";
 
 const bytes = (text: string) => new TextEncoder().encode(text);
@@ -28,15 +28,16 @@ async function* stream(
   for (const part of parts) yield part;
 }
 
-Deno.test("contiguous parts that match the declaration are accepted", async () => {
+Deno.test("contiguous parts that match the declaration join into the file", async () => {
   const parts = [
     { partNumber: 1, content: bytes("hello ") },
     { partNumber: 2, content: bytes("world") },
   ];
-  await verifyDeclaredBytes(stream(parts), {
+  const assembled = await assembleVerifiedBytes(stream(parts), {
     sha256: digestOf("hello world"),
     sizeBytes: 11,
   });
+  assertEquals(new TextDecoder().decode(assembled), "hello world");
 });
 
 Deno.test("a part numbered out of order is refused, not sorted into place", async () => {
@@ -46,7 +47,7 @@ Deno.test("a part numbered out of order is refused, not sorted into place", asyn
     { partNumber: 1, content: bytes("hello ") },
   ];
   const error = await assertRejects(() =>
-    verifyDeclaredBytes(stream(outOfOrder), {
+    assembleVerifiedBytes(stream(outOfOrder), {
       sha256: digestOf("hello world"),
       sizeBytes: 11,
     })
@@ -61,7 +62,7 @@ Deno.test("a gap in the ordinals is refused", async () => {
     { partNumber: 3, content: bytes("world") },
   ];
   const error = await assertRejects(() =>
-    verifyDeclaredBytes(stream(gap), {
+    assembleVerifiedBytes(stream(gap), {
       sha256: digestOf("hello world"),
       sizeBytes: 11,
     })
@@ -75,7 +76,7 @@ Deno.test("a duplicate ordinal is refused", async () => {
     { partNumber: 1, content: bytes("world") },
   ];
   await assertRejects(() =>
-    verifyDeclaredBytes(stream(duplicated), {
+    assembleVerifiedBytes(stream(duplicated), {
       sha256: digestOf("hello world"),
       sizeBytes: 11,
     })
@@ -84,7 +85,7 @@ Deno.test("a duplicate ordinal is refused", async () => {
 
 Deno.test("an empty session is refused rather than yielding zero bytes", async () => {
   const error = await assertRejects(() =>
-    verifyDeclaredBytes(stream([]), { sha256: digestOf(""), sizeBytes: 0 })
+    assembleVerifiedBytes(stream([]), { sha256: digestOf(""), sizeBytes: 0 })
   );
   assertEquals(refusal(error), "upload_parts_incomplete");
 });
@@ -92,14 +93,14 @@ Deno.test("an empty session is refused rather than yielding zero bytes", async (
 Deno.test("a size that differs from the declaration is refused before storage", async () => {
   const parts = [{ partNumber: 1, content: bytes("hello world") }];
   const tooShort = await assertRejects(() =>
-    verifyDeclaredBytes(stream(parts), {
+    assembleVerifiedBytes(stream(parts), {
       sha256: digestOf("hello world"),
       sizeBytes: 10,
     })
   );
   assertEquals(refusal(tooShort), "upload_size_mismatch");
   const tooLong = await assertRejects(() =>
-    verifyDeclaredBytes(stream(parts), {
+    assembleVerifiedBytes(stream(parts), {
       sha256: digestOf("hello world"),
       sizeBytes: 12,
     })
@@ -112,7 +113,7 @@ Deno.test("parts whose bytes miss the declared digest are refused", async () => 
   // that turns it into a fact.
   const parts = [{ partNumber: 1, content: bytes("hello world") }];
   const error = await assertRejects(() =>
-    verifyDeclaredBytes(stream(parts), {
+    assembleVerifiedBytes(stream(parts), {
       sha256: digestOf("something else"),
       sizeBytes: 11,
     })
@@ -138,7 +139,7 @@ Deno.test("verification consumes each part before the next is produced", async (
       yield part;
     }
   }
-  await verifyDeclaredBytes(invalidating(), {
+  await assembleVerifiedBytes(invalidating(), {
     sha256: digestOf("chunkchunkchunkchunk"),
     sizeBytes: 20,
   });
