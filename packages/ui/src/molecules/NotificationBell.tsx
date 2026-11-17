@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes } from "react";
 import {
   type SemanticNativeProps,
   withoutSemanticOwnerProps,
@@ -35,6 +35,12 @@ export type NotificationBellProps =
     readonly cap?: number;
     readonly open?: boolean;
     readonly state?: "default" | "open" | "focused";
+    /**
+     * The batched arrival sentence ("2 new notifications"). It rides a polite
+     * live region so a new arrival is announced without moving focus; the
+     * caller batches it, so three arrivals in a second are one announcement.
+     */
+    readonly arrivalAnnouncement?: string | null;
   };
 
 /**
@@ -50,6 +56,7 @@ export function NotificationBell(
     status = { state: "none" },
     unknownLabel,
     unreadLabel,
+    arrivalAnnouncement = null,
     ...unsafeProps
   }: NotificationBellProps,
 ) {
@@ -97,17 +104,15 @@ export function NotificationBell(
           )
           : null}
       </button>
+      <span
+        aria-live="polite"
+        aria-atomic="true"
+        className="bakery-visually-hidden"
+        data-ui-part="notificationArrival"
+        role="status"
+      >
+        {arrivalAnnouncement ?? ""}
+      </span>
     </span>
   );
-}
-
-export type NotificationBellPanelProps = {
-  readonly children: ReactNode;
-};
-
-/** @deprecated Kept so the placeholder's panel slot keeps compiling mid-build. */
-export function NotificationBellPanel(
-  { children }: NotificationBellPanelProps,
-) {
-  return <span className="ui-notification-bell__panel">{children}</span>;
 }

@@ -28,7 +28,7 @@ export const Contract: StoryObj = {
         />
         <NotificationBell
           label="Notifications"
-          status={{ state: "unread", count: 1 }}
+          status={{ state: "unread", count: 3 }}
           unreadLabel={unreadLabel}
           unknownLabel="Notifications, count unavailable"
         />

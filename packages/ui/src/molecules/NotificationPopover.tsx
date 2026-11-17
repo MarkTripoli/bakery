@@ -20,7 +20,8 @@ export type NotificationPopoverProps = {
   readonly retryLabel?: string;
   readonly failedLabel?: string;
   readonly loadingLabel?: string;
-  readonly children: ReactNode;
+  /** The rows; omitted for the loading, empty and failed states. */
+  readonly children?: ReactNode;
 };
 
 /**

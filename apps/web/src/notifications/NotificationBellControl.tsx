@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import * as UI from "@bakery/ui";
 import { useBakeryApi } from "../api/context.tsx";
@@ -34,6 +34,9 @@ export function NotificationBellControl() {
   const close = useCallback(() => setOpen(false), []);
 
   const accessibleLabel = translate("notifications.bell.label");
+  // One polite announcement per flush: the sentence carries the number that
+  // arrived since the last count, and the badge updates in place beside it.
+  const arrival = useArrivalAnnouncement(count.data?.unread ?? null);
 
   if (viewport === "phone") {
     return (
@@ -43,6 +46,7 @@ export function NotificationBellControl() {
         unreadLabel={(value) =>
           translate("notifications.bell.unread", { count: value })}
         unknownLabel={translate("notifications.bell.unknown")}
+        arrivalAnnouncement={arrival}
         onClick={() => {
           globalThis.location.assign(NOTIFICATIONS_PATH);
         }}
@@ -57,7 +61,7 @@ export function NotificationBellControl() {
       onOpenChange={setOpen}
       triggerAppearance="plain"
       triggerLabel={accessibleLabel}
-      trigger={<NotificationBellGlyph status={status} />}
+      trigger={<NotificationBellGlyph status={status} arrival={arrival} />}
     >
       <NotificationBellPopover
         status={status}
@@ -67,10 +71,46 @@ export function NotificationBellControl() {
   );
 }
 
+/**
+ * Announces only the *increase* in the unread count, and only after a short
+ * quiet period, so a burst of arrivals is one sentence rather than five. A
+ * decrease (someone read something) is silent: it is not news.
+ */
+function useArrivalAnnouncement(unread: number | null): string | null {
+  const { translate } = useI18n();
+  const [announcement, setAnnouncement] = useState<string | null>(null);
+  const previous = useRef<number | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const before = previous.current;
+    previous.current = unread;
+    if (unread === null || before === null || unread <= before) return;
+    if (timer.current !== null) globalThis.clearTimeout(timer.current);
+    const arrived = unread - before;
+    timer.current = globalThis.setTimeout(() => {
+      setAnnouncement(
+        translate("notifications.bell.newArrivals", { count: arrived }),
+      );
+      timer.current = null;
+    }, 800);
+    return () => {
+      if (timer.current !== null) {
+        globalThis.clearTimeout(timer.current);
+        timer.current = null;
+      }
+    };
+  }, [translate, unread]);
+
+  return announcement;
+}
+
 function NotificationBellGlyph({
+  arrival,
   status,
 }: {
   readonly status: ReturnType<typeof bellStatusOf>;
+  readonly arrival: string | null;
 }) {
   const { translate } = useI18n();
   return (
@@ -80,6 +120,7 @@ function NotificationBellGlyph({
       unreadLabel={(value) =>
         translate("notifications.bell.unread", { count: value })}
       unknownLabel={translate("notifications.bell.unknown")}
+      arrivalAnnouncement={arrival}
     />
   );
 }
