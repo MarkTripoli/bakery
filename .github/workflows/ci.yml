@@ -6,7 +6,14 @@ name: Bakery CI
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    # `edited` is here for one reason: a metadata-only fix (retitle, body edit)
+    # must clear without close+reopen. A rerun replays the stored event payload
+    # and so cannot re-read a new title; an edit is the only event that carries
+    # the current metadata (learnings/ci-retitle-never-reruns.xml). The
+    # classifier routes an `edited` event to the `metadata` route, so only the
+    # semantic-metadata lane and the aggregate run: a body fix never pays for a
+    # full CI run.
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
   schedule:
@@ -79,6 +86,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          GITHUB_EVENT_ACTION: ${{ github.event.action }}
         run: deno run --allow-env --allow-read --allow-write --allow-run=git scripts/ci/classify-changes.ts
   rails:
     name: fast / backend rails
@@ -2622,6 +2630,17 @@ jobs:
           if [[ "$ROUTE" == docs ]]; then
             [[ "$LANE_DOCS_VALIDATION" == success ]] || {
               echo "documentation lane did not succeed: $LANE_DOCS_VALIDATION" >&2
+              exit 1
+            }
+            exit 0
+          fi
+          if [[ "$ROUTE" == metadata ]]; then
+            # An edited pull request carries no new commit: only the title or
+            # body changed. The semantic-metadata lane re-read the live title and
+            # every other lane skipped, so the same required check reports a
+            # fresh verdict on the same head SHA. Nothing else may have run.
+            [[ "$LANE_SEMANTIC_METADATA" == success ]] || {
+              echo "semantic metadata lane did not succeed: $LANE_SEMANTIC_METADATA" >&2
               exit 1
             }
             exit 0

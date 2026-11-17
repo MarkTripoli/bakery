@@ -5,6 +5,7 @@ import {
   classifyNameStatusZ,
   parseNameStatusZ,
   routeForEvent,
+  routeForEventAction,
 } from "../../scripts/ci/classify-changes.ts";
 
 const entry = (status: string, ...paths: string[]) => ({ status, paths });
@@ -55,6 +56,24 @@ Deno.test("a pull request runs the gate and post-merge events run everything", (
   }
 });
 
+Deno.test("an edited pull request routes to metadata only, every other action keeps its route", () => {
+  // A title fix must clear without close+reopen; an edit carries no new commit,
+  // so only the semantic-metadata lane may run (learnings/ci-retitle-never-reruns.xml).
+  assertEquals(
+    routeForEventAction("gate", "pull_request", "edited"),
+    "metadata",
+  );
+  for (const action of ["opened", "synchronize", "reopened", undefined]) {
+    assertEquals(routeForEventAction("gate", "pull_request", action), "gate");
+  }
+  // An edit on any other event is not a pull-request edit.
+  assertEquals(routeForEventAction("full", "push", "edited"), "full");
+  assertEquals(
+    routeForEventAction("docs", "pull_request", "edited"),
+    "metadata",
+  );
+});
+
 Deno.test("the live aggregate admits docs and keeps full lanes fail-closed", async () => {
   const workflow = await Deno.readTextFile(".github/workflows/ci.yml");
   assertStringIncludes(workflow, 'if [[ "$ROUTE" == docs ]]; then');
@@ -72,6 +91,13 @@ Deno.test("the live aggregate admits docs and keeps full lanes fail-closed", asy
   );
   assert(workflow.includes("name: required / full-stack aggregate"));
   assertStringIncludes(workflow, 'if [[ "$ROUTE" == gate ]]; then');
+  // An edited pull request runs only the semantic-metadata lane, so the
+  // aggregate must admit that route and hold the lane to success.
+  assertStringIncludes(workflow, 'if [[ "$ROUTE" == metadata ]]; then');
+  assertStringIncludes(
+    workflow,
+    'echo "semantic metadata lane did not succeed: $LANE_SEMANTIC_METADATA"',
+  );
   assertStringIncludes(
     workflow,
     'echo "gate lane did not succeed: $lane_result"',
