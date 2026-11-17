@@ -44,8 +44,6 @@ import {
 } from "./postgres.ts";
 import {
   type FixedWorkflowStep,
-  insertRunSteps,
-  reviewLoopLimitsFor,
   stepReferencesEarlierOutput,
   workflowRequiresRepository,
 } from "./run-steps.ts";
@@ -58,17 +56,11 @@ import {
   evaluateLaneAdmission,
   type LaneCoordinationSnapshot,
 } from "./coordination-admission.ts";
-import {
-  type FrozenStepAgents,
-  resolveFrozenStepAgents,
-} from "./agent-run-admission.ts";
+import { type FrozenStepAgents } from "./agent-run-admission.ts";
 import { admitStagePolicy } from "./stage-admission.ts";
 import { ticketRequestBlocksRun } from "./ticket-run-guard.ts";
 import { pinEffectiveRepositoryRules } from "../repository-rules/pinned.ts";
-import {
-  assertPlanSatisfiesRules,
-  assertStepsSatisfyRules,
-} from "../workflows/rule-guard.ts";
+import { assertPlanSatisfiesRules } from "../workflows/rule-guard.ts";
 import { writePlanRun } from "../workflow-adapter/plan-admission.ts";
 import {
   type PlanAdmission,
@@ -1003,7 +995,6 @@ export async function createRunCommand(
   // row walk below is unreachable. The shape extractor stays for the callers
   // that legitimately read a frozen flat shape: migrations, the rule guard,
   // preset action steps, validation and the review-loop snapshot reader.
-  const steps: readonly FixedWorkflowStep[] = [];
   const planAdmission: PlanAdmission = await resolvePlanAdmission(
     transaction,
     {
@@ -1012,49 +1003,33 @@ export async function createRunCommand(
       profileAgentBindings: profile?.config.agentBindings,
     },
   );
+  // A plan run freezes no flat step list and no flat step agents: the engine
+  // appends each step as the plan decides it, from the plan sections below.
+  const steps: readonly FixedWorkflowStep[] = [];
+  const stepAgents: FrozenStepAgents = {};
 
-  let reviewLoop: ReviewLoopLimits | null = null;
-  let stepAgents: FrozenStepAgents = {};
-  if (planAdmission !== null) {
-    // A plan that reviews freezes its loop bounds like a flat run does, from
-    // the plan itself (its `repeat` bound); a plan without a review freezes none.
-    reviewLoop = planReviewLoopLimits(planAdmission.document);
-    // A plan that reviews and repairs needs the same effects a flat review
-    // loop does; a profile whose fixed policy denies one must fail here, not
-    // after implement spends.
-    if (
-      reviewLoop !== null && profile !== null &&
-      fixedPolicyDeniesSteps(profile.config, planAdmission.sites)
-    ) {
-      throw unprocessable(["repositoryProfileId"], "profile_effect_denied");
-    }
-    assertBudgetCoversReservations(
-      planAdmission.sites.map((site) => ({
-        key: site.qualifiedId,
-        action: site.action,
-      })),
-      planAdmission.stepAgents,
-      budgetLimitUsd,
-    );
-  } else {
-    // A review and repair loop runs checks and a review after implement, so a
-    // profile that cannot run them must fail here, not after implement spends.
-    reviewLoop = reviewLoopLimitsFor(workflow.normalized_spec);
-    if (
-      reviewLoop !== null && profile !== null &&
-      fixedPolicyDeniesSteps(profile.config, steps)
-    ) {
-      throw unprocessable(["repositoryProfileId"], "profile_effect_denied");
-    }
-
-    stepAgents = await resolveFrozenStepAgents(
-      transaction,
-      organizationId,
-      steps,
-      profile?.config.agentBindings,
-    );
-    assertBudgetCoversReservations(steps, stepAgents, budgetLimitUsd);
+  // A plan that reviews freezes its loop bounds from the plan itself (its
+  // `repeat` bound); a plan without a review freezes none.
+  const reviewLoop: ReviewLoopLimits | null = planReviewLoopLimits(
+    planAdmission.document,
+  );
+  // A plan that reviews and repairs needs the same effects a flat review loop
+  // does; a profile whose fixed policy denies one must fail here, not after
+  // implement spends.
+  if (
+    reviewLoop !== null && profile !== null &&
+    fixedPolicyDeniesSteps(profile.config, planAdmission.sites)
+  ) {
+    throw unprocessable(["repositoryProfileId"], "profile_effect_denied");
   }
+  assertBudgetCoversReservations(
+    planAdmission.sites.map((site) => ({
+      key: site.qualifiedId,
+      action: site.action,
+    })),
+    planAdmission.stepAgents,
+    budgetLimitUsd,
+  );
 
   const dependencies = await loadDependencies(
     transaction,
@@ -1117,18 +1092,14 @@ export async function createRunCommand(
   // The run's own steps must carry every check the pinned rules require; this
   // evaluates only the run being admitted, never a run already admitted.
   if (pinnedRules !== null) {
-    if (planAdmission === null) {
-      assertStepsSatisfyRules(pinnedRules, steps);
-    } else {
-      // A plan is read through its shape: a check counts only when it runs
-      // after the last revision on every path through the plan.
-      assertPlanSatisfiesRules(pinnedRules, planAdmission.document);
-    }
+    // A plan is read through its shape: a check counts only when it runs after
+    // the last revision on every path through the plan.
+    assertPlanSatisfiesRules(pinnedRules, planAdmission.document);
   }
   // What a plan run freezes beside the sections every run has, read back the
   // way the engine reads it before anything is inserted. The `$task` is the
   // task as it is at admission.
-  const planSections = planAdmission === null ? null : await writePlanRun({
+  const planSections = await writePlanRun({
     document: planAdmission.document,
     task: toTask(
       {
@@ -1146,7 +1117,7 @@ export async function createRunCommand(
   });
   const builtSnapshot = buildRunSnapshot({
     executionMode: input.executionMode,
-    inputs: planSections === null ? inputs : planSections.inputs,
+    inputs: planSections.inputs,
     workflow: {
       id: workflow.id,
       revision: workflow.revision,
@@ -1180,7 +1151,7 @@ export async function createRunCommand(
     admission: { ...builtSnapshot.admission, status, reason },
     coordination: lane.snapshot,
   };
-  const snapshot: RunSnapshot = planSections === null ? laneSnapshot : {
+  const snapshot: RunSnapshot = {
     ...laneSnapshot,
     runtime: planSections.runtime,
     task: planSections.task,
@@ -1231,13 +1202,8 @@ export async function createRunCommand(
   );
   const run = inserted.rows[0];
   if (!run) throw new Error("RUN_INSERT_FAILED");
-  // A plan run has no steps here (the engine appends each one as the plan
-  // decides it), so nothing is inserted for it.
-  await insertRunSteps(transaction, {
-    organizationId,
-    runId: run.id,
-    steps,
-  });
+  // A plan run has no flat step rows: the engine appends each step as the plan
+  // decides it, so there is nothing to insert here.
   // Pin the exact version each declared input resolved to, now, so a later
   // publication of the same path cannot change what this run reads.
   await pinDeclaredRunInputs(transaction, {
