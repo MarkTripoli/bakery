@@ -33,7 +33,7 @@ function seedIssues(fx: TicketFixture, count: number) {
   }
 }
 
-function post(fx: TicketFixture, path: string, body?: unknown) {
+function post(fx: TicketFixture, path: string, body: unknown = {}) {
   return ticketCall(fx, "POST", path, { body });
 }
 
@@ -107,10 +107,12 @@ Deno.test("issue 69 ops: externalTickets.list answers the tickets linked to one 
     const linksOfSecond = otherLinkId < secondLinkId
       ? [otherTask, taskId]
       : [taskId, otherTask];
-    assertEquals(
-      [mine.items[0].id, mine.items[0].linkedTaskIds],
-      [second.id, linksOfSecond],
-    );
+    // Only the ids are asserted: `mine.items[0]` is not stable, because the
+    // two tickets were previewed in one call and share a created_at, so which
+    // of them is first is the read's tie-break on a UUID.
+    const secondRow = mine.items.find((item) => item.id === second.id);
+    assert(secondRow, "the shared ticket is on the page");
+    assertEquals(secondRow.linkedTaskIds, linksOfSecond);
     assertEquals((await forTask(otherTask)).items.map((item) => item.id), [
       second.id,
     ]);

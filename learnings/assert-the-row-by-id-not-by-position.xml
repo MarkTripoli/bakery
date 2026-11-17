@@ -1,0 +1,40 @@
+<learning scope="project">
+  <title>Assert the row you mean by id; assert order only when order is the property</title>
+  <trigger>
+    A test indexes a page or a list - `items[0]`, `rows[0]`, `page.items[0]` - to reach
+    the row it cares about, or asserts a list of ids in the order it happened to write
+    or seed them.
+  </trigger>
+  <symptom>
+    The test passes, then fails on the next run with the same rows in the opposite
+    order. Nothing changed between runs. It reads as flake and gets re-run until green,
+    which is how a real ordering bug becomes invisible.
+  </symptom>
+  <cause>
+    `items[0]` is a hidden claim about ordering. A read ordered by a timestamp has no
+    temporal answer when the rows were written in a single transaction, previewed in a
+    single call, or seeded in a loop - PostgreSQL's `now()` is the transaction's start,
+    so those rows share an instant exactly, and the query's tie-break (typically
+    `<timestamp> desc, id desc`) then decides by a UUID. The expectation came from write
+    order; the read never promised write order.
+  </cause>
+  <rule>
+    Reach the row you mean by id (`items.find((item) => item.id === wanted)`) and assert
+    what is true of that row. Assert a sequence only where the order IS the property
+    under test, and then derive the expectation from the read's documented ordering
+    rather than from the order the test created the rows.
+  </rule>
+  <evidence>
+    Bakery #69 / PR 540, `tests/integration/read-the-tickets-linked-to-one-task_test.ts`.
+    Two defects of this class in one small case, found by running it, not by any static
+    gate:
+    (1) links written by three HTTP calls - `ticket_task_links.created_at` defaults to
+    `now()`, so two of them shared an instant and `created_at desc, id desc` broke the
+    tie with a UUID; first run 158 passed / 0 failed, second run 157 / 1 with the two
+    task ids swapped. Fixed by deriving the expected order from the ids the 201s return.
+    (2) the same mistake one level up - two tickets cached by ONE preview call share
+    `created_at`, and `mine.items[0].id === second.id` held on one run and failed on the
+    next. Fixed by finding the row by id, after which three consecutive runs were green.
+    See also `now-is-the-transaction-start.xml`, which covers the link-level instance.
+  </evidence>
+</learning>
