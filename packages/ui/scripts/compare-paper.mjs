@@ -968,6 +968,148 @@ function requireProvenance(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+/**
+ * The baseline a commit ships must be the baseline its own tree produces.
+ *
+ * A pull request proves parity against a merge base. A push to main has no
+ * predecessor to compare against (`HEAD` is the base), and asking git for
+ * `merge-base --all HEAD origin/main` there answers with every base candidate in
+ * the history, so the parity path refuses with "Ambiguous or unavailable
+ * provenance merge base" - a refusal that looks like a defect. Instead, main
+ * proves what it can: every pinned source input and the declared source digest
+ * are recomputed from the commit's own bytes, and every case's reference image
+ * must hash to the digest the commit declares for it. A hand-edited reference
+ * PNG or a manifest whose digest does not describe its inputs is refused; a
+ * regenerated-and-committed baseline passes by construction.
+ */
+function selfConsistentBaselineProvenance({
+  git,
+  repositoryRoot,
+  baselinePath,
+  headCommit,
+}) {
+  const path = relative(root, baselinePath).replaceAll("\\", "/");
+  requireProvenance(
+    git(["ls-tree", "--name-only", headCommit, "--", path]) !== "",
+    "The baseline is absent from the commit under self-consistency",
+  );
+  const cache = new Map();
+  const read = (input) => {
+    sourcePath(input);
+    if (!cache.has(input)) {
+      cache.set(
+        input,
+        execFileSync("git", ["show", `${headCommit}:${input}`], {
+          cwd: repositoryRoot,
+          maxBuffer: 256 * 1024 * 1024,
+          stdio: ["ignore", "pipe", "pipe"],
+        }),
+      );
+    }
+    return cache.get(input);
+  };
+  const { manifest } = provenanceDocument(read(path));
+  requireProvenance(
+    manifest !== null && typeof manifest === "object",
+    "The baseline manifest is malformed",
+  );
+  const issues = [];
+  // `auth` is the manifest's own `source`; any other profile is named in
+  // `sourceProfiles` and resolved through `resolveSourceProfile` with a case
+  // that carries it, which is how the parity gate reads them too.
+  const profileCases = hasProfiles(manifest)
+    ? [
+      {},
+      ...Object.keys(manifest.sourceProfiles ?? {}).map((name) => ({
+        sourceProfile: name,
+      })),
+    ]
+    : [{}];
+  for (const designCase of profileCases) {
+    const name = designCase.sourceProfile ?? "auth";
+    try {
+      const profile = resolveSourceProfile(manifest, designCase);
+      const { source } = profile;
+      if (!Array.isArray(source.inputs) || source.inputs.length === 0) {
+        issues.push(`${name}: no pinned source inputs`);
+        continue;
+      }
+      if (
+        new Set(source.inputs).size !== source.inputs.length ||
+        !source.inputs.includes(source.manifestPath)
+      ) {
+        issues.push(`${name}: missing or duplicate pinned source inputs`);
+        continue;
+      }
+      // The same material the parity gate recomputes, recomputed here from the
+      // commit's own bytes, so main can prove the digest describes its inputs.
+      const material = source.inputs.map((input) =>
+        `${input}\0${sha256(read(input))}\n`
+      );
+      // A profile-less case (the default `auth` source) never folds launch
+      // options into its identity; only a named profile does.
+      if (designCase.sourceProfile !== undefined) {
+        material.push(
+          `browserLaunchOptions\0${
+            JSON.stringify(paperBrowserLaunchOptions(designCase))
+          }\n`,
+        );
+      }
+      if (sha256(material.join("")) !== source.digest) {
+        issues.push(`${name}: source digest mismatch`);
+      }
+      const revisionPrefix = `paper:${
+        sha256(read(source.manifestPath)).slice(0, 8)
+      }; mock:${source.digest.slice(0, 8)}; rendered:`;
+      if (
+        !source.revision.startsWith(revisionPrefix) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(
+          source.revision.slice(revisionPrefix.length),
+        )
+      ) issues.push(`${name}: revision binding mismatch`);
+    } catch (error) {
+      issues.push(
+        `${name}: ${
+          error instanceof Error ? error.message.split("\n")[0] : String(error)
+        }`,
+      );
+    }
+  }
+  // Every reference image the manifest declares must hash to what it declares,
+  // read from the commit rather than the working tree.
+  const cases = Array.isArray(manifest.cases) ? manifest.cases : [];
+  if (cases.length === 0) issues.push("the manifest declares no cases");
+  for (const entry of cases) {
+    if (!entry || typeof entry !== "object") continue;
+    const id = String(entry.id ?? "a case");
+    const imagePath = entry.imagePath;
+    const declared = entry.imageSha256;
+    if (typeof imagePath !== "string" || !imagePath) {
+      issues.push(`${id}: reference image has no path`);
+      continue;
+    }
+    if (typeof declared !== "string" || !/^[a-f0-9]{64}$/.test(declared)) {
+      issues.push(`${id}: reference image has no declared digest`);
+      continue;
+    }
+    try {
+      if (sha256(read(imagePath)) !== declared) {
+        issues.push(
+          `${id}: reference image does not match its declared digest`,
+        );
+      }
+    } catch {
+      issues.push(`${id}: reference image is missing from the commit`);
+    }
+  }
+  if (issues.length) {
+    throw new Error(
+      `The main baseline is not self-consistent: ${issues.join("; ")}`,
+    );
+  }
+  return { status: "self-consistent", commit: headCommit };
+}
+
 // A V-0 refresh is genuine only when the snapshot's declared identity is bound
 // to its own V-0 input bytes: the digest is recomputed from `source.inputs` as
 // the V-0 renderer does (no browser launch options), must differ from the
@@ -1120,6 +1262,24 @@ function profileBindings(snapshot, name, original) {
 
 // The repository is the authority for absence/history, never a caller-supplied
 // null predecessor or an ignored task ledger. Options support isolated Git tests.
+//
+// Which proof a run owes is decided HERE, at the one seam every capture goes
+// through, and is tested there: a test that only calls
+// `repositoryBaselineProvenance` with `mode` spelled out proves the check works
+// when asked, and says nothing about whether anything asks. Hardcoding the mode
+// at this line is the exact regression that could reach main unnoticed.
+export function comparePaperProvenance({
+  baselinePath,
+  eventName = process.env.GITHUB_EVENT_NAME,
+  ...options
+} = {}) {
+  return repositoryBaselineProvenance({
+    baselinePath,
+    ...options,
+    mode: eventName === "push" ? "self-consistency" : "parity",
+  });
+}
+
 export function repositoryBaselineProvenance({
   repositoryRoot = root,
   baselinePath = manifestProfile("auth").baselinePath,
@@ -1127,8 +1287,19 @@ export function repositoryBaselineProvenance({
     (process.env.GITHUB_BASE_REF
       ? `origin/${process.env.GITHUB_BASE_REF}`
       : "origin/main"),
+  // A push to main has no predecessor commit to compare against: `HEAD` is the
+  // base. A pull request can prove PARITY against the base; main can only prove
+  // SELF-CONSISTENCY - that the baseline the commit ships is the baseline its
+  // own tree produces. The mode is REQUIRED, with no default: a caller that
+  // forgets it fails loudly instead of silently taking the wrong proof, which is
+  // the failure this gate exists to prevent.
+  mode,
 } = {}) {
   try {
+    requireProvenance(
+      mode === "parity" || mode === "self-consistency",
+      "A baseline provenance run must state whether it proves parity or self-consistency",
+    );
     const git = (args) =>
       execFileSync("git", args, {
         cwd: repositoryRoot,
@@ -1140,6 +1311,21 @@ export function repositoryBaselineProvenance({
       git(["rev-parse", "--is-shallow-repository"]) === "false",
       "Incomplete shallow provenance history",
     );
+    // A main push proves its own tree, so there is no merge base to resolve and
+    // no history to walk: the commit under test is the baseline's authority.
+    if (mode === "self-consistency") {
+      const headCommit = git(["rev-parse", "HEAD"]);
+      requireProvenance(
+        /^[a-f0-9]{40}$/.test(headCommit),
+        "Unavailable commit for baseline self-consistency",
+      );
+      return selfConsistentBaselineProvenance({
+        git,
+        repositoryRoot,
+        baselinePath,
+        headCommit,
+      });
+    }
     const bases = git(["merge-base", "--all", "HEAD", comparisonRef]).split(
       "\n",
     );
@@ -2391,8 +2577,21 @@ export async function comparePaper(
       : fullBaseline;
     if (only.length) report.partial = { only };
     // Selection cannot bypass history or hide mutations in unselected profiles.
-    const provenance = repositoryBaselineProvenance({ baselinePath });
+    // A push has no base to prove parity against, so it proves self-consistency
+    // instead; every other caller keeps the parity gate unchanged.
+    const provenance = comparePaperProvenance({ baselinePath });
     report.provenance = provenance;
+    // A blocked provenance is decided from the commit alone, so there is nothing
+    // a browser could add: refuse before rendering hundreds of cases. This also
+    // keeps the decision reachable from a test without a browser, which is what
+    // makes the entry point's mode selection provable rather than assumed.
+    if (provenance.status === "blocked") {
+      throw new Error(
+        `Paper baseline provenance ${provenance.status}: ${
+          (provenance.issues ?? []).join("; ")
+        }`,
+      );
+    }
     browser = await chromium.launch({
       headless: true,
       ...(isSiteManifest(manifestName) ? enterpriseLaunchOptions() : {}),
