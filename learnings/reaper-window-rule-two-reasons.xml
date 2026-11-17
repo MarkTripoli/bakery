@@ -9,8 +9,8 @@ THE INVARIANT: with abandonmentMs >= UPLOAD_SESSION_TTL_MS, the abandonment
 condition can never reap a session that is not also past expires_at. Proof in
 three lines: expires_at is set once at session open (created_at + TTL, never
 extended); the reaper's last-activity bound L >= created_at by construction;
-abandonment fires when L <= now - abandonmentMs, and abandonmentMs >= TTL
-gives expires_at = created_at + TTL <= L + TTL <= now. QED.
+abandonment fires when L &lt;= now - abandonmentMs, and abandonmentMs &gt;= TTL
+gives expires_at = created_at + TTL &lt;= L + TTL &lt;= now. QED.
 
 WHY IT MATTERS BEYOND THE RESUME RACE: during the #514→#517 inter-merge
 window, lockUploadSession still carried a denylist that caught reaped
