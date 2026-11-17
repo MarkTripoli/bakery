@@ -392,6 +392,16 @@ export function validateDescription(kind: Kind, body: string): string[] {
         errors.push(
           `Verification: "${item}" is both ticked and marked N/A; keep one.`,
         );
+      } else if (
+        na &&
+        /\bN\/A:[^\n]*\b(?:not yet|pending|in progress|awaiting|waiting|to be (?:reviewed|run|done)|tbd|todo|later)\b/i
+          .test(line)
+      ) {
+        // N/A means the item does not apply to this change. Work that has
+        // simply not happened yet is pending, and pending keeps the gate red.
+        errors.push(
+          `Verification pending: "${item}" says N/A but means not done yet; N/A is only for items that don't apply.`,
+        );
       } else if (!ticked && !na) {
         errors.push(
           `Verification pending: "${item}" is not ticked or marked N/A: <reason>.`,
