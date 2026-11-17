@@ -118,6 +118,13 @@ export function validateContextDocument(
   const slots = new Set<string>();
   const paths = new Set<string>();
   for (const input of document.inputs) {
+    // A slot is how the reader knows WHAT it is reading, so an empty one is as
+    // unsafe as a path that climbs: it renders a table row with a blank name and
+    // nothing downstream can tell what the file is. Reached in practice when a
+    // slot is declared optional upstream and defaults to nothing.
+    if (input.slot.trim() === "") {
+      return { reason: "context_input_slot_missing" };
+    }
     if (!isSafeRelativePath(input.path)) {
       return { reason: "context_input_path_unsafe" };
     }
