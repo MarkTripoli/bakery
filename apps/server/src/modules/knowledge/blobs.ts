@@ -299,14 +299,28 @@ export async function recordBlob(
     sizeBytes: number;
     mediaType: string;
   }>,
-): Promise<{ readonly id: string; readonly created: boolean }> {
+): Promise<{
+  readonly id: string;
+  readonly created: boolean;
+  /**
+   * What the blob is, echoed rather than re-queried.
+   *
+   * The row was verified against these very values, so returning them states the
+   * result of the check that just passed — a second read could only disagree by
+   * being stale.
+   */
+  readonly sha256: string;
+  readonly sizeBytes: number;
+  readonly mediaType: string;
+  readonly createdAt: Date;
+}> {
   assertDeclared(input.sha256, input.sizeBytes);
-  const inserted = await tx.query<{ id: string }>(
+  const inserted = await tx.query<{ id: string; createdAt: Date }>(
     `insert into bakery.blobs
        (organization_id, sha256, size_bytes, media_type, created_by_id)
      values ($1, $2, $3, $4, $5)
      on conflict (organization_id, sha256) do nothing
-     returning id`,
+     returning id, created_at as "createdAt"`,
     [
       input.organizationId,
       input.sha256,
@@ -315,15 +329,27 @@ export async function recordBlob(
       input.principalId,
     ],
   );
-  if (inserted.rows[0]) return { id: inserted.rows[0].id, created: true };
-  const existing = await tx.query<{ id: string }>(
-    `select id from bakery.blobs
+  const shape = {
+    sha256: input.sha256,
+    sizeBytes: input.sizeBytes,
+    mediaType: input.mediaType,
+  };
+  if (inserted.rows[0]) {
+    return {
+      id: inserted.rows[0].id,
+      created: true,
+      createdAt: inserted.rows[0].createdAt,
+      ...shape,
+    };
+  }
+  const existing = await tx.query<{ id: string; createdAt: Date }>(
+    `select id, created_at as "createdAt" from bakery.blobs
       where organization_id = $1 and sha256 = $2`,
     [input.organizationId, input.sha256],
   );
   const row = existing.rows[0];
   if (!row) throw new StandardError({ code: "INTERNAL" });
-  return { id: row.id, created: false };
+  return { id: row.id, created: false, createdAt: row.createdAt, ...shape };
 }
 
 /**

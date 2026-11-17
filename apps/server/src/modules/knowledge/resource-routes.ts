@@ -30,6 +30,8 @@ import {
   ArtifactImplementedAction,
   artifactImplementedActions,
   assertImplementedActionRegistry,
+  BlobUploadImplementedAction,
+  blobUploadImplementedActions,
 } from "@bakery/contracts/implemented-actions";
 import type { AuthorizedActionContext } from "../auth/application/authority.ts";
 import { authorize } from "../auth/application/authorize.ts";
@@ -50,6 +52,11 @@ import {
 } from "./import.ts";
 import { artifactContentActionDefinition } from "./content-action.ts";
 import { createArtifactReadHandlers } from "./reads.ts";
+import {
+  createBlobUploadHandlers,
+  type PartInput,
+  type StartInput,
+} from "./blob-upload-handlers.ts";
 import { registerCommentActions } from "./comments/routes.ts";
 import { extractArtifactVersion } from "./extraction.ts";
 import {
@@ -89,6 +96,18 @@ function requireArtifactPermission(
   }
   authorize(authority, permission, { action });
 }
+
+/**
+ * Uploading bytes is a write open to any organization member, which is what the
+ * catalog declares for these three actions. Separate from `readPolicy` because
+ * the registry asserts the runtime access matches the catalog's, so reusing the
+ * read policy here is a startup failure rather than a subtle drift.
+ */
+const blobWritePolicy = {
+  type: ActionKind.Command,
+  access: ActionAccess.OrganizationMember,
+  organizationContext: OrganizationContextPolicy.RequiredAuthenticatedContext,
+} as const;
 
 const extractionPolicy = {
   ...readPolicy,
@@ -176,6 +195,7 @@ export function createArtifactActions(
   >,
 ): ArtifactActions {
   const handlers = createArtifactReadHandlers(options.secret);
+  const blobUploads = createBlobUploadHandlers();
   const trustedRepositoryResolver = createTrustedRepositoryResolver();
   const postgresAuthority = new PostgresAuthorityRunner(options.database);
   const postgresCommandRunner = createPostgresCommandRunner();
@@ -418,10 +438,50 @@ export function createArtifactActions(
       policy: { ...readPolicy, type: ActionKind.Command, sessionOnly: true },
       handler: (context) => revokePreview(context),
     })
-    .register(artifactContentActionDefinition);
+    .register(artifactContentActionDefinition)
+    // Blob uploads: the session names what it promises, parts are keyed by
+    // ordinal, and completion verifies before recording. The client supplies
+    // bytes and the digest it claims for them; the server checks the claim.
+    .register({
+      name: BlobUploadImplementedAction.BlobUploadStart,
+      method: HttpMethod.Post,
+      path: "/v1/blobs/uploads",
+      input: contractSchemas.BlobUploadStart,
+      output: contractSchemas.BlobUploadSession,
+      policy: blobWritePolicy,
+      handler: (context, input) =>
+        blobUploads.startUpload(context, input as StartInput),
+    })
+    .register({
+      name: BlobUploadImplementedAction.BlobUploadPart,
+      method: HttpMethod.Put,
+      path: "/v1/blobs/uploads/:id/parts/:partNumber",
+      input: contractSchemas.BlobUploadPart,
+      output: contractSchemas.BlobUploadSession,
+      policy: blobWritePolicy,
+      handler: (context, input) =>
+        blobUploads.putPart(context, {
+          ...(input as PartInput),
+          id: context.params.id,
+          partNumber: context.params.partNumber,
+        }),
+    })
+    .register({
+      name: BlobUploadImplementedAction.BlobUploadComplete,
+      method: HttpMethod.Post,
+      path: "/v1/blobs/uploads/:id/complete",
+      input: contractSchemas.BlobUploadComplete,
+      output: contractSchemas.Blob,
+      policy: blobWritePolicy,
+      handler: (context) =>
+        blobUploads.completeUpload(context, { id: context.params.id }),
+    });
   registerCommentActions(registry, options.secret);
   assertRegisteredActions(registry);
-  assertImplementedActionRegistry(registry, artifactImplementedActions);
+  assertImplementedActionRegistry(registry, [
+    ...artifactImplementedActions,
+    ...blobUploadImplementedActions,
+  ]);
   return { registry, authority, handlers };
 }
 
