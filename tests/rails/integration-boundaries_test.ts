@@ -349,6 +349,22 @@ Deno.test("no script or workflow passes a mode that ignores a regression", async
       false,
       `${script} must not opt out of failing on a regression`,
     );
+    // A script that reads the environment needs --allow-env, and the flag has to
+    // be present in the command rather than assumed: B1 accepts a ledger through
+    // BAKERY_INTEGRATION_LEDGER_JSON, and omitting the flag made the command
+    // throw instead of report. Only the scripts that read it are held to this.
+    const source = await Deno.readTextFile(
+      `${root}scripts/${script.replace("rails:", "")}.ts`.replace(
+        "integration-boundaries",
+        "check-integration-boundaries",
+      ).replace("provider-literals", "check-provider-literals"),
+    );
+    if (source.includes("Deno.env")) {
+      assert(
+        command.includes("--allow-env"),
+        `${script} reads Deno.env and needs --allow-env`,
+      );
+    }
   }
   // And the CI job runs both, not just the test lane that proves the comparison.
   const workflow = await Deno.readTextFile(
