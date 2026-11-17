@@ -885,7 +885,7 @@ Deno.test("compatibility migration approves only its exact generated delta", () 
     "465e9476c657f880d1b4057040d661a4ade1d10c",
   ];
   const approvedDigest =
-    "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685";
+    "sha256:7e4e457c805485ab1f60b08ce27d39ddab856e952ab3a85e23aafc7c8a24607e";
   const rejectedPriorDigests = [
     // The approval displaced by this re-bind (the estimate for main
     // 1f1ba04f) is now only a prior approval, so it must not pass again.

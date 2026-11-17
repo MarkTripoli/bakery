@@ -5,7 +5,7 @@
   ],
   "status": "approved",
   "allowBreaking": true,
-  "targetCompatibilityDigest": "sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685",
+  "targetCompatibilityDigest": "sha256:7e4e457c805485ab1f60b08ce27d39ddab856e952ab3a85e23aafc7c8a24607e",
   "reason": "#233 owner-directed split of Members & access, rebind by dev-web on 2026-11-17 under the owner's standing breaking-change authorization. Two changes ride together: five actions move from Admin to 'Initiating principal or Admin' so a member can create and manage their own service accounts and tokens (principals.list, principals.create, accessTokens.list, accessTokens.create, accessTokens.revoke), and Principal gains a required nullable createdByPrincipalId so an Admin can see who created a service account. principals.create also takes a distinct principal:create permission so it no longer collides with the Admin-only principals.update. The projection is additive by value but the field is required like its neighbour disabledAt, which is what moves the digest.",
   "priorApprovals": [
     {
