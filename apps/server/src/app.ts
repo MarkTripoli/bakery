@@ -87,6 +87,7 @@ import {
   type EventsSocketRegistry,
 } from "./modules/work/events-socket.ts";
 import {
+  createNotificationRoutes,
   createTicketRoutes,
   createWorkTaskHandlers,
 } from "./modules/work/index.ts";
@@ -633,6 +634,14 @@ export function createApp(options: {
       }),
       factIndex: options.ticketFactIndex ?? createTicketFactIndex(),
       budget: options.config.budget,
+    }),
+  );
+  app.route(
+    "/",
+    createNotificationRoutes({
+      database: options.pgDatabase,
+      session: tokenSession,
+      cursorSecret: options.config.auth.secret,
     }),
   );
   app.route(

@@ -5028,6 +5028,146 @@ export const clientManifest = {
       "implemented": true
     },
     {
+      "group": "Conversation",
+      "method": "GET",
+      "path": "/v1/notifications",
+      "action": "notifications.list",
+      "access": "Current member",
+      "permission": "notification:read",
+      "input": "NotificationCursorQuery",
+      "output": "Page<Notification>",
+      "event": "",
+      "mcp": "bakery_notifications_list",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "INVALID_CURSOR",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
+      "method": "GET",
+      "path": "/v1/notifications/count",
+      "action": "notifications.count",
+      "access": "Current member",
+      "permission": "notification:read",
+      "input": "Empty",
+      "output": "NotificationCount",
+      "event": "",
+      "mcp": "bakery_notifications_count",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
+      "method": "GET",
+      "path": "/v1/notifications/{id}",
+      "action": "notifications.get",
+      "access": "Current member",
+      "permission": "notification:read",
+      "input": "IdPath",
+      "output": "Notification",
+      "event": "",
+      "mcp": "bakery_notifications_get",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
+      "method": "GET",
+      "path": "/v1/notifications/{id}/target",
+      "action": "notifications.resolveTarget",
+      "access": "Current member",
+      "permission": "notification:read",
+      "input": "IdPath",
+      "output": "NotificationTarget",
+      "event": "",
+      "mcp": "bakery_notifications_resolveTarget",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
+      "method": "PATCH",
+      "path": "/v1/notifications/{id}",
+      "action": "notifications.setRead",
+      "access": "Current member",
+      "permission": "notification:write",
+      "input": "NotificationReadUpdate",
+      "output": "Notification",
+      "event": "notification.read_changed",
+      "mcp": "bakery_notifications_setRead",
+      "idempotency": "Idempotency-Key + expectedCasVersion required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "VERSION_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
+      "group": "Conversation",
+      "method": "POST",
+      "path": "/v1/notifications/read-all",
+      "action": "notifications.markAllRead",
+      "access": "Current member",
+      "permission": "notification:write",
+      "input": "NotificationMarkAllRead",
+      "output": "NotificationMarkAllReadResult",
+      "event": "notification.read_changed",
+      "mcp": "bakery_notifications_markAllRead",
+      "idempotency": "Idempotency-Key required",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "SCOPE_REQUIRED",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "STATE_CONFLICT",
+        "VERSION_CONFLICT",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "MALFORMED_REQUEST"
+      ],
+      "organizationContext": "required_authenticated_context",
+      "implemented": true
+    },
+    {
       "group": "Artifacts",
       "method": "GET",
       "path": "/v1/artifacts/{id}/comments",
@@ -11471,6 +11611,12 @@ export const clientManifest = {
             "conversationParticipants.list",
             "conversationTurns.get",
             "conversationTurns.cancel",
+            "notifications.list",
+            "notifications.count",
+            "notifications.get",
+            "notifications.resolveTarget",
+            "notifications.setRead",
+            "notifications.markAllRead",
             "artifactComments.listAcrossVersions",
             "organizations.list",
             "organizations.create",
@@ -18319,6 +18465,81 @@ export const clientManifest = {
       "properties": {},
       "additionalProperties": false,
       "description": "Completes a session with no body: the session already carries the declared digest, size and media type. Completing is idempotent, so a client that never saw the first response can retry without storing a second blob."
+    },
+    "NotificationCursorQuery": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "cursor": {
+          "description": "NotificationCursorQuery.cursor must contain at most 512 UTF-8 bytes.",
+          "type": "string",
+          "maxLength": 65536,
+          "x-utf8-max-bytes": 512
+        },
+        "limit": {
+          "description": "NotificationCursorQuery.limit must be at most 100.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "filter": {
+          "description": "Local view of the one inbox: all notifications, only unread ones, or only items where someone mentioned the recipient. Omitted means all.",
+          "type": "string",
+          "enum": [
+            "all",
+            "unread",
+            "mentions"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "description": "Bounded filters over the authenticated recipient's own notification inbox, with cursor pagination and the three local views (all, unread, mentions)."
+    },
+    "NotificationReadUpdate": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the notification to change; it must belong to the authenticated recipient in the current organization, else the call is refused as not found."
+        },
+        "read": {
+          "type": "boolean",
+          "description": "True marks the item read, false marks it unread again. Marking read is idempotent; marking unread clears read_at so the row is unread exactly as it was before."
+        },
+        "expectedCasVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "NotificationReadUpdate.expectedCasVersion must be at least 1."
+        }
+      },
+      "required": [
+        "id",
+        "read",
+        "expectedCasVersion"
+      ],
+      "additionalProperties": false,
+      "description": "Explicit read or unread mutation for one notification the recipient owns, guarded by the revision the client last saw."
+    },
+    "NotificationMarkAllRead": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "readBefore": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "The snapshot cutoff the client is marking up to, normally the newest item in the list it showed when the action was pressed. Only rows created at or before this instant are marked read, so anything arriving during the action stays unread."
+        }
+      },
+      "required": [
+        "readBefore"
+      ],
+      "additionalProperties": false,
+      "description": "Snapshot-bounded bulk mark-all-read for the recipient's own inbox: arrivals after the cutoff are deliberately left unread."
     },
     "UserPreferences": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -29872,6 +30093,12 @@ export const clientManifest = {
                   "conversationParticipants.list",
                   "conversationTurns.get",
                   "conversationTurns.cancel",
+                  "notifications.list",
+                  "notifications.count",
+                  "notifications.get",
+                  "notifications.resolveTarget",
+                  "notifications.setRead",
+                  "notifications.markAllRead",
                   "artifactComments.listAcrossVersions",
                   "organizations.list",
                   "organizations.create",
@@ -45452,6 +45679,12 @@ export const clientManifest = {
             "conversationParticipants.list",
             "conversationTurns.get",
             "conversationTurns.cancel",
+            "notifications.list",
+            "notifications.count",
+            "notifications.get",
+            "notifications.resolveTarget",
+            "notifications.setRead",
+            "notifications.markAllRead",
             "artifactComments.listAcrossVersions",
             "organizations.list",
             "organizations.create",
@@ -52771,6 +53004,8 @@ export const clientManifest = {
               "externalEffect:read",
               "conversationTurn:read",
               "conversationTurn:write",
+              "notification:read",
+              "notification:write",
               "organization:readSelf",
               "organization:create",
               "organization:read",
@@ -64186,6 +64421,656 @@ export const clientManifest = {
       ],
       "additionalProperties": false,
       "description": "A stored file identified by its organization and SHA-256. Two uploads of the same bytes in one organization are the same blob, so a repeated completion returns the existing record rather than storing the content twice."
+    },
+    "Notification": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Stable UUID identifying this notification; it addresses the item inside the recipient's own inbox and never grants access to the destination."
+        },
+        "organizationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the organization whose inbox holds this item."
+        },
+        "recipientId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the one principal whose inbox this item is in; always the authenticated caller on every response."
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "mention",
+            "comment_mention",
+            "comment",
+            "run_completed",
+            "run_failed",
+            "step_failed",
+            "approval_requested",
+            "question_asked",
+            "document_version"
+          ],
+          "description": "Stable event code that selects the wording; never a rendered sentence and never an internal workflow action name."
+        },
+        "targetKind": {
+          "type": "string",
+          "enum": [
+            "conversation_message",
+            "run",
+            "run_step",
+            "approval",
+            "question",
+            "document_version",
+            "comment"
+          ],
+          "description": "The typed kind of destination this row opens: a conversation message, run, run step, approval, question, document version or comment."
+        },
+        "targetId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "UUID of the destination in targetKind; it is reauthorized when the item is opened and never carries access by itself."
+        },
+        "targetAnchor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Optional exact anchor inside the destination, such as a message sequence or step key, so the row opens at the exact place; null means open at the top."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Notification.targetAnchor may be null in this transport value."
+        },
+        "conversationId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "UUID of the conversation the destination lives in, or null when the destination is not in a conversation."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Notification.conversationId may be null in this transport value."
+        },
+        "runId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "UUID of the run the destination lives in, or null, so a run guard can reauthorize before anything about the run is shown."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Notification.runId may be null in this transport value."
+        },
+        "taskId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "UUID of the task the destination lives in, or null."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Notification.taskId may be null in this transport value."
+        },
+        "actor": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "principalId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                  "description": "UUID of the person who caused the event; identity stays stable even if their display name changes."
+                },
+                "displayName": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "description": "NotificationActor.displayName must contain at most 200 characters."
+                },
+                "avatarUrl": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 2048,
+                      "description": "NotificationActor.avatarUrl must contain at most 2048 characters."
+                    },
+                    {
+                      "type": "null",
+                      "description": "Null indicates that the value is unavailable."
+                    }
+                  ],
+                  "description": "NotificationActor.avatarUrl may be null in this transport value."
+                }
+              },
+              "required": [
+                "principalId",
+                "displayName",
+                "avatarUrl"
+              ],
+              "additionalProperties": false,
+              "description": "Who caused the event, for an avatar and a name in the sentence; null when no person caused it, such as a run that failed on its own."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "Notification.actor may be null in this transport value."
+        },
+        "destination": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 500,
+                  "description": "NotificationDestination.title must contain at most 500 characters."
+                },
+                {
+                  "type": "null",
+                  "description": "Null indicates that the value is unavailable."
+                }
+              ],
+              "description": "NotificationDestination.title may be null in this transport value."
+            },
+            "available": {
+              "type": "boolean",
+              "description": "Whether the destination still resolves for this recipient. When false the title is withheld and the client shows the no-longer-available state with the way back."
+            }
+          },
+          "required": [
+            "title",
+            "available"
+          ],
+          "additionalProperties": false,
+          "description": "Safe destination summary: the title for the row's second line and whether it is still reachable, without exposing a protected title for an unavailable target."
+        },
+        "read": {
+          "type": "boolean",
+          "description": "Whether the item has been marked read; opening a row marks it read once its destination opens, and a manual choice always sticks."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Monotonic revision of this item's read state; clients discard an older response or event than the revision they already hold."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+          "description": "UTC timestamp when the item entered the inbox, which is also its place in the newest-first order."
+        }
+      },
+      "required": [
+        "id",
+        "organizationId",
+        "recipientId",
+        "kind",
+        "targetKind",
+        "targetId",
+        "targetAnchor",
+        "conversationId",
+        "runId",
+        "taskId",
+        "actor",
+        "destination",
+        "read",
+        "revision",
+        "createdAt"
+      ],
+      "additionalProperties": false,
+      "description": "One item in a person's notification inbox: a stable kind, a typed destination that is reauthorized on open, a safe destination title, read state and a revision."
+    },
+    "Page<Notification>": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "items": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "Stable UUID identifying this notification; it addresses the item inside the recipient's own inbox and never grants access to the destination."
+              },
+              "organizationId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the organization whose inbox holds this item."
+              },
+              "recipientId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the one principal whose inbox this item is in; always the authenticated caller on every response."
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "mention",
+                  "comment_mention",
+                  "comment",
+                  "run_completed",
+                  "run_failed",
+                  "step_failed",
+                  "approval_requested",
+                  "question_asked",
+                  "document_version"
+                ],
+                "description": "Stable event code that selects the wording; never a rendered sentence and never an internal workflow action name."
+              },
+              "targetKind": {
+                "type": "string",
+                "enum": [
+                  "conversation_message",
+                  "run",
+                  "run_step",
+                  "approval",
+                  "question",
+                  "document_version",
+                  "comment"
+                ],
+                "description": "The typed kind of destination this row opens: a conversation message, run, run step, approval, question, document version or comment."
+              },
+              "targetId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the destination in targetKind; it is reauthorized when the item is opened and never carries access by itself."
+              },
+              "targetAnchor": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Optional exact anchor inside the destination, such as a message sequence or step key, so the row opens at the exact place; null means open at the top."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Notification.targetAnchor may be null in this transport value."
+              },
+              "conversationId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "UUID of the conversation the destination lives in, or null when the destination is not in a conversation."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Notification.conversationId may be null in this transport value."
+              },
+              "runId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "UUID of the run the destination lives in, or null, so a run guard can reauthorize before anything about the run is shown."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Notification.runId may be null in this transport value."
+              },
+              "taskId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                    "description": "UUID of the task the destination lives in, or null."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Notification.taskId may be null in this transport value."
+              },
+              "actor": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "principalId": {
+                        "type": "string",
+                        "format": "uuid",
+                        "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                        "description": "UUID of the person who caused the event; identity stays stable even if their display name changes."
+                      },
+                      "displayName": {
+                        "type": "string",
+                        "maxLength": 200,
+                        "description": "NotificationActor.displayName must contain at most 200 characters."
+                      },
+                      "avatarUrl": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 2048,
+                            "description": "NotificationActor.avatarUrl must contain at most 2048 characters."
+                          },
+                          {
+                            "type": "null",
+                            "description": "Null indicates that the value is unavailable."
+                          }
+                        ],
+                        "description": "NotificationActor.avatarUrl may be null in this transport value."
+                      }
+                    },
+                    "required": [
+                      "principalId",
+                      "displayName",
+                      "avatarUrl"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Who caused the event, for an avatar and a name in the sentence; null when no person caused it, such as a run that failed on its own."
+                  },
+                  {
+                    "type": "null",
+                    "description": "Null indicates that the value is unavailable."
+                  }
+                ],
+                "description": "Notification.actor may be null in this transport value."
+              },
+              "destination": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 500,
+                        "description": "NotificationDestination.title must contain at most 500 characters."
+                      },
+                      {
+                        "type": "null",
+                        "description": "Null indicates that the value is unavailable."
+                      }
+                    ],
+                    "description": "NotificationDestination.title may be null in this transport value."
+                  },
+                  "available": {
+                    "type": "boolean",
+                    "description": "Whether the destination still resolves for this recipient. When false the title is withheld and the client shows the no-longer-available state with the way back."
+                  }
+                },
+                "required": [
+                  "title",
+                  "available"
+                ],
+                "additionalProperties": false,
+                "description": "Safe destination summary: the title for the row's second line and whether it is still reachable, without exposing a protected title for an unavailable target."
+              },
+              "read": {
+                "type": "boolean",
+                "description": "Whether the item has been marked read; opening a row marks it read once its destination opens, and a manual choice always sticks."
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Monotonic revision of this item's read state; clients discard an older response or event than the revision they already hold."
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$",
+                "description": "UTC timestamp when the item entered the inbox, which is also its place in the newest-first order."
+              }
+            },
+            "required": [
+              "id",
+              "organizationId",
+              "recipientId",
+              "kind",
+              "targetKind",
+              "targetId",
+              "targetAnchor",
+              "conversationId",
+              "runId",
+              "taskId",
+              "actor",
+              "destination",
+              "read",
+              "revision",
+              "createdAt"
+            ],
+            "additionalProperties": false,
+            "description": "One item in a person's notification inbox: a stable kind, a typed destination that is reauthorized on open, a safe destination title, read state and a revision."
+          },
+          "description": "Page<Notification>.items must contain at most 100 items."
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 512,
+              "description": "Opaque continuation cursor value."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that no continuation page remains."
+            }
+          ],
+          "description": "Opaque continuation cursor, or null at the end."
+        },
+        "prevCursor": {
+          "description": "Page<Notification>.prevCursor may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Page<Notification>.prevCursor must contain at most 512 UTF-8 bytes.",
+              "x-utf8-max-bytes": 512
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        },
+        "highwater": {
+          "description": "Page<Notification>.highwater may be null in this transport value.",
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(?:0|[1-9][0-9]*)$",
+              "description": "Page<Notification>.highwater is a bounded decimal string.",
+              "x-bigint-minimum": "0"
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false,
+      "description": "Cursor page of Notification."
+    },
+    "NotificationCount": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "unread": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "NotificationCount.unread must be at least 0."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "NotificationCount.unread may be null in this transport value."
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Revision of the inbox snapshot this count was read at, or null alongside an unavailable count; clients discard an older count than the revision they hold."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "NotificationCount.revision may be null in this transport value."
+        }
+      },
+      "required": [
+        "unread",
+        "revision"
+      ],
+      "additionalProperties": false,
+      "description": "The authenticated recipient's unread total in one organization, with the revision it was read at; unread and revision are null when no authoritative count is available."
+    },
+    "NotificationTarget": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "available",
+            "unavailable"
+          ],
+          "description": "Whether the stored destination still resolves and the recipient is still authorized to open it; unavailable means the client shows the no-longer-available state."
+        },
+        "targetKind": {
+          "type": "string",
+          "enum": [
+            "conversation_message",
+            "run",
+            "run_step",
+            "approval",
+            "question",
+            "document_version",
+            "comment"
+          ],
+          "description": "The typed kind of the resolved destination, echoed so the client can pick the right view."
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 2048,
+              "description": "NotificationTarget.path must contain at most 2048 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "NotificationTarget.path may be null in this transport value."
+        },
+        "anchor": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 200,
+              "description": "NotificationTarget.anchor must contain at most 200 characters."
+            },
+            {
+              "type": "null",
+              "description": "Null indicates that the value is unavailable."
+            }
+          ],
+          "description": "NotificationTarget.anchor may be null in this transport value."
+        }
+      },
+      "required": [
+        "status",
+        "targetKind",
+        "path",
+        "anchor"
+      ],
+      "additionalProperties": false,
+      "description": "The authoritative answer to \"can I still open this notification's destination\": a validated internal route and anchor when reachable, or an unavailable status."
+    },
+    "NotificationMarkAllReadResult": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "marked": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "NotificationMarkAllReadResult.marked must be at least 0."
+        },
+        "remainingUnread": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "NotificationMarkAllReadResult.remainingUnread must be at least 0."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "The inbox revision after the change, so the client can order it against other responses."
+        }
+      },
+      "required": [
+        "marked",
+        "remainingUnread",
+        "revision"
+      ],
+      "additionalProperties": false,
+      "description": "Outcome of a snapshot-bounded mark-all-read: how many items were marked, how many are still unread, and the resulting revision."
     }
   }
 } as const;
