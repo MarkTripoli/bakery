@@ -36,9 +36,9 @@ Use - None. when no real choice was made. -->
 
 ## Evidence
 
-<!-- A table of the checks you ran at the head commit: at most eight rows,
-one short result each. Up to four screenshot links. At most 40 words of prose. -->
+<!-- Only what a reader can't get from CI: UI screenshots or a recording
+(at most four images; link a folder for more), and the new tests, with one line
+each on what they prove. No format, lint or type checks. Use - None. when there
+is nothing to show. -->
 
-| check | result |
-| ----- | ------ |
-|       |        |
+- None.

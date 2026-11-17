@@ -27114,6 +27114,30 @@ const transportSchemas = {
       "schemaSource": "docs/technical-design/transport-schemas.json",
       "capabilities": [],
       "description": "Deterministic, model-free action that renders the frozen task brief to canonical JSON and publishes it as an immutable artifact through the worker byte boundary."
+    },
+    "session.tools": {
+      "inputFields": {},
+      "outputFields": {
+        "catalog": "json"
+      },
+      "capabilities": [
+        "session.tools"
+      ],
+      "description": "Built-in host control action listing exactly the operations this session may call, derived from the credential's scopes and the live lease. The catalog is a JSON array of {name, scope, description}, sorted by name, and is a view of current authority rather than a pinned snapshot. Not user-definable code and not an extra YAML workflow primitive."
+    },
+    "session.call": {
+      "inputFields": {
+        "tool": "string",
+        "arguments": "json"
+      },
+      "outputFields": {
+        "outcome": "enum(allowed|denied|unknown)",
+        "result": "json"
+      },
+      "capabilities": [
+        "session.tools"
+      ],
+      "description": "Built-in host control action invoking one operation the session was offered, through the lease-protected tool route. arguments is validated against the target operation's own input schema, so it is carried as JSON rather than restated here. outcome is keyed on the error class: a typed policy refusal is denied, any other failure is unknown. Not user-definable code and not an extra YAML workflow primitive."
     }
   },
   "workerEvents": {
