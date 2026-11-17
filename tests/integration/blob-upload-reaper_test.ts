@@ -23,6 +23,7 @@ import {
   recordBlob,
 } from "../../apps/server/src/modules/knowledge/blobs.ts";
 import { StandardError } from "../../packages/contracts/src/http.ts";
+import { sha256Bytes } from "../../apps/server/src/modules/knowledge/bytes.ts";
 
 type Fixture = Parameters<Parameters<typeof withWorkerFixture>[0]>[0];
 
@@ -93,7 +94,7 @@ Deno.test("an expired session loses its parts and keeps its record", async () =>
     // The bytes are the storage being reclaimed.
     assertEquals(await partsOf(fixture, expired), 0);
     // The session is a record of what was attempted, so it survives as one.
-    assertEquals(await stateOf(fixture, expired), "abandoned");
+    assertEquals(await stateOf(fixture, expired), "expired");
   });
 });
 
@@ -282,16 +283,215 @@ Deno.test("a completion and a reaper racing never corrupt a legitimate upload", 
       // next run takes it. What must never happen is a half-finished session.
       const state = await stateOf(fixture, sessionId);
       assertEquals(
-        state === "completed" || state === "abandoned" || state === "pending",
+        state === "completed" || state === "expired" || state === "pending",
         true,
       );
       if (state === "pending") {
         // The reaper's next run must be able to finish the job.
         const swept = await reapAbandonedBlobUploads(fixture.pgDatabase);
         assertEquals(swept.abandoned >= 1, true);
-        assertEquals(await stateOf(fixture, sessionId), "abandoned");
+        assertEquals(await stateOf(fixture, sessionId), "expired");
         assertEquals(await partsOf(fixture, sessionId), 0);
       }
     }
+  });
+});
+
+Deno.test("the reaper never deletes another organization's parts", async () => {
+  await withWorkerFixture(async (fixture) => {
+    // Two organizations, each with an expired session and parts. The reaper is
+    // the one delete path that is not scoped by a caller's organization, so a
+    // broader predicate would turn it into a cross-tenant delete primitive.
+    const otherOrganization = await fixture.pgDatabase.query<{ id: string }>(
+      `insert into bakery.organizations (id, slug, name, created_at, updated_at)
+       values (gen_random_uuid(), $1, $1, now(), now()) returning id`,
+      [`reaper-other-${crypto.randomUUID()}`],
+    );
+    const otherOrganizationId = otherOrganization.rows[0].id;
+    const mine = await seedSession(fixture, { hours: -1, parts: 2 });
+    const other = await fixture.pgDatabase.query<{ id: string }>(
+      `insert into bakery.blob_upload_sessions
+         (organization_id, created_by_id, sha256, size_bytes, media_type,
+          expires_at)
+       values ($1, $2, $3, 11, 'text/plain', now() + interval '12 hours')
+       returning id`,
+      [otherOrganizationId, fixture.principalId, "0".repeat(64)],
+    );
+    const theirs = other.rows[0].id;
+    await fixture.pgDatabase.query(
+      `insert into bakery.blob_upload_parts
+         (organization_id, session_id, part_number, sha256, size_bytes, content)
+       values ($1, $2, 1, $3, 5, $4)`,
+      [otherOrganizationId, theirs, "0".repeat(64), new Uint8Array([9])],
+    );
+
+    const result = await reapAbandonedBlobUploads(fixture.pgDatabase);
+
+    // Only this organization's expired session is reclaimed. The other
+    // organization's session is live, so the sweep must not reach it at all -
+    // and in particular must not delete its parts just because it is deleting
+    // parts in the same run.
+    assertEquals(result.abandoned, 1);
+    const remaining = await fixture.pgDatabase.query<{
+      mine: string;
+      theirs: string;
+    }>(
+      `select count(*) filter (where session_id = $1)::text as mine,
+              count(*) filter (where session_id = $2)::text as theirs
+         from bakery.blob_upload_parts
+        where session_id = any($3::uuid[])`,
+      [mine, theirs, [mine, theirs]],
+    );
+    assertEquals(remaining.rows[0].mine, "0");
+    assertEquals(remaining.rows[0].theirs, "1");
+    // Nothing was deleted across the boundary: both sessions still exist.
+    const sessions = await fixture.pgDatabase.query<{ count: string }>(
+      `select count(*)::text as count from bakery.blob_upload_sessions
+        where id = any($1::uuid[])`,
+      [[mine, theirs]],
+    );
+    assertEquals(sessions.rows[0].count, "2");
+
+    // The fixture tears down its own organization; this one is ours to remove,
+    // and the creator foreign key is `on delete restrict`, so it has to go
+    // before the principal does.
+    await fixture.pgDatabase.query(
+      `delete from bakery.blob_upload_sessions where organization_id = $1`,
+      [otherOrganizationId],
+    );
+    await fixture.pgDatabase.query(
+      `delete from bakery.organizations where id = $1`,
+      [otherOrganizationId],
+    );
+  });
+});
+
+Deno.test("a session with recent parts is left alone by the abandonment window", async () => {
+  await withWorkerFixture(async (fixture) => {
+    // Inside the deadline, so only the window could reach it, and the window is
+    // the lifetime, so it cannot. This pins the ordering the safety argument
+    // rests on: the window may only make the sweep more conservative.
+    const live = await seedSession(fixture, { hours: 12, parts: 1 });
+
+    const result = await reapAbandonedBlobUploads(fixture.pgDatabase);
+
+    assertEquals(result.abandoned, 0);
+    assertEquals(await partsOf(fixture, live), 1);
+    assertEquals(await stateOf(fixture, live), "pending");
+  });
+});
+
+Deno.test("a window shorter than the session lifetime is refused, not clamped", async () => {
+  await withWorkerFixture(async (fixture) => {
+    // A shorter window would reclaim an upload a client is still entitled to
+    // finish. Refusing a configuration is honest; clamping it silently would
+    // hide the misconfiguration that is the whole hazard.
+    let refused = false;
+    try {
+      await reapAbandonedBlobUploads(
+        fixture.pgDatabase,
+        BLOB_UPLOAD_REAP_BATCH,
+        1,
+        1_000,
+      );
+    } catch (error) {
+      refused =
+        (error as Error).message === "BLOB_UPLOAD_REAP_WINDOW_TOO_SHORT";
+    }
+    assertEquals(refused, true);
+  });
+});
+
+Deno.test("a completed session stays readable long after its window closed", async () => {
+  await withWorkerFixture(async (fixture) => {
+    // Completion is idempotent and the blob it names is immutable, so expiry
+    // bounds the upload, not the reading back of a finished result. Before the
+    // guard was inverted this was unreachable: a denylist refused on
+    // `expiresAt <= now` without asking whether anything was left to accept.
+    const chunks = [
+      new TextEncoder().encode("hello "),
+      new TextEncoder().encode("world"),
+    ];
+    const whole = new Uint8Array([...chunks[0], ...chunks[1]]);
+    const digest = await sha256Bytes(whole);
+    const created = await fixture.pgDatabase.query<{ id: string }>(
+      `insert into bakery.blob_upload_sessions
+         (organization_id, created_by_id, sha256, size_bytes, media_type,
+          expires_at)
+       values ($1, $2, $3, $4, 'text/plain', now() + interval '1 hour')
+       returning id`,
+      [fixture.organizationId, fixture.principalId, digest, whole.byteLength],
+    );
+    const sessionId = created.rows[0].id;
+    for (const [index, chunk] of chunks.entries()) {
+      await fixture.pgDatabase.query(
+        `insert into bakery.blob_upload_parts
+           (organization_id, session_id, part_number, sha256, size_bytes, content)
+         values ($1, $2, $3, $4, $5, $6)`,
+        [
+          fixture.organizationId,
+          sessionId,
+          index + 1,
+          await sha256Bytes(chunk),
+          chunk.byteLength,
+          chunk,
+        ],
+      );
+    }
+
+    // Finish it while it is live, then close the window behind it.
+    await completeLikeTheHandler(fixture, sessionId);
+    await fixture.pgDatabase.query(
+      `update bakery.blob_upload_sessions
+          set expires_at = now() - interval '1 hour'
+        where organization_id = $1 and id = $2`,
+      [fixture.organizationId, sessionId],
+    );
+
+    // A retry must still reach the session, so the handler can answer with the
+    // blob it produced rather than refusing a finished upload.
+    const session = await withPgTransaction(
+      fixture.pgDatabase,
+      (tx) =>
+        lockUploadSession(tx, {
+          organizationId: fixture.organizationId,
+          principalId: fixture.principalId,
+          sessionId,
+        }),
+    );
+    assertEquals(session.state, "completed");
+    assertEquals(session.completedBlobId !== null, true);
+
+    // And the reaper leaves it alone: a completed session is not pending.
+    const result = await reapAbandonedBlobUploads(fixture.pgDatabase);
+    assertEquals(result.abandoned, 0);
+    assertEquals(await stateOf(fixture, sessionId), "completed");
+  });
+});
+
+Deno.test("a reaped session refuses a late part with a named reason", async () => {
+  await withWorkerFixture(async (fixture) => {
+    const sessionId = await seedSession(fixture, { hours: -1, parts: 1 });
+    await reapAbandonedBlobUploads(fixture.pgDatabase);
+
+    let refused: StandardError | undefined;
+    try {
+      await withPgTransaction(
+        fixture.pgDatabase,
+        (tx) =>
+          lockUploadSession(tx, {
+            organizationId: fixture.organizationId,
+            principalId: fixture.principalId,
+            sessionId,
+          }),
+      );
+    } catch (error) {
+      refused = error as StandardError;
+    }
+    assertEquals(refused instanceof StandardError, true);
+    assertEquals(refused?.code, "STATE_CONFLICT");
+    // The reason is what tells a client the difference between "you are too
+    // late" and "someone else finished this".
+    assertEquals(refused?.params?.reason, "upload_session_expired");
   });
 });

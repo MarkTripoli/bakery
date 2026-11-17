@@ -50,7 +50,7 @@ export type UploadSessionRow = Readonly<{
   sha256: string;
   sizeBytes: bigint;
   mediaType: string;
-  state: "pending" | "completed" | "abandoned";
+  state: "pending" | "completed" | "abandoned" | "expired";
   expiresAt: Date;
   completedBlobId: string | null;
 }>;
@@ -139,10 +139,27 @@ export async function lockUploadSession(
   // contradictory row is not a lifecycle question: it is data that cannot be
   // true, and it must not be reported as "this session is already finished".
   assertSessionConsistent(normalizeRaw(session));
-  if (session.state === "completed") {
+  // An allowlist, not a denylist. A denylist names the states that are refused
+  // and therefore silently admits every state a later change invents, which is
+  // how a terminal state becomes writable. The two states this function admits
+  // are named, and anything else is refused with the reason it is known by.
+  //
+  // `completed` is admitted on purpose, forever: completion is idempotent and
+  // the blob it names is immutable, so a retry long after the upload window has
+  // closed must still reach the branch that answers with that blob. Expiry
+  // bounds the upload, not the reading back of a completed result.
+  if (session.state === "abandoned" || session.state === "expired") {
+    throw new StandardError({
+      code: "STATE_CONFLICT",
+      params: { reason: "upload_session_expired" },
+    });
+  }
+  if (session.state !== "pending" && session.state !== "completed") {
     throw new StandardError({ code: "STATE_CONFLICT" });
   }
-  if (session.state === "abandoned" || session.expiresAt <= new Date()) {
+  // Only a session still accepting parts can run out of time; a completed one
+  // has nothing left to accept.
+  if (session.state === "pending" && session.expiresAt <= new Date()) {
     throw new StandardError({
       code: "STATE_CONFLICT",
       params: { reason: "upload_session_expired" },
