@@ -144,4 +144,6 @@
   <entry file="assert-the-row-by-id-not-by-position.xml" scope="project" />
   <entry file="database-name-is-not-database-identity.xml" scope="project" />
   <entry file="generated-file-without-its-source.xml" scope="project" />
+  <entry file="a-rail-that-only-passed-is-untested.xml" scope="process" />
+  <entry file="name-the-writer-when-declaring-the-field.xml" scope="project" />
 </learnings>
