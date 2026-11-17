@@ -39,6 +39,26 @@ export async function read<T = Json>(
   return await response.json() as T;
 }
 
+/** A ticket as the external-ticket routes render it, for the fields a test reads. */
+export type TicketView = {
+  id: string;
+  number: string | null;
+  requirementsDigest: string;
+  latestReadiness: {
+    verdict: string;
+    version: number;
+    checks: { reason: string }[];
+  } | null;
+  activeRequest: {
+    id: string;
+    intent: string;
+    disposition: string;
+    dispositionReason: string | null;
+  } | null;
+  linkedTaskIds?: string[];
+  linkedTaskCount?: number;
+};
+
 /** One request as the fixture's Admin unless `cookie` says otherwise. */
 export function ticketCall(
   fx: Pick<TicketFixture, "f" | "organizationId">,
