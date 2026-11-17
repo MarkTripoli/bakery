@@ -1867,7 +1867,7 @@
   "settings.audit.operation.auth.twoFactor.disable": "Two-factor sign-in turned off",
   "settings.audit.operation.auth.twoFactor.regenerateBackupCodes": "Backup codes regenerated",
   "settings.orgAccess.organization": "Organization",
-  "settings.orgAccess.title": "Members & access",
+  "settings.orgAccess.title": "Members",
   "settings.orgAccess.tab.members": "Members",
   "settings.orgAccess.serviceAccounts.title": "Service accounts & tokens",
   "settings.orgAccess.serviceAccounts.description": "Automation that acts for {organization}. Each one carries its own token.",

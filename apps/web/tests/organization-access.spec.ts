@@ -85,6 +85,7 @@ function principal(id: string, displayName: string, type = "human"): Body {
   return {
     id,
     principalType: type,
+    createdByPrincipalId: null,
     displayName,
     disabledAt: null,
     createdAt: STAMP,
@@ -388,7 +389,7 @@ for (
       const world = fullWorld();
       await accessFixture(page, world);
       await page.goto("/settings/organization/access");
-      await expect(page.locator("main h1")).toHaveText("Members & access");
+      await expect(page.locator("main h1")).toHaveText("Members");
       await expect(page.getByTestId("org-access-members")).toContainText(
         "Ada Rivera",
       );
@@ -397,9 +398,15 @@ for (
           page.getByRole("heading", { name: /Members · 3 people/ }),
         ).toBeVisible();
       } else {
-        // A phone moves the counts into the page summary.
+        // A phone moves the counts into the page summary. The section heading
+        // is level 2: the page title is Members too, now that Invitations is
+        // a tab of its own (issue 233, owner-directed split).
         await expect(
-          page.getByRole("heading", { name: "Members", exact: true }),
+          page.getByRole("heading", {
+            name: "Members",
+            exact: true,
+            level: 2,
+          }),
         )
           .toBeVisible();
         await expect(page.getByText("3 people", { exact: true }))
@@ -446,9 +453,13 @@ for (
           };
         });
       const editBorder = await borderOf(`org-access-edit-${M_VIEWER}`);
+      // The destructive comparison lives on the service accounts page, where
+      // the token rows are now (issue 233, split).
+      await page.goto("/settings/organization/service-accounts");
       const revokeBorder = await borderOf(`org-access-revoke-${TOK_1}`);
       expect(editBorder.border).not.toBe(revokeBorder.border);
       expect(editBorder.label).not.toBe(revokeBorder.label);
+      await page.goto("/settings/organization/access");
       // A person has ONE row however many roles they hold: the scoped role
       // sits inside the member's row beside the organization one, named by
       // its resource, rather than in a nameless duplicate (issue 233, fix 2).
@@ -468,12 +479,18 @@ for (
       await expect(page.getByTestId(`org-access-invitation-${INV_1}`))
         .toContainText("Organization · Guest");
       await page.getByRole("tab", { name: "Members", exact: true }).click();
+      // Service accounts and tokens are their own page (issue 233,
+      // owner-directed split).
+      await page.goto("/settings/organization/service-accounts");
+      await expect(page.locator("main h1"))
+        .toHaveText("Service accounts & tokens");
       await expect(page.getByTestId("org-access-account-" + BOT_PRINCIPAL))
         .toContainText("ci-deployer");
       // A token reads as a labelled value, never a bare prefix
       // (issue 233, fix 7).
       await expect(page.getByTestId(`org-access-token-${TOK_1}`))
         .toContainText("ending 9d2f");
+      await page.goto("/settings/organization/access");
       await expect(page.getByTestId("org-access-clients"))
         .toContainText("Bakery CLI");
       // The page never scrolls sideways, on a phone least of all.
@@ -504,10 +521,14 @@ for (
       // The empty line keeps its sentence; the action already on screen is the
       // action, so no second button repeats it (issue 233, round 2).
       await expect(page.getByTestId("org-access-invite-empty")).toHaveCount(0);
+      // Service accounts and tokens moved to their own page (issue 233,
+      // owner-directed split).
+      await page.goto("/settings/organization/service-accounts");
       await expect(page.getByTestId("org-access-accounts"))
         .toContainText("No service accounts yet");
       await expect(page.getByTestId("org-access-new-account-empty"))
         .toHaveCount(0);
+      await page.goto("/settings/organization/access");
       await expect(page.getByTestId("org-access-clients"))
         .toContainText("No connected clients");
       await expect(page.getByTestId("org-access-clients"))
@@ -517,6 +538,7 @@ for (
       await expect(page.getByTestId("org-access-invite")).toBeVisible();
 
       // The section's own action creates the first service account.
+      await page.goto("/settings/organization/service-accounts");
       await page.getByTestId("org-access-new-account").click();
       const form = page.getByTestId("org-access-account-form");
       await form.getByLabel("Name").fill("release-bot");
@@ -584,8 +606,11 @@ for (
       await expect(page.getByTestId("org-access-members")).toHaveCount(0);
       expect(sent(world, "GET", `/v1/organizations/${ORG}/invitations`))
         .toHaveLength(0);
-      expect(sent(world, "GET", "/v1/access-tokens")).toHaveLength(0);
-      expect(sent(world, "GET", "/v1/access-bindings")).toHaveLength(0);
+      // A member does read their own service accounts and tokens now: the
+      // page is theirs (issue 233, owner-directed split). What stays Admin
+      // only is the member directory, invitations and scoped bindings.
+      expect(sent(world, "GET", `/v1/organizations/${ORG}/memberships`))
+        .toHaveLength(0);
     });
 
     test("a failed read shows an error and retry recovers", async ({ page }) => {
@@ -638,7 +663,8 @@ for (
     test("a service account token is shown once, then revoked", async ({ page }) => {
       const world = fullWorld();
       await accessFixture(page, world);
-      await page.goto("/settings/organization/access");
+      // Tokens live on the service accounts page (issue 233, split).
+      await page.goto("/settings/organization/service-accounts");
       await page.getByTestId("org-access-new-token-action").click();
       await page.getByLabel("Token name").fill("release");
       await page.getByLabel("Scope").selectOption("bakery:read");

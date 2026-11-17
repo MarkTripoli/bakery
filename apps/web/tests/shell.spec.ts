@@ -807,6 +807,7 @@ test("the account and organization triggers stay one row when a name is long, an
       body: JSON.stringify({
         principalId: "00000000-0000-4000-8000-000000000001",
         principalType: "human",
+        createdByPrincipalId: null,
         displayName: LONG_PERSON,
         locale: "en",
         timeZone: null,

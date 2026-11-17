@@ -113,7 +113,10 @@ export function OrganizationAccessPage({
   // stays Admin-only (issue 233, owner-directed split).
   const member = access.data !== undefined;
   const enabled = organizationId !== null && member;
-  const membersEnabled = enabled && isAdmin;
+  // Members feed the role shown beside a service account, so the
+  // service-accounts page reads them too; the Members page itself stays
+  // Admin-only.
+  const membersEnabled = enabled && (isAdmin || page === "service-accounts");
   const read = <T,>(
     name: string,
     load: (id: string, signal: AbortSignal) => Promise<ApiResult<T>>,
@@ -145,22 +148,24 @@ export function OrganizationAccessPage({
       })),
     enabled: membersEnabled,
   });
-  const principals = useQuery(
-    read("principals", (id, signal) =>
+  const principals = useQuery({
+    ...read("principals", (id, signal) =>
       api.access.principals.list({
         organizationId: id,
         limit: PAGE_LIMIT,
         signal,
       })),
-  );
-  const tokens = useQuery(
-    read("tokens", (id, signal) =>
+    enabled,
+  });
+  const tokens = useQuery({
+    ...read("tokens", (id, signal) =>
       api.access.tokens.list({
         organizationId: id,
         limit: PAGE_LIMIT,
         signal,
       })),
-  );
+    enabled,
+  });
   const bindings = useQuery({
     ...read("bindings", (id, signal) =>
       api.access.bindings.list({
@@ -545,14 +550,19 @@ export function OrganizationAccessPage({
     applications,
     repositories,
   ].filter((query) => query.isError);
+
   // Connected clients decide between the empty card and the sections, so an
   // admin's page waits for them too instead of flashing the empty card.
   const loading = organizationId === null ? restoring : access.isPending ||
-    (isAdmin && (members.isPending || invitations.isPending ||
-      principals.isPending || tokens.isPending || bindings.isPending ||
-      clients.isPending));
+    (page === "service-accounts"
+      ? principals.isPending || tokens.isPending || members.isPending
+      : isAdmin &&
+        (members.isPending || invitations.isPending ||
+          principals.isPending || tokens.isPending || bindings.isPending ||
+          clients.isPending));
   const forbidden = !loading && organizationId !== null &&
-    (access.isError || (access.data !== undefined && !isAdmin));
+    (access.isError ||
+      (access.data !== undefined && !isAdmin && page === "members"));
   const pendingInvitations = (invitations.data?.items ?? []).filter((item) =>
     item.status === "pending"
   );
@@ -658,8 +668,9 @@ export function OrganizationAccessPage({
 
   const editBindings = editing === null ? [] : bindingsOf(editing.principalId);
 
-  const showSections = !loading && !forbidden && loadFailures.length === 0 &&
-    isAdmin;
+  const showSections = !loading && !forbidden &&
+    loadFailures.length === 0 &&
+    (isAdmin || page === "service-accounts");
   const pageState = loading
     ? "loading"
     : forbidden
@@ -1502,6 +1513,9 @@ export function OrganizationAccessPage({
             // Service accounts and tokens are their own page; Members and
             // Invitations share one, split by a tab (issue 233, owner-directed
             // split).
+            // Clients stay on the Members page until 535 merges, then they
+            // become a tab of Integrations (issue 233, owner-directed split).
+            if (section.id === "org-access-clients") return page === "members";
             if (page === "service-accounts") return onServiceAccounts;
             if (onServiceAccounts) return false;
             return tab === "invitations"

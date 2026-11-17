@@ -4002,11 +4002,9 @@
   "settings.orgAccess.token.needsAccount": "⟪Create a service account first.⟫",
   "settings.orgAccess.invitation.keep": "⟪Keep invitation⟫",
   "settings.orgAccess.token.revokeLong": "⟪Revoke token⟫",
-  "settings.orgAccess.title": "⟪Members & access⟫",
   "settings.orgAccess.tab.members": "⟪Members⟫",
   "settings.orgAccess.tab.invitations": "⟪Invitations⟫",
   "settings.orgAccess.tab.invitationsCount": "⟪Invitations ({count})⟫",
-  "settings.orgAccess.description": "⟪Who can use {organization}, and what they can do.⟫",
   "settings.orgAccess.serviceAccounts.title": "⟪Service accounts & tokens⟫",
   "settings.orgAccess.serviceAccounts.description": "⟪Automation that acts for {organization}. Each one carries its own token.⟫",
   "shell.navigation.members": "⟪Members⟫",
@@ -4020,5 +4018,7 @@
   "settings.orgAccess.personal.new": "⟪New personal token⟫",
   "settings.orgAccess.personal.none": "⟪No personal tokens⟫",
   "settings.orgAccess.personal.emptyHelp": "⟪A personal token lets a script act as you. Use one when the script is yours alone; use a service account when it belongs to a team.⟫",
-  "preferences.index.serviceAccounts": "⟪The accounts and tokens scripts and CI use to sign in.⟫"
+  "preferences.index.serviceAccounts": "⟪The accounts and tokens scripts and CI use to sign in.⟫",
+  "settings.orgAccess.title": "⟪Members⟫",
+  "settings.orgAccess.description": "⟪Who can use {organization}, and what they can do.⟫"
 }

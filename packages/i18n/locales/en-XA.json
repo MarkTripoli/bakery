@@ -4002,11 +4002,9 @@
   "settings.orgAccess.token.needsAccount": "⟦Çŕëàŧë à šëŕṽïçë àççôûñŧ ƒïŕšŧ. ŧëšŧ çôþ⟧",
   "settings.orgAccess.invitation.keep": "⟦Ķëëþ ïñṽïŧàŧïôñ ŧëš⟧",
   "settings.orgAccess.token.revokeLong": "⟦Ŕëṽôķë ŧôķëñ ŧë⟧",
-  "settings.orgAccess.title": "⟦Ṁëɱƀëŕš & àççëšš ŧëš⟧",
   "settings.orgAccess.tab.members": "⟦Ṁëɱƀëŕš…⟧",
   "settings.orgAccess.tab.invitations": "⟦Ïñṽïŧàŧïôñš ŧ⟧",
   "settings.orgAccess.tab.invitationsCount": "⟦Ïñṽïŧàŧïôñš ({count}) ŧëšŧŧ⟧",
-  "settings.orgAccess.description": "⟦Ŵĥô çàñ ûšë {organization}, àñð ŵĥàŧ ŧĥëÿ çàñ ðô. ŧëšŧ çôþÿ ŧëšŧŧ⟧",
   "settings.orgAccess.serviceAccounts.title": "⟦Šëŕṽïçë àççôûñŧš & ŧôķëñš ŧëšŧ ç⟧",
   "settings.orgAccess.serviceAccounts.description": "⟦Àûŧôɱàŧïôñ ŧĥàŧ àçŧš ƒôŕ {organization}. Ëàçĥ ôñë çàŕŕïëš ïŧš ôŵñ ŧôķëñ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
   "shell.navigation.members": "⟦Ṁëɱƀëŕš…⟧",
@@ -4020,5 +4018,7 @@
   "settings.orgAccess.personal.new": "⟦Ñëŵ þëŕšôñàļ ŧôķëñ ŧëšŧ⟧",
   "settings.orgAccess.personal.none": "⟦Ñô þëŕšôñàļ ŧôķëñš ŧëšŧ⟧",
   "settings.orgAccess.personal.emptyHelp": "⟦À þëŕšôñàļ ŧôķëñ ļëŧš à šçŕïþŧ àçŧ àš ÿôû. Ûšë ôñë ŵĥëñ ŧĥë šçŕïþŧ ïš ÿôûŕš àļôñë; ûšë à šëŕṽïçë àççôûñŧ ŵĥëñ ïŧ ƀëļôñĝš ŧô à ŧëàɱ. ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëšŧ çôþÿ ŧëš⟧",
-  "preferences.index.serviceAccounts": "⟦Ŧĥë àççôûñŧš àñð ŧôķëñš šçŕïþŧš àñð ÇÏ ûšë ŧô šïĝñ ïñ. ŧëšŧ çôþÿ ŧëšŧ ç⟧"
+  "preferences.index.serviceAccounts": "⟦Ŧĥë àççôûñŧš àñð ŧôķëñš šçŕïþŧš àñð ÇÏ ûšë ŧô šïĝñ ïñ. ŧëšŧ çôþÿ ŧëšŧ ç⟧",
+  "settings.orgAccess.title": "⟦Ṁëɱƀëŕš…⟧",
+  "settings.orgAccess.description": "⟦Ŵĥô çàñ ûšë {organization}, àñð ŵĥàŧ ŧĥëÿ çàñ ðô. ŧëšŧ çôþÿ ŧëšŧŧ⟧"
 }
