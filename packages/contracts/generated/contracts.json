@@ -4986,6 +4986,81 @@
     },
     {
       "group": "Worker protocol",
+      "method": "GET",
+      "path": "/v1/job-attempts/{id}/repository-source",
+      "action": "worker.repositorySource",
+      "access": "Worker+lease",
+      "permission": null,
+      "input": "IdPath",
+      "output": "RepositoryInspectionSourceChunk",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "LEASE_EXPIRED",
+        "LEASE_FENCED"
+      ],
+      "organizationContext": "none",
+      "implemented": false
+    },
+    {
+      "group": "Worker protocol",
+      "method": "POST",
+      "path": "/v1/worker/attempts/{id}/tools/secrets",
+      "action": "worker.tools.secrets",
+      "access": "Worker+lease",
+      "permission": null,
+      "input": "SecretIdentityToolRequest",
+      "output": "SecretIdentityToolResult",
+      "event": "",
+      "mcp": "",
+      "idempotency": "Idempotency-Key must equal the prepared operation id",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "BODY_TOO_LARGE",
+        "PRECONDITION_FAILED",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH",
+        "LEASE_EXPIRED",
+        "LEASE_FENCED"
+      ],
+      "organizationContext": "none",
+      "implemented": false
+    },
+    {
+      "group": "Worker protocol",
+      "method": "GET",
+      "path": "/v1/worker/attempts/{id}/context",
+      "action": "worker.context",
+      "access": "Worker+lease",
+      "permission": null,
+      "input": "IdPath",
+      "output": "PinnedContextRead",
+      "event": "",
+      "mcp": "",
+      "idempotency": "read",
+      "errors": [
+        "AUTH_REQUIRED",
+        "AUTH_FORBIDDEN",
+        "RESOURCE_NOT_FOUND",
+        "UNPROCESSABLE",
+        "PRECONDITION_FAILED",
+        "LEASE_EXPIRED",
+        "LEASE_FENCED",
+        "ARTIFACT_CONTENT_EXPIRED"
+      ],
+      "organizationContext": "none",
+      "implemented": false
+    },
+    {
+      "group": "Worker protocol",
       "method": "POST",
       "path": "/v1/worker/attempts/{id}/events",
       "action": "worker.events",
@@ -21614,6 +21689,142 @@
           }
         }
       },
+      "/v1/job-attempts/{id}/repository-source": {
+        "get": {
+          "operationId": "worker.repositorySource",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/RepositoryInspectionSourceChunk"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
+      "/v1/worker/attempts/{id}/tools/secrets": {
+        "post": {
+          "operationId": "worker.tools.secrets",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/SecretIdentityToolResult"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          },
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecretIdentityToolRequest"
+                }
+              }
+            }
+          }
+        }
+      },
+      "/v1/worker/attempts/{id}/context": {
+        "get": {
+          "operationId": "worker.context",
+          "parameters": [
+            {
+              "name": "id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                "description": "UUID of the path-addressed resource; which entity it identifies is determined by the specific operation invoking this shared schema, not by the field itself."
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/PinnedContextRead"
+                  }
+                }
+              }
+            },
+            "400": {
+              "description": "Malformed request."
+            },
+            "401": {
+              "description": "Authentication required."
+            },
+            "403": {
+              "description": "Forbidden."
+            },
+            "500": {
+              "description": "Internal server error."
+            }
+          }
+        }
+      },
       "/v1/worker/attempts/{id}/events": {
         "post": {
           "operationId": "worker.events",
@@ -32436,6 +32647,23 @@
     },
     "components": {
       "schemas": {
+        "SecretIdentityToolRequest": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "preparedOperationId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "Opaque prepared-operation identifier from the encrypted assignment replay."
+            }
+          },
+          "required": [
+            "preparedOperationId"
+          ],
+          "additionalProperties": false,
+          "description": "Bounded daemon-only request for the one server-selected fixed identity operation. The whole serialized request must stay within 128 bytes, so a caller cannot widen it into a general-purpose secret read."
+        },
         "CoordinationPlanCreate": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -39579,6 +39807,9 @@
                 "worker.register",
                 "worker.heartbeat",
                 "worker.claim",
+                "worker.repositorySource",
+                "worker.tools.secrets",
+                "worker.context",
                 "worker.events",
                 "worker.renew",
                 "worker.result",
@@ -82703,6 +82934,9 @@
                 "worker.register",
                 "worker.heartbeat",
                 "worker.claim",
+                "worker.repositorySource",
+                "worker.tools.secrets",
+                "worker.context",
                 "worker.events",
                 "worker.renew",
                 "worker.result",
@@ -83177,6 +83411,9 @@
                 "worker.register",
                 "worker.heartbeat",
                 "worker.claim",
+                "worker.repositorySource",
+                "worker.tools.secrets",
+                "worker.context",
                 "worker.events",
                 "worker.renew",
                 "worker.result",
@@ -83651,6 +83888,9 @@
                 "worker.register",
                 "worker.heartbeat",
                 "worker.claim",
+                "worker.repositorySource",
+                "worker.tools.secrets",
+                "worker.context",
                 "worker.events",
                 "worker.renew",
                 "worker.result",
@@ -112976,6 +113216,325 @@
           "additionalProperties": false,
           "description": "Explicit safe projection list for merge attempts. Runtime serializers use this allowlist; never auto-export new database columns."
         },
+        "RepositoryInspectionSourceChunk": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "receipt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "JSON string value."
+                },
+                {
+                  "type": "number",
+                  "description": "JSON number value."
+                },
+                {
+                  "type": "boolean",
+                  "description": "JSON boolean value."
+                },
+                {
+                  "type": "null",
+                  "description": "JSON null value."
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RepositoryInspectionSourceChunk____schema0"
+                  },
+                  "description": "JSON array value."
+                },
+                {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string",
+                    "description": "JSON object key."
+                  },
+                  "additionalProperties": {
+                    "$ref": "#/components/schemas/RepositoryInspectionSourceChunk____schema0"
+                  },
+                  "description": "JSON object value."
+                }
+              ],
+              "description": "The unchanged inspection receipt this chunk belongs to."
+            },
+            "offset": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Exact contiguous decoded envelope byte offset this chunk starts at."
+            },
+            "totalBytes": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991,
+              "description": "Stable exact canonical envelope transfer length."
+            },
+            "chunkDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "description": "Digest of this chunk's transfer bytes."
+            },
+            "bytesBase64": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Canonical base64 of at most 32 KiB transfer bytes."
+            },
+            "done": {
+              "type": "boolean",
+              "description": "True only when this chunk reaches the exact final byte."
+            }
+          },
+          "required": [
+            "receipt",
+            "offset",
+            "totalBytes",
+            "chunkDigest",
+            "bytesBase64",
+            "done"
+          ],
+          "additionalProperties": false,
+          "description": "Strict RepositoryInspectionSourceChunkSchema result: one bounded authenticated source chunk carrying the unchanged receipt, so a worker reads a large repository source without the whole envelope ever being held at once."
+        },
+        "RepositoryInspectionSourceChunk____schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/RepositoryInspectionSourceChunk____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/RepositoryInspectionSourceChunk____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/RepositoryInspectionSourceChunk____schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/components/schemas/RepositoryInspectionSourceChunk____schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        },
+        "PinnedContextInput": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "slot": {
+              "type": "string",
+              "maxLength": 100,
+              "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+              "description": "The name the workflow declared for this input, such as `brief`."
+            },
+            "path": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 65536,
+              "description": "Path of the input's bytes relative to the attempt context directory; it never starts with `/` and never climbs."
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "description": "Digest the server computed from the bytes in this same response. It is authoritative: a worker verifies its written file against this value, never against a digest it supplied on the way in."
+            },
+            "sizeBytes": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991,
+              "description": "Size of these bytes, so the worker can bound the read and detect a truncated response."
+            },
+            "mediaType": {
+              "type": "string",
+              "maxLength": 65536,
+              "description": "Media type of the bytes, so the step knows how to read the file without guessing."
+            },
+            "content": {
+              "description": "The exact bytes pinned at admission.",
+              "type": "string",
+              "format": "binary"
+            }
+          },
+          "required": [
+            "slot",
+            "path",
+            "digest",
+            "sizeBytes",
+            "mediaType",
+            "content"
+          ],
+          "additionalProperties": false,
+          "description": "One input slot as the worker's attempt context read returns it: the declared slot name, the path inside the attempt context directory, and the bytes together with the digest the server computed from those same bytes."
+        },
+        "PinnedContextRead": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "attemptId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The attempt whose lease proof was presented; the read answers only while that lease still holds."
+            },
+            "runId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+              "description": "The run the attempt belongs to, so the worker can correlate the context with its job."
+            },
+            "inputs": {
+              "maxItems": 32,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "slot": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+                    "description": "The name the workflow declared for this input, such as `brief`."
+                  },
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 65536,
+                    "description": "Path of the input's bytes relative to the attempt context directory; it never starts with `/` and never climbs."
+                  },
+                  "digest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$",
+                    "description": "Digest the server computed from the bytes in this same response. It is authoritative: a worker verifies its written file against this value, never against a digest it supplied on the way in."
+                  },
+                  "sizeBytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "Size of these bytes, so the worker can bound the read and detect a truncated response."
+                  },
+                  "mediaType": {
+                    "type": "string",
+                    "maxLength": 65536,
+                    "description": "Media type of the bytes, so the step knows how to read the file without guessing."
+                  },
+                  "content": {
+                    "description": "The exact bytes pinned at admission.",
+                    "type": "string",
+                    "format": "binary"
+                  }
+                },
+                "required": [
+                  "slot",
+                  "path",
+                  "digest",
+                  "sizeBytes",
+                  "mediaType",
+                  "content"
+                ],
+                "additionalProperties": false,
+                "description": "Every input pinned for this attempt's run, ordered as the pins were created. Each array item follows this format."
+              },
+              "description": "PinnedContextRead.inputs must contain at most 32 items."
+            }
+          },
+          "required": [
+            "attemptId",
+            "runId",
+            "inputs"
+          ],
+          "additionalProperties": false,
+          "description": "The pinned input context of the attempt that asked for it, fenced by the lease it presented: every declared input with its bytes and the server-computed digest, so a worker materializes exactly what admission pinned without re-fetching an artifact."
+        },
         "CoordinationPlan": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
@@ -127144,6 +127703,9 @@
                       "worker.register",
                       "worker.heartbeat",
                       "worker.claim",
+                      "worker.repositorySource",
+                      "worker.tools.secrets",
+                      "worker.context",
                       "worker.events",
                       "worker.renew",
                       "worker.result",
@@ -207111,8 +207673,25 @@
       }
     }
   },
-  "compatibilityDigest": "sha256:8cfabc377146d4e8563eebad96d1617f9fb48a07546f410cd0995fde87b7ca5b",
+  "compatibilityDigest": "sha256:c5ab20ae0ae1efc220f11da269304102e8cc86102114bc9aeb14aa677c998c52",
   "schemas": {
+    "SecretIdentityToolRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "preparedOperationId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "Opaque prepared-operation identifier from the encrypted assignment replay."
+        }
+      },
+      "required": [
+        "preparedOperationId"
+      ],
+      "additionalProperties": false,
+      "description": "Bounded daemon-only request for the one server-selected fixed identity operation. The whole serialized request must stay within 128 bytes, so a caller cannot widen it into a general-purpose secret read."
+    },
     "CoordinationPlanCreate": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -214288,6 +214867,9 @@
             "worker.register",
             "worker.heartbeat",
             "worker.claim",
+            "worker.repositorySource",
+            "worker.tools.secrets",
+            "worker.context",
             "worker.events",
             "worker.renew",
             "worker.result",
@@ -257560,6 +258142,9 @@
             "worker.register",
             "worker.heartbeat",
             "worker.claim",
+            "worker.repositorySource",
+            "worker.tools.secrets",
+            "worker.context",
             "worker.events",
             "worker.renew",
             "worker.result",
@@ -258034,6 +258619,9 @@
             "worker.register",
             "worker.heartbeat",
             "worker.claim",
+            "worker.repositorySource",
+            "worker.tools.secrets",
+            "worker.context",
             "worker.events",
             "worker.renew",
             "worker.result",
@@ -258508,6 +259096,9 @@
             "worker.register",
             "worker.heartbeat",
             "worker.claim",
+            "worker.repositorySource",
+            "worker.tools.secrets",
+            "worker.context",
             "worker.events",
             "worker.renew",
             "worker.result",
@@ -287943,6 +288534,327 @@
       "additionalProperties": false,
       "description": "Explicit safe projection list for merge attempts. Runtime serializers use this allowlist; never auto-export new database columns."
     },
+    "RepositoryInspectionSourceChunk": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "receipt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/__schema0"
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "The unchanged inspection receipt this chunk belongs to."
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Exact contiguous decoded envelope byte offset this chunk starts at."
+        },
+        "totalBytes": {
+          "type": "integer",
+          "minimum": -9007199254740991,
+          "maximum": 9007199254740991,
+          "description": "Stable exact canonical envelope transfer length."
+        },
+        "chunkDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Digest of this chunk's transfer bytes."
+        },
+        "bytesBase64": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Canonical base64 of at most 32 KiB transfer bytes."
+        },
+        "done": {
+          "type": "boolean",
+          "description": "True only when this chunk reaches the exact final byte."
+        }
+      },
+      "required": [
+        "receipt",
+        "offset",
+        "totalBytes",
+        "chunkDigest",
+        "bytesBase64",
+        "done"
+      ],
+      "additionalProperties": false,
+      "description": "Strict RepositoryInspectionSourceChunkSchema result: one bounded authenticated source chunk carrying the unchanged receipt, so a worker reads a large repository source without the whole envelope ever being held at once.",
+      "$defs": {
+        "__schema0": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "JSON string value."
+            },
+            {
+              "type": "number",
+              "description": "JSON number value."
+            },
+            {
+              "type": "boolean",
+              "description": "JSON boolean value."
+            },
+            {
+              "type": "null",
+              "description": "JSON null value."
+            },
+            {
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON array value."
+            },
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string",
+                "description": "JSON object key."
+              },
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "description": "JSON string value."
+                  },
+                  {
+                    "type": "number",
+                    "description": "JSON number value."
+                  },
+                  {
+                    "type": "boolean",
+                    "description": "JSON boolean value."
+                  },
+                  {
+                    "type": "null",
+                    "description": "JSON null value."
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON array value."
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "description": "JSON object key."
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    },
+                    "description": "JSON object value."
+                  }
+                ],
+                "description": "JSON value node."
+              },
+              "description": "JSON object value."
+            }
+          ],
+          "description": "JSON value node."
+        }
+      }
+    },
+    "PinnedContextInput": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "slot": {
+          "type": "string",
+          "maxLength": 100,
+          "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+          "description": "The name the workflow declared for this input, such as `brief`."
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "description": "Path of the input's bytes relative to the attempt context directory; it never starts with `/` and never climbs."
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Digest the server computed from the bytes in this same response. It is authoritative: a worker verifies its written file against this value, never against a digest it supplied on the way in."
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Size of these bytes, so the worker can bound the read and detect a truncated response."
+        },
+        "mediaType": {
+          "type": "string",
+          "maxLength": 65536,
+          "description": "Media type of the bytes, so the step knows how to read the file without guessing."
+        },
+        "content": {
+          "description": "The exact bytes pinned at admission.",
+          "type": "string",
+          "format": "binary"
+        }
+      },
+      "required": [
+        "slot",
+        "path",
+        "digest",
+        "sizeBytes",
+        "mediaType",
+        "content"
+      ],
+      "additionalProperties": false,
+      "description": "One input slot as the worker's attempt context read returns it: the declared slot name, the path inside the attempt context directory, and the bytes together with the digest the server computed from those same bytes."
+    },
+    "PinnedContextRead": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "attemptId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The attempt whose lease proof was presented; the read answers only while that lease still holds."
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+          "description": "The run the attempt belongs to, so the worker can correlate the context with its job."
+        },
+        "inputs": {
+          "maxItems": 32,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "slot": {
+                "type": "string",
+                "maxLength": 100,
+                "pattern": "^[a-z0-9]+(?:[-_][a-z0-9]+)*$",
+                "description": "The name the workflow declared for this input, such as `brief`."
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 65536,
+                "description": "Path of the input's bytes relative to the attempt context directory; it never starts with `/` and never climbs."
+              },
+              "digest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$",
+                "description": "Digest the server computed from the bytes in this same response. It is authoritative: a worker verifies its written file against this value, never against a digest it supplied on the way in."
+              },
+              "sizeBytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991,
+                "description": "Size of these bytes, so the worker can bound the read and detect a truncated response."
+              },
+              "mediaType": {
+                "type": "string",
+                "maxLength": 65536,
+                "description": "Media type of the bytes, so the step knows how to read the file without guessing."
+              },
+              "content": {
+                "description": "The exact bytes pinned at admission.",
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "required": [
+              "slot",
+              "path",
+              "digest",
+              "sizeBytes",
+              "mediaType",
+              "content"
+            ],
+            "additionalProperties": false,
+            "description": "Every input pinned for this attempt's run, ordered as the pins were created. Each array item follows this format."
+          },
+          "description": "PinnedContextRead.inputs must contain at most 32 items."
+        }
+      },
+      "required": [
+        "attemptId",
+        "runId",
+        "inputs"
+      ],
+      "additionalProperties": false,
+      "description": "The pinned input context of the attempt that asked for it, fenced by the lease it presented: every declared input with its bytes and the server-computed digest, so a worker materializes exactly what admission pinned without re-fetching an artifact."
+    },
     "CoordinationPlan": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
@@ -302143,6 +303055,9 @@
                   "worker.register",
                   "worker.heartbeat",
                   "worker.claim",
+                  "worker.repositorySource",
+                  "worker.tools.secrets",
+                  "worker.context",
                   "worker.events",
                   "worker.renew",
                   "worker.result",
