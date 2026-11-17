@@ -1233,7 +1233,6 @@ export function OrganizationAccessPage() {
               )
               : null,
             phoneLayout: "overlay",
-            inlineActions: true,
             rows: memberRows,
             children: inviteForm,
           }, {

@@ -32,6 +32,10 @@ export type AccessSettingsSection = {
   readonly aside?: ReactNode;
   /** Right-aligned controls on the title line. */
   readonly actions?: ReactNode;
+  /** Column names above the rows: Member / Role / Applies to / (actions). */
+  readonly columnHeaders?: readonly ReactNode[];
+  /** Help next to the section title, for a term the rows use. */
+  readonly titleHelp?: ReactNode;
   /** `role` rows carry two cells (scope and resource), `detail` one wide cell. */
   readonly columns?: "role" | "detail";
   /**
@@ -44,6 +48,10 @@ export type AccessSettingsSection = {
   readonly rows?: readonly AccessSettingsRow[];
   /** Shown instead of rows when there are none. */
   readonly empty?: ReactNode;
+  /** Extra line under an empty section's copy, saying what will appear. */
+  readonly emptyHelp?: ReactNode;
+  /** The action an empty section offers, such as "Invite member". */
+  readonly emptyAction?: ReactNode;
   /** A one-time value shown after the rows, such as a new token. */
   readonly callout?: {
     readonly testId?: string;
@@ -228,6 +236,13 @@ export function AccessSettings(
                 )
                 : null}
             </h2>
+            {section.titleHelp
+              ? (
+                <span className="ui-access-settings__title-help">
+                  {section.titleHelp}
+                </span>
+              )
+              : null}
             {section.aside
               ? (
                 <span className="ui-access-settings__aside">
@@ -244,6 +259,30 @@ export function AccessSettings(
               : null}
           </div>
           {section.before}
+          {section.columnHeaders && section.rows && section.rows.length > 0
+            ? (
+              <div
+                aria-hidden="true"
+                className="ui-access-settings__row ui-access-settings__row--head"
+                data-columns={section.columns ?? "role"}
+                data-testid={section.testId
+                  ? `${section.testId}-columns`
+                  : undefined}
+              >
+                <div className="ui-access-settings__identity">
+                  {section.columnHeaders[0]}
+                </div>
+                {section.columnHeaders.slice(1, 3).map((header, index) => (
+                  <div className="ui-access-settings__cell" key={index}>
+                    {header}
+                  </div>
+                ))}
+                <div className="ui-access-settings__action">
+                  {section.columnHeaders[3]}
+                </div>
+              </div>
+            )
+            : null}
           {section.rows && section.rows.length > 0
             ? (
               <ul
@@ -297,6 +336,20 @@ export function AccessSettings(
                 data-testid={section.testId}
               >
                 {section.empty}
+                {section.emptyHelp
+                  ? (
+                    <span className="ui-access-settings__empty-help">
+                      {section.emptyHelp}
+                    </span>
+                  )
+                  : null}
+              </div>
+            )
+            : null}
+          {section.emptyAction && !(section.rows && section.rows.length > 0)
+            ? (
+              <div className="ui-access-settings__empty-action">
+                {section.emptyAction}
               </div>
             )
             : null}
