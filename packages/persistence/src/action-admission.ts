@@ -9,6 +9,7 @@ import {
   workerContractFaultCode,
 } from "@bakery/contracts/contracts";
 import { StandardError } from "@bakery/contracts/http";
+import { workflowRuntimeImplementedActions } from "@bakery/contracts/implemented-actions";
 import {
   isEngineProjectionAction,
   WORKFLOW_ACTION_METADATA,
@@ -66,6 +67,22 @@ function unavailable(reason: string): never {
   throw new StandardError({ code: "STATE_CONFLICT", params: { reason } });
 }
 
+/**
+ * True for an action the server runtime executes itself, without a worker.
+ *
+ * There are three execution tables and each holds actions the others lack: the
+ * workflow action registry (what the compiler reads, what admission gates on),
+ * the worker transport table (what a worker runs), and this one (what the
+ * server runtime runs in-process). `workflow.noop` is in the first and third but
+ * deliberately not the second; admission must know all three or it refuses an
+ * action the runtime can complete.
+ */
+function isRuntimeImplementedAction(action: string): boolean {
+  return (workflowRuntimeImplementedActions as readonly string[]).includes(
+    action,
+  ) && Object.hasOwn(WORKFLOW_ACTION_METADATA, action);
+}
+
 /** Declared requirements may add bounded capabilities, never remove registry ones. */
 export function executionActionCapabilities(
   action: string,
@@ -83,6 +100,15 @@ export function executionActionCapabilities(
     ) {
       return unavailable("workflow_action_requirements_invalid");
     }
+  } else if (isRuntimeImplementedAction(action)) {
+    // A third execution table, and the one admission used to forget: actions
+    // the server runtime executes itself without a worker. They are not in the
+    // worker transport table because no worker runs them, and adding them there
+    // would lie about the executor - so the registry answers for them, exactly
+    // as budget.ts orders it (registry first, worker table second).
+    registered = WORKFLOW_ACTION_METADATA[
+      action as keyof typeof WORKFLOW_ACTION_METADATA
+    ].capabilities;
   } else {
     try {
       registered = workerActionCapabilities(action);
