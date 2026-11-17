@@ -105,8 +105,15 @@ function requireArtifactPermission(
  */
 const blobWritePolicy = {
   type: ActionKind.Command,
-  access: ActionAccess.OrganizationMember,
+  access: ActionAccess.Developer,
   organizationContext: OrganizationContextPolicy.RequiredAuthenticatedContext,
+  authorize: (context: ActionContext) => {
+    requireArtifactPermission(
+      context,
+      "artifact:create",
+      BlobUploadImplementedAction.BlobUploadStart,
+    );
+  },
 } as const;
 
 const extractionPolicy = {
@@ -500,6 +507,10 @@ export function createArtifactResourceRoutes(
   app.use("/v1/artifact-preview-availability", session);
   app.use("/v1/artifact-preview-grants/*", session);
   app.use("/v1/artifact-versions/*", session);
+  // Without this the blob routes run with no resolved principal, and every call
+  // is refused as an anonymous one - a 403 that looks like a permission problem
+  // and is really a missing middleware.
+  app.use("/v1/blobs/*", session);
   app.onError((error, context) =>
     problemResponse(context, error, { publicBaseUrl: options.publicBaseUrl })
   );
