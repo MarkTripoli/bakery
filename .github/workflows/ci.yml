@@ -2833,6 +2833,12 @@ jobs:
       contents: read
       issues: write
     steps:
+      # Every other job in this workflow installs Deno before using it; this one
+      # called it and did not, so it exited 127 "deno: command not found" from
+      # the first live dispatch onward. `continue-on-error` reported the job as
+      # successful, which is exactly how a signal that never ran looked healthy.
+      - uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
+        with: { deno-version: v2.9.1 }
       - name: Record the nightly outcome as a tracking issue
         # A signal bug must never turn a green nightly red, so this step cannot
         # fail the workflow. It reports its own failure in the log instead.
