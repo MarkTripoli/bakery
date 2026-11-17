@@ -25,9 +25,12 @@ compatibility, anything unverified. Use - None. when there is nothing. -->
 
 ## Change outline
 
-<!-- The shape of the change, not a tour: a shallow file tree, a small diff,
-pseudocode or a Mermaid flow, at most 30 lines in total, plus at most 40 words of prose.
-For a truly structure-free change write "No structural change: <reason>". -->
+<!-- The heart of the PR: let a reader understand the change without reading the
+code. Use one to three views (show-me style), up to 80 lines in total, plus at most
+40 words of prose. Pick what fits: a Mermaid flowchart or sequence diagram, a
+call tree, a diff of the API or contract, a shallow file tree, or pseudocode.
+Name the design pattern when there is one ("Pattern: outbox"). Use real names.
+For a truly structure-free change, write "No structural change: <reason>". -->
 
 ## Decisions
 
@@ -42,3 +45,14 @@ each on what they prove. No format, lint or type checks. Use - None. when there
 is nothing to show. -->
 
 - None.
+
+## Verification
+
+<!-- Ticked by the verifier named in brackets during review, not by the author.
+Each box is ticked, or replaced with "N/A: <reason>". The description check
+stays red until every box is resolved, so it doubles as the merge gate. -->
+
+- [ ] Backend verified (reviewer): contracts, data, permissions and errors behave as described.
+- [ ] UI verified (design-ux): no duplicate of an existing screen or component; fits the navigation; consistent patterns; desktop and phone, light and dark.
+- [ ] Implementation clean (reviewer): follows existing patterns, no duplicated logic, no dead code, nothing outside the ticket.
+- [ ] Tests cover the change (qa): new behavior has tests that fail without it.

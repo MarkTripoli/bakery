@@ -27,6 +27,7 @@ export const fields = {
     "Change outline",
     "Decisions",
     "Evidence",
+    "Verification",
   ],
 } as const;
 
@@ -350,6 +351,32 @@ export function validateDescription(kind: Kind, body: string): string[] {
     if (items > 9) {
       errors.push("Evidence: at most eight items.");
     }
+    // The verification checklist is the merge gate: reviewers tick each box or
+    // replace it with "N/A: <reason>"; any open box keeps the check red.
+    const verification = sections.get("verification") ?? "";
+    const required = [
+      "backend verified",
+      "ui verified",
+      "implementation clean",
+      "tests cover",
+    ];
+    const lines = verification.split("\n").filter((line) =>
+      /^[-*] /.test(line)
+    );
+    for (const item of required) {
+      // The item's own label must start the line right after the checkbox:
+      // a phrase that merely appears inside another item's line cannot
+      // resolve that item, so one ticked line cannot satisfy the checklist.
+      const label = new RegExp(`^[-*] \\[.\\]\\s*${item}\\b`, "i");
+      const line = lines.find((l) => label.test(l));
+      if (!line) {
+        errors.push(`Verification: missing the "${item}" item.`);
+      } else if (!/^[-*] \[[xX]\]/.test(line) && !/\bN\/A:\s*\S/.test(line)) {
+        errors.push(
+          `Verification pending: "${item}" is not ticked or marked N/A: <reason>.`,
+        );
+      }
+    }
     const limits: [string, number, number][] = [
       ["purpose", 40, 0],
       ["risk", 0, 25],
@@ -393,7 +420,7 @@ export function validateDescription(kind: Kind, body: string): string[] {
       );
     }
     const total = [...sections].filter(([name]) =>
-      !["ticket", "task", "walkthrough"].includes(name)
+      !["ticket", "task", "walkthrough", "verification"].includes(name)
     ).reduce((sum, [, value]) => sum + wordCount(prose(value)), 0);
     if (total > 300) {
       errors.push(
