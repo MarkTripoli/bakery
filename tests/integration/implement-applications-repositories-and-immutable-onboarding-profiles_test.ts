@@ -1172,6 +1172,11 @@ Deno.test("Projects Phase 1 persists tenant-safe identity and rejects manual obs
        where id = ${repositoryA.id}
        returning version`;
     const observedVersion = observedVersionRows[0]?.version;
+    // #465: a person can always switch versions after a check, in either
+    // direction. Going back to a saved version is allowed and the observation's
+    // evidence is superseded until onboarding runs again; what stays refused is
+    // moving the branches under a check-made version, because its evidence was
+    // recorded against the branches it was checked on.
     const downgradeObserved = await send(
       "PATCH",
       `/v1/repositories/${repositoryA.id}`,
@@ -1179,20 +1184,32 @@ Deno.test("Projects Phase 1 persists tenant-safe identity and rejects manual obs
       { activeProfileId: profileA.id },
       `"${observedVersion}"`,
     );
-    assertEquals(downgradeObserved.status, 422);
+    assertEquals(downgradeObserved.status, 200);
+    const afterDowngrade = await owner`
+      select active_profile_id, version from bakery.repositories
+       where id = ${repositoryA.id}`;
+    assertEquals(afterDowngrade[0]?.active_profile_id, profileA.id);
+    assertEquals(afterDowngrade[0]?.version, observedVersion + 1);
+
+    const reactivated = await owner`
+      update bakery.repositories
+         set active_profile_id = ${v2ProfileId}, version = version + 1
+       where id = ${repositoryA.id}
+       returning version`;
+    const reactivatedVersion = reactivated[0]?.version;
     const branchChangeObserved = await send(
       "PATCH",
       `/v1/repositories/${repositoryA.id}`,
       organizationAId,
       { defaultBranch: "develop" },
-      `"${observedVersion}"`,
+      `"${reactivatedVersion}"`,
     );
     assertEquals(branchChangeObserved.status, 422);
     const afterObservedRejection = await owner`
       select active_profile_id, version from bakery.repositories
        where id = ${repositoryA.id}`;
     assertEquals(afterObservedRejection[0]?.active_profile_id, v2ProfileId);
-    assertEquals(afterObservedRejection[0]?.version, observedVersion);
+    assertEquals(afterObservedRejection[0]?.version, reactivatedVersion);
     await owner`
       update bakery.repositories
          set active_profile_id = ${profileA.id}, version = version + 1
