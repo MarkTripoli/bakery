@@ -364,7 +364,11 @@ export function validateDescription(kind: Kind, body: string): string[] {
       /^[-*] /.test(line)
     );
     for (const item of required) {
-      const line = lines.find((l) => l.toLowerCase().includes(item));
+      // The item's own label must start the line right after the checkbox:
+      // a phrase that merely appears inside another item's line cannot
+      // resolve that item, so one ticked line cannot satisfy the checklist.
+      const label = new RegExp(`^[-*] \\[.\\]\\s*${item}\\b`, "i");
+      const line = lines.find((l) => label.test(l));
       if (!line) {
         errors.push(`Verification: missing the "${item}" item.`);
       } else if (!/^[-*] \[[xX]\]/.test(line) && !/\bN\/A:\s*\S/.test(line)) {
