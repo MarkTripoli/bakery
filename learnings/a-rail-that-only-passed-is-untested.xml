@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<learning id="a-rail-that-only-passed-is-untested" project="bakery">
+  <title>A rail that has only ever passed has not been tested, and a passing one can be blind</title>
+  <trigger>Writing a check whose purpose is to catch a defect elsewhere: a parity test, a catalogue diff, a coverage rail, a lint rule.</trigger>
+  <rule>Red-prove every rail before believing it: remove one member it claims to cover and confirm it fails, naming that member. A green run proves the rail does not object to the current tree, not that it would object to a bad one.</rule>
+  <rule>A rail can also pass while proving nothing, which a red-proof of the FINAL version will not reveal if the blindness is in what it considers a match. Check the rail's verdict against ground truth computed independently of the rail: enumerate the population by hand or by a second method and compare counts. Here two successive versions passed while checking nothing - the first counted directories, the second grepped for a schema name, and a dangling reference contains the name too.</rule>
+  <rule>When the ground truth and the rail disagree, suspect the rail first and the world second, in that order, every time. This is the third instance in one night of an instrument reporting confidently and wrongly.</rule>
+  <verification>
+    <requirement>Record for each rail: the exact mutation applied, the observed failure message, and the independently computed ground truth for the population it covers. A rail whose red-proof is not recorded is treated as absent, not as passing.</requirement>
+  </verification>
+</learning>
